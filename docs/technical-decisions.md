@@ -33,6 +33,10 @@ know yet.
 
 ## Design constraints for future expansion
 
+The authoritative rules for replayable simulation are in
+[Simulation contract](simulation-contract.md). They apply before any gameplay
+system is introduced.
+
 - Keep interaction data explicit: source ID, event type, world position,
   strength, duration, and causal parent.
 - Keep configuration in scenes and ScriptableObjects rather than hidden static

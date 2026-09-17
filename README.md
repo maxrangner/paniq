@@ -1,8 +1,12 @@
 # Paniq
 
-Paniq is a darkly comedic 3D crowd-simulation puzzle game. The player spends
-limited influence to set events in motion and manages the unexpected cascades
-that follow.
+Paniq is a darkly comedic 3D crowd-survival game inspired by the
+indirect-control lineage of *Lemmings*. The player influences an autonomous
+crowd during changing disasters and tries to save as many entities as possible.
+They never command an individual directly: instead, they change the environment
+and eventually may influence what people are capable of doing. Outcomes should
+be surprising but explainable, so players can learn from a chaotic run and do
+better on the next one.
 
 ## Foundation
 

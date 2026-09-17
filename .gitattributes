@@ -1,0 +1,12 @@
+# Keep Unity's text-based assets reviewable in Git.
+*.cs text diff=csharp
+*.asmdef text
+*.asset text
+*.meta text
+*.prefab text
+*.unity text
+*.json text
+*.md text
+
+# Git LFS is intentionally not configured yet. Add it only when large source
+# art or audio assets enter the repository.

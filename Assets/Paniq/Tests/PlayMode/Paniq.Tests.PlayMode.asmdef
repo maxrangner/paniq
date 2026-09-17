@@ -1,0 +1,19 @@
+{
+  "name": "Paniq.Tests.PlayMode",
+  "rootNamespace": "Paniq.Tests",
+  "references": [
+    "Paniq.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

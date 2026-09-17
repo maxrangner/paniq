@@ -6,7 +6,7 @@ that follow.
 
 ## Foundation
 
-- Engine: Unity `6000.3.0f1` (Unity 6.3 LTS)
+- Engine: Unity `6000.3.24f1` (Unity 6.3 LTS)
 - Language: C#
 - Rendering: Universal Render Pipeline (URP)
 - First target: Windows desktop
@@ -37,10 +37,13 @@ do in Unity yourself.
 
 ## Open the project
 
-1. Install Unity Hub and Unity `6000.3.0f1` with Windows Build Support. This
+1. Install Unity Hub and Unity `6000.3.24f1` with Windows Build Support. This
    installs the editor Paniq uses and lets it make Windows game builds.
-2. Open this repository folder through Unity Hub. Unity will import the project
-   files; the first import can take a few minutes.
+2. In Unity Hub, select **Projects**, then choose **From disk**. In the Windows
+   folder picker, select the `D:\dev\paniq` folder itself (not `.git`, `Assets`,
+   or an individual file), then confirm. Do not choose **From repository**:
+   Paniq already exists on this computer. Unity will import the project files;
+   the first import can take a few minutes.
 3. Allow Package Manager to resolve the packages in `Packages/manifest.json`.
    This downloads the small set of Unity features Paniq currently needs.
 4. Select **Paniq > Project > Configure URP**. This creates the version-matched

@@ -39,7 +39,8 @@ namespace Paniq.Editor
                 Selection.activeObject = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(RenderingFolder);
                 if (!EditorApplication.ExecuteMenuItem(CreateUrpMenuItem))
                 {
-                    throw new InvalidOperationException($"Unity could not execute '{CreateUrpMenuItem}'.");
+                    Debug.LogError($"Unity could not execute '{CreateUrpMenuItem}'.");
+                    return;
                 }
 
                 pipeline = FindUrpPipeline();
@@ -47,7 +48,8 @@ namespace Paniq.Editor
 
             if (pipeline == null)
             {
-                throw new InvalidOperationException("Unity did not create a URP pipeline asset.");
+                Debug.LogError("Unity did not create a URP pipeline asset.");
+                return;
             }
 
             GraphicsSettings.defaultRenderPipeline = pipeline;
@@ -58,14 +60,18 @@ namespace Paniq.Editor
 
         private static RenderPipelineAsset FindUrpPipeline()
         {
-            var assetGuids = AssetDatabase.FindAssets("t:UniversalRenderPipelineAsset", new[] { RenderingFolder });
-            if (assetGuids.Length == 0)
+            var assetGuids = AssetDatabase.FindAssets(string.Empty, new[] { RenderingFolder });
+            foreach (var assetGuid in assetGuids)
             {
-                return null;
+                var assetPath = AssetDatabase.GUIDToAssetPath(assetGuid);
+                var pipeline = AssetDatabase.LoadAssetAtPath<RenderPipelineAsset>(assetPath);
+                if (pipeline != null)
+                {
+                    return pipeline;
+                }
             }
 
-            var assetPath = AssetDatabase.GUIDToAssetPath(assetGuids[0]);
-            return AssetDatabase.LoadAssetAtPath<RenderPipelineAsset>(assetPath);
+            return null;
         }
 
         private static void EnsureFolder(string targetFolder)

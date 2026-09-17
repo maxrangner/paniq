@@ -4,7 +4,7 @@
 
 | Area | Decision | Reason |
 | --- | --- | --- |
-| Engine | Unity 6.3 LTS (`6000.3.0f1`) | Supported Windows workflow, C#, mature 3D tools, and a future ECS path. |
+| Engine | Unity 6.3 LTS (`6000.3.24f1`) | Supported Windows workflow, C#, mature 3D tools, and a future ECS path. |
 | Rendering | URP | A scalable Unity rendering path suitable for desktop and later mobile quality profiles. |
 | Initial runtime model | GameObjects and C# | Keeps the first vertical slice approachable and fast to iterate. |
 | Input | Unity Input System | Keeps device input separate from game intent. |

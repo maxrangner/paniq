@@ -74,23 +74,42 @@ concepts.
 for death, evacuation, rescue, or another terminal outcome without changing
 this foundation model.
 
-## Vertical-slice terminal outcome extension
+## Prototype terminal outcome extension
 
-The vertical slice adds a separate, simulation-owned `AgentTerminalOutcome`
-record keyed by Agent ID. Its allowed values are `Unresolved`, `Saved`, and
-`Lost`; every initial agent starts `Unresolved`. This is slice-owned runtime
-state, not a new field or status value in the neutral `AgentState` foundation.
+The [fire-reaction prototype](fire-reaction-prototype.md) adds a separate,
+simulation-owned `AgentTerminalOutcome` record keyed by Agent ID. Its allowed
+values are currently `Unresolved` and `Lost`; every initial agent starts
+`Unresolved`. This is prototype-owned runtime state, not a new field or status
+value in the neutral `AgentState` foundation. A later prototype stone that adds
+a way to be rescued may add a `Saved` value.
 
-When the slice resolves an agent as saved or lost, it changes that outcome from
+When the prototype resolves an agent as lost, it changes that outcome from
 `Unresolved`, changes the agent's participation status to
 `NoLongerParticipating`, releases occupancy under the spatial rules, and emits
-the matching immutable causal event as one transition. The final score counts
-`Saved` outcomes over the initial-agent count; it does not infer outcomes from
-event labels or presentation state.
+the matching immutable causal event as one transition. Counts shown to the
+player are read from `AgentTerminalOutcome`, never inferred from event labels
+or presentation state.
+
+## Prototype temperament and body extension
+
+The fire-reaction prototype also keeps two more simulation-owned records per
+Agent ID:
+
+- `AgentPanicTemperament` (`Runner`, `FreezeThenRun`, `FreezeForever`) is
+  dealt once, at tick zero, from the scenario seed. It decides how the person
+  panics and never changes during a run.
+- `AgentBodyState` (`Upright`, `Staggering`, `Fallen`, `GettingUp`) says
+  whether the body is under the person's control. It is separate from what
+  they intend to do, so someone knocked over resumes their intention when
+  they are back up. A person who is not upright requests no movement but
+  still occupies space and can still be caught by fire.
+
+Like the terminal outcome, these are prototype runtime state, not fields of
+the neutral `AgentState` foundation.
 
 ## Replay relevance
 
-The meaning and allowed values of `AgentState`, plus the slice's terminal
+The meaning and allowed values of `AgentState`, plus the prototype's terminal
 outcome record and lifecycle, are replay-relevant. Changes follow the
 [simulation compatibility policy](simulation-contract.md#simulation-compatibility-policy).
 

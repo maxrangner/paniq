@@ -42,7 +42,7 @@ or failed.
 ## Deliberately open
 
 - The player's in-world identity.
-- Specific disasters, locations, and the first vertical-slice scenario.
+- Specific disasters and locations.
 - Exact environmental actions, Influence economy, cards, slow motion, and role
   assignment.
 - Crowd size, individual traits, relationships, and which information is hidden.

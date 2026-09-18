@@ -61,7 +61,7 @@ Not acceptable:
 
 Acceptable:
 
-> **Decision: how realistic should crowd movement look in the first slice?**
+> **Decision: how realistic should crowd movement look in the prototype?**
 >
 > - **Option A — simple crowds (recommended).** People walk to exits and slide
 >   around each other. In a 40-person room it reads as a believable rush, but
@@ -95,7 +95,8 @@ Every completed task ends with a report in this shape:
 ## Scope and structure
 
 - Inspect existing code and documents before changing them.
-- Keep each change tied to the current milestone; avoid speculative systems.
+- Keep each change tied to the current prototype stone (see
+  [`docs/roadmap.md`](docs/roadmap.md)); avoid speculative systems.
 - Keep runtime code under `Assets/Paniq/Runtime` and content under
   `Assets/Paniq/Content`.
 - Use one runtime assembly until real subsystem boundaries require splitting it.
@@ -130,5 +131,7 @@ Every completed task ends with a report in this shape:
 
 - Add or update relevant edit-mode and play-mode tests with behavior changes.
 - Run the available Unity tests before claiming validation passed.
-- Record standalone-build profiling results after each vertical-slice milestone.
+- Record standalone-build profiling results before adopting any scale tooling,
+  and whenever a prototype stone noticeably raises the number of people or
+  visual objects on screen.
 - Do not modify Git history or add Git LFS rules unless explicitly requested.

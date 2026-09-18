@@ -132,7 +132,8 @@ namespace Paniq.Simulation
     {
         None,
         Visual,
-        Yell
+        Yell,
+        Bumped
     }
 
     /// <summary>What an agent is currently choosing to do. Calm and panic activities are separate.</summary>
@@ -144,13 +145,36 @@ namespace Paniq.Simulation
         Socialising,
         Reacting,
         Fleeing,
-        Hesitating
+        Hesitating,
+        Investigating,
+        Frozen,
+        OpeningDoor,
+        TryingDoor,
+        ForcingDoor
+    }
+
+    /// <summary>Seeded personality: how this person reacts once scared.</summary>
+    public enum AgentPanicTemperament
+    {
+        Runner,
+        FreezeThenRun,
+        FreezeForever
+    }
+
+    /// <summary>Whether the body is under the person's control. Separate from what they intend to do.</summary>
+    public enum AgentBodyState
+    {
+        Upright,
+        Staggering,
+        Fallen,
+        GettingUp
     }
 
     public enum AgentTerminalOutcome
     {
         Unresolved,
-        Lost
+        Lost,
+        Escaped
     }
 
     public enum FireReactionEventType
@@ -160,6 +184,72 @@ namespace Paniq.Simulation
         AgentAlerted,
         AgentYelled,
         AgentScared,
-        AgentLost
+        AgentLost,
+        AgentNoticedSound,
+        AgentsCollided,
+        AgentKnockedDown,
+        AgentTripped,
+        AgentGotUp,
+        AgentFroze,
+        AgentUnfroze,
+        DoorUnlocked,
+        DoorOpened,
+        AgentTriedDoor,
+        AgentForcedDoor,
+        AgentGaveUpOnDoor,
+        AgentEscaped,
+        BoxBumped,
+        BoxHitAgent,
+        BoxesCollided
+    }
+
+    /// <summary>Which wall of the room a door sits in. North is +Z, east is +X.</summary>
+    public enum WallSide
+    {
+        North,
+        East,
+        South,
+        West
+    }
+
+    /// <summary>Locked and unlocked doors are both shut; people can only tell them apart by trying.</summary>
+    public enum DoorState
+    {
+        Locked,
+        Unlocked,
+        Open
+    }
+
+    /// <summary>The shapes the physical-object system knows. Only boxes so far.</summary>
+    public enum PhysicsObjectKind
+    {
+        Box
+    }
+
+    public enum PlayerCommandType
+    {
+        /// <summary>Locked becomes unlocked; unlocked becomes open; open stays open.</summary>
+        ClickDoor
+    }
+
+    /// <summary>
+    /// One player action, already turned into simulation data. It is consumed
+    /// at the start of its target tick; commands sharing a tick run in
+    /// sequence order.
+    /// </summary>
+    public readonly struct PlayerCommand
+    {
+        public PlayerCommand(int targetTick, long sequence, PlayerCommandType commandType, StableAgentId targetId)
+        {
+            TargetTick = targetTick;
+            Sequence = sequence;
+            CommandType = commandType;
+            TargetId = targetId;
+        }
+
+        public int TargetTick { get; }
+        public long Sequence { get; }
+        public PlayerCommandType CommandType { get; }
+        public StableAgentId TargetId { get; }
     }
 }

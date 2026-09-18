@@ -33,9 +33,10 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Blends the goal direction with a push away from people inside
-        /// personal space, a push away from nearby walls, and an optional
-        /// extra direction (panic following). Weights are percentages of a
-        /// unit goal vector.
+        /// personal space, a push away from loose objects, a push away from
+        /// nearby walls (except the wall of the door the agent is lined up
+        /// with), and an optional extra direction (panic following). Weights
+        /// are percentages of a unit goal vector.
         /// </summary>
         private int SteerHeading(
             int agentIndex,
@@ -43,6 +44,7 @@ namespace Paniq.Simulation
             int goalHeading,
             int peopleAvoidPercent,
             int wallAvoidPercent,
+            int objectAvoidPercent,
             long extraX = 0L,
             long extraZ = 0L)
         {
@@ -76,15 +78,35 @@ namespace Paniq.Simulation
                 }
             }
 
+            if (objectAvoidPercent > 0)
+            {
+                AddObjectAvoidance(agent, objectAvoidPercent, ref steerX, ref steerZ);
+            }
+
             long wall = scenario.WallAvoidDistanceMillimetres;
-            if (wall > 0L && wallAvoidPercent > 0)
+            if (wall > 0L && wallAvoidPercent > 0 && IsInsideRoom(agent.Position))
             {
                 LogicalBounds room = scenario.RoomBounds;
                 int radius = scenario.OccupancyRadiusMillimetres;
-                steerX += WallPush(agent.Position.X - radius - room.MinX, wall, wallAvoidPercent);
-                steerX -= WallPush(room.MaxX - radius - agent.Position.X, wall, wallAvoidPercent);
-                steerZ += WallPush(agent.Position.Z - radius - room.MinZ, wall, wallAvoidPercent);
-                steerZ -= WallPush(room.MaxZ - radius - agent.Position.Z, wall, wallAvoidPercent);
+                if (!IsLinedUpWithExit(agent, WallSide.West))
+                {
+                    steerX += WallPush(agent.Position.X - radius - room.MinX, wall, wallAvoidPercent);
+                }
+
+                if (!IsLinedUpWithExit(agent, WallSide.East))
+                {
+                    steerX -= WallPush(room.MaxX - radius - agent.Position.X, wall, wallAvoidPercent);
+                }
+
+                if (!IsLinedUpWithExit(agent, WallSide.South))
+                {
+                    steerZ += WallPush(agent.Position.Z - radius - room.MinZ, wall, wallAvoidPercent);
+                }
+
+                if (!IsLinedUpWithExit(agent, WallSide.North))
+                {
+                    steerZ -= WallPush(room.MaxZ - radius - agent.Position.Z, wall, wallAvoidPercent);
+                }
             }
 
             return IntegerMath.HeadingOf(steerX, steerZ, goalHeading);
@@ -103,9 +125,11 @@ namespace Paniq.Simulation
         /// <summary>
         /// Converts heading and speed into this tick's requested
         /// displacement. The agent chooses a valid step itself: along a wall
-        /// it keeps the along-wall part of its step, and if a person blocks
-        /// the way it tries a small side-step. The movement resolver still
-        /// has the final say.
+        /// it keeps the along-wall part of its step, and if a person or box
+        /// blocks the way it tries a small side-step. A runner too fast to
+        /// dodge runs into a person or kicks a box instead; a walker with no
+        /// way around a box pushes it. The movement resolver still has the
+        /// final say.
         /// </summary>
         private LogicalPosition ChooseDisplacement(int agentIndex, AgentRuntime agent)
         {
@@ -115,9 +139,19 @@ namespace Paniq.Simulation
             }
 
             LogicalPosition straight = StepAlong(agent, agent.Heading);
-            if (!IsZero(straight) && IsMovementValid(agentIndex, agent.Position, agent.Position + straight))
+            if (!IsZero(straight))
             {
-                return straight;
+                if (IsMovementValid(agentIndex, agent.Position, agent.Position + straight))
+                {
+                    return straight;
+                }
+
+                // Too fast to dodge someone upright: run into them (resolved after movement).
+                if (TryRecordBump(agentIndex, agent, straight, false) ||
+                    TryRecordObjectContact(agentIndex, agent, straight, true))
+                {
+                    return new LogicalPosition(0, 0);
+                }
             }
 
             // Alternate which side is tried first so a crowd does not all
@@ -139,23 +173,24 @@ namespace Paniq.Simulation
                 agent.Speed = 0;
                 agent.BlockedTicks++;
             }
+            else if (TryRecordBump(agentIndex, agent, straight, true))
+            {
+                // No way around someone lying on the floor: trip over them.
+                return new LogicalPosition(0, 0);
+            }
+            else if (TryRecordObjectContact(agentIndex, agent, straight, false))
+            {
+                // No way around a box: push it.
+                return new LogicalPosition(0, 0);
+            }
 
             return straight;
         }
 
         private LogicalPosition StepAlong(AgentRuntime agent, int heading)
         {
-            LogicalPosition destination = ClampIntoRoom(agent.Position + IntegerMath.Displacement(heading, agent.Speed));
+            LogicalPosition destination = ClampIntoWalkable(agent, agent.Position + IntegerMath.Displacement(heading, agent.Speed));
             return destination - agent.Position;
-        }
-
-        private LogicalPosition ClampIntoRoom(LogicalPosition position)
-        {
-            LogicalBounds room = scenario.RoomBounds;
-            int radius = scenario.OccupancyRadiusMillimetres;
-            return new LogicalPosition(
-                Math.Max(room.MinX + radius, Math.Min(room.MaxX - radius, position.X)),
-                Math.Max(room.MinZ + radius, Math.Min(room.MaxZ - radius, position.Z)));
         }
 
         private static bool IsZero(LogicalPosition displacement) => displacement.X == 0 && displacement.Z == 0;

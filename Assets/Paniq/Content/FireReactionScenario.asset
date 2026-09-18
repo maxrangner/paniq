@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: FireReactionScenario
   m_EditorClassIdentifier:
   scenarioId: fire-reaction-prototype
-  contentRevision: '10'
+  contentRevision: '12'
   defaultSeed: 42
-  simulationCompatibilityVersion: 2
+  simulationCompatibilityVersion: 4
   roomBounds:
     minX: -6000
     maxX: 6000
@@ -62,6 +62,51 @@ MonoBehaviour:
   escapeSampleCount: 8
   dangerDistanceMillimetres: 1500
   followRadiusMillimetres: 2500
+  panicShoutMinimumTicks: 100
+  panicShoutMaximumTicks: 250
+  freezeThenRunPercent: 30
+  freezeForeverPercent: 15
+  freezeMinimumTicks: 100
+  freezeMaximumTicks: 300
+  yellHearingRadiusMillimetres: 6000
+  fireHearingRadiusMillimetres: 3500
+  bumpSoundRadiusMillimetres: 3000
+  investigateMinimumTicks: 50
+  investigateMaximumTicks: 125
+  bumpMinimumSpeed: 50
+  knockdownClosingSpeed: 100
+  staggerMinimumTicks: 10
+  staggerMaximumTicks: 20
+  knockdownMinimumTicks: 60
+  knockdownMaximumTicks: 140
+  getUpTicks: 25
+  tripChancePercent: 4
+  tripMinimumSpeed: 60
+  tripMinimumTicks: 40
+  tripMaximumTicks: 100
+  doorwayDepthMillimetres: 2000
+  escapeDepthMillimetres: 800
+  doorOpenTicks: 20
+  doorTryTicks: 25
+  doorForceChancePercent: 60
+  doorForceMinimumTicks: 75
+  doorForceMaximumTicks: 200
+  doorShoveMinimumTicks: 20
+  doorShoveMaximumTicks: 30
+  doorAvoidMinimumTicks: 300
+  doorAvoidMaximumTicks: 600
+  doorCrowdedAvoidMinimumTicks: 100
+  doorCrowdedAvoidMaximumTicks: 200
+  agentMassGrams: 70000
+  objectFriction: 157
+  objectAgentRestitutionPercent: 30
+  objectObjectRestitutionPercent: 40
+  objectWallRestitutionPercent: 30
+  objectTripMinimumSpeed: 60
+  objectTripScale: 500
+  objectTripMaximumChancePercent: 75
+  objectStaggerMomentum: 800
+  objectKnockdownMomentum: 1600
   agents:
   - agentId:
       value: 1001
@@ -123,3 +168,89 @@ MonoBehaviour:
       x: 0
       z: -1800
     initialFacingDirection: 0
+  doors:
+  - doorId:
+      value: 2001
+    side: 0
+    centreAlongWallMillimetres: -2500
+    widthMillimetres: 1000
+  - doorId:
+      value: 2002
+    side: 1
+    centreAlongWallMillimetres: 2500
+    widthMillimetres: 1000
+  - doorId:
+      value: 2003
+    side: 2
+    centreAlongWallMillimetres: 2500
+    widthMillimetres: 1000
+  - doorId:
+      value: 2004
+    side: 3
+    centreAlongWallMillimetres: -2500
+    widthMillimetres: 1000
+  physicsObjects:
+  - objectId:
+      value: 3001
+    kind: 0
+    initialPosition:
+      x: -2000
+      z: -3750
+    sizeMillimetres: 400
+    massGrams: 6000
+  - objectId:
+      value: 3002
+    kind: 0
+    initialPosition:
+      x: 2000
+      z: -3750
+    sizeMillimetres: 300
+    massGrams: 3000
+  - objectId:
+      value: 3003
+    kind: 0
+    initialPosition:
+      x: 4000
+      z: -1250
+    sizeMillimetres: 500
+    massGrams: 12000
+  - objectId:
+      value: 3004
+    kind: 0
+    initialPosition:
+      x: -4000
+      z: 1250
+    sizeMillimetres: 600
+    massGrams: 20000
+  - objectId:
+      value: 3005
+    kind: 0
+    initialPosition:
+      x: -2000
+      z: 3750
+    sizeMillimetres: 350
+    massGrams: 4000
+  - objectId:
+      value: 3006
+    kind: 0
+    initialPosition:
+      x: 2000
+      z: 1250
+    sizeMillimetres: 450
+    massGrams: 9000
+  - objectId:
+      value: 3007
+    kind: 0
+    initialPosition:
+      x: 4000
+      z: 3750
+    sizeMillimetres: 300
+    massGrams: 3000
+  - objectId:
+      value: 3008
+    kind: 0
+    initialPosition:
+      x: -4000
+      z: -1250
+    sizeMillimetres: 400
+    massGrams: 6000

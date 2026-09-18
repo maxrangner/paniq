@@ -50,5 +50,54 @@ namespace Paniq.Tests.PlayMode
             Assert.That(fire.activeSelf, Is.True);
             Assert.That(fire.transform.childCount, Is.GreaterThanOrEqualTo(3), "Expected a scorch tile plus flame cubes.");
         }
+
+        [UnityTest]
+        public IEnumerator FireReactionPrototype_DoorClicksUnlockThenOpen()
+        {
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+
+            Paniq.Gameplay.FireReactionRunner runner = Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>();
+            Assert.That(runner, Is.Not.Null);
+            GameObject leaf = GameObject.Find("Door 2001 (click target)");
+            Assert.That(leaf, Is.Not.Null, "Expected a clickable door leaf in the north wall.");
+            Assert.That(leaf.GetComponent<Collider>(), Is.Not.Null, "The door leaf needs a collider to be clicked.");
+            Assert.That(Object.FindObjectsByType<Transform>(FindObjectsSortMode.None),
+                Has.Some.Property("name").EqualTo("Box 3001 (presentation)"));
+
+            var door = new Paniq.Simulation.StableAgentId(2001UL);
+            runner.QueueDoorClick(door);
+            runner.StepForTests();
+            Assert.That(DoorState(runner, door), Is.EqualTo(Paniq.Simulation.DoorState.Unlocked));
+            runner.QueueDoorClick(door);
+            runner.StepForTests();
+            Assert.That(DoorState(runner, door), Is.EqualTo(Paniq.Simulation.DoorState.Open));
+
+            // Let the leaf swing open on screen.
+            float before = leaf.transform.parent.eulerAngles.y;
+            float deadline = Time.realtimeSinceStartup + 2f;
+            while (Mathf.Abs(Mathf.DeltaAngle(before, leaf.transform.parent.eulerAngles.y)) < 80f &&
+                   Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+            }
+
+            Assert.That(Mathf.Abs(Mathf.DeltaAngle(before, leaf.transform.parent.eulerAngles.y)), Is.GreaterThan(80f),
+                "The opened door did not swing open.");
+        }
+
+        private static Paniq.Simulation.DoorState DoorState(
+            Paniq.Gameplay.FireReactionRunner runner,
+            Paniq.Simulation.StableAgentId door)
+        {
+            foreach (Paniq.Simulation.FireReactionDoorSnapshot snapshot in runner.Snapshot.Doors)
+            {
+                if (snapshot.DoorId == door)
+                {
+                    return snapshot.State;
+                }
+            }
+
+            throw new System.Collections.Generic.KeyNotFoundException(door.ToString());
+        }
     }
 }

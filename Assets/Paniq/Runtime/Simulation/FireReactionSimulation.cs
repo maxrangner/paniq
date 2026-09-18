@@ -6,7 +6,8 @@ namespace Paniq.Simulation
     /// <summary>
     /// The complete deterministic fire-reaction run. It has no Unity object or
     /// presentation dependency; FireReactionRunner is the only Unity tick owner.
-    /// Behaviour is split across partial files: Fire, Steering, Calm, Panic.
+    /// Behaviour is split across partial files: Fire, Steering, Calm, Panic,
+    /// Sound, Collisions, Doors, Physics.
     /// </summary>
     public sealed partial class FireReactionSimulation
     {
@@ -51,6 +52,27 @@ namespace Paniq.Simulation
             public int ReactionDelayTicks;
             public int ReactionEndTick;
             public ulong AlertEventId;
+            public ulong ScaredEventId;
+            public AgentPanicTemperament Temperament;
+            public int FreezeEndTick;
+            public ulong FrozeEventId;
+            public int NextShoutTick;
+
+            // Hearing: where the last noise worth turning toward came from.
+            public LogicalPosition SoundPoint;
+            public bool HasSoundPoint;
+            public int InvestigateStartTick;
+
+            // Body: staggering, lying on the floor, or getting up.
+            public AgentBodyState BodyState;
+            public int BodyEndTick;
+            public ulong BodyEventId;
+
+            // Doors: the one being run for, and ones that recently would not open.
+            public int ExitDoorIndex = -1;
+            public int[] DoorAvoidUntilTick;
+            public ulong DoorAttemptEventId;
+            public int NextShoveTick;
         }
 
         private readonly FireReactionScenarioData scenario;
@@ -73,6 +95,8 @@ namespace Paniq.Simulation
             scenario.Validate();
             random = new Pcg32(seedOverride ?? scenario.DefaultSeed);
             InitializeFire();
+            InitializeDoors();
+            InitializePhysicsObjects();
 
             var definitions = (FireReactionAgentDefinition[])scenario.Agents.Clone();
             Array.Sort(definitions, (left, right) => left.AgentId.CompareTo(right.AgentId));
@@ -97,8 +121,42 @@ namespace Paniq.Simulation
                     CalmTurnRate = random.NextIntInclusive(scenario.CalmTurnRateMinimum, scenario.CalmTurnRateMaximum),
                     PanicTurnRate = random.NextIntInclusive(scenario.PanicTurnRateMinimum, scenario.PanicTurnRateMaximum),
                     // Stagger first decisions so the room does not start in lockstep.
-                    ActivityEndTick = random.NextIntInclusive(1, scenario.CalmDecisionMaximumTicks)
+                    ActivityEndTick = random.NextIntInclusive(1, scenario.CalmDecisionMaximumTicks),
+                    DoorAvoidUntilTick = new int[doors.Length]
                 };
+            }
+
+            DealTemperaments();
+        }
+
+        /// <summary>
+        /// Temperaments are dealt like a shuffled deck rather than rolled one
+        /// by one, so every room gets the authored mix (10 people: 2 freeze
+        /// for good, 3 freeze for a while, 5 run) and only who-gets-which is
+        /// left to the seed.
+        /// </summary>
+        private void DealTemperaments()
+        {
+            int count = agents.Length;
+            int freezeForever = (count * scenario.FreezeForeverPercent + 50) / 100;
+            int freezeThenRun = Math.Min(count - freezeForever, (count * scenario.FreezeThenRunPercent + 50) / 100);
+            var deck = new AgentPanicTemperament[count];
+            for (int i = 0; i < count; i++)
+            {
+                deck[i] = i < freezeForever ? AgentPanicTemperament.FreezeForever
+                    : i < freezeForever + freezeThenRun ? AgentPanicTemperament.FreezeThenRun
+                    : AgentPanicTemperament.Runner;
+            }
+
+            for (int i = count - 1; i > 0; i--)
+            {
+                int j = random.NextIntInclusive(0, i);
+                (deck[i], deck[j]) = (deck[j], deck[i]);
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                agents[i].Temperament = deck[i];
             }
         }
 
@@ -124,17 +182,21 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// One logical tick, in the simulation contract's order: hazard,
-        /// hazard contact, agent decisions (ascending ID), movement
-        /// resolution, then contact along accepted moves.
+        /// One logical tick, in the simulation contract's order: player
+        /// commands, hazard, hazard contact, agent decisions (ascending ID),
+        /// movement resolution with contact along accepted moves, exits,
+        /// collisions, then physical objects.
         /// </summary>
         public void Step()
         {
             tick = checked(tick + 1);
+            ConsumeCommands();
             AdvanceFire();
             ResolveCurrentFireContact();
 
             requests.Clear();
+            bumps.Clear();
+            objectContacts.Clear();
             for (int i = 0; i < agents.Length; i++)
             {
                 AgentRuntime agent = agents[i];
@@ -144,6 +206,12 @@ namespace Paniq.Simulation
                 }
 
                 UpdateFear(agent);
+                if (UpdateBody(agent))
+                {
+                    // Staggering, on the floor or getting up: no control, no move.
+                    continue;
+                }
+
                 switch (agent.FearState)
                 {
                     case AgentFearState.Calm:
@@ -157,6 +225,13 @@ namespace Paniq.Simulation
                         break;
                 }
 
+                if (agent.BodyState != AgentBodyState.Upright)
+                {
+                    // Tripped during this decision.
+                    agent.Speed = 0;
+                    continue;
+                }
+
                 LogicalPosition displacement = ChooseDisplacement(i, agent);
                 if (displacement.X != 0 || displacement.Z != 0)
                 {
@@ -165,6 +240,9 @@ namespace Paniq.Simulation
             }
 
             ResolveMovement();
+            ResolveExits();
+            ResolveCollisions();
+            AdvancePhysicsObjects();
         }
 
         public FireReactionSnapshot GetSnapshot()
@@ -182,6 +260,8 @@ namespace Paniq.Simulation
                 scenario.FireCellSizeMillimetres,
                 GetFireCells(),
                 agentSnapshots,
+                GetDoorSnapshots(),
+                GetPhysicsObjectSnapshots(),
                 eventLog.ToArray());
         }
 
@@ -193,10 +273,17 @@ namespace Paniq.Simulation
             }
 
             bool enteredAlert = false;
-            if (agent.FearState == AgentFearState.Calm && SeesFire(agent))
+            if (agent.FearState == AgentFearState.Calm)
             {
-                StartVisualAlert(agent);
-                enteredAlert = true;
+                if (SeesFire(agent))
+                {
+                    StartVisualAlert(agent);
+                    enteredAlert = true;
+                }
+                else if (agent.Activity != AgentActivityState.Investigating)
+                {
+                    TryHearFire(agent);
+                }
             }
 
             if (agent.FearState != AgentFearState.Alert)
@@ -204,7 +291,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            if (!enteredAlert && agent.AlertSource == AgentAlertSource.Yell && SeesFire(agent))
+            if (!enteredAlert && agent.AlertSource != AgentAlertSource.Visual && SeesFire(agent))
             {
                 PromoteAlertToVisual(agent);
             }
@@ -217,7 +304,10 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>A startled agent stops and, if it saw the fire, turns to face it.</summary>
+        /// <summary>
+        /// A startled agent stops. If it saw the fire it turns to face it;
+        /// if it was yelled at or bumped, it turns toward where that came from.
+        /// </summary>
         private void UpdateAlert(AgentRuntime agent)
         {
             agent.Activity = AgentActivityState.Reacting;
@@ -225,10 +315,11 @@ namespace Paniq.Simulation
             if (agent.AlertSource == AgentAlertSource.Visual &&
                 NearestFireDistanceSquared(agent.Position, out LogicalPosition firePoint) < long.MaxValue)
             {
-                goalHeading = IntegerMath.HeadingOf(
-                    (long)firePoint.X - agent.Position.X,
-                    (long)firePoint.Z - agent.Position.Z,
-                    agent.Heading);
+                goalHeading = HeadingBetween(agent.Position, firePoint, agent.Heading);
+            }
+            else if (agent.HasSoundPoint)
+            {
+                goalHeading = HeadingBetween(agent.Position, agent.SoundPoint, agent.Heading);
             }
 
             ApplyBody(agent, goalHeading, 0, agent.PanicTurnRate, scenario.PanicAcceleration);
@@ -237,15 +328,22 @@ namespace Paniq.Simulation
         private void StartVisualAlert(AgentRuntime agent)
         {
             ulong alertEventId = StartAlert(agent, fireActivationEventId, AgentAlertSource.Visual);
+            Yell(agent, alertEventId);
+        }
+
+        /// <summary>A yell is a sound: understood (alarming) close by, merely heard further away.</summary>
+        private void Yell(AgentRuntime agent, ulong causalParentEventId)
+        {
             CausalEvent yell = eventLog.Append(
                 tick,
                 agent.Id,
                 FireReactionEventType.AgentYelled,
                 agent.Position,
-                scenario.YellRadiusMillimetres,
+                scenario.YellHearingRadiusMillimetres,
                 0,
-                alertEventId);
-            PropagateYell(agent, yell.EventId);
+                causalParentEventId);
+            EmitSound(agent.Id, agent.Position, scenario.YellHearingRadiusMillimetres,
+                scenario.YellRadiusMillimetres, yell.EventId);
         }
 
         private void PromoteAlertToVisual(AgentRuntime agent)
@@ -268,6 +366,7 @@ namespace Paniq.Simulation
             agent.AlertSource = alertSource;
             agent.Activity = AgentActivityState.Reacting;
             agent.SocialPartnerIndex = -1;
+            agent.HasSoundPoint = false;
             agent.ReactionDelayTicks = random.NextIntInclusive(0, scenario.MaximumReactionDelayTicks);
             agent.ReactionEndTick = checked(tick + agent.ReactionDelayTicks);
             CausalEvent alert = eventLog.Append(
@@ -282,24 +381,10 @@ namespace Paniq.Simulation
             return alert.EventId;
         }
 
-        private void PropagateYell(AgentRuntime detector, ulong yellEventId)
-        {
-            long yellRadiusSquared = checked((long)scenario.YellRadiusMillimetres * scenario.YellRadiusMillimetres);
-            for (int i = 0; i < agents.Length; i++)
-            {
-                AgentRuntime listener = agents[i];
-                if (listener.Id == detector.Id ||
-                    listener.Participation != AgentParticipation.Participating ||
-                    listener.FearState != AgentFearState.Calm ||
-                    LogicalPosition.DistanceSquared(listener.Position, detector.Position) > yellRadiusSquared)
-                {
-                    continue;
-                }
-
-                StartAlert(listener, yellEventId, AgentAlertSource.Yell);
-            }
-        }
-
+        /// <summary>
+        /// Panic takes one of three shapes, fixed per person: run, freeze and
+        /// then run, or freeze for good.
+        /// </summary>
         private void MakeScared(AgentRuntime agent)
         {
             if (agent.FearState == AgentFearState.Scared)
@@ -308,9 +393,7 @@ namespace Paniq.Simulation
             }
 
             agent.FearState = AgentFearState.Scared;
-            agent.Activity = AgentActivityState.Fleeing;
-            agent.NextPanicDecisionTick = tick;
-            eventLog.Append(
+            CausalEvent scared = eventLog.Append(
                 tick,
                 agent.Id,
                 FireReactionEventType.AgentScared,
@@ -318,6 +401,36 @@ namespace Paniq.Simulation
                 burningCells.Count,
                 0,
                 agent.AlertEventId != 0UL ? agent.AlertEventId : fireActivationEventId);
+            agent.ScaredEventId = scared.EventId;
+
+            if (agent.Temperament == AgentPanicTemperament.Runner)
+            {
+                StartFleeing(agent);
+                return;
+            }
+
+            agent.Activity = AgentActivityState.Frozen;
+            agent.FreezeEndTick = agent.Temperament == AgentPanicTemperament.FreezeForever
+                ? int.MaxValue
+                : checked(tick + random.NextIntInclusive(scenario.FreezeMinimumTicks, scenario.FreezeMaximumTicks));
+            CausalEvent froze = eventLog.Append(
+                tick,
+                agent.Id,
+                FireReactionEventType.AgentFroze,
+                agent.Position,
+                0,
+                agent.FreezeEndTick == int.MaxValue ? 0 : agent.FreezeEndTick - tick,
+                scared.EventId);
+            agent.FrozeEventId = froze.EventId;
+        }
+
+        private void StartFleeing(AgentRuntime agent)
+        {
+            agent.Activity = AgentActivityState.Fleeing;
+            agent.NextPanicDecisionTick = tick;
+            agent.NextShoutTick = checked(tick + random.NextIntInclusive(
+                scenario.PanicShoutMinimumTicks,
+                scenario.PanicShoutMaximumTicks));
         }
 
         private void MakeLost(AgentRuntime agent, ulong fireCellEventId)
@@ -407,11 +520,19 @@ namespace Paniq.Simulation
         {
             long maximumStep = scenario.MaximumStepDistanceMillimetres;
             if (LogicalPosition.DistanceSquared(start, destination) > maximumStep * maximumStep ||
-                !scenario.RoomBounds.ContainsCircle(destination, scenario.OccupancyRadiusMillimetres))
+                !IsInWalkableSpace(agents[agentIndex], destination) ||
+                ClipsDoorFrame(start, destination))
             {
                 return false;
             }
 
+            return FindBlockingAgent(agentIndex, start, destination) < 0 &&
+                   FindBlockingObject(start, destination, scenario.OccupancyRadiusMillimetres) < 0;
+        }
+
+        /// <summary>The lowest-index participating person this move would pass through, or -1.</summary>
+        private int FindBlockingAgent(int agentIndex, LogicalPosition start, LogicalPosition destination)
+        {
             long touching = (long)scenario.OccupancyRadiusMillimetres * 2L;
             long touchingSquared = touching * touching;
             for (int i = 0; i < agents.Length; i++)
@@ -424,11 +545,11 @@ namespace Paniq.Simulation
 
                 if (IntegerMath.SegmentPassesWithin(start, destination, other.Position, touchingSquared))
                 {
-                    return false;
+                    return i;
                 }
             }
 
-            return true;
+            return -1;
         }
 
         private static FireReactionAgentSnapshot ToSnapshot(AgentRuntime agent)
@@ -445,7 +566,9 @@ namespace Paniq.Simulation
                 agent.Speed,
                 agent.CalmSpeed,
                 agent.PanicSpeed,
-                agent.ReactionDelayTicks);
+                agent.ReactionDelayTicks,
+                agent.Temperament,
+                agent.BodyState);
         }
 
         private readonly struct MovementRequest

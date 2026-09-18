@@ -1,30 +1,52 @@
-# Roadmap: foundation to vertical slice
+# Prototype roadmap
 
-This is Paniq's implementation order, not a gameplay-design document or a
-schedule. Each row is small enough to use as the brief for one subsequent
-planning task.
+The prototype is built stone by stone (see [goals](goals.md) for what
+"prototype" means here). This page records the stones laid so far and how the
+next one is chosen. It is not a schedule and not a feature list for the
+finished game.
 
-| Status | Stage | Required output | Excludes |
-| --- | --- | --- | --- |
-| Complete | Lean project foundation | Unity project, scenes, runtime assembly, placeholder content path, and smoke tests | Playable mechanics |
-| Complete | Simulation contract | Rules for deterministic ticks, randomness, identity, events, processing order, and presentation separation | Agent, hazard, movement, and intervention behaviour |
-| Complete | [Scenario data versus runtime state](scenario-runtime-state.md) | A design note that separates authored scenario configuration from mutable run state, including replay-relevant seed and compatibility data | Agent decisions, hazards, movement, and player powers |
-| Complete | [Agent state model](agent-state-model.md) | A design note for the minimum stable, simulation-owned state an autonomous agent needs | Agent decision logic, crowd behaviour, or content-specific reactions |
-| Complete | [Causal event log and debugging view](causal-event-log.md) | A design note for retaining, querying, and presenting the contract's causal events | New event mechanics or player-facing UI design |
-| Complete | [Movement and spatial-world rules](spatial-world-rules.md) | A design note for logical position, world constraints, occupancy, and simple movement rules | Navigation technology, hazards, and player intervention |
-| Prototype | [Fire-reaction prototype](fire-reaction-prototype.md) | One room, ten autonomous agents, and a deterministic expanding fire that makes agents flee or become lost | Player interaction, exits, score, navigation, and scale tooling |
-| Next | [Vertical-slice integration: systems bring-up](vertical-slice-systems-bringup.md) | One approved compact scenario combining autonomous agents, an evolving disaster, indirect intervention, understandable cause and effect, and a percentage-saved result | Additional scenarios, campaign structure, or scale tooling |
-| Later | Post-slice refinement | Seeded replay checks, event inspection, runtime diagnostics, automated tests, and a standalone Windows profiling record | Further content and premature optimization |
+## Foundation (complete)
 
-## How to use this roadmap
+| Note | What it settles |
+| --- | --- |
+| [Simulation contract](simulation-contract.md) | Ticks, seeded randomness, stable IDs, events, processing order, and the simulation/visuals boundary |
+| [Scenario data versus runtime state](scenario-runtime-state.md) | What is authored versus what changes during a run, including replay data |
+| [Agent state model](agent-state-model.md) | The minimum record each person needs |
+| [Causal event log](causal-event-log.md) | How cause-and-effect events are kept and inspected |
+| [Movement and spatial-world rules](spatial-world-rules.md) | Positions, room bounds, occupancy, and movement resolution |
 
-Plan and complete each row in order. A planning prompt should name the row,
-its required output, its exclusions, and the simulation contract as a binding
-constraint. Do not start vertical-slice integration until the four preceding
-foundation design notes are accepted.
+## Prototype stones laid
 
-After the post-slice refinement checkpoint, follow the broader milestones in
-[Goals and milestones](goals.md) and the evidence gates in
-[Technical decisions](technical-decisions.md). Further content, campaigns or
-sandbox structure, and profiling-led scale tooling are intentionally outside
-this roadmap.
+All stones so far live in the [fire-reaction prototype](fire-reaction-prototype.md)
+scene.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| Room and people | System | A 12 m room with ten capsules and an isometric camera |
+| Seeded fire | System | A fire that starts at a seeded spot after five seconds |
+| Sight and yelling | Behaviour | People who see the fire show `!` and yell `))` to people nearby |
+| Life-like movement | Behaviour | People steer on curves, ease in and out of stops, and keep personal space |
+| Calm loitering | Behaviour | Small independent decisions: stroll, stand, glance around, stand near someone |
+| Panic | Behaviour | Sprinting, changing their mind, zig-zag swerves, hesitations, following others |
+| Spreading grid fire | System | Fire grows square by square, only from squares already burning |
+| Cube fire look | Style | Small glowing cubes that bob, spin, flicker and fade to embers |
+| Panic temperaments | Behaviour | Some people run, some freeze and tremble for a few seconds, some freeze for good |
+| Collisions and falls | Behaviour | Runners collide; hard hits put both on the floor until they get up; runners trip, alone or over fallen people |
+| Noise and curiosity | System | Yells, thuds and fire crackle carry a set distance; calm people turn to see what a noise was |
+| Readable icons | Style | Red `!` pop-up on noticing, sound-wave arcs on yells, a snowflake when frozen, `?` while wondering, floor ripples for noises |
+| Doors and player clicks | System | A red locked door in every wall; click once to unlock it (green), again to swing it open; people who get out count as escaped |
+| Using doors | Behaviour | Runners head for a door, open it if they can, rattle and sometimes shoulder a locked one in vain, then look for another way out |
+| Physical objects: boxes | System | Cardboard boxes that people kick sliding across the floor; a sprinter can trip over one, and a heavy flying box can bowl someone over |
+
+## Choosing the next stone
+
+The owner picks the next stone after playing the current prototype. A stone
+should be small enough to build and play in one step. Its plan names:
+
+1. what the player will see differently;
+2. which layer it is (system, behaviour, or style);
+3. what it deliberately leaves out; and
+4. how it will be checked (tests, and what to look for on screen).
+
+Everything obeys the foundation notes above and the evidence gates in
+[technical decisions](technical-decisions.md).

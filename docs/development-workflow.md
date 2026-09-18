@@ -19,7 +19,7 @@ game-development knowledge to answer.
 - Research current official Unity documentation before recommending unfamiliar
   technology, and provide one recommended path rather than an unexplained list
   of options.
-- Establish broad game identity before deciding slice-specific mechanics. Work
+- Establish broad game identity before deciding detailed mechanics. Work
   from the largest product decision toward the smallest implementation detail.
 - Label design statements as **decided**, **hypothesis**, or **prototype
   question**. Do not promote a hypothesis to a commitment without evidence from
@@ -54,7 +54,8 @@ game-development knowledge to answer.
 
 ## Profiling checkpoint
 
-After each vertical-slice milestone, make a standalone Windows build and record
-the date, hardware, scene, frame rate, frame-time hotspots, active agent count,
-and active event count in the milestone's notes. Use that evidence, not an
+Before adopting any scale tooling, and whenever a prototype stone noticeably
+raises the number of people or visual objects on screen, make a standalone
+Windows build. Record the date, hardware, scene, frame rate, frame-time
+hotspots, active agent count, and active event count in that prototype's note. Use that evidence, not an
 assumed future scale requirement, to justify optimization work.

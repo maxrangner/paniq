@@ -26,10 +26,25 @@ namespace Paniq.Simulation
         {
             int goalHeading = agent.Heading;
             int goalSpeed = 0;
+            int turnRate = agent.CalmTurnRate;
             bool steer = false;
 
             switch (agent.Activity)
             {
+                case AgentActivityState.Investigating:
+                    if (tick >= agent.ActivityEndTick || agent.BlockedTicks > CalmBlockedGiveUpTicks)
+                    {
+                        agent.HasSoundPoint = false;
+                        ChooseCalmActivity(agentIndex, agent, true);
+                        break;
+                    }
+
+                    // A startled head turns fast.
+                    UpdateInvestigating(agent, out goalHeading, out goalSpeed);
+                    turnRate = agent.PanicTurnRate;
+                    steer = goalSpeed > 0;
+                    break;
+
                 case AgentActivityState.Standing:
                     if (TryGetPartner(agent, out AgentRuntime standingPartner))
                     {
@@ -122,10 +137,10 @@ namespace Paniq.Simulation
 
             if (steer)
             {
-                goalHeading = SteerHeading(agentIndex, agent, goalHeading, 100, 150);
+                goalHeading = SteerHeading(agentIndex, agent, goalHeading, 100, 150, 100);
             }
 
-            ApplyBody(agent, goalHeading, goalSpeed, agent.CalmTurnRate, scenario.CalmAcceleration);
+            ApplyBody(agent, goalHeading, goalSpeed, turnRate, scenario.CalmAcceleration);
         }
 
         private void ChooseCalmActivity(int agentIndex, AgentRuntime agent, bool justMoved)

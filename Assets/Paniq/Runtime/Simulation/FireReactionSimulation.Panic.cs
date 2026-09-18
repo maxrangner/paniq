@@ -27,6 +27,43 @@ namespace Paniq.Simulation
             long danger = scenario.DangerDistanceMillimetres;
             bool inDanger = fireDistanceSquared < danger * danger;
 
+            if (agent.Activity == AgentActivityState.Frozen)
+            {
+                if (!ShouldUnfreeze(agent, inDanger))
+                {
+                    // Rooted to the spot, staring at the fire.
+                    int stare = fireDistanceSquared < long.MaxValue
+                        ? HeadingBetween(agent.Position, firePoint, agent.Heading)
+                        : agent.Heading;
+                    ApplyBody(agent, stare, 0, agent.CalmTurnRate, scenario.PanicAcceleration);
+                    return;
+                }
+
+                Unfreeze(agent);
+            }
+
+            if (tick >= agent.NextShoutTick)
+            {
+                Yell(agent, agent.ScaredEventId);
+                agent.NextShoutTick = checked(tick + random.NextIntInclusive(
+                    scenario.PanicShoutMinimumTicks,
+                    scenario.PanicShoutMaximumTicks));
+            }
+
+            if (IsAtDoor(agent) && UpdateDoorAttempt(agent, inDanger))
+            {
+                return;
+            }
+
+            // Heading out through an open door: nothing else matters now.
+            bool leaving = agent.ExitDoorIndex >= 0 &&
+                           doors[agent.ExitDoorIndex].State == DoorState.Open &&
+                           (IsNearExit(agent, DoorCommitDistance) || !IsInsideRoom(agent.Position));
+            if (leaving && agent.Activity == AgentActivityState.Hesitating)
+            {
+                agent.Activity = AgentActivityState.Fleeing;
+            }
+
             if (agent.Activity == AgentActivityState.Hesitating)
             {
                 if (tick < agent.ActivityEndTick && !inDanger)
@@ -39,12 +76,31 @@ namespace Paniq.Simulation
                 agent.Activity = AgentActivityState.Fleeing;
                 DecidePanicMove(agent, false);
             }
-            else if (tick >= agent.NextPanicDecisionTick ||
-                     agent.BlockedTicks >= PanicBlockedGiveUpTicks ||
-                     LogicalPosition.DistanceSquared(agent.Position, agent.Target) <
-                     (long)PanicArrivalDistance * PanicArrivalDistance)
+            else if (HasReachedClosedExit(agent))
             {
-                DecidePanicMove(agent, !inDanger && agent.BlockedTicks < PanicBlockedGiveUpTicks);
+                StartDoorAttempt(agent);
+                ApplyBody(agent, HeadingBetween(agent.Position, DoorPoint(doors[agent.ExitDoorIndex], 0, 0), agent.Heading),
+                    0, agent.PanicTurnRate, scenario.PanicAcceleration);
+                return;
+            }
+            else if (agent.BlockedTicks >= PanicBlockedGiveUpTicks && !(leaving && !IsInsideRoom(agent.Position)))
+            {
+                // Stuck in the crowd: if it was on the way to a door, try another one for a while.
+                AvoidCrowdedExit(agent);
+                DecidePanicMove(agent, false);
+            }
+            else if (!leaving &&
+                     (tick >= agent.NextPanicDecisionTick ||
+                      (agent.ExitDoorIndex < 0 &&
+                       LogicalPosition.DistanceSquared(agent.Position, agent.Target) <
+                       (long)PanicArrivalDistance * PanicArrivalDistance)))
+            {
+                DecidePanicMove(agent, !inDanger);
+            }
+
+            if (agent.BodyState != AgentBodyState.Upright)
+            {
+                return;
             }
 
             if (agent.Activity == AgentActivityState.Hesitating)
@@ -53,9 +109,15 @@ namespace Paniq.Simulation
                 return;
             }
 
+            if (agent.ExitDoorIndex >= 0)
+            {
+                agent.Target = DoorTarget(agent);
+            }
+
             int goalHeading;
-            int swerve = tick < agent.SwerveEndTick ? agent.SwerveOffset : 0;
-            if (inDanger && fireDistanceSquared > 0L)
+            bool nearExit = IsNearExit(agent, DoorNoSwerveDistance);
+            int swerve = tick < agent.SwerveEndTick && !nearExit ? agent.SwerveOffset : 0;
+            if (inDanger && fireDistanceSquared > 0L && !leaving)
             {
                 // Too close: run directly away from the nearest flames.
                 goalHeading = HeadingBetween(firePoint, agent.Position, agent.Heading) + swerve / 2;
@@ -65,18 +127,53 @@ namespace Paniq.Simulation
                 goalHeading = HeadingBetween(agent.Position, agent.Target, agent.Heading) + swerve;
             }
 
-            FollowNearbyRunners(agentIndex, agent, out long followX, out long followZ);
-            goalHeading = SteerHeading(agentIndex, agent, goalHeading, 50, 200, followX, followZ);
+            long followX = 0L;
+            long followZ = 0L;
+            if (!nearExit)
+            {
+                FollowNearbyRunners(agentIndex, agent, out followX, out followZ);
+            }
+
+            goalHeading = SteerHeading(agentIndex, agent, goalHeading, 50, 200, 20, followX, followZ);
             ApplyBody(agent, goalHeading, agent.PanicSpeed, agent.PanicTurnRate, scenario.PanicAcceleration);
         }
 
-        /// <summary>A fresh panicked decision: maybe freeze, otherwise pick a new escape spot and maybe swerve.</summary>
+        private bool ShouldUnfreeze(AgentRuntime agent, bool inDanger)
+        {
+            return agent.Temperament == AgentPanicTemperament.FreezeThenRun &&
+                   (tick >= agent.FreezeEndTick || inDanger);
+        }
+
+        /// <summary>Snapping out of it: log it and start running like everyone else.</summary>
+        private void Unfreeze(AgentRuntime agent)
+        {
+            eventLog.Append(tick, agent.Id, FireReactionEventType.AgentUnfroze, agent.Position, 0, 0, agent.FrozeEventId);
+            StartFleeing(agent);
+            agent.NextShoutTick = tick;
+        }
+
+        /// <summary>
+        /// A fresh panicked decision: maybe trip over your own feet, maybe
+        /// freeze for a split second, otherwise pick a new escape spot and
+        /// maybe swerve.
+        /// </summary>
         private void DecidePanicMove(AgentRuntime agent, bool mayHesitate)
         {
             agent.BlockedTicks = 0;
             agent.NextPanicDecisionTick = checked(tick + random.NextIntInclusive(
                 scenario.PanicDecisionMinimumTicks,
                 scenario.PanicDecisionMaximumTicks));
+
+            if (agent.Speed >= scenario.TripMinimumSpeed)
+            {
+                // Zig-zagging makes a stumble twice as likely.
+                int chance = scenario.TripChancePercent * (tick < agent.SwerveEndTick ? 2 : 1);
+                if (random.NextPercent(chance))
+                {
+                    Trip(agent, agent.ScaredEventId);
+                    return;
+                }
+            }
 
             if (mayHesitate && random.NextPercent(scenario.HesitateChancePercent))
             {
@@ -90,7 +187,8 @@ namespace Paniq.Simulation
             }
 
             agent.Activity = AgentActivityState.Fleeing;
-            agent.Target = ChooseEscapeTarget(agent);
+            agent.ExitDoorIndex = ChooseExitDoor(agent);
+            agent.Target = agent.ExitDoorIndex >= 0 ? DoorTarget(agent) : ChooseEscapeTarget(agent);
             if (random.NextPercent(scenario.SwerveChancePercent))
             {
                 int side = random.NextIntInclusive(0, 1) == 0 ? -1 : 1;

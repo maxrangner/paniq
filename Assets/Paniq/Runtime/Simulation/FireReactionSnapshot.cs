@@ -38,8 +38,12 @@ namespace Paniq.Simulation
             int speedMillimetresPerTick,
             int calmSpeedMillimetresPerTick,
             int panicSpeedMillimetresPerTick,
-            int reactionDelayTicks)
+            int reactionDelayTicks,
+            AgentPanicTemperament temperament,
+            AgentBodyState bodyState)
         {
+            Temperament = temperament;
+            BodyState = bodyState;
             AgentId = agentId;
             Position = position;
             Participation = participation;
@@ -75,6 +79,66 @@ namespace Paniq.Simulation
         public int PanicSpeedMillimetresPerTick { get; }
 
         public int ReactionDelayTicks { get; }
+
+        /// <summary>This agent's seeded way of panicking.</summary>
+        public AgentPanicTemperament Temperament { get; }
+
+        /// <summary>Upright, or staggering, lying on the floor, or getting up.</summary>
+        public AgentBodyState BodyState { get; }
+
+        public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp;
+    }
+
+    /// <summary>A door as the player sees it: where its gap is and whether it is locked, unlocked or open.</summary>
+    public readonly struct FireReactionDoorSnapshot
+    {
+        public FireReactionDoorSnapshot(StableAgentId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state)
+        {
+            DoorId = doorId;
+            Side = side;
+            Centre = centre;
+            WidthMillimetres = widthMillimetres;
+            State = state;
+        }
+
+        public StableAgentId DoorId { get; }
+        public WallSide Side { get; }
+
+        /// <summary>The middle of the door gap, on the wall line.</summary>
+        public LogicalPosition Centre { get; }
+
+        public int WidthMillimetres { get; }
+        public DoorState State { get; }
+    }
+
+    /// <summary>A loose object on the floor, such as a box.</summary>
+    public readonly struct FireReactionPhysicsObjectSnapshot
+    {
+        public FireReactionPhysicsObjectSnapshot(
+            StableAgentId objectId,
+            PhysicsObjectKind kind,
+            LogicalPosition position,
+            int sizeMillimetres,
+            int headingDegrees,
+            int speedMillimetresPerTick)
+        {
+            ObjectId = objectId;
+            Kind = kind;
+            Position = position;
+            SizeMillimetres = sizeMillimetres;
+            HeadingDegrees = headingDegrees;
+            SpeedMillimetresPerTick = speedMillimetresPerTick;
+        }
+
+        public StableAgentId ObjectId { get; }
+        public PhysicsObjectKind Kind { get; }
+        public LogicalPosition Position { get; }
+        public int SizeMillimetres { get; }
+
+        /// <summary>Which way the object is turned; it spins when hit off-centre.</summary>
+        public int HeadingDegrees { get; }
+
+        public int SpeedMillimetresPerTick { get; }
     }
 
     /// <summary>A copied, read-only view of simulation state for presentation and tests.</summary>
@@ -82,6 +146,8 @@ namespace Paniq.Simulation
     {
         private readonly FireReactionAgentSnapshot[] agents;
         private readonly FireCellSnapshot[] fireCells;
+        private readonly FireReactionDoorSnapshot[] doors;
+        private readonly FireReactionPhysicsObjectSnapshot[] physicsObjects;
         private readonly CausalEvent[] events;
 
         internal FireReactionSnapshot(
@@ -91,8 +157,12 @@ namespace Paniq.Simulation
             int fireCellSizeMillimetres,
             FireCellSnapshot[] fireCells,
             FireReactionAgentSnapshot[] agents,
+            FireReactionDoorSnapshot[] doors,
+            FireReactionPhysicsObjectSnapshot[] physicsObjects,
             CausalEvent[] events)
         {
+            this.doors = doors;
+            this.physicsObjects = physicsObjects;
             Tick = tick;
             FireActive = fireActive;
             FireOrigin = fireOrigin;
@@ -109,18 +179,21 @@ namespace Paniq.Simulation
         public IReadOnlyList<FireCellSnapshot> FireCells => fireCells;
         public IReadOnlyList<FireReactionAgentSnapshot> Agents => agents;
         public IReadOnlyList<CausalEvent> Events => events;
+        public IReadOnlyList<FireReactionDoorSnapshot> Doors => doors;
+        public IReadOnlyList<FireReactionPhysicsObjectSnapshot> PhysicsObjects => physicsObjects;
 
         public int CalmCount => Count(AgentFearState.Calm);
         public int ScaredCount => Count(AgentFearState.Scared);
 
-        public int LostCount
+        public int FrozenCount
         {
             get
             {
                 int count = 0;
                 for (int i = 0; i < agents.Length; i++)
                 {
-                    if (agents[i].Outcome == AgentTerminalOutcome.Lost)
+                    if (agents[i].Participation == AgentParticipation.Participating &&
+                        agents[i].ActivityState == AgentActivityState.Frozen)
                     {
                         count++;
                     }
@@ -128,6 +201,40 @@ namespace Paniq.Simulation
 
                 return count;
             }
+        }
+
+        public int DownCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < agents.Length; i++)
+                {
+                    if (agents[i].Participation == AgentParticipation.Participating && agents[i].IsDown)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        public int LostCount => CountOutcome(AgentTerminalOutcome.Lost);
+        public int EscapedCount => CountOutcome(AgentTerminalOutcome.Escaped);
+
+        private int CountOutcome(AgentTerminalOutcome outcome)
+        {
+            int count = 0;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                if (agents[i].Outcome == outcome)
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         private int Count(AgentFearState fearState)

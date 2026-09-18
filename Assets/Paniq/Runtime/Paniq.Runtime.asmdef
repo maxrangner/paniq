@@ -1,7 +1,9 @@
 {
   "name": "Paniq.Runtime",
   "rootNamespace": "Paniq",
-  "references": [],
+  "references": [
+    "Unity.InputSystem"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

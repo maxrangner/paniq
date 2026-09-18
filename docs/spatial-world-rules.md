@@ -63,7 +63,7 @@ initial positions violate the boundary, obstacle, or overlap rules.
 | --- | --- |
 | 20 ms logical tick | Matches the contract's 50 ticks per second while keeping a small, inspectable simulation step. |
 | Integer millimetres | Converts cleanly to Unity metres while avoiding floating-point state for this local-world foundation. |
-| 200 m coordinate span | Accommodates the compact slice while bounding integer collision calculations. |
+| 200 m coordinate span | Accommodates compact prototype rooms while bounding integer collision calculations. |
 | Shared footprint and authored step | Keeps early occupancy and movement rules understandable; varied sizes and speeds remain later work. |
 
 Spatial implementations must calculate coordinate differences and every
@@ -130,7 +130,7 @@ the intended experience.
 
 When spatial runtime code is introduced, its edit-mode tests must cover swept
 obstacle contact, boundary contact, circle touching semantics, agent occupancy,
-and numeric limits. The vertical slice remains obstacle-free; those focused
+and numeric limits. The current prototype is obstacle-free; those focused
 tests validate obstacle semantics without introducing navigation requirements.
 
 ## Fire-reaction prototype notes
@@ -143,6 +143,21 @@ step at the boundary, or tries a small side-step around a person. The resolver
 itself still never slides, reroutes, or retries. The swept-circle test uses the
 exact point-to-segment distance (`IntegerMath.SegmentPassesWithin`), which is
 correct for moves in any direction, not only along the axes.
+
+**Doorways.** Each wall may have doors. A closed door is wall. An open door adds
+a walkable strip as wide as the door, from 1 m inside the wall to 2 m outside
+it. Only a person heading for that door, or already outside the room, may use
+the strip, so calm people still treat every door as wall. A destination is
+valid when the whole footprint fits in the room or in a strip the person may
+use, and the sweep never passes within one body radius of either door-frame
+corner. A person 0.8 m or more outside the wall, lined up with an open door,
+has escaped and leaves occupancy at once.
+
+**Physical objects.** Boxes are round footprints (diameter = box width) that
+also occupy space: a person's sweep may not pass through one, and a box's sweep
+may not pass through a person or another box. Box positions keep hundredths of
+a millimetre so slow slides do not round away, but every overlap test uses
+whole millimetres. Objects stay inside the room and treat doorways as wall.
 
 ## Resolution examples
 

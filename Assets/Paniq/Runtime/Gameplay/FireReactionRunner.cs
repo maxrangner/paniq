@@ -47,6 +47,20 @@ namespace Paniq.Gameplay
             Advance();
         }
 
+        /// <summary>
+        /// A player click on a door, queued for the next tick that has not
+        /// started. Locked becomes unlocked, unlocked becomes open.
+        /// </summary>
+        public void QueueDoorClick(StableAgentId doorId)
+        {
+            if (simulation == null)
+            {
+                return;
+            }
+
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, doorId, simulation.Tick + 1);
+        }
+
         public void StepForTests()
         {
             if (simulation == null)

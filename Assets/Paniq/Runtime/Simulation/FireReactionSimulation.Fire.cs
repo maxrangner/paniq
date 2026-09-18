@@ -207,8 +207,15 @@ namespace Paniq.Simulation
         /// <summary>Squared distance to the nearest burning point, or long.MaxValue when nothing burns.</summary>
         private long NearestFireDistanceSquared(LogicalPosition position, out LogicalPosition nearestPoint)
         {
+            return NearestFireDistanceSquared(position, out nearestPoint, out _);
+        }
+
+        /// <summary>As above, also naming the nearest burning cell (-1 when nothing burns).</summary>
+        private long NearestFireDistanceSquared(LogicalPosition position, out LogicalPosition nearestPoint, out int nearestCell)
+        {
             long nearest = long.MaxValue;
             nearestPoint = position;
+            nearestCell = -1;
             for (int i = 0; i < burningCells.Count; i++)
             {
                 LogicalBounds bounds = CellBounds(burningCells[i]);
@@ -218,6 +225,7 @@ namespace Paniq.Simulation
                 {
                     nearest = distance;
                     nearestPoint = point;
+                    nearestCell = burningCells[i];
                 }
             }
 

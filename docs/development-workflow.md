@@ -10,6 +10,11 @@
 
 ## Assisted development
 
+Communication rules live in [`../AGENTS.md`](../AGENTS.md) and are binding for
+every assistant. In short: plain language, player-facing framing first, a
+concrete example for anything abstract, and no questions that require
+game-development knowledge to answer.
+
 - Begin each task by restating its game-facing outcome in plain language.
 - Research current official Unity documentation before recommending unfamiliar
   technology, and provide one recommended path rather than an unexplained list
@@ -25,10 +30,11 @@
   not replace playtesting or the owner's creative direction.
 - Build and test the smallest version of a proposed system before committing to
   additional layers or dependent systems.
-- Explain new terms when first used and state what the owner should see or be
-  able to do after each Unity editor step.
-- End each task with changed files, validation actually run, and any remaining
-  manual action or limitation. Never present an unrun Unity check as passed.
+- Explain each new term the first time it appears in a response, and state what
+  the owner should see on screen after each Unity editor step.
+- End each task with the report shape defined in `AGENTS.md`: what is different
+  in the game, how to see it, what was verified, and what was not. Never
+  present an unrun Unity check as passed.
 
 ## Scenes and content
 

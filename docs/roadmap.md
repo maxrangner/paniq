@@ -12,6 +12,7 @@ planning task.
 | Complete | [Agent state model](agent-state-model.md) | A design note for the minimum stable, simulation-owned state an autonomous agent needs | Agent decision logic, crowd behaviour, or content-specific reactions |
 | Complete | [Causal event log and debugging view](causal-event-log.md) | A design note for retaining, querying, and presenting the contract's causal events | New event mechanics or player-facing UI design |
 | Complete | [Movement and spatial-world rules](spatial-world-rules.md) | A design note for logical position, world constraints, occupancy, and simple movement rules | Navigation technology, hazards, and player intervention |
+| Prototype | [Fire-reaction prototype](fire-reaction-prototype.md) | One room, ten autonomous agents, and a deterministic expanding fire that makes agents flee or become lost | Player interaction, exits, score, navigation, and scale tooling |
 | Next | [Vertical-slice integration: systems bring-up](vertical-slice-systems-bringup.md) | One approved compact scenario combining autonomous agents, an evolving disaster, indirect intervention, understandable cause and effect, and a percentage-saved result | Additional scenarios, campaign structure, or scale tooling |
 | Later | Post-slice refinement | Seeded replay checks, event inspection, runtime diagnostics, automated tests, and a standalone Windows profiling record | Further content and premature optimization |
 

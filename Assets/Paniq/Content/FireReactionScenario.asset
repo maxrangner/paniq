@@ -1,0 +1,125 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e5f8e9be6b64528aa691500194ea499, type: 3}
+  m_Name: FireReactionScenario
+  m_EditorClassIdentifier:
+  scenarioId: fire-reaction-prototype
+  contentRevision: '10'
+  defaultSeed: 42
+  simulationCompatibilityVersion: 2
+  roomBounds:
+    minX: -6000
+    maxX: 6000
+    minZ: -6000
+    maxZ: 6000
+  occupancyRadiusMillimetres: 250
+  maximumStepDistanceMillimetres: 120
+  visionRangeMillimetres: 3000
+  yellRadiusMillimetres: 2500
+  maximumReactionDelayTicks: 20
+  fireSpawnBounds:
+    minX: -2000
+    maxX: 2000
+    minZ: -2000
+    maxZ: 2000
+  fireActivationTick: 250
+  fireCellSizeMillimetres: 500
+  fireSpreadMinimumTicks: 40
+  fireSpreadMaximumTicks: 120
+  personalSpaceMillimetres: 800
+  wallAvoidDistanceMillimetres: 600
+  calmSpeedMinimum: 22
+  calmSpeedMaximum: 30
+  calmTurnRateMinimum: 4
+  calmTurnRateMaximum: 7
+  calmAcceleration: 2
+  calmDecisionMinimumTicks: 60
+  calmDecisionMaximumTicks: 200
+  panicSpeedMinimum: 70
+  panicSpeedMaximum: 100
+  panicTurnRateMinimum: 10
+  panicTurnRateMaximum: 16
+  panicAcceleration: 8
+  panicDecisionMinimumTicks: 20
+  panicDecisionMaximumTicks: 60
+  swerveChancePercent: 35
+  swerveAngleMinimum: 30
+  swerveAngleMaximum: 70
+  swerveMinimumTicks: 10
+  swerveMaximumTicks: 25
+  hesitateChancePercent: 12
+  hesitateMinimumTicks: 5
+  hesitateMaximumTicks: 15
+  escapeSampleCount: 8
+  dangerDistanceMillimetres: 1500
+  followRadiusMillimetres: 2500
+  agents:
+  - agentId:
+      value: 1001
+    initialPosition:
+      x: -5000
+      z: -5000
+    initialFacingDirection: 0
+  - agentId:
+      value: 1002
+    initialPosition:
+      x: 0
+      z: -5000
+    initialFacingDirection: 1
+  - agentId:
+      value: 1003
+    initialPosition:
+      x: 5000
+      z: -5000
+    initialFacingDirection: 3
+  - agentId:
+      value: 1004
+    initialPosition:
+      x: -5000
+      z: 0
+    initialFacingDirection: 1
+  - agentId:
+      value: 1005
+    initialPosition:
+      x: 900
+      z: 0
+    initialFacingDirection: 2
+  - agentId:
+      value: 1006
+    initialPosition:
+      x: 5000
+      z: 0
+    initialFacingDirection: 0
+  - agentId:
+      value: 1007
+    initialPosition:
+      x: -5000
+      z: 5000
+    initialFacingDirection: 2
+  - agentId:
+      value: 1008
+    initialPosition:
+      x: 0
+      z: 5000
+    initialFacingDirection: 3
+  - agentId:
+      value: 1009
+    initialPosition:
+      x: 5000
+      z: 5000
+    initialFacingDirection: 2
+  - agentId:
+      value: 1010
+    initialPosition:
+      x: 0
+      z: -1800
+    initialFacingDirection: 0

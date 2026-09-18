@@ -133,6 +133,17 @@ obstacle contact, boundary contact, circle touching semantics, agent occupancy,
 and numeric limits. The vertical slice remains obstacle-free; those focused
 tests validate obstacle semantics without introducing navigation requirements.
 
+## Fire-reaction prototype notes
+
+The [fire-reaction prototype](fire-reaction-prototype.md) follows these rules
+with two documented extensions. First, each agent has its own seeded speed,
+always within the shared maximum step. Second, the agent's own steering picks
+a valid displacement before submitting it: it keeps the along-wall part of a
+step at the boundary, or tries a small side-step around a person. The resolver
+itself still never slides, reroutes, or retries. The swept-circle test uses the
+exact point-to-segment distance (`IntegerMath.SegmentPassesWithin`), which is
+correct for moves in any direction, not only along the axes.
+
 ## Resolution examples
 
 - A participating agent requests a within-limit displacement whose swept circle

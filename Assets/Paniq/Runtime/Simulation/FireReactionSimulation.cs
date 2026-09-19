@@ -31,6 +31,7 @@ namespace Paniq.Simulation
         private readonly DoorBehaviour doorBehaviour;
         private readonly BurningBehaviour burning;
         private readonly FlammablesSystem flammables;
+        private readonly ItemBehaviour items;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
         {
@@ -59,11 +60,12 @@ namespace Paniq.Simulation
             collisions = new CollisionSystem(context, crowd, body, fear, sound);
             objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound);
             locomotion = new Locomotion(context, crowd, geometry, fire, body, collisions, objects);
-            calm = new CalmBehaviour(context, crowd, geometry, locomotion);
+            flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
+            items = new ItemBehaviour(context, geometry, objects, flammables);
+            calm = new CalmBehaviour(context, crowd, geometry, locomotion, items);
             doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
             panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, locomotion);
             burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
-            flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
         }
 
         private Agent[] CreateAgents(int doorCount)
@@ -180,12 +182,21 @@ namespace Paniq.Simulation
             for (int i = 0; i < agents.Length; i++)
             {
                 Agent agent = agents[i];
-                if (!agent.IsParticipating || body.BurnOut(agent))
+                if (!agent.IsParticipating)
                 {
                     continue;
                 }
 
+                if (body.BurnOut(agent))
+                {
+                    items.DropFromLost(agent);
+                    continue;
+                }
+
                 perception.Update(agent);
+
+                // Startled, off their feet or on fire: whatever they carry is dropped or thrown.
+                items.LetGoIfNeeded(agent);
                 if (body.Update(agent))
                 {
                     // Staggering, on the floor or getting up: no control, no move.
@@ -212,7 +223,7 @@ namespace Paniq.Simulation
 
                 if (intent.HasValue)
                 {
-                    Locomotion.ApplyBody(agent, intent.Value);
+                    Locomotion.ApplyBody(agent, items.Burdened(agent, intent.Value));
                 }
 
                 if (agent.Body.State != AgentBodyState.Upright)
@@ -226,6 +237,7 @@ namespace Paniq.Simulation
             }
 
             locomotion.ResolveMovement();
+            items.FollowCarriers(agents);
             burning.SpreadFlames();
             doorBehaviour.ResolveEscapes();
             collisions.Resolve();

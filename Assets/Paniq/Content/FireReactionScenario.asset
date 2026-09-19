@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '18'
+    ContentRevision: '19'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 10
+    SimulationCompatibilityVersion: 11
     World:
       RoomBounds:
         minX: -6000
@@ -218,6 +218,24 @@ MonoBehaviour:
       TableBurnMaximumTicks: 1500
       FloorIgniteRestTicks: 50
       TouchGapMillimetres: 50
+    Items:
+      CarryBaseGrams: 5000
+      CarryGramsPerStrength: 2500
+      CarrySlowdownPercent: 40
+      TidyChancePercent: 12
+      FetchRangeMillimetres: 4000
+      CarryMinimumDistanceMillimetres: 1500
+      ReachMillimetres: 150
+      PickUpTicks: 25
+      SetDownTicks: 20
+      HoldGapMillimetres: 20
+      DropNervousness: 6
+      HurlMinimumStrength: 6
+      EvilAimMinimum: 7
+      AimRangeMillimetres: 4000
+      ThrowImpulse: 60
+      ThrowMinimumSpeed: 20
+      ThrowHitMultiplier: 3
     Agents:
     - agentId:
         value: 1001

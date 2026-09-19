@@ -87,7 +87,7 @@ namespace Paniq.Tests.EditMode
 
                         foreach (FireReactionPhysicsObjectSnapshot item in snapshot.PhysicsObjects)
                         {
-                            Assert.That(InsideTable(item.Position, item.SizeMillimetres / 2, table.Bounds), Is.False,
+                            Assert.That(!item.IsHeld && InsideTable(item.Position, item.SizeMillimetres / 2, table.Bounds), Is.False,
                                 $"Seed {seed}: object {item.ObjectId} inside table {table.TableId} at tick {snapshot.Tick}.");
                         }
                     }

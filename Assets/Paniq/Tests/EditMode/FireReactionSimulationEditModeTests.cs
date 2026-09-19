@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("18"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(10));
+            Assert.That(data.ContentRevision, Is.EqualTo("19"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(11));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -707,9 +707,11 @@ namespace Paniq.Tests.EditMode
                 Assert.That(caught.SourceId, Is.EqualTo(record.SourceId));
                 Assert.That(record.Tick - caught.Tick, Is.EqualTo(caught.DurationTicks), "They burn for the drawn time.");
 
-                // Set alight by a burning square, or by someone else who was on fire, and so on back to a square.
+                // Set alight by a burning square, a burning thing, or someone else who was on fire,
+                // and so on back to a square.
                 CausalEvent cause = simulation.EventLog.Get(caught.CausalParentEventId);
-                while (cause.EventType == FireReactionEventType.AgentCaughtFire)
+                while (cause.EventType == FireReactionEventType.AgentCaughtFire ||
+                       cause.EventType == FireReactionEventType.ObjectCaughtFire)
                 {
                     cause = simulation.EventLog.Get(cause.CausalParentEventId);
                 }

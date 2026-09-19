@@ -10,6 +10,8 @@ namespace Paniq.Presentation
     /// chairs a seat, a back and four legs. They slide smoothly and hop and
     /// tip a little when hit. Near flames they darken as they heat up; then
     /// they burn with a crown of flame cubes, and are left charcoal-black.
+    /// A carried item is held up at chest height; a thrown one flies in a
+    /// low arc (its height is display only; the simulation is flat).
     /// </summary>
     internal sealed class BoxViews
     {
@@ -23,6 +25,8 @@ namespace Paniq.Presentation
             public float Height;
             public float HopStart = -10f;
             public float HopStrength;
+            public float Lift;
+            public float Arc;
         }
 
         private readonly Dictionary<SimulationId, BoxView> boxes = new Dictionary<SimulationId, BoxView>();
@@ -161,9 +165,17 @@ namespace Paniq.Presentation
 
                 float hopAge = (time - view.HopStart) / 0.3f;
                 float hop = hopAge < 1f ? Mathf.Sin(hopAge * Mathf.PI) * view.HopStrength : 0f;
+
+                // Lifted smoothly into someone's arms; a thrown item rides high and sinks as it slows.
+                float delta = Time.deltaTime;
+                view.Lift = Mathf.MoveTowards(view.Lift, box.IsHeld ? 1f : 0f, delta * 4f);
+                float arcTarget = box.Thrown ? Mathf.Clamp01(box.SpeedMillimetresPerTick / 80f) : 0f;
+                view.Arc = Mathf.MoveTowards(view.Arc, arcTarget, delta * 3f);
+                float raised = view.Lift * 0.75f + view.Arc * 0.6f;
+                float tumble = view.Arc * time * 540f;
                 view.Transform.SetPositionAndRotation(
-                    planar + Vector3.up * (view.Height * 0.5f + hop * 0.12f),
-                    Quaternion.Euler(hop * 18f, yaw, 0f));
+                    planar + Vector3.up * (view.Height * 0.5f + hop * 0.12f + raised),
+                    Quaternion.Euler(hop * 18f + tumble, yaw, 0f));
 
                 ShowFire(view, box.BurnState, box.HeatPercent, time);
             }

@@ -17,6 +17,7 @@ namespace Paniq.Simulation
     /// <item><see cref="Hearing"/>: the last noise worth turning toward.</item>
     /// <item><see cref="Doors"/>: the door they are running for and doors that failed them.</item>
     /// <item><see cref="Burning"/>: whether they are on fire, and until when.</item>
+    /// <item><see cref="Carry"/>: the item they are going for or carrying.</item>
     /// </list>
     /// </summary>
     internal sealed class Agent
@@ -44,6 +45,7 @@ namespace Paniq.Simulation
         public readonly AgentHearing Hearing = new AgentHearing();
         public readonly AgentDoorMemory Doors;
         public readonly AgentBurning Burning = new AgentBurning();
+        public readonly AgentCarry Carry = new AgentCarry();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -152,6 +154,15 @@ namespace Paniq.Simulation
 
         public ulong AttemptEventId;
         public int NextShoveTick;
+    }
+
+    internal sealed class AgentCarry
+    {
+        /// <summary>The item (physical-object index) being fetched or carried, or -1.</summary>
+        public int ItemIndex = -1;
+
+        /// <summary>The item is in their arms, not just being walked to.</summary>
+        public bool Holding;
     }
 
     internal sealed class AgentBurning

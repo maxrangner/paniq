@@ -42,6 +42,7 @@ scene.
 | Burning people | Behaviour | Touching the fire sets people alight instead of killing them outright: they run around screaming for 3–6 s, setting alight anyone they touch, then collapse |
 | Tables and chairs | System | Three tables people slide around and objects bounce off, and eight chairs that runners kick about and trip over |
 | Things catch fire | System | Boxes, chairs and tables heat up near flames, burn, and char; a burning box kicked across the room starts a new fire where it stops; touching burning things sets people alight |
+| Carrying | Behaviour | Calm people tidy boxes and chairs away; startled carriers drop or throw what they hold; strong runners hurl things out of their way, the cruel ones at people |
 
 ## Choosing the next stone
 

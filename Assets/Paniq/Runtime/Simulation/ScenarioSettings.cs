@@ -584,6 +584,63 @@ namespace Paniq.Simulation
         }
     }
 
+    /// <summary>Picking up, carrying, setting down, dropping and throwing boxes and chairs.</summary>
+    [Serializable]
+    public sealed class ItemSettings
+    {
+        /// <summary>The heaviest item someone can lift: this much, plus the next value per strength point.</summary>
+        public int CarryBaseGrams = 5000;
+        public int CarryGramsPerStrength = 2500;
+
+        /// <summary>A load as heavy as their limit slows a carrier by this percentage (lighter loads less).</summary>
+        public int CarrySlowdownPercent = 40;
+
+        /// <summary>Chance that a calm person's fresh decision is to tidy up the nearest item they can lift.</summary>
+        public int TidyChancePercent = 12;
+        public int FetchRangeMillimetres = 4000;
+
+        /// <summary>They carry it at least this far before setting it down.</summary>
+        public int CarryMinimumDistanceMillimetres = 1500;
+
+        /// <summary>How far past touching an item someone can reach to pick it up.</summary>
+        public int ReachMillimetres = 150;
+
+        public int PickUpTicks = 25;
+        public int SetDownTicks = 20;
+
+        /// <summary>Gap between a carrier and the item held in front of them.</summary>
+        public int HoldGapMillimetres = 20;
+
+        /// <summary>Anyone at least this nervous drops what they carry when frightened; the rest throw it.</summary>
+        public int DropNervousness = 6;
+
+        /// <summary>Runners at least this strong hurl an item in their way instead of kicking it.</summary>
+        public int HurlMinimumStrength = 6;
+
+        /// <summary>Runners at least this evil hurl it at the nearest person within the aim range.</summary>
+        public int EvilAimMinimum = 7;
+        public int AimRangeMillimetres = 4000;
+
+        /// <summary>Throw speed (mm/tick) = impulse × (strength + 5) ÷ (item kg + 5), at least the minimum.</summary>
+        public int ThrowImpulse = 60;
+        public int ThrowMinimumSpeed = 20;
+
+        /// <summary>A thrown item's hit counts as this many times its sliding momentum (it strikes the body, not the feet).</summary>
+        public int ThrowHitMultiplier = 3;
+
+        public ItemSettings Clone() => (ItemSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(CarryBaseGrams >= 0 && CarryGramsPerStrength >= 0 && Settings.Percent(CarrySlowdownPercent), "carrying");
+            Settings.Require(Settings.Percent(TidyChancePercent) && FetchRangeMillimetres >= 0 &&
+                             CarryMinimumDistanceMillimetres >= 0 && ReachMillimetres >= 0 && PickUpTicks >= 1 &&
+                             SetDownTicks >= 1 && HoldGapMillimetres >= 0, "tidying up");
+            Settings.Require(DropNervousness >= 0 && HurlMinimumStrength >= 0 && EvilAimMinimum >= 0 && AimRangeMillimetres >= 0 &&
+                             ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1, "throwing");
+        }
+    }
+
     internal static class Settings
     {
         public static bool Range(int minimum, int maximum, int floor) => minimum >= floor && maximum >= minimum;

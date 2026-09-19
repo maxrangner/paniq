@@ -469,6 +469,10 @@ namespace Paniq.Tests.EditMode
                     case FireReactionEventType.AgentEscaped:
                         Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, "An escape names the door used.");
                         break;
+                    case FireReactionEventType.ItemThrown:
+                    case FireReactionEventType.ItemDropped:
+                        Assert.That(boxes, Does.Contain(record.TargetId), $"{record.EventType} names the item.");
+                        break;
                     default:
                         Assert.That(record.HasTarget, Is.False, $"{record.EventType} should not name a target.");
                         break;

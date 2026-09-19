@@ -147,6 +147,22 @@ kicked across the room starts a new fire where it stops. Anyone touching a
 burning thing catches fire, and anyone on fire who touches a thing sets it
 alight.
 
+**Picking things up.** Boxes and chairs are items. Anyone can lift an item
+up to 5 kg plus 2.5 kg per strength point (an ordinary person 17.5 kg, the
+brute 27.5 kg). Now and then (12% of fresh decisions) a calm person tidies up:
+they walk to the nearest item within 4 m they can lift, pick it up (0.5 s),
+carry it in front of them to a spot at least 1.5 m away, and set it down
+(0.4 s) on clear floor. A load slows them, by up to 40% for a load as heavy
+as they can manage. Someone carrying something who is startled or scared
+lets go at once: the nervous (6+) drop it, everyone else throws it ahead of
+them. Knocked off their feet or set alight, they drop it; merely distracted
+by a noise, they put it down. A strong runner (6+) who meets a box or chair
+they can lift in their way hurls it aside instead of kicking it, and a cruel
+one (evil 7+) hurls it at the nearest person within 4 m. A thrown item flies
+faster the stronger the thrower and the lighter the item, and because it
+strikes the body rather than the feet it hits three times as hard as a
+sliding one, enough for a chair to knock someone off balance.
+
 **Boxes.** Eight cardboard boxes, 0.3–0.6 m wide and 3–20 kg, sit on the floor.
 Calm people walk around them. Runners barely look: they kick a box sliding
 across the floor, and at running speed they may trip over it instead, more
@@ -335,6 +351,19 @@ restart control, or end screen in this checkpoint.
   that cell (`FireSpread`, parent: the thing's catch), and it sets alight
   every person within 50 mm of its edge (`AgentCaughtFire`, parent: the
   thing's catch).
+- **Items.** A held item leaves the floor: it follows 20 mm in front of its
+  carrier after movement and takes part in no collisions. A calm person's
+  pick-up and set-down are not logged (like a calm push). Letting go while
+  startled, scared, down or burning logs `ItemDropped` or `ItemThrown`
+  (source: the person; target: the item; parent: their burning, fall, scare
+  or alert), placing the item on the first clear spot around them (ahead,
+  then ±45°, ±90°, ±135°, behind); with no clear spot they hold on for now. A
+  runner's contact with an item they can lift, at strength 6+, is resolved as
+  a hurl: `ItemThrown` (parent: their `AgentScared`), velocity sideways (a
+  seeded side) or at the nearest person within 4 m for evil 7+, and the
+  runner's speed halves. Throw speed is `60 × (strength + 5) ÷ (kg + 5)`
+  mm/tick, 20 at least and 120 at most. A thrown item's momentum counts ×3
+  on its first hit on a person.
 - **Physical objects.** After collisions, each moving box in ascending ID order
   slides by its velocity, stops touching the first person or box in its way
   (found by an integer halving search along its path), bounces, then loses
@@ -353,8 +382,8 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentFroze`, `AgentUnfroze`, `DoorUnlocked`, `DoorOpened`, `AgentTriedDoor`,
 `AgentForcedDoor`, `AgentGaveUpOnDoor`, `AgentEscaped`, `BoxBumped`,
 `BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo`,
-`DoorBrokenDown`, `AgentCaughtFire`, `ObjectCaughtFire` and `ObjectBurntOut`
-events. Events that affect someone or
+`DoorBrokenDown`, `AgentCaughtFire`, `ObjectCaughtFire`, `ObjectBurntOut`,
+`ItemThrown` and `ItemDropped` events. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,
 `BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
 and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor`, `DoorBrokenDown`

@@ -157,8 +157,12 @@ namespace Paniq.Simulation
             int headingDegrees,
             int speedMillimetresPerTick,
             ObjectBurnState burnState = ObjectBurnState.Intact,
-            int heatPercent = 0)
+            int heatPercent = 0,
+            SimulationId heldBy = default,
+            bool thrown = false)
         {
+            HeldBy = heldBy;
+            Thrown = thrown;
             BurnState = burnState;
             HeatPercent = heatPercent;
             ObjectId = objectId;
@@ -184,11 +188,19 @@ namespace Paniq.Simulation
         /// <summary>How close to catching fire it is, 0–100.</summary>
         public int HeatPercent { get; }
 
+        /// <summary>Who is carrying it (a zero ID when it is on the floor).</summary>
+        public SimulationId HeldBy { get; }
+
+        public bool IsHeld => HeldBy.Value != 0UL;
+
+        /// <summary>Thrown and still flying.</summary>
+        public bool Thrown { get; }
+
         /// <summary>The same object with its fire state filled in.</summary>
         internal FireReactionPhysicsObjectSnapshot WithBurn(ObjectBurnState burnState, int heatPercent)
         {
             return new FireReactionPhysicsObjectSnapshot(ObjectId, Kind, Position, SizeMillimetres, HeadingDegrees,
-                SpeedMillimetresPerTick, burnState, heatPercent);
+                SpeedMillimetresPerTick, burnState, heatPercent, HeldBy, Thrown);
         }
     }
 

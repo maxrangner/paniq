@@ -13,6 +13,12 @@ namespace Paniq.Simulation
     /// collisions), then every moving object slides along its velocity,
     /// stops at the first thing it meets and bounces off it, and slows with
     /// floor friction. Nothing ever overlaps.
+    ///
+    /// Objects are also items: a person can pick one up (it then leaves the
+    /// floor and is carried in front of them, touching nothing), set it
+    /// down, drop it or throw it. A strong runner who meets an item hurls it
+    /// out of the way instead of kicking it. A thrown item hits people harder
+    /// than a sliding one, because it strikes the body, not the feet.
     /// </summary>
     internal sealed class PhysicsObjectSystem
     {
@@ -36,6 +42,12 @@ namespace Paniq.Simulation
             public int Heading;
             public int Spin;
 
+            /// <summary>The index of the person carrying it, or -1 when it is on the floor.</summary>
+            public int HeldBy = -1;
+
+            /// <summary>Thrown and still flying: it hits harder until it stops or hits someone.</summary>
+            public bool Thrown;
+
             /// <summary>The event that last set this object moving, so its later hits can name their cause.</summary>
             public ulong LastPushEventId;
 
@@ -53,6 +65,7 @@ namespace Paniq.Simulation
         private readonly ObjectPhysicsSettings settings;
         private readonly int personRadius;
         private readonly List<ObjectContact> contacts = new List<ObjectContact>();
+        private readonly ItemSettings items;
         private readonly PhysicsBody[] bodies;
 
         public PhysicsObjectSystem(
@@ -70,6 +83,7 @@ namespace Paniq.Simulation
             this.fear = fear;
             this.sound = sound;
             settings = context.Scenario.ObjectPhysics;
+            items = context.Scenario.Items;
             personRadius = context.Scenario.World.OccupancyRadiusMillimetres;
 
             var definitions = (FireReactionPhysicsObjectDefinition[])context.Scenario.PhysicsObjects.Clone();
@@ -103,6 +117,125 @@ namespace Paniq.Simulation
 
         public bool IsMoving(int index) => bodies[index].VelocityX != 0L || bodies[index].VelocityZ != 0L;
 
+        public int MassOf(int index) => bodies[index].MassGrams;
+
+        /// <summary>The index of the person carrying it, or -1.</summary>
+        public int HolderOf(int index) => bodies[index].HeldBy;
+
+        // ---------------------------------------------------------------- items
+
+        /// <summary>Whether this person could lift this item at all (items are boxes and chairs; the limit grows with strength).</summary>
+        public bool CanLift(Agent agent, int index)
+        {
+            return bodies[index].MassGrams <= TraitEffects.CarryLimitGrams(agent, context.Scenario);
+        }
+
+        /// <summary>Takes an item off the floor into someone's arms. It stops moving and touches nothing while held.</summary>
+        public void PickUp(int index, Agent carrier)
+        {
+            PhysicsBody item = bodies[index];
+            item.HeldBy = carrier.Index;
+            item.VelocityX = 0L;
+            item.VelocityZ = 0L;
+            item.Spin = 0;
+            item.Thrown = false;
+            FollowCarrier(index, carrier);
+        }
+
+        /// <summary>Keeps a held item just in front of whoever carries it.</summary>
+        public void FollowCarrier(int index, Agent carrier)
+        {
+            PhysicsBody item = bodies[index];
+            LogicalPosition spot = carrier.Body.Position +
+                                   IntegerMath.Displacement(carrier.Body.Heading, personRadius + item.Radius + items.HoldGapMillimetres);
+            item.X = (long)spot.X * SubMillimetre;
+            item.Z = (long)spot.Z * SubMillimetre;
+            item.Heading = carrier.Body.Heading;
+        }
+
+        /// <summary>
+        /// A clear spot on the floor right beside the carrier for this item:
+        /// straight ahead first, then further and further round to either
+        /// side. False when every direction is blocked.
+        /// </summary>
+        public bool FindSpotToPutDown(int index, Agent carrier, out LogicalPosition spot)
+        {
+            PhysicsBody item = bodies[index];
+            int reach = personRadius + item.Radius + items.HoldGapMillimetres;
+            int[] turns = { 0, 45, -45, 90, -90, 135, -135, 180 };
+            for (int i = 0; i < turns.Length; i++)
+            {
+                spot = carrier.Body.Position + IntegerMath.Displacement(carrier.Body.Heading + turns[i], reach);
+                if (IsClearForItem(index, spot))
+                {
+                    return true;
+                }
+            }
+
+            spot = default;
+            return false;
+        }
+
+        private bool IsClearForItem(int index, LogicalPosition spot)
+        {
+            PhysicsBody item = bodies[index];
+            if (!geometry.Floor.ContainsCircle(spot, item.Radius) || geometry.TableAt(spot, item.Radius) >= 0)
+            {
+                return false;
+            }
+
+            long agentReach = (long)personRadius + item.Radius;
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                if (agents[i].IsParticipating && LogicalPosition.DistanceSquared(agents[i].Body.Position, spot) < agentReach * agentReach)
+                {
+                    return false;
+                }
+            }
+
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                if (b == index || bodies[b].HeldBy >= 0)
+                {
+                    continue;
+                }
+
+                long reach = (long)item.Radius + bodies[b].Radius;
+                if (LogicalPosition.DistanceSquared(bodies[b].Position, spot) < reach * reach)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Puts a held item back on the floor at <paramref name="spot"/>
+        /// (found with <see cref="FindSpotToPutDown"/>), still, or flying off
+        /// at a velocity (mm per tick) when thrown.
+        /// </summary>
+        public void Release(int index, LogicalPosition spot, int velocityX, int velocityZ, ulong causeEventId)
+        {
+            PhysicsBody item = bodies[index];
+            item.HeldBy = -1;
+            item.X = (long)spot.X * SubMillimetre;
+            item.Z = (long)spot.Z * SubMillimetre;
+            item.VelocityX = (long)velocityX * SubMillimetre;
+            item.VelocityZ = (long)velocityZ * SubMillimetre;
+            item.Thrown = velocityX != 0 || velocityZ != 0;
+            item.LastPushEventId = causeEventId;
+        }
+
+        /// <summary>How fast (mm per tick) this person can throw this item: stronger people and lighter items fly faster.</summary>
+        public int ThrowSpeed(Agent agent, int index)
+        {
+            long speed = (long)items.ThrowImpulse * (agent.Traits.Strength + 5) * 1000L / (bodies[index].MassGrams + 5000L);
+            return (int)Math.Max(items.ThrowMinimumSpeed,
+                Math.Min(context.Scenario.World.MaximumStepDistanceMillimetres, speed));
+        }
+
         public void BeginTick()
         {
             contacts.Clear();
@@ -120,7 +253,7 @@ namespace Paniq.Simulation
         {
             for (int b = 0; b < bodies.Length; b++)
             {
-                if (b == ignoreIndex)
+                if (b == ignoreIndex || bodies[b].HeldBy >= 0)
                 {
                     continue;
                 }
@@ -142,6 +275,11 @@ namespace Paniq.Simulation
             int margin = context.Scenario.Steering.ObjectAvoidMarginMillimetres;
             for (int b = 0; b < bodies.Length; b++)
             {
+                if (bodies[b].HeldBy >= 0)
+                {
+                    continue;
+                }
+
                 LogicalPosition centre = bodies[b].Position;
                 long range = (long)personRadius + bodies[b].Radius + margin;
                 long dx = (long)position.X - centre.X;
@@ -189,7 +327,10 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            contacts.Add(new ObjectContact(agent, bodyIndex, closing));
+            // A strong runner grabs it and hurls it out of the way rather than kicking it.
+            bool hurl = fastOnly && agent.Fear.State == AgentFearState.Scared && !agent.Burning.IsBurning &&
+                        agent.Traits.Strength >= items.HurlMinimumStrength && CanLift(agent, bodyIndex);
+            contacts.Add(new ObjectContact(agent, bodyIndex, closing, hurl));
             return true;
         }
 
@@ -239,6 +380,12 @@ namespace Paniq.Simulation
                 }
 
                 int closing = contact.ClosingSpeed;
+                if (contact.Hurl && physicsBody.HeldBy < 0)
+                {
+                    Hurl(agent, contact.BodyIndex);
+                    continue;
+                }
+
                 var point = new LogicalPosition(
                     (int)(agent.Body.Position.X + nx * personRadius / length),
                     (int)(agent.Body.Position.Z + nz * personRadius / length));
@@ -288,6 +435,60 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// A strong runner flings an item in their way: aside, or, if they
+        /// are cruel enough, straight at the nearest other person. They lose
+        /// half their speed doing it.
+        /// </summary>
+        private void Hurl(Agent agent, int index)
+        {
+            PhysicsBody item = bodies[index];
+            int heading = context.Random.NextIntInclusive(0, 1) == 0 ? agent.Body.Heading + 90 : agent.Body.Heading - 90;
+            if (agent.Traits.Evil >= items.EvilAimMinimum)
+            {
+                Agent victim = NearestOtherPerson(agent, item.Position, items.AimRangeMillimetres);
+                if (victim != null)
+                {
+                    heading = IntegerMath.HeadingBetween(item.Position, victim.Body.Position, heading);
+                }
+            }
+
+            int speed = ThrowSpeed(agent, index);
+            LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
+            CausalEvent thrown = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemThrown, item.Position,
+                speed, 0, agent.Fear.ScaredEventId, item.Id);
+            item.VelocityX = (long)velocity.X * SubMillimetre;
+            item.VelocityZ = (long)velocity.Z * SubMillimetre;
+            item.Thrown = true;
+            item.LastPushEventId = thrown.EventId;
+            item.Spin = context.Random.NextIntInclusive(-settings.SpinMaximum, settings.SpinMaximum);
+            agent.Body.Speed /= 2;
+        }
+
+        private Agent NearestOtherPerson(Agent thrower, LogicalPosition from, int range)
+        {
+            Agent nearest = null;
+            long best = (long)range * range;
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent other = agents[i];
+                if (other == thrower || !other.IsParticipating)
+                {
+                    continue;
+                }
+
+                long distance = LogicalPosition.DistanceSquared(from, other.Body.Position);
+                if (distance < best)
+                {
+                    best = distance;
+                    nearest = other;
+                }
+            }
+
+            return nearest;
+        }
+
+        /// <summary>
         /// Phase 8: every moving object, in ascending ID order, slides along
         /// its velocity, stops at the first person or object in the way and
         /// bounces off it (or the walls), then slows with floor friction.
@@ -297,6 +498,11 @@ namespace Paniq.Simulation
             for (int b = 0; b < bodies.Length; b++)
             {
                 PhysicsBody physicsBody = bodies[b];
+                if (physicsBody.HeldBy >= 0)
+                {
+                    continue;
+                }
+
                 if (physicsBody.Spin != 0)
                 {
                     physicsBody.Heading = IntegerMath.NormalizeDegrees(physicsBody.Heading + physicsBody.Spin);
@@ -376,7 +582,7 @@ namespace Paniq.Simulation
             Agent[] agents = crowd.All;
             for (int i = 0; i < agents.Length; i++)
             {
-                if (agents[i].IsParticipating &&
+                if (agents[i].IsParticipating && agents[i].Index != physicsBody.HeldBy &&
                     IntegerMath.SegmentPassesWithin(from, to, agents[i].Body.Position, agentReach * agentReach))
                 {
                     agent = agents[i];
@@ -419,8 +625,14 @@ namespace Paniq.Simulation
             physicsBody.VelocityX -= bounce * nx / length;
             physicsBody.VelocityZ -= bounce * nz / length;
 
-            // Kilograms times millimetres per tick.
+            // Kilograms times millimetres per tick. A thrown item strikes the body, not the feet.
             long momentum = physicsBody.MassGrams * closing / (1000L * SubMillimetre);
+            if (physicsBody.Thrown)
+            {
+                momentum *= items.ThrowHitMultiplier;
+                physicsBody.Thrown = false;
+            }
+
             if (agent.Body.State != AgentBodyState.Upright || momentum < settings.StaggerMomentum)
             {
                 return;
@@ -500,6 +712,7 @@ namespace Paniq.Simulation
             {
                 physicsBody.VelocityX = 0L;
                 physicsBody.VelocityZ = 0L;
+                physicsBody.Thrown = false;
                 return;
             }
 
@@ -540,7 +753,9 @@ namespace Paniq.Simulation
                 physicsBody.Position,
                 physicsBody.Size,
                 physicsBody.Heading,
-                (int)(speed / SubMillimetre));
+                (int)(speed / SubMillimetre),
+                heldBy: physicsBody.HeldBy >= 0 ? crowd.All[physicsBody.HeldBy].Id : default,
+                thrown: physicsBody.Thrown);
         }
 
         public FireReactionPhysicsObjectSnapshot[] GetSnapshots()
@@ -556,16 +771,20 @@ namespace Paniq.Simulation
 
         private readonly struct ObjectContact
         {
-            public ObjectContact(Agent agent, int bodyIndex, int closingSpeed)
+            public ObjectContact(Agent agent, int bodyIndex, int closingSpeed, bool hurl)
             {
                 Agent = agent;
                 BodyIndex = bodyIndex;
                 ClosingSpeed = closingSpeed;
+                Hurl = hurl;
             }
 
             public Agent Agent { get; }
             public int BodyIndex { get; }
             public int ClosingSpeed { get; }
+
+            /// <summary>Grabbed and flung aside rather than kicked.</summary>
+            public bool Hurl { get; }
         }
     }
 }

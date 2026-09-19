@@ -214,7 +214,13 @@ namespace Paniq.Simulation
         ForcingDoor,
 
         /// <summary>On fire: running around wildly until they collapse.</summary>
-        Burning
+        Burning,
+
+        /// <summary>Tidying up: walking over to an item, picking it up, carrying it off and setting it down.</summary>
+        FetchingItem,
+        PickingUp,
+        CarryingItem,
+        SettingDown
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>
@@ -273,7 +279,9 @@ namespace Paniq.Simulation
         DoorBrokenDown,
         AgentCaughtFire,
         ObjectCaughtFire,
-        ObjectBurntOut
+        ObjectBurntOut,
+        ItemThrown,
+        ItemDropped
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>

@@ -54,7 +54,7 @@ namespace Paniq.Simulation
             int tick = context.Tick;
             AgentIntent intent = agent.Intent;
             long fireDistanceSquared = fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition firePoint);
-            long danger = settings.DangerDistanceMillimetres;
+            long danger = TraitEffects.DangerDistance(agent, context.Scenario);
             bool inDanger = fireDistanceSquared < danger * danger;
 
             if (intent.Activity == AgentActivityState.Frozen)
@@ -74,9 +74,7 @@ namespace Paniq.Simulation
             if (tick >= agent.Fear.NextShoutTick)
             {
                 sound.Yell(agent, agent.Fear.ScaredEventId);
-                agent.Fear.NextShoutTick = checked(tick + context.Random.NextIntInclusive(
-                    settings.ShoutMinimumTicks,
-                    settings.ShoutMaximumTicks));
+                agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, context.Random));
             }
 
             if (DoorBehaviour.IsAtDoor(agent))
@@ -163,7 +161,7 @@ namespace Paniq.Simulation
                 FollowNearbyRunners(agent, out followX, out followZ);
             }
 
-            goalHeading = locomotion.Steer(agent, goalHeading, settings.PeopleAvoidPercent,
+            goalHeading = locomotion.Steer(agent, goalHeading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
                 settings.WallAvoidPercent, settings.ObjectAvoidPercent, followX, followZ);
             return new MotorIntent(goalHeading, agent.Personality.PanicSpeed, agent.Personality.PanicTurnRate, settings.Acceleration);
         }
@@ -189,15 +187,13 @@ namespace Paniq.Simulation
             int tick = context.Tick;
             AgentIntent intent = agent.Intent;
             agent.Body.BlockedTicks = 0;
-            intent.NextPanicDecisionTick = checked(tick + context.Random.NextIntInclusive(
-                settings.DecisionMinimumTicks,
-                settings.DecisionMaximumTicks));
+            intent.NextPanicDecisionTick = checked(tick + TraitEffects.PanicDecisionInterval(agent, context.Scenario, context.Random));
 
             FallSettings falls = context.Scenario.Falls;
             if (agent.Body.Speed >= falls.TripMinimumSpeed)
             {
                 // Zig-zagging makes a stumble twice as likely.
-                int chance = falls.TripChancePercent * (tick < intent.SwerveEndTick ? 2 : 1);
+                int chance = TraitEffects.TripChancePercent(agent, context.Scenario) * (tick < intent.SwerveEndTick ? 2 : 1);
                 if (context.Random.NextPercent(chance))
                 {
                     body.Trip(agent, agent.Fear.ScaredEventId);
@@ -205,7 +201,7 @@ namespace Paniq.Simulation
                 }
             }
 
-            if (mayHesitate && context.Random.NextPercent(settings.HesitateChancePercent))
+            if (mayHesitate && context.Random.NextPercent(TraitEffects.HesitateChancePercent(agent, context.Scenario)))
             {
                 intent.Activity = AgentActivityState.Hesitating;
                 intent.ActivityEndTick = checked(tick + context.Random.NextIntInclusive(
@@ -219,7 +215,7 @@ namespace Paniq.Simulation
             intent.Activity = AgentActivityState.Fleeing;
             agent.Doors.ExitDoorIndex = doorBehaviour.ChooseExitDoor(agent);
             intent.Target = agent.Doors.ExitDoorIndex >= 0 ? doorBehaviour.DoorTarget(agent) : ChooseEscapeTarget(agent);
-            if (context.Random.NextPercent(settings.SwerveChancePercent))
+            if (context.Random.NextPercent(TraitEffects.SwerveChancePercent(agent, context.Scenario)))
             {
                 int side = context.Random.NextIntInclusive(0, 1) == 0 ? -1 : 1;
                 intent.SwerveOffset = side * context.Random.NextIntInclusive(settings.SwerveAngleMinimum, settings.SwerveAngleMaximum);

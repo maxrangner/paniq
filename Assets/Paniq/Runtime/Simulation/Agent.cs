@@ -7,6 +7,9 @@ namespace Paniq.Simulation
     /// <item><see cref="Body"/>: where they are and how they move. Only
     /// <see cref="Locomotion"/> turns and accelerates it; the body and
     /// collision systems may stop it, knock it down or jolt it.</item>
+    /// <item><see cref="Traits"/>: strength, speed, bravery, compassion, evil
+    /// and nervousness (0–10). Set at the start; only the simulation may
+    /// change them (a later player power could).</item>
     /// <item><see cref="Personality"/>: seeded once at the start, never changed.</item>
     /// <item><see cref="Fear"/>: calm, alert or scared, and the timers and
     /// events that go with it (<see cref="FearSystem"/>).</item>
@@ -30,6 +33,8 @@ namespace Paniq.Simulation
         public readonly SimulationId Id;
         public AgentParticipation Participation;
         public AgentTerminalOutcome Outcome;
+
+        public AgentTraitValues Traits;
 
         public readonly AgentBody Body = new AgentBody();
         public readonly AgentPersonality Personality = new AgentPersonality();
@@ -59,7 +64,8 @@ namespace Paniq.Simulation
                 Personality.PanicSpeed,
                 Fear.ReactionDelayTicks,
                 Personality.Temperament,
-                Body.State);
+                Body.State,
+                Traits);
         }
     }
 

@@ -69,7 +69,7 @@ namespace Paniq.Simulation
                     score -= context.Scenario.Panic.EscapeRoutePenaltyMillimetres;
                 }
 
-                if (fire.AnyCloserThan(approach, context.Scenario.Panic.DangerDistanceMillimetres))
+                if (fire.AnyCloserThan(approach, TraitEffects.DangerDistance(agent, context.Scenario)))
                 {
                     score -= settings.InFirePenaltyMillimetres;
                 }

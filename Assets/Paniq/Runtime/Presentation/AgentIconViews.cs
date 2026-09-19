@@ -6,7 +6,8 @@ namespace Paniq.Presentation
     /// The icons floating over one person's head: a red "!" that pops up
     /// when they notice something, three sound-wave arcs when they yell, a
     /// snowflake while they are frozen with fear, a "?" while they turn to
-    /// see what a noise was, and "..." while idling. Icons live on their own
+    /// see what a noise was, "..." while idling, and the person's number
+    /// (matching the Tab stats panel). Icons live on their own
     /// anchor that always faces the camera, so they never spin with the body
     /// or tip over when it falls. Presentation only.
     /// </summary>
@@ -25,6 +26,7 @@ namespace Paniq.Presentation
         private static readonly Color IceBlue = new Color(0.7f, 0.93f, 1f);
         private static readonly Color QuestionYellow = new Color(1f, 0.88f, 0.25f);
         private static readonly Color IdleGrey = new Color(0.72f, 0.82f, 0.95f);
+        private static readonly Color NumberWhite = new Color(1f, 1f, 1f, 0.85f);
 
         private readonly Transform root;
         private readonly Transform notice;
@@ -35,6 +37,7 @@ namespace Paniq.Presentation
         private readonly LineRenderer[] snowflakeStrokes;
         private readonly TextMesh question;
         private readonly TextMesh idle;
+        private readonly TextMesh number;
         private readonly float spinOffset;
 
         private float noticeTime = float.NegativeInfinity;
@@ -42,7 +45,7 @@ namespace Paniq.Presentation
         private float frozenSince = float.NegativeInfinity;
         private bool wasFrozen;
 
-        public AgentIconViews(string name, Material lineMaterial, float spinOffset, Transform parent)
+        public AgentIconViews(string name, string numberLabel, Material lineMaterial, float spinOffset, Transform parent)
         {
             this.spinOffset = spinOffset;
             root = new GameObject($"{name} icons (presentation)").transform;
@@ -85,6 +88,7 @@ namespace Paniq.Presentation
 
             question = CreateText("Investigating ?", "?", 0.2f, 64, QuestionYellow, new Vector3(0f, 0.2f, 0f));
             idle = CreateText("Idle ...", "...", 0.13f, 48, IdleGrey, new Vector3(0f, -0.05f, 0f));
+            number = CreateText("Number", numberLabel, 0.07f, 64, NumberWhite, new Vector3(0.32f, -0.28f, 0f));
 
             SetColor(noticeStrokes, NoticeRed);
             SetColor(snowflakeStrokes, IceBlue);
@@ -104,6 +108,7 @@ namespace Paniq.Presentation
             snowflake.gameObject.SetActive(false);
             question.gameObject.SetActive(false);
             idle.gameObject.SetActive(false);
+            number.gameObject.SetActive(false);
         }
 
         /// <param name="facingSide">+1 when the person faces screen-right, -1 for screen-left.</param>
@@ -166,6 +171,7 @@ namespace Paniq.Presentation
                 snowflake.localRotation = Quaternion.Euler(0f, 0f, time * 25f + spinOffset);
             }
 
+            number.gameObject.SetActive(true);
             question.gameObject.SetActive(investigating && !showNotice);
             idle.gameObject.SetActive(idling && !showNotice && !showYell);
         }

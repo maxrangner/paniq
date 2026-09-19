@@ -49,8 +49,10 @@ namespace Paniq.Presentation
         {
             this.scenario = scenario;
             this.materials = materials;
+            int number = 0;
             foreach (FireReactionAgentDefinition definition in scenario.Agents)
             {
+                number++;
                 GameObject agentObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                 agentObject.name = $"Agent {definition.AgentId.Value} (presentation)";
                 agentObject.transform.SetParent(parent, false);
@@ -73,7 +75,7 @@ namespace Paniq.Presentation
                 {
                     Transform = agentObject.transform,
                     Renderer = agentRenderer,
-                    Icons = new AgentIconViews($"Agent {definition.AgentId.Value}", materials.Icon,
+                    Icons = new AgentIconViews($"Agent {definition.AgentId.Value}", number.ToString(), materials.Icon,
                         definition.AgentId.Value % 60UL, parent),
                     Vision = vision,
                     ShakePhase = definition.AgentId.Value % 97UL

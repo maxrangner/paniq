@@ -40,8 +40,10 @@ namespace Paniq.Simulation
             int panicSpeedMillimetresPerTick,
             int reactionDelayTicks,
             AgentPanicTemperament temperament,
-            AgentBodyState bodyState)
+            AgentBodyState bodyState,
+            AgentTraitValues traits)
         {
+            Traits = traits;
             Temperament = temperament;
             BodyState = bodyState;
             AgentId = agentId;
@@ -85,6 +87,9 @@ namespace Paniq.Simulation
 
         /// <summary>Upright, or staggering, lying on the floor, or getting up.</summary>
         public AgentBodyState BodyState { get; }
+
+        /// <summary>Strength, speed, bravery, compassion, evil and nervousness, 0–10.</summary>
+        public AgentTraitValues Traits { get; }
 
         public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp;
     }

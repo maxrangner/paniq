@@ -41,12 +41,15 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("13"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(5));
+            Assert.That(data.ContentRevision, Is.EqualTo("14"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(6));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
-            Assert.That(data.Panic.SpeedMinimum, Is.GreaterThan(data.Calm.SpeedMaximum * 2));
-            Assert.That(data.Panic.SpeedMaximum, Is.LessThanOrEqualTo(data.World.MaximumStepDistanceMillimetres));
+            Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
+                Is.GreaterThan((data.Calm.SpeedMaximum + data.Traits.CalmSpeedJitter) * 3 / 2),
+                "Even the slowest sprinter clearly outruns the fastest walker.");
+            Assert.That(data.Panic.SpeedMaximum + data.Traits.PanicSpeedJitter,
+                Is.LessThanOrEqualTo(data.World.MaximumStepDistanceMillimetres));
         }
 
         [Test]
@@ -1015,10 +1018,21 @@ namespace Paniq.Tests.EditMode
                     }
                 }
 
-                foreach (int pair in knockdownsPerCollision.Values)
+                foreach (KeyValuePair<ulong, int> pair in knockdownsPerCollision)
                 {
-                    Assert.That(pair == 0 || pair == 2, Is.True,
-                        $"Seed {seed}: a collision knocked down {pair} people; it should be none or both.");
+                    if (pair.Value == 1)
+                    {
+                        // Only a much stronger person stays up when the other is floored.
+                        CausalEvent collision = log.Get(pair.Key);
+                        int gap = Math.Abs(simulation.GetAgent(collision.SourceId).Traits.Strength -
+                                           simulation.GetAgent(collision.TargetId).Traits.Strength);
+                        Assert.That(gap, Is.GreaterThanOrEqualTo(data.Traits.StrengthShrugOffGap),
+                            $"Seed {seed}: a collision floored only one of two people of similar strength.");
+                        continue;
+                    }
+
+                    Assert.That(pair.Value == 0 || pair.Value == 2, Is.True,
+                        $"Seed {seed}: a collision knocked down {pair.Value} people; it should be none, one or both.");
                 }
             }
 

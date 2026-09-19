@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '13'
+    ContentRevision: '14'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 5
+    SimulationCompatibilityVersion: 6
     World:
       RoomBounds:
         minX: -6000
@@ -43,8 +43,8 @@ MonoBehaviour:
       WallAvoidDistanceMillimetres: 600
       ObjectAvoidMarginMillimetres: 400
     Calm:
-      SpeedMinimum: 22
-      SpeedMaximum: 30
+      SpeedMinimum: 20
+      SpeedMaximum: 32
       TurnRateMinimum: 4
       TurnRateMaximum: 7
       Acceleration: 2
@@ -65,8 +65,8 @@ MonoBehaviour:
       WallAvoidPercent: 150
       ObjectAvoidPercent: 100
     Panic:
-      SpeedMinimum: 70
-      SpeedMaximum: 100
+      SpeedMinimum: 60
+      SpeedMaximum: 110
       TurnRateMinimum: 10
       TurnRateMaximum: 16
       Acceleration: 8
@@ -166,6 +166,23 @@ MonoBehaviour:
       KnockdownMomentum: 1600
       LoggedBoxHitSpeed: 20
       SpinMaximum: 20
+    Traits:
+      CalmSpeedJitter: 2
+      PanicSpeedJitter: 5
+      StrengthMassPercentPerPoint: 10
+      StrengthShrugOffGap: 4
+      BraveryReactionDelayPercentPerPoint: 10
+      BraveryDangerDistancePercentPerPoint: 5
+      NervousShoutIntervalPercentPerPoint: 10
+      NervousDecisionIntervalPercentPerPoint: 10
+      NervousSwerveChancePerPoint: 5
+      NervousHesitateChancePerPoint: 2
+      NervousTripPercentPerPoint: 10
+      CompassionAvoidPercentPerPoint: 15
+      EvilAvoidPercentPerPoint: 15
+      CompassionBumpSpeedPerPoint: 5
+      EvilBumpSpeedPerPoint: 5
+      MinimumBumpSpeed: 20
     Agents:
     - agentId:
         value: 1001
@@ -173,60 +190,140 @@ MonoBehaviour:
         x: -5000
         z: -5000
       initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 5
+        bravery: 5
+        compassion: 5
+        evil: 2
+        nervousness: 5
     - agentId:
         value: 1002
       initialPosition:
         x: 0
         z: -5000
       initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 9
+        speed: 6
+        bravery: 6
+        compassion: 3
+        evil: 6
+        nervousness: 3
     - agentId:
         value: 1003
       initialPosition:
         x: 5000
         z: -5000
       initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 8
+        speed: 6
+        bravery: 8
+        compassion: 8
+        evil: 1
+        nervousness: 3
     - agentId:
         value: 1004
       initialPosition:
         x: -5000
         z: 0
       initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 4
+        speed: 4
+        bravery: 7
+        compassion: 9
+        evil: 0
+        nervousness: 4
     - agentId:
         value: 1005
       initialPosition:
         x: 900
         z: 0
       initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 6
+        speed: 6
+        bravery: 5
+        compassion: 1
+        evil: 8
+        nervousness: 4
     - agentId:
         value: 1006
       initialPosition:
         x: 5000
         z: 0
       initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 3
+        speed: 5
+        bravery: 1
+        compassion: 5
+        evil: 2
+        nervousness: 10
     - agentId:
         value: 1007
       initialPosition:
         x: -5000
         z: 5000
       initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 10
+        bravery: 5
+        compassion: 5
+        evil: 3
+        nervousness: 6
     - agentId:
         value: 1008
       initialPosition:
         x: 0
         z: 5000
       initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 7
+        speed: 5
+        bravery: 4
+        compassion: 2
+        evil: 9
+        nervousness: 5
     - agentId:
         value: 1009
       initialPosition:
         x: 5000
         z: 5000
       initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 3
+        speed: 4
+        bravery: 2
+        compassion: 4
+        evil: 3
+        nervousness: 8
     - agentId:
         value: 1010
       initialPosition:
         x: 0
         z: -1800
       initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 5
+        bravery: 5
+        compassion: 6
+        evil: 3
+        nervousness: 5
     Doors:
     - doorId:
         value: 2001

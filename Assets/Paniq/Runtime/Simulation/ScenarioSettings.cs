@@ -89,8 +89,9 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class CalmSettings
     {
-        public int SpeedMinimum = 22;
-        public int SpeedMaximum = 30;
+        /// <summary>Walking pace of someone with Speed 0 and Speed 10; everyone else is in between (plus a little jitter).</summary>
+        public int SpeedMinimum = 20;
+        public int SpeedMaximum = 32;
         public int TurnRateMinimum = 4;
         public int TurnRateMaximum = 7;
         public int Acceleration = 2;
@@ -139,8 +140,9 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class PanicSettings
     {
-        public int SpeedMinimum = 70;
-        public int SpeedMaximum = 100;
+        /// <summary>Sprinting pace of someone with Speed 0 and Speed 10; everyone else is in between (plus a little jitter).</summary>
+        public int SpeedMinimum = 60;
+        public int SpeedMaximum = 110;
         public int TurnRateMinimum = 10;
         public int TurnRateMaximum = 16;
         public int Acceleration = 8;
@@ -402,6 +404,72 @@ namespace Paniq.Simulation
             Settings.Require(TripMinimumSpeed >= 0 && TripScale > 0 && Settings.Percent(TripMaximumChancePercent) &&
                              StaggerMomentum > 0 && KnockdownMomentum >= StaggerMomentum, "object hits");
             Settings.Require(LoggedBoxHitSpeed >= 0 && SpinMaximum >= 0, "object spin and logging");
+        }
+    }
+
+    /// <summary>
+    /// How much each personality trait changes behaviour. Traits run from 0
+    /// to 10 and 5 is an ordinary person, who behaves exactly as the other
+    /// settings say. Most effects are "percent per point": with 10 percent
+    /// per point, a trait of 8 means 30 percent more and a trait of 2 means
+    /// 30 percent less.
+    /// </summary>
+    [Serializable]
+    public sealed class TraitSettings
+    {
+        /// <summary>Seeded wobble added to each person's walking and sprinting pace, so equal Speed traits still differ a little.</summary>
+        public int CalmSpeedJitter = 2;
+        public int PanicSpeedJitter = 5;
+
+        /// <summary>Strength: how hard a person shoves a box, as their effective body weight.</summary>
+        public int StrengthMassPercentPerPoint = 10;
+
+        /// <summary>Strength: in a knock-down collision, someone this many points stronger only staggers.</summary>
+        public int StrengthShrugOffGap = 4;
+
+        /// <summary>Bravery: shorter reaction delay when startled.</summary>
+        public int BraveryReactionDelayPercentPerPoint = 10;
+
+        /// <summary>Bravery: how close fire may get before they bolt straight away from it.</summary>
+        public int BraveryDangerDistancePercentPerPoint = 5;
+
+        /// <summary>Nervousness: shouting more often and changing their mind more often while running.</summary>
+        public int NervousShoutIntervalPercentPerPoint = 10;
+        public int NervousDecisionIntervalPercentPerPoint = 10;
+
+        /// <summary>Nervousness: extra chance (percentage points) to zig-zag and to hesitate at each panic decision.</summary>
+        public int NervousSwerveChancePerPoint = 5;
+        public int NervousHesitateChancePerPoint = 2;
+
+        /// <summary>Nervousness: tripping over their own feet.</summary>
+        public int NervousTripPercentPerPoint = 10;
+
+        /// <summary>Compassion and evil: how hard a runner steers around other people.</summary>
+        public int CompassionAvoidPercentPerPoint = 15;
+        public int EvilAvoidPercentPerPoint = 15;
+
+        /// <summary>Compassion and evil: the closing speed (mm per tick) at which a runner rams someone rather than dodging.</summary>
+        public int CompassionBumpSpeedPerPoint = 5;
+        public int EvilBumpSpeedPerPoint = 5;
+        public int MinimumBumpSpeed = 20;
+
+        public TraitSettings Clone() => (TraitSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(CalmSpeedJitter >= 0 && PanicSpeedJitter >= 0, "trait speed jitter");
+            Settings.Require(StrengthMassPercentPerPoint >= 0 && StrengthMassPercentPerPoint <= 20 &&
+                             StrengthShrugOffGap >= 1, "strength effects");
+            Settings.Require(BraveryReactionDelayPercentPerPoint >= 0 && BraveryReactionDelayPercentPerPoint <= 20 &&
+                             BraveryDangerDistancePercentPerPoint >= 0 && BraveryDangerDistancePercentPerPoint <= 20,
+                "bravery effects");
+            Settings.Require(NervousShoutIntervalPercentPerPoint >= 0 && NervousShoutIntervalPercentPerPoint <= 18 &&
+                             NervousDecisionIntervalPercentPerPoint >= 0 && NervousDecisionIntervalPercentPerPoint <= 18 &&
+                             NervousSwerveChancePerPoint >= 0 && NervousHesitateChancePerPoint >= 0 &&
+                             NervousTripPercentPerPoint >= 0 && NervousTripPercentPerPoint <= 20, "nervousness effects");
+            Settings.Require(CompassionAvoidPercentPerPoint >= 0 && EvilAvoidPercentPerPoint >= 0 &&
+                             CompassionBumpSpeedPerPoint >= 0 && EvilBumpSpeedPerPoint >= 0 && MinimumBumpSpeed > 0,
+                "compassion and evil effects");
         }
     }
 

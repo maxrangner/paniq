@@ -107,6 +107,17 @@ Agent ID:
 Like the terminal outcome, these are prototype runtime state, not fields of
 the neutral `AgentState` foundation.
 
+## Prototype personality extension
+
+`AgentTraitValues` (strength, speed, bravery, compassion, evil, nervousness,
+each 0–10) is simulation-owned runtime state keyed by Agent ID. It is set at
+tick zero from the scenario's authored traits, or drawn from the seed when a
+person has none. Only the simulation may change it; nothing does yet, but a
+later player power (such as "super strength") would be a player command that
+does. Traits are read through `TraitEffects` whenever they are used, so such a
+change would take effect at once, except for walking and sprinting pace, which
+`TraitEffects.ApplyPace` sets and must be called again.
+
 ## Replay relevance
 
 The meaning and allowed values of `AgentState`, plus the prototype's terminal

@@ -39,8 +39,9 @@ namespace Paniq.Simulation
             context = new SimulationContext(scenario, seedOverride ?? scenario.DefaultSeed);
 
             // Random draws at start-up, in this order: the fire's ignition
-            // point, each person's personality (ascending ID), then the
-            // temperament deck. Nothing else draws before the first tick.
+            // point, each person's traits (if not authored), pace, turn rates
+            // and first decision (ascending ID), then the temperament deck.
+            // Nothing else draws before the first tick.
             DoorRuntime[] doorStates = DoorSystem.CreateDoors(scenario);
             var geometry = new WorldGeometry(context, doorStates);
             fire = new FireSystem(context, geometry);
@@ -82,8 +83,8 @@ namespace Paniq.Simulation
                 agent.Fear.AlertSource = AgentAlertSource.None;
                 agent.Intent.Activity = AgentActivityState.Standing;
                 agent.Intent.LookHeading = heading;
-                agent.Personality.CalmSpeed = context.Random.NextIntInclusive(scenario.Calm.SpeedMinimum, scenario.Calm.SpeedMaximum);
-                agent.Personality.PanicSpeed = context.Random.NextIntInclusive(scenario.Panic.SpeedMinimum, scenario.Panic.SpeedMaximum);
+                agent.Traits = definition.HasAuthoredTraits ? definition.Traits : TraitEffects.Draw(context.Random);
+                TraitEffects.ApplyPace(agent, scenario, context.Random);
                 agent.Personality.CalmTurnRate = context.Random.NextIntInclusive(scenario.Calm.TurnRateMinimum, scenario.Calm.TurnRateMaximum);
                 agent.Personality.PanicTurnRate = context.Random.NextIntInclusive(scenario.Panic.TurnRateMinimum, scenario.Panic.TurnRateMaximum);
 

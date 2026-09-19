@@ -11,12 +11,45 @@ The `FireReactionPrototype` scene shows one abstract 12 m by 12 m room with a
 door in each wall, eight cardboard boxes on the floor, and ten people
 (capsules).
 
+**Everyone has a personality.** Each person has six traits from 0 to 10:
+strength, speed, bravery, compassion, evil and nervousness. 5 is an ordinary
+person. A number floats beside each head; press **Tab** for a table of
+everyone's traits, how they will panic, and what they are doing now. The ten
+people are authored as a cast (a scenario can also leave traits out and let the
+seed draw them):
+
+| # | Who | Str | Spd | Brv | Cmp | Evl | Nrv |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | ordinary | 5 | 5 | 5 | 5 | 2 | 5 |
+| 2 | the brute | 9 | 6 | 6 | 3 | 6 | 3 |
+| 3 | the hero | 8 | 6 | 8 | 8 | 1 | 3 |
+| 4 | the saint | 4 | 4 | 7 | 9 | 0 | 4 |
+| 5 | the villain | 6 | 6 | 5 | 1 | 8 | 4 |
+| 6 | the nervous wreck | 3 | 5 | 1 | 5 | 2 | 10 |
+| 7 | the sprinter | 5 | 10 | 5 | 5 | 3 | 6 |
+| 8 | the bully | 7 | 5 | 4 | 2 | 9 | 5 |
+| 9 | the coward | 3 | 4 | 2 | 4 | 3 | 8 |
+| 10 | ordinary | 5 | 5 | 5 | 6 | 3 | 5 |
+
+What the traits do:
+- **Speed** sets walking pace (1.0–1.6 m/s) and sprinting pace (3–5.5 m/s).
+- **Strength** makes a person shove boxes harder, and someone 4 or more points
+  stronger than the person they collide with only staggers where the other is
+  floored.
+- **Bravery** shortens the pause before reacting and lets a runner pass closer
+  to the fire before bolting away from it. Fearful people (nervous and not
+  brave) are the ones who freeze.
+- **Nervousness** makes a runner shout more often, change their mind more
+  often, zig-zag, hesitate and trip more.
+- **Compassion** makes a runner weave around people and dodge rather than ram
+  them; **evil** does the opposite and barges straight through.
+
 **Before the fire, people loiter.** Each person makes their own small decisions
 every few seconds. They stroll to a spot on a gently curving path, stop, glance
 around, or wander over to stand about a metre from someone as if chatting.
 They turn and speed up gradually, keep personal space, and steer away from
 walls before reaching them. Each person has their own seeded walking pace
-(1.1–1.5 m/s) and turning speed, so no two move alike.
+(set by their speed trait) and turning speed, so no two move alike.
 
 **After five seconds a fire starts** at a seeded spot near the middle. The
 floor is a grid of 0.5 m squares. Each burning square shows a dim glowing tile
@@ -35,7 +68,7 @@ look, with a yellow `?`. Fire crackles too: someone within 3.5 m with their
 back to it turns around, and if it is still out of sight they edge toward it
 until they see it.
 
-**People panic in different ways.** In a room of ten, the seed deals out:
+**People panic in different ways.** In a room of ten, the most fearful are dealt:
 - five **runners**, who sprint at 3.5–5 m/s and shout every 2–5 s;
 - three who **freeze** with a snowflake over their head, trembling, for 2–6 s,
   then snap out of it and run (at once if the fire gets within 1.5 m); and
@@ -167,10 +200,18 @@ restart control, or end screen in this checkpoint.
   50–125 ticks: turn toward the point at the panic turn rate and, after 25
   ticks, if facing it within 30° and more than 2 m away, walk toward it at
   half calm pace.
-- **Temperament.** At tick zero, after the per-agent personality draws, a deck
-  of `round(n × 15%)` `FreezeForever`, `round(n × 30%)` `FreezeThenRun` and the
-  rest `Runner` is shuffled with the seeded generator (Fisher–Yates) and dealt
-  in ascending ID order. On becoming scared, runners flee; the others log
+- **Traits.** Each person has six traits, 0–10 (`AgentTraitValues`), authored
+  in the scenario or drawn at tick zero as the rounded average of two 0–10
+  draws. `TraitEffects` is the only code that turns traits into numbers; a
+  trait of 5 gives exactly the scenario value and each point away from 5
+  changes it by the percentages in the scenario's `Traits` settings. Pace is
+  spread evenly between the Speed 0 and Speed 10 values plus a seeded jitter
+  (±2 walking, ±5 sprinting, mm/tick).
+- **Temperament.** At tick zero, after the per-agent draws, a deck of
+  `round(n × 15%)` `FreezeForever`, `round(n × 30%)` `FreezeThenRun` and the
+  rest `Runner` is dealt, freezing cards first, to people in order of
+  fearfulness (nervousness minus bravery), with a seeded Fisher–Yates shuffle
+  breaking ties. On becoming scared, runners flee; the others log
   `AgentFroze`, stand still and turn to stare at the nearest fire.
   `FreezeThenRun` agents log `AgentUnfroze` and start fleeing after a seeded
   100–300 ticks, or at once when fire is within 1.5 m. Fleeing agents log

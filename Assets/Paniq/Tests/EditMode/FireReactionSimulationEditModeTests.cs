@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("16"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(8));
+            Assert.That(data.ContentRevision, Is.EqualTo("19"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(11));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -190,6 +190,13 @@ namespace Paniq.Tests.EditMode
                 else
                 {
                     Assert.That(ignition.EventType, Is.EqualTo(FireReactionEventType.FireSpread));
+                    if (simulation.EventLog.Get(ignition.CausalParentEventId).EventType == FireReactionEventType.ObjectCaughtFire)
+                    {
+                        // Lit by a burning box, chair or table resting on it; that is the burning thing's own rule.
+                        cellByEvent.Add(cell.EventId, cell);
+                        continue;
+                    }
+
                     Assert.That(cellByEvent.TryGetValue(ignition.CausalParentEventId, out FireCellSnapshot parent), Is.True,
                         $"Cell {i} was lit by something other than an earlier burning cell.");
                     Assert.That(Math.Abs(parent.CellX - cell.CellX) + Math.Abs(parent.CellZ - cell.CellZ), Is.EqualTo(1),
@@ -700,9 +707,11 @@ namespace Paniq.Tests.EditMode
                 Assert.That(caught.SourceId, Is.EqualTo(record.SourceId));
                 Assert.That(record.Tick - caught.Tick, Is.EqualTo(caught.DurationTicks), "They burn for the drawn time.");
 
-                // Set alight by a burning square, or by someone else who was on fire, and so on back to a square.
+                // Set alight by a burning square, a burning thing, or someone else who was on fire,
+                // and so on back to a square.
                 CausalEvent cause = simulation.EventLog.Get(caught.CausalParentEventId);
-                while (cause.EventType == FireReactionEventType.AgentCaughtFire)
+                while (cause.EventType == FireReactionEventType.AgentCaughtFire ||
+                       cause.EventType == FireReactionEventType.ObjectCaughtFire)
                 {
                     cause = simulation.EventLog.Get(cause.CausalParentEventId);
                 }
@@ -864,6 +873,10 @@ namespace Paniq.Tests.EditMode
             }
 
             data.Agents = crowd.ToArray();
+
+            // A bare room, so the grid of people fits.
+            data.Tables = new FireReactionTableDefinition[0];
+            data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
             var simulation = new FireReactionSimulation(data);
             var temperaments = new HashSet<AgentPanicTemperament>();
             for (int i = 0; i < simulation.AgentCount; i++)
@@ -939,7 +952,9 @@ namespace Paniq.Tests.EditMode
                     continue;
                 }
 
-                int deadline = pair.Value.Tick + data.Temperament.FreezeMaximumTicks;
+                // Someone knocked to the floor while frozen snaps out of it once back on their feet.
+                int longestDown = data.Falls.UnconsciousMaximumTicks + data.Falls.ComeToGetUpTicks;
+                int deadline = pair.Value.Tick + data.Temperament.FreezeMaximumTicks + longestDown;
                 bool lostFirst = lostTick.TryGetValue(pair.Key, out int lost) && lost <= deadline;
                 if (!lostFirst && deadline < simulation.Tick)
                 {
@@ -1021,7 +1036,7 @@ namespace Paniq.Tests.EditMode
                             collisions++;
                             knockdownsPerCollision[record.EventId] = 0;
                             Assert.That(log.Get(record.CausalParentEventId).EventType,
-                                Is.EqualTo(FireReactionEventType.AgentScared));
+                                Is.EqualTo(FireReactionEventType.AgentScared).Or.EqualTo(FireReactionEventType.AgentCaughtFire));
                             break;
                         case FireReactionEventType.AgentKnockedDown:
                             knockdowns++;

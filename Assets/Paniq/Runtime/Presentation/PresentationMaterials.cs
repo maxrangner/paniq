@@ -17,6 +17,7 @@ namespace Paniq.Presentation
 
         public static readonly Color LockedDoorColor = new Color(0.86f, 0.14f, 0.1f);
         public static readonly Color BoxColor = new Color(0.62f, 0.45f, 0.26f);
+        public static readonly Color WoodColor = new Color(0.45f, 0.29f, 0.17f);
         public static readonly Color FlameRed = new Color(1f, 0.16f, 0.02f);
 
         private readonly MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();

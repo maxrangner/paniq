@@ -248,6 +248,11 @@ namespace Paniq.Simulation
                     score -= settings.EscapeRoutePenaltyMillimetres;
                 }
 
+                if (geometry.RouteCrossesTable(position, candidate))
+                {
+                    score -= settings.TableRoutePenaltyMillimetres;
+                }
+
                 long hopSquared = LogicalPosition.DistanceSquared(position, candidate);
                 if (hopSquared < (long)settings.EscapeShortHopDistanceMillimetres * settings.EscapeShortHopDistanceMillimetres)
                 {

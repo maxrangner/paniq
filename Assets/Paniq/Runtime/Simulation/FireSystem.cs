@@ -162,6 +162,24 @@ namespace Paniq.Simulation
         /// <summary>The ignition event of a burning cell.</summary>
         public ulong CellEventId(int cell) => cellEventIds[cell];
 
+        /// <summary>The grid cell under a point (clamped to the grid).</summary>
+        public int CellIndexAt(LogicalPosition position) => CellAt(position);
+
+        /// <summary>
+        /// Something burning (not the spreading fire itself) sets a cell
+        /// alight: a <c>FireSpread</c> caused by <paramref name="causeEventId"/>.
+        /// Nothing happens if it is already burning.
+        /// </summary>
+        public void IgniteCell(int cell, ulong causeEventId)
+        {
+            if (!active || cellEventIds[cell] != 0UL)
+            {
+                return;
+            }
+
+            Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+        }
+
         /// <summary>Burning cells in ignition order, as a view that later ignitions do not change. Nothing is copied.</summary>
         public AppendOnlyView<FireCellSnapshot> GetCells() => new AppendOnlyView<FireCellSnapshot>(cellRecords);
 
@@ -175,6 +193,40 @@ namespace Paniq.Simulation
 
         /// <summary>The event ID of the earliest-lit cell a person's swept footprint overlaps, or 0.</summary>
         public ulong FindTouchingSweep(LogicalPosition start, LogicalPosition end)
+        {
+            return FindTouchingSweep(start, end, radius);
+        }
+
+        /// <summary>The event ID of the earliest-lit cell within <paramref name="reach"/> of a point, or 0.</summary>
+        public ulong FindTouchingCircle(LogicalPosition centre, int reach)
+        {
+            return FindTouchingSweep(centre, centre, reach);
+        }
+
+        /// <summary>The event ID of the earliest-lit cell overlapping a rectangle, or 0.</summary>
+        public ulong FindTouchingBounds(LogicalBounds bounds)
+        {
+            int firstX = ColumnOf(bounds.MinX);
+            int lastX = ColumnOf(bounds.MaxX);
+            int firstZ = RowOf(bounds.MinZ);
+            int lastZ = RowOf(bounds.MaxZ);
+            ulong earliest = 0UL;
+            for (int z = firstZ; z <= lastZ; z++)
+            {
+                for (int x = firstX; x <= lastX; x++)
+                {
+                    ulong eventId = cellEventIds[z * gridColumns + x];
+                    if (eventId != 0UL && (earliest == 0UL || eventId < earliest))
+                    {
+                        earliest = eventId;
+                    }
+                }
+            }
+
+            return earliest;
+        }
+
+        private ulong FindTouchingSweep(LogicalPosition start, LogicalPosition end, int radius)
         {
             int cellSize = settings.CellSizeMillimetres;
             int firstX = Math.Max(0, (Math.Min(start.X, end.X) - radius - floor.MinX) / cellSize);

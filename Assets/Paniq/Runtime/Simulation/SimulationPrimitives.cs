@@ -214,7 +214,13 @@ namespace Paniq.Simulation
         ForcingDoor,
 
         /// <summary>On fire: running around wildly until they collapse.</summary>
-        Burning
+        Burning,
+
+        /// <summary>Tidying up: walking over to an item, picking it up, carrying it off and setting it down.</summary>
+        FetchingItem,
+        PickingUp,
+        CarryingItem,
+        SettingDown
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>
@@ -271,7 +277,19 @@ namespace Paniq.Simulation
         AgentPassedOut,
         AgentCameTo,
         DoorBrokenDown,
-        AgentCaughtFire
+        AgentCaughtFire,
+        ObjectCaughtFire,
+        ObjectBurntOut,
+        ItemThrown,
+        ItemDropped
+    }
+
+    /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>
+    public enum ObjectBurnState
+    {
+        Intact,
+        Burning,
+        Burnt
     }
 
     /// <summary>Which wall of the room a door sits in. North is +Z, east is +X.</summary>
@@ -296,10 +314,11 @@ namespace Paniq.Simulation
         Broken
     }
 
-    /// <summary>The shapes the physical-object system knows. Only boxes so far.</summary>
+    /// <summary>The kinds of loose object the physical-object system knows.</summary>
     public enum PhysicsObjectKind
     {
-        Box
+        Box,
+        Chair
     }
 
     public enum PlayerCommandType

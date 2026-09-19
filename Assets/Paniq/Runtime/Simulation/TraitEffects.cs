@@ -87,6 +87,13 @@ namespace Paniq.Simulation
             return points <= 0 ? 0 : points * settings.DoorDamagePerPoint;
         }
 
+        /// <summary>The heaviest item this person can lift and carry.</summary>
+        public static long CarryLimitGrams(Agent agent, FireReactionScenarioData scenario)
+        {
+            ItemSettings items = scenario.Items;
+            return items.CarryBaseGrams + (long)items.CarryGramsPerStrength * agent.Traits.Strength;
+        }
+
         // ---------------------------------------------------------------- bravery
 
         public static int MaximumReactionDelayTicks(Agent agent, FireReactionScenarioData scenario)

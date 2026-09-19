@@ -64,6 +64,12 @@ namespace Paniq.Tests.EditMode
             for (int b = 0; b < snapshot.PhysicsObjects.Count; b++)
             {
                 FireReactionPhysicsObjectSnapshot box = snapshot.PhysicsObjects[b];
+                if (box.IsHeld)
+                {
+                    // Carried in someone's arms: off the floor, touching nothing.
+                    continue;
+                }
+
                 int boxRadius = box.SizeMillimetres / 2;
                 Assert.That(data.World.RoomBounds.ContainsCircle(box.Position, boxRadius), Is.True,
                     $"{context}: box {box.ObjectId} left the room at tick {snapshot.Tick}.");
@@ -83,6 +89,11 @@ namespace Paniq.Tests.EditMode
                 for (int o = 0; o < b; o++)
                 {
                     FireReactionPhysicsObjectSnapshot other = snapshot.PhysicsObjects[o];
+                    if (other.IsHeld)
+                    {
+                        continue;
+                    }
+
                     long reach = (long)boxRadius + other.SizeMillimetres / 2;
                     Assert.That(LogicalPosition.DistanceSquared(other.Position, box.Position), Is.GreaterThanOrEqualTo(reach * reach),
                         $"{context}: boxes {box.ObjectId} and {other.ObjectId} overlapped at tick {snapshot.Tick}.");

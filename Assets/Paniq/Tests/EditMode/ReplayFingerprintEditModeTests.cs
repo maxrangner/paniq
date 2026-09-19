@@ -14,11 +14,11 @@ namespace Paniq.Tests.EditMode
     public sealed class ReplayFingerprintEditModeTests
     {
         [TestCase(42UL, false, 0x80CE89371C6C8AF0UL)]
-        [TestCase(42UL, true, 0x52A5FB54B9348B7DUL)]
+        [TestCase(42UL, true, 0x099822A811116643UL)]
         [TestCase(40UL, false, 0xECCE029E2097C49DUL)]
-        [TestCase(40UL, true, 0xF171E2E67AA197EDUL)]
+        [TestCase(40UL, true, 0xAD82CFF085641AACUL)]
         [TestCase(46UL, false, 0xF8218D21E2402046UL)]
-        [TestCase(46UL, true, 0x94C514C1BA3D6CB3UL)]
+        [TestCase(46UL, true, 0x92121F8B12E7A4C0UL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();

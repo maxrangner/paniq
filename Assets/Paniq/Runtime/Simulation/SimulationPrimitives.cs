@@ -284,7 +284,9 @@ namespace Paniq.Simulation
         ObjectCaughtFire,
         ObjectBurntOut,
         ItemThrown,
-        ItemDropped
+        ItemDropped,
+        DoorClosed,
+        DoorLocked
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>
@@ -326,7 +328,7 @@ namespace Paniq.Simulation
 
     public enum PlayerCommandType
     {
-        /// <summary>Locked becomes unlocked; unlocked becomes open; open stays open.</summary>
+        /// <summary>Locked becomes unlocked; unlocked becomes open; open closes (unless someone is in the doorway). Broken stays broken.</summary>
         ClickDoor
     }
 

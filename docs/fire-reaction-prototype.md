@@ -99,8 +99,10 @@ Collisions and trips make a thud that calm people within 3 m turn toward. The
 counter at the top left shows calm, scared (and frozen), down and lost people.
 
 **Doors.** Each wall has a 1 m door, set off-centre. Every door starts locked
-and is drawn red. The player clicks a door once to unlock it (it turns green)
-and again to open it (it swings outward). Clicking an open door does nothing.
+and is drawn red. The player clicks a door once to unlock it (it turns green),
+again to open it (it swings outward), and again to close it (it stays
+unlocked); a door with someone standing in the doorway cannot be closed.
+Clicking a broken door does nothing.
 Hovering over a door brightens it and the top-left text says what a click will
 do.
 
@@ -137,6 +139,17 @@ while that door is open (or broken down); walls stop it, and nobody sees fire
 through a wall. A closed door muffles noises to half their reach. If the fire
 does get in, the people sheltering there run back out through the door, or
 away from the flames if the door is shut.
+
+**Closing doors behind them.** People close doors too, by personality: the
+door they just escaped through, and the side room's door while they shelter
+within reach of it. The evil (7+) shut it and lock it even with someone
+running up behind; only a body in the doorway stops them. The compassionate
+(7+) never shut it on someone within 3 m, and while the fire is still more
+than 5 m from the door they leave it open for stragglers. Otherwise, with
+nobody within 3 m, the nervous (8+) shut it, and so do the brave and kind
+(bravery + compassion 12+) once fire is within 5 m of the door. Anyone
+sheltering shuts it when fire is within 2 m of the door. A closed door can be
+opened again by anyone who reaches it (unless it was locked) or by the player.
 
 **Tables and chairs.** Three 1.2 × 0.7 m tables stand in the room. Nobody
 and nothing can pass through a table: people slide along its edge as they
@@ -323,7 +336,16 @@ restart control, or end screen in this checkpoint.
 - **Player commands.** A door click is a `ClickDoor` command for the next tick,
   consumed at the start of that tick in queue order. Locked → unlocked logs
   `DoorUnlocked` (a root event: the player is the cause); unlocked → open logs
-  `DoorOpened` with the unlock as its parent.
+  `DoorOpened` with the unlock as its parent; open → unlocked logs
+  `DoorClosed` (a root event), but only if nobody is in the doorway: a body
+  within the door's width (plus a radius) and no more than a radius + 0.1 m
+  inside the wall, and either within a radius + 0.1 m outside it or, for a
+  door to outside, anywhere in the outside doorway.
+- **Closing by people.** After an `AgentEscaped` (parent of the close), and
+  each tick for a sheltering person within 2 m of their side room's door
+  (parent: their `AgentScared`), the rules above decide; a close logs
+  `DoorClosed` (source: the person, target: the door) and an evil person's
+  lock logs `DoorLocked` (parent: that close).
 - **Doors and escape.** See [spatial-world-rules.md](spatial-world-rules.md)
   for the doorway strip. A panic decision first scores the doors (see
   [technical decisions](technical-decisions.md)) and targets a point 0.6 m
@@ -407,7 +429,7 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentForcedDoor`, `AgentGaveUpOnDoor`, `AgentEscaped`, `BoxBumped`,
 `BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo`,
 `DoorBrokenDown`, `AgentCaughtFire`, `ObjectCaughtFire`, `ObjectBurntOut`,
-`ItemThrown` and `ItemDropped` events. Events that affect someone or
+`ItemThrown`, `ItemDropped`, `DoorClosed` and `DoorLocked` events. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,
 `BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
 and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor`, `DoorBrokenDown`

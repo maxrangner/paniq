@@ -22,15 +22,15 @@ namespace Paniq.Presentation
                 $"Calm {snapshot.CalmCount}   Scared {snapshot.ScaredCount} (frozen {snapshot.FrozenCount}, on fire {snapshot.BurningCount})   " +
                 $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   " +
                 $"Escaped {snapshot.EscapedCount}   Sheltering {snapshot.ShelteringCount}");
-            GUI.Label(new Rect(20f, 92f, 520f, 24f),
-                "Click a door: red = locked. Click once to unlock (green), again to open.   Tab: everyone's stats");
+            GUI.Label(new Rect(20f, 92f, 900f, 24f),
+                "Click a door: red = locked. Click to unlock (green), again to open, again to close.   Tab: everyone's stats");
             if (hoveredDoor.HasValue)
             {
                 string action = hoveredState == DoorState.Locked ? "Click to unlock"
                     : hoveredState == DoorState.Unlocked ? "Click to open"
                     : hoveredState == DoorState.Broken ? "Broken down"
-                    : "Open";
-                GUI.Label(new Rect(20f, 116f, 360f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
+                    : "Click to close (if nobody is in the doorway)";
+                GUI.Label(new Rect(20f, 116f, 600f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
             }
         }
 

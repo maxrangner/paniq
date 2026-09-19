@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '20'
+    ContentRevision: '21'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 12
+    SimulationCompatibilityVersion: 13
     World:
       RoomBounds:
         minX: -6000
@@ -171,6 +171,14 @@ MonoBehaviour:
       ChoiceNoiseMillimetres: 1500
       InFirePenaltyMillimetres: 8000
       DoorStrength: 40
+      CloseReachMillimetres: 2000
+      CloseApproachRadiusMillimetres: 3000
+      CloseFireRadiusMillimetres: 5000
+      FireAtDoorRadiusMillimetres: 2000
+      EvilCloseMinimum: 7
+      CompassionHoldMinimum: 7
+      NervousCloseMinimum: 8
+      BraveKindCloseSum: 12
     ObjectPhysics:
       AgentMassGrams: 70000
       Friction: 157

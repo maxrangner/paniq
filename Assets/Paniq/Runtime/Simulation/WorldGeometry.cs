@@ -365,6 +365,24 @@ namespace Paniq.Simulation
 
         public LogicalPosition DoorCentre(int door) => DoorPoint(door, 0, 0);
 
+        /// <summary>
+        /// A person here would be in the way of the door swinging shut: in
+        /// the gap itself, or (for a door leading outside) anywhere in the
+        /// doorway beyond it. Someone wholly inside a side room is not.
+        /// </summary>
+        public bool IsInDoorway(int door, LogicalPosition position)
+        {
+            long along = Math.Abs(AlongOffset(door, position));
+            long outside = OutsideDistance(door, position);
+            long clearance = radius + 100L;
+            if (along >= doors[door].Width / 2 + (long)radius || outside <= -clearance)
+            {
+                return false;
+            }
+
+            return outside <= clearance || (doorSideRoom[door] < 0 && outside <= exits.DoorwayDepthMillimetres);
+        }
+
         /// <summary>How far past the door's wall a point is (negative inside the room).</summary>
         private long OutsideDistance(int door, LogicalPosition position)
         {

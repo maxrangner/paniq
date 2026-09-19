@@ -6,7 +6,8 @@ namespace Paniq.Simulation
     /// gives) before looking for another way out. People can see an open
     /// doorway, but a shut door looks the same to them locked or not; they
     /// remember a door that would not open for a while. Walking far enough
-    /// out through an open door is an escape.
+    /// out through an open door is an escape. People close doors behind
+    /// them, or keep them open, according to their personality.
     /// </summary>
     internal sealed class DoorBehaviour
     {
@@ -333,6 +334,95 @@ namespace Paniq.Simulation
                 settings.DoorCrowdedAvoidMinimumTicks, settings.DoorCrowdedAvoidMaximumTicks));
         }
 
+        /// <summary>
+        /// Whether to shut <paramref name="door"/> behind them, by personality:
+        /// the evil shut it and lock it even with someone coming (only a body
+        /// in the doorway stops them); the compassionate never shut it on
+        /// someone coming; otherwise, with nobody coming, the nervous shut it,
+        /// and so do the brave and kind if fire is getting near. Fire right at
+        /// the door of the room they shelter in makes anyone shut it.
+        /// </summary>
+        public void ConsiderClosing(Agent agent, int door, ulong causeEventId)
+        {
+            if (doors.StateOf(door) != DoorState.Open)
+            {
+                return;
+            }
+
+            AgentTraitValues traits = agent.Traits;
+            LogicalPosition doorCentre = geometry.DoorCentre(door);
+            bool evil = traits.Evil >= settings.EvilCloseMinimum;
+            bool sheltering = geometry.SideRoomAt(agent.Body.Position) >= 0;
+            bool fireAtDoor = sheltering && fire.AnyCloserThan(doorCentre, settings.FireAtDoorRadiusMillimetres);
+            bool shut;
+            if (evil || fireAtDoor)
+            {
+                shut = true;
+            }
+            else if (SomeoneComing(agent, door))
+            {
+                shut = false;
+            }
+            else if (traits.Compassion >= settings.CompassionHoldMinimum && !fire.AnyCloserThan(doorCentre, settings.CloseFireRadiusMillimetres))
+            {
+                // Keeps it open for stragglers while the fire is still well away.
+                shut = false;
+            }
+            else
+            {
+                shut = traits.Nervousness >= settings.NervousCloseMinimum ||
+                       (traits.Bravery + traits.Compassion >= settings.BraveKindCloseSum &&
+                        fire.AnyCloserThan(doorCentre, settings.CloseFireRadiusMillimetres));
+            }
+
+            if (!shut)
+            {
+                return;
+            }
+
+            ulong closed = doors.TryClose(door, agent.Id, causeEventId, agent);
+            if (closed != 0UL && evil)
+            {
+                doors.Lock(door, agent, closed);
+            }
+        }
+
+        /// <summary>Anyone else still in the run near the door, on the side the closer is not.</summary>
+        private bool SomeoneComing(Agent closer, int door)
+        {
+            int shelter = geometry.DoorSideRoom(door);
+            long radius = settings.CloseApproachRadiusMillimetres;
+            LogicalPosition doorCentre = geometry.DoorCentre(door);
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent other = agents[i];
+                if (other == closer || !other.IsParticipating ||
+                    (shelter >= 0 && geometry.SideRoomAt(other.Body.Position) == shelter) ||
+                    LogicalPosition.DistanceSquared(other.Body.Position, doorCentre) > radius * radius)
+                {
+                    continue;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>Someone sheltering near enough to the side room's door to reach it considers shutting it.</summary>
+        public void ConsiderClosingShelter(Agent agent, int sideRoom)
+        {
+            int door = geometry.SideRoomDoor(sideRoom);
+            long reach = settings.CloseReachMillimetres;
+            if (LogicalPosition.DistanceSquared(agent.Body.Position, geometry.DoorCentre(door)) > reach * reach)
+            {
+                return;
+            }
+
+            ConsiderClosing(agent, door, agent.Fear.ScaredEventId);
+        }
+
         /// <summary>Phase 6: anyone far enough out through an open door has escaped and leaves the run.</summary>
         public void ResolveEscapes()
         {
@@ -354,8 +444,11 @@ namespace Paniq.Simulation
 
                 agent.Participation = AgentParticipation.NoLongerParticipating;
                 agent.Outcome = AgentTerminalOutcome.Escaped;
-                context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentEscaped, agent.Body.Position,
-                    0, 0, doors.OpenedEventIdOf(door), doors.IdOf(door));
+                ulong escaped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentEscaped,
+                    agent.Body.Position, 0, 0, doors.OpenedEventIdOf(door), doors.IdOf(door)).EventId;
+
+                // Out: shut the door behind them, or leave it open for the others?
+                ConsiderClosing(agent, door, escaped);
             }
         }
     }

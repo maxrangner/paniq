@@ -54,6 +54,7 @@ namespace Paniq.Simulation
 
             var crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres);
             doors = new DoorSystem(context, doorStates, geometry);
+            doors.UseCrowd(crowd);
             var sound = new SoundSystem(context, crowd, fire, fear, geometry);
             perception = new PerceptionSystem(context, fire, fear, sound);
             body = new BodySystem(context, fire, sound);

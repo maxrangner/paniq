@@ -206,6 +206,7 @@ namespace Paniq.Simulation
 
             intent.Activity = AgentActivityState.Sheltering;
             agent.Doors.ExitDoorIndex = -1;
+            doorBehaviour.ConsiderClosingShelter(agent, sideRoom);
             LogicalPosition back = geometry.SideRoomBackPoint(sideRoom);
             long distance = IntegerMath.Distance(position, back);
             if (distance > context.Scenario.Calm.StrollArrivalDistanceMillimetres &&

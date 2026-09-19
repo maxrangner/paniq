@@ -130,6 +130,7 @@ namespace Paniq.Presentation
                         ripples.Start(record.Position, record.Strength, SoundRipples.ThudColor, time);
                         break;
                     case FireReactionEventType.DoorBrokenDown:
+                    case FireReactionEventType.DoorClosed:
                         ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
                         break;
                     case FireReactionEventType.AgentForcedDoor:

@@ -400,6 +400,34 @@ namespace Paniq.Simulation
         /// <summary>How much shoving damage a door takes before it breaks. Damage stays between attempts.</summary>
         public int DoorStrength = 40;
 
+        // Closing doors, by personality. People close the door of the side
+        // room they shelter in (if within reach of it), and the door they
+        // have just escaped through.
+
+        /// <summary>How close to a door someone sheltering must be to pull it shut.</summary>
+        public int CloseReachMillimetres = 2000;
+
+        /// <summary>Anyone else this close to the door counts as "someone coming".</summary>
+        public int CloseApproachRadiusMillimetres = 3000;
+
+        /// <summary>Fire this close to the door makes brave, kind people shut it.</summary>
+        public int CloseFireRadiusMillimetres = 5000;
+
+        /// <summary>Fire this close to the door makes anyone sheltering shut it, compassionate or not.</summary>
+        public int FireAtDoorRadiusMillimetres = 2000;
+
+        /// <summary>This evil: shut and lock the door behind them, even in the face of someone coming.</summary>
+        public int EvilCloseMinimum = 7;
+
+        /// <summary>This compassionate: never shut the door on someone coming.</summary>
+        public int CompassionHoldMinimum = 7;
+
+        /// <summary>This nervous: shut the door as soon as nobody is coming.</summary>
+        public int NervousCloseMinimum = 8;
+
+        /// <summary>Bravery plus compassion at least this: shut the door against approaching fire when nobody is coming.</summary>
+        public int BraveKindCloseSum = 12;
+
         public ExitSettings Clone() => (ExitSettings)MemberwiseClone();
 
         internal void Validate(WorldSettings world)
@@ -420,6 +448,10 @@ namespace Paniq.Simulation
             Settings.Require(OpenBonusMillimetres >= 0 && CurrentChoiceBonusMillimetres >= 0 &&
                              ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0, "door scoring");
             Settings.Require(DoorStrength >= 1, "door strength");
+            Settings.Require(CloseReachMillimetres >= 0 && CloseApproachRadiusMillimetres >= 0 &&
+                             CloseFireRadiusMillimetres >= 0 && FireAtDoorRadiusMillimetres >= 0 &&
+                             EvilCloseMinimum >= 0 && CompassionHoldMinimum >= 0 && NervousCloseMinimum >= 0 &&
+                             BraveKindCloseSum >= 0, "closing doors");
         }
     }
 

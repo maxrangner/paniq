@@ -92,7 +92,7 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void DoorClicks_UnlockThenOpenThenDoNothing()
+        public void DoorClicks_UnlockThenOpenThenCloseThenOpenAgain()
         {
             var simulation = new FireReactionSimulation(DefaultData());
             Click(simulation, NorthDoor);
@@ -112,9 +112,17 @@ namespace Paniq.Tests.EditMode
 
             Click(simulation, NorthDoor);
             simulation.Step();
+            Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Unlocked), "A third click closes it.");
+            List<CausalEvent> closed = EventsOfType(simulation, FireReactionEventType.DoorClosed);
+            Assert.That(closed, Has.Count.EqualTo(1));
+            Assert.That(closed[0].HasCausalParent, Is.False, "The player closing a door is a root cause.");
+            Assert.That(closed[0].TargetId, Is.EqualTo(NorthDoor));
+
+            Click(simulation, NorthDoor);
+            simulation.Step();
             Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Open));
-            Assert.That(EventsOfType(simulation, FireReactionEventType.DoorOpened), Has.Count.EqualTo(1));
-            Assert.That(simulation.Commands, Has.Count.EqualTo(3));
+            Assert.That(EventsOfType(simulation, FireReactionEventType.DoorOpened), Has.Count.EqualTo(2));
+            Assert.That(simulation.Commands, Has.Count.EqualTo(4));
         }
 
         [Test]
@@ -471,6 +479,8 @@ namespace Paniq.Tests.EditMode
                     case FireReactionEventType.AgentForcedDoor:
                     case FireReactionEventType.AgentGaveUpOnDoor:
                     case FireReactionEventType.DoorBrokenDown:
+                    case FireReactionEventType.DoorClosed:
+                    case FireReactionEventType.DoorLocked:
                         Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, $"{record.EventType} names the door.");
                         Assert.That(record.Position, Is.EqualTo(doorCentres[record.TargetId]));
                         break;

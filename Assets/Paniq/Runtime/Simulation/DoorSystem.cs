@@ -20,15 +20,18 @@ namespace Paniq.Simulation
 
     /// <summary>
     /// Door state and player commands. Every door starts locked. A player
-    /// click unlocks it; a second click opens it. People can also open an
-    /// unlocked door themselves (see <see cref="DoorBehaviour"/>). This
-    /// system is the only one that changes a door's state.
+    /// click unlocks it; a second click opens it; a click on an open door
+    /// closes it again (unlocked), unless someone is in the doorway. People
+    /// can open an unlocked door, close an open one and lock a closed one
+    /// themselves (see <see cref="DoorBehaviour"/>). A broken door stays
+    /// open for good. This system is the only one that changes a door's state.
     /// </summary>
     internal sealed class DoorSystem
     {
         private readonly SimulationContext context;
         private readonly DoorRuntime[] doors;
         private readonly WorldGeometry geometry;
+        private Crowd crowd;
         private readonly List<PlayerCommand> pendingCommands = new List<PlayerCommand>();
         private readonly List<PlayerCommand> commandHistory = new List<PlayerCommand>();
         private long nextCommandSequence = 1L;
@@ -62,6 +65,9 @@ namespace Paniq.Simulation
         }
 
         public int Count => doors.Length;
+
+        /// <summary>The people, needed to tell whether a doorway is clear. Set once, when the crowd exists.</summary>
+        public void UseCrowd(Crowd people) => crowd = people;
 
         public DoorState StateOf(int door) => doors[door].State;
 
@@ -138,7 +144,57 @@ namespace Paniq.Simulation
                 case DoorState.Unlocked:
                     Open(door, d.UnlockedEventId);
                     break;
+                case DoorState.Open:
+                    // The player is the cause, so this is a root event.
+                    TryClose(door, d.Id, 0UL);
+                    break;
             }
+        }
+
+        /// <summary>True when nobody (other than <paramref name="ignore"/>) is in the way of the door swinging shut.</summary>
+        public bool IsDoorwayClear(int door, Agent ignore = null)
+        {
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                if (agents[i] != ignore && agents[i].IsParticipating && geometry.IsInDoorway(door, agents[i].Body.Position))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Shuts an open door (it is then unlocked), if nobody is in the
+        /// doorway. Returns the <c>DoorClosed</c> event, or 0 when it did not close.
+        /// </summary>
+        public ulong TryClose(int door, SimulationId closer, ulong causalParentEventId, Agent ignore = null)
+        {
+            DoorRuntime d = doors[door];
+            if (d.State != DoorState.Open || !IsDoorwayClear(door, ignore))
+            {
+                return 0UL;
+            }
+
+            d.State = DoorState.Unlocked;
+            return context.Events.Append(context.Tick, closer, FireReactionEventType.DoorClosed, geometry.DoorCentre(door),
+                0, 0, causalParentEventId, d.Id).EventId;
+        }
+
+        /// <summary>Locks a shut door (from either side); a later player click unlocks it again.</summary>
+        public void Lock(int door, Agent locker, ulong causalParentEventId)
+        {
+            DoorRuntime d = doors[door];
+            if (d.State != DoorState.Unlocked)
+            {
+                return;
+            }
+
+            d.State = DoorState.Locked;
+            context.Events.Append(context.Tick, locker.Id, FireReactionEventType.DoorLocked, geometry.DoorCentre(door),
+                0, 0, causalParentEventId, d.Id);
         }
 
         /// <summary>Opens a door, caused by the player's unlock or by a person's attempt.</summary>

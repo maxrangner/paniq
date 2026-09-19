@@ -97,7 +97,13 @@ One simulation runner owns tick advancement. Simulation systems must not each
 advance themselves from separate `MonoBehaviour.FixedUpdate` callbacks; Unity
 component execution order is not simulation order.
 
-The initial vertical-slice schedule is, in order:
+Within phase 4, a person's behaviour only states what it wants the body to do
+this tick (a goal heading, a goal speed, a turn rate and an acceleration).
+Locomotion carries that out once per person per tick. Other systems may stop,
+knock down or jolt a body as the direct result of a logged event, but no
+behaviour turns or accelerates a body itself.
+
+The tick schedule is, in order:
 
 1. Consume commands assigned to this tick.
 2. Advance hazard state.
@@ -105,6 +111,21 @@ The initial vertical-slice schedule is, in order:
 4. Make agent decisions.
 5. Resolve movement requests.
 6. Resolve danger contact along accepted movement and then exit outcomes.
+7. Resolve collisions, in the order they were recorded during phase 4: people
+   into people first, then people into physical objects.
+8. Advance physical objects (such as boxes), in ascending object ID order.
+
+A phase that no prototype stone uses yet is simply empty. In the fire-reaction
+prototype, phase 1 consumes door clicks and phase 6 marks people who have
+walked out through an open door as escaped. Collisions (phase 7) never move
+anyone: a collision is a move that was refused in phase 4, so they cannot
+change the contact results of phase 6. A collision with an object only changes
+that object's velocity, which phase 8 then applies. Phase 8 moves objects but
+never people; an object that runs into a person stops against them and may
+stagger or trip them.
+
+Sounds are delivered synchronously when they are emitted, to listeners in
+ascending Agent ID order, like any other event-driven transition.
 
 Each system emits and appends its events synchronously with the transition that
 caused them. A later system must document where it belongs in this schedule
@@ -123,13 +144,20 @@ schedule phase above.
 | --- | --- |
 | Target tick | The logical tick at whose start the command is consumed. |
 | Command sequence | The run-wide monotonic ordering value for commands sharing a tick. |
-| Command type | A named data-level action, such as the slice's guidance placement. |
+| Command type | A named data-level action, such as placing a guidance marker. |
 | Logical payload | Fully quantized, validated simulation data needed by that command. |
 
 Raw pointer positions, camera state, screen coordinates, Unity input objects,
 and scene-object references are not command data. They may help presentation
 derive the logical payload for a live action, but replay consumes only the
 recorded `PlayerCommand`.
+
+The first command type is `ClickDoor`, whose payload is one door's stable ID.
+The display finds which door was under the mouse pointer with a ray-cast
+against a click-only collider on each door leaf, then hands the runner that
+door ID. The simulation keeps every queued command in order (`Commands`), and
+queuing the same commands on a fresh run with the same seed replays it exactly.
+A command for a tick that has already started is rejected.
 
 Unity's Input System supports dynamic and fixed update processing. Paniq uses
 dynamic capture and explicitly queues logical commands, so rendering cadence
@@ -151,6 +179,7 @@ contains:
 | Strength | An optional numeric magnitude. An event type defines when it is present and what it means. |
 | Duration | An optional logical-time duration. An event type defines when it is present and what it means. |
 | Causal parent | The Event ID that directly caused it, or no parent for a root event. |
+| Target ID | The stable ID of the entity it affected (the person run into, the box kicked, the door tried), or none. An event type defines when it is present. |
 
 Receivers use these fields and their own simulation state to process the event.
 The causal-parent chain is retained so a later event log and debugging view can
@@ -199,9 +228,9 @@ their relevant fields; this section owns the policy.
 
 ## Next layers
 
-The [foundation-to-slice roadmap](roadmap.md) defines the required order:
+The foundation notes built on this contract are
 [scenario data versus runtime state](scenario-runtime-state.md), the [agent
 state model](agent-state-model.md), [causal event logging and debugging](causal-event-log.md),
-then [movement and spatial-world rules](spatial-world-rules.md). Gameplay
-systems can then add their own mechanics without weakening the replay and
-separation guarantees above.
+and [movement and spatial-world rules](spatial-world-rules.md). Prototype
+stones, recorded in the [prototype roadmap](roadmap.md), add their own
+mechanics without weakening the replay and separation guarantees above.

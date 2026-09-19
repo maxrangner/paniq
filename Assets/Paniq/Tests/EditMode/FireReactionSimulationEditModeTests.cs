@@ -1,0 +1,1030 @@
+using System;
+using System.Collections.Generic;
+using NUnit.Framework;
+using Paniq.Gameplay;
+using Paniq.Simulation;
+using UnityEditor;
+
+namespace Paniq.Tests.EditMode
+{
+    public sealed class FireReactionSimulationEditModeTests
+    {
+        private const string ScenarioAssetPath = "Assets/Paniq/Content/FireReactionScenario.asset";
+
+        private FireReactionScenario scenario;
+
+        [SetUp]
+        public void SetUp()
+        {
+            scenario = FireReactionScenario.CreateDefault();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            UnityEngine.Object.DestroyImmediate(scenario);
+        }
+
+        private FireReactionScenarioData DefaultData() => scenario.ToRuntimeData();
+
+        private static FireReactionAgentDefinition Agent(ulong id, int x, int z, CardinalDirection facing)
+        {
+            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing);
+        }
+
+        // ---------------------------------------------------------------- data
+
+        [Test]
+        public void DefaultScenario_IsValidWithReplayIdentity()
+        {
+            Assert.That(scenario.IsValid(out string error), Is.True, error);
+            FireReactionScenarioData data = DefaultData();
+            Assert.That(data.Agents, Has.Length.EqualTo(10));
+            Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
+            Assert.That(data.ContentRevision, Is.EqualTo("13"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(5));
+            Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
+            Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
+            Assert.That(data.Panic.SpeedMinimum, Is.GreaterThan(data.Calm.SpeedMaximum * 2));
+            Assert.That(data.Panic.SpeedMaximum, Is.LessThanOrEqualTo(data.World.MaximumStepDistanceMillimetres));
+        }
+
+        [Test]
+        public void ScenarioAsset_MatchesTheCodeDefaults()
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<FireReactionScenario>(ScenarioAssetPath);
+            Assert.That(asset, Is.Not.Null, $"Missing {ScenarioAssetPath}.");
+            Assert.That(asset.IsValid(out string error), Is.True, error);
+            int compared = AssertSameValues(asset.ToRuntimeData(), DefaultData(), "scenario");
+            Assert.That(compared, Is.GreaterThan(100), "The comparison walked too few values; it may have stopped finding the settings.");
+        }
+
+        /// <summary>Walks every field, descending into settings groups, and returns how many values it compared.</summary>
+        private static int AssertSameValues(object fromAsset, object fromCode, string path)
+        {
+            int compared = 0;
+            foreach (System.Reflection.FieldInfo field in fromAsset.GetType().GetFields())
+            {
+                object assetValue = field.GetValue(fromAsset);
+                object codeValue = field.GetValue(fromCode);
+                string fieldPath = $"{path}.{field.Name}";
+                if (field.FieldType.IsClass && field.FieldType != typeof(string) && !field.FieldType.IsArray)
+                {
+                    compared += AssertSameValues(assetValue, codeValue, fieldPath);
+                    continue;
+                }
+
+                Assert.That(assetValue, Is.EqualTo(codeValue), $"Asset and code defaults disagree on {fieldPath}.");
+                compared++;
+            }
+
+            return compared;
+        }
+
+        // ---------------------------------------------------------------- maths
+
+        [Test]
+        public void Pcg32_UsesTheReferenceVector()
+        {
+            var random = new Pcg32(42UL, 54UL);
+            uint[] expected = { 0xA15C02B7U, 0x7B47F409U, 0xBA1D3330U, 0x83D2F293U, 0xBFA4784BU, 0xCBED606EU };
+            for (int i = 0; i < expected.Length; i++)
+            {
+                Assert.That(random.NextUInt(), Is.EqualTo(expected[i]));
+            }
+        }
+
+        [Test]
+        public void IntegerTrig_MatchesFloatingPointWithinOneUnit()
+        {
+            for (int degrees = -720; degrees <= 720; degrees++)
+            {
+                double radians = degrees * Math.PI / 180.0;
+                Assert.That(IntegerMath.Sin(degrees), Is.EqualTo(Math.Sin(radians) * 10000.0).Within(1.0), $"sin {degrees}");
+                Assert.That(IntegerMath.Cos(degrees), Is.EqualTo(Math.Cos(radians) * 10000.0).Within(1.0), $"cos {degrees}");
+            }
+        }
+
+        [Test]
+        public void IntegerHeading_RoundTripsEveryWholeDegree()
+        {
+            for (int heading = 0; heading < 360; heading++)
+            {
+                LogicalPosition direction = IntegerMath.Direction(heading);
+                int measured = IntegerMath.HeadingOf(direction.X * 7L, direction.Z * 7L, -1);
+                Assert.That(Math.Abs(IntegerMath.SignedAngleDifference(heading, measured)), Is.LessThanOrEqualTo(1),
+                    $"heading {heading} measured as {measured}");
+            }
+
+            Assert.That(IntegerMath.HeadingOf(0, 5, 0), Is.EqualTo(0));
+            Assert.That(IntegerMath.HeadingOf(5, 0, 0), Is.EqualTo(90));
+            Assert.That(IntegerMath.HeadingOf(0, -5, 0), Is.EqualTo(180));
+            Assert.That(IntegerMath.HeadingOf(-5, 0, 0), Is.EqualTo(270));
+        }
+
+        [Test]
+        public void SweptContact_IsCorrectForDiagonalMoves()
+        {
+            var start = new LogicalPosition(0, 0);
+            var end = new LogicalPosition(1000, 1000);
+
+            // About 70.7 mm from the diagonal.
+            Assert.That(IntegerMath.SegmentPassesWithin(start, end, new LogicalPosition(500, 600), 100L * 100L), Is.True);
+            Assert.That(IntegerMath.SegmentPassesWithin(start, end, new LogicalPosition(500, 600), 50L * 50L), Is.False);
+
+            // 707 mm from the diagonal; a bounding-box test would wrongly say 0.
+            Assert.That(IntegerMath.SegmentPassesWithin(start, end, new LogicalPosition(1000, 0), 500L * 500L), Is.False);
+
+            // Beyond the end of the segment only the end point counts.
+            Assert.That(IntegerMath.SegmentPassesWithin(start, end, new LogicalPosition(1300, 1300), 400L * 400L), Is.False);
+
+            // Exact touching is allowed.
+            Assert.That(IntegerMath.SegmentPassesWithin(start, start, new LogicalPosition(500, 0), 500L * 500L), Is.False);
+        }
+
+        // ---------------------------------------------------------------- fire
+
+        [Test]
+        public void Fire_StartsAsOneCellAtTick250()
+        {
+            var simulation = new FireReactionSimulation(DefaultData());
+            for (int i = 0; i < 249; i++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(simulation.FireActive, Is.False);
+            Assert.That(simulation.FireCellCount, Is.EqualTo(0));
+            simulation.Step();
+            Assert.That(simulation.FireActive, Is.True);
+            FireReactionSnapshot snapshot = simulation.GetSnapshot();
+            Assert.That(snapshot.FireCells.Count, Is.EqualTo(1));
+            Assert.That(snapshot.FireCells[0].Centre, Is.EqualTo(simulation.FireOrigin));
+            Assert.That(simulation.EventLog.Get(snapshot.FireCells[0].EventId).EventType,
+                Is.EqualTo(FireReactionEventType.FireActivated));
+        }
+
+        [Test]
+        public void Fire_OnlySpreadsFromCellsAlreadyBurning()
+        {
+            var simulation = new FireReactionSimulation(DefaultData());
+            for (int i = 0; i < 2500; i++)
+            {
+                simulation.Step();
+            }
+
+            IReadOnlyList<FireCellSnapshot> cells = simulation.GetSnapshot().FireCells;
+            Assert.That(cells.Count, Is.GreaterThan(50));
+            var cellByEvent = new Dictionary<ulong, FireCellSnapshot>();
+            for (int i = 0; i < cells.Count; i++)
+            {
+                FireCellSnapshot cell = cells[i];
+                CausalEvent ignition = simulation.EventLog.Get(cell.EventId);
+                if (i == 0)
+                {
+                    Assert.That(ignition.EventType, Is.EqualTo(FireReactionEventType.FireActivated));
+                }
+                else
+                {
+                    Assert.That(ignition.EventType, Is.EqualTo(FireReactionEventType.FireSpread));
+                    Assert.That(cellByEvent.TryGetValue(ignition.CausalParentEventId, out FireCellSnapshot parent), Is.True,
+                        $"Cell {i} was lit by something other than an earlier burning cell.");
+                    Assert.That(Math.Abs(parent.CellX - cell.CellX) + Math.Abs(parent.CellZ - cell.CellZ), Is.EqualTo(1),
+                        $"Cell {i} is not a direct neighbour of the cell that lit it.");
+                    Assert.That(parent.IgnitionTick, Is.LessThan(cell.IgnitionTick));
+                }
+
+                cellByEvent.Add(cell.EventId, cell);
+            }
+        }
+
+        [Test]
+        public void Fire_FillsTheRoomWithinAMinute()
+        {
+            FireReactionScenarioData data = DefaultData();
+            data.Fire.ActivationTick = 1;
+            var simulation = new FireReactionSimulation(data);
+            int totalCells = simulation.FireGridColumns * simulation.FireGridRows;
+            Assert.That(totalCells, Is.EqualTo(24 * 24));
+            for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond && simulation.FireCellCount < totalCells; i++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(simulation.FireCellCount, Is.EqualTo(totalCells));
+        }
+
+        /// <summary>
+        /// The fire only checks nearby grid cells to answer "where is the
+        /// nearest fire", "is fire this close" and "can I see fire". Each
+        /// answer must equal checking every burning cell, ties included, for
+        /// small, medium and large fires and for points outside the room.
+        /// </summary>
+        [TestCase(260)]
+        [TestCase(900)]
+        [TestCase(1800)]
+        public void FireQueries_MatchCheckingEveryBurningCell(int ticks)
+        {
+            var simulation = new FireReactionSimulation(DefaultData());
+            for (int i = 0; i < ticks; i++)
+            {
+                simulation.Step();
+            }
+
+            IReadOnlyList<FireCellSnapshot> cells = simulation.GetSnapshot().FireCells;
+            FireSystem fire = simulation.FireForTests;
+            for (int x = -7000; x <= 7000; x += 350)
+            {
+                for (int z = -7000; z <= 7000; z += 350)
+                {
+                    var position = new LogicalPosition(x, z);
+
+                    // Nearest: lowest distance, then earliest-lit cell.
+                    long expected = long.MaxValue;
+                    ulong expectedEvent = 0UL;
+                    LogicalPosition expectedPoint = position;
+                    foreach (FireCellSnapshot cell in cells)
+                    {
+                        LogicalPosition point = cell.Bounds.ClosestPoint(position);
+                        long distance = LogicalPosition.DistanceSquared(position, point);
+                        if (distance < expected || (distance == expected && cell.EventId < expectedEvent))
+                        {
+                            expected = distance;
+                            expectedEvent = cell.EventId;
+                            expectedPoint = point;
+                        }
+                    }
+
+                    long actual = fire.NearestDistanceSquared(position, out LogicalPosition actualPoint, out int actualCell);
+                    Assert.That(actual, Is.EqualTo(expected), $"nearest distance from {position}");
+                    Assert.That(actualPoint, Is.EqualTo(expectedPoint), $"nearest point from {position}");
+                    Assert.That(fire.CellEventId(actualCell), Is.EqualTo(expectedEvent), $"nearest cell from {position}");
+
+                    foreach (int reach in new[] { 500, 1000, 1500, 2600 })
+                    {
+                        bool anyCloser = false;
+                        foreach (FireCellSnapshot cell in cells)
+                        {
+                            anyCloser |= cell.Bounds.DistanceSquaredTo(position) < (long)reach * reach;
+                        }
+
+                        Assert.That(fire.AnyCloserThan(position, reach), Is.EqualTo(anyCloser), $"fire within {reach} of {position}");
+                    }
+
+                    for (int heading = 0; heading < 360; heading += 45)
+                    {
+                        Assert.That(fire.IsVisibleFrom(position, heading, 3000), Is.EqualTo(SeesAnyCell(cells, position, heading, 3000)),
+                            $"vision from {position} facing {heading}");
+                    }
+                }
+            }
+        }
+
+        /// <summary>The vision rule, checked against every burning cell: nearest point, centre or a corner inside a 90-degree cone.</summary>
+        private static bool SeesAnyCell(IReadOnlyList<FireCellSnapshot> cells, LogicalPosition eye, int heading, int range)
+        {
+            long rangeSquared = (long)range * range;
+            LogicalPosition direction = IntegerMath.Direction(heading);
+            foreach (FireCellSnapshot cell in cells)
+            {
+                LogicalBounds b = cell.Bounds;
+                LogicalPosition closest = b.ClosestPoint(eye);
+                if (LogicalPosition.DistanceSquared(eye, closest) > rangeSquared)
+                {
+                    continue;
+                }
+
+                foreach (LogicalPosition point in new[]
+                         {
+                             closest, b.Centre, new LogicalPosition(b.MinX, b.MinZ), new LogicalPosition(b.MaxX, b.MinZ),
+                             new LogicalPosition(b.MinX, b.MaxZ), new LogicalPosition(b.MaxX, b.MaxZ)
+                         })
+                {
+                    long dx = (long)point.X - eye.X;
+                    long dz = (long)point.Z - eye.Z;
+                    long forward = dx * direction.X + dz * direction.Z;
+                    long lateral = dx * direction.Z - dz * direction.X;
+                    if (dx * dx + dz * dz <= rangeSquared && forward >= 0L && Math.Abs(lateral) <= forward)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        // ---------------------------------------------------------------- replay and space
+
+        [Test]
+        public void FixedSeedRuns_ProduceIdenticalStateAndEvents()
+        {
+            var first = new FireReactionSimulation(DefaultData());
+            var second = new FireReactionSimulation(DefaultData());
+            for (int tick = 0; tick < 3000; tick++)
+            {
+                first.Step();
+                second.Step();
+                for (int i = 0; i < first.AgentCount; i++)
+                {
+                    FireReactionAgentSnapshot a = first.GetAgent(i);
+                    FireReactionAgentSnapshot b = second.GetAgent(i);
+                    Assert.That(a.Position, Is.EqualTo(b.Position));
+                    Assert.That(a.HeadingDegrees, Is.EqualTo(b.HeadingDegrees));
+                    Assert.That(a.SpeedMillimetresPerTick, Is.EqualTo(b.SpeedMillimetresPerTick));
+                    Assert.That(a.FearState, Is.EqualTo(b.FearState));
+                    Assert.That(a.ActivityState, Is.EqualTo(b.ActivityState));
+                    Assert.That(a.Outcome, Is.EqualTo(b.Outcome));
+                }
+            }
+
+            Assert.That(first.FireCellCount, Is.EqualTo(second.FireCellCount));
+            Assert.That(first.EventLog.Count, Is.EqualTo(second.EventLog.Count));
+            for (int i = 0; i < first.EventLog.Count; i++)
+            {
+                CausalEvent a = first.EventLog.Events[i];
+                CausalEvent b = second.EventLog.Events[i];
+                Assert.That(a.EventType, Is.EqualTo(b.EventType));
+                Assert.That(a.Tick, Is.EqualTo(b.Tick));
+                Assert.That(a.SourceId, Is.EqualTo(b.SourceId));
+                Assert.That(a.Position, Is.EqualTo(b.Position));
+                Assert.That(a.CausalParentEventId, Is.EqualTo(b.CausalParentEventId));
+            }
+        }
+
+        [Test]
+        public void AlternateSeed_ChangesTheRun()
+        {
+            var first = new FireReactionSimulation(DefaultData(), 42UL);
+            var second = new FireReactionSimulation(DefaultData(), 43UL);
+            bool differs = false;
+            for (int tick = 0; tick < 500 && !differs; tick++)
+            {
+                first.Step();
+                second.Step();
+                for (int i = 0; i < first.AgentCount; i++)
+                {
+                    differs |= !first.GetAgent(i).Position.Equals(second.GetAgent(i).Position);
+                }
+            }
+
+            Assert.That(differs, Is.True);
+        }
+
+        [Test]
+        public void Movement_KeepsParticipatingAgentsInsideTheRoomAndSeparated()
+        {
+            FireReactionScenarioData data = DefaultData();
+            var simulation = new FireReactionSimulation(data);
+            long touching = data.World.OccupancyRadiusMillimetres * 2L;
+            for (int tick = 0; tick < 3000; tick++)
+            {
+                simulation.Step();
+                FireReactionSnapshot snapshot = simulation.GetSnapshot();
+                for (int i = 0; i < snapshot.Agents.Count; i++)
+                {
+                    FireReactionAgentSnapshot agent = snapshot.Agents[i];
+                    if (agent.Participation != AgentParticipation.Participating)
+                    {
+                        continue;
+                    }
+
+                    Assert.That(data.World.RoomBounds.ContainsCircle(agent.Position, data.World.OccupancyRadiusMillimetres), Is.True,
+                        $"Agent {agent.AgentId} left the room at tick {snapshot.Tick}.");
+                    for (int j = 0; j < i; j++)
+                    {
+                        FireReactionAgentSnapshot other = snapshot.Agents[j];
+                        if (other.Participation == AgentParticipation.Participating)
+                        {
+                            Assert.That(LogicalPosition.DistanceSquared(agent.Position, other.Position),
+                                Is.GreaterThanOrEqualTo(touching * touching),
+                                $"Agents {agent.AgentId} and {other.AgentId} overlapped at tick {snapshot.Tick}.");
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------- calm behaviour
+
+        [Test]
+        public void CalmAgents_WanderOnCurvedPathsPauseAndAvoidWalls()
+        {
+            FireReactionScenarioData data = DefaultData();
+            data.Fire.ActivationTick = int.MaxValue;
+            var simulation = new FireReactionSimulation(data);
+            int count = simulation.AgentCount;
+            var paused = new bool[count];
+            var wasMoving = new bool[count];
+            var travelled = new long[count];
+            var previous = new LogicalPosition[count];
+            var wallRun = new int[count];
+            var activities = new HashSet<AgentActivityState>();
+            int movingSamples = 0;
+            int offGridSamples = 0;
+            long speedTotal = 0;
+            for (int i = 0; i < count; i++)
+            {
+                previous[i] = simulation.GetAgent(i).Position;
+            }
+
+            for (int tick = 0; tick < 60 * FireReactionSimulation.TicksPerSecond; tick++)
+            {
+                simulation.Step();
+                for (int i = 0; i < count; i++)
+                {
+                    FireReactionAgentSnapshot agent = simulation.GetAgent(i);
+                    activities.Add(agent.ActivityState);
+                    Assert.That(agent.SpeedMillimetresPerTick, Is.LessThanOrEqualTo(agent.CalmSpeedMillimetresPerTick));
+                    bool moving = agent.SpeedMillimetresPerTick > 0;
+                    if (moving)
+                    {
+                        movingSamples++;
+                        speedTotal += agent.SpeedMillimetresPerTick;
+                        offGridSamples += agent.HeadingDegrees % 90 != 0 ? 1 : 0;
+                    }
+
+                    paused[i] |= wasMoving[i] && !moving;
+                    wasMoving[i] = moving;
+                    travelled[i] += (long)Math.Sqrt(LogicalPosition.DistanceSquared(previous[i], agent.Position));
+                    previous[i] = agent.Position;
+
+                    // Footprint edge within 0.3 m of any wall.
+                    LogicalBounds room = data.World.RoomBounds;
+                    int gap = Math.Min(
+                        Math.Min(agent.Position.X - room.MinX, room.MaxX - agent.Position.X),
+                        Math.Min(agent.Position.Z - room.MinZ, room.MaxZ - agent.Position.Z)) - data.World.OccupancyRadiusMillimetres;
+                    wallRun[i] = gap < 300 ? wallRun[i] + 1 : 0;
+                    Assert.That(wallRun[i], Is.LessThan(3 * FireReactionSimulation.TicksPerSecond),
+                        $"Calm agent {agent.AgentId} hugged a wall for 3 s.");
+                }
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                Assert.That(paused[i], Is.True, $"Agent {i} never paused.");
+                Assert.That(travelled[i], Is.GreaterThan(3000), $"Agent {i} barely moved.");
+            }
+
+            Assert.That(offGridSamples, Is.GreaterThan(movingSamples / 2), "Headings are still mostly compass-aligned.");
+            double averageSpeed = speedTotal / (double)movingSamples;
+            Assert.That(averageSpeed, Is.InRange(data.Calm.SpeedMinimum * 0.6, data.Calm.SpeedMaximum));
+            Assert.That(activities, Is.SupersetOf(new[]
+            {
+                AgentActivityState.Standing,
+                AgentActivityState.LookingAround,
+                AgentActivityState.Strolling,
+                AgentActivityState.Socialising
+            }));
+        }
+
+        // ---------------------------------------------------------------- panic behaviour
+
+        /// <summary>
+        /// A body is moved once per tick, so nobody on their feet turns faster
+        /// than the fastest turn rate. Seeds 40 and 46 once broke this when a
+        /// runner stopped trying a door and turned twice in one tick.
+        /// </summary>
+        [TestCase(40UL)]
+        [TestCase(46UL)]
+        public void UprightPeople_NeverTurnFasterThanTheirTurnRate(ulong seed)
+        {
+            FireReactionScenarioData data = DefaultData();
+            var simulation = new FireReactionSimulation(data, seed);
+            var before = new FireReactionAgentSnapshot[simulation.AgentCount];
+            for (int i = 0; i < before.Length; i++)
+            {
+                before[i] = simulation.GetAgent(i);
+            }
+
+            for (int tick = 0; tick < 3000; tick++)
+            {
+                simulation.Step();
+                for (int i = 0; i < before.Length; i++)
+                {
+                    FireReactionAgentSnapshot now = simulation.GetAgent(i);
+                    if (before[i].BodyState == AgentBodyState.Upright && now.BodyState == AgentBodyState.Upright)
+                    {
+                        int turn = Math.Abs(IntegerMath.SignedAngleDifference(before[i].HeadingDegrees, now.HeadingDegrees));
+                        Assert.That(turn, Is.LessThanOrEqualTo(data.Panic.TurnRateMaximum),
+                            $"Agent {now.AgentId} turned {turn} degrees at tick {simulation.Tick} " +
+                            $"({before[i].ActivityState} to {now.ActivityState}).");
+                    }
+
+                    before[i] = now;
+                }
+            }
+        }
+
+        [Test]
+        public void PanickedAgents_SprintZigZagAndDoNotStayPinned()
+        {
+            FireReactionScenarioData data = DefaultData();
+            var simulation = new FireReactionSimulation(data);
+            int count = simulation.AgentCount;
+            var lastHeading = new int[count];
+            var lastPosition = new LogicalPosition[count];
+            var stillTicks = new int[count];
+            long calmSpeedTotal = 0;
+            long calmSamples = 0;
+            long scaredSpeedTotal = 0;
+            long scaredSamples = 0;
+            int bigTurns = 0;
+            int headingSamples = 0;
+
+            // The first 20 seconds after the fire starts, while open space remains.
+            int endTick = data.Fire.ActivationTick + 20 * FireReactionSimulation.TicksPerSecond;
+            while (simulation.Tick < endTick)
+            {
+                simulation.Step();
+                int tick = simulation.Tick;
+                for (int i = 0; i < count; i++)
+                {
+                    FireReactionAgentSnapshot agent = simulation.GetAgent(i);
+                    if (agent.Participation != AgentParticipation.Participating)
+                    {
+                        continue;
+                    }
+
+                    if (agent.FearState == AgentFearState.Calm && agent.SpeedMillimetresPerTick > 0)
+                    {
+                        calmSpeedTotal += agent.SpeedMillimetresPerTick;
+                        calmSamples++;
+                    }
+
+                    // Frozen, staggering and fallen people are meant to stand still,
+                    // and so are people opening, rattling or forcing a door.
+                    bool fleeing = agent.FearState == AgentFearState.Scared &&
+                                   agent.BodyState == AgentBodyState.Upright &&
+                                   agent.ActivityState != AgentActivityState.Frozen &&
+                                   agent.ActivityState != AgentActivityState.OpeningDoor &&
+                                   agent.ActivityState != AgentActivityState.TryingDoor &&
+                                   agent.ActivityState != AgentActivityState.ForcingDoor;
+                    if (!fleeing)
+                    {
+                        stillTicks[i] = 0;
+                    }
+                    else
+                    {
+                        scaredSpeedTotal += agent.SpeedMillimetresPerTick;
+                        scaredSamples++;
+                        if (tick % 10 == 0)
+                        {
+                            bigTurns += Math.Abs(IntegerMath.SignedAngleDifference(lastHeading[i], agent.HeadingDegrees)) > 30 ? 1 : 0;
+                            headingSamples++;
+                        }
+
+                        stillTicks[i] = agent.Position.Equals(lastPosition[i]) ? stillTicks[i] + 1 : 0;
+                        Assert.That(stillTicks[i], Is.LessThanOrEqualTo(75),
+                            $"Panicked agent {agent.AgentId} stood pinned for 1.5 s at tick {tick}.");
+                    }
+
+                    if (tick % 10 == 0)
+                    {
+                        lastHeading[i] = agent.HeadingDegrees;
+                    }
+
+                    lastPosition[i] = agent.Position;
+                }
+            }
+
+            Assert.That(scaredSamples, Is.GreaterThan(30 * FireReactionSimulation.TicksPerSecond),
+                "Too few agents ran in panic to judge.");
+            double calmSpeed = calmSpeedTotal / (double)calmSamples;
+            double scaredSpeed = scaredSpeedTotal / (double)scaredSamples;
+            Assert.That(scaredSpeed, Is.GreaterThanOrEqualTo(calmSpeed * 2.5),
+                $"Panic speed {scaredSpeed:0.0} is not much faster than calm {calmSpeed:0.0} mm/tick.");
+
+            // Headings are sampled five times a second; count sharp changes per panicked second.
+            double sharpTurnsPerSecond = bigTurns / (headingSamples / 5.0);
+            Assert.That(sharpTurnsPerSecond, Is.GreaterThan(0.5), "Panicked agents run in straight lines.");
+        }
+
+        // ---------------------------------------------------------------- perception and causes
+
+        [Test]
+        public void Vision_SeesFireAheadButNotBehind()
+        {
+            FireReactionScenarioData data = DefaultData();
+            data.Agents = new[] { Agent(1UL, 0, 0, CardinalDirection.East) };
+            data.Fire.ActivationTick = 1;
+            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Fire.SpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
+            data.Temperament.FreezeThenRunPercent = 0;
+            data.Temperament.FreezeForeverPercent = 0;
+            data.Falls.TripChancePercent = 0;
+
+            var simulation = new FireReactionSimulation(data);
+            simulation.Step();
+            Assert.That(simulation.GetAgent(0).FearState, Is.EqualTo(AgentFearState.Alert));
+            Assert.That(simulation.GetAgent(0).AlertSource, Is.EqualTo(AgentAlertSource.Visual));
+
+            for (int i = 0; i < 50; i++)
+            {
+                simulation.Step();
+            }
+
+            FireReactionAgentSnapshot fled = simulation.GetAgent(0);
+            Assert.That(fled.FearState, Is.EqualTo(AgentFearState.Scared));
+            long startGap = (long)Math.Sqrt(LogicalPosition.DistanceSquared(new LogicalPosition(0, 0), simulation.FireOrigin));
+            long endGap = (long)Math.Sqrt(LogicalPosition.DistanceSquared(fled.Position, simulation.FireOrigin));
+            Assert.That(endGap, Is.GreaterThan(startGap + 500), "The agent did not run away from the fire in front of it.");
+
+            data.Fire.SpawnBounds = new LogicalBounds(-2600, -2600, 100, 100);
+            simulation = new FireReactionSimulation(data);
+            simulation.Step();
+            Assert.That(simulation.GetAgent(0).FearState, Is.EqualTo(AgentFearState.Calm));
+        }
+
+        [Test]
+        public void VisualAlert_ProducesYellAndPropagatesReactionWithCausalParents()
+        {
+            FireReactionScenarioData data = DefaultData();
+            data.Agents = new[]
+            {
+                Agent(1UL, 0, 0, CardinalDirection.East),
+                Agent(2UL, 1000, 0, CardinalDirection.North)
+            };
+            data.Fire.ActivationTick = 1;
+            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Fire.SpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
+            data.Hearing.YellAlarmRadiusMillimetres = 1500;
+
+            var simulation = new FireReactionSimulation(data);
+            simulation.Step();
+
+            Assert.That(simulation.GetAgent(0).AlertSource, Is.EqualTo(AgentAlertSource.Visual));
+            Assert.That(simulation.GetAgent(1).AlertSource, Is.EqualTo(AgentAlertSource.Yell));
+            IReadOnlyList<CausalEvent> events = simulation.EventLog.Events;
+            Assert.That(events[0].EventType, Is.EqualTo(FireReactionEventType.FireActivated));
+            Assert.That(events[1].EventType, Is.EqualTo(FireReactionEventType.AgentAlerted));
+            Assert.That(events[1].CausalParentEventId, Is.EqualTo(events[0].EventId));
+            Assert.That(events[2].EventType, Is.EqualTo(FireReactionEventType.AgentYelled));
+            Assert.That(events[2].CausalParentEventId, Is.EqualTo(events[1].EventId));
+            Assert.That(events[3].EventType, Is.EqualTo(FireReactionEventType.AgentAlerted));
+            Assert.That(events[3].SourceId, Is.EqualTo(new SimulationId(2UL)));
+            Assert.That(events[3].CausalParentEventId, Is.EqualTo(events[2].EventId));
+        }
+
+        [Test]
+        public void LostAgents_NameTheFireCellThatCaughtThem()
+        {
+            var simulation = new FireReactionSimulation(DefaultData());
+            for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond; i++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(simulation.GetSnapshot().LostCount, Is.GreaterThan(0));
+            int lostEvents = 0;
+            foreach (CausalEvent record in simulation.EventLog.Events)
+            {
+                if (record.EventType != FireReactionEventType.AgentLost)
+                {
+                    continue;
+                }
+
+                lostEvents++;
+                FireReactionEventType parent = simulation.EventLog.Get(record.CausalParentEventId).EventType;
+                Assert.That(parent == FireReactionEventType.FireActivated || parent == FireReactionEventType.FireSpread,
+                    Is.True, $"Agent {record.SourceId} was lost with parent {parent}.");
+            }
+
+            Assert.That(lostEvents, Is.EqualTo(simulation.GetSnapshot().LostCount));
+            for (int i = 1; i < simulation.EventLog.Count; i++)
+            {
+                Assert.That(simulation.EventLog.Events[i].HasCausalParent, Is.True,
+                    $"Event {i} ({simulation.EventLog.Events[i].EventType}) has no cause.");
+            }
+        }
+
+        // ---------------------------------------------------------------- hearing
+
+        [Test]
+        public void FireCrackle_TurnsSomeoneWithTheirBackToItUntilTheySeeIt()
+        {
+            FireReactionScenarioData data = DefaultData();
+            data.Agents = new[] { Agent(1UL, 0, 0, CardinalDirection.East) };
+            data.Fire.ActivationTick = 1;
+            data.Perception.MaximumReactionDelayTicks = 0;
+
+            // The burning cell's nearest edge is 3.5 m behind: audible, but beyond the 3 m sight range.
+            data.Fire.SpawnBounds = new LogicalBounds(-3700, -3700, 100, 100);
+
+            var simulation = new FireReactionSimulation(data);
+            simulation.Step();
+            FireReactionAgentSnapshot first = simulation.GetAgent(0);
+            Assert.That(first.FearState, Is.EqualTo(AgentFearState.Calm));
+            Assert.That(first.ActivityState, Is.EqualTo(AgentActivityState.Investigating));
+            CausalEvent noticed = simulation.EventLog.Events[1];
+            Assert.That(noticed.EventType, Is.EqualTo(FireReactionEventType.AgentNoticedSound));
+            Assert.That(noticed.CausalParentEventId, Is.EqualTo(simulation.FireActivationEventId));
+
+            for (int i = 0; i < 5 * FireReactionSimulation.TicksPerSecond &&
+                            simulation.GetAgent(0).FearState == AgentFearState.Calm; i++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(simulation.GetAgent(0).FearState, Is.Not.EqualTo(AgentFearState.Calm),
+                "The agent heard the fire but never turned to see it.");
+            Assert.That(simulation.GetAgent(0).AlertSource, Is.EqualTo(AgentAlertSource.Visual));
+        }
+
+        [Test]
+        public void Yells_AlarmNearbyAndTurnHeadsFurtherAway()
+        {
+            FireReactionScenarioData data = DefaultData();
+            data.Agents = new[]
+            {
+                Agent(1UL, 0, 0, CardinalDirection.East),
+                Agent(2UL, -4000, 0, CardinalDirection.West),
+                Agent(3UL, 0, -2000, CardinalDirection.South)
+            };
+            data.Fire.ActivationTick = 1;
+            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Fire.SpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
+
+            var simulation = new FireReactionSimulation(data);
+            simulation.Step();
+
+            ulong yellId = 0UL;
+            foreach (CausalEvent record in simulation.EventLog.Events)
+            {
+                if (record.EventType == FireReactionEventType.AgentYelled)
+                {
+                    yellId = record.EventId;
+                    Assert.That(record.Strength, Is.EqualTo(data.Hearing.YellHearingRadiusMillimetres));
+                }
+            }
+
+            Assert.That(yellId, Is.Not.EqualTo(0UL), "The detector did not yell.");
+            FireReactionAgentSnapshot far = simulation.GetAgent(1);
+            FireReactionAgentSnapshot near = simulation.GetAgent(2);
+            Assert.That(far.FearState, Is.EqualTo(AgentFearState.Calm), "A yell 4 m away should only draw attention.");
+            Assert.That(far.ActivityState, Is.EqualTo(AgentActivityState.Investigating));
+            Assert.That(near.FearState, Is.Not.EqualTo(AgentFearState.Calm), "A yell 2 m away should alarm.");
+            Assert.That(near.AlertSource, Is.EqualTo(AgentAlertSource.Yell));
+            foreach (CausalEvent record in simulation.EventLog.Events)
+            {
+                if (record.SourceId == new SimulationId(2UL))
+                {
+                    Assert.That(record.EventType, Is.EqualTo(FireReactionEventType.AgentNoticedSound));
+                    Assert.That(record.CausalParentEventId, Is.EqualTo(yellId));
+                }
+                else if (record.SourceId == new SimulationId(3UL) && record.EventType == FireReactionEventType.AgentAlerted)
+                {
+                    Assert.That(record.CausalParentEventId, Is.EqualTo(yellId));
+                }
+            }
+
+            // Turning from west to east toward the yell takes well under a second.
+            bool farTurned = false;
+            for (int i = 0; i < 30; i++)
+            {
+                simulation.Step();
+                farTurned |= Math.Abs(IntegerMath.SignedAngleDifference(simulation.GetAgent(1).HeadingDegrees, 90)) <= 10;
+            }
+
+            Assert.That(farTurned, Is.True, "The distant listener never turned toward the yell.");
+        }
+
+        [Test]
+        public void YellAlarmedListener_TurnsTowardTheYellerWhileStartled()
+        {
+            FireReactionScenarioData data = DefaultData();
+            data.Agents = new[]
+            {
+                Agent(1UL, 0, 0, CardinalDirection.East),
+                Agent(2UL, 0, -2000, CardinalDirection.West)
+            };
+            data.Fire.ActivationTick = 1;
+            data.Fire.SpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
+
+            // Reaction delays are seeded; try a few seeds so at least one
+            // listener stays startled long enough to finish turning.
+            data.Perception.MaximumReactionDelayTicks = 200;
+            bool turned = false;
+            for (ulong seed = 1UL; seed <= 10UL && !turned; seed++)
+            {
+                var run = new FireReactionSimulation(data, seed);
+                for (int i = 0; i < 40; i++)
+                {
+                    run.Step();
+                    FireReactionAgentSnapshot listener = run.GetAgent(1);
+                    if (listener.FearState != AgentFearState.Alert || listener.AlertSource != AgentAlertSource.Yell)
+                    {
+                        continue;
+                    }
+
+                    // The yeller stood due north of the listener.
+                    turned |= Math.Abs(IntegerMath.SignedAngleDifference(listener.HeadingDegrees, 0)) <= 10;
+                }
+            }
+
+            Assert.That(turned, Is.True, "An alarmed listener never turned toward the yeller.");
+        }
+
+        // ---------------------------------------------------------------- temperaments
+
+        [Test]
+        public void Temperaments_RunFreezeForAWhileOrFreezeForGood()
+        {
+            FireReactionScenarioData data = DefaultData();
+            var crowd = new List<FireReactionAgentDefinition>();
+            ulong id = 1UL;
+            for (int z = -5000; z <= 5000; z += 2500)
+            {
+                for (int x = -5000; x <= 5000; x += 2000)
+                {
+                    crowd.Add(Agent(id, x, z, (CardinalDirection)(id % 4UL)));
+                    id++;
+                }
+            }
+
+            data.Agents = crowd.ToArray();
+            var simulation = new FireReactionSimulation(data);
+            var temperaments = new HashSet<AgentPanicTemperament>();
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                temperaments.Add(simulation.GetAgent(i).Temperament);
+            }
+
+            Assert.That(temperaments, Is.EquivalentTo(new[]
+            {
+                AgentPanicTemperament.Runner,
+                AgentPanicTemperament.FreezeThenRun,
+                AgentPanicTemperament.FreezeForever
+            }));
+
+            int count = simulation.AgentCount;
+            var frozenAt = new LogicalPosition?[count];
+            int endTick = data.Fire.ActivationTick + 40 * FireReactionSimulation.TicksPerSecond;
+            while (simulation.Tick < endTick)
+            {
+                simulation.Step();
+                for (int i = 0; i < count; i++)
+                {
+                    FireReactionAgentSnapshot agent = simulation.GetAgent(i);
+                    if (agent.Temperament != AgentPanicTemperament.FreezeForever ||
+                        agent.Participation != AgentParticipation.Participating)
+                    {
+                        continue;
+                    }
+
+                    if (agent.ActivityState == AgentActivityState.Frozen)
+                    {
+                        frozenAt[i] ??= agent.Position;
+                        Assert.That(agent.Position, Is.EqualTo(frozenAt[i].Value),
+                            $"Permanently frozen agent {agent.AgentId} moved.");
+                    }
+                    else
+                    {
+                        Assert.That(frozenAt[i].HasValue, Is.False,
+                            $"Permanently frozen agent {agent.AgentId} snapped out of it.");
+                    }
+                }
+            }
+
+            var froze = new Dictionary<SimulationId, CausalEvent>();
+            var lostTick = new Dictionary<SimulationId, int>();
+            var unfroze = new Dictionary<SimulationId, CausalEvent>();
+            foreach (CausalEvent record in simulation.EventLog.Events)
+            {
+                switch (record.EventType)
+                {
+                    case FireReactionEventType.AgentFroze:
+                        froze[record.SourceId] = record;
+                        break;
+                    case FireReactionEventType.AgentUnfroze:
+                        unfroze[record.SourceId] = record;
+                        Assert.That(record.CausalParentEventId, Is.EqualTo(froze[record.SourceId].EventId));
+                        break;
+                    case FireReactionEventType.AgentLost:
+                        lostTick[record.SourceId] = record.Tick;
+                        break;
+                }
+            }
+
+            int thawed = 0;
+            foreach (KeyValuePair<SimulationId, CausalEvent> pair in froze)
+            {
+                AgentPanicTemperament temperament = simulation.GetAgent(pair.Key).Temperament;
+                Assert.That(temperament, Is.Not.EqualTo(AgentPanicTemperament.Runner));
+                if (temperament == AgentPanicTemperament.FreezeForever)
+                {
+                    Assert.That(unfroze.ContainsKey(pair.Key), Is.False);
+                    continue;
+                }
+
+                int deadline = pair.Value.Tick + data.Temperament.FreezeMaximumTicks;
+                bool lostFirst = lostTick.TryGetValue(pair.Key, out int lost) && lost <= deadline;
+                if (!lostFirst && deadline < simulation.Tick)
+                {
+                    Assert.That(unfroze.TryGetValue(pair.Key, out CausalEvent thaw), Is.True,
+                        $"Agent {pair.Key} stayed frozen past its freeze time.");
+                    Assert.That(thaw.Tick, Is.LessThanOrEqualTo(deadline));
+                    thawed++;
+                }
+            }
+
+            Assert.That(thawed, Is.GreaterThan(0), "Nobody froze and then ran.");
+        }
+
+        // ---------------------------------------------------------------- collisions and falls
+
+        [Test]
+        public void PanickedCrowds_BumpKnockDownTripAndGetBackUp()
+        {
+            int collisions = 0;
+            int knockdowns = 0;
+            int trips = 0;
+            for (ulong seed = 1UL; seed <= 20UL; seed++)
+            {
+                FireReactionScenarioData data = DefaultData();
+                var simulation = new FireReactionSimulation(data, seed);
+                int count = simulation.AgentCount;
+                var previous = new FireReactionAgentSnapshot[count];
+                var downTicks = new int[count];
+                int longestDown = Math.Max(data.Falls.KnockdownMaximumTicks, data.Falls.TripMaximumTicks) + data.Falls.GetUpTicks + 1;
+                long touching = data.World.OccupancyRadiusMillimetres * 2L;
+                int endTick = data.Fire.ActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
+                while (simulation.Tick < endTick)
+                {
+                    simulation.Step();
+                    for (int i = 0; i < count; i++)
+                    {
+                        FireReactionAgentSnapshot agent = simulation.GetAgent(i);
+                        if (agent.Participation != AgentParticipation.Participating)
+                        {
+                            continue;
+                        }
+
+                        // Someone can finish staggering, take a step and be bumped again in one
+                        // tick, but nobody gets from the floor to their feet and back that fast.
+                        if (agent.IsDown && agent.BodyState == previous[i].BodyState)
+                        {
+                            Assert.That(agent.Position, Is.EqualTo(previous[i].Position),
+                                $"Seed {seed}: agent {agent.AgentId} moved while not on its feet.");
+                        }
+
+                        downTicks[i] = agent.IsDown ? downTicks[i] + 1 : 0;
+                        Assert.That(downTicks[i], Is.LessThanOrEqualTo(longestDown),
+                            $"Seed {seed}: agent {agent.AgentId} never got back up.");
+
+                        for (int j = 0; j < i; j++)
+                        {
+                            FireReactionAgentSnapshot other = simulation.GetAgent(j);
+                            if (other.Participation == AgentParticipation.Participating)
+                            {
+                                Assert.That(LogicalPosition.DistanceSquared(agent.Position, other.Position),
+                                    Is.GreaterThanOrEqualTo(touching * touching),
+                                    $"Seed {seed}: agents overlapped at tick {simulation.Tick}.");
+                            }
+                        }
+
+                        previous[i] = agent;
+                    }
+                }
+
+                CausalEventLog log = simulation.EventLog;
+                var knockdownsPerCollision = new Dictionary<ulong, int>();
+                foreach (CausalEvent record in log.Events)
+                {
+                    switch (record.EventType)
+                    {
+                        case FireReactionEventType.AgentsCollided:
+                            collisions++;
+                            knockdownsPerCollision[record.EventId] = 0;
+                            Assert.That(log.Get(record.CausalParentEventId).EventType,
+                                Is.EqualTo(FireReactionEventType.AgentScared));
+                            break;
+                        case FireReactionEventType.AgentKnockedDown:
+                            knockdowns++;
+                            knockdownsPerCollision[record.CausalParentEventId]++;
+                            break;
+                        case FireReactionEventType.AgentTripped:
+                            trips++;
+                            break;
+                        case FireReactionEventType.AgentGotUp:
+                            FireReactionEventType cause = log.Get(record.CausalParentEventId).EventType;
+                            Assert.That(cause == FireReactionEventType.AgentKnockedDown ||
+                                        cause == FireReactionEventType.AgentTripped, Is.True,
+                                $"Seed {seed}: got up after {cause}.");
+                            break;
+                    }
+                }
+
+                foreach (int pair in knockdownsPerCollision.Values)
+                {
+                    Assert.That(pair == 0 || pair == 2, Is.True,
+                        $"Seed {seed}: a collision knocked down {pair} people; it should be none or both.");
+                }
+            }
+
+            Assert.That(collisions, Is.GreaterThan(0), "Panicked people never ran into each other.");
+            Assert.That(knockdowns, Is.GreaterThan(0), "No collision was hard enough to knock anyone down.");
+            Assert.That(trips, Is.GreaterThan(0), "Nobody ever tripped.");
+        }
+    }
+}

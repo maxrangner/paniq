@@ -1,0 +1,135 @@
+namespace Paniq.Simulation
+{
+    /// <summary>
+    /// Whether the body is under the person's control: staggering, lying on
+    /// the floor, getting up, and being caught by the fire. A body that is
+    /// not upright makes no move but still takes up space.
+    /// </summary>
+    internal sealed class BodySystem
+    {
+        private readonly SimulationContext context;
+        private readonly FireSystem fire;
+        private readonly SoundSystem sound;
+        private readonly FallSettings settings;
+
+        public BodySystem(SimulationContext context, FireSystem fire, SoundSystem sound)
+        {
+            this.context = context;
+            this.fire = fire;
+            this.sound = sound;
+            settings = context.Scenario.Falls;
+        }
+
+        /// <summary>
+        /// Advances staggering, lying down and getting up. Returns true while
+        /// the body is not under the person's control this tick.
+        /// </summary>
+        public bool Update(Agent agent)
+        {
+            AgentBody body = agent.Body;
+            if (body.State == AgentBodyState.Upright)
+            {
+                return false;
+            }
+
+            int tick = context.Tick;
+            body.Speed = 0;
+            if (tick < body.EndTick)
+            {
+                return true;
+            }
+
+            if (body.State == AgentBodyState.Fallen)
+            {
+                body.State = AgentBodyState.GettingUp;
+                body.EndTick = checked(tick + settings.GetUpTicks);
+                return true;
+            }
+
+            if (body.State == AgentBodyState.GettingUp)
+            {
+                context.Events.Append(tick, agent.Id, FireReactionEventType.AgentGotUp, body.Position, 0, 0, body.EventId);
+            }
+
+            body.State = AgentBodyState.Upright;
+            if (agent.Fear.State == AgentFearState.Scared && agent.Intent.Activity != AgentActivityState.Frozen)
+            {
+                // Back on your feet: look for a way out afresh.
+                agent.Intent.Activity = AgentActivityState.Fleeing;
+                agent.Intent.NextPanicDecisionTick = tick;
+            }
+
+            return false;
+        }
+
+        public void KnockDown(Agent agent, ulong collisionEventId)
+        {
+            int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
+            CausalEvent down = context.Events.Append(
+                context.Tick,
+                agent.Id,
+                FireReactionEventType.AgentKnockedDown,
+                agent.Body.Position,
+                0,
+                duration,
+                collisionEventId);
+            PutDown(agent, AgentBodyState.Fallen, duration, down.EventId);
+        }
+
+        /// <summary>Knocked off balance: reeling for a moment, jolted a little to one side.</summary>
+        public void Stagger(Agent agent, ulong causeEventId)
+        {
+            int duration = context.Random.NextIntInclusive(settings.StaggerMinimumTicks, settings.StaggerMaximumTicks);
+            int side = context.Random.NextIntInclusive(0, 1) == 0 ? -1 : 1;
+            agent.Body.Heading = IntegerMath.NormalizeDegrees(agent.Body.Heading +
+                side * context.Random.NextIntInclusive(settings.StaggerJoltMinimumDegrees, settings.StaggerJoltMaximumDegrees));
+            PutDown(agent, AgentBodyState.Staggering, duration, causeEventId);
+        }
+
+        /// <summary>A stumble: on your own, over someone on the floor, or over a box. It makes a thud.</summary>
+        public void Trip(Agent agent, ulong causalParentEventId)
+        {
+            int duration = context.Random.NextIntInclusive(settings.TripMinimumTicks, settings.TripMaximumTicks);
+            CausalEvent trip = context.Events.Append(
+                context.Tick,
+                agent.Id,
+                FireReactionEventType.AgentTripped,
+                agent.Body.Position,
+                context.Scenario.Hearing.BumpSoundRadiusMillimetres,
+                duration,
+                causalParentEventId);
+            PutDown(agent, AgentBodyState.Fallen, duration, trip.EventId);
+            sound.Thud(agent.Id, agent.Body.Position, trip.EventId);
+        }
+
+        private void PutDown(Agent agent, AgentBodyState state, int duration, ulong eventId)
+        {
+            agent.Body.State = state;
+            agent.Body.EndTick = checked(context.Tick + duration);
+            agent.Body.EventId = eventId;
+            agent.Body.Speed = 0;
+            agent.Body.BlockedTicks = 0;
+        }
+
+        /// <summary>Caught by the fire: out of the run for good, named after the cell that caught them.</summary>
+        public void MakeLost(Agent agent, ulong fireCellEventId)
+        {
+            if (!agent.IsParticipating)
+            {
+                return;
+            }
+
+            agent.Participation = AgentParticipation.NoLongerParticipating;
+            agent.Outcome = AgentTerminalOutcome.Lost;
+            agent.Body.Speed = 0;
+            context.Events.Append(
+                context.Tick,
+                agent.Id,
+                FireReactionEventType.AgentLost,
+                agent.Body.Position,
+                fire.BurningCount,
+                0,
+                fireCellEventId);
+        }
+    }
+}

@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("14"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(6));
+            Assert.That(data.ContentRevision, Is.EqualTo("15"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(7));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -378,6 +378,9 @@ namespace Paniq.Tests.EditMode
         public void Movement_KeepsParticipatingAgentsInsideTheRoomAndSeparated()
         {
             FireReactionScenarioData data = DefaultData();
+
+            // A sealed room: nobody may break a door down here.
+            data.Traits.DoorDamagePerPoint = 0;
             var simulation = new FireReactionSimulation(data);
             long touching = data.World.OccupancyRadiusMillimetres * 2L;
             for (int tick = 0; tick < 3000; tick++)
@@ -523,6 +526,9 @@ namespace Paniq.Tests.EditMode
         public void PanickedAgents_SprintZigZagAndDoNotStayPinned()
         {
             FireReactionScenarioData data = DefaultData();
+
+            // A sealed room: nobody may break a door down here.
+            data.Traits.DoorDamagePerPoint = 0;
             var simulation = new FireReactionSimulation(data);
             int count = simulation.AgentCount;
             var lastHeading = new int[count];
@@ -949,7 +955,9 @@ namespace Paniq.Tests.EditMode
                 int count = simulation.AgentCount;
                 var previous = new FireReactionAgentSnapshot[count];
                 var downTicks = new int[count];
-                int longestDown = Math.Max(data.Falls.KnockdownMaximumTicks, data.Falls.TripMaximumTicks) + data.Falls.GetUpTicks + 1;
+                int longestDown = Math.Max(
+                    Math.Max(data.Falls.KnockdownMaximumTicks, data.Falls.TripMaximumTicks) + data.Falls.GetUpTicks,
+                    data.Falls.UnconsciousMaximumTicks + data.Falls.ComeToGetUpTicks) + 1;
                 long touching = data.World.OccupancyRadiusMillimetres * 2L;
                 int endTick = data.Fire.ActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
                 while (simulation.Tick < endTick)
@@ -1012,7 +1020,8 @@ namespace Paniq.Tests.EditMode
                         case FireReactionEventType.AgentGotUp:
                             FireReactionEventType cause = log.Get(record.CausalParentEventId).EventType;
                             Assert.That(cause == FireReactionEventType.AgentKnockedDown ||
-                                        cause == FireReactionEventType.AgentTripped, Is.True,
+                                        cause == FireReactionEventType.AgentTripped ||
+                                        cause == FireReactionEventType.AgentCameTo, Is.True,
                                 $"Seed {seed}: got up after {cause}.");
                             break;
                     }

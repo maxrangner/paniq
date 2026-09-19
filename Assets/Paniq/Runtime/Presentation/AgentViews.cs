@@ -34,6 +34,7 @@ namespace Paniq.Presentation
             public AgentBodyState LastBodyState;
             public float BodyStateSince;
             public float TiltAtStateChange;
+            public float RiseSeconds;
             public float Tilt;
             public bool Initialized;
             public float LungeStart = -10f;
@@ -243,6 +244,11 @@ namespace Paniq.Presentation
         {
             if (agent.BodyState != view.LastBodyState)
             {
+                // Coming round from being knocked out, people get up more slowly.
+                int riseTicks = view.LastBodyState == AgentBodyState.Unconscious
+                    ? scenario.Falls.ComeToGetUpTicks
+                    : scenario.Falls.GetUpTicks;
+                view.RiseSeconds = (float)riseTicks / FireReactionSimulation.TicksPerSecond;
                 view.LastBodyState = agent.BodyState;
                 view.BodyStateSince = time;
                 view.TiltAtStateChange = view.Tilt;
@@ -252,11 +258,11 @@ namespace Paniq.Presentation
             switch (agent.BodyState)
             {
                 case AgentBodyState.Fallen:
+                case AgentBodyState.Unconscious:
                     view.Tilt = Mathf.Lerp(view.TiltAtStateChange, 90f, EaseInQuad(age / FallSeconds));
                     break;
                 case AgentBodyState.GettingUp:
-                    float rise = (float)scenario.Falls.GetUpTicks / FireReactionSimulation.TicksPerSecond;
-                    view.Tilt = Mathf.Lerp(view.TiltAtStateChange, 0f, Mathf.SmoothStep(0f, 1f, age / rise));
+                    view.Tilt = Mathf.Lerp(view.TiltAtStateChange, 0f, Mathf.SmoothStep(0f, 1f, age / view.RiseSeconds));
                     break;
                 default:
                     view.Tilt = 0f;
@@ -298,6 +304,7 @@ namespace Paniq.Presentation
                     cameraTransform.rotation,
                     facingSide,
                     frozen,
+                    agent.BodyState == AgentBodyState.Unconscious,
                     calm && agent.ActivityState == AgentActivityState.Investigating,
                     calm && (agent.ActivityState == AgentActivityState.Standing ||
                              agent.ActivityState == AgentActivityState.LookingAround),

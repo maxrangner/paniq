@@ -144,8 +144,8 @@ namespace Paniq.Simulation
                 if (bump.ClosingSpeed >= settings.KnockdownClosingSpeed)
                 {
                     // A much stronger person only reels from a hit that floors the other.
-                    KnockDownOrStagger(mover, other, collision.EventId);
-                    KnockDownOrStagger(other, mover, collision.EventId);
+                    KnockDownOrStagger(mover, other, collision.EventId, bump.ClosingSpeed);
+                    KnockDownOrStagger(other, mover, collision.EventId, bump.ClosingSpeed);
                 }
                 else
                 {
@@ -162,7 +162,7 @@ namespace Paniq.Simulation
             }
         }
 
-        private void KnockDownOrStagger(Agent agent, Agent hitBy, ulong collisionEventId)
+        private void KnockDownOrStagger(Agent agent, Agent hitBy, ulong collisionEventId, int closingSpeed)
         {
             if (TraitEffects.ShrugsOff(agent, hitBy, context.Scenario))
             {
@@ -170,7 +170,7 @@ namespace Paniq.Simulation
             }
             else
             {
-                body.KnockDown(agent, collisionEventId);
+                body.KnockDown(agent, collisionEventId, closingSpeed);
             }
         }
 

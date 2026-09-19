@@ -424,6 +424,9 @@ namespace Paniq.Simulation
             if (momentum >= settings.KnockdownMomentum)
             {
                 body.Trip(agent, hit.EventId);
+                FallSettings falls = context.Scenario.Falls;
+                body.MaybePassOut(agent, agent.Body.EventId,
+                    falls.PassOutChancePercent + (int)((momentum - settings.KnockdownMomentum) / falls.PassOutMomentumPerPercent));
             }
             else
             {

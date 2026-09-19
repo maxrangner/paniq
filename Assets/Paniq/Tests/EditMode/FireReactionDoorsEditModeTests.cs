@@ -187,6 +187,9 @@ namespace Paniq.Tests.EditMode
             for (ulong seed = 40UL; seed <= 44UL; seed++)
             {
                 FireReactionScenarioData data = DefaultData();
+
+                // Nobody here is strong enough to break a door down.
+                data.Traits.DoorDamagePerPoint = 0;
                 var simulation = new FireReactionSimulation(data, seed);
                 for (int t = 0; t < 60 * FireReactionSimulation.TicksPerSecond; t++)
                 {
@@ -307,10 +310,14 @@ namespace Paniq.Tests.EditMode
         // ---------------------------------------------------------------- one runner at one door
 
         /// <summary>One runner right by the north door, facing a fire that starts in front of them.</summary>
-        private FireReactionScenarioData RunnerByTheNorthDoor(int forceChancePercent)
+        /// <summary>One runner (an ordinary person unless traits are given) who panics right beside the locked north door.</summary>
+        internal static FireReactionScenarioData RunnerByTheNorthDoor(
+            FireReactionScenarioData data, int forceChancePercent, AgentTraitValues traits)
         {
-            FireReactionScenarioData data = DefaultData();
-            data.Agents = new[] { Agent(1UL, -2500, 4700, CardinalDirection.South) };
+            data.Agents = new[]
+            {
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-2500, 4700), CardinalDirection.South, traits)
+            };
             data.PhysicsObjects = Array.Empty<FireReactionPhysicsObjectDefinition>();
             data.Fire.ActivationTick = 1;
             data.Fire.SpawnBounds = new LogicalBounds(-2500, -2500, 2100, 2100);
@@ -322,6 +329,11 @@ namespace Paniq.Tests.EditMode
             data.Panic.SwerveChancePercent = 0;
             data.Exits.DoorForceChancePercent = forceChancePercent;
             return data;
+        }
+
+        private FireReactionScenarioData RunnerByTheNorthDoor(int forceChancePercent)
+        {
+            return RunnerByTheNorthDoor(DefaultData(), forceChancePercent, AgentTraitValues.AllOrdinary);
         }
 
         [Test]
@@ -450,6 +462,7 @@ namespace Paniq.Tests.EditMode
                     case FireReactionEventType.AgentTriedDoor:
                     case FireReactionEventType.AgentForcedDoor:
                     case FireReactionEventType.AgentGaveUpOnDoor:
+                    case FireReactionEventType.DoorBrokenDown:
                         Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, $"{record.EventType} names the door.");
                         Assert.That(record.Position, Is.EqualTo(doorCentres[record.TargetId]));
                         break;

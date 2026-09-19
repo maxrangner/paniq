@@ -98,7 +98,8 @@ Agent ID:
 - `AgentPanicTemperament` (`Runner`, `FreezeThenRun`, `FreezeForever`) is
   dealt once, at tick zero, from the scenario seed. It decides how the person
   panics and never changes during a run.
-- `AgentBodyState` (`Upright`, `Staggering`, `Fallen`, `GettingUp`) says
+- `AgentBodyState` (`Upright`, `Staggering`, `Fallen`, `GettingUp`,
+  `Unconscious`) says
   whether the body is under the person's control. It is separate from what
   they intend to do, so someone knocked over resumes their intention when
   they are back up. A person who is not upright requests no movement but

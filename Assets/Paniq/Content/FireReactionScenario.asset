@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '14'
+    ContentRevision: '15'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 6
+    SimulationCompatibilityVersion: 7
     World:
       RoomBounds:
         minX: -6000
@@ -127,6 +127,13 @@ MonoBehaviour:
       TripMinimumSpeed: 60
       TripMinimumTicks: 40
       TripMaximumTicks: 100
+      PassOutChancePercent: 10
+      PassOutPercentPerSpeed: 1
+      PassOutMomentumPerPercent: 100
+      PassOutMaximumPercent: 60
+      UnconsciousMinimumTicks: 300
+      UnconsciousMaximumTicks: 600
+      ComeToGetUpTicks: 50
     Exits:
       DoorwayDepthMillimetres: 2000
       DoorwayInsetMillimetres: 1000
@@ -153,6 +160,7 @@ MonoBehaviour:
       CurrentChoiceBonusMillimetres: 1500
       ChoiceNoiseMillimetres: 1500
       InFirePenaltyMillimetres: 8000
+      DoorStrength: 40
     ObjectPhysics:
       AgentMassGrams: 70000
       Friction: 157
@@ -183,6 +191,10 @@ MonoBehaviour:
       CompassionBumpSpeedPerPoint: 5
       EvilBumpSpeedPerPoint: 5
       MinimumBumpSpeed: 20
+      StrengthPassOutPercentPerPoint: 3
+      StrengthForceChancePerPoint: 5
+      DoorBreakMinimumStrength: 7
+      DoorDamagePerPoint: 1
     Agents:
     - agentId:
         value: 1001

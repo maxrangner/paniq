@@ -288,6 +288,22 @@ namespace Paniq.Simulation
         public int TripMinimumTicks = 40;
         public int TripMaximumTicks = 100;
 
+        /// <summary>Chance that a knock-down leaves someone out cold, at exactly the knock-down closing speed.</summary>
+        public int PassOutChancePercent = 10;
+
+        /// <summary>Extra pass-out chance for each mm/tick of closing speed above the knock-down speed.</summary>
+        public int PassOutPercentPerSpeed = 1;
+
+        /// <summary>For a box hit: extra pass-out chance per this much momentum (kg·mm/tick) above the knock-down momentum.</summary>
+        public int PassOutMomentumPerPercent = 100;
+
+        public int PassOutMaximumPercent = 60;
+        public int UnconsciousMinimumTicks = 300;
+        public int UnconsciousMaximumTicks = 600;
+
+        /// <summary>Getting up groggily after coming to takes longer than after a plain fall.</summary>
+        public int ComeToGetUpTicks = 50;
+
         public FallSettings Clone() => (FallSettings)MemberwiseClone();
 
         internal void Validate()
@@ -298,6 +314,10 @@ namespace Paniq.Simulation
                              Settings.Range(KnockdownMinimumTicks, KnockdownMaximumTicks, 1) && GetUpTicks >= 1, "collisions");
             Settings.Require(TripChancePercent >= 0 && TripChancePercent <= 50 && TripMinimumSpeed >= 0 &&
                              Settings.Range(TripMinimumTicks, TripMaximumTicks, 1), "tripping");
+            Settings.Require(Settings.Percent(PassOutChancePercent) && PassOutPercentPerSpeed >= 0 &&
+                             PassOutMomentumPerPercent > 0 && Settings.Percent(PassOutMaximumPercent) &&
+                             Settings.Range(UnconsciousMinimumTicks, UnconsciousMaximumTicks, 1) &&
+                             ComeToGetUpTicks >= 1, "passing out");
         }
     }
 
@@ -348,6 +368,9 @@ namespace Paniq.Simulation
         public int ChoiceNoiseMillimetres = 1500;
         public int InFirePenaltyMillimetres = 8000;
 
+        /// <summary>How much shoving damage a door takes before it breaks. Damage stays between attempts.</summary>
+        public int DoorStrength = 40;
+
         public ExitSettings Clone() => (ExitSettings)MemberwiseClone();
 
         internal void Validate(WorldSettings world)
@@ -367,6 +390,7 @@ namespace Paniq.Simulation
                              CommitDistanceMillimetres >= 0 && NoSwerveDistanceMillimetres >= 0, "door approach");
             Settings.Require(OpenBonusMillimetres >= 0 && CurrentChoiceBonusMillimetres >= 0 &&
                              ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0, "door scoring");
+            Settings.Require(DoorStrength >= 1, "door strength");
         }
     }
 
@@ -453,6 +477,18 @@ namespace Paniq.Simulation
         public int EvilBumpSpeedPerPoint = 5;
         public int MinimumBumpSpeed = 20;
 
+        /// <summary>Strength: less chance of being knocked out cold (percentage points per point).</summary>
+        public int StrengthPassOutPercentPerPoint = 3;
+
+        /// <summary>Strength: more likely to throw a shoulder at a locked door rather than give up (percentage points per point).</summary>
+        public int StrengthForceChancePerPoint = 5;
+
+        /// <summary>Strength: people at least this strong damage a locked door when they shove it.</summary>
+        public int DoorBreakMinimumStrength = 7;
+
+        /// <summary>Strength: damage per shove for each point of strength from the minimum up (Str 7 does 1, Str 9 does 3).</summary>
+        public int DoorDamagePerPoint = 1;
+
         public TraitSettings Clone() => (TraitSettings)MemberwiseClone();
 
         internal void Validate()
@@ -470,6 +506,9 @@ namespace Paniq.Simulation
             Settings.Require(CompassionAvoidPercentPerPoint >= 0 && EvilAvoidPercentPerPoint >= 0 &&
                              CompassionBumpSpeedPerPoint >= 0 && EvilBumpSpeedPerPoint >= 0 && MinimumBumpSpeed > 0,
                 "compassion and evil effects");
+            Settings.Require(StrengthPassOutPercentPerPoint >= 0 && StrengthForceChancePerPoint >= 0 &&
+                             DoorBreakMinimumStrength >= 0 && DoorBreakMinimumStrength <= AgentTraitValues.Maximum &&
+                             DoorDamagePerPoint >= 0, "strength at doors and knock-outs");
         }
     }
 

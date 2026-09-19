@@ -35,7 +35,8 @@ namespace Paniq.Simulation
 
         public int DoorCount => doors.Length;
 
-        public bool IsDoorOpen(int door) => doors[door].State == DoorState.Open;
+        /// <summary>Open, or broken down: either way there is a gap to walk through.</summary>
+        public bool IsDoorOpen(int door) => doors[door].State == DoorState.Open || doors[door].State == DoorState.Broken;
 
         /// <summary>A person's whole footprint is inside the room (not in a doorway or outside).</summary>
         public bool IsInsideRoom(LogicalPosition position)
@@ -134,7 +135,7 @@ namespace Paniq.Simulation
         /// </summary>
         private bool CanUseDoorway(int door, LogicalPosition current, int exitDoor)
         {
-            return doors[door].State == DoorState.Open && (exitDoor == door || !IsInsideRoom(current));
+            return IsDoorOpen(door) && (exitDoor == door || !IsInsideRoom(current));
         }
 
         // ---------------------------------------------------------------- people
@@ -195,7 +196,7 @@ namespace Paniq.Simulation
             long radiusSquared = (long)radius * radius;
             for (int d = 0; d < doors.Length; d++)
             {
-                if (doors[d].State != DoorState.Open)
+                if (!IsDoorOpen(d))
                 {
                     continue;
                 }
@@ -279,7 +280,7 @@ namespace Paniq.Simulation
 
             for (int d = 0; d < doors.Length; d++)
             {
-                if (doors[d].State == DoorState.Open &&
+                if (IsDoorOpen(d) &&
                     OutsideDistance(d, position) >= exits.EscapeDepthMillimetres &&
                     IsInFrontOf(d, position))
                 {

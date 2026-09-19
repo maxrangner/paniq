@@ -129,6 +129,9 @@ namespace Paniq.Presentation
                     case FireReactionEventType.AgentTripped:
                         ripples.Start(record.Position, record.Strength, SoundRipples.ThudColor, time);
                         break;
+                    case FireReactionEventType.DoorBrokenDown:
+                        ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        break;
                     case FireReactionEventType.AgentForcedDoor:
                         agents.Lunge(record.SourceId, time);
                         room.Shake(record.TargetId, time);

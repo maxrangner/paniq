@@ -5,7 +5,8 @@ namespace Paniq.Presentation
     /// <summary>
     /// The icons floating over one person's head: a red "!" that pops up
     /// when they notice something, three sound-wave arcs when they yell, a
-    /// snowflake while they are frozen with fear, a "?" while they turn to
+    /// snowflake while they are frozen with fear, little yellow stars
+    /// circling while they are knocked out cold, a "?" while they turn to
     /// see what a noise was, "..." while idling, and the person's number
     /// (matching the Tab stats panel). Icons live on their own
     /// anchor that always faces the camera, so they never spin with the body
@@ -26,6 +27,7 @@ namespace Paniq.Presentation
         private static readonly Color IceBlue = new Color(0.7f, 0.93f, 1f);
         private static readonly Color QuestionYellow = new Color(1f, 0.88f, 0.25f);
         private static readonly Color IdleGrey = new Color(0.72f, 0.82f, 0.95f);
+        private static readonly Color StarYellow = new Color(1f, 0.9f, 0.2f);
         private static readonly Color NumberWhite = new Color(1f, 1f, 1f, 0.85f);
 
         private readonly Transform root;
@@ -35,6 +37,8 @@ namespace Paniq.Presentation
         private readonly LineRenderer[] yellArcs;
         private readonly Transform snowflake;
         private readonly LineRenderer[] snowflakeStrokes;
+        private readonly Transform[] stars;
+        private readonly LineRenderer[] starStrokes;
         private readonly TextMesh question;
         private readonly TextMesh idle;
         private readonly TextMesh number;
@@ -86,6 +90,18 @@ namespace Paniq.Presentation
                 snowflakeStrokes[3 + arm] = CreateStroke(snowflake, lineMaterial, 0.028f, 0.028f, 2, left, fork, right);
             }
 
+            // Three little five-pointed stars that circle the head while knocked out.
+            stars = new Transform[3];
+            starStrokes = new LineRenderer[3];
+            for (int k = 0; k < stars.Length; k++)
+            {
+                stars[k] = CreateGroup($"Star {k + 1}", Vector3.zero);
+                starStrokes[k] = CreateStroke(stars[k], lineMaterial, 0.022f, 0.022f, 0, StarPoints(0.075f, 0.032f));
+                starStrokes[k].loop = true;
+            }
+
+            SetColor(starStrokes, StarYellow);
+
             question = CreateText("Investigating ?", "?", 0.2f, 64, QuestionYellow, new Vector3(0f, 0.2f, 0f));
             idle = CreateText("Idle ...", "...", 0.13f, 48, IdleGrey, new Vector3(0f, -0.05f, 0f));
             number = CreateText("Number", numberLabel, 0.07f, 64, NumberWhite, new Vector3(0.32f, -0.28f, 0f));
@@ -106,6 +122,7 @@ namespace Paniq.Presentation
             notice.gameObject.SetActive(false);
             yell.gameObject.SetActive(false);
             snowflake.gameObject.SetActive(false);
+            SetActive(stars, false);
             question.gameObject.SetActive(false);
             idle.gameObject.SetActive(false);
             number.gameObject.SetActive(false);
@@ -117,6 +134,7 @@ namespace Paniq.Presentation
             Quaternion cameraRotation,
             float facingSide,
             bool frozen,
+            bool knockedOut,
             bool investigating,
             bool idling,
             float time)
@@ -172,6 +190,20 @@ namespace Paniq.Presentation
             }
 
             number.gameObject.SetActive(true);
+            // Stars chase each other round a flattened circle, as if orbiting the head.
+            SetActive(stars, knockedOut);
+            if (knockedOut)
+            {
+                for (int k = 0; k < stars.Length; k++)
+                {
+                    float angle = time * 3.2f + spinOffset + k * (Mathf.PI * 2f / stars.Length);
+                    float depth = Mathf.Sin(angle);
+                    stars[k].localPosition = new Vector3(Mathf.Cos(angle) * 0.3f, 0.02f + depth * 0.07f, 0f);
+                    stars[k].localScale = Vector3.one * (0.85f + 0.25f * depth);
+                    stars[k].localRotation = Quaternion.Euler(0f, 0f, time * 140f + k * 40f);
+                }
+            }
+
             question.gameObject.SetActive(investigating && !showNotice);
             idle.gameObject.SetActive(idling && !showNotice && !showYell);
         }
@@ -236,6 +268,28 @@ namespace Paniq.Presentation
             label.fontSize = fontSize;
             label.color = color;
             return label;
+        }
+
+        /// <summary>The ten corners of a five-pointed star, pointing up.</summary>
+        private static Vector3[] StarPoints(float outer, float inner)
+        {
+            var points = new Vector3[10];
+            for (int i = 0; i < points.Length; i++)
+            {
+                float radius = i % 2 == 0 ? outer : inner;
+                float angle = (90f + i * 36f) * Mathf.Deg2Rad;
+                points[i] = new Vector3(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius, 0f);
+            }
+
+            return points;
+        }
+
+        private static void SetActive(Transform[] groups, bool active)
+        {
+            for (int i = 0; i < groups.Length; i++)
+            {
+                groups[i].gameObject.SetActive(active);
+            }
         }
 
         /// <summary>Points of an arc opening toward +X, centred on the local origin.</summary>

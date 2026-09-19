@@ -45,8 +45,9 @@ namespace Paniq.Simulation
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
-        /// <summary>Lying on the floor or getting up.</summary>
-        public bool IsDown => Body.State == AgentBodyState.Fallen || Body.State == AgentBodyState.GettingUp;
+        /// <summary>Lying on the floor (awake or knocked out) or getting up.</summary>
+        public bool IsDown => Body.State == AgentBodyState.Fallen || Body.State == AgentBodyState.GettingUp ||
+                              Body.State == AgentBodyState.Unconscious;
 
         public FireReactionAgentSnapshot ToSnapshot()
         {

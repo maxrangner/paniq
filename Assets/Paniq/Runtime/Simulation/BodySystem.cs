@@ -1,3 +1,5 @@
+using System;
+
 namespace Paniq.Simulation
 {
     /// <summary>
@@ -46,6 +48,16 @@ namespace Paniq.Simulation
                 return true;
             }
 
+            if (body.State == AgentBodyState.Unconscious)
+            {
+                // Coming round, then getting up slowly.
+                body.EventId = context.Events.Append(tick, agent.Id, FireReactionEventType.AgentCameTo, body.Position, 0,
+                    settings.ComeToGetUpTicks, body.EventId).EventId;
+                body.State = AgentBodyState.GettingUp;
+                body.EndTick = checked(tick + settings.ComeToGetUpTicks);
+                return true;
+            }
+
             if (body.State == AgentBodyState.GettingUp)
             {
                 context.Events.Append(tick, agent.Id, FireReactionEventType.AgentGotUp, body.Position, 0, 0, body.EventId);
@@ -62,7 +74,8 @@ namespace Paniq.Simulation
             return false;
         }
 
-        public void KnockDown(Agent agent, ulong collisionEventId)
+        /// <param name="closingSpeed">How hard the hit was; harder hits knock people out more often.</param>
+        public void KnockDown(Agent agent, ulong collisionEventId, int closingSpeed)
         {
             int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
             CausalEvent down = context.Events.Append(
@@ -74,6 +87,25 @@ namespace Paniq.Simulation
                 duration,
                 collisionEventId);
             PutDown(agent, AgentBodyState.Fallen, duration, down.EventId);
+            int hardness = Math.Max(0, closingSpeed - settings.KnockdownClosingSpeed) * settings.PassOutPercentPerSpeed;
+            MaybePassOut(agent, down.EventId, settings.PassOutChancePercent + hardness);
+        }
+
+        /// <summary>
+        /// After a hard fall, maybe out cold: lying still for several
+        /// seconds (stars over their head), then groggily getting up.
+        /// </summary>
+        public void MaybePassOut(Agent agent, ulong downEventId, int basePercent)
+        {
+            if (!context.Random.NextPercent(TraitEffects.PassOutChancePercent(agent, context.Scenario, basePercent)))
+            {
+                return;
+            }
+
+            int duration = context.Random.NextIntInclusive(settings.UnconsciousMinimumTicks, settings.UnconsciousMaximumTicks);
+            CausalEvent passedOut = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentPassedOut,
+                agent.Body.Position, 0, duration, downEventId);
+            PutDown(agent, AgentBodyState.Unconscious, duration, passedOut.EventId);
         }
 
         /// <summary>Knocked off balance: reeling for a moment, jolted a little to one side.</summary>

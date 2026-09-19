@@ -169,7 +169,7 @@ namespace Paniq.Simulation
         {
             agent.Intent.Activity = AgentActivityState.Fleeing;
             agent.Intent.NextPanicDecisionTick = context.Tick;
-            agent.Fear.NextShoutTick = checked(context.Tick + TraitEffects.ShoutInterval(agent, context.Scenario, context.Random));
+            agent.Fear.NextShoutTick = checked(context.Tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
         }
 
         /// <summary>

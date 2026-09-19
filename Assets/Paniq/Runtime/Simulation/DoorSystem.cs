@@ -11,6 +11,9 @@ namespace Paniq.Simulation
         public int Centre;
         public int Width;
         public DoorState State;
+
+        /// <summary>Shoving damage taken so far; the door breaks at the scenario's door strength.</summary>
+        public int Damage;
         public ulong UnlockedEventId;
         public ulong OpenedEventId;
     }
@@ -153,6 +156,47 @@ namespace Paniq.Simulation
                 causalParentEventId).EventId;
         }
 
+        /// <summary>
+        /// A strong person's shove weakens the door. Returns true when this
+        /// shove broke it.
+        /// </summary>
+        public bool Batter(int door, Agent shover, int damage, ulong shoveEventId)
+        {
+            DoorRuntime d = doors[door];
+            if (damage <= 0 || d.State == DoorState.Open || d.State == DoorState.Broken)
+            {
+                return false;
+            }
+
+            d.Damage += damage;
+            if (d.Damage < context.Scenario.Exits.DoorStrength)
+            {
+                return false;
+            }
+
+            Break(door, shover, shoveEventId);
+            return true;
+        }
+
+        /// <summary>
+        /// Smashed open by a person: it stays open for good. Escapes through
+        /// it name this event as their cause.
+        /// </summary>
+        private void Break(int door, Agent breaker, ulong shoveEventId)
+        {
+            DoorRuntime d = doors[door];
+            d.State = DoorState.Broken;
+            d.OpenedEventId = context.Events.Append(
+                context.Tick,
+                breaker.Id,
+                FireReactionEventType.DoorBrokenDown,
+                geometry.DoorCentre(door),
+                d.Width,
+                0,
+                shoveEventId,
+                d.Id).EventId;
+        }
+
         public SimulationId IdOf(int door) => doors[door].Id;
 
         public ulong OpenedEventIdOf(int door) => doors[door].OpenedEventId;
@@ -160,7 +204,8 @@ namespace Paniq.Simulation
         public FireReactionDoorSnapshot GetSnapshot(int door)
         {
             DoorRuntime d = doors[door];
-            return new FireReactionDoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State);
+            int damagePercent = Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength);
+            return new FireReactionDoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent);
         }
 
         public FireReactionDoorSnapshot[] GetSnapshots()

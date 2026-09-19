@@ -14,13 +14,13 @@ namespace Paniq.Simulation
     internal static class TraitEffects
     {
         /// <summary>Draws a personality: each trait is the rounded average of two 0–10 draws, so 5 is common and 0 or 10 rare.</summary>
-        public static AgentTraitValues Draw(Pcg32 random)
+        public static AgentTraitValues Draw(ref Pcg32 random)
         {
-            return new AgentTraitValues(DrawOne(random), DrawOne(random), DrawOne(random),
-                DrawOne(random), DrawOne(random), DrawOne(random));
+            return new AgentTraitValues(DrawOne(ref random), DrawOne(ref random), DrawOne(ref random),
+                DrawOne(ref random), DrawOne(ref random), DrawOne(ref random));
         }
 
-        private static int DrawOne(Pcg32 random)
+        private static int DrawOne(ref Pcg32 random)
         {
             int sum = random.NextIntInclusive(AgentTraitValues.Minimum, AgentTraitValues.Maximum) +
                       random.NextIntInclusive(AgentTraitValues.Minimum, AgentTraitValues.Maximum);
@@ -32,7 +32,7 @@ namespace Paniq.Simulation
         /// between the Speed 0 and Speed 10 values, plus a seeded jitter (two
         /// random draws: walking, then sprinting).
         /// </summary>
-        public static void ApplyPace(Agent agent, FireReactionScenarioData scenario, Pcg32 random)
+        public static void ApplyPace(Agent agent, FireReactionScenarioData scenario, ref Pcg32 random)
         {
             int speed = agent.Traits.Speed;
             TraitSettings settings = scenario.Traits;
@@ -61,6 +61,32 @@ namespace Paniq.Simulation
             return agent.Traits.Strength - other.Traits.Strength >= scenario.Traits.StrengthShrugOffGap;
         }
 
+        /// <summary>
+        /// Chance that a knock-down leaves this person out cold:
+        /// <paramref name="basePercent"/> (already raised for a harder hit),
+        /// less for the strong, never above the scenario's maximum.
+        /// </summary>
+        public static int PassOutChancePercent(Agent agent, FireReactionScenarioData scenario, int basePercent)
+        {
+            int chance = basePercent - scenario.Traits.StrengthPassOutPercentPerPoint * FromOrdinary(agent.Traits.Strength);
+            return Math.Max(0, Math.Min(scenario.Falls.PassOutMaximumPercent, chance));
+        }
+
+        /// <summary>Chance to start shoving a locked door rather than give up at once.</summary>
+        public static int DoorForceChancePercent(Agent agent, FireReactionScenarioData scenario)
+        {
+            return Percent(scenario.Exits.DoorForceChancePercent +
+                           scenario.Traits.StrengthForceChancePerPoint * FromOrdinary(agent.Traits.Strength));
+        }
+
+        /// <summary>Damage one shove does to a locked door; zero below the minimum strength.</summary>
+        public static int DoorShoveDamage(Agent agent, FireReactionScenarioData scenario)
+        {
+            TraitSettings settings = scenario.Traits;
+            int points = agent.Traits.Strength - settings.DoorBreakMinimumStrength + 1;
+            return points <= 0 ? 0 : points * settings.DoorDamagePerPoint;
+        }
+
         // ---------------------------------------------------------------- bravery
 
         public static int MaximumReactionDelayTicks(Agent agent, FireReactionScenarioData scenario)
@@ -77,7 +103,7 @@ namespace Paniq.Simulation
 
         // ---------------------------------------------------------------- nervousness
 
-        public static int ShoutInterval(Agent agent, FireReactionScenarioData scenario, Pcg32 random)
+        public static int ShoutInterval(Agent agent, FireReactionScenarioData scenario, ref Pcg32 random)
         {
             PanicSettings panic = scenario.Panic;
             int percent = -scenario.Traits.NervousShoutIntervalPercentPerPoint;
@@ -87,7 +113,7 @@ namespace Paniq.Simulation
                 Math.Max(1, (int)Scale(panic.ShoutMaximumTicks, percent, nervousness)));
         }
 
-        public static int PanicDecisionInterval(Agent agent, FireReactionScenarioData scenario, Pcg32 random)
+        public static int PanicDecisionInterval(Agent agent, FireReactionScenarioData scenario, ref Pcg32 random)
         {
             PanicSettings panic = scenario.Panic;
             int percent = -scenario.Traits.NervousDecisionIntervalPercentPerPoint;

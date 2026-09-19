@@ -86,6 +86,12 @@ While running, people:
   speed or more, such as two runners head-on) knocks both to the floor for
   1–3 s, then they take half a second to get up. A lighter hit makes both
   stagger off course for a moment. A calm person who gets bumped is alarmed.
+  Someone 4 or more points stronger than the person they hit only staggers.
+- are sometimes **knocked out cold** by a hard knock-down or a heavy flying
+  box: they lie still with three little yellow stars circling their head for
+  6–12 s, then come round and get up slowly (1 s). About 1 in 10 knock-downs
+  at the knock-down speed does it, more for harder hits and weaker people, never
+  more than 6 in 10. The strongest almost never pass out.
 - **trip**, now and then on their own (more often while zig-zagging), or over
   someone lying on the floor when there is no way around them.
 
@@ -104,7 +110,14 @@ the player. At a shut door a runner:
 - opens it, if it is unlocked (0.4 s);
 - otherwise rattles the handle for half a second, then either shoulders the
   door every half second for 1.5–4 s (each shove a thud people nearby hear,
-  and the door judders; it never gives), or gives up straight away;
+  and the door judders), or gives up straight away. Stronger people shove
+  more often rather than give up. An ordinary shoulder never moves the door,
+  but a **strong person (strength 7+) damages it** with every shove: 1 damage
+  at strength 7, 3 at strength 9. The damage stays, and the door visibly
+  darkens as it weakens. At 40 damage it **bursts off its hinges** and falls
+  flat outside, and stays open for good (clicking it does nothing). The brute
+  needs about 14 shoves, several seconds of battering, often over more than
+  one attempt;
 - after giving up, glances toward another door and runs for it, avoiding the
   one that would not open for 6–12 s. If every door has failed them recently,
   they run somewhere away from the fire instead;
@@ -216,7 +229,8 @@ restart control, or end screen in this checkpoint.
   `FreezeThenRun` agents log `AgentUnfroze` and start fleeing after a seeded
   100–300 ticks, or at once when fire is within 1.5 m. Fleeing agents log
   another `AgentYelled` every seeded 100–250 ticks.
-- **Body state.** `Upright`, `Staggering`, `Fallen` or `GettingUp`. A body
+- **Body state.** `Upright`, `Staggering`, `Fallen`, `GettingUp` or
+  `Unconscious`. A body
   that is not upright makes no move request but still occupies space and can
   be caught by fire. `Fallen` ends in 25 ticks of `GettingUp`, then
   `AgentGotUp` (parent: the event that put it down). A scared agent back on
@@ -235,6 +249,14 @@ restart control, or end screen in this checkpoint.
   (`AgentTripped`, parent: its `AgentScared`). A runner at that speed whose
   way is blocked by someone on the floor, with no side-step available, trips
   over them (parent: the fallen person's down event).
+- **Knocked out.** After each `AgentKnockedDown`, one roll: 10% plus 1% per
+  mm/tick of closing speed above 100, minus 3% per strength point above 5,
+  clamped to 0–60%. A flying box that trips someone rolls the same way with
+  1% per 100 kg·mm/tick of momentum above 1,600. A pass-out logs
+  `AgentPassedOut` (parent: the fall; duration 300–600 ticks) and the body is
+  `Unconscious`: it occupies space, can be tripped over and caught by fire.
+  Then `AgentCameTo` (parent: the pass-out), 50 ticks of `GettingUp`, and
+  `AgentGotUp` (parent: `AgentCameTo`).
 - Lost agents keep their state and position but leave occupancy and make no
   later decisions.
 - **Player commands.** A door click is a `ClickDoor` command for the next tick,
@@ -251,7 +273,13 @@ restart control, or end screen in this checkpoint.
   and giving up logs `AgentGaveUpOnDoor` (both parent: the attempt). A runner
   who opens a door logs `DoorOpened` with their attempt as parent. After
   movement, anyone 0.8 m out through an open door logs `AgentEscaped` (parent:
-  that door's `DoorOpened`).
+  that door's `DoorOpened`, or `DoorBrokenDown`).
+- **Breaking doors.** The chance to start shoving rather than give up is
+  60% plus 5% per strength point above 5. Each shove adds
+  `(strength − 6) × 1` damage to the door (nothing below strength 7); damage
+  is kept per door. When it reaches the door's strength (40) the door becomes
+  `Broken`: it logs `DoorBrokenDown` (source: the shover; target: the door;
+  parent: the shove) and counts as open for walking, choosing and escaping.
 - **Physical objects.** After collisions, each moving box in ascending ID order
   slides by its velocity, stops touching the first person or box in its way
   (found by an integer halving search along its path), bounces, then loses
@@ -269,11 +297,12 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentsCollided`, `AgentKnockedDown`, `AgentTripped`, `AgentGotUp`,
 `AgentFroze`, `AgentUnfroze`, `DoorUnlocked`, `DoorOpened`, `AgentTriedDoor`,
 `AgentForcedDoor`, `AgentGaveUpOnDoor`, `AgentEscaped`, `BoxBumped`,
-`BoxHitAgent` and `BoxesCollided` events. Events that affect someone or
+`BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo` and
+`DoorBrokenDown` events. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,
 `BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
-and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor` and `AgentEscaped`
-the door. Every event except `FireActivated`
+and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor`, `DoorBrokenDown`
+and `AgentEscaped` the door. Every event except `FireActivated`
 and the player's `DoorUnlocked` has a causal parent (a box set moving by a calm
 person's unlogged push is the one rare exception). The room, isometric camera, capsules, fire cubes, vision-cone
 outlines, icons, floor ripples and the counter are observational
@@ -287,6 +316,8 @@ never spin with the body or tip over when it falls:
 - three cyan sound-wave arcs, beside the head on the side the person faces,
   appearing from the inside out on every `AgentYelled`;
 - an ice-blue snowflake that turns slowly while the person is `Frozen`;
+- three little yellow stars chasing each other round the head while
+  `Unconscious`;
 - a yellow `?` while `Investigating`, and `...` while standing or glancing
   around.
 

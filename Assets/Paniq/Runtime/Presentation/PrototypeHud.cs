@@ -20,13 +20,14 @@ namespace Paniq.Presentation
             GUI.Label(new Rect(20f, 44f, 360f, 24f), fireText);
             GUI.Label(new Rect(20f, 68f, 520f, 24f),
                 $"Calm {snapshot.CalmCount}   Scared {snapshot.ScaredCount} (frozen {snapshot.FrozenCount})   " +
-                $"Down {snapshot.DownCount}   Lost {snapshot.LostCount}   Escaped {snapshot.EscapedCount}");
+                $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   Escaped {snapshot.EscapedCount}");
             GUI.Label(new Rect(20f, 92f, 520f, 24f),
                 "Click a door: red = locked. Click once to unlock (green), again to open.   Tab: everyone's stats");
             if (hoveredDoor.HasValue)
             {
                 string action = hoveredState == DoorState.Locked ? "Click to unlock"
                     : hoveredState == DoorState.Unlocked ? "Click to open"
+                    : hoveredState == DoorState.Broken ? "Broken down"
                     : "Open";
                 GUI.Label(new Rect(20f, 116f, 360f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
             }
@@ -94,6 +95,11 @@ namespace Paniq.Presentation
             if (agent.Outcome == AgentTerminalOutcome.Escaped)
             {
                 return "escaped";
+            }
+
+            if (agent.BodyState == AgentBodyState.Unconscious)
+            {
+                return "out cold";
             }
 
             if (agent.BodyState != AgentBodyState.Upright)

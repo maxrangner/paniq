@@ -74,7 +74,7 @@ namespace Paniq.Simulation
             if (tick >= agent.Fear.NextShoutTick)
             {
                 sound.Yell(agent, agent.Fear.ScaredEventId);
-                agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, context.Random));
+                agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
             }
 
             if (DoorBehaviour.IsAtDoor(agent))
@@ -187,7 +187,7 @@ namespace Paniq.Simulation
             int tick = context.Tick;
             AgentIntent intent = agent.Intent;
             agent.Body.BlockedTicks = 0;
-            intent.NextPanicDecisionTick = checked(tick + TraitEffects.PanicDecisionInterval(agent, context.Scenario, context.Random));
+            intent.NextPanicDecisionTick = checked(tick + TraitEffects.PanicDecisionInterval(agent, context.Scenario, ref context.Random));
 
             FallSettings falls = context.Scenario.Falls;
             if (agent.Body.Speed >= falls.TripMinimumSpeed)

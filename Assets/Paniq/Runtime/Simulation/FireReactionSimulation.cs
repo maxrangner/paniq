@@ -83,8 +83,8 @@ namespace Paniq.Simulation
                 agent.Fear.AlertSource = AgentAlertSource.None;
                 agent.Intent.Activity = AgentActivityState.Standing;
                 agent.Intent.LookHeading = heading;
-                agent.Traits = definition.HasAuthoredTraits ? definition.Traits : TraitEffects.Draw(context.Random);
-                TraitEffects.ApplyPace(agent, scenario, context.Random);
+                agent.Traits = definition.HasAuthoredTraits ? definition.Traits : TraitEffects.Draw(ref context.Random);
+                TraitEffects.ApplyPace(agent, scenario, ref context.Random);
                 agent.Personality.CalmTurnRate = context.Random.NextIntInclusive(scenario.Calm.TurnRateMinimum, scenario.Calm.TurnRateMaximum);
                 agent.Personality.PanicTurnRate = context.Random.NextIntInclusive(scenario.Panic.TurnRateMinimum, scenario.Panic.TurnRateMaximum);
 

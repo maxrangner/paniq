@@ -228,7 +228,10 @@ namespace Paniq.Simulation
         Upright,
         Staggering,
         Fallen,
-        GettingUp
+        GettingUp,
+
+        /// <summary>Knocked out cold: lying still for several seconds before coming to.</summary>
+        Unconscious
     }
 
     public enum AgentTerminalOutcome
@@ -261,7 +264,10 @@ namespace Paniq.Simulation
         AgentEscaped,
         BoxBumped,
         BoxHitAgent,
-        BoxesCollided
+        BoxesCollided,
+        AgentPassedOut,
+        AgentCameTo,
+        DoorBrokenDown
     }
 
     /// <summary>Which wall of the room a door sits in. North is +Z, east is +X.</summary>
@@ -273,12 +279,17 @@ namespace Paniq.Simulation
         West
     }
 
-    /// <summary>Locked and unlocked doors are both shut; people can only tell them apart by trying.</summary>
+    /// <summary>
+    /// Locked and unlocked doors are both shut; people can only tell them
+    /// apart by trying. A broken door has been smashed open and can never
+    /// shut again.
+    /// </summary>
     public enum DoorState
     {
         Locked,
         Unlocked,
-        Open
+        Open,
+        Broken
     }
 
     /// <summary>The shapes the physical-object system knows. Only boxes so far.</summary>

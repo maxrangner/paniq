@@ -1,0 +1,116 @@
+namespace Paniq.Simulation
+{
+    /// <summary>
+    /// Sound is a simulation idea, not audio: a noise has a position and a
+    /// reach. Calm people who hear one turn to look ("what was that?"), and
+    /// a yell close enough to be understood alarms them outright. Alarmed
+    /// and panicking people ignore noises. Noises are delivered the moment
+    /// they are made, to listeners in ascending ID order.
+    /// </summary>
+    internal sealed class SoundSystem
+    {
+        private readonly SimulationContext context;
+        private readonly Crowd crowd;
+        private readonly FireSystem fire;
+        private readonly FearSystem fear;
+        private readonly HearingSettings settings;
+
+        public SoundSystem(SimulationContext context, Crowd crowd, FireSystem fire, FearSystem fear)
+        {
+            this.context = context;
+            this.crowd = crowd;
+            this.fire = fire;
+            this.fear = fear;
+            settings = context.Scenario.Hearing;
+        }
+
+        /// <summary>A yell: understood (alarming) close by, merely heard further away.</summary>
+        public void Yell(Agent agent, ulong causalParentEventId)
+        {
+            CausalEvent yell = context.Events.Append(
+                context.Tick,
+                agent.Id,
+                FireReactionEventType.AgentYelled,
+                agent.Body.Position,
+                settings.YellHearingRadiusMillimetres,
+                0,
+                causalParentEventId);
+            Emit(agent.Id, agent.Body.Position, settings.YellHearingRadiusMillimetres,
+                settings.YellAlarmRadiusMillimetres, yell.EventId);
+        }
+
+        /// <summary>A collision, trip, shove or box hit: heard up to the thud reach, alarming no one.</summary>
+        public void Thud(SimulationId sourceId, LogicalPosition position, ulong soundEventId)
+        {
+            Emit(sourceId, position, settings.BumpSoundRadiusMillimetres, 0, soundEventId);
+        }
+
+        /// <summary>
+        /// Delivers one noise to every other calm participating person, in
+        /// ascending ID order. Inside <paramref name="alarmRadius"/> the noise
+        /// alarms; inside <paramref name="hearingRadius"/> it only draws attention.
+        /// </summary>
+        private void Emit(
+            SimulationId sourceId,
+            LogicalPosition position,
+            int hearingRadius,
+            int alarmRadius,
+            ulong soundEventId)
+        {
+            long hearingSquared = (long)hearingRadius * hearingRadius;
+            long alarmSquared = (long)alarmRadius * alarmRadius;
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent listener = agents[i];
+                if (listener.Id == sourceId ||
+                    !listener.IsParticipating ||
+                    listener.Fear.State != AgentFearState.Calm)
+                {
+                    continue;
+                }
+
+                long distanceSquared = LogicalPosition.DistanceSquared(listener.Body.Position, position);
+                if (alarmRadius > 0 && distanceSquared <= alarmSquared)
+                {
+                    fear.Alarm(listener, soundEventId, AgentAlertSource.Yell, position);
+                }
+                else if (distanceSquared <= hearingSquared)
+                {
+                    Notice(listener, position, soundEventId);
+                }
+            }
+        }
+
+        /// <summary>Fire crackles: a calm person near it but not looking at it turns to see what it is.</summary>
+        public void HearFire(Agent agent)
+        {
+            long radius = settings.FireHearingRadiusMillimetres;
+            if (radius <= 0L)
+            {
+                return;
+            }
+
+            long distanceSquared = fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition point, out int cell);
+            if (distanceSquared <= radius * radius)
+            {
+                Notice(agent, point, fire.CellEventId(cell));
+            }
+        }
+
+        /// <summary>A calm person drops what they were doing to look toward a noise.</summary>
+        private void Notice(Agent agent, LogicalPosition point, ulong soundEventId)
+        {
+            agent.Intent.Activity = AgentActivityState.Investigating;
+            agent.Intent.SocialPartnerIndex = -1;
+            agent.Body.BlockedTicks = 0;
+            agent.Hearing.SoundPoint = point;
+            agent.Hearing.HasSoundPoint = true;
+            agent.Hearing.InvestigateStartTick = context.Tick;
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Random.NextIntInclusive(
+                settings.InvestigateMinimumTicks,
+                settings.InvestigateMaximumTicks));
+            context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentNoticedSound, point, 0, 0, soundEventId);
+        }
+    }
+}

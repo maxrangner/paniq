@@ -3,37 +3,50 @@ using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
+    /// <summary>
+    /// One cause-and-effect record. <see cref="SourceId"/> is who or what caused
+    /// it; <see cref="TargetId"/>, when set, is who or what it affected (the
+    /// person run into, the box kicked, the door tried). <see cref="Strength"/>
+    /// and <see cref="DurationTicks"/> mean what each event type says.
+    /// </summary>
     public readonly struct CausalEvent
     {
         public CausalEvent(
             ulong eventId,
             int tick,
-            StableAgentId sourceId,
+            SimulationId sourceId,
             FireReactionEventType eventType,
             LogicalPosition position,
-            int strengthMillimetres,
+            int strength,
             int durationTicks,
-            ulong causalParentEventId)
+            ulong causalParentEventId,
+            SimulationId targetId = default)
         {
             EventId = eventId;
             Tick = tick;
             SourceId = sourceId;
             EventType = eventType;
             Position = position;
-            StrengthMillimetres = strengthMillimetres;
+            Strength = strength;
             DurationTicks = durationTicks;
             CausalParentEventId = causalParentEventId;
+            TargetId = targetId;
         }
 
         public ulong EventId { get; }
         public int Tick { get; }
-        public StableAgentId SourceId { get; }
+        public SimulationId SourceId { get; }
         public FireReactionEventType EventType { get; }
         public LogicalPosition Position { get; }
-        public int StrengthMillimetres { get; }
+        public int Strength { get; }
         public int DurationTicks { get; }
         public ulong CausalParentEventId { get; }
         public bool HasCausalParent => CausalParentEventId != 0UL;
+
+        /// <summary>Who or what this event affected; value 0 when it names nothing.</summary>
+        public SimulationId TargetId { get; }
+
+        public bool HasTarget => TargetId.Value != 0UL;
     }
 
     /// <summary>Append-only event history owned by one simulation run.</summary>
@@ -47,12 +60,13 @@ namespace Paniq.Simulation
 
         public CausalEvent Append(
             int tick,
-            StableAgentId sourceId,
+            SimulationId sourceId,
             FireReactionEventType eventType,
             LogicalPosition position,
-            int strengthMillimetres = 0,
+            int strength = 0,
             int durationTicks = 0,
-            ulong causalParentEventId = 0UL)
+            ulong causalParentEventId = 0UL,
+            SimulationId targetId = default)
         {
             if (causalParentEventId != 0UL && !Contains(causalParentEventId))
             {
@@ -71,9 +85,10 @@ namespace Paniq.Simulation
                 sourceId,
                 eventType,
                 position,
-                strengthMillimetres,
+                strength,
                 durationTicks,
-                causalParentEventId);
+                causalParentEventId,
+                targetId);
             events.Add(record);
             return record;
         }
@@ -94,6 +109,7 @@ namespace Paniq.Simulation
             return events[(int)(eventId - 1UL)];
         }
 
-        public CausalEvent[] ToArray() => events.ToArray();
+        /// <summary>The events so far, as a view that later events do not change. Nothing is copied.</summary>
+        public AppendOnlyView<CausalEvent> View() => new AppendOnlyView<CausalEvent>(events);
     }
 }

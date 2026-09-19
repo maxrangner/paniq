@@ -27,7 +27,7 @@ namespace Paniq.Tests.EditMode
         private static FireReactionPhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams)
         {
             return new FireReactionPhysicsObjectDefinition(
-                new StableAgentId(id), PhysicsObjectKind.Box, new LogicalPosition(x, z), size, massGrams);
+                new SimulationId(id), PhysicsObjectKind.Box, new LogicalPosition(x, z), size, massGrams);
         }
 
         /// <summary>One calm person standing at the origin, one box, and no fire.</summary>
@@ -36,10 +36,10 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(new StableAgentId(1UL), new LogicalPosition(0, 0), CardinalDirection.North)
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(0, 0), CardinalDirection.North)
             };
             data.PhysicsObjects = new[] { Box(3001UL, boxX, 0, size, massGrams) };
-            data.FireActivationTick = int.MaxValue;
+            data.Fire.ActivationTick = int.MaxValue;
             return data;
         }
 
@@ -60,12 +60,12 @@ namespace Paniq.Tests.EditMode
         private static void AssertNothingOverlaps(FireReactionSimulation simulation, FireReactionScenarioData data, string context)
         {
             FireReactionSnapshot snapshot = simulation.GetSnapshot();
-            int radius = data.OccupancyRadiusMillimetres;
+            int radius = data.World.OccupancyRadiusMillimetres;
             for (int b = 0; b < snapshot.PhysicsObjects.Count; b++)
             {
                 FireReactionPhysicsObjectSnapshot box = snapshot.PhysicsObjects[b];
                 int boxRadius = box.SizeMillimetres / 2;
-                Assert.That(data.RoomBounds.ContainsCircle(box.Position, boxRadius), Is.True,
+                Assert.That(data.World.RoomBounds.ContainsCircle(box.Position, boxRadius), Is.True,
                     $"{context}: box {box.ObjectId} left the room at tick {snapshot.Tick}.");
                 for (int a = 0; a < snapshot.Agents.Count; a++)
                 {
@@ -98,7 +98,7 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = PersonAndBox(-3000, 300, 3000);
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(new StableAgentId(1UL), new LogicalPosition(4000, 4000), CardinalDirection.North)
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(4000, 4000), CardinalDirection.North)
             };
             var simulation = new FireReactionSimulation(data);
             simulation.LaunchObjectForTests(0, 60, 0);
@@ -119,7 +119,7 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = PersonAndBox(4000, 400, 6000);
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(new StableAgentId(1UL), new LogicalPosition(-4000, 4000), CardinalDirection.North)
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-4000, 4000), CardinalDirection.North)
             };
             var simulation = new FireReactionSimulation(data);
             simulation.LaunchObjectForTests(0, 100, -100);
@@ -131,7 +131,7 @@ namespace Paniq.Tests.EditMode
                 highestX = Math.Max(highestX, simulation.GetPhysicsObject(0).Position.X);
             }
 
-            Assert.That(highestX, Is.EqualTo(data.RoomBounds.MaxX - 200), "The box should have reached the east wall.");
+            Assert.That(highestX, Is.EqualTo(data.World.RoomBounds.MaxX - 200), "The box should have reached the east wall.");
             Assert.That(simulation.GetPhysicsObject(0).Position.X, Is.LessThan(highestX), "The box did not bounce off the wall.");
         }
 
@@ -151,7 +151,7 @@ namespace Paniq.Tests.EditMode
 
             List<CausalEvent> hits = EventsOfType(simulation, FireReactionEventType.BoxHitAgent);
             Assert.That(hits, Has.Count.EqualTo(1));
-            Assert.That(hits[0].SourceId, Is.EqualTo(new StableAgentId(3001UL)));
+            Assert.That(hits[0].SourceId, Is.EqualTo(new SimulationId(3001UL)));
             List<CausalEvent> trips = EventsOfType(simulation, FireReactionEventType.AgentTripped);
             Assert.That(trips, Has.Count.EqualTo(1));
             Assert.That(trips[0].CausalParentEventId, Is.EqualTo(hits[0].EventId));
@@ -199,7 +199,7 @@ namespace Paniq.Tests.EditMode
                     start[b] = simulation.GetPhysicsObject(b).Position;
                 }
 
-                int endTick = data.FireActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
+                int endTick = data.Fire.ActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
                 while (simulation.Tick < endTick)
                 {
                     simulation.Step();
@@ -230,10 +230,10 @@ namespace Paniq.Tests.EditMode
             for (ulong seed = 40UL; seed <= 49UL && boxTrips == 0; seed++)
             {
                 FireReactionScenarioData data = DefaultData();
-                data.ObjectTripScale = 1;
-                data.ObjectTripMaximumChancePercent = 100;
+                data.ObjectPhysics.TripScale = 1;
+                data.ObjectPhysics.TripMaximumChancePercent = 100;
                 var simulation = new FireReactionSimulation(data, seed);
-                int endTick = data.FireActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
+                int endTick = data.Fire.ActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
                 while (simulation.Tick < endTick)
                 {
                     simulation.Step();

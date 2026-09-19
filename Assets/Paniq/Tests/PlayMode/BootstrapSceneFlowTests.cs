@@ -37,7 +37,7 @@ namespace Paniq.Tests.PlayMode
 
             Paniq.Gameplay.FireReactionRunner runner = Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>();
             Assert.That(runner, Is.Not.Null);
-            for (int tick = 0; tick < runner.Scenario.FireActivationTick; tick++)
+            for (int tick = 0; tick < runner.Simulation.Scenario.Fire.ActivationTick; tick++)
             {
                 runner.StepForTests();
             }
@@ -64,7 +64,7 @@ namespace Paniq.Tests.PlayMode
             Assert.That(Object.FindObjectsByType<Transform>(FindObjectsSortMode.None),
                 Has.Some.Property("name").EqualTo("Box 3001 (presentation)"));
 
-            var door = new Paniq.Simulation.StableAgentId(2001UL);
+            var door = new Paniq.Simulation.SimulationId(2001UL);
             runner.QueueDoorClick(door);
             runner.StepForTests();
             Assert.That(DoorState(runner, door), Is.EqualTo(Paniq.Simulation.DoorState.Unlocked));
@@ -87,7 +87,7 @@ namespace Paniq.Tests.PlayMode
 
         private static Paniq.Simulation.DoorState DoorState(
             Paniq.Gameplay.FireReactionRunner runner,
-            Paniq.Simulation.StableAgentId door)
+            Paniq.Simulation.SimulationId door)
         {
             foreach (Paniq.Simulation.FireReactionDoorSnapshot snapshot in runner.Snapshot.Doors)
             {

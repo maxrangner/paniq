@@ -12,245 +12,304 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e5f8e9be6b64528aa691500194ea499, type: 3}
   m_Name: FireReactionScenario
   m_EditorClassIdentifier:
-  scenarioId: fire-reaction-prototype
-  contentRevision: '12'
-  defaultSeed: 42
-  simulationCompatibilityVersion: 4
-  roomBounds:
-    minX: -6000
-    maxX: 6000
-    minZ: -6000
-    maxZ: 6000
-  occupancyRadiusMillimetres: 250
-  maximumStepDistanceMillimetres: 120
-  visionRangeMillimetres: 3000
-  yellRadiusMillimetres: 2500
-  maximumReactionDelayTicks: 20
-  fireSpawnBounds:
-    minX: -2000
-    maxX: 2000
-    minZ: -2000
-    maxZ: 2000
-  fireActivationTick: 250
-  fireCellSizeMillimetres: 500
-  fireSpreadMinimumTicks: 40
-  fireSpreadMaximumTicks: 120
-  personalSpaceMillimetres: 800
-  wallAvoidDistanceMillimetres: 600
-  calmSpeedMinimum: 22
-  calmSpeedMaximum: 30
-  calmTurnRateMinimum: 4
-  calmTurnRateMaximum: 7
-  calmAcceleration: 2
-  calmDecisionMinimumTicks: 60
-  calmDecisionMaximumTicks: 200
-  panicSpeedMinimum: 70
-  panicSpeedMaximum: 100
-  panicTurnRateMinimum: 10
-  panicTurnRateMaximum: 16
-  panicAcceleration: 8
-  panicDecisionMinimumTicks: 20
-  panicDecisionMaximumTicks: 60
-  swerveChancePercent: 35
-  swerveAngleMinimum: 30
-  swerveAngleMaximum: 70
-  swerveMinimumTicks: 10
-  swerveMaximumTicks: 25
-  hesitateChancePercent: 12
-  hesitateMinimumTicks: 5
-  hesitateMaximumTicks: 15
-  escapeSampleCount: 8
-  dangerDistanceMillimetres: 1500
-  followRadiusMillimetres: 2500
-  panicShoutMinimumTicks: 100
-  panicShoutMaximumTicks: 250
-  freezeThenRunPercent: 30
-  freezeForeverPercent: 15
-  freezeMinimumTicks: 100
-  freezeMaximumTicks: 300
-  yellHearingRadiusMillimetres: 6000
-  fireHearingRadiusMillimetres: 3500
-  bumpSoundRadiusMillimetres: 3000
-  investigateMinimumTicks: 50
-  investigateMaximumTicks: 125
-  bumpMinimumSpeed: 50
-  knockdownClosingSpeed: 100
-  staggerMinimumTicks: 10
-  staggerMaximumTicks: 20
-  knockdownMinimumTicks: 60
-  knockdownMaximumTicks: 140
-  getUpTicks: 25
-  tripChancePercent: 4
-  tripMinimumSpeed: 60
-  tripMinimumTicks: 40
-  tripMaximumTicks: 100
-  doorwayDepthMillimetres: 2000
-  escapeDepthMillimetres: 800
-  doorOpenTicks: 20
-  doorTryTicks: 25
-  doorForceChancePercent: 60
-  doorForceMinimumTicks: 75
-  doorForceMaximumTicks: 200
-  doorShoveMinimumTicks: 20
-  doorShoveMaximumTicks: 30
-  doorAvoidMinimumTicks: 300
-  doorAvoidMaximumTicks: 600
-  doorCrowdedAvoidMinimumTicks: 100
-  doorCrowdedAvoidMaximumTicks: 200
-  agentMassGrams: 70000
-  objectFriction: 157
-  objectAgentRestitutionPercent: 30
-  objectObjectRestitutionPercent: 40
-  objectWallRestitutionPercent: 30
-  objectTripMinimumSpeed: 60
-  objectTripScale: 500
-  objectTripMaximumChancePercent: 75
-  objectStaggerMomentum: 800
-  objectKnockdownMomentum: 1600
-  agents:
-  - agentId:
-      value: 1001
-    initialPosition:
-      x: -5000
-      z: -5000
-    initialFacingDirection: 0
-  - agentId:
-      value: 1002
-    initialPosition:
-      x: 0
-      z: -5000
-    initialFacingDirection: 1
-  - agentId:
-      value: 1003
-    initialPosition:
-      x: 5000
-      z: -5000
-    initialFacingDirection: 3
-  - agentId:
-      value: 1004
-    initialPosition:
-      x: -5000
-      z: 0
-    initialFacingDirection: 1
-  - agentId:
-      value: 1005
-    initialPosition:
-      x: 900
-      z: 0
-    initialFacingDirection: 2
-  - agentId:
-      value: 1006
-    initialPosition:
-      x: 5000
-      z: 0
-    initialFacingDirection: 0
-  - agentId:
-      value: 1007
-    initialPosition:
-      x: -5000
-      z: 5000
-    initialFacingDirection: 2
-  - agentId:
-      value: 1008
-    initialPosition:
-      x: 0
-      z: 5000
-    initialFacingDirection: 3
-  - agentId:
-      value: 1009
-    initialPosition:
-      x: 5000
-      z: 5000
-    initialFacingDirection: 2
-  - agentId:
-      value: 1010
-    initialPosition:
-      x: 0
-      z: -1800
-    initialFacingDirection: 0
-  doors:
-  - doorId:
-      value: 2001
-    side: 0
-    centreAlongWallMillimetres: -2500
-    widthMillimetres: 1000
-  - doorId:
-      value: 2002
-    side: 1
-    centreAlongWallMillimetres: 2500
-    widthMillimetres: 1000
-  - doorId:
-      value: 2003
-    side: 2
-    centreAlongWallMillimetres: 2500
-    widthMillimetres: 1000
-  - doorId:
-      value: 2004
-    side: 3
-    centreAlongWallMillimetres: -2500
-    widthMillimetres: 1000
-  physicsObjects:
-  - objectId:
-      value: 3001
-    kind: 0
-    initialPosition:
-      x: -2000
-      z: -3750
-    sizeMillimetres: 400
-    massGrams: 6000
-  - objectId:
-      value: 3002
-    kind: 0
-    initialPosition:
-      x: 2000
-      z: -3750
-    sizeMillimetres: 300
-    massGrams: 3000
-  - objectId:
-      value: 3003
-    kind: 0
-    initialPosition:
-      x: 4000
-      z: -1250
-    sizeMillimetres: 500
-    massGrams: 12000
-  - objectId:
-      value: 3004
-    kind: 0
-    initialPosition:
-      x: -4000
-      z: 1250
-    sizeMillimetres: 600
-    massGrams: 20000
-  - objectId:
-      value: 3005
-    kind: 0
-    initialPosition:
-      x: -2000
-      z: 3750
-    sizeMillimetres: 350
-    massGrams: 4000
-  - objectId:
-      value: 3006
-    kind: 0
-    initialPosition:
-      x: 2000
-      z: 1250
-    sizeMillimetres: 450
-    massGrams: 9000
-  - objectId:
-      value: 3007
-    kind: 0
-    initialPosition:
-      x: 4000
-      z: 3750
-    sizeMillimetres: 300
-    massGrams: 3000
-  - objectId:
-      value: 3008
-    kind: 0
-    initialPosition:
-      x: -4000
-      z: -1250
-    sizeMillimetres: 400
-    massGrams: 6000
+  scenario:
+    ScenarioId: fire-reaction-prototype
+    ContentRevision: '13'
+    DefaultSeed: 42
+    SimulationCompatibilityVersion: 5
+    World:
+      RoomBounds:
+        minX: -6000
+        maxX: 6000
+        minZ: -6000
+        maxZ: 6000
+      OccupancyRadiusMillimetres: 250
+      MaximumStepDistanceMillimetres: 120
+    Perception:
+      VisionRangeMillimetres: 3000
+      MaximumReactionDelayTicks: 20
+    Fire:
+      SpawnBounds:
+        minX: -2000
+        maxX: 2000
+        minZ: -2000
+        maxZ: 2000
+      ActivationTick: 250
+      CellSizeMillimetres: 500
+      SpreadMinimumTicks: 40
+      SpreadMaximumTicks: 120
+    Steering:
+      PersonalSpaceMillimetres: 800
+      WallAvoidDistanceMillimetres: 600
+      ObjectAvoidMarginMillimetres: 400
+    Calm:
+      SpeedMinimum: 22
+      SpeedMaximum: 30
+      TurnRateMinimum: 4
+      TurnRateMaximum: 7
+      Acceleration: 2
+      DecisionMinimumTicks: 60
+      DecisionMaximumTicks: 200
+      BlockedGiveUpTicks: 20
+      StrollWallMarginMillimetres: 1000
+      StrollMinimumDistanceMillimetres: 1500
+      StrollArrivalDistanceMillimetres: 300
+      StrollSlowdownDistanceMillimetres: 700
+      StrollTimeoutTicks: 600
+      WanderMaximumDegrees: 25
+      SocialStopDistanceMillimetres: 1100
+      SocialMinimumDistanceMillimetres: 1500
+      SocialMaximumDistanceMillimetres: 6000
+      SocialTimeoutTicks: 400
+      PeopleAvoidPercent: 100
+      WallAvoidPercent: 150
+      ObjectAvoidPercent: 100
+    Panic:
+      SpeedMinimum: 70
+      SpeedMaximum: 100
+      TurnRateMinimum: 10
+      TurnRateMaximum: 16
+      Acceleration: 8
+      DecisionMinimumTicks: 20
+      DecisionMaximumTicks: 60
+      SwerveChancePercent: 35
+      SwerveAngleMinimum: 30
+      SwerveAngleMaximum: 70
+      SwerveMinimumTicks: 10
+      SwerveMaximumTicks: 25
+      HesitateChancePercent: 12
+      HesitateMinimumTicks: 5
+      HesitateMaximumTicks: 15
+      DangerDistanceMillimetres: 1500
+      FollowRadiusMillimetres: 2500
+      FollowPercent: 35
+      ShoutMinimumTicks: 100
+      ShoutMaximumTicks: 250
+      BlockedGiveUpTicks: 12
+      ArrivalDistanceMillimetres: 700
+      EscapeSampleCount: 8
+      EscapeWallMarginMillimetres: 700
+      EscapeRouteClearanceMillimetres: 1000
+      EscapeRoutePenaltyMillimetres: 5000
+      EscapeShortHopDistanceMillimetres: 1500
+      EscapeShortHopPenaltyMillimetres: 2000
+      EscapeTurnPenaltyPerDegree: 10
+      EscapeNoiseMillimetres: 1500
+      PeopleAvoidPercent: 50
+      WallAvoidPercent: 200
+      ObjectAvoidPercent: 20
+    Temperament:
+      FreezeThenRunPercent: 30
+      FreezeForeverPercent: 15
+      FreezeMinimumTicks: 100
+      FreezeMaximumTicks: 300
+    Hearing:
+      YellAlarmRadiusMillimetres: 2500
+      YellHearingRadiusMillimetres: 6000
+      FireHearingRadiusMillimetres: 3500
+      BumpSoundRadiusMillimetres: 3000
+      InvestigateMinimumTicks: 50
+      InvestigateMaximumTicks: 125
+      InvestigateCreepDelayTicks: 25
+      InvestigateCreepDistanceMillimetres: 2000
+      InvestigateCreepMaximumTurn: 30
+    Falls:
+      BumpMinimumSpeed: 50
+      KnockdownClosingSpeed: 100
+      StaggerMinimumTicks: 10
+      StaggerMaximumTicks: 20
+      StaggerJoltMinimumDegrees: 25
+      StaggerJoltMaximumDegrees: 50
+      KnockdownMinimumTicks: 60
+      KnockdownMaximumTicks: 140
+      GetUpTicks: 25
+      TripChancePercent: 4
+      TripMinimumSpeed: 60
+      TripMinimumTicks: 40
+      TripMaximumTicks: 100
+    Exits:
+      DoorwayDepthMillimetres: 2000
+      DoorwayInsetMillimetres: 1000
+      EscapeDepthMillimetres: 800
+      DoorOpenTicks: 20
+      DoorTryTicks: 25
+      DoorForceChancePercent: 60
+      DoorForceMinimumTicks: 75
+      DoorForceMaximumTicks: 200
+      DoorShoveMinimumTicks: 20
+      DoorShoveMaximumTicks: 30
+      DoorAvoidMinimumTicks: 300
+      DoorAvoidMaximumTicks: 600
+      DoorCrowdedAvoidMinimumTicks: 100
+      DoorCrowdedAvoidMaximumTicks: 200
+      GiveUpGlanceMinimumTicks: 15
+      GiveUpGlanceMaximumTicks: 30
+      ApproachInsetMillimetres: 600
+      OutsideTargetMillimetres: 1500
+      ArrivalDistanceMillimetres: 400
+      CommitDistanceMillimetres: 2500
+      NoSwerveDistanceMillimetres: 2000
+      OpenBonusMillimetres: 4000
+      CurrentChoiceBonusMillimetres: 1500
+      ChoiceNoiseMillimetres: 1500
+      InFirePenaltyMillimetres: 8000
+    ObjectPhysics:
+      AgentMassGrams: 70000
+      Friction: 157
+      AgentRestitutionPercent: 30
+      ObjectRestitutionPercent: 40
+      WallRestitutionPercent: 30
+      TripMinimumSpeed: 60
+      TripScale: 500
+      TripMaximumChancePercent: 75
+      StaggerMomentum: 800
+      KnockdownMomentum: 1600
+      LoggedBoxHitSpeed: 20
+      SpinMaximum: 20
+    Agents:
+    - agentId:
+        value: 1001
+      initialPosition:
+        x: -5000
+        z: -5000
+      initialFacingDirection: 0
+    - agentId:
+        value: 1002
+      initialPosition:
+        x: 0
+        z: -5000
+      initialFacingDirection: 1
+    - agentId:
+        value: 1003
+      initialPosition:
+        x: 5000
+        z: -5000
+      initialFacingDirection: 3
+    - agentId:
+        value: 1004
+      initialPosition:
+        x: -5000
+        z: 0
+      initialFacingDirection: 1
+    - agentId:
+        value: 1005
+      initialPosition:
+        x: 900
+        z: 0
+      initialFacingDirection: 2
+    - agentId:
+        value: 1006
+      initialPosition:
+        x: 5000
+        z: 0
+      initialFacingDirection: 0
+    - agentId:
+        value: 1007
+      initialPosition:
+        x: -5000
+        z: 5000
+      initialFacingDirection: 2
+    - agentId:
+        value: 1008
+      initialPosition:
+        x: 0
+        z: 5000
+      initialFacingDirection: 3
+    - agentId:
+        value: 1009
+      initialPosition:
+        x: 5000
+        z: 5000
+      initialFacingDirection: 2
+    - agentId:
+        value: 1010
+      initialPosition:
+        x: 0
+        z: -1800
+      initialFacingDirection: 0
+    Doors:
+    - doorId:
+        value: 2001
+      side: 0
+      centreAlongWallMillimetres: -2500
+      widthMillimetres: 1000
+    - doorId:
+        value: 2002
+      side: 1
+      centreAlongWallMillimetres: 2500
+      widthMillimetres: 1000
+    - doorId:
+        value: 2003
+      side: 2
+      centreAlongWallMillimetres: 2500
+      widthMillimetres: 1000
+    - doorId:
+        value: 2004
+      side: 3
+      centreAlongWallMillimetres: -2500
+      widthMillimetres: 1000
+    PhysicsObjects:
+    - objectId:
+        value: 3001
+      kind: 0
+      initialPosition:
+        x: -2000
+        z: -3750
+      sizeMillimetres: 400
+      massGrams: 6000
+    - objectId:
+        value: 3002
+      kind: 0
+      initialPosition:
+        x: 2000
+        z: -3750
+      sizeMillimetres: 300
+      massGrams: 3000
+    - objectId:
+        value: 3003
+      kind: 0
+      initialPosition:
+        x: 4000
+        z: -1250
+      sizeMillimetres: 500
+      massGrams: 12000
+    - objectId:
+        value: 3004
+      kind: 0
+      initialPosition:
+        x: -4000
+        z: 1250
+      sizeMillimetres: 600
+      massGrams: 20000
+    - objectId:
+        value: 3005
+      kind: 0
+      initialPosition:
+        x: -2000
+        z: 3750
+      sizeMillimetres: 350
+      massGrams: 4000
+    - objectId:
+        value: 3006
+      kind: 0
+      initialPosition:
+        x: 2000
+        z: 1250
+      sizeMillimetres: 450
+      massGrams: 9000
+    - objectId:
+        value: 3007
+      kind: 0
+      initialPosition:
+        x: 4000
+        z: 3750
+      sizeMillimetres: 300
+      massGrams: 3000
+    - objectId:
+        value: 3008
+      kind: 0
+      initialPosition:
+        x: -4000
+        z: -1250
+      sizeMillimetres: 400
+      massGrams: 6000

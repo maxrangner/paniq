@@ -27,7 +27,7 @@ namespace Paniq.Simulation
     public readonly struct FireReactionAgentSnapshot
     {
         public FireReactionAgentSnapshot(
-            StableAgentId agentId,
+            SimulationId agentId,
             LogicalPosition position,
             AgentParticipation participation,
             AgentFearState fearState,
@@ -58,7 +58,7 @@ namespace Paniq.Simulation
             ReactionDelayTicks = reactionDelayTicks;
         }
 
-        public StableAgentId AgentId { get; }
+        public SimulationId AgentId { get; }
         public LogicalPosition Position { get; }
         public AgentParticipation Participation { get; }
         public AgentFearState FearState { get; }
@@ -92,7 +92,7 @@ namespace Paniq.Simulation
     /// <summary>A door as the player sees it: where its gap is and whether it is locked, unlocked or open.</summary>
     public readonly struct FireReactionDoorSnapshot
     {
-        public FireReactionDoorSnapshot(StableAgentId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state)
+        public FireReactionDoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state)
         {
             DoorId = doorId;
             Side = side;
@@ -101,7 +101,7 @@ namespace Paniq.Simulation
             State = state;
         }
 
-        public StableAgentId DoorId { get; }
+        public SimulationId DoorId { get; }
         public WallSide Side { get; }
 
         /// <summary>The middle of the door gap, on the wall line.</summary>
@@ -115,7 +115,7 @@ namespace Paniq.Simulation
     public readonly struct FireReactionPhysicsObjectSnapshot
     {
         public FireReactionPhysicsObjectSnapshot(
-            StableAgentId objectId,
+            SimulationId objectId,
             PhysicsObjectKind kind,
             LogicalPosition position,
             int sizeMillimetres,
@@ -130,7 +130,7 @@ namespace Paniq.Simulation
             SpeedMillimetresPerTick = speedMillimetresPerTick;
         }
 
-        public StableAgentId ObjectId { get; }
+        public SimulationId ObjectId { get; }
         public PhysicsObjectKind Kind { get; }
         public LogicalPosition Position { get; }
         public int SizeMillimetres { get; }
@@ -141,25 +141,30 @@ namespace Paniq.Simulation
         public int SpeedMillimetresPerTick { get; }
     }
 
-    /// <summary>A copied, read-only view of simulation state for presentation and tests.</summary>
+    /// <summary>
+    /// A read-only view of simulation state after one tick, for presentation
+    /// and tests. People, doors and boxes are copied; the event log and the
+    /// burning cells only ever grow, so the snapshot holds a view of them as
+    /// they were at this tick instead of a copy.
+    /// </summary>
     public sealed class FireReactionSnapshot
     {
         private readonly FireReactionAgentSnapshot[] agents;
-        private readonly FireCellSnapshot[] fireCells;
+        private readonly IReadOnlyList<FireCellSnapshot> fireCells;
         private readonly FireReactionDoorSnapshot[] doors;
         private readonly FireReactionPhysicsObjectSnapshot[] physicsObjects;
-        private readonly CausalEvent[] events;
+        private readonly IReadOnlyList<CausalEvent> events;
 
         internal FireReactionSnapshot(
             int tick,
             bool fireActive,
             LogicalPosition fireOrigin,
             int fireCellSizeMillimetres,
-            FireCellSnapshot[] fireCells,
+            IReadOnlyList<FireCellSnapshot> fireCells,
             FireReactionAgentSnapshot[] agents,
             FireReactionDoorSnapshot[] doors,
             FireReactionPhysicsObjectSnapshot[] physicsObjects,
-            CausalEvent[] events)
+            IReadOnlyList<CausalEvent> events)
         {
             this.doors = doors;
             this.physicsObjects = physicsObjects;

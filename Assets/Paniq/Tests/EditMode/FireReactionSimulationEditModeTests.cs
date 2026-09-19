@@ -29,7 +29,7 @@ namespace Paniq.Tests.EditMode
 
         private static FireReactionAgentDefinition Agent(ulong id, int x, int z, CardinalDirection facing)
         {
-            return new FireReactionAgentDefinition(new StableAgentId(id), new LogicalPosition(x, z), facing);
+            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing);
         }
 
         // ---------------------------------------------------------------- data
@@ -41,12 +41,12 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("12"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(4));
-            Assert.That(data.FireActivationTick, Is.EqualTo(250));
-            Assert.That(data.FireCellSizeMillimetres, Is.EqualTo(500));
-            Assert.That(data.PanicSpeedMinimum, Is.GreaterThan(data.CalmSpeedMaximum * 2));
-            Assert.That(data.PanicSpeedMaximum, Is.LessThanOrEqualTo(data.MaximumStepDistanceMillimetres));
+            Assert.That(data.ContentRevision, Is.EqualTo("13"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(5));
+            Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
+            Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
+            Assert.That(data.Panic.SpeedMinimum, Is.GreaterThan(data.Calm.SpeedMaximum * 2));
+            Assert.That(data.Panic.SpeedMaximum, Is.LessThanOrEqualTo(data.World.MaximumStepDistanceMillimetres));
         }
 
         [Test]
@@ -55,20 +55,30 @@ namespace Paniq.Tests.EditMode
             var asset = AssetDatabase.LoadAssetAtPath<FireReactionScenario>(ScenarioAssetPath);
             Assert.That(asset, Is.Not.Null, $"Missing {ScenarioAssetPath}.");
             Assert.That(asset.IsValid(out string error), Is.True, error);
-            FireReactionScenarioData fromAsset = asset.ToRuntimeData();
-            FireReactionScenarioData fromCode = DefaultData();
-            foreach (var property in typeof(FireReactionScenarioData).GetProperties())
+            int compared = AssertSameValues(asset.ToRuntimeData(), DefaultData(), "scenario");
+            Assert.That(compared, Is.GreaterThan(100), "The comparison walked too few values; it may have stopped finding the settings.");
+        }
+
+        /// <summary>Walks every field, descending into settings groups, and returns how many values it compared.</summary>
+        private static int AssertSameValues(object fromAsset, object fromCode, string path)
+        {
+            int compared = 0;
+            foreach (System.Reflection.FieldInfo field in fromAsset.GetType().GetFields())
             {
-                if (property.Name == nameof(FireReactionScenarioData.Agents))
+                object assetValue = field.GetValue(fromAsset);
+                object codeValue = field.GetValue(fromCode);
+                string fieldPath = $"{path}.{field.Name}";
+                if (field.FieldType.IsClass && field.FieldType != typeof(string) && !field.FieldType.IsArray)
                 {
+                    compared += AssertSameValues(assetValue, codeValue, fieldPath);
                     continue;
                 }
 
-                Assert.That(property.GetValue(fromAsset), Is.EqualTo(property.GetValue(fromCode)),
-                    $"Asset and CreateDefault disagree on {property.Name}.");
+                Assert.That(assetValue, Is.EqualTo(codeValue), $"Asset and code defaults disagree on {fieldPath}.");
+                compared++;
             }
 
-            Assert.That(fromAsset.Agents, Is.EqualTo(fromCode.Agents));
+            return compared;
         }
 
         // ---------------------------------------------------------------- maths
@@ -192,7 +202,7 @@ namespace Paniq.Tests.EditMode
         public void Fire_FillsTheRoomWithinAMinute()
         {
             FireReactionScenarioData data = DefaultData();
-            data.FireActivationTick = 1;
+            data.Fire.ActivationTick = 1;
             var simulation = new FireReactionSimulation(data);
             int totalCells = simulation.FireGridColumns * simulation.FireGridRows;
             Assert.That(totalCells, Is.EqualTo(24 * 24));
@@ -202,6 +212,106 @@ namespace Paniq.Tests.EditMode
             }
 
             Assert.That(simulation.FireCellCount, Is.EqualTo(totalCells));
+        }
+
+        /// <summary>
+        /// The fire only checks nearby grid cells to answer "where is the
+        /// nearest fire", "is fire this close" and "can I see fire". Each
+        /// answer must equal checking every burning cell, ties included, for
+        /// small, medium and large fires and for points outside the room.
+        /// </summary>
+        [TestCase(260)]
+        [TestCase(900)]
+        [TestCase(1800)]
+        public void FireQueries_MatchCheckingEveryBurningCell(int ticks)
+        {
+            var simulation = new FireReactionSimulation(DefaultData());
+            for (int i = 0; i < ticks; i++)
+            {
+                simulation.Step();
+            }
+
+            IReadOnlyList<FireCellSnapshot> cells = simulation.GetSnapshot().FireCells;
+            FireSystem fire = simulation.FireForTests;
+            for (int x = -7000; x <= 7000; x += 350)
+            {
+                for (int z = -7000; z <= 7000; z += 350)
+                {
+                    var position = new LogicalPosition(x, z);
+
+                    // Nearest: lowest distance, then earliest-lit cell.
+                    long expected = long.MaxValue;
+                    ulong expectedEvent = 0UL;
+                    LogicalPosition expectedPoint = position;
+                    foreach (FireCellSnapshot cell in cells)
+                    {
+                        LogicalPosition point = cell.Bounds.ClosestPoint(position);
+                        long distance = LogicalPosition.DistanceSquared(position, point);
+                        if (distance < expected || (distance == expected && cell.EventId < expectedEvent))
+                        {
+                            expected = distance;
+                            expectedEvent = cell.EventId;
+                            expectedPoint = point;
+                        }
+                    }
+
+                    long actual = fire.NearestDistanceSquared(position, out LogicalPosition actualPoint, out int actualCell);
+                    Assert.That(actual, Is.EqualTo(expected), $"nearest distance from {position}");
+                    Assert.That(actualPoint, Is.EqualTo(expectedPoint), $"nearest point from {position}");
+                    Assert.That(fire.CellEventId(actualCell), Is.EqualTo(expectedEvent), $"nearest cell from {position}");
+
+                    foreach (int reach in new[] { 500, 1000, 1500, 2600 })
+                    {
+                        bool anyCloser = false;
+                        foreach (FireCellSnapshot cell in cells)
+                        {
+                            anyCloser |= cell.Bounds.DistanceSquaredTo(position) < (long)reach * reach;
+                        }
+
+                        Assert.That(fire.AnyCloserThan(position, reach), Is.EqualTo(anyCloser), $"fire within {reach} of {position}");
+                    }
+
+                    for (int heading = 0; heading < 360; heading += 45)
+                    {
+                        Assert.That(fire.IsVisibleFrom(position, heading, 3000), Is.EqualTo(SeesAnyCell(cells, position, heading, 3000)),
+                            $"vision from {position} facing {heading}");
+                    }
+                }
+            }
+        }
+
+        /// <summary>The vision rule, checked against every burning cell: nearest point, centre or a corner inside a 90-degree cone.</summary>
+        private static bool SeesAnyCell(IReadOnlyList<FireCellSnapshot> cells, LogicalPosition eye, int heading, int range)
+        {
+            long rangeSquared = (long)range * range;
+            LogicalPosition direction = IntegerMath.Direction(heading);
+            foreach (FireCellSnapshot cell in cells)
+            {
+                LogicalBounds b = cell.Bounds;
+                LogicalPosition closest = b.ClosestPoint(eye);
+                if (LogicalPosition.DistanceSquared(eye, closest) > rangeSquared)
+                {
+                    continue;
+                }
+
+                foreach (LogicalPosition point in new[]
+                         {
+                             closest, b.Centre, new LogicalPosition(b.MinX, b.MinZ), new LogicalPosition(b.MaxX, b.MinZ),
+                             new LogicalPosition(b.MinX, b.MaxZ), new LogicalPosition(b.MaxX, b.MaxZ)
+                         })
+                {
+                    long dx = (long)point.X - eye.X;
+                    long dz = (long)point.Z - eye.Z;
+                    long forward = dx * direction.X + dz * direction.Z;
+                    long lateral = dx * direction.Z - dz * direction.X;
+                    if (dx * dx + dz * dz <= rangeSquared && forward >= 0L && Math.Abs(lateral) <= forward)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         // ---------------------------------------------------------------- replay and space
@@ -266,7 +376,7 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = DefaultData();
             var simulation = new FireReactionSimulation(data);
-            long touching = data.OccupancyRadiusMillimetres * 2L;
+            long touching = data.World.OccupancyRadiusMillimetres * 2L;
             for (int tick = 0; tick < 3000; tick++)
             {
                 simulation.Step();
@@ -279,7 +389,7 @@ namespace Paniq.Tests.EditMode
                         continue;
                     }
 
-                    Assert.That(data.RoomBounds.ContainsCircle(agent.Position, data.OccupancyRadiusMillimetres), Is.True,
+                    Assert.That(data.World.RoomBounds.ContainsCircle(agent.Position, data.World.OccupancyRadiusMillimetres), Is.True,
                         $"Agent {agent.AgentId} left the room at tick {snapshot.Tick}.");
                     for (int j = 0; j < i; j++)
                     {
@@ -301,7 +411,7 @@ namespace Paniq.Tests.EditMode
         public void CalmAgents_WanderOnCurvedPathsPauseAndAvoidWalls()
         {
             FireReactionScenarioData data = DefaultData();
-            data.FireActivationTick = int.MaxValue;
+            data.Fire.ActivationTick = int.MaxValue;
             var simulation = new FireReactionSimulation(data);
             int count = simulation.AgentCount;
             var paused = new bool[count];
@@ -340,10 +450,10 @@ namespace Paniq.Tests.EditMode
                     previous[i] = agent.Position;
 
                     // Footprint edge within 0.3 m of any wall.
-                    LogicalBounds room = data.RoomBounds;
+                    LogicalBounds room = data.World.RoomBounds;
                     int gap = Math.Min(
                         Math.Min(agent.Position.X - room.MinX, room.MaxX - agent.Position.X),
-                        Math.Min(agent.Position.Z - room.MinZ, room.MaxZ - agent.Position.Z)) - data.OccupancyRadiusMillimetres;
+                        Math.Min(agent.Position.Z - room.MinZ, room.MaxZ - agent.Position.Z)) - data.World.OccupancyRadiusMillimetres;
                     wallRun[i] = gap < 300 ? wallRun[i] + 1 : 0;
                     Assert.That(wallRun[i], Is.LessThan(3 * FireReactionSimulation.TicksPerSecond),
                         $"Calm agent {agent.AgentId} hugged a wall for 3 s.");
@@ -358,7 +468,7 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(offGridSamples, Is.GreaterThan(movingSamples / 2), "Headings are still mostly compass-aligned.");
             double averageSpeed = speedTotal / (double)movingSamples;
-            Assert.That(averageSpeed, Is.InRange(data.CalmSpeedMinimum * 0.6, data.CalmSpeedMaximum));
+            Assert.That(averageSpeed, Is.InRange(data.Calm.SpeedMinimum * 0.6, data.Calm.SpeedMaximum));
             Assert.That(activities, Is.SupersetOf(new[]
             {
                 AgentActivityState.Standing,
@@ -369,6 +479,42 @@ namespace Paniq.Tests.EditMode
         }
 
         // ---------------------------------------------------------------- panic behaviour
+
+        /// <summary>
+        /// A body is moved once per tick, so nobody on their feet turns faster
+        /// than the fastest turn rate. Seeds 40 and 46 once broke this when a
+        /// runner stopped trying a door and turned twice in one tick.
+        /// </summary>
+        [TestCase(40UL)]
+        [TestCase(46UL)]
+        public void UprightPeople_NeverTurnFasterThanTheirTurnRate(ulong seed)
+        {
+            FireReactionScenarioData data = DefaultData();
+            var simulation = new FireReactionSimulation(data, seed);
+            var before = new FireReactionAgentSnapshot[simulation.AgentCount];
+            for (int i = 0; i < before.Length; i++)
+            {
+                before[i] = simulation.GetAgent(i);
+            }
+
+            for (int tick = 0; tick < 3000; tick++)
+            {
+                simulation.Step();
+                for (int i = 0; i < before.Length; i++)
+                {
+                    FireReactionAgentSnapshot now = simulation.GetAgent(i);
+                    if (before[i].BodyState == AgentBodyState.Upright && now.BodyState == AgentBodyState.Upright)
+                    {
+                        int turn = Math.Abs(IntegerMath.SignedAngleDifference(before[i].HeadingDegrees, now.HeadingDegrees));
+                        Assert.That(turn, Is.LessThanOrEqualTo(data.Panic.TurnRateMaximum),
+                            $"Agent {now.AgentId} turned {turn} degrees at tick {simulation.Tick} " +
+                            $"({before[i].ActivityState} to {now.ActivityState}).");
+                    }
+
+                    before[i] = now;
+                }
+            }
+        }
 
         [Test]
         public void PanickedAgents_SprintZigZagAndDoNotStayPinned()
@@ -387,7 +533,7 @@ namespace Paniq.Tests.EditMode
             int headingSamples = 0;
 
             // The first 20 seconds after the fire starts, while open space remains.
-            int endTick = data.FireActivationTick + 20 * FireReactionSimulation.TicksPerSecond;
+            int endTick = data.Fire.ActivationTick + 20 * FireReactionSimulation.TicksPerSecond;
             while (simulation.Tick < endTick)
             {
                 simulation.Step();
@@ -461,12 +607,12 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = DefaultData();
             data.Agents = new[] { Agent(1UL, 0, 0, CardinalDirection.East) };
-            data.FireActivationTick = 1;
-            data.MaximumReactionDelayTicks = 0;
-            data.FireSpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
-            data.FreezeThenRunPercent = 0;
-            data.FreezeForeverPercent = 0;
-            data.TripChancePercent = 0;
+            data.Fire.ActivationTick = 1;
+            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Fire.SpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
+            data.Temperament.FreezeThenRunPercent = 0;
+            data.Temperament.FreezeForeverPercent = 0;
+            data.Falls.TripChancePercent = 0;
 
             var simulation = new FireReactionSimulation(data);
             simulation.Step();
@@ -484,7 +630,7 @@ namespace Paniq.Tests.EditMode
             long endGap = (long)Math.Sqrt(LogicalPosition.DistanceSquared(fled.Position, simulation.FireOrigin));
             Assert.That(endGap, Is.GreaterThan(startGap + 500), "The agent did not run away from the fire in front of it.");
 
-            data.FireSpawnBounds = new LogicalBounds(-2600, -2600, 100, 100);
+            data.Fire.SpawnBounds = new LogicalBounds(-2600, -2600, 100, 100);
             simulation = new FireReactionSimulation(data);
             simulation.Step();
             Assert.That(simulation.GetAgent(0).FearState, Is.EqualTo(AgentFearState.Calm));
@@ -499,10 +645,10 @@ namespace Paniq.Tests.EditMode
                 Agent(1UL, 0, 0, CardinalDirection.East),
                 Agent(2UL, 1000, 0, CardinalDirection.North)
             };
-            data.FireActivationTick = 1;
-            data.MaximumReactionDelayTicks = 0;
-            data.FireSpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
-            data.YellRadiusMillimetres = 1500;
+            data.Fire.ActivationTick = 1;
+            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Fire.SpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
+            data.Hearing.YellAlarmRadiusMillimetres = 1500;
 
             var simulation = new FireReactionSimulation(data);
             simulation.Step();
@@ -516,7 +662,7 @@ namespace Paniq.Tests.EditMode
             Assert.That(events[2].EventType, Is.EqualTo(FireReactionEventType.AgentYelled));
             Assert.That(events[2].CausalParentEventId, Is.EqualTo(events[1].EventId));
             Assert.That(events[3].EventType, Is.EqualTo(FireReactionEventType.AgentAlerted));
-            Assert.That(events[3].SourceId, Is.EqualTo(new StableAgentId(2UL)));
+            Assert.That(events[3].SourceId, Is.EqualTo(new SimulationId(2UL)));
             Assert.That(events[3].CausalParentEventId, Is.EqualTo(events[2].EventId));
         }
 
@@ -559,11 +705,11 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = DefaultData();
             data.Agents = new[] { Agent(1UL, 0, 0, CardinalDirection.East) };
-            data.FireActivationTick = 1;
-            data.MaximumReactionDelayTicks = 0;
+            data.Fire.ActivationTick = 1;
+            data.Perception.MaximumReactionDelayTicks = 0;
 
             // The burning cell's nearest edge is 3.5 m behind: audible, but beyond the 3 m sight range.
-            data.FireSpawnBounds = new LogicalBounds(-3700, -3700, 100, 100);
+            data.Fire.SpawnBounds = new LogicalBounds(-3700, -3700, 100, 100);
 
             var simulation = new FireReactionSimulation(data);
             simulation.Step();
@@ -595,9 +741,9 @@ namespace Paniq.Tests.EditMode
                 Agent(2UL, -4000, 0, CardinalDirection.West),
                 Agent(3UL, 0, -2000, CardinalDirection.South)
             };
-            data.FireActivationTick = 1;
-            data.MaximumReactionDelayTicks = 0;
-            data.FireSpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
+            data.Fire.ActivationTick = 1;
+            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Fire.SpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
 
             var simulation = new FireReactionSimulation(data);
             simulation.Step();
@@ -608,7 +754,7 @@ namespace Paniq.Tests.EditMode
                 if (record.EventType == FireReactionEventType.AgentYelled)
                 {
                     yellId = record.EventId;
-                    Assert.That(record.StrengthMillimetres, Is.EqualTo(data.YellHearingRadiusMillimetres));
+                    Assert.That(record.Strength, Is.EqualTo(data.Hearing.YellHearingRadiusMillimetres));
                 }
             }
 
@@ -621,12 +767,12 @@ namespace Paniq.Tests.EditMode
             Assert.That(near.AlertSource, Is.EqualTo(AgentAlertSource.Yell));
             foreach (CausalEvent record in simulation.EventLog.Events)
             {
-                if (record.SourceId == new StableAgentId(2UL))
+                if (record.SourceId == new SimulationId(2UL))
                 {
                     Assert.That(record.EventType, Is.EqualTo(FireReactionEventType.AgentNoticedSound));
                     Assert.That(record.CausalParentEventId, Is.EqualTo(yellId));
                 }
-                else if (record.SourceId == new StableAgentId(3UL) && record.EventType == FireReactionEventType.AgentAlerted)
+                else if (record.SourceId == new SimulationId(3UL) && record.EventType == FireReactionEventType.AgentAlerted)
                 {
                     Assert.That(record.CausalParentEventId, Is.EqualTo(yellId));
                 }
@@ -652,12 +798,12 @@ namespace Paniq.Tests.EditMode
                 Agent(1UL, 0, 0, CardinalDirection.East),
                 Agent(2UL, 0, -2000, CardinalDirection.West)
             };
-            data.FireActivationTick = 1;
-            data.FireSpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
+            data.Fire.ActivationTick = 1;
+            data.Fire.SpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
 
             // Reaction delays are seeded; try a few seeds so at least one
             // listener stays startled long enough to finish turning.
-            data.MaximumReactionDelayTicks = 200;
+            data.Perception.MaximumReactionDelayTicks = 200;
             bool turned = false;
             for (ulong seed = 1UL; seed <= 10UL && !turned; seed++)
             {
@@ -713,7 +859,7 @@ namespace Paniq.Tests.EditMode
 
             int count = simulation.AgentCount;
             var frozenAt = new LogicalPosition?[count];
-            int endTick = data.FireActivationTick + 40 * FireReactionSimulation.TicksPerSecond;
+            int endTick = data.Fire.ActivationTick + 40 * FireReactionSimulation.TicksPerSecond;
             while (simulation.Tick < endTick)
             {
                 simulation.Step();
@@ -740,9 +886,9 @@ namespace Paniq.Tests.EditMode
                 }
             }
 
-            var froze = new Dictionary<StableAgentId, CausalEvent>();
-            var lostTick = new Dictionary<StableAgentId, int>();
-            var unfroze = new Dictionary<StableAgentId, CausalEvent>();
+            var froze = new Dictionary<SimulationId, CausalEvent>();
+            var lostTick = new Dictionary<SimulationId, int>();
+            var unfroze = new Dictionary<SimulationId, CausalEvent>();
             foreach (CausalEvent record in simulation.EventLog.Events)
             {
                 switch (record.EventType)
@@ -761,7 +907,7 @@ namespace Paniq.Tests.EditMode
             }
 
             int thawed = 0;
-            foreach (KeyValuePair<StableAgentId, CausalEvent> pair in froze)
+            foreach (KeyValuePair<SimulationId, CausalEvent> pair in froze)
             {
                 AgentPanicTemperament temperament = simulation.GetAgent(pair.Key).Temperament;
                 Assert.That(temperament, Is.Not.EqualTo(AgentPanicTemperament.Runner));
@@ -771,7 +917,7 @@ namespace Paniq.Tests.EditMode
                     continue;
                 }
 
-                int deadline = pair.Value.Tick + data.FreezeMaximumTicks;
+                int deadline = pair.Value.Tick + data.Temperament.FreezeMaximumTicks;
                 bool lostFirst = lostTick.TryGetValue(pair.Key, out int lost) && lost <= deadline;
                 if (!lostFirst && deadline < simulation.Tick)
                 {
@@ -800,9 +946,9 @@ namespace Paniq.Tests.EditMode
                 int count = simulation.AgentCount;
                 var previous = new FireReactionAgentSnapshot[count];
                 var downTicks = new int[count];
-                int longestDown = Math.Max(data.KnockdownMaximumTicks, data.TripMaximumTicks) + data.GetUpTicks + 1;
-                long touching = data.OccupancyRadiusMillimetres * 2L;
-                int endTick = data.FireActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
+                int longestDown = Math.Max(data.Falls.KnockdownMaximumTicks, data.Falls.TripMaximumTicks) + data.Falls.GetUpTicks + 1;
+                long touching = data.World.OccupancyRadiusMillimetres * 2L;
+                int endTick = data.Fire.ActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
                 while (simulation.Tick < endTick)
                 {
                     simulation.Step();

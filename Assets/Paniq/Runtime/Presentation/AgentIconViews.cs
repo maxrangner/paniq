@@ -42,10 +42,11 @@ namespace Paniq.Presentation
         private float frozenSince = float.NegativeInfinity;
         private bool wasFrozen;
 
-        public AgentIconViews(string name, Material lineMaterial, float spinOffset)
+        public AgentIconViews(string name, Material lineMaterial, float spinOffset, Transform parent)
         {
             this.spinOffset = spinOffset;
             root = new GameObject($"{name} icons (presentation)").transform;
+            root.SetParent(parent, false);
 
             notice = CreateGroup("Notice !", new Vector3(0f, 0.05f, 0f));
             noticeStrokes = new[]

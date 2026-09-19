@@ -97,6 +97,12 @@ One simulation runner owns tick advancement. Simulation systems must not each
 advance themselves from separate `MonoBehaviour.FixedUpdate` callbacks; Unity
 component execution order is not simulation order.
 
+Within phase 4, a person's behaviour only states what it wants the body to do
+this tick (a goal heading, a goal speed, a turn rate and an acceleration).
+Locomotion carries that out once per person per tick. Other systems may stop,
+knock down or jolt a body as the direct result of a logged event, but no
+behaviour turns or accelerates a body itself.
+
 The tick schedule is, in order:
 
 1. Consume commands assigned to this tick.
@@ -173,6 +179,7 @@ contains:
 | Strength | An optional numeric magnitude. An event type defines when it is present and what it means. |
 | Duration | An optional logical-time duration. An event type defines when it is present and what it means. |
 | Causal parent | The Event ID that directly caused it, or no parent for a root event. |
+| Target ID | The stable ID of the entity it affected (the person run into, the box kicked, the door tried), or none. An event type defines when it is present. |
 
 Receivers use these fields and their own simulation state to process the event.
 The causal-parent chain is retained so a later event log and debugging view can

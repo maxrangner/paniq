@@ -129,6 +129,18 @@ namespace Paniq.Simulation
             return NormalizeDegrees(dz >= 0L ? 360 - angle : 180 + angle);
         }
 
+        /// <summary>Heading from one point toward another, or <paramref name="fallback"/> when they coincide.</summary>
+        public static int HeadingBetween(LogicalPosition from, LogicalPosition to, int fallback)
+        {
+            return HeadingOf((long)to.X - from.X, (long)to.Z - from.Z, fallback);
+        }
+
+        /// <summary>Whole-millimetre distance between two points, rounded down.</summary>
+        public static long Distance(LogicalPosition from, LogicalPosition to)
+        {
+            return Sqrt(LogicalPosition.DistanceSquared(from, to));
+        }
+
         public static long Sqrt(long value)
         {
             if (value < 0L)

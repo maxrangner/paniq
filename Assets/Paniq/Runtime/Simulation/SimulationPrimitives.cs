@@ -41,25 +41,28 @@ namespace Paniq.Simulation
         }
     }
 
-    /// <summary>A stable, opaque identifier for simulation entities.</summary>
+    /// <summary>
+    /// A stable, opaque identifier for any simulation entity: a person, a
+    /// door, a box or a hazard. Compare and store it; never read meaning into it.
+    /// </summary>
     [Serializable]
-    public struct StableAgentId : IEquatable<StableAgentId>, IComparable<StableAgentId>
+    public struct SimulationId : IEquatable<SimulationId>, IComparable<SimulationId>
     {
         [UnityEngine.SerializeField] private ulong value;
 
-        public StableAgentId(ulong value)
+        public SimulationId(ulong value)
         {
             this.value = value;
         }
 
         public ulong Value => value;
-        public bool Equals(StableAgentId other) => value == other.value;
-        public override bool Equals(object obj) => obj is StableAgentId other && Equals(other);
+        public bool Equals(SimulationId other) => value == other.value;
+        public override bool Equals(object obj) => obj is SimulationId other && Equals(other);
         public override int GetHashCode() => value.GetHashCode();
-        public int CompareTo(StableAgentId other) => value.CompareTo(other.value);
+        public int CompareTo(SimulationId other) => value.CompareTo(other.value);
         public override string ToString() => value.ToString();
-        public static bool operator ==(StableAgentId left, StableAgentId right) => left.Equals(right);
-        public static bool operator !=(StableAgentId left, StableAgentId right) => !left.Equals(right);
+        public static bool operator ==(SimulationId left, SimulationId right) => left.Equals(right);
+        public static bool operator !=(SimulationId left, SimulationId right) => !left.Equals(right);
     }
 
     [Serializable]
@@ -239,7 +242,7 @@ namespace Paniq.Simulation
     /// </summary>
     public readonly struct PlayerCommand
     {
-        public PlayerCommand(int targetTick, long sequence, PlayerCommandType commandType, StableAgentId targetId)
+        public PlayerCommand(int targetTick, long sequence, PlayerCommandType commandType, SimulationId targetId)
         {
             TargetTick = targetTick;
             Sequence = sequence;
@@ -250,6 +253,6 @@ namespace Paniq.Simulation
         public int TargetTick { get; }
         public long Sequence { get; }
         public PlayerCommandType CommandType { get; }
-        public StableAgentId TargetId { get; }
+        public SimulationId TargetId { get; }
     }
 }

@@ -8,7 +8,7 @@ namespace Paniq.Tests.EditMode
 {
     public sealed class FireReactionDoorsEditModeTests
     {
-        private static readonly StableAgentId NorthDoor = new StableAgentId(2001UL);
+        private static readonly SimulationId NorthDoor = new SimulationId(2001UL);
 
         private FireReactionScenario scenario;
 
@@ -28,10 +28,10 @@ namespace Paniq.Tests.EditMode
 
         private static FireReactionAgentDefinition Agent(ulong id, int x, int z, CardinalDirection facing)
         {
-            return new FireReactionAgentDefinition(new StableAgentId(id), new LogicalPosition(x, z), facing);
+            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing);
         }
 
-        private static FireReactionDoorSnapshot Door(FireReactionSimulation simulation, StableAgentId id)
+        private static FireReactionDoorSnapshot Door(FireReactionSimulation simulation, SimulationId id)
         {
             for (int i = 0; i < simulation.DoorCount; i++)
             {
@@ -44,7 +44,7 @@ namespace Paniq.Tests.EditMode
             throw new KeyNotFoundException(id.ToString());
         }
 
-        private static void Click(FireReactionSimulation simulation, StableAgentId door)
+        private static void Click(FireReactionSimulation simulation, SimulationId door)
         {
             simulation.QueueCommand(PlayerCommandType.ClickDoor, door, simulation.Tick + 1);
         }
@@ -53,7 +53,7 @@ namespace Paniq.Tests.EditMode
         {
             for (int i = 0; i < simulation.DoorCount; i++)
             {
-                StableAgentId id = simulation.GetDoor(i).DoorId;
+                SimulationId id = simulation.GetDoor(i).DoorId;
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, id, 1);
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, id, 2);
             }
@@ -125,7 +125,7 @@ namespace Paniq.Tests.EditMode
             Assert.Throws<ArgumentOutOfRangeException>(() =>
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, NorthDoor, simulation.Tick));
             Assert.Throws<ArgumentException>(() =>
-                simulation.QueueCommand(PlayerCommandType.ClickDoor, new StableAgentId(1001UL), simulation.Tick + 1));
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, new SimulationId(1001UL), simulation.Tick + 1));
         }
 
         [Test]
@@ -136,13 +136,13 @@ namespace Paniq.Tests.EditMode
             {
                 if (first.Tick == 300 || first.Tick == 330)
                 {
-                    Click(first, new StableAgentId(2002UL));
+                    Click(first, new SimulationId(2002UL));
                 }
 
                 if (first.Tick == 400)
                 {
-                    Click(first, new StableAgentId(2003UL));
-                    Click(first, new StableAgentId(2003UL));
+                    Click(first, new SimulationId(2003UL));
+                    Click(first, new SimulationId(2003UL));
                 }
 
                 first.Step();
@@ -196,7 +196,7 @@ namespace Paniq.Tests.EditMode
                         FireReactionAgentSnapshot agent = simulation.GetAgent(i);
                         if (agent.Participation == AgentParticipation.Participating)
                         {
-                            Assert.That(data.RoomBounds.ContainsCircle(agent.Position, data.OccupancyRadiusMillimetres), Is.True,
+                            Assert.That(data.World.RoomBounds.ContainsCircle(agent.Position, data.World.OccupancyRadiusMillimetres), Is.True,
                                 $"Seed {seed}: agent {agent.AgentId} got through a locked door at tick {simulation.Tick}.");
                         }
                     }
@@ -239,8 +239,8 @@ namespace Paniq.Tests.EditMode
                 FireReactionScenarioData data = DefaultData();
                 var simulation = new FireReactionSimulation(data, seed);
                 OpenEveryDoor(simulation);
-                long touching = data.OccupancyRadiusMillimetres * 2L;
-                int endTick = data.FireActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
+                long touching = data.World.OccupancyRadiusMillimetres * 2L;
+                int endTick = data.Fire.ActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
                 while (simulation.Tick < endTick)
                 {
                     simulation.Step();
@@ -284,8 +284,8 @@ namespace Paniq.Tests.EditMode
 
         private static bool IsInRoomOrDoorway(FireReactionSimulation simulation, FireReactionScenarioData data, LogicalPosition position)
         {
-            int radius = data.OccupancyRadiusMillimetres;
-            if (data.RoomBounds.ContainsCircle(position, radius))
+            int radius = data.World.OccupancyRadiusMillimetres;
+            if (data.World.RoomBounds.ContainsCircle(position, radius))
             {
                 return true;
             }
@@ -312,15 +312,15 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             data.Agents = new[] { Agent(1UL, -2500, 4700, CardinalDirection.South) };
             data.PhysicsObjects = Array.Empty<FireReactionPhysicsObjectDefinition>();
-            data.FireActivationTick = 1;
-            data.FireSpawnBounds = new LogicalBounds(-2500, -2500, 2100, 2100);
-            data.MaximumReactionDelayTicks = 0;
-            data.FreezeThenRunPercent = 0;
-            data.FreezeForeverPercent = 0;
-            data.TripChancePercent = 0;
-            data.HesitateChancePercent = 0;
-            data.SwerveChancePercent = 0;
-            data.DoorForceChancePercent = forceChancePercent;
+            data.Fire.ActivationTick = 1;
+            data.Fire.SpawnBounds = new LogicalBounds(-2500, -2500, 2100, 2100);
+            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Temperament.FreezeThenRunPercent = 0;
+            data.Temperament.FreezeForeverPercent = 0;
+            data.Falls.TripChancePercent = 0;
+            data.Panic.HesitateChancePercent = 0;
+            data.Panic.SwerveChancePercent = 0;
+            data.Exits.DoorForceChancePercent = forceChancePercent;
             return data;
         }
 
@@ -390,21 +390,98 @@ namespace Paniq.Tests.EditMode
             Assert.That(simulation.GetAgent(0).Outcome, Is.Not.EqualTo(AgentTerminalOutcome.Escaped));
         }
 
+        // ---------------------------------------------------------------- event targets
+
+        /// <summary>
+        /// Events say what they affected, so the display never has to guess
+        /// (for example by picking the nearest box or door).
+        /// </summary>
+        [Test]
+        public void Events_NameWhatTheyAffected()
+        {
+            var simulation = new FireReactionSimulation(DefaultData(), 40UL);
+            foreach ((ulong doorId, int tick) in ReplayFingerprint.OpeningClicks)
+            {
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, new SimulationId(doorId), tick);
+            }
+
+            for (int t = 0; t < ReplayFingerprint.Ticks; t++)
+            {
+                simulation.Step();
+            }
+
+            var agents = new HashSet<SimulationId>();
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                agents.Add(simulation.GetAgent(i).AgentId);
+            }
+
+            var boxes = new HashSet<SimulationId>();
+            for (int i = 0; i < simulation.PhysicsObjectCount; i++)
+            {
+                boxes.Add(simulation.GetPhysicsObject(i).ObjectId);
+            }
+
+            var doorCentres = new Dictionary<SimulationId, LogicalPosition>();
+            for (int i = 0; i < simulation.DoorCount; i++)
+            {
+                doorCentres.Add(simulation.GetDoor(i).DoorId, simulation.GetDoor(i).Centre);
+            }
+
+            var seen = new HashSet<FireReactionEventType>();
+            foreach (CausalEvent record in simulation.EventLog.Events)
+            {
+                seen.Add(record.EventType);
+                switch (record.EventType)
+                {
+                    case FireReactionEventType.AgentsCollided:
+                        Assert.That(agents, Does.Contain(record.TargetId), "A collision names the person run into.");
+                        Assert.That(record.TargetId, Is.Not.EqualTo(record.SourceId));
+                        break;
+                    case FireReactionEventType.BoxBumped:
+                        Assert.That(boxes, Does.Contain(record.TargetId), "A bump names the box.");
+                        break;
+                    case FireReactionEventType.BoxHitAgent:
+                        Assert.That(agents, Does.Contain(record.TargetId), "A box hit names the person hit.");
+                        break;
+                    case FireReactionEventType.BoxesCollided:
+                        Assert.That(boxes, Does.Contain(record.TargetId), "A box-on-box hit names the other box.");
+                        break;
+                    case FireReactionEventType.AgentTriedDoor:
+                    case FireReactionEventType.AgentForcedDoor:
+                    case FireReactionEventType.AgentGaveUpOnDoor:
+                        Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, $"{record.EventType} names the door.");
+                        Assert.That(record.Position, Is.EqualTo(doorCentres[record.TargetId]));
+                        break;
+                    case FireReactionEventType.AgentEscaped:
+                        Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, "An escape names the door used.");
+                        break;
+                    default:
+                        Assert.That(record.HasTarget, Is.False, $"{record.EventType} should not name a target.");
+                        break;
+                }
+            }
+
+            Assert.That(seen, Does.Contain(FireReactionEventType.AgentsCollided));
+            Assert.That(seen, Does.Contain(FireReactionEventType.AgentTriedDoor));
+            Assert.That(seen, Does.Contain(FireReactionEventType.AgentEscaped));
+        }
+
         // ---------------------------------------------------------------- validation
 
         [Test]
         public void Validation_RejectsDoorsThatDoNotFit()
         {
             FireReactionScenarioData narrow = DefaultData();
-            narrow.Doors = new[] { new FireReactionDoorDefinition(new StableAgentId(9001UL), WallSide.North, 0, 400) };
+            narrow.Doors = new[] { new FireReactionDoorDefinition(new SimulationId(9001UL), WallSide.North, 0, 400) };
             Assert.Throws<InvalidOperationException>(() => narrow.Validate());
 
             FireReactionScenarioData offTheEnd = DefaultData();
-            offTheEnd.Doors = new[] { new FireReactionDoorDefinition(new StableAgentId(9001UL), WallSide.East, 5800, 1000) };
+            offTheEnd.Doors = new[] { new FireReactionDoorDefinition(new SimulationId(9001UL), WallSide.East, 5800, 1000) };
             Assert.Throws<InvalidOperationException>(() => offTheEnd.Validate());
 
             FireReactionScenarioData sharedId = DefaultData();
-            sharedId.Doors = new[] { new FireReactionDoorDefinition(new StableAgentId(1001UL), WallSide.East, 0, 1000) };
+            sharedId.Doors = new[] { new FireReactionDoorDefinition(new SimulationId(1001UL), WallSide.East, 0, 1000) };
             Assert.Throws<InvalidOperationException>(() => sharedId.Validate());
         }
     }

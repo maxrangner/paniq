@@ -1,0 +1,87 @@
+using UnityEngine;
+
+namespace Paniq.Presentation
+{
+    /// <summary>
+    /// Every material the prototype display uses, created once and shared.
+    /// Per-object colours go through one <see cref="MaterialPropertyBlock"/>
+    /// instead of material copies. <see cref="Destroy"/> releases them all
+    /// when the display goes away, so reloading the scene does not pile up
+    /// materials.
+    /// </summary>
+    internal sealed class PresentationMaterials
+    {
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int ColorId = Shader.PropertyToID("_Color");
+        private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+
+        public static readonly Color LockedDoorColor = new Color(0.86f, 0.14f, 0.1f);
+        public static readonly Color BoxColor = new Color(0.62f, 0.45f, 0.26f);
+        public static readonly Color FlameRed = new Color(1f, 0.16f, 0.02f);
+
+        private readonly MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
+
+        public PresentationMaterials()
+        {
+            Room = CreateLit(new Color(0.12f, 0.14f, 0.18f));
+            Wall = CreateLit(new Color(0.22f, 0.24f, 0.3f));
+            Vision = CreateLit(new Color(0.25f, 0.7f, 1f));
+            Agent = CreateLit(new Color(0.78f, 0.84f, 0.9f));
+
+            // Unlit and coloured per vertex, so icons stay bright and can fade.
+            Shader iconShader = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit");
+            Icon = new Material(iconShader);
+            Door = CreateLit(LockedDoorColor);
+            Door.EnableKeyword("_EMISSION");
+            Box = CreateLit(BoxColor);
+            Outside = CreateLit(new Color(0.2f, 0.22f, 0.2f));
+            Fire = CreateLit(FlameRed);
+            Fire.EnableKeyword("_EMISSION");
+            Fire.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            Fire.SetColor(EmissionColorId, FlameRed);
+        }
+
+        public Material Room { get; }
+        public Material Wall { get; }
+        public Material Vision { get; }
+        public Material Agent { get; }
+        public Material Icon { get; }
+        public Material Door { get; }
+        public Material Box { get; }
+        public Material Outside { get; }
+        public Material Fire { get; }
+
+        /// <summary>Recolours one renderer without copying its material.</summary>
+        public void SetColor(Renderer target, Color color)
+        {
+            propertyBlock.Clear();
+            propertyBlock.SetColor(BaseColorId, color);
+            propertyBlock.SetColor(ColorId, color);
+            target.SetPropertyBlock(propertyBlock);
+        }
+
+        /// <summary>Recolours one emissive renderer without copying its material.</summary>
+        public void SetColors(Renderer target, Color baseColor, Color emission)
+        {
+            propertyBlock.Clear();
+            propertyBlock.SetColor(BaseColorId, baseColor);
+            propertyBlock.SetColor(ColorId, baseColor);
+            propertyBlock.SetColor(EmissionColorId, emission);
+            target.SetPropertyBlock(propertyBlock);
+        }
+
+        public void Destroy()
+        {
+            foreach (Material material in new[] { Room, Wall, Vision, Agent, Icon, Door, Box, Outside, Fire })
+            {
+                Object.Destroy(material);
+            }
+        }
+
+        private static Material CreateLit(Color color)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            return new Material(shader) { color = color };
+        }
+    }
+}

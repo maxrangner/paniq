@@ -51,6 +51,11 @@ game-development knowledge to answer.
 - Put scene, object-lifecycle, and integration checks in
   `Assets/Paniq/Tests/PlayMode`.
 - Run both test groups after changes to foundation code or scene flow.
+- The replay fingerprint tests (`ReplayFingerprintEditModeTests`) squash whole
+  runs into single numbers. A change meant to be invisible to players, such as
+  a restructure, must keep every number. A change meant to alter behaviour
+  bumps the scenario's `SimulationCompatibilityVersion` and `ContentRevision`
+  and re-records the numbers in the same commit, saying why.
 
 ## Profiling checkpoint
 

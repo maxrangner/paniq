@@ -115,7 +115,9 @@ restart control, or end screen in this checkpoint.
   part of the step, and if a person is in the way it tries ±30° and ±60°
   side-steps. The resolver still accepts or rejects the request exactly as
   [spatial-world-rules.md](spatial-world-rules.md) defines. A rejected move sets
-  speed to zero and counts as a blocked tick.
+  speed to zero and counts as a blocked tick. Each tick a person's behaviour
+  (calm, alert, panic, or busy at a door) states one goal, and the body turns
+  and accelerates toward it exactly once.
 - **Calm decisions** happen when the current activity ends or the agent has
   been blocked for 20 ticks. After moving, the agent stands (55%) or looks
   around (45%). Otherwise it strolls (50%), goes to stand near another calm
@@ -226,7 +228,11 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentsCollided`, `AgentKnockedDown`, `AgentTripped`, `AgentGotUp`,
 `AgentFroze`, `AgentUnfroze`, `DoorUnlocked`, `DoorOpened`, `AgentTriedDoor`,
 `AgentForcedDoor`, `AgentGaveUpOnDoor`, `AgentEscaped`, `BoxBumped`,
-`BoxHitAgent` and `BoxesCollided` events. Every event except `FireActivated`
+`BoxHitAgent` and `BoxesCollided` events. Events that affect someone or
+something name it as their target: `AgentsCollided` the person run into,
+`BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
+and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor` and `AgentEscaped`
+the door. Every event except `FireActivated`
 and the player's `DoorUnlocked` has a causal parent (a box set moving by a calm
 person's unlogged push is the one rare exception). The room, isometric camera, capsules, fire cubes, vision-cone
 outlines, icons, floor ripples and the counter are observational
@@ -261,7 +267,7 @@ tip forward onto the floor in their normal colour and tilt back up while
 getting up; staggering people wobble; frozen people are tinted pale blue and
 tremble on the spot. Fire-cube variation comes from a
 hash of the cell's grid position, never from the simulation's random
-generator. The cubes share one emissive material, recoloured per cube through
+generator. The cubes (and people, doors and boxes) share materials, recoloured per object through
 a `MaterialPropertyBlock`. The camera is 45 degrees around the room and
 35.264 degrees above the ground, which gives a standard isometric view.
 

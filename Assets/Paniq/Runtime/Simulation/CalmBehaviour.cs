@@ -6,7 +6,8 @@ namespace Paniq.Simulation
     /// Calm "loitering": each person makes their own small decisions every
     /// few seconds - stroll somewhere, stand, look around, or wander over to
     /// stand near someone - using the seeded generator and their own seeded
-    /// pace and turn rate. Also turning toward, and edging toward, a noise.
+    /// pace and turn rate. Also turning toward, and edging toward, a noise,
+    /// and now and then tidying an item away (see <see cref="ItemBehaviour"/>).
     /// </summary>
     internal sealed class CalmBehaviour
     {
@@ -14,14 +15,16 @@ namespace Paniq.Simulation
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly Locomotion locomotion;
+        private readonly ItemBehaviour items;
         private readonly CalmSettings settings;
 
-        public CalmBehaviour(SimulationContext context, Crowd crowd, WorldGeometry geometry, Locomotion locomotion)
+        public CalmBehaviour(SimulationContext context, Crowd crowd, WorldGeometry geometry, Locomotion locomotion, ItemBehaviour items)
         {
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
             this.locomotion = locomotion;
+            this.items = items;
             settings = context.Scenario.Calm;
         }
 
@@ -135,6 +138,19 @@ namespace Paniq.Simulation
                     break;
                 }
 
+                case AgentActivityState.FetchingItem:
+                case AgentActivityState.PickingUp:
+                case AgentActivityState.CarryingItem:
+                case AgentActivityState.SettingDown:
+                    if (items.UpdateTidying(agent, out goalHeading, out goalSpeed))
+                    {
+                        steer = goalSpeed > 0;
+                        break;
+                    }
+
+                    ChooseActivity(agent, true);
+                    break;
+
                 default:
                     // Coming back to calm from another state is not possible
                     // in this prototype, but choose afresh if it ever happens.
@@ -189,6 +205,11 @@ namespace Paniq.Simulation
             }
 
             agent.Intent.SocialPartnerIndex = -1;
+            if (roll < context.Scenario.Items.TidyChancePercent && items.TryStartTidying(agent))
+            {
+                return;
+            }
+
             if (roll < 50)
             {
                 StartStroll(agent);

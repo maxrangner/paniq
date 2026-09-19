@@ -8,8 +8,8 @@ hazard, and leave an explainable causal event trail.
 ## Experience
 
 The `FireReactionPrototype` scene shows one abstract 12 m by 12 m room with a
-door in each wall, eight cardboard boxes on the floor, and ten people
-(capsules).
+door in each wall, three wooden tables with eight chairs pulled up to them,
+eight cardboard boxes on the floor, and ten people (capsules).
 
 **Everyone has a personality.** Each person has six traits from 0 to 10:
 strength, speed, bravery, compassion, evil and nervousness. 5 is an ordinary
@@ -127,6 +127,41 @@ the player. At a shut door a runner:
 Someone who walks 0.8 m out through an open door has **escaped**: they keep
 walking for a moment and shrink out of view. People stuck in a crowd on the
 way to a door try a different one for a few seconds.
+
+**Tables and chairs.** Three 1.2 × 0.7 m tables stand in the room. Nobody
+and nothing can pass through a table: people slide along its edge as they
+would along a wall and steer away from it, loose objects bounce off it, and
+random spots people pick to stroll to or run for stay clear of tables.
+Runners also avoid spots and doors whose straight route runs into a table.
+Eight chairs (0.45 m, 5 kg) behave like light boxes: runners kick them
+skidding across the floor and trip over them.
+
+**Things catch fire.** Boxes, chairs and tables within half a metre of
+flames (a burning square or another burning thing) heat up, darkening as they
+do. Cardboard boxes catch after 1.5 s of heat, chairs after 3 s, tables after
+5 s. A burning thing glows with a crown of flame cubes for a while (boxes
+8–15 s, chairs 12–18 s, tables 20–30 s) and is then left charcoal-black,
+still solid but never burning again. While burning, a thing that rests in
+one floor square for a second sets that square alight, so a burning box
+kicked across the room starts a new fire where it stops. Anyone touching a
+burning thing catches fire, and anyone on fire who touches a thing sets it
+alight.
+
+**Picking things up.** Boxes and chairs are items. Anyone can lift an item
+up to 5 kg plus 2.5 kg per strength point (an ordinary person 17.5 kg, the
+brute 27.5 kg). Now and then (12% of fresh decisions) a calm person tidies up:
+they walk to the nearest item within 4 m they can lift, pick it up (0.5 s),
+carry it in front of them to a spot at least 1.5 m away, and set it down
+(0.4 s) on clear floor. A load slows them, by up to 40% for a load as heavy
+as they can manage. Someone carrying something who is startled or scared
+lets go at once: the nervous (6+) drop it, everyone else throws it ahead of
+them. Knocked off their feet or set alight, they drop it; merely distracted
+by a noise, they put it down. A strong runner (6+) who meets a box or chair
+they can lift in their way hurls it aside instead of kicking it, and a cruel
+one (evil 7+) hurls it at the nearest person within 4 m. A thrown item flies
+faster the stronger the thrower and the lighter the item, and because it
+strikes the body rather than the feet it hits three times as hard as a
+sliding one, enough for a chair to knock someone off balance.
 
 **Boxes.** Eight cardboard boxes, 0.3–0.6 m wide and 3–20 kg, sit on the floor.
 Calm people walk around them. Runners barely look: they kick a box sliding
@@ -296,6 +331,39 @@ restart control, or end screen in this checkpoint.
   is kept per door. When it reaches the door's strength (40) the door becomes
   `Broken`: it logs `DoorBrokenDown` (source: the shover; target: the door;
   parent: the shove) and counts as open for walking, choosing and escaping.
+- **Tables.** A table is a fixed rectangle. A body of radius r overlaps it
+  when its centre is strictly inside the rectangle grown by r on every side
+  (square corners). A step into a table is moved onto the grown edge facing
+  where the body came from, so it slides along; a sliding object that hits it
+  is stopped there and bounces on that axis like a wall. Random spots are
+  redrawn (up to 8 draws) until they are 0.3 m clear of every grown table. A
+  candidate escape spot or door whose straight route (swept by a person's
+  radius) meets a table scores 3 m worse. Tables push people away like walls.
+- **Burning things.** Phase 9, after the objects move (`FlammablesSystem`;
+  boxes and chairs in ascending ID order, then tables). A burning person
+  within 50 mm of an intact thing sets it alight. Each intact thing whose edge
+  is within 500 mm of a burning cell (earliest-lit wins) or a burning thing
+  gains one tick of heat; at 75 (box), 150 (chair) or 250 (table) it logs
+  `ObjectCaughtFire` (parent: that cell or thing; duration drawn: box 400–750,
+  chair 600–900, table 1,000–1,500 ticks). Heat never cools. Each burning
+  thing: at its end tick logs `ObjectBurntOut` and is `Burnt`; otherwise,
+  if it is not moving and has stayed in one grid cell for 50 ticks, it lights
+  that cell (`FireSpread`, parent: the thing's catch), and it sets alight
+  every person within 50 mm of its edge (`AgentCaughtFire`, parent: the
+  thing's catch).
+- **Items.** A held item leaves the floor: it follows 20 mm in front of its
+  carrier after movement and takes part in no collisions. A calm person's
+  pick-up and set-down are not logged (like a calm push). Letting go while
+  startled, scared, down or burning logs `ItemDropped` or `ItemThrown`
+  (source: the person; target: the item; parent: their burning, fall, scare
+  or alert), placing the item on the first clear spot around them (ahead,
+  then ±45°, ±90°, ±135°, behind); with no clear spot they hold on for now. A
+  runner's contact with an item they can lift, at strength 6+, is resolved as
+  a hurl: `ItemThrown` (parent: their `AgentScared`), velocity sideways (a
+  seeded side) or at the nearest person within 4 m for evil 7+, and the
+  runner's speed halves. Throw speed is `60 × (strength + 5) ÷ (kg + 5)`
+  mm/tick, 20 at least and 120 at most. A thrown item's momentum counts ×3
+  on its first hit on a person.
 - **Physical objects.** After collisions, each moving box in ascending ID order
   slides by its velocity, stops touching the first person or box in its way
   (found by an integer halving search along its path), bounces, then loses
@@ -314,7 +382,8 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentFroze`, `AgentUnfroze`, `DoorUnlocked`, `DoorOpened`, `AgentTriedDoor`,
 `AgentForcedDoor`, `AgentGaveUpOnDoor`, `AgentEscaped`, `BoxBumped`,
 `BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo`,
-`DoorBrokenDown` and `AgentCaughtFire` events. Events that affect someone or
+`DoorBrokenDown`, `AgentCaughtFire`, `ObjectCaughtFire`, `ObjectBurntOut`,
+`ItemThrown` and `ItemDropped` events. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,
 `BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
 and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor`, `DoorBrokenDown`

@@ -30,6 +30,8 @@ namespace Paniq.Simulation
         private readonly PanicBehaviour panic;
         private readonly DoorBehaviour doorBehaviour;
         private readonly BurningBehaviour burning;
+        private readonly FlammablesSystem flammables;
+        private readonly ItemBehaviour items;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
         {
@@ -58,7 +60,9 @@ namespace Paniq.Simulation
             collisions = new CollisionSystem(context, crowd, body, fear, sound);
             objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound);
             locomotion = new Locomotion(context, crowd, geometry, fire, body, collisions, objects);
-            calm = new CalmBehaviour(context, crowd, geometry, locomotion);
+            flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
+            items = new ItemBehaviour(context, geometry, objects, flammables);
+            calm = new CalmBehaviour(context, crowd, geometry, locomotion, items);
             doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
             panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, locomotion);
             burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
@@ -135,7 +139,12 @@ namespace Paniq.Simulation
 
         public FireReactionDoorSnapshot GetDoor(int index) => doors.GetSnapshot(index);
 
-        public FireReactionPhysicsObjectSnapshot GetPhysicsObject(int index) => objects.GetSnapshot(index);
+        public FireReactionPhysicsObjectSnapshot GetPhysicsObject(int index) =>
+            objects.GetSnapshot(index).WithBurn(flammables.ObjectState(index), flammables.ObjectHeatPercent(index));
+
+        public int TableCount => context.Scenario.Tables.Length;
+
+        public FireReactionTableSnapshot GetTable(int index) => flammables.GetTableSnapshots()[index];
 
         /// <summary>Tests only: sets an object sliding at a velocity in millimetres per tick.</summary>
         internal void LaunchObjectForTests(int index, int velocityX, int velocityZ) => objects.Launch(index, velocityX, velocityZ);
@@ -157,7 +166,8 @@ namespace Paniq.Simulation
         /// 1 player commands, 2 hazard, 3 hazard contact, 4 decisions
         /// (ascending ID), 5 movement, 6 danger contact along accepted moves,
         /// flames jumping between people, and exits, 7 collisions (people,
-        /// then objects), 8 physical objects.
+        /// then objects), 8 physical objects, 9 things heating, catching,
+        /// burning out and passing flames on.
         /// </summary>
         public void Step()
         {
@@ -172,12 +182,21 @@ namespace Paniq.Simulation
             for (int i = 0; i < agents.Length; i++)
             {
                 Agent agent = agents[i];
-                if (!agent.IsParticipating || body.BurnOut(agent))
+                if (!agent.IsParticipating)
                 {
                     continue;
                 }
 
+                if (body.BurnOut(agent))
+                {
+                    items.DropFromLost(agent);
+                    continue;
+                }
+
                 perception.Update(agent);
+
+                // Startled, off their feet or on fire: whatever they carry is dropped or thrown.
+                items.LetGoIfNeeded(agent);
                 if (body.Update(agent))
                 {
                     // Staggering, on the floor or getting up: no control, no move.
@@ -204,7 +223,7 @@ namespace Paniq.Simulation
 
                 if (intent.HasValue)
                 {
-                    Locomotion.ApplyBody(agent, intent.Value);
+                    Locomotion.ApplyBody(agent, items.Burdened(agent, intent.Value));
                 }
 
                 if (agent.Body.State != AgentBodyState.Upright)
@@ -218,11 +237,13 @@ namespace Paniq.Simulation
             }
 
             locomotion.ResolveMovement();
+            items.FollowCarriers(agents);
             burning.SpreadFlames();
             doorBehaviour.ResolveEscapes();
             collisions.Resolve();
             objects.ResolveContacts();
             objects.Advance();
+            flammables.Update();
         }
 
         /// <summary>Phase 3: anyone standing in fire catches fire.</summary>
@@ -265,8 +286,20 @@ namespace Paniq.Simulation
                 fire.GetCells(),
                 agentSnapshots,
                 doors.GetSnapshots(),
-                objects.GetSnapshots(),
+                PhysicsObjectSnapshots(),
+                flammables.GetTableSnapshots(),
                 context.Events.View());
+        }
+
+        private FireReactionPhysicsObjectSnapshot[] PhysicsObjectSnapshots()
+        {
+            var snapshots = new FireReactionPhysicsObjectSnapshot[objects.Count];
+            for (int i = 0; i < snapshots.Length; i++)
+            {
+                snapshots[i] = GetPhysicsObject(i);
+            }
+
+            return snapshots;
         }
     }
 }

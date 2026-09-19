@@ -117,6 +117,37 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
+    /// A table: a fixed rectangle on the floor that people walk around and
+    /// loose objects bounce off. <see cref="WidthMillimetres"/> runs along X,
+    /// <see cref="DepthMillimetres"/> along Z.
+    /// </summary>
+    [Serializable]
+    public struct FireReactionTableDefinition
+    {
+        [UnityEngine.SerializeField] private SimulationId tableId;
+        [UnityEngine.SerializeField] private LogicalPosition centre;
+        [UnityEngine.SerializeField] private int widthMillimetres;
+        [UnityEngine.SerializeField] private int depthMillimetres;
+
+        public FireReactionTableDefinition(SimulationId tableId, LogicalPosition centre, int widthMillimetres, int depthMillimetres)
+        {
+            this.tableId = tableId;
+            this.centre = centre;
+            this.widthMillimetres = widthMillimetres;
+            this.depthMillimetres = depthMillimetres;
+        }
+
+        public SimulationId TableId => tableId;
+        public LogicalPosition Centre => centre;
+        public int WidthMillimetres => widthMillimetres;
+        public int DepthMillimetres => depthMillimetres;
+
+        public LogicalBounds Bounds => new LogicalBounds(
+            centre.X - widthMillimetres / 2, centre.X + widthMillimetres / 2,
+            centre.Z - depthMillimetres / 2, centre.Z + depthMillimetres / 2);
+    }
+
+    /// <summary>
     /// Everything a fire-reaction run starts from: its replay identity, every
     /// tunable number (grouped by topic in ScenarioSettings.cs), and the
     /// people, doors and boxes in the room. The scenario asset keeps one of
@@ -126,9 +157,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "16";
+        public string ContentRevision = "19";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 8;
+        public int SimulationCompatibilityVersion = 11;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -142,10 +173,13 @@ namespace Paniq.Simulation
         public ExitSettings Exits = new ExitSettings();
         public ObjectPhysicsSettings ObjectPhysics = new ObjectPhysicsSettings();
         public TraitSettings Traits = new TraitSettings();
+        public FlammableSettings Flammables = new FlammableSettings();
+        public ItemSettings Items = new ItemSettings();
 
         public FireReactionAgentDefinition[] Agents = DefaultAgents();
         public FireReactionDoorDefinition[] Doors = DefaultDoors();
         public FireReactionPhysicsObjectDefinition[] PhysicsObjects = DefaultPhysicsObjects();
+        public FireReactionTableDefinition[] Tables = DefaultTables();
 
         /// <summary>A deep copy: changing the copy never changes this one.</summary>
         public FireReactionScenarioData Clone()
@@ -163,9 +197,12 @@ namespace Paniq.Simulation
             copy.Exits = Exits?.Clone();
             copy.ObjectPhysics = ObjectPhysics?.Clone();
             copy.Traits = Traits?.Clone();
+            copy.Flammables = Flammables?.Clone();
+            copy.Items = Items?.Clone();
             copy.Agents = (FireReactionAgentDefinition[])Agents?.Clone();
             copy.Doors = (FireReactionDoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (FireReactionPhysicsObjectDefinition[])PhysicsObjects?.Clone();
+            copy.Tables = (FireReactionTableDefinition[])Tables?.Clone();
             return copy;
         }
 
@@ -183,7 +220,7 @@ namespace Paniq.Simulation
 
             if (World == null || Perception == null || Fire == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
-                ObjectPhysics == null || Traits == null)
+                ObjectPhysics == null || Traits == null || Flammables == null || Items == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -200,6 +237,8 @@ namespace Paniq.Simulation
             Exits.Validate(World);
             ObjectPhysics.Validate();
             Traits.Validate();
+            Flammables.Validate();
+            Items.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");
@@ -249,7 +288,38 @@ namespace Paniq.Simulation
             }
 
             ValidateDoors(ids);
+            ValidateTables(ids);
             ValidatePhysicsObjects(ids);
+        }
+
+        private void ValidateTables(HashSet<SimulationId> ids)
+        {
+            Tables ??= Array.Empty<FireReactionTableDefinition>();
+            int radius = World.OccupancyRadiusMillimetres;
+            for (int i = 0; i < Tables.Length; i++)
+            {
+                FireReactionTableDefinition table = Tables[i];
+                if (table.TableId.Value == 0UL || !ids.Add(table.TableId))
+                {
+                    throw new InvalidOperationException("Table IDs must be unique and non-zero.");
+                }
+
+                LogicalBounds bounds = table.Bounds;
+                if (table.WidthMillimetres < 200 || table.DepthMillimetres < 200 ||
+                    bounds.MinX < World.RoomBounds.MinX || bounds.MaxX > World.RoomBounds.MaxX ||
+                    bounds.MinZ < World.RoomBounds.MinZ || bounds.MaxZ > World.RoomBounds.MaxZ)
+                {
+                    throw new InvalidOperationException($"Table {table.TableId} is too small or outside the room.");
+                }
+
+                for (int a = 0; a < Agents.Length; a++)
+                {
+                    if (bounds.DistanceSquaredTo(Agents[a].InitialPosition) < (long)radius * radius)
+                    {
+                        throw new InvalidOperationException($"Agent {Agents[a].AgentId} starts inside table {table.TableId}.");
+                    }
+                }
+            }
         }
 
         private void ValidateDoors(HashSet<SimulationId> ids)
@@ -313,6 +383,14 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Object {body.ObjectId} starts outside the room.");
                 }
 
+                for (int t = 0; t < Tables.Length; t++)
+                {
+                    if (Tables[t].Bounds.DistanceSquaredTo(body.InitialPosition) < (long)body.RadiusMillimetres * body.RadiusMillimetres)
+                    {
+                        throw new InvalidOperationException($"Object {body.ObjectId} starts inside table {Tables[t].TableId}.");
+                    }
+                }
+
                 long agentReach = radius + (long)body.RadiusMillimetres;
                 for (int a = 0; a < Agents.Length; a++)
                 {
@@ -368,7 +446,10 @@ namespace Paniq.Simulation
             };
         }
 
-        /// <summary>Eight cardboard boxes, 0.3–0.6 m wide and 3–20 kg, set between where people stand.</summary>
+        /// <summary>
+        /// Eight cardboard boxes, 0.3–0.6 m wide and 3–20 kg, set between
+        /// where people stand, and eight 5 kg chairs pulled up to the tables.
+        /// </summary>
         public static FireReactionPhysicsObjectDefinition[] DefaultPhysicsObjects()
         {
             return new[]
@@ -380,8 +461,33 @@ namespace Paniq.Simulation
                 Box(3005UL, -2000, 3750, 350, 4000),
                 Box(3006UL, 2000, 1250, 450, 9000),
                 Box(3007UL, 4000, 3750, 300, 3000),
-                Box(3008UL, -4000, -1250, 400, 6000)
+                Box(3008UL, -4000, -1250, 400, 6000),
+                Chair(3101UL, -2800, -2125),
+                Chair(3102UL, -2200, -875),
+                Chair(3103UL, -3375, -1500),
+                Chair(3104UL, 2200, 2175),
+                Chair(3105UL, 2800, 3425),
+                Chair(3106UL, -1800, 1375),
+                Chair(3107UL, -1200, 2625),
+                Chair(3108UL, -625, 2000)
             };
+        }
+
+        /// <summary>Three 1.2 × 0.7 m tables around the room.</summary>
+        public static FireReactionTableDefinition[] DefaultTables()
+        {
+            return new[]
+            {
+                new FireReactionTableDefinition(new SimulationId(4001UL), new LogicalPosition(-2500, -1500), 1200, 700),
+                new FireReactionTableDefinition(new SimulationId(4002UL), new LogicalPosition(2500, 2800), 1200, 700),
+                new FireReactionTableDefinition(new SimulationId(4003UL), new LogicalPosition(-1500, 2000), 1200, 700)
+            };
+        }
+
+        private static FireReactionPhysicsObjectDefinition Chair(ulong id, int x, int z)
+        {
+            return new FireReactionPhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.Chair, new LogicalPosition(x, z), 450, 5000);
         }
 
         private static FireReactionAgentDefinition Agent(

@@ -117,7 +117,22 @@ namespace Paniq.Presentation
                 return "calm";
             }
 
-            return agent.FearState == AgentFearState.Alert ? "startled" : agent.ActivityState.ToString().ToLowerInvariant();
+            if (agent.FearState == AgentFearState.Alert)
+            {
+                return "startled";
+            }
+
+            switch (agent.ActivityState)
+            {
+                case AgentActivityState.FetchingItem: return "going for an item";
+                case AgentActivityState.PickingUp: return "picking it up";
+                case AgentActivityState.CarryingItem: return "carrying";
+                case AgentActivityState.SettingDown: return "putting it down";
+                case AgentActivityState.TryingDoor: return "trying a door";
+                case AgentActivityState.ForcingDoor: return "shoving a door";
+                case AgentActivityState.OpeningDoor: return "opening a door";
+                default: return agent.ActivityState.ToString().ToLowerInvariant();
+            }
         }
     }
 }

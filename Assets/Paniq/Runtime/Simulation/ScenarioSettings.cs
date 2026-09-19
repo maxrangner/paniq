@@ -209,6 +209,9 @@ namespace Paniq.Simulation
         public int EscapeTurnPenaltyPerDegree = 10;
         public int EscapeNoiseMillimetres = 1500;
 
+        /// <summary>A spot or door whose straight route runs into a table scores this much worse.</summary>
+        public int TableRoutePenaltyMillimetres = 3000;
+
         /// <summary>Steering weights, as percentages of the pull toward the goal.</summary>
         public int PeopleAvoidPercent = 50;
         public int WallAvoidPercent = 200;
@@ -233,7 +236,7 @@ namespace Paniq.Simulation
             Settings.Require(EscapeWallMarginMillimetres >= 0 && EscapeRouteClearanceMillimetres >= 0 &&
                              EscapeRoutePenaltyMillimetres >= 0 && EscapeShortHopDistanceMillimetres >= 0 &&
                              EscapeShortHopPenaltyMillimetres >= 0 && EscapeTurnPenaltyPerDegree >= 0 &&
-                             EscapeNoiseMillimetres >= 0, "escape scoring");
+                             EscapeNoiseMillimetres >= 0 && TableRoutePenaltyMillimetres >= 0, "escape scoring");
             Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0, "panic steering weights");
         }
     }
@@ -535,6 +538,106 @@ namespace Paniq.Simulation
             Settings.Require(StrengthPassOutPercentPerPoint >= 0 && StrengthForceChancePerPoint >= 0 &&
                              DoorBreakMinimumStrength >= 0 && DoorBreakMinimumStrength <= AgentTraitValues.Maximum &&
                              DoorDamagePerPoint >= 0, "strength at doors and knock-outs");
+        }
+    }
+
+    /// <summary>
+    /// Boxes, chairs and tables catching fire. Things heat up while flames
+    /// are close and catch once hot for long enough; cardboard catches
+    /// sooner than wood, and wood burns longer.
+    /// </summary>
+    [Serializable]
+    public sealed class FlammableSettings
+    {
+        /// <summary>Flames (a burning square or burning thing) this close to a thing's edge heat it.</summary>
+        public int HeatDistanceMillimetres = 500;
+
+        /// <summary>Ticks of heat before each kind catches fire.</summary>
+        public int BoxIgniteTicks = 75;
+        public int ChairIgniteTicks = 150;
+        public int TableIgniteTicks = 250;
+
+        /// <summary>How long each kind burns before it is charred.</summary>
+        public int BoxBurnMinimumTicks = 400;
+        public int BoxBurnMaximumTicks = 750;
+        public int ChairBurnMinimumTicks = 600;
+        public int ChairBurnMaximumTicks = 900;
+        public int TableBurnMinimumTicks = 1000;
+        public int TableBurnMaximumTicks = 1500;
+
+        /// <summary>A burning thing resting this long in one floor square sets it alight.</summary>
+        public int FloorIgniteRestTicks = 50;
+
+        /// <summary>A person this close to a burning thing's edge touches it (and catches fire).</summary>
+        public int TouchGapMillimetres = 50;
+
+        public FlammableSettings Clone() => (FlammableSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(HeatDistanceMillimetres >= 0 && BoxIgniteTicks >= 1 && ChairIgniteTicks >= 1 &&
+                             TableIgniteTicks >= 1, "heating up");
+            Settings.Require(Settings.Range(BoxBurnMinimumTicks, BoxBurnMaximumTicks, 1) &&
+                             Settings.Range(ChairBurnMinimumTicks, ChairBurnMaximumTicks, 1) &&
+                             Settings.Range(TableBurnMinimumTicks, TableBurnMaximumTicks, 1), "burn times");
+            Settings.Require(FloorIgniteRestTicks >= 1 && TouchGapMillimetres >= 0, "burning things");
+        }
+    }
+
+    /// <summary>Picking up, carrying, setting down, dropping and throwing boxes and chairs.</summary>
+    [Serializable]
+    public sealed class ItemSettings
+    {
+        /// <summary>The heaviest item someone can lift: this much, plus the next value per strength point.</summary>
+        public int CarryBaseGrams = 5000;
+        public int CarryGramsPerStrength = 2500;
+
+        /// <summary>A load as heavy as their limit slows a carrier by this percentage (lighter loads less).</summary>
+        public int CarrySlowdownPercent = 40;
+
+        /// <summary>Chance that a calm person's fresh decision is to tidy up the nearest item they can lift.</summary>
+        public int TidyChancePercent = 12;
+        public int FetchRangeMillimetres = 4000;
+
+        /// <summary>They carry it at least this far before setting it down.</summary>
+        public int CarryMinimumDistanceMillimetres = 1500;
+
+        /// <summary>How far past touching an item someone can reach to pick it up.</summary>
+        public int ReachMillimetres = 150;
+
+        public int PickUpTicks = 25;
+        public int SetDownTicks = 20;
+
+        /// <summary>Gap between a carrier and the item held in front of them.</summary>
+        public int HoldGapMillimetres = 20;
+
+        /// <summary>Anyone at least this nervous drops what they carry when frightened; the rest throw it.</summary>
+        public int DropNervousness = 6;
+
+        /// <summary>Runners at least this strong hurl an item in their way instead of kicking it.</summary>
+        public int HurlMinimumStrength = 6;
+
+        /// <summary>Runners at least this evil hurl it at the nearest person within the aim range.</summary>
+        public int EvilAimMinimum = 7;
+        public int AimRangeMillimetres = 4000;
+
+        /// <summary>Throw speed (mm/tick) = impulse × (strength + 5) ÷ (item kg + 5), at least the minimum.</summary>
+        public int ThrowImpulse = 60;
+        public int ThrowMinimumSpeed = 20;
+
+        /// <summary>A thrown item's hit counts as this many times its sliding momentum (it strikes the body, not the feet).</summary>
+        public int ThrowHitMultiplier = 3;
+
+        public ItemSettings Clone() => (ItemSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(CarryBaseGrams >= 0 && CarryGramsPerStrength >= 0 && Settings.Percent(CarrySlowdownPercent), "carrying");
+            Settings.Require(Settings.Percent(TidyChancePercent) && FetchRangeMillimetres >= 0 &&
+                             CarryMinimumDistanceMillimetres >= 0 && ReachMillimetres >= 0 && PickUpTicks >= 1 &&
+                             SetDownTicks >= 1 && HoldGapMillimetres >= 0, "tidying up");
+            Settings.Require(DropNervousness >= 0 && HurlMinimumStrength >= 0 && EvilAimMinimum >= 0 && AimRangeMillimetres >= 0 &&
+                             ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1, "throwing");
         }
     }
 

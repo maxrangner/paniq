@@ -541,6 +541,49 @@ namespace Paniq.Simulation
         }
     }
 
+    /// <summary>
+    /// Boxes, chairs and tables catching fire. Things heat up while flames
+    /// are close and catch once hot for long enough; cardboard catches
+    /// sooner than wood, and wood burns longer.
+    /// </summary>
+    [Serializable]
+    public sealed class FlammableSettings
+    {
+        /// <summary>Flames (a burning square or burning thing) this close to a thing's edge heat it.</summary>
+        public int HeatDistanceMillimetres = 500;
+
+        /// <summary>Ticks of heat before each kind catches fire.</summary>
+        public int BoxIgniteTicks = 75;
+        public int ChairIgniteTicks = 150;
+        public int TableIgniteTicks = 250;
+
+        /// <summary>How long each kind burns before it is charred.</summary>
+        public int BoxBurnMinimumTicks = 400;
+        public int BoxBurnMaximumTicks = 750;
+        public int ChairBurnMinimumTicks = 600;
+        public int ChairBurnMaximumTicks = 900;
+        public int TableBurnMinimumTicks = 1000;
+        public int TableBurnMaximumTicks = 1500;
+
+        /// <summary>A burning thing resting this long in one floor square sets it alight.</summary>
+        public int FloorIgniteRestTicks = 50;
+
+        /// <summary>A person this close to a burning thing's edge touches it (and catches fire).</summary>
+        public int TouchGapMillimetres = 50;
+
+        public FlammableSettings Clone() => (FlammableSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(HeatDistanceMillimetres >= 0 && BoxIgniteTicks >= 1 && ChairIgniteTicks >= 1 &&
+                             TableIgniteTicks >= 1, "heating up");
+            Settings.Require(Settings.Range(BoxBurnMinimumTicks, BoxBurnMaximumTicks, 1) &&
+                             Settings.Range(ChairBurnMinimumTicks, ChairBurnMaximumTicks, 1) &&
+                             Settings.Range(TableBurnMinimumTicks, TableBurnMaximumTicks, 1), "burn times");
+            Settings.Require(FloorIgniteRestTicks >= 1 && TouchGapMillimetres >= 0, "burning things");
+        }
+    }
+
     internal static class Settings
     {
         public static bool Range(int minimum, int maximum, int floor) => minimum >= floor && maximum >= minimum;

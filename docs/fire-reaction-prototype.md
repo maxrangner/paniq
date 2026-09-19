@@ -136,6 +136,17 @@ Runners also avoid spots and doors whose straight route runs into a table.
 Eight chairs (0.45 m, 5 kg) behave like light boxes: runners kick them
 skidding across the floor and trip over them.
 
+**Things catch fire.** Boxes, chairs and tables within half a metre of
+flames (a burning square or another burning thing) heat up, darkening as they
+do. Cardboard boxes catch after 1.5 s of heat, chairs after 3 s, tables after
+5 s. A burning thing glows with a crown of flame cubes for a while (boxes
+8–15 s, chairs 12–18 s, tables 20–30 s) and is then left charcoal-black,
+still solid but never burning again. While burning, a thing that rests in
+one floor square for a second sets that square alight, so a burning box
+kicked across the room starts a new fire where it stops. Anyone touching a
+burning thing catches fire, and anyone on fire who touches a thing sets it
+alight.
+
 **Boxes.** Eight cardboard boxes, 0.3–0.6 m wide and 3–20 kg, sit on the floor.
 Calm people walk around them. Runners barely look: they kick a box sliding
 across the floor, and at running speed they may trip over it instead, more
@@ -312,6 +323,18 @@ restart control, or end screen in this checkpoint.
   redrawn (up to 8 draws) until they are 0.3 m clear of every grown table. A
   candidate escape spot or door whose straight route (swept by a person's
   radius) meets a table scores 3 m worse. Tables push people away like walls.
+- **Burning things.** Phase 9, after the objects move (`FlammablesSystem`;
+  boxes and chairs in ascending ID order, then tables). A burning person
+  within 50 mm of an intact thing sets it alight. Each intact thing whose edge
+  is within 500 mm of a burning cell (earliest-lit wins) or a burning thing
+  gains one tick of heat; at 75 (box), 150 (chair) or 250 (table) it logs
+  `ObjectCaughtFire` (parent: that cell or thing; duration drawn: box 400–750,
+  chair 600–900, table 1,000–1,500 ticks). Heat never cools. Each burning
+  thing: at its end tick logs `ObjectBurntOut` and is `Burnt`; otherwise,
+  if it is not moving and has stayed in one grid cell for 50 ticks, it lights
+  that cell (`FireSpread`, parent: the thing's catch), and it sets alight
+  every person within 50 mm of its edge (`AgentCaughtFire`, parent: the
+  thing's catch).
 - **Physical objects.** After collisions, each moving box in ascending ID order
   slides by its velocity, stops touching the first person or box in its way
   (found by an integer halving search along its path), bounces, then loses
@@ -330,7 +353,8 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentFroze`, `AgentUnfroze`, `DoorUnlocked`, `DoorOpened`, `AgentTriedDoor`,
 `AgentForcedDoor`, `AgentGaveUpOnDoor`, `AgentEscaped`, `BoxBumped`,
 `BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo`,
-`DoorBrokenDown` and `AgentCaughtFire` events. Events that affect someone or
+`DoorBrokenDown`, `AgentCaughtFire`, `ObjectCaughtFire` and `ObjectBurntOut`
+events. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,
 `BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
 and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor`, `DoorBrokenDown`

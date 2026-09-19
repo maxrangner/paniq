@@ -41,6 +41,7 @@ scene.
 | Hard knocks | Behaviour | Brutal hits can knock someone out cold (stars circle their head); strong people batter locked doors until they burst off their hinges |
 | Burning people | Behaviour | Touching the fire sets people alight instead of killing them outright: they run around screaming for 3–6 s, setting alight anyone they touch, then collapse |
 | Tables and chairs | System | Three tables people slide around and objects bounce off, and eight chairs that runners kick about and trip over |
+| Things catch fire | System | Boxes, chairs and tables heat up near flames, burn, and char; a burning box kicked across the room starts a new fire where it stops; touching burning things sets people alight |
 
 ## Choosing the next stone
 

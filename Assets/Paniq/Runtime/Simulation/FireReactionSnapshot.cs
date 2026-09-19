@@ -127,6 +127,25 @@ namespace Paniq.Simulation
         public int DamagePercent { get; }
     }
 
+    /// <summary>A table: where it stands and whether it is heating up, burning or burnt out.</summary>
+    public readonly struct FireReactionTableSnapshot
+    {
+        public FireReactionTableSnapshot(SimulationId tableId, LogicalBounds bounds, ObjectBurnState burnState, int heatPercent)
+        {
+            TableId = tableId;
+            Bounds = bounds;
+            BurnState = burnState;
+            HeatPercent = heatPercent;
+        }
+
+        public SimulationId TableId { get; }
+        public LogicalBounds Bounds { get; }
+        public ObjectBurnState BurnState { get; }
+
+        /// <summary>How close to catching fire it is, 0–100.</summary>
+        public int HeatPercent { get; }
+    }
+
     /// <summary>A loose object on the floor, such as a box.</summary>
     public readonly struct FireReactionPhysicsObjectSnapshot
     {
@@ -136,8 +155,12 @@ namespace Paniq.Simulation
             LogicalPosition position,
             int sizeMillimetres,
             int headingDegrees,
-            int speedMillimetresPerTick)
+            int speedMillimetresPerTick,
+            ObjectBurnState burnState = ObjectBurnState.Intact,
+            int heatPercent = 0)
         {
+            BurnState = burnState;
+            HeatPercent = heatPercent;
             ObjectId = objectId;
             Kind = kind;
             Position = position;
@@ -155,6 +178,18 @@ namespace Paniq.Simulation
         public int HeadingDegrees { get; }
 
         public int SpeedMillimetresPerTick { get; }
+
+        public ObjectBurnState BurnState { get; }
+
+        /// <summary>How close to catching fire it is, 0–100.</summary>
+        public int HeatPercent { get; }
+
+        /// <summary>The same object with its fire state filled in.</summary>
+        internal FireReactionPhysicsObjectSnapshot WithBurn(ObjectBurnState burnState, int heatPercent)
+        {
+            return new FireReactionPhysicsObjectSnapshot(ObjectId, Kind, Position, SizeMillimetres, HeadingDegrees,
+                SpeedMillimetresPerTick, burnState, heatPercent);
+        }
     }
 
     /// <summary>
@@ -169,6 +204,7 @@ namespace Paniq.Simulation
         private readonly IReadOnlyList<FireCellSnapshot> fireCells;
         private readonly FireReactionDoorSnapshot[] doors;
         private readonly FireReactionPhysicsObjectSnapshot[] physicsObjects;
+        private readonly FireReactionTableSnapshot[] tables;
         private readonly IReadOnlyList<CausalEvent> events;
 
         internal FireReactionSnapshot(
@@ -180,8 +216,10 @@ namespace Paniq.Simulation
             FireReactionAgentSnapshot[] agents,
             FireReactionDoorSnapshot[] doors,
             FireReactionPhysicsObjectSnapshot[] physicsObjects,
+            FireReactionTableSnapshot[] tables,
             IReadOnlyList<CausalEvent> events)
         {
+            this.tables = tables;
             this.doors = doors;
             this.physicsObjects = physicsObjects;
             Tick = tick;
@@ -202,6 +240,7 @@ namespace Paniq.Simulation
         public IReadOnlyList<CausalEvent> Events => events;
         public IReadOnlyList<FireReactionDoorSnapshot> Doors => doors;
         public IReadOnlyList<FireReactionPhysicsObjectSnapshot> PhysicsObjects => physicsObjects;
+        public IReadOnlyList<FireReactionTableSnapshot> Tables => tables;
 
         public int CalmCount => Count(AgentFearState.Calm);
         public int ScaredCount => Count(AgentFearState.Scared);

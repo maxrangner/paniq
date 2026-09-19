@@ -93,6 +93,16 @@ namespace Paniq.Simulation
 
         public int Count => bodies.Length;
 
+        public SimulationId IdOf(int index) => bodies[index].Id;
+
+        public PhysicsObjectKind KindOf(int index) => bodies[index].Kind;
+
+        public LogicalPosition PositionOf(int index) => bodies[index].Position;
+
+        public int RadiusOf(int index) => bodies[index].Radius;
+
+        public bool IsMoving(int index) => bodies[index].VelocityX != 0L || bodies[index].VelocityZ != 0L;
+
         public void BeginTick()
         {
             contacts.Clear();

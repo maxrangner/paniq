@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("17"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(9));
+            Assert.That(data.ContentRevision, Is.EqualTo("18"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(10));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -190,6 +190,13 @@ namespace Paniq.Tests.EditMode
                 else
                 {
                     Assert.That(ignition.EventType, Is.EqualTo(FireReactionEventType.FireSpread));
+                    if (simulation.EventLog.Get(ignition.CausalParentEventId).EventType == FireReactionEventType.ObjectCaughtFire)
+                    {
+                        // Lit by a burning box, chair or table resting on it; that is the burning thing's own rule.
+                        cellByEvent.Add(cell.EventId, cell);
+                        continue;
+                    }
+
                     Assert.That(cellByEvent.TryGetValue(ignition.CausalParentEventId, out FireCellSnapshot parent), Is.True,
                         $"Cell {i} was lit by something other than an earlier burning cell.");
                     Assert.That(Math.Abs(parent.CellX - cell.CellX) + Math.Abs(parent.CellZ - cell.CellZ), Is.EqualTo(1),

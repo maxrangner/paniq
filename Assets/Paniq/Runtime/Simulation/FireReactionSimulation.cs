@@ -30,6 +30,7 @@ namespace Paniq.Simulation
         private readonly PanicBehaviour panic;
         private readonly DoorBehaviour doorBehaviour;
         private readonly BurningBehaviour burning;
+        private readonly FlammablesSystem flammables;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
         {
@@ -62,6 +63,7 @@ namespace Paniq.Simulation
             doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
             panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, locomotion);
             burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
+            flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
         }
 
         private Agent[] CreateAgents(int doorCount)
@@ -135,7 +137,12 @@ namespace Paniq.Simulation
 
         public FireReactionDoorSnapshot GetDoor(int index) => doors.GetSnapshot(index);
 
-        public FireReactionPhysicsObjectSnapshot GetPhysicsObject(int index) => objects.GetSnapshot(index);
+        public FireReactionPhysicsObjectSnapshot GetPhysicsObject(int index) =>
+            objects.GetSnapshot(index).WithBurn(flammables.ObjectState(index), flammables.ObjectHeatPercent(index));
+
+        public int TableCount => context.Scenario.Tables.Length;
+
+        public FireReactionTableSnapshot GetTable(int index) => flammables.GetTableSnapshots()[index];
 
         /// <summary>Tests only: sets an object sliding at a velocity in millimetres per tick.</summary>
         internal void LaunchObjectForTests(int index, int velocityX, int velocityZ) => objects.Launch(index, velocityX, velocityZ);
@@ -157,7 +164,8 @@ namespace Paniq.Simulation
         /// 1 player commands, 2 hazard, 3 hazard contact, 4 decisions
         /// (ascending ID), 5 movement, 6 danger contact along accepted moves,
         /// flames jumping between people, and exits, 7 collisions (people,
-        /// then objects), 8 physical objects.
+        /// then objects), 8 physical objects, 9 things heating, catching,
+        /// burning out and passing flames on.
         /// </summary>
         public void Step()
         {
@@ -223,6 +231,7 @@ namespace Paniq.Simulation
             collisions.Resolve();
             objects.ResolveContacts();
             objects.Advance();
+            flammables.Update();
         }
 
         /// <summary>Phase 3: anyone standing in fire catches fire.</summary>
@@ -265,8 +274,20 @@ namespace Paniq.Simulation
                 fire.GetCells(),
                 agentSnapshots,
                 doors.GetSnapshots(),
-                objects.GetSnapshots(),
+                PhysicsObjectSnapshots(),
+                flammables.GetTableSnapshots(),
                 context.Events.View());
+        }
+
+        private FireReactionPhysicsObjectSnapshot[] PhysicsObjectSnapshots()
+        {
+            var snapshots = new FireReactionPhysicsObjectSnapshot[objects.Count];
+            for (int i = 0; i < snapshots.Length; i++)
+            {
+                snapshots[i] = GetPhysicsObject(i);
+            }
+
+            return snapshots;
         }
     }
 }

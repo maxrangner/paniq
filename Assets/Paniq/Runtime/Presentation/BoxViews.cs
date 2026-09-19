@@ -8,7 +8,8 @@ namespace Paniq.Presentation
     /// <summary>
     /// Loose objects: boxes are brown cubes 0.75 as tall as they are wide,
     /// chairs a seat, a back and four legs. They slide smoothly and hop and
-    /// tip a little when hit.
+    /// tip a little when hit. Near flames they darken as they heat up; then
+    /// they burn with a crown of flame cubes, and are left charcoal-black.
     /// </summary>
     internal sealed class BoxViews
     {
@@ -16,15 +17,20 @@ namespace Paniq.Presentation
         {
             public Transform Transform;
             public Renderer[] Renderers;
+            public Color Colour;
+            public FlameCubes Flames;
+            public float Size;
             public float Height;
             public float HopStart = -10f;
             public float HopStrength;
         }
 
         private readonly Dictionary<SimulationId, BoxView> boxes = new Dictionary<SimulationId, BoxView>();
+        private readonly PresentationMaterials materials;
 
         public BoxViews(FireReactionScenarioData scenario, PresentationMaterials materials, Transform parent)
         {
+            this.materials = materials;
             foreach (FireReactionPhysicsObjectDefinition definition in scenario.PhysicsObjects)
             {
                 if (definition.Kind == PhysicsObjectKind.Chair)
@@ -46,6 +52,9 @@ namespace Paniq.Presentation
                 {
                     Transform = box.transform,
                     Renderers = new[] { box.GetComponent<Renderer>() },
+                    Colour = shade,
+                    Flames = new FlameCubes(box.transform, 4, materials, definition.ObjectId.Value % 89UL),
+                    Size = size,
                     Height = height
                 });
             }
@@ -83,7 +92,45 @@ namespace Paniq.Presentation
                 materials.SetColor(part, wood);
             }
 
-            return new BoxView { Transform = root, Renderers = renderers.ToArray(), Height = 0f };
+            return new BoxView
+            {
+                Transform = root,
+                Renderers = renderers.ToArray(),
+                Colour = wood,
+                Flames = new FlameCubes(root, 4, materials, definition.ObjectId.Value % 89UL),
+                Size = size,
+                Height = 0f
+            };
+        }
+
+        private void ShowFire(BoxView view, ObjectBurnState state, int heatPercent, float time)
+        {
+            Color colour = BurnColour(view.Colour, state, heatPercent);
+            foreach (Renderer part in view.Renderers)
+            {
+                materials.SetColor(part, colour);
+            }
+
+            // A box's transform is scaled to the box (so its flames use unit sizes);
+            // a chair's root is not (so they use metres).
+            bool box = view.Height > 0f;
+            Vector3 bottom = box ? new Vector3(0f, 0.3f, 0f) : new Vector3(0f, 0.45f, 0f);
+            Vector3 spread = box ? new Vector3(0.35f, 1.2f, 0.35f) : new Vector3(view.Size * 0.35f, 0.6f, view.Size * 0.35f);
+            view.Flames.Update(state == ObjectBurnState.Burning, time, bottom, spread, box ? 0.45f : 0.16f);
+        }
+
+        /// <summary>Darkening as it heats, glowing while it burns, charcoal once burnt out.</summary>
+        internal static Color BurnColour(Color normal, ObjectBurnState state, int heatPercent)
+        {
+            switch (state)
+            {
+                case ObjectBurnState.Burning:
+                    return Color.Lerp(normal, new Color(0.3f, 0.08f, 0.02f), 0.7f);
+                case ObjectBurnState.Burnt:
+                    return new Color(0.09f, 0.08f, 0.08f);
+                default:
+                    return Color.Lerp(normal, new Color(0.25f, 0.15f, 0.1f), heatPercent / 100f * 0.6f);
+            }
         }
 
         /// <summary>A hop and tip; <paramref name="strength"/> 0..1 scales it.</summary>
@@ -117,6 +164,8 @@ namespace Paniq.Presentation
                 view.Transform.SetPositionAndRotation(
                     planar + Vector3.up * (view.Height * 0.5f + hop * 0.12f),
                     Quaternion.Euler(hop * 18f, yaw, 0f));
+
+                ShowFire(view, box.BurnState, box.HeatPercent, time);
             }
         }
     }

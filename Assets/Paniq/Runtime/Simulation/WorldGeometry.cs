@@ -29,6 +29,7 @@ namespace Paniq.Simulation
         private readonly int radius;
         private readonly ExitSettings exits;
         private readonly LogicalBounds[] tables;
+        private readonly SimulationId[] tableIds;
 
         public WorldGeometry(SimulationContext context, DoorRuntime[] doors)
         {
@@ -41,15 +42,19 @@ namespace Paniq.Simulation
             var definitions = (FireReactionTableDefinition[])context.Scenario.Tables.Clone();
             Array.Sort(definitions, (left, right) => left.TableId.CompareTo(right.TableId));
             tables = new LogicalBounds[definitions.Length];
+            tableIds = new SimulationId[definitions.Length];
             for (int i = 0; i < tables.Length; i++)
             {
                 tables[i] = definitions[i].Bounds;
+                tableIds[i] = definitions[i].TableId;
             }
         }
 
         public int TableCount => tables.Length;
 
         public LogicalBounds TableBounds(int table) => tables[table];
+
+        public SimulationId TableId(int table) => tableIds[table];
 
         /// <summary>The floor area; the fire grid covers exactly this.</summary>
         public LogicalBounds Floor => room;

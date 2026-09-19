@@ -45,8 +45,16 @@ namespace Paniq.Presentation
         private readonly Dictionary<SimulationId, DoorView> doors = new Dictionary<SimulationId, DoorView>();
         private readonly Dictionary<Collider, SimulationId> doorByCollider = new Dictionary<Collider, SimulationId>();
 
-        /// <summary>Every renderer of each table (top and legs), so later effects can recolour it.</summary>
-        private readonly Dictionary<SimulationId, Renderer[]> tables = new Dictionary<SimulationId, Renderer[]>();
+        private sealed class TableView
+        {
+            public Renderer[] Parts;
+            public FlameCubes Flames;
+            public float Width;
+            public float Depth;
+        }
+
+        /// <summary>Every table's parts (top and legs), recoloured as it heats, burns and chars.</summary>
+        private readonly Dictionary<SimulationId, TableView> tables = new Dictionary<SimulationId, TableView>();
 
         public RoomView(FireReactionScenarioData scenario, PresentationMaterials materials, Transform parent)
         {
@@ -135,7 +143,13 @@ namespace Paniq.Presentation
                 materials.SetColor(part, PresentationMaterials.WoodColor);
             }
 
-            tables.Add(table.TableId, parts);
+            tables.Add(table.TableId, new TableView
+            {
+                Parts = parts,
+                Flames = new FlameCubes(root, 10, materials, table.TableId.Value % 83UL),
+                Width = width,
+                Depth = depth
+            });
         }
 
         private void CreateWallPiece(WallSide side, int piece, bool alongX, float wallLine, float from, float to)
@@ -226,6 +240,23 @@ namespace Paniq.Presentation
                     known.State = door.State;
                     known.DamagePercent = door.DamagePercent;
                 }
+            }
+
+            foreach (FireReactionTableSnapshot table in snapshot.Tables)
+            {
+                if (!tables.TryGetValue(table.TableId, out TableView view))
+                {
+                    continue;
+                }
+
+                Color colour = BoxViews.BurnColour(PresentationMaterials.WoodColor, table.BurnState, table.HeatPercent);
+                foreach (Renderer part in view.Parts)
+                {
+                    materials.SetColor(part, colour);
+                }
+
+                view.Flames.Update(table.BurnState == ObjectBurnState.Burning, time, new Vector3(0f, 0.72f, 0f),
+                    new Vector3(view.Width * 0.4f, 0.8f, view.Depth * 0.4f), 0.2f);
             }
 
             foreach (DoorView view in doors.Values)

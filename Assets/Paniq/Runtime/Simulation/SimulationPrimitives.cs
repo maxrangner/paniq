@@ -271,7 +271,17 @@ namespace Paniq.Simulation
         AgentPassedOut,
         AgentCameTo,
         DoorBrokenDown,
-        AgentCaughtFire
+        AgentCaughtFire,
+        ObjectCaughtFire,
+        ObjectBurntOut
+    }
+
+    /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>
+    public enum ObjectBurnState
+    {
+        Intact,
+        Burning,
+        Burnt
     }
 
     /// <summary>Which wall of the room a door sits in. North is +Z, east is +X.</summary>

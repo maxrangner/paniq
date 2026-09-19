@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '17'
+    ContentRevision: '18'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 9
+    SimulationCompatibilityVersion: 10
     World:
       RoomBounds:
         minX: -6000
@@ -205,6 +205,19 @@ MonoBehaviour:
       StrengthForceChancePerPoint: 5
       DoorBreakMinimumStrength: 7
       DoorDamagePerPoint: 1
+    Flammables:
+      HeatDistanceMillimetres: 500
+      BoxIgniteTicks: 75
+      ChairIgniteTicks: 150
+      TableIgniteTicks: 250
+      BoxBurnMinimumTicks: 400
+      BoxBurnMaximumTicks: 750
+      ChairBurnMinimumTicks: 600
+      ChairBurnMaximumTicks: 900
+      TableBurnMinimumTicks: 1000
+      TableBurnMaximumTicks: 1500
+      FloorIgniteRestTicks: 50
+      TouchGapMillimetres: 50
     Agents:
     - agentId:
         value: 1001

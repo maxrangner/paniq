@@ -11,12 +11,45 @@ The `FireReactionPrototype` scene shows one abstract 12 m by 12 m room with a
 door in each wall, eight cardboard boxes on the floor, and ten people
 (capsules).
 
+**Everyone has a personality.** Each person has six traits from 0 to 10:
+strength, speed, bravery, compassion, evil and nervousness. 5 is an ordinary
+person. A number floats beside each head; press **Tab** for a table of
+everyone's traits, how they will panic, and what they are doing now. The ten
+people are authored as a cast (a scenario can also leave traits out and let the
+seed draw them):
+
+| # | Who | Str | Spd | Brv | Cmp | Evl | Nrv |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | ordinary | 5 | 5 | 5 | 5 | 2 | 5 |
+| 2 | the brute | 9 | 6 | 6 | 3 | 6 | 3 |
+| 3 | the hero | 8 | 6 | 8 | 8 | 1 | 3 |
+| 4 | the saint | 4 | 4 | 7 | 9 | 0 | 4 |
+| 5 | the villain | 6 | 6 | 5 | 1 | 8 | 4 |
+| 6 | the nervous wreck | 3 | 5 | 1 | 5 | 2 | 10 |
+| 7 | the sprinter | 5 | 10 | 5 | 5 | 3 | 6 |
+| 8 | the bully | 7 | 5 | 4 | 2 | 9 | 5 |
+| 9 | the coward | 3 | 4 | 2 | 4 | 3 | 8 |
+| 10 | ordinary | 5 | 5 | 5 | 6 | 3 | 5 |
+
+What the traits do:
+- **Speed** sets walking pace (1.0–1.6 m/s) and sprinting pace (3–5.5 m/s).
+- **Strength** makes a person shove boxes harder, and someone 4 or more points
+  stronger than the person they collide with only staggers where the other is
+  floored.
+- **Bravery** shortens the pause before reacting and lets a runner pass closer
+  to the fire before bolting away from it. Fearful people (nervous and not
+  brave) are the ones who freeze.
+- **Nervousness** makes a runner shout more often, change their mind more
+  often, zig-zag, hesitate and trip more.
+- **Compassion** makes a runner weave around people and dodge rather than ram
+  them; **evil** does the opposite and barges straight through.
+
 **Before the fire, people loiter.** Each person makes their own small decisions
 every few seconds. They stroll to a spot on a gently curving path, stop, glance
 around, or wander over to stand about a metre from someone as if chatting.
 They turn and speed up gradually, keep personal space, and steer away from
 walls before reaching them. Each person has their own seeded walking pace
-(1.1–1.5 m/s) and turning speed, so no two move alike.
+(set by their speed trait) and turning speed, so no two move alike.
 
 **After five seconds a fire starts** at a seeded spot near the middle. The
 floor is a grid of 0.5 m squares. Each burning square shows a dim glowing tile
@@ -35,7 +68,7 @@ look, with a yellow `?`. Fire crackles too: someone within 3.5 m with their
 back to it turns around, and if it is still out of sight they edge toward it
 until they see it.
 
-**People panic in different ways.** In a room of ten, the seed deals out:
+**People panic in different ways.** In a room of ten, the most fearful are dealt:
 - five **runners**, who sprint at 3.5–5 m/s and shout every 2–5 s;
 - three who **freeze** with a snowflake over their head, trembling, for 2–6 s,
   then snap out of it and run (at once if the fire gets within 1.5 m); and
@@ -53,6 +86,12 @@ While running, people:
   speed or more, such as two runners head-on) knocks both to the floor for
   1–3 s, then they take half a second to get up. A lighter hit makes both
   stagger off course for a moment. A calm person who gets bumped is alarmed.
+  Someone 4 or more points stronger than the person they hit only staggers.
+- are sometimes **knocked out cold** by a hard knock-down or a heavy flying
+  box: they lie still with three little yellow stars circling their head for
+  6–12 s, then come round and get up slowly (1 s). About 1 in 10 knock-downs
+  at the knock-down speed does it, more for harder hits and weaker people, never
+  more than 6 in 10. The strongest almost never pass out.
 - **trip**, now and then on their own (more often while zig-zagging), or over
   someone lying on the floor when there is no way around them.
 
@@ -71,7 +110,14 @@ the player. At a shut door a runner:
 - opens it, if it is unlocked (0.4 s);
 - otherwise rattles the handle for half a second, then either shoulders the
   door every half second for 1.5–4 s (each shove a thud people nearby hear,
-  and the door judders; it never gives), or gives up straight away;
+  and the door judders), or gives up straight away. Stronger people shove
+  more often rather than give up. An ordinary shoulder never moves the door,
+  but a **strong person (strength 7+) damages it** with every shove: 1 damage
+  at strength 7, 3 at strength 9. The damage stays, and the door visibly
+  darkens as it weakens. At 40 damage it **bursts off its hinges** and falls
+  flat outside, and stays open for good (clicking it does nothing). The brute
+  needs about 14 shoves, several seconds of battering, often over more than
+  one attempt;
 - after giving up, glances toward another door and runs for it, avoiding the
   one that would not open for 6–12 s. If every door has failed them recently,
   they run somewhere away from the fire instead;
@@ -89,8 +135,15 @@ often the faster they go and the bigger the box. A kicked box slides about a
 metre, spins if it was hit off-centre, and bounces off walls, other boxes and
 people. A heavy, fast box can knock someone off balance or trip them.
 
-A person touched by the fire is lost and falls over as a dark red capsule.
-People lying on the floor after a fall can be caught by the fire too. With
+**People catch fire.** A person touched by the fire does not drop dead: they
+burst into flames (an orange, flickering, flailing capsule with little flame
+cubes licking up it), scream every half second or so, and run around wildly
+at full sprint, lurching in a new direction every 0.2–0.5 s and paying no
+attention to doors or other people, for 3–6 s. Then they collapse, lost, as
+a dark red capsule. Anyone they run into catches fire too, and anyone within a
+hand's breadth (10 cm) of them has a 1-in-5 chance each tick. Someone on the
+floor when they catch fire burns where they lie, and people lying on the floor
+can be caught by the fire too. Nobody on fire can escape through a door. With
 every door locked, everyone who does not get out is eventually caught (about
 40 seconds after the fire starts with the default seed). There is no score,
 restart control, or end screen in this checkpoint.
@@ -143,10 +196,19 @@ restart control, or end screen in this checkpoint.
   lights one random unburnt north/east/south/west neighbour (`FireSpread`,
   whose causal parent is the igniting cell's event) and waits again. Cells
   never go out. A cell with no unburnt neighbours stops spreading.
-- **Contact.** An agent is lost when its 250 mm footprint overlaps a burning
-  cell, either where it stands or along an accepted move. The `AgentLost`
-  event's causal parent is the earliest-lit cell it touched. So the log traces
-  every death back through the exact chain of squares to the first spark.
+- **Contact.** An agent catches fire when its 250 mm footprint overlaps a
+  burning cell, either where it stands or along an accepted move:
+  `AgentCaughtFire` (parent: the earliest-lit cell it touched; duration: a
+  seeded 150–300 ticks). It becomes scared, its activity is `Burning`, and it
+  forgets any door. Each tick a burning upright person screams (an
+  `AgentYelled`, parent: the catch) every 25–50 ticks, picks a random heading
+  every 10–25 ticks (or after 5 blocked ticks), steers off walls only, and
+  sprints; its bumps count like a runner's. After movement, each person already
+  burning, in ascending ID order, sets alight anyone whose body is within
+  100 mm of theirs with 20% per tick; a collision involving a burning person
+  always does. When the burn time ends the agent is lost: `AgentLost` (parent:
+  its `AgentCaughtFire`). So the log traces every death through a chain of
+  burning people and squares back to the first spark.
 - **Vision.** Agents do not use a proximity fear radius. They have a forward
   90-degree vision cone with a 3 m range around their current heading. A calm
   agent becomes alert when the nearest point, centre, or a corner of any
@@ -167,15 +229,24 @@ restart control, or end screen in this checkpoint.
   50–125 ticks: turn toward the point at the panic turn rate and, after 25
   ticks, if facing it within 30° and more than 2 m away, walk toward it at
   half calm pace.
-- **Temperament.** At tick zero, after the per-agent personality draws, a deck
-  of `round(n × 15%)` `FreezeForever`, `round(n × 30%)` `FreezeThenRun` and the
-  rest `Runner` is shuffled with the seeded generator (Fisher–Yates) and dealt
-  in ascending ID order. On becoming scared, runners flee; the others log
+- **Traits.** Each person has six traits, 0–10 (`AgentTraitValues`), authored
+  in the scenario or drawn at tick zero as the rounded average of two 0–10
+  draws. `TraitEffects` is the only code that turns traits into numbers; a
+  trait of 5 gives exactly the scenario value and each point away from 5
+  changes it by the percentages in the scenario's `Traits` settings. Pace is
+  spread evenly between the Speed 0 and Speed 10 values plus a seeded jitter
+  (±2 walking, ±5 sprinting, mm/tick).
+- **Temperament.** At tick zero, after the per-agent draws, a deck of
+  `round(n × 15%)` `FreezeForever`, `round(n × 30%)` `FreezeThenRun` and the
+  rest `Runner` is dealt, freezing cards first, to people in order of
+  fearfulness (nervousness minus bravery), with a seeded Fisher–Yates shuffle
+  breaking ties. On becoming scared, runners flee; the others log
   `AgentFroze`, stand still and turn to stare at the nearest fire.
   `FreezeThenRun` agents log `AgentUnfroze` and start fleeing after a seeded
   100–300 ticks, or at once when fire is within 1.5 m. Fleeing agents log
   another `AgentYelled` every seeded 100–250 ticks.
-- **Body state.** `Upright`, `Staggering`, `Fallen` or `GettingUp`. A body
+- **Body state.** `Upright`, `Staggering`, `Fallen`, `GettingUp` or
+  `Unconscious`. A body
   that is not upright makes no move request but still occupies space and can
   be caught by fire. `Fallen` ends in 25 ticks of `GettingUp`, then
   `AgentGotUp` (parent: the event that put it down). A scared agent back on
@@ -194,6 +265,14 @@ restart control, or end screen in this checkpoint.
   (`AgentTripped`, parent: its `AgentScared`). A runner at that speed whose
   way is blocked by someone on the floor, with no side-step available, trips
   over them (parent: the fallen person's down event).
+- **Knocked out.** After each `AgentKnockedDown`, one roll: 10% plus 1% per
+  mm/tick of closing speed above 100, minus 3% per strength point above 5,
+  clamped to 0–60%. A flying box that trips someone rolls the same way with
+  1% per 100 kg·mm/tick of momentum above 1,600. A pass-out logs
+  `AgentPassedOut` (parent: the fall; duration 300–600 ticks) and the body is
+  `Unconscious`: it occupies space, can be tripped over and caught by fire.
+  Then `AgentCameTo` (parent: the pass-out), 50 ticks of `GettingUp`, and
+  `AgentGotUp` (parent: `AgentCameTo`).
 - Lost agents keep their state and position but leave occupancy and make no
   later decisions.
 - **Player commands.** A door click is a `ClickDoor` command for the next tick,
@@ -210,7 +289,13 @@ restart control, or end screen in this checkpoint.
   and giving up logs `AgentGaveUpOnDoor` (both parent: the attempt). A runner
   who opens a door logs `DoorOpened` with their attempt as parent. After
   movement, anyone 0.8 m out through an open door logs `AgentEscaped` (parent:
-  that door's `DoorOpened`).
+  that door's `DoorOpened`, or `DoorBrokenDown`).
+- **Breaking doors.** The chance to start shoving rather than give up is
+  60% plus 5% per strength point above 5. Each shove adds
+  `(strength − 6) × 1` damage to the door (nothing below strength 7); damage
+  is kept per door. When it reaches the door's strength (40) the door becomes
+  `Broken`: it logs `DoorBrokenDown` (source: the shover; target: the door;
+  parent: the shove) and counts as open for walking, choosing and escaping.
 - **Physical objects.** After collisions, each moving box in ascending ID order
   slides by its velocity, stops touching the first person or box in its way
   (found by an integer halving search along its path), bounces, then loses
@@ -228,11 +313,12 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentsCollided`, `AgentKnockedDown`, `AgentTripped`, `AgentGotUp`,
 `AgentFroze`, `AgentUnfroze`, `DoorUnlocked`, `DoorOpened`, `AgentTriedDoor`,
 `AgentForcedDoor`, `AgentGaveUpOnDoor`, `AgentEscaped`, `BoxBumped`,
-`BoxHitAgent` and `BoxesCollided` events. Events that affect someone or
+`BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo`,
+`DoorBrokenDown` and `AgentCaughtFire` events. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,
 `BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
-and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor` and `AgentEscaped`
-the door. Every event except `FireActivated`
+and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor`, `DoorBrokenDown`
+and `AgentEscaped` the door. Every event except `FireActivated`
 and the player's `DoorUnlocked` has a causal parent (a box set moving by a calm
 person's unlogged push is the one rare exception). The room, isometric camera, capsules, fire cubes, vision-cone
 outlines, icons, floor ripples and the counter are observational
@@ -246,6 +332,8 @@ never spin with the body or tip over when it falls:
 - three cyan sound-wave arcs, beside the head on the side the person faces,
   appearing from the inside out on every `AgentYelled`;
 - an ice-blue snowflake that turns slowly while the person is `Frozen`;
+- three little yellow stars chasing each other round the head while
+  `Unconscious`;
 - a yellow `?` while `Investigating`, and `...` while standing or glancing
   around.
 

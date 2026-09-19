@@ -247,7 +247,7 @@ namespace Paniq.Simulation
                     trip = context.Random.NextPercent((int)Math.Min(settings.TripMaximumChancePercent, chance));
                 }
 
-                long agentMass = settings.AgentMassGrams;
+                long agentMass = TraitEffects.PushMassGrams(agent, context.Scenario);
                 long total = agentMass + physicsBody.MassGrams;
                 long restitution = 100L + settings.AgentRestitutionPercent;
                 long push = restitution * agentMass * closing / total;
@@ -402,7 +402,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            long agentMass = settings.AgentMassGrams;
+            long agentMass = TraitEffects.PushMassGrams(agent, context.Scenario);
             long bounce = (100L + settings.AgentRestitutionPercent) * agentMass * closing /
                           (100L * (agentMass + physicsBody.MassGrams));
             physicsBody.VelocityX -= bounce * nx / length;
@@ -424,6 +424,9 @@ namespace Paniq.Simulation
             if (momentum >= settings.KnockdownMomentum)
             {
                 body.Trip(agent, hit.EventId);
+                FallSettings falls = context.Scenario.Falls;
+                body.MaybePassOut(agent, agent.Body.EventId,
+                    falls.PassOutChancePercent + (int)((momentum - settings.KnockdownMomentum) / falls.PassOutMomentumPerPercent));
             }
             else
             {

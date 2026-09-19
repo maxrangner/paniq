@@ -9,12 +9,15 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private SimulationId agentId;
         [UnityEngine.SerializeField] private LogicalPosition initialPosition;
         [UnityEngine.SerializeField] private CardinalDirection initialFacingDirection;
+        [UnityEngine.SerializeField] private bool hasAuthoredTraits;
+        [UnityEngine.SerializeField] private AgentTraitValues traits;
 
         public FireReactionAgentDefinition(SimulationId agentId, LogicalPosition initialPosition)
             : this(agentId, initialPosition, CardinalDirection.North)
         {
         }
 
+        /// <summary>A person whose traits are drawn from the seed at the start of the run.</summary>
         public FireReactionAgentDefinition(
             SimulationId agentId,
             LogicalPosition initialPosition,
@@ -23,11 +26,32 @@ namespace Paniq.Simulation
             this.agentId = agentId;
             this.initialPosition = initialPosition;
             this.initialFacingDirection = initialFacingDirection;
+            hasAuthoredTraits = false;
+            traits = default;
+        }
+
+        /// <summary>A person with an authored personality.</summary>
+        public FireReactionAgentDefinition(
+            SimulationId agentId,
+            LogicalPosition initialPosition,
+            CardinalDirection initialFacingDirection,
+            AgentTraitValues traits)
+        {
+            this.agentId = agentId;
+            this.initialPosition = initialPosition;
+            this.initialFacingDirection = initialFacingDirection;
+            hasAuthoredTraits = true;
+            this.traits = traits;
         }
 
         public SimulationId AgentId => agentId;
         public LogicalPosition InitialPosition => initialPosition;
         public CardinalDirection InitialFacingDirection => initialFacingDirection;
+
+        /// <summary>False when the traits are drawn from the seed instead.</summary>
+        public bool HasAuthoredTraits => hasAuthoredTraits;
+
+        public AgentTraitValues Traits => traits;
     }
 
     /// <summary>
@@ -102,9 +126,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "13";
+        public string ContentRevision = "16";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 5;
+        public int SimulationCompatibilityVersion = 8;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -117,6 +141,7 @@ namespace Paniq.Simulation
         public FallSettings Falls = new FallSettings();
         public ExitSettings Exits = new ExitSettings();
         public ObjectPhysicsSettings ObjectPhysics = new ObjectPhysicsSettings();
+        public TraitSettings Traits = new TraitSettings();
 
         public FireReactionAgentDefinition[] Agents = DefaultAgents();
         public FireReactionDoorDefinition[] Doors = DefaultDoors();
@@ -137,6 +162,7 @@ namespace Paniq.Simulation
             copy.Falls = Falls?.Clone();
             copy.Exits = Exits?.Clone();
             copy.ObjectPhysics = ObjectPhysics?.Clone();
+            copy.Traits = Traits?.Clone();
             copy.Agents = (FireReactionAgentDefinition[])Agents?.Clone();
             copy.Doors = (FireReactionDoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (FireReactionPhysicsObjectDefinition[])PhysicsObjects?.Clone();
@@ -157,7 +183,7 @@ namespace Paniq.Simulation
 
             if (World == null || Perception == null || Fire == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
-                ObjectPhysics == null)
+                ObjectPhysics == null || Traits == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -173,8 +199,10 @@ namespace Paniq.Simulation
             Falls.Validate();
             Exits.Validate(World);
             ObjectPhysics.Validate();
-            Settings.Require(Calm.SpeedMaximum <= World.MaximumStepDistanceMillimetres &&
-                             Panic.SpeedMaximum <= World.MaximumStepDistanceMillimetres, "speeds within the maximum step");
+            Traits.Validate();
+            Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
+                             Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
+                "speeds within the maximum step");
 
             LogicalBounds room = World.RoomBounds;
             int spawnMargin = Fire.CellSizeMillimetres / 2;
@@ -198,6 +226,11 @@ namespace Paniq.Simulation
                 if (agent.AgentId.Value == 0UL || !ids.Add(agent.AgentId))
                 {
                     throw new InvalidOperationException("Agent IDs must be unique and non-zero.");
+                }
+
+                if (agent.HasAuthoredTraits && !agent.Traits.IsValid)
+                {
+                    throw new InvalidOperationException($"Agent {agent.AgentId} has a trait outside 0–10.");
                 }
 
                 if (!room.ContainsCircle(agent.InitialPosition, radius))
@@ -301,21 +334,25 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>Ten people spread around the room, facing different ways.</summary>
+        /// <summary>
+        /// Ten people spread around the room, facing different ways, each
+        /// with an authored personality so every trait shows up in play:
+        /// Str, Spd, Brv, Cmp, Evl, Nrv.
+        /// </summary>
         public static FireReactionAgentDefinition[] DefaultAgents()
         {
             return new[]
             {
-                Agent(1001UL, -5000, -5000, CardinalDirection.North),
-                Agent(1002UL, 0, -5000, CardinalDirection.East),
-                Agent(1003UL, 5000, -5000, CardinalDirection.West),
-                Agent(1004UL, -5000, 0, CardinalDirection.East),
-                Agent(1005UL, 900, 0, CardinalDirection.South),
-                Agent(1006UL, 5000, 0, CardinalDirection.North),
-                Agent(1007UL, -5000, 5000, CardinalDirection.South),
-                Agent(1008UL, 0, 5000, CardinalDirection.West),
-                Agent(1009UL, 5000, 5000, CardinalDirection.South),
-                Agent(1010UL, 0, -1800, CardinalDirection.North)
+                Agent(1001UL, -5000, -5000, CardinalDirection.North, 5, 5, 5, 5, 2, 5), // ordinary
+                Agent(1002UL, 0, -5000, CardinalDirection.East, 9, 6, 6, 3, 6, 3), // the brute
+                Agent(1003UL, 5000, -5000, CardinalDirection.West, 8, 6, 8, 8, 1, 3), // the hero
+                Agent(1004UL, -5000, 0, CardinalDirection.East, 4, 4, 7, 9, 0, 4), // the saint
+                Agent(1005UL, 900, 0, CardinalDirection.South, 6, 6, 5, 1, 8, 4), // the villain
+                Agent(1006UL, 5000, 0, CardinalDirection.North, 3, 5, 1, 5, 2, 10), // the nervous wreck
+                Agent(1007UL, -5000, 5000, CardinalDirection.South, 5, 10, 5, 5, 3, 6), // the sprinter
+                Agent(1008UL, 0, 5000, CardinalDirection.West, 7, 5, 4, 2, 9, 5), // the bully
+                Agent(1009UL, 5000, 5000, CardinalDirection.South, 3, 4, 2, 4, 3, 8), // the coward
+                Agent(1010UL, 0, -1800, CardinalDirection.North, 5, 5, 5, 6, 3, 5) // ordinary
             };
         }
 
@@ -347,9 +384,12 @@ namespace Paniq.Simulation
             };
         }
 
-        private static FireReactionAgentDefinition Agent(ulong id, int x, int z, CardinalDirection facing)
+        private static FireReactionAgentDefinition Agent(
+            ulong id, int x, int z, CardinalDirection facing,
+            int strength, int speed, int bravery, int compassion, int evil, int nervousness)
         {
-            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing);
+            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
+                new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness));
         }
 
         private static FireReactionPhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams)

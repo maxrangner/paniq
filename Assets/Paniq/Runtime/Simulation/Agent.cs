@@ -7,12 +7,16 @@ namespace Paniq.Simulation
     /// <item><see cref="Body"/>: where they are and how they move. Only
     /// <see cref="Locomotion"/> turns and accelerates it; the body and
     /// collision systems may stop it, knock it down or jolt it.</item>
+    /// <item><see cref="Traits"/>: strength, speed, bravery, compassion, evil
+    /// and nervousness (0–10). Set at the start; only the simulation may
+    /// change them (a later player power could).</item>
     /// <item><see cref="Personality"/>: seeded once at the start, never changed.</item>
     /// <item><see cref="Fear"/>: calm, alert or scared, and the timers and
     /// events that go with it (<see cref="FearSystem"/>).</item>
     /// <item><see cref="Intent"/>: what they are trying to do right now (the behaviours).</item>
     /// <item><see cref="Hearing"/>: the last noise worth turning toward.</item>
     /// <item><see cref="Doors"/>: the door they are running for and doors that failed them.</item>
+    /// <item><see cref="Burning"/>: whether they are on fire, and until when.</item>
     /// </list>
     /// </summary>
     internal sealed class Agent
@@ -31,17 +35,21 @@ namespace Paniq.Simulation
         public AgentParticipation Participation;
         public AgentTerminalOutcome Outcome;
 
+        public AgentTraitValues Traits;
+
         public readonly AgentBody Body = new AgentBody();
         public readonly AgentPersonality Personality = new AgentPersonality();
         public readonly AgentFear Fear = new AgentFear();
         public readonly AgentIntent Intent = new AgentIntent();
         public readonly AgentHearing Hearing = new AgentHearing();
         public readonly AgentDoorMemory Doors;
+        public readonly AgentBurning Burning = new AgentBurning();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
-        /// <summary>Lying on the floor or getting up.</summary>
-        public bool IsDown => Body.State == AgentBodyState.Fallen || Body.State == AgentBodyState.GettingUp;
+        /// <summary>Lying on the floor (awake or knocked out) or getting up.</summary>
+        public bool IsDown => Body.State == AgentBodyState.Fallen || Body.State == AgentBodyState.GettingUp ||
+                              Body.State == AgentBodyState.Unconscious;
 
         public FireReactionAgentSnapshot ToSnapshot()
         {
@@ -59,7 +67,9 @@ namespace Paniq.Simulation
                 Personality.PanicSpeed,
                 Fear.ReactionDelayTicks,
                 Personality.Temperament,
-                Body.State);
+                Body.State,
+                Traits,
+                Burning.IsBurning);
         }
     }
 
@@ -142,6 +152,20 @@ namespace Paniq.Simulation
 
         public ulong AttemptEventId;
         public int NextShoveTick;
+    }
+
+    internal sealed class AgentBurning
+    {
+        public bool IsBurning;
+
+        /// <summary>The tick they collapse and are lost.</summary>
+        public int EndTick;
+
+        /// <summary>The AgentCaughtFire event: the cause of their end, and of anyone they set alight.</summary>
+        public ulong EventId;
+
+        public int NextTurnTick;
+        public int NextScreamTick;
     }
 
     /// <summary>

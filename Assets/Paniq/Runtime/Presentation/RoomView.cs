@@ -8,8 +8,8 @@ namespace Paniq.Presentation
     /// <summary>
     /// The floor and walls from the scenario's room, each wall split around
     /// its doors, a door leaf in every gap and a strip of ground outside.
-    /// Door leaves swing open, judder when shoved, and keep a collider only
-    /// so a click can find which door was hit.
+    /// Door leaves swing open, judder when shoved, fall flat when broken
+    /// down, and keep a collider only so a click can find which door was hit.
     /// </summary>
     internal sealed class RoomView
     {
@@ -19,17 +19,23 @@ namespace Paniq.Presentation
         private const float DoorSwingSeconds = 0.3f;
 
         private static readonly Color UnlockedDoorColor = new Color(0.18f, 0.8f, 0.3f);
+        private static readonly Color BrokenDoorColor = new Color(0.42f, 0.3f, 0.2f);
+        private const float DoorFallSeconds = 0.25f;
 
         private sealed class DoorView
         {
             public SimulationId DoorId;
             public Transform Hinge;
+            public Vector3 HingePosition;
+            public float FallDirection;
+            public float Fall;
             public Renderer Leaf;
             public float ClosedYaw;
             public float OpenYaw;
             public float Swing;
             public float ShakeStart = -10f;
             public DoorState State;
+            public int DamagePercent;
         }
 
         private readonly PresentationMaterials materials;
@@ -134,6 +140,10 @@ namespace Paniq.Presentation
             {
                 DoorId = door.DoorId,
                 Hinge = hinge,
+                HingePosition = hinge.position,
+
+                // Which way round the leaf must tip about the wall line to fall outward.
+                FallDirection = Vector3.Dot(Quaternion.Euler(0f, YawOf(along), 0f) * Vector3.forward, outward) >= 0f ? 1f : -1f,
                 Leaf = leafRenderer,
                 ClosedYaw = YawOf(along),
                 OpenYaw = YawOf(outward),
@@ -169,6 +179,7 @@ namespace Paniq.Presentation
                 if (doors.TryGetValue(door.DoorId, out DoorView known))
                 {
                     known.State = door.State;
+                    known.DamagePercent = door.DamagePercent;
                 }
             }
 
@@ -179,13 +190,31 @@ namespace Paniq.Presentation
                 float yaw = Mathf.LerpAngle(view.ClosedYaw, view.OpenYaw, Mathf.SmoothStep(0f, 1f, view.Swing));
 
                 float shakeAge = time - view.ShakeStart;
-                if (shakeAge < 0.3f && view.State != DoorState.Open)
+                if (shakeAge < 0.3f && view.State != DoorState.Open && view.State != DoorState.Broken)
                 {
                     yaw += Mathf.Sin(shakeAge * 70f) * 4f * (1f - shakeAge / 0.3f);
                 }
 
                 view.Hinge.rotation = Quaternion.Euler(0f, yaw, 0f);
-                Color color = view.State == DoorState.Locked ? PresentationMaterials.LockedDoorColor : UnlockedDoorColor;
+                view.Hinge.position = view.HingePosition;
+                if (view.State == DoorState.Broken)
+                {
+                    // Burst off its hinges: the leaf slams down flat outside the doorway.
+                    view.Fall = Mathf.MoveTowards(view.Fall, 1f, deltaTime / DoorFallSeconds);
+                    float tip = 90f * view.FallDirection * view.Fall * view.Fall;
+                    view.Hinge.rotation = Quaternion.Euler(0f, view.ClosedYaw, 0f) * Quaternion.Euler(tip, 0f, 0f);
+                    view.Hinge.position = view.HingePosition + Vector3.up * (0.05f * view.Fall);
+                }
+
+                Color color = view.State == DoorState.Locked ? PresentationMaterials.LockedDoorColor
+                    : view.State == DoorState.Broken ? BrokenDoorColor
+                    : UnlockedDoorColor;
+
+                // A battered door darkens toward splintered wood as it weakens.
+                if (view.State != DoorState.Broken && view.DamagePercent > 0)
+                {
+                    color = Color.Lerp(color, BrokenDoorColor, view.DamagePercent / 100f * 0.8f);
+                }
                 if (hoveredDoor.HasValue && hoveredDoor.Value == view.DoorId)
                 {
                     color = Color.Lerp(color, Color.white, 0.3f);

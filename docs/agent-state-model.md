@@ -98,7 +98,8 @@ Agent ID:
 - `AgentPanicTemperament` (`Runner`, `FreezeThenRun`, `FreezeForever`) is
   dealt once, at tick zero, from the scenario seed. It decides how the person
   panics and never changes during a run.
-- `AgentBodyState` (`Upright`, `Staggering`, `Fallen`, `GettingUp`) says
+- `AgentBodyState` (`Upright`, `Staggering`, `Fallen`, `GettingUp`,
+  `Unconscious`) says
   whether the body is under the person's control. It is separate from what
   they intend to do, so someone knocked over resumes their intention when
   they are back up. A person who is not upright requests no movement but
@@ -106,6 +107,22 @@ Agent ID:
 
 Like the terminal outcome, these are prototype runtime state, not fields of
 the neutral `AgentState` foundation.
+
+`AgentBurning` (whether the person is on fire, when they will collapse, and
+the `AgentCaughtFire` event that started it) is a third such record. A person
+on fire is still participating until the burn ends; the transition to `Lost`
+then happens as described above, with the catch as its cause.
+
+## Prototype personality extension
+
+`AgentTraitValues` (strength, speed, bravery, compassion, evil, nervousness,
+each 0–10) is simulation-owned runtime state keyed by Agent ID. It is set at
+tick zero from the scenario's authored traits, or drawn from the seed when a
+person has none. Only the simulation may change it; nothing does yet, but a
+later player power (such as "super strength") would be a player command that
+does. Traits are read through `TraitEffects` whenever they are used, so such a
+change would take effect at once, except for walking and sprinting pace, which
+`TraitEffects.ApplyPace` sets and must be called again.
 
 ## Replay relevance
 

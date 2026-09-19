@@ -56,6 +56,27 @@ namespace Paniq.Simulation
         public int SpreadMinimumTicks = 40;
         public int SpreadMaximumTicks = 120;
 
+        /// <summary>How long someone on fire runs around before collapsing.</summary>
+        public int BurnMinimumTicks = 150;
+        public int BurnMaximumTicks = 300;
+
+        /// <summary>How often a burning person lurches off in a new direction.</summary>
+        public int BurningTurnMinimumTicks = 10;
+        public int BurningTurnMaximumTicks = 25;
+
+        /// <summary>Blocked this long, a burning person lurches another way at once.</summary>
+        public int BurningBlockedTurnTicks = 5;
+
+        /// <summary>How often a burning person screams (a yell others hear).</summary>
+        public int BurningScreamMinimumTicks = 25;
+        public int BurningScreamMaximumTicks = 50;
+
+        /// <summary>A gap between two bodies at most this wide lets the flames jump across.</summary>
+        public int BurningSpreadGapMillimetres = 100;
+
+        /// <summary>Chance per tick that the flames jump to someone that close. Running into someone always does it.</summary>
+        public int BurningSpreadChancePercent = 20;
+
         public FireSettings Clone() => (FireSettings)MemberwiseClone();
 
         internal void Validate()
@@ -63,6 +84,11 @@ namespace Paniq.Simulation
             Settings.Require(SpawnBounds.MinX <= SpawnBounds.MaxX && SpawnBounds.MinZ <= SpawnBounds.MaxZ, "fire spawn bounds");
             Settings.Require(ActivationTick >= 0 && CellSizeMillimetres >= 100, "fire timing and cell size");
             Settings.Require(SpreadMinimumTicks > 0 && SpreadMaximumTicks >= SpreadMinimumTicks, "fire spread interval");
+            Settings.Require(Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1) &&
+                             Settings.Range(BurningTurnMinimumTicks, BurningTurnMaximumTicks, 1) &&
+                             BurningBlockedTurnTicks >= 1 &&
+                             Settings.Range(BurningScreamMinimumTicks, BurningScreamMaximumTicks, 1) &&
+                             BurningSpreadGapMillimetres >= 0 && Settings.Percent(BurningSpreadChancePercent), "burning people");
         }
     }
 
@@ -89,8 +115,9 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class CalmSettings
     {
-        public int SpeedMinimum = 22;
-        public int SpeedMaximum = 30;
+        /// <summary>Walking pace of someone with Speed 0 and Speed 10; everyone else is in between (plus a little jitter).</summary>
+        public int SpeedMinimum = 20;
+        public int SpeedMaximum = 32;
         public int TurnRateMinimum = 4;
         public int TurnRateMaximum = 7;
         public int Acceleration = 2;
@@ -139,8 +166,9 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class PanicSettings
     {
-        public int SpeedMinimum = 70;
-        public int SpeedMaximum = 100;
+        /// <summary>Sprinting pace of someone with Speed 0 and Speed 10; everyone else is in between (plus a little jitter).</summary>
+        public int SpeedMinimum = 60;
+        public int SpeedMaximum = 110;
         public int TurnRateMinimum = 10;
         public int TurnRateMaximum = 16;
         public int Acceleration = 8;
@@ -286,6 +314,22 @@ namespace Paniq.Simulation
         public int TripMinimumTicks = 40;
         public int TripMaximumTicks = 100;
 
+        /// <summary>Chance that a knock-down leaves someone out cold, at exactly the knock-down closing speed.</summary>
+        public int PassOutChancePercent = 10;
+
+        /// <summary>Extra pass-out chance for each mm/tick of closing speed above the knock-down speed.</summary>
+        public int PassOutPercentPerSpeed = 1;
+
+        /// <summary>For a box hit: extra pass-out chance per this much momentum (kg·mm/tick) above the knock-down momentum.</summary>
+        public int PassOutMomentumPerPercent = 100;
+
+        public int PassOutMaximumPercent = 60;
+        public int UnconsciousMinimumTicks = 300;
+        public int UnconsciousMaximumTicks = 600;
+
+        /// <summary>Getting up groggily after coming to takes longer than after a plain fall.</summary>
+        public int ComeToGetUpTicks = 50;
+
         public FallSettings Clone() => (FallSettings)MemberwiseClone();
 
         internal void Validate()
@@ -296,6 +340,10 @@ namespace Paniq.Simulation
                              Settings.Range(KnockdownMinimumTicks, KnockdownMaximumTicks, 1) && GetUpTicks >= 1, "collisions");
             Settings.Require(TripChancePercent >= 0 && TripChancePercent <= 50 && TripMinimumSpeed >= 0 &&
                              Settings.Range(TripMinimumTicks, TripMaximumTicks, 1), "tripping");
+            Settings.Require(Settings.Percent(PassOutChancePercent) && PassOutPercentPerSpeed >= 0 &&
+                             PassOutMomentumPerPercent > 0 && Settings.Percent(PassOutMaximumPercent) &&
+                             Settings.Range(UnconsciousMinimumTicks, UnconsciousMaximumTicks, 1) &&
+                             ComeToGetUpTicks >= 1, "passing out");
         }
     }
 
@@ -346,6 +394,9 @@ namespace Paniq.Simulation
         public int ChoiceNoiseMillimetres = 1500;
         public int InFirePenaltyMillimetres = 8000;
 
+        /// <summary>How much shoving damage a door takes before it breaks. Damage stays between attempts.</summary>
+        public int DoorStrength = 40;
+
         public ExitSettings Clone() => (ExitSettings)MemberwiseClone();
 
         internal void Validate(WorldSettings world)
@@ -365,6 +416,7 @@ namespace Paniq.Simulation
                              CommitDistanceMillimetres >= 0 && NoSwerveDistanceMillimetres >= 0, "door approach");
             Settings.Require(OpenBonusMillimetres >= 0 && CurrentChoiceBonusMillimetres >= 0 &&
                              ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0, "door scoring");
+            Settings.Require(DoorStrength >= 1, "door strength");
         }
     }
 
@@ -402,6 +454,87 @@ namespace Paniq.Simulation
             Settings.Require(TripMinimumSpeed >= 0 && TripScale > 0 && Settings.Percent(TripMaximumChancePercent) &&
                              StaggerMomentum > 0 && KnockdownMomentum >= StaggerMomentum, "object hits");
             Settings.Require(LoggedBoxHitSpeed >= 0 && SpinMaximum >= 0, "object spin and logging");
+        }
+    }
+
+    /// <summary>
+    /// How much each personality trait changes behaviour. Traits run from 0
+    /// to 10 and 5 is an ordinary person, who behaves exactly as the other
+    /// settings say. Most effects are "percent per point": with 10 percent
+    /// per point, a trait of 8 means 30 percent more and a trait of 2 means
+    /// 30 percent less.
+    /// </summary>
+    [Serializable]
+    public sealed class TraitSettings
+    {
+        /// <summary>Seeded wobble added to each person's walking and sprinting pace, so equal Speed traits still differ a little.</summary>
+        public int CalmSpeedJitter = 2;
+        public int PanicSpeedJitter = 5;
+
+        /// <summary>Strength: how hard a person shoves a box, as their effective body weight.</summary>
+        public int StrengthMassPercentPerPoint = 10;
+
+        /// <summary>Strength: in a knock-down collision, someone this many points stronger only staggers.</summary>
+        public int StrengthShrugOffGap = 4;
+
+        /// <summary>Bravery: shorter reaction delay when startled.</summary>
+        public int BraveryReactionDelayPercentPerPoint = 10;
+
+        /// <summary>Bravery: how close fire may get before they bolt straight away from it.</summary>
+        public int BraveryDangerDistancePercentPerPoint = 5;
+
+        /// <summary>Nervousness: shouting more often and changing their mind more often while running.</summary>
+        public int NervousShoutIntervalPercentPerPoint = 10;
+        public int NervousDecisionIntervalPercentPerPoint = 10;
+
+        /// <summary>Nervousness: extra chance (percentage points) to zig-zag and to hesitate at each panic decision.</summary>
+        public int NervousSwerveChancePerPoint = 5;
+        public int NervousHesitateChancePerPoint = 2;
+
+        /// <summary>Nervousness: tripping over their own feet.</summary>
+        public int NervousTripPercentPerPoint = 10;
+
+        /// <summary>Compassion and evil: how hard a runner steers around other people.</summary>
+        public int CompassionAvoidPercentPerPoint = 15;
+        public int EvilAvoidPercentPerPoint = 15;
+
+        /// <summary>Compassion and evil: the closing speed (mm per tick) at which a runner rams someone rather than dodging.</summary>
+        public int CompassionBumpSpeedPerPoint = 5;
+        public int EvilBumpSpeedPerPoint = 5;
+        public int MinimumBumpSpeed = 20;
+
+        /// <summary>Strength: less chance of being knocked out cold (percentage points per point).</summary>
+        public int StrengthPassOutPercentPerPoint = 3;
+
+        /// <summary>Strength: more likely to throw a shoulder at a locked door rather than give up (percentage points per point).</summary>
+        public int StrengthForceChancePerPoint = 5;
+
+        /// <summary>Strength: people at least this strong damage a locked door when they shove it.</summary>
+        public int DoorBreakMinimumStrength = 7;
+
+        /// <summary>Strength: damage per shove for each point of strength from the minimum up (Str 7 does 1, Str 9 does 3).</summary>
+        public int DoorDamagePerPoint = 1;
+
+        public TraitSettings Clone() => (TraitSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(CalmSpeedJitter >= 0 && PanicSpeedJitter >= 0, "trait speed jitter");
+            Settings.Require(StrengthMassPercentPerPoint >= 0 && StrengthMassPercentPerPoint <= 20 &&
+                             StrengthShrugOffGap >= 1, "strength effects");
+            Settings.Require(BraveryReactionDelayPercentPerPoint >= 0 && BraveryReactionDelayPercentPerPoint <= 20 &&
+                             BraveryDangerDistancePercentPerPoint >= 0 && BraveryDangerDistancePercentPerPoint <= 20,
+                "bravery effects");
+            Settings.Require(NervousShoutIntervalPercentPerPoint >= 0 && NervousShoutIntervalPercentPerPoint <= 18 &&
+                             NervousDecisionIntervalPercentPerPoint >= 0 && NervousDecisionIntervalPercentPerPoint <= 18 &&
+                             NervousSwerveChancePerPoint >= 0 && NervousHesitateChancePerPoint >= 0 &&
+                             NervousTripPercentPerPoint >= 0 && NervousTripPercentPerPoint <= 20, "nervousness effects");
+            Settings.Require(CompassionAvoidPercentPerPoint >= 0 && EvilAvoidPercentPerPoint >= 0 &&
+                             CompassionBumpSpeedPerPoint >= 0 && EvilBumpSpeedPerPoint >= 0 && MinimumBumpSpeed > 0,
+                "compassion and evil effects");
+            Settings.Require(StrengthPassOutPercentPerPoint >= 0 && StrengthForceChancePerPoint >= 0 &&
+                             DoorBreakMinimumStrength >= 0 && DoorBreakMinimumStrength <= AgentTraitValues.Maximum &&
+                             DoorDamagePerPoint >= 0, "strength at doors and knock-outs");
         }
     }
 

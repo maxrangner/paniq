@@ -109,6 +109,64 @@ namespace Paniq.Simulation
         }
     }
 
+    /// <summary>
+    /// A person's personality: six traits from 0 to 10, where 5 is an
+    /// ordinary person. Traits shape how they move and react (see
+    /// <c>TraitEffects</c>). Authored per person in the scenario, or drawn
+    /// from the seed.
+    /// </summary>
+    [Serializable]
+    public struct AgentTraitValues : IEquatable<AgentTraitValues>
+    {
+        public const int Minimum = 0;
+        public const int Maximum = 10;
+        public const int Ordinary = 5;
+
+        [UnityEngine.SerializeField] private int strength;
+        [UnityEngine.SerializeField] private int speed;
+        [UnityEngine.SerializeField] private int bravery;
+        [UnityEngine.SerializeField] private int compassion;
+        [UnityEngine.SerializeField] private int evil;
+        [UnityEngine.SerializeField] private int nervousness;
+
+        public AgentTraitValues(int strength, int speed, int bravery, int compassion, int evil, int nervousness)
+        {
+            this.strength = strength;
+            this.speed = speed;
+            this.bravery = bravery;
+            this.compassion = compassion;
+            this.evil = evil;
+            this.nervousness = nervousness;
+        }
+
+        public static AgentTraitValues AllOrdinary => new AgentTraitValues(Ordinary, Ordinary, Ordinary, Ordinary, Ordinary, Ordinary);
+
+        public int Strength => strength;
+        public int Speed => speed;
+        public int Bravery => bravery;
+        public int Compassion => compassion;
+        public int Evil => evil;
+        public int Nervousness => nervousness;
+
+        public bool IsValid =>
+            InRange(strength) && InRange(speed) && InRange(bravery) &&
+            InRange(compassion) && InRange(evil) && InRange(nervousness);
+
+        private static bool InRange(int value) => value >= Minimum && value <= Maximum;
+
+        public bool Equals(AgentTraitValues other) =>
+            strength == other.strength && speed == other.speed && bravery == other.bravery &&
+            compassion == other.compassion && evil == other.evil && nervousness == other.nervousness;
+
+        public override bool Equals(object obj) => obj is AgentTraitValues other && Equals(other);
+
+        public override int GetHashCode() =>
+            ((((strength * 11 + speed) * 11 + bravery) * 11 + compassion) * 11 + evil) * 11 + nervousness;
+
+        public override string ToString() =>
+            $"Str {strength} Spd {speed} Brv {bravery} Cmp {compassion} Evl {evil} Nrv {nervousness}";
+    }
+
     /// <summary>Authoring-only starting facing; the simulation stores whole-degree headings.</summary>
     public enum CardinalDirection
     {
@@ -153,7 +211,10 @@ namespace Paniq.Simulation
         Frozen,
         OpeningDoor,
         TryingDoor,
-        ForcingDoor
+        ForcingDoor,
+
+        /// <summary>On fire: running around wildly until they collapse.</summary>
+        Burning
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>
@@ -170,7 +231,10 @@ namespace Paniq.Simulation
         Upright,
         Staggering,
         Fallen,
-        GettingUp
+        GettingUp,
+
+        /// <summary>Knocked out cold: lying still for several seconds before coming to.</summary>
+        Unconscious
     }
 
     public enum AgentTerminalOutcome
@@ -203,7 +267,11 @@ namespace Paniq.Simulation
         AgentEscaped,
         BoxBumped,
         BoxHitAgent,
-        BoxesCollided
+        BoxesCollided,
+        AgentPassedOut,
+        AgentCameTo,
+        DoorBrokenDown,
+        AgentCaughtFire
     }
 
     /// <summary>Which wall of the room a door sits in. North is +Z, east is +X.</summary>
@@ -215,12 +283,17 @@ namespace Paniq.Simulation
         West
     }
 
-    /// <summary>Locked and unlocked doors are both shut; people can only tell them apart by trying.</summary>
+    /// <summary>
+    /// Locked and unlocked doors are both shut; people can only tell them
+    /// apart by trying. A broken door has been smashed open and can never
+    /// shut again.
+    /// </summary>
     public enum DoorState
     {
         Locked,
         Unlocked,
-        Open
+        Open,
+        Broken
     }
 
     /// <summary>The shapes the physical-object system knows. Only boxes so far.</summary>

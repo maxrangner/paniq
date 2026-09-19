@@ -69,7 +69,7 @@ namespace Paniq.Simulation
                     score -= context.Scenario.Panic.EscapeRoutePenaltyMillimetres;
                 }
 
-                if (fire.AnyCloserThan(approach, context.Scenario.Panic.DangerDistanceMillimetres))
+                if (fire.AnyCloserThan(approach, TraitEffects.DangerDistance(agent, context.Scenario)))
                 {
                     score -= settings.InFirePenaltyMillimetres;
                 }
@@ -194,9 +194,9 @@ namespace Paniq.Simulation
             int door = agent.Doors.ExitDoorIndex;
             LogicalPosition doorCentre = geometry.DoorCentre(door);
             DoorState state = doors.StateOf(door);
-            if (state == DoorState.Open)
+            if (geometry.IsDoorOpen(door))
             {
-                // Someone else got it open: go.
+                // Someone else got it open (or broke it down): go.
                 agent.Intent.Activity = AgentActivityState.Fleeing;
                 return false;
             }
@@ -238,7 +238,7 @@ namespace Paniq.Simulation
                         return true;
                     }
 
-                    if (context.Random.NextPercent(settings.DoorForceChancePercent))
+                    if (context.Random.NextPercent(TraitEffects.DoorForceChancePercent(agent, context.Scenario)))
                     {
                         agent.Intent.Activity = AgentActivityState.ForcingDoor;
                         agent.Intent.ActivityEndTick = checked(tick + context.Random.NextIntInclusive(
@@ -255,7 +255,7 @@ namespace Paniq.Simulation
                 default:
                     if (tick >= agent.Doors.NextShoveTick)
                     {
-                        // A shoulder into the door: a thud, and nothing gives.
+                        // A shoulder into the door: a thud, and usually nothing gives.
                         CausalEvent shove = context.Events.Append(
                             tick,
                             agent.Id,
@@ -266,6 +266,13 @@ namespace Paniq.Simulation
                             agent.Doors.AttemptEventId,
                             doors.IdOf(door));
                         sound.Thud(agent.Id, doorCentre, shove.EventId);
+                        if (doors.Batter(door, agent, TraitEffects.DoorShoveDamage(agent, context.Scenario), shove.EventId))
+                        {
+                            // Battered enough: the door bursts off its hinges.
+                            agent.Intent.Activity = AgentActivityState.Fleeing;
+                            return false;
+                        }
+
                         agent.Doors.NextShoveTick = checked(tick + context.Random.NextIntInclusive(
                             settings.DoorShoveMinimumTicks, settings.DoorShoveMaximumTicks));
                     }
@@ -328,8 +335,9 @@ namespace Paniq.Simulation
             for (int i = 0; i < agents.Length; i++)
             {
                 Agent agent = agents[i];
-                if (!agent.IsParticipating)
+                if (!agent.IsParticipating || agent.Burning.IsBurning)
                 {
+                    // Someone on fire is past saving by any door.
                     continue;
                 }
 

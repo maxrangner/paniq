@@ -40,8 +40,12 @@ namespace Paniq.Simulation
             int panicSpeedMillimetresPerTick,
             int reactionDelayTicks,
             AgentPanicTemperament temperament,
-            AgentBodyState bodyState)
+            AgentBodyState bodyState,
+            AgentTraitValues traits,
+            bool isBurning)
         {
+            Traits = traits;
+            IsBurning = isBurning;
             Temperament = temperament;
             BodyState = bodyState;
             AgentId = agentId;
@@ -86,14 +90,23 @@ namespace Paniq.Simulation
         /// <summary>Upright, or staggering, lying on the floor, or getting up.</summary>
         public AgentBodyState BodyState { get; }
 
-        public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp;
+        /// <summary>Strength, speed, bravery, compassion, evil and nervousness, 0–10.</summary>
+        public AgentTraitValues Traits { get; }
+
+        /// <summary>On fire and running around wildly until they collapse.</summary>
+        public bool IsBurning { get; }
+
+        public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp ||
+                              BodyState == AgentBodyState.Unconscious;
     }
 
     /// <summary>A door as the player sees it: where its gap is and whether it is locked, unlocked or open.</summary>
     public readonly struct FireReactionDoorSnapshot
     {
-        public FireReactionDoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state)
+        public FireReactionDoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state,
+            int damagePercent)
         {
+            DamagePercent = damagePercent;
             DoorId = doorId;
             Side = side;
             Centre = centre;
@@ -109,6 +122,9 @@ namespace Paniq.Simulation
 
         public int WidthMillimetres { get; }
         public DoorState State { get; }
+
+        /// <summary>How close a battered door is to breaking, 0–100.</summary>
+        public int DamagePercent { get; }
     }
 
     /// <summary>A loose object on the floor, such as a box.</summary>
@@ -216,6 +232,41 @@ namespace Paniq.Simulation
                 for (int i = 0; i < agents.Length; i++)
                 {
                     if (agents[i].Participation == AgentParticipation.Participating && agents[i].IsDown)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        public int UnconsciousCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < agents.Length; i++)
+                {
+                    if (agents[i].Participation == AgentParticipation.Participating &&
+                        agents[i].BodyState == AgentBodyState.Unconscious)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        public int BurningCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < agents.Length; i++)
+                {
+                    if (agents[i].Participation == AgentParticipation.Participating && agents[i].IsBurning)
                     {
                         count++;
                     }

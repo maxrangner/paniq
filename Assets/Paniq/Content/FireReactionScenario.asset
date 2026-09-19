@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '19'
+    ContentRevision: '20'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 11
+    SimulationCompatibilityVersion: 12
     World:
       RoomBounds:
         minX: -6000
@@ -549,3 +549,13 @@ MonoBehaviour:
         z: 2000
       widthMillimetres: 1200
       depthMillimetres: 700
+    SideRooms:
+    - roomId:
+        value: 5001
+      doorId:
+        value: 2002
+      bounds:
+        minX: 6000
+        maxX: 8000
+        minZ: 1500
+        maxZ: 3500

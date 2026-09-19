@@ -117,6 +117,31 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
+    /// A small room behind one of the main room's doors. Its rectangle must
+    /// sit flush against that door's wall, on the outside, with the whole
+    /// door gap along it. People who reach it shelter there; fire only gets
+    /// in through the door while it is open.
+    /// </summary>
+    [Serializable]
+    public struct FireReactionSideRoomDefinition
+    {
+        [UnityEngine.SerializeField] private SimulationId roomId;
+        [UnityEngine.SerializeField] private SimulationId doorId;
+        [UnityEngine.SerializeField] private LogicalBounds bounds;
+
+        public FireReactionSideRoomDefinition(SimulationId roomId, SimulationId doorId, LogicalBounds bounds)
+        {
+            this.roomId = roomId;
+            this.doorId = doorId;
+            this.bounds = bounds;
+        }
+
+        public SimulationId RoomId => roomId;
+        public SimulationId DoorId => doorId;
+        public LogicalBounds Bounds => bounds;
+    }
+
+    /// <summary>
     /// A table: a fixed rectangle on the floor that people walk around and
     /// loose objects bounce off. <see cref="WidthMillimetres"/> runs along X,
     /// <see cref="DepthMillimetres"/> along Z.
@@ -157,9 +182,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "19";
+        public string ContentRevision = "20";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 11;
+        public int SimulationCompatibilityVersion = 12;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -180,6 +205,7 @@ namespace Paniq.Simulation
         public FireReactionDoorDefinition[] Doors = DefaultDoors();
         public FireReactionPhysicsObjectDefinition[] PhysicsObjects = DefaultPhysicsObjects();
         public FireReactionTableDefinition[] Tables = DefaultTables();
+        public FireReactionSideRoomDefinition[] SideRooms = DefaultSideRooms();
 
         /// <summary>A deep copy: changing the copy never changes this one.</summary>
         public FireReactionScenarioData Clone()
@@ -203,6 +229,7 @@ namespace Paniq.Simulation
             copy.Doors = (FireReactionDoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (FireReactionPhysicsObjectDefinition[])PhysicsObjects?.Clone();
             copy.Tables = (FireReactionTableDefinition[])Tables?.Clone();
+            copy.SideRooms = (FireReactionSideRoomDefinition[])SideRooms?.Clone();
             return copy;
         }
 
@@ -272,7 +299,7 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Agent {agent.AgentId} has a trait outside 0–10.");
                 }
 
-                if (!room.ContainsCircle(agent.InitialPosition, radius))
+                if (!room.ContainsCircle(agent.InitialPosition, radius) && !InAnySideRoom(agent.InitialPosition, radius))
                 {
                     throw new InvalidOperationException($"Agent {agent.AgentId} starts outside the room.");
                 }
@@ -288,8 +315,78 @@ namespace Paniq.Simulation
             }
 
             ValidateDoors(ids);
+            ValidateSideRooms(ids);
             ValidateTables(ids);
             ValidatePhysicsObjects(ids);
+        }
+
+        private bool InAnySideRoom(LogicalPosition position, int radius)
+        {
+            if (SideRooms == null)
+            {
+                return false;
+            }
+
+            foreach (FireReactionSideRoomDefinition side in SideRooms)
+            {
+                if (side.Bounds.ContainsCircle(position, radius))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void ValidateSideRooms(HashSet<SimulationId> ids)
+        {
+            SideRooms ??= Array.Empty<FireReactionSideRoomDefinition>();
+            LogicalBounds room = World.RoomBounds;
+            var usedDoors = new HashSet<SimulationId>();
+            foreach (FireReactionSideRoomDefinition side in SideRooms)
+            {
+                if (side.RoomId.Value == 0UL || !ids.Add(side.RoomId) || !usedDoors.Add(side.DoorId))
+                {
+                    throw new InvalidOperationException("Side room IDs must be unique and non-zero, one room per door.");
+                }
+
+                int door = Array.FindIndex(Doors, d => d.DoorId == side.DoorId);
+                if (door < 0)
+                {
+                    throw new InvalidOperationException($"Side room {side.RoomId} names an unknown door.");
+                }
+
+                FireReactionDoorDefinition d = Doors[door];
+                LogicalBounds b = side.Bounds;
+                int half = d.WidthMillimetres / 2;
+                bool flush;
+                bool coversGap;
+                switch (d.Side)
+                {
+                    case WallSide.North:
+                        flush = b.MinZ == room.MaxZ;
+                        coversGap = b.MinX <= d.CentreAlongWallMillimetres - half && b.MaxX >= d.CentreAlongWallMillimetres + half;
+                        break;
+                    case WallSide.South:
+                        flush = b.MaxZ == room.MinZ;
+                        coversGap = b.MinX <= d.CentreAlongWallMillimetres - half && b.MaxX >= d.CentreAlongWallMillimetres + half;
+                        break;
+                    case WallSide.East:
+                        flush = b.MinX == room.MaxX;
+                        coversGap = b.MinZ <= d.CentreAlongWallMillimetres - half && b.MaxZ >= d.CentreAlongWallMillimetres + half;
+                        break;
+                    default:
+                        flush = b.MaxX == room.MinX;
+                        coversGap = b.MinZ <= d.CentreAlongWallMillimetres - half && b.MaxZ >= d.CentreAlongWallMillimetres + half;
+                        break;
+                }
+
+                if (!flush || !coversGap || b.MaxX - b.MinX < World.OccupancyRadiusMillimetres * 4 ||
+                    b.MaxZ - b.MinZ < World.OccupancyRadiusMillimetres * 4)
+                {
+                    throw new InvalidOperationException($"Side room {side.RoomId} must sit flush outside its door's wall, around the door.");
+                }
+            }
         }
 
         private void ValidateTables(HashSet<SimulationId> ids)
@@ -470,6 +567,16 @@ namespace Paniq.Simulation
                 Chair(3106UL, -1800, 1375),
                 Chair(3107UL, -1200, 2625),
                 Chair(3108UL, -625, 2000)
+            };
+        }
+
+        /// <summary>A 2 × 2 m room behind the east door: room for two or three people.</summary>
+        public static FireReactionSideRoomDefinition[] DefaultSideRooms()
+        {
+            return new[]
+            {
+                new FireReactionSideRoomDefinition(new SimulationId(5001UL), new SimulationId(2002UL),
+                    new LogicalBounds(6000, 8000, 1500, 3500))
             };
         }
 

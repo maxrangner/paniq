@@ -327,6 +327,24 @@ namespace Paniq.Simulation
             }
         }
 
+        public int ShelteringCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < agents.Length; i++)
+                {
+                    if (agents[i].Participation == AgentParticipation.Participating &&
+                        agents[i].ActivityState == AgentActivityState.Sheltering)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
         public int LostCount => CountOutcome(AgentTerminalOutcome.Lost);
         public int EscapedCount => CountOutcome(AgentTerminalOutcome.Escaped);
 

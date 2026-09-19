@@ -220,7 +220,10 @@ namespace Paniq.Simulation
         FetchingItem,
         PickingUp,
         CarryingItem,
-        SettingDown
+        SettingDown,
+
+        /// <summary>Scared, but safe for now inside a side room, huddled at its back wall.</summary>
+        Sheltering
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>

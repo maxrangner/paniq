@@ -54,7 +54,7 @@ namespace Paniq.Simulation
 
             var crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres);
             doors = new DoorSystem(context, doorStates, geometry);
-            var sound = new SoundSystem(context, crowd, fire, fear);
+            var sound = new SoundSystem(context, crowd, fire, fear, geometry);
             perception = new PerceptionSystem(context, fire, fear, sound);
             body = new BodySystem(context, fire, sound);
             collisions = new CollisionSystem(context, crowd, body, fear, sound);
@@ -112,6 +112,9 @@ namespace Paniq.Simulation
         public int FireCellCount => fire.BurningCount;
         public int FireGridColumns => fire.GridColumns;
         public int FireGridRows => fire.GridRows;
+
+        /// <summary>Grid cells that are floor in some room; the others never burn.</summary>
+        public int FireFloorCellCount => fire.FloorCellCount;
         public LogicalPosition FireOrigin => fire.Origin;
         public ulong FireActivationEventId => fire.ActivationEventId;
 

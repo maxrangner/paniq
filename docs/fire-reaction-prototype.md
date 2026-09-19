@@ -128,6 +128,16 @@ Someone who walks 0.8 m out through an open door has **escaped**: they keep
 walking for a moment and shrink out of view. People stuck in a crowd on the
 way to a door try a different one for a few seconds.
 
+**The side room.** The east door does not lead outside: it opens into a
+small 2 × 2 m room, big enough for two or three people. Runners choose it like
+any other door. Once inside they shelter: they shuffle to the back wall and
+stand facing the door (the counter shows how many are sheltering). Sheltering
+is not escaping. The fire can only get into the side room through its door
+while that door is open (or broken down); walls stop it, and nobody sees fire
+through a wall. A closed door muffles noises to half their reach. If the fire
+does get in, the people sheltering there run back out through the door, or
+away from the flames if the door is shut.
+
 **Tables and chairs.** Three 1.2 × 0.7 m tables stand in the room. Nobody
 and nothing can pass through a table: people slide along its edge as they
 would along a wall and steer away from it, loose objects bounce off it, and
@@ -331,6 +341,20 @@ restart control, or end screen in this checkpoint.
   is kept per door. When it reaches the door's strength (40) the door becomes
   `Broken`: it logs `DoorBrokenDown` (source: the shover; target: the door;
   parent: the shove) and counts as open for walking, choosing and escaping.
+- **Side rooms.** A side room is a rectangle flush against the outside of
+  one door's wall, covering the door gap. A footprint wholly inside it is
+  walkable; the door's strip joins it to the main room while the door is open.
+  Its door is never an escape. The fire grid covers the rectangle around all
+  rooms; each cell belongs to the room its centre is in (or none, and never
+  burns). Fire spreads between neighbouring cells of different rooms only
+  when the connecting door is open and the edge they share overlaps the door
+  gap. Fire in another room is neither touched nor seen unless the rooms are
+  joined by an open door. A noise's hearing and alarm reaches halve between
+  rooms whose door is shut. A scared person wholly inside a side room with
+  no fire in it is `Sheltering`: walks at walking pace to 0.6 m short of the
+  far wall on the door's line (stopping when blocked for 12 ticks) and faces
+  the door. With fire in the room: out through the door to 1.5 m inside the
+  main room if it is open, else directly away from the nearest fire.
 - **Tables.** A table is a fixed rectangle. A body of radius r overlaps it
   when its centre is strictly inside the rectangle grown by r on every side
   (square corners). A step into a table is moved onto the grown edge facing

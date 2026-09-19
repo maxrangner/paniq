@@ -77,6 +77,12 @@ namespace Paniq.Simulation
                 agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
             }
 
+            int shelter = geometry.SideRoomAt(agent.Body.Position);
+            if (shelter >= 0 && !DoorBehaviour.IsAtDoor(agent))
+            {
+                return Shelter(agent, shelter);
+            }
+
             if (DoorBehaviour.IsAtDoor(agent))
             {
                 // Worked out first: giving up forgets which door this was.
@@ -164,6 +170,55 @@ namespace Paniq.Simulation
             goalHeading = locomotion.Steer(agent, goalHeading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
                 settings.WallAvoidPercent, settings.ObjectAvoidPercent, followX, followZ);
             return new MotorIntent(goalHeading, agent.Personality.PanicSpeed, agent.Personality.PanicTurnRate, settings.Acceleration);
+        }
+
+        /// <summary>
+        /// Inside a side room. While no fire is in it, huddle at the back,
+        /// facing the door. If the fire gets in, run back out through the door
+        /// if it is open, or away from the flames if it is not.
+        /// </summary>
+        private MotorIntent Shelter(Agent agent, int sideRoom)
+        {
+            AgentIntent intent = agent.Intent;
+            int door = geometry.SideRoomDoor(sideRoom);
+            LogicalPosition position = agent.Body.Position;
+            if (fire.IsBurningInRoom(sideRoom + 1))
+            {
+                intent.Activity = AgentActivityState.Fleeing;
+                int goal;
+                if (geometry.IsDoorOpen(door))
+                {
+                    agent.Doors.ExitDoorIndex = door;
+                    intent.Target = geometry.DoorPoint(door, 0, -context.Scenario.Exits.OutsideTargetMillimetres);
+                    goal = IntegerMath.HeadingBetween(position, intent.Target, agent.Body.Heading);
+                }
+                else
+                {
+                    agent.Doors.ExitDoorIndex = -1;
+                    fire.NearestDistanceSquared(position, out LogicalPosition flames);
+                    goal = IntegerMath.HeadingBetween(flames, position, agent.Body.Heading);
+                }
+
+                goal = locomotion.Steer(agent, goal, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
+                    settings.WallAvoidPercent, settings.ObjectAvoidPercent);
+                return new MotorIntent(goal, agent.Personality.PanicSpeed, agent.Personality.PanicTurnRate, settings.Acceleration);
+            }
+
+            intent.Activity = AgentActivityState.Sheltering;
+            agent.Doors.ExitDoorIndex = -1;
+            LogicalPosition back = geometry.SideRoomBackPoint(sideRoom);
+            long distance = IntegerMath.Distance(position, back);
+            if (distance > context.Scenario.Calm.StrollArrivalDistanceMillimetres &&
+                agent.Body.BlockedTicks < settings.BlockedGiveUpTicks)
+            {
+                // Make room for others: shuffle to the back, spreading out.
+                int toBack = locomotion.Steer(agent, IntegerMath.HeadingBetween(position, back, agent.Body.Heading),
+                    context.Scenario.Calm.PeopleAvoidPercent, settings.WallAvoidPercent, settings.ObjectAvoidPercent);
+                return new MotorIntent(toBack, agent.Personality.CalmSpeed, agent.Personality.PanicTurnRate, settings.Acceleration);
+            }
+
+            int faceDoor = IntegerMath.HeadingBetween(position, geometry.DoorCentre(door), agent.Body.Heading);
+            return new MotorIntent(faceDoor, 0, agent.Personality.CalmTurnRate, settings.Acceleration);
         }
 
         private MotorIntent LookIntent(Agent agent)

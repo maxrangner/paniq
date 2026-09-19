@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("19"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(11));
+            Assert.That(data.ContentRevision, Is.EqualTo("20"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(12));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -214,14 +214,15 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             data.Fire.ActivationTick = 1;
             var simulation = new FireReactionSimulation(data);
-            int totalCells = simulation.FireGridColumns * simulation.FireGridRows;
-            Assert.That(totalCells, Is.EqualTo(24 * 24));
-            for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond && simulation.FireCellCount < totalCells; i++)
+            // The main room's 24 × 24 squares; the side room behind its locked door stays untouched.
+            int mainRoomCells = 24 * 24;
+            Assert.That(simulation.FireFloorCellCount, Is.EqualTo(mainRoomCells + 4 * 4));
+            for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond && simulation.FireCellCount < mainRoomCells; i++)
             {
                 simulation.Step();
             }
 
-            Assert.That(simulation.FireCellCount, Is.EqualTo(totalCells));
+            Assert.That(simulation.FireCellCount, Is.EqualTo(mainRoomCells));
         }
 
         /// <summary>
@@ -281,9 +282,14 @@ namespace Paniq.Tests.EditMode
                         Assert.That(fire.AnyCloserThan(position, reach), Is.EqualTo(anyCloser), $"fire within {reach} of {position}");
                     }
 
+                    // From inside the side room (its door stays locked here), walls hide the fire.
+                    LogicalBounds side = simulation.Scenario.SideRooms[0].Bounds;
+                    bool walledOff = position.X > side.MinX && position.X < side.MaxX &&
+                                     position.Z > side.MinZ && position.Z < side.MaxZ;
                     for (int heading = 0; heading < 360; heading += 45)
                     {
-                        Assert.That(fire.IsVisibleFrom(position, heading, 3000), Is.EqualTo(SeesAnyCell(cells, position, heading, 3000)),
+                        Assert.That(fire.IsVisibleFrom(position, heading, 3000),
+                            Is.EqualTo(!walledOff && SeesAnyCell(cells, position, heading, 3000)),
                             $"vision from {position} facing {heading}");
                     }
                 }

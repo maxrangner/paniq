@@ -293,6 +293,14 @@ namespace Paniq.Tests.EditMode
                 return true;
             }
 
+            foreach (FireReactionSideRoomDefinition side in data.SideRooms)
+            {
+                if (side.Bounds.ContainsCircle(position, radius))
+                {
+                    return true;
+                }
+            }
+
             for (int d = 0; d < simulation.DoorCount; d++)
             {
                 FireReactionDoorSnapshot door = simulation.GetDoor(d);

@@ -179,3 +179,12 @@ axis-aligned rectangle in scenario data. A person's footprint may not overlap
 the rectangle grown by the person's radius; the movement rules above apply
 unchanged, with tables treated as extra walls when choosing and resolving a
 step. `WorldGeometry` is the only code that knows where tables are.
+
+## Prototype extension: side rooms
+
+A door may lead into a small side room instead of outside. A side room is an
+axis-aligned rectangle flush against the outside of that door's wall. A
+footprint wholly inside it is walkable, and the door's walkable strip joins it
+to the main room while the door is open. `WorldGeometry` numbers rooms (0 for
+the main room, 1 + n for side room n) so fire, sight and sound can respect
+walls.

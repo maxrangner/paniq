@@ -108,6 +108,57 @@ namespace Paniq.Presentation
             {
                 CreateTable(table);
             }
+
+            foreach (FireReactionSideRoomDefinition side in scenario.SideRooms)
+            {
+                CreateSideRoom(side, minX, maxX, minZ, maxZ);
+            }
+        }
+
+        private bool LeadsToSideRoom(SimulationId doorId)
+        {
+            foreach (FireReactionSideRoomDefinition side in scenario.SideRooms)
+            {
+                if (side.DoorId == doorId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>A side room's floor and its three own walls (the fourth is the main room's wall, with the door).</summary>
+        private void CreateSideRoom(FireReactionSideRoomDefinition side, float roomMinX, float roomMaxX, float roomMinZ, float roomMaxZ)
+        {
+            float minX = Metres(side.Bounds.MinX);
+            float maxX = Metres(side.Bounds.MaxX);
+            float minZ = Metres(side.Bounds.MinZ);
+            float maxZ = Metres(side.Bounds.MaxZ);
+            string name = $"Side room {side.RoomId.Value}";
+            CreatePrimitive($"{name} floor", PrimitiveType.Cube, parent, new Vector3((minX + maxX) * 0.5f, -0.05f, (minZ + maxZ) * 0.5f),
+                new Vector3(maxX - minX, 0.1f, maxZ - minZ), materials.Room);
+
+            float pad = WallThickness * 0.5f;
+            if (!Mathf.Approximately(minZ, roomMaxZ))
+            {
+                CreateWallPiece(WallSide.South, 0, true, minZ, minX - pad, maxX + pad, name);
+            }
+
+            if (!Mathf.Approximately(maxZ, roomMinZ))
+            {
+                CreateWallPiece(WallSide.North, 0, true, maxZ, minX - pad, maxX + pad, name);
+            }
+
+            if (!Mathf.Approximately(minX, roomMaxX))
+            {
+                CreateWallPiece(WallSide.West, 0, false, minX, minZ - pad, maxZ + pad, name);
+            }
+
+            if (!Mathf.Approximately(maxX, roomMinX))
+            {
+                CreateWallPiece(WallSide.East, 0, false, maxX, minZ - pad, maxZ + pad, name);
+            }
         }
 
         /// <summary>A plain wooden table: a thin top on four legs.</summary>
@@ -152,7 +203,8 @@ namespace Paniq.Presentation
             });
         }
 
-        private void CreateWallPiece(WallSide side, int piece, bool alongX, float wallLine, float from, float to)
+        private void CreateWallPiece(WallSide side, int piece, bool alongX, float wallLine, float from, float to,
+            string owner = "Room")
         {
             if (to - from <= 0.001f)
             {
@@ -162,7 +214,7 @@ namespace Paniq.Presentation
             float middle = (from + to) * 0.5f;
             Vector3 position = alongX ? new Vector3(middle, WallHeight * 0.5f, wallLine) : new Vector3(wallLine, WallHeight * 0.5f, middle);
             Vector3 scale = alongX ? new Vector3(to - from, WallHeight, WallThickness) : new Vector3(WallThickness, WallHeight, to - from);
-            CreatePrimitive($"Room Wall {side} {piece}", PrimitiveType.Cube, parent, position, scale, materials.Wall);
+            CreatePrimitive($"{owner} Wall {side} {piece}", PrimitiveType.Cube, parent, position, scale, materials.Wall);
         }
 
         /// <summary>A door leaf hinged at one side of the gap, which swings outward when the door opens.</summary>
@@ -188,12 +240,15 @@ namespace Paniq.Presentation
             Renderer leafRenderer = leaf.GetComponent<Renderer>();
             leafRenderer.sharedMaterial = materials.Door;
 
-            // A strip of ground outside, as far as the doorway reaches.
+            // A strip of ground outside, as far as the doorway reaches (a side room has its own floor).
             float depth = Metres(scenario.Exits.DoorwayDepthMillimetres);
-            CreatePrimitive($"Door {door.DoorId.Value} outside ground", PrimitiveType.Cube, parent,
-                gapCentre + outward * (depth * 0.5f + WallThickness * 0.25f) + Vector3.down * 0.05f,
-                alongX ? new Vector3(width + 0.4f, 0.1f, depth) : new Vector3(depth, 0.1f, width + 0.4f),
-                materials.Outside);
+            if (!LeadsToSideRoom(door.DoorId))
+            {
+                CreatePrimitive($"Door {door.DoorId.Value} outside ground", PrimitiveType.Cube, parent,
+                    gapCentre + outward * (depth * 0.5f + WallThickness * 0.25f) + Vector3.down * 0.05f,
+                    alongX ? new Vector3(width + 0.4f, 0.1f, depth) : new Vector3(depth, 0.1f, width + 0.4f),
+                    materials.Outside);
+            }
 
             var view = new DoorView
             {

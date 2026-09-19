@@ -247,7 +247,7 @@ namespace Paniq.Simulation
                     ulong cellEventId = fire.FindTouchingSweep(startPosition, destination);
                     if (cellEventId != 0UL)
                     {
-                        body.MakeLost(agent, cellEventId);
+                        body.CatchFire(agent, cellEventId);
                     }
                 }
             }

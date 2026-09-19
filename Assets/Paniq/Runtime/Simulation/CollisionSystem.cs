@@ -43,7 +43,7 @@ namespace Paniq.Simulation
         public bool TryRecordBump(Agent mover, LogicalPosition straight, bool overFallen)
         {
             if (mover.Fear.State != AgentFearState.Scared ||
-                mover.Intent.Activity != AgentActivityState.Fleeing ||
+                (mover.Intent.Activity != AgentActivityState.Fleeing && mover.Intent.Activity != AgentActivityState.Burning) ||
                 mover.Body.State != AgentBodyState.Upright)
             {
                 return false;
@@ -68,7 +68,7 @@ namespace Paniq.Simulation
             }
 
             int closing = ClosingSpeed(mover, other);
-            if (closing < settings.BumpMinimumSpeed)
+            if (closing < TraitEffects.BumpMinimumSpeed(mover, context.Scenario))
             {
                 return false;
             }
@@ -143,13 +143,24 @@ namespace Paniq.Simulation
 
                 if (bump.ClosingSpeed >= settings.KnockdownClosingSpeed)
                 {
-                    body.KnockDown(mover, collision.EventId);
-                    body.KnockDown(other, collision.EventId);
+                    // A much stronger person only reels from a hit that floors the other.
+                    KnockDownOrStagger(mover, other, collision.EventId, bump.ClosingSpeed);
+                    KnockDownOrStagger(other, mover, collision.EventId, bump.ClosingSpeed);
                 }
                 else
                 {
                     body.Stagger(mover, collision.EventId);
                     body.Stagger(other, collision.EventId);
+                }
+
+                // Crashing into someone on fire, or while on fire, spreads the flames.
+                if (mover.Burning.IsBurning)
+                {
+                    body.CatchFire(other, mover.Burning.EventId);
+                }
+                else if (other.Burning.IsBurning)
+                {
+                    body.CatchFire(mover, other.Burning.EventId);
                 }
 
                 if (other.Fear.State == AgentFearState.Calm)
@@ -158,6 +169,18 @@ namespace Paniq.Simulation
                 }
 
                 sound.Thud(mover.Id, midpoint, collision.EventId);
+            }
+        }
+
+        private void KnockDownOrStagger(Agent agent, Agent hitBy, ulong collisionEventId, int closingSpeed)
+        {
+            if (TraitEffects.ShrugsOff(agent, hitBy, context.Scenario))
+            {
+                body.Stagger(agent, collisionEventId);
+            }
+            else
+            {
+                body.KnockDown(agent, collisionEventId, closingSpeed);
             }
         }
 

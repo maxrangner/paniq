@@ -41,12 +41,15 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("13"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(5));
+            Assert.That(data.ContentRevision, Is.EqualTo("16"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(8));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
-            Assert.That(data.Panic.SpeedMinimum, Is.GreaterThan(data.Calm.SpeedMaximum * 2));
-            Assert.That(data.Panic.SpeedMaximum, Is.LessThanOrEqualTo(data.World.MaximumStepDistanceMillimetres));
+            Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
+                Is.GreaterThan((data.Calm.SpeedMaximum + data.Traits.CalmSpeedJitter) * 3 / 2),
+                "Even the slowest sprinter clearly outruns the fastest walker.");
+            Assert.That(data.Panic.SpeedMaximum + data.Traits.PanicSpeedJitter,
+                Is.LessThanOrEqualTo(data.World.MaximumStepDistanceMillimetres));
         }
 
         [Test]
@@ -375,6 +378,9 @@ namespace Paniq.Tests.EditMode
         public void Movement_KeepsParticipatingAgentsInsideTheRoomAndSeparated()
         {
             FireReactionScenarioData data = DefaultData();
+
+            // A sealed room: nobody may break a door down here.
+            data.Traits.DoorDamagePerPoint = 0;
             var simulation = new FireReactionSimulation(data);
             long touching = data.World.OccupancyRadiusMillimetres * 2L;
             for (int tick = 0; tick < 3000; tick++)
@@ -520,6 +526,9 @@ namespace Paniq.Tests.EditMode
         public void PanickedAgents_SprintZigZagAndDoNotStayPinned()
         {
             FireReactionScenarioData data = DefaultData();
+
+            // A sealed room: nobody may break a door down here.
+            data.Traits.DoorDamagePerPoint = 0;
             var simulation = new FireReactionSimulation(data);
             int count = simulation.AgentCount;
             var lastHeading = new int[count];
@@ -667,7 +676,7 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void LostAgents_NameTheFireCellThatCaughtThem()
+        public void LostAgents_TraceBackThroughTheFlamesToABurningSquare()
         {
             var simulation = new FireReactionSimulation(DefaultData());
             for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond; i++)
@@ -685,9 +694,21 @@ namespace Paniq.Tests.EditMode
                 }
 
                 lostEvents++;
-                FireReactionEventType parent = simulation.EventLog.Get(record.CausalParentEventId).EventType;
-                Assert.That(parent == FireReactionEventType.FireActivated || parent == FireReactionEventType.FireSpread,
-                    Is.True, $"Agent {record.SourceId} was lost with parent {parent}.");
+                CausalEvent caught = simulation.EventLog.Get(record.CausalParentEventId);
+                Assert.That(caught.EventType, Is.EqualTo(FireReactionEventType.AgentCaughtFire),
+                    $"Agent {record.SourceId} was lost without catching fire first.");
+                Assert.That(caught.SourceId, Is.EqualTo(record.SourceId));
+                Assert.That(record.Tick - caught.Tick, Is.EqualTo(caught.DurationTicks), "They burn for the drawn time.");
+
+                // Set alight by a burning square, or by someone else who was on fire, and so on back to a square.
+                CausalEvent cause = simulation.EventLog.Get(caught.CausalParentEventId);
+                while (cause.EventType == FireReactionEventType.AgentCaughtFire)
+                {
+                    cause = simulation.EventLog.Get(cause.CausalParentEventId);
+                }
+
+                Assert.That(cause.EventType == FireReactionEventType.FireActivated || cause.EventType == FireReactionEventType.FireSpread,
+                    Is.True, $"Agent {record.SourceId}'s flames trace back to {cause.EventType}.");
             }
 
             Assert.That(lostEvents, Is.EqualTo(simulation.GetSnapshot().LostCount));
@@ -867,8 +888,9 @@ namespace Paniq.Tests.EditMode
                 {
                     FireReactionAgentSnapshot agent = simulation.GetAgent(i);
                     if (agent.Temperament != AgentPanicTemperament.FreezeForever ||
-                        agent.Participation != AgentParticipation.Participating)
+                        agent.Participation != AgentParticipation.Participating || agent.IsBurning)
                     {
+                        // Even the frozen run once they are on fire.
                         continue;
                     }
 
@@ -900,7 +922,7 @@ namespace Paniq.Tests.EditMode
                         unfroze[record.SourceId] = record;
                         Assert.That(record.CausalParentEventId, Is.EqualTo(froze[record.SourceId].EventId));
                         break;
-                    case FireReactionEventType.AgentLost:
+                    case FireReactionEventType.AgentCaughtFire:
                         lostTick[record.SourceId] = record.Tick;
                         break;
                 }
@@ -946,7 +968,9 @@ namespace Paniq.Tests.EditMode
                 int count = simulation.AgentCount;
                 var previous = new FireReactionAgentSnapshot[count];
                 var downTicks = new int[count];
-                int longestDown = Math.Max(data.Falls.KnockdownMaximumTicks, data.Falls.TripMaximumTicks) + data.Falls.GetUpTicks + 1;
+                int longestDown = Math.Max(
+                    Math.Max(data.Falls.KnockdownMaximumTicks, data.Falls.TripMaximumTicks) + data.Falls.GetUpTicks,
+                    data.Falls.UnconsciousMaximumTicks + data.Falls.ComeToGetUpTicks) + 1;
                 long touching = data.World.OccupancyRadiusMillimetres * 2L;
                 int endTick = data.Fire.ActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
                 while (simulation.Tick < endTick)
@@ -1009,16 +1033,28 @@ namespace Paniq.Tests.EditMode
                         case FireReactionEventType.AgentGotUp:
                             FireReactionEventType cause = log.Get(record.CausalParentEventId).EventType;
                             Assert.That(cause == FireReactionEventType.AgentKnockedDown ||
-                                        cause == FireReactionEventType.AgentTripped, Is.True,
+                                        cause == FireReactionEventType.AgentTripped ||
+                                        cause == FireReactionEventType.AgentCameTo, Is.True,
                                 $"Seed {seed}: got up after {cause}.");
                             break;
                     }
                 }
 
-                foreach (int pair in knockdownsPerCollision.Values)
+                foreach (KeyValuePair<ulong, int> pair in knockdownsPerCollision)
                 {
-                    Assert.That(pair == 0 || pair == 2, Is.True,
-                        $"Seed {seed}: a collision knocked down {pair} people; it should be none or both.");
+                    if (pair.Value == 1)
+                    {
+                        // Only a much stronger person stays up when the other is floored.
+                        CausalEvent collision = log.Get(pair.Key);
+                        int gap = Math.Abs(simulation.GetAgent(collision.SourceId).Traits.Strength -
+                                           simulation.GetAgent(collision.TargetId).Traits.Strength);
+                        Assert.That(gap, Is.GreaterThanOrEqualTo(data.Traits.StrengthShrugOffGap),
+                            $"Seed {seed}: a collision floored only one of two people of similar strength.");
+                        continue;
+                    }
+
+                    Assert.That(pair.Value == 0 || pair.Value == 2, Is.True,
+                        $"Seed {seed}: a collision knocked down {pair.Value} people; it should be none, one or both.");
                 }
             }
 

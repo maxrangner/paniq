@@ -1,6 +1,7 @@
 using Paniq.Gameplay;
 using Paniq.Simulation;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Paniq.Presentation
 {
@@ -28,6 +29,7 @@ namespace Paniq.Presentation
         private DoorClickInput clicks;
         private FireReactionSnapshot frameSnapshot;
         private SimulationId? hoveredDoor;
+        private bool showStats;
         private int eventsSeen;
 
         private void Awake()
@@ -76,6 +78,12 @@ namespace Paniq.Presentation
             FireReactionSnapshot previous = runner.PreviousSnapshot;
 
             hoveredDoor = clicks.Update(prototypeCamera);
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
+            {
+                showStats = !showStats;
+            }
+
             PlayNewEvents(frameSnapshot, time);
             agents.Update(frameSnapshot, previous, blend, time, prototypeCamera.transform);
             room.Update(frameSnapshot, hoveredDoor, time, Time.deltaTime);
@@ -90,6 +98,10 @@ namespace Paniq.Presentation
             {
                 PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, hoveredDoor,
                     hoveredDoor.HasValue ? room.StateOf(hoveredDoor.Value) : DoorState.Locked);
+                if (showStats)
+                {
+                    PrototypeHud.DrawStats(frameSnapshot);
+                }
             }
         }
 
@@ -116,6 +128,9 @@ namespace Paniq.Presentation
                         break;
                     case FireReactionEventType.AgentTripped:
                         ripples.Start(record.Position, record.Strength, SoundRipples.ThudColor, time);
+                        break;
+                    case FireReactionEventType.DoorBrokenDown:
+                        ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
                         break;
                     case FireReactionEventType.AgentForcedDoor:
                         agents.Lunge(record.SourceId, time);

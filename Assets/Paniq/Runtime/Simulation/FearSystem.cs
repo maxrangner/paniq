@@ -18,10 +18,11 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Temperaments are dealt like a shuffled deck rather than rolled one
-        /// by one, so every room gets the authored mix (10 people: 2 freeze
-        /// for good, 3 freeze for a while, 5 run) and only who-gets-which is
-        /// left to the seed.
+        /// Temperaments are dealt like a deck rather than rolled one by one,
+        /// so every room gets the authored mix (10 people: 2 freeze for good,
+        /// 3 freeze for a while, 5 run). The most fearful people (nervousness
+        /// minus bravery) get the freezing cards first; the seed only decides
+        /// between people who are equally fearful.
         /// </summary>
         public void DealTemperaments(Agent[] agents)
         {
@@ -29,23 +30,37 @@ namespace Paniq.Simulation
             int count = agents.Length;
             int freezeForever = (count * settings.FreezeForeverPercent + 50) / 100;
             int freezeThenRun = System.Math.Min(count - freezeForever, (count * settings.FreezeThenRunPercent + 50) / 100);
-            var deck = new AgentPanicTemperament[count];
+
+            // A seeded shuffle breaks ties, then a stable sort puts the most fearful first.
+            var order = new int[count];
             for (int i = 0; i < count; i++)
             {
-                deck[i] = i < freezeForever ? AgentPanicTemperament.FreezeForever
-                    : i < freezeForever + freezeThenRun ? AgentPanicTemperament.FreezeThenRun
-                    : AgentPanicTemperament.Runner;
+                order[i] = i;
             }
 
             for (int i = count - 1; i > 0; i--)
             {
                 int j = context.Random.NextIntInclusive(0, i);
-                (deck[i], deck[j]) = (deck[j], deck[i]);
+                (order[i], order[j]) = (order[j], order[i]);
             }
+
+            var shuffledPosition = new int[count];
+            for (int i = 0; i < count; i++)
+            {
+                shuffledPosition[order[i]] = i;
+            }
+
+            System.Array.Sort(order, (left, right) =>
+            {
+                int byFear = TraitEffects.Fearfulness(agents[right].Traits).CompareTo(TraitEffects.Fearfulness(agents[left].Traits));
+                return byFear != 0 ? byFear : shuffledPosition[left].CompareTo(shuffledPosition[right]);
+            });
 
             for (int i = 0; i < count; i++)
             {
-                agents[i].Personality.Temperament = deck[i];
+                agents[order[i]].Personality.Temperament = i < freezeForever ? AgentPanicTemperament.FreezeForever
+                    : i < freezeForever + freezeThenRun ? AgentPanicTemperament.FreezeThenRun
+                    : AgentPanicTemperament.Runner;
             }
         }
 
@@ -58,7 +73,8 @@ namespace Paniq.Simulation
             agent.Intent.Activity = AgentActivityState.Reacting;
             agent.Intent.SocialPartnerIndex = -1;
             agent.Hearing.HasSoundPoint = false;
-            agent.Fear.ReactionDelayTicks = context.Random.NextIntInclusive(0, context.Scenario.Perception.MaximumReactionDelayTicks);
+            agent.Fear.ReactionDelayTicks = context.Random.NextIntInclusive(0,
+                TraitEffects.MaximumReactionDelayTicks(agent, context.Scenario));
             agent.Fear.ReactionEndTick = checked(tick + agent.Fear.ReactionDelayTicks);
             CausalEvent alert = context.Events.Append(
                 tick,
@@ -151,12 +167,9 @@ namespace Paniq.Simulation
 
         private void StartFleeing(Agent agent)
         {
-            PanicSettings panic = context.Scenario.Panic;
             agent.Intent.Activity = AgentActivityState.Fleeing;
             agent.Intent.NextPanicDecisionTick = context.Tick;
-            agent.Fear.NextShoutTick = checked(context.Tick + context.Random.NextIntInclusive(
-                panic.ShoutMinimumTicks,
-                panic.ShoutMaximumTicks));
+            agent.Fear.NextShoutTick = checked(context.Tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
         }
 
         /// <summary>

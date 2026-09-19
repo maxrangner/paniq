@@ -43,7 +43,7 @@ namespace Paniq.Simulation
         public bool TryRecordBump(Agent mover, LogicalPosition straight, bool overFallen)
         {
             if (mover.Fear.State != AgentFearState.Scared ||
-                mover.Intent.Activity != AgentActivityState.Fleeing ||
+                (mover.Intent.Activity != AgentActivityState.Fleeing && mover.Intent.Activity != AgentActivityState.Burning) ||
                 mover.Body.State != AgentBodyState.Upright)
             {
                 return false;
@@ -151,6 +151,16 @@ namespace Paniq.Simulation
                 {
                     body.Stagger(mover, collision.EventId);
                     body.Stagger(other, collision.EventId);
+                }
+
+                // Crashing into someone on fire, or while on fire, spreads the flames.
+                if (mover.Burning.IsBurning)
+                {
+                    body.CatchFire(other, mover.Burning.EventId);
+                }
+                else if (other.Burning.IsBurning)
+                {
+                    body.CatchFire(mover, other.Burning.EventId);
                 }
 
                 if (other.Fear.State == AgentFearState.Calm)

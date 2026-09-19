@@ -41,9 +41,11 @@ namespace Paniq.Simulation
             int reactionDelayTicks,
             AgentPanicTemperament temperament,
             AgentBodyState bodyState,
-            AgentTraitValues traits)
+            AgentTraitValues traits,
+            bool isBurning)
         {
             Traits = traits;
+            IsBurning = isBurning;
             Temperament = temperament;
             BodyState = bodyState;
             AgentId = agentId;
@@ -90,6 +92,9 @@ namespace Paniq.Simulation
 
         /// <summary>Strength, speed, bravery, compassion, evil and nervousness, 0–10.</summary>
         public AgentTraitValues Traits { get; }
+
+        /// <summary>On fire and running around wildly until they collapse.</summary>
+        public bool IsBurning { get; }
 
         public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp ||
                               BodyState == AgentBodyState.Unconscious;
@@ -245,6 +250,23 @@ namespace Paniq.Simulation
                 {
                     if (agents[i].Participation == AgentParticipation.Participating &&
                         agents[i].BodyState == AgentBodyState.Unconscious)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        public int BurningCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < agents.Length; i++)
+                {
+                    if (agents[i].Participation == AgentParticipation.Participating && agents[i].IsBurning)
                     {
                         count++;
                     }

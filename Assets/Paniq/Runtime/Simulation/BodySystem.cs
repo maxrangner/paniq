@@ -64,7 +64,8 @@ namespace Paniq.Simulation
             }
 
             body.State = AgentBodyState.Upright;
-            if (agent.Fear.State == AgentFearState.Scared && agent.Intent.Activity != AgentActivityState.Frozen)
+            if (agent.Fear.State == AgentFearState.Scared && agent.Intent.Activity != AgentActivityState.Frozen &&
+                !agent.Burning.IsBurning)
             {
                 // Back on your feet: look for a way out afresh.
                 agent.Intent.Activity = AgentActivityState.Fleeing;
@@ -143,8 +144,59 @@ namespace Paniq.Simulation
             agent.Body.BlockedTicks = 0;
         }
 
-        /// <summary>Caught by the fire: out of the run for good, named after the cell that caught them.</summary>
-        public void MakeLost(Agent agent, ulong fireCellEventId)
+        /// <summary>
+        /// Touched by flames: on fire, and running wild until they collapse
+        /// (see <see cref="BurningBehaviour"/>). The cause is the burning
+        /// square, or the burning person, that set them alight. Anyone
+        /// already on fire stays as they are.
+        /// </summary>
+        public void CatchFire(Agent agent, ulong causeEventId)
+        {
+            if (!agent.IsParticipating || agent.Burning.IsBurning)
+            {
+                return;
+            }
+
+            int tick = context.Tick;
+            FireSettings fireSettings = context.Scenario.Fire;
+            int duration = context.Random.NextIntInclusive(fireSettings.BurnMinimumTicks, fireSettings.BurnMaximumTicks);
+            CausalEvent caught = context.Events.Append(tick, agent.Id, FireReactionEventType.AgentCaughtFire,
+                agent.Body.Position, 0, duration, causeEventId);
+
+            AgentBurning burning = agent.Burning;
+            burning.IsBurning = true;
+            burning.EndTick = checked(tick + duration);
+            burning.EventId = caught.EventId;
+            burning.NextTurnTick = tick;
+            burning.NextScreamTick = tick;
+
+            // Whatever they were doing, they are now in blind panic.
+            agent.Fear.State = AgentFearState.Scared;
+            if (agent.Fear.ScaredEventId == 0UL)
+            {
+                agent.Fear.ScaredEventId = caught.EventId;
+            }
+
+            agent.Intent.Activity = AgentActivityState.Burning;
+            agent.Intent.SocialPartnerIndex = -1;
+            agent.Hearing.HasSoundPoint = false;
+            agent.Doors.ExitDoorIndex = -1;
+        }
+
+        /// <summary>Burnt out: collapses and is lost. Returns true when it happened this tick.</summary>
+        public bool BurnOut(Agent agent)
+        {
+            if (!agent.Burning.IsBurning || context.Tick < agent.Burning.EndTick)
+            {
+                return false;
+            }
+
+            MakeLost(agent, agent.Burning.EventId);
+            return true;
+        }
+
+        /// <summary>Out of the run for good, named after what finished them.</summary>
+        private void MakeLost(Agent agent, ulong causeEventId)
         {
             if (!agent.IsParticipating)
             {
@@ -161,7 +213,7 @@ namespace Paniq.Simulation
                 agent.Body.Position,
                 fire.BurningCount,
                 0,
-                fireCellEventId);
+                causeEventId);
         }
     }
 }

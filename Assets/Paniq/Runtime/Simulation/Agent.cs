@@ -16,6 +16,7 @@ namespace Paniq.Simulation
     /// <item><see cref="Intent"/>: what they are trying to do right now (the behaviours).</item>
     /// <item><see cref="Hearing"/>: the last noise worth turning toward.</item>
     /// <item><see cref="Doors"/>: the door they are running for and doors that failed them.</item>
+    /// <item><see cref="Burning"/>: whether they are on fire, and until when.</item>
     /// </list>
     /// </summary>
     internal sealed class Agent
@@ -42,6 +43,7 @@ namespace Paniq.Simulation
         public readonly AgentIntent Intent = new AgentIntent();
         public readonly AgentHearing Hearing = new AgentHearing();
         public readonly AgentDoorMemory Doors;
+        public readonly AgentBurning Burning = new AgentBurning();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -66,7 +68,8 @@ namespace Paniq.Simulation
                 Fear.ReactionDelayTicks,
                 Personality.Temperament,
                 Body.State,
-                Traits);
+                Traits,
+                Burning.IsBurning);
         }
     }
 
@@ -149,6 +152,20 @@ namespace Paniq.Simulation
 
         public ulong AttemptEventId;
         public int NextShoveTick;
+    }
+
+    internal sealed class AgentBurning
+    {
+        public bool IsBurning;
+
+        /// <summary>The tick they collapse and are lost.</summary>
+        public int EndTick;
+
+        /// <summary>The AgentCaughtFire event: the cause of their end, and of anyone they set alight.</summary>
+        public ulong EventId;
+
+        public int NextTurnTick;
+        public int NextScreamTick;
     }
 
     /// <summary>

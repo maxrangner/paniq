@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("15"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(7));
+            Assert.That(data.ContentRevision, Is.EqualTo("16"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(8));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -676,7 +676,7 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void LostAgents_NameTheFireCellThatCaughtThem()
+        public void LostAgents_TraceBackThroughTheFlamesToABurningSquare()
         {
             var simulation = new FireReactionSimulation(DefaultData());
             for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond; i++)
@@ -694,9 +694,21 @@ namespace Paniq.Tests.EditMode
                 }
 
                 lostEvents++;
-                FireReactionEventType parent = simulation.EventLog.Get(record.CausalParentEventId).EventType;
-                Assert.That(parent == FireReactionEventType.FireActivated || parent == FireReactionEventType.FireSpread,
-                    Is.True, $"Agent {record.SourceId} was lost with parent {parent}.");
+                CausalEvent caught = simulation.EventLog.Get(record.CausalParentEventId);
+                Assert.That(caught.EventType, Is.EqualTo(FireReactionEventType.AgentCaughtFire),
+                    $"Agent {record.SourceId} was lost without catching fire first.");
+                Assert.That(caught.SourceId, Is.EqualTo(record.SourceId));
+                Assert.That(record.Tick - caught.Tick, Is.EqualTo(caught.DurationTicks), "They burn for the drawn time.");
+
+                // Set alight by a burning square, or by someone else who was on fire, and so on back to a square.
+                CausalEvent cause = simulation.EventLog.Get(caught.CausalParentEventId);
+                while (cause.EventType == FireReactionEventType.AgentCaughtFire)
+                {
+                    cause = simulation.EventLog.Get(cause.CausalParentEventId);
+                }
+
+                Assert.That(cause.EventType == FireReactionEventType.FireActivated || cause.EventType == FireReactionEventType.FireSpread,
+                    Is.True, $"Agent {record.SourceId}'s flames trace back to {cause.EventType}.");
             }
 
             Assert.That(lostEvents, Is.EqualTo(simulation.GetSnapshot().LostCount));
@@ -876,8 +888,9 @@ namespace Paniq.Tests.EditMode
                 {
                     FireReactionAgentSnapshot agent = simulation.GetAgent(i);
                     if (agent.Temperament != AgentPanicTemperament.FreezeForever ||
-                        agent.Participation != AgentParticipation.Participating)
+                        agent.Participation != AgentParticipation.Participating || agent.IsBurning)
                     {
+                        // Even the frozen run once they are on fire.
                         continue;
                     }
 
@@ -909,7 +922,7 @@ namespace Paniq.Tests.EditMode
                         unfroze[record.SourceId] = record;
                         Assert.That(record.CausalParentEventId, Is.EqualTo(froze[record.SourceId].EventId));
                         break;
-                    case FireReactionEventType.AgentLost:
+                    case FireReactionEventType.AgentCaughtFire:
                         lostTick[record.SourceId] = record.Tick;
                         break;
                 }

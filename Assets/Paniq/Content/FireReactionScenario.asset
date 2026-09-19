@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '15'
+    ContentRevision: '16'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 7
+    SimulationCompatibilityVersion: 8
     World:
       RoomBounds:
         minX: -6000
@@ -38,6 +38,15 @@ MonoBehaviour:
       CellSizeMillimetres: 500
       SpreadMinimumTicks: 40
       SpreadMaximumTicks: 120
+      BurnMinimumTicks: 150
+      BurnMaximumTicks: 300
+      BurningTurnMinimumTicks: 10
+      BurningTurnMaximumTicks: 25
+      BurningBlockedTurnTicks: 5
+      BurningScreamMinimumTicks: 25
+      BurningScreamMaximumTicks: 50
+      BurningSpreadGapMillimetres: 100
+      BurningSpreadChancePercent: 20
     Steering:
       PersonalSpaceMillimetres: 800
       WallAvoidDistanceMillimetres: 600

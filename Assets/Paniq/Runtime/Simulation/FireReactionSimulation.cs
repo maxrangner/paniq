@@ -29,6 +29,7 @@ namespace Paniq.Simulation
         private readonly CalmBehaviour calm;
         private readonly PanicBehaviour panic;
         private readonly DoorBehaviour doorBehaviour;
+        private readonly BurningBehaviour burning;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
         {
@@ -60,6 +61,7 @@ namespace Paniq.Simulation
             calm = new CalmBehaviour(context, crowd, geometry, locomotion);
             doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
             panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, locomotion);
+            burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
         }
 
         private Agent[] CreateAgents(int doorCount)
@@ -153,8 +155,9 @@ namespace Paniq.Simulation
         /// <summary>
         /// One logical tick, in the simulation contract's order:
         /// 1 player commands, 2 hazard, 3 hazard contact, 4 decisions
-        /// (ascending ID), 5 movement, 6 danger contact along accepted moves
-        /// and exits, 7 collisions (people, then objects), 8 physical objects.
+        /// (ascending ID), 5 movement, 6 danger contact along accepted moves,
+        /// flames jumping between people, and exits, 7 collisions (people,
+        /// then objects), 8 physical objects.
         /// </summary>
         public void Step()
         {
@@ -169,7 +172,7 @@ namespace Paniq.Simulation
             for (int i = 0; i < agents.Length; i++)
             {
                 Agent agent = agents[i];
-                if (!agent.IsParticipating)
+                if (!agent.IsParticipating || body.BurnOut(agent))
                 {
                     continue;
                 }
@@ -182,17 +185,21 @@ namespace Paniq.Simulation
                 }
 
                 MotorIntent? intent;
-                switch (agent.Fear.State)
+                if (agent.Burning.IsBurning)
                 {
-                    case AgentFearState.Calm:
-                        intent = calm.Decide(agent);
-                        break;
-                    case AgentFearState.Alert:
-                        intent = fear.AlertIntent(agent);
-                        break;
-                    default:
-                        intent = panic.Decide(agent);
-                        break;
+                    intent = burning.Decide(agent);
+                }
+                else if (agent.Fear.State == AgentFearState.Calm)
+                {
+                    intent = calm.Decide(agent);
+                }
+                else if (agent.Fear.State == AgentFearState.Alert)
+                {
+                    intent = fear.AlertIntent(agent);
+                }
+                else
+                {
+                    intent = panic.Decide(agent);
                 }
 
                 if (intent.HasValue)
@@ -211,13 +218,14 @@ namespace Paniq.Simulation
             }
 
             locomotion.ResolveMovement();
+            burning.SpreadFlames();
             doorBehaviour.ResolveEscapes();
             collisions.Resolve();
             objects.ResolveContacts();
             objects.Advance();
         }
 
-        /// <summary>Phase 3: anyone already standing in fire is lost.</summary>
+        /// <summary>Phase 3: anyone standing in fire catches fire.</summary>
         private void ResolveCurrentFireContact()
         {
             if (!fire.Active)
@@ -236,7 +244,7 @@ namespace Paniq.Simulation
                 ulong cellEventId = fire.FindTouching(agent.Body.Position);
                 if (cellEventId != 0UL)
                 {
-                    body.MakeLost(agent, cellEventId);
+                    body.CatchFire(agent, cellEventId);
                 }
             }
         }

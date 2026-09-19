@@ -209,8 +209,9 @@ namespace Paniq.Tests.EditMode
                 foreach (CausalEvent bump in EventsOfType(simulation, FireReactionEventType.BoxBumped))
                 {
                     bumps++;
+                    // Kicked by someone scared, or by someone who was calm until they caught fire.
                     Assert.That(simulation.EventLog.Get(bump.CausalParentEventId).EventType,
-                        Is.EqualTo(FireReactionEventType.AgentScared));
+                        Is.EqualTo(FireReactionEventType.AgentScared).Or.EqualTo(FireReactionEventType.AgentCaughtFire));
                 }
 
                 for (int b = 0; b < start.Length; b++)

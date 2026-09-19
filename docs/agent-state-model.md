@@ -108,6 +108,11 @@ Agent ID:
 Like the terminal outcome, these are prototype runtime state, not fields of
 the neutral `AgentState` foundation.
 
+`AgentBurning` (whether the person is on fire, when they will collapse, and
+the `AgentCaughtFire` event that started it) is a third such record. A person
+on fire is still participating until the burn ends; the transition to `Lost`
+then happens as described above, with the catch as its cause.
+
 ## Prototype personality extension
 
 `AgentTraitValues` (strength, speed, bravery, compassion, evil, nervousness,

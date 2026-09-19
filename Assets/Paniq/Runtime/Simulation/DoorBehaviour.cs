@@ -335,8 +335,9 @@ namespace Paniq.Simulation
             for (int i = 0; i < agents.Length; i++)
             {
                 Agent agent = agents[i];
-                if (!agent.IsParticipating)
+                if (!agent.IsParticipating || agent.Burning.IsBurning)
                 {
+                    // Someone on fire is past saving by any door.
                     continue;
                 }
 

@@ -18,8 +18,8 @@ namespace Paniq.Presentation
                 : $"FIRE IN {Mathf.Max(0f, (scenario.Fire.ActivationTick - snapshot.Tick) / (float)FireReactionSimulation.TicksPerSecond):0.00} s";
             GUI.Label(new Rect(20f, 20f, 360f, 24f), $"Fire-reaction prototype  |  tick {snapshot.Tick}");
             GUI.Label(new Rect(20f, 44f, 360f, 24f), fireText);
-            GUI.Label(new Rect(20f, 68f, 520f, 24f),
-                $"Calm {snapshot.CalmCount}   Scared {snapshot.ScaredCount} (frozen {snapshot.FrozenCount})   " +
+            GUI.Label(new Rect(20f, 68f, 640f, 24f),
+                $"Calm {snapshot.CalmCount}   Scared {snapshot.ScaredCount} (frozen {snapshot.FrozenCount}, on fire {snapshot.BurningCount})   " +
                 $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   Escaped {snapshot.EscapedCount}");
             GUI.Label(new Rect(20f, 92f, 520f, 24f),
                 "Click a door: red = locked. Click once to unlock (green), again to open.   Tab: everyone's stats");
@@ -95,6 +95,11 @@ namespace Paniq.Presentation
             if (agent.Outcome == AgentTerminalOutcome.Escaped)
             {
                 return "escaped";
+            }
+
+            if (agent.IsBurning)
+            {
+                return agent.BodyState == AgentBodyState.Upright ? "on fire!" : "burning on the floor";
             }
 
             if (agent.BodyState == AgentBodyState.Unconscious)

@@ -211,7 +211,10 @@ namespace Paniq.Simulation
         Frozen,
         OpeningDoor,
         TryingDoor,
-        ForcingDoor
+        ForcingDoor,
+
+        /// <summary>On fire: running around wildly until they collapse.</summary>
+        Burning
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>
@@ -267,7 +270,8 @@ namespace Paniq.Simulation
         BoxesCollided,
         AgentPassedOut,
         AgentCameTo,
-        DoorBrokenDown
+        DoorBrokenDown,
+        AgentCaughtFire
     }
 
     /// <summary>Which wall of the room a door sits in. North is +Z, east is +X.</summary>

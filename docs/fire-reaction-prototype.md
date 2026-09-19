@@ -135,8 +135,15 @@ often the faster they go and the bigger the box. A kicked box slides about a
 metre, spins if it was hit off-centre, and bounces off walls, other boxes and
 people. A heavy, fast box can knock someone off balance or trip them.
 
-A person touched by the fire is lost and falls over as a dark red capsule.
-People lying on the floor after a fall can be caught by the fire too. With
+**People catch fire.** A person touched by the fire does not drop dead: they
+burst into flames (an orange, flickering, flailing capsule with little flame
+cubes licking up it), scream every half second or so, and run around wildly
+at full sprint, lurching in a new direction every 0.2–0.5 s and paying no
+attention to doors or other people, for 3–6 s. Then they collapse, lost, as
+a dark red capsule. Anyone they run into catches fire too, and anyone within a
+hand's breadth (10 cm) of them has a 1-in-5 chance each tick. Someone on the
+floor when they catch fire burns where they lie, and people lying on the floor
+can be caught by the fire too. Nobody on fire can escape through a door. With
 every door locked, everyone who does not get out is eventually caught (about
 40 seconds after the fire starts with the default seed). There is no score,
 restart control, or end screen in this checkpoint.
@@ -189,10 +196,19 @@ restart control, or end screen in this checkpoint.
   lights one random unburnt north/east/south/west neighbour (`FireSpread`,
   whose causal parent is the igniting cell's event) and waits again. Cells
   never go out. A cell with no unburnt neighbours stops spreading.
-- **Contact.** An agent is lost when its 250 mm footprint overlaps a burning
-  cell, either where it stands or along an accepted move. The `AgentLost`
-  event's causal parent is the earliest-lit cell it touched. So the log traces
-  every death back through the exact chain of squares to the first spark.
+- **Contact.** An agent catches fire when its 250 mm footprint overlaps a
+  burning cell, either where it stands or along an accepted move:
+  `AgentCaughtFire` (parent: the earliest-lit cell it touched; duration: a
+  seeded 150–300 ticks). It becomes scared, its activity is `Burning`, and it
+  forgets any door. Each tick a burning upright person screams (an
+  `AgentYelled`, parent: the catch) every 25–50 ticks, picks a random heading
+  every 10–25 ticks (or after 5 blocked ticks), steers off walls only, and
+  sprints; its bumps count like a runner's. After movement, each person already
+  burning, in ascending ID order, sets alight anyone whose body is within
+  100 mm of theirs with 20% per tick; a collision involving a burning person
+  always does. When the burn time ends the agent is lost: `AgentLost` (parent:
+  its `AgentCaughtFire`). So the log traces every death through a chain of
+  burning people and squares back to the first spark.
 - **Vision.** Agents do not use a proximity fear radius. They have a forward
   90-degree vision cone with a 3 m range around their current heading. A calm
   agent becomes alert when the nearest point, centre, or a corner of any
@@ -297,8 +313,8 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentsCollided`, `AgentKnockedDown`, `AgentTripped`, `AgentGotUp`,
 `AgentFroze`, `AgentUnfroze`, `DoorUnlocked`, `DoorOpened`, `AgentTriedDoor`,
 `AgentForcedDoor`, `AgentGaveUpOnDoor`, `AgentEscaped`, `BoxBumped`,
-`BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo` and
-`DoorBrokenDown` events. Events that affect someone or
+`BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo`,
+`DoorBrokenDown` and `AgentCaughtFire` events. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,
 `BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
 and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor`, `DoorBrokenDown`

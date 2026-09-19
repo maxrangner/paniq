@@ -56,6 +56,27 @@ namespace Paniq.Simulation
         public int SpreadMinimumTicks = 40;
         public int SpreadMaximumTicks = 120;
 
+        /// <summary>How long someone on fire runs around before collapsing.</summary>
+        public int BurnMinimumTicks = 150;
+        public int BurnMaximumTicks = 300;
+
+        /// <summary>How often a burning person lurches off in a new direction.</summary>
+        public int BurningTurnMinimumTicks = 10;
+        public int BurningTurnMaximumTicks = 25;
+
+        /// <summary>Blocked this long, a burning person lurches another way at once.</summary>
+        public int BurningBlockedTurnTicks = 5;
+
+        /// <summary>How often a burning person screams (a yell others hear).</summary>
+        public int BurningScreamMinimumTicks = 25;
+        public int BurningScreamMaximumTicks = 50;
+
+        /// <summary>A gap between two bodies at most this wide lets the flames jump across.</summary>
+        public int BurningSpreadGapMillimetres = 100;
+
+        /// <summary>Chance per tick that the flames jump to someone that close. Running into someone always does it.</summary>
+        public int BurningSpreadChancePercent = 20;
+
         public FireSettings Clone() => (FireSettings)MemberwiseClone();
 
         internal void Validate()
@@ -63,6 +84,11 @@ namespace Paniq.Simulation
             Settings.Require(SpawnBounds.MinX <= SpawnBounds.MaxX && SpawnBounds.MinZ <= SpawnBounds.MaxZ, "fire spawn bounds");
             Settings.Require(ActivationTick >= 0 && CellSizeMillimetres >= 100, "fire timing and cell size");
             Settings.Require(SpreadMinimumTicks > 0 && SpreadMaximumTicks >= SpreadMinimumTicks, "fire spread interval");
+            Settings.Require(Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1) &&
+                             Settings.Range(BurningTurnMinimumTicks, BurningTurnMaximumTicks, 1) &&
+                             BurningBlockedTurnTicks >= 1 &&
+                             Settings.Range(BurningScreamMinimumTicks, BurningScreamMaximumTicks, 1) &&
+                             BurningSpreadGapMillimetres >= 0 && Settings.Percent(BurningSpreadChancePercent), "burning people");
         }
     }
 

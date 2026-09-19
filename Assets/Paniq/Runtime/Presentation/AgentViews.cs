@@ -9,7 +9,8 @@ namespace Paniq.Presentation
     /// People as capsules. They blend between the last two ticks so movement
     /// is smooth at any frame rate, bob with each stride, lean with speed,
     /// tip over when they fall, wobble when staggering, tremble when frozen,
-    /// lunge at doors they shove, and shrink away when they escape. Each has
+    /// flail with little flames licking up them when on fire, lunge at doors
+    /// they shove, and shrink away when they escape. Each has
     /// a vision-cone outline and floating icons.
     /// </summary>
     internal sealed class AgentViews
@@ -21,6 +22,9 @@ namespace Paniq.Presentation
         private static readonly Color ScaredColor = new Color(1f, 0.58f, 0.12f);
         private static readonly Color FrozenColor = new Color(0.72f, 0.8f, 0.95f);
         private static readonly Color LostColor = new Color(0.32f, 0.06f, 0.04f);
+        private static readonly Color BurningColor = new Color(1f, 0.35f, 0.05f);
+        private static readonly Color FlameYellow = new Color(1f, 0.82f, 0.2f);
+        private const int FlamesPerPerson = 6;
 
         private sealed class AgentView
         {
@@ -40,6 +44,8 @@ namespace Paniq.Presentation
             public float LungeStart = -10f;
             public float EscapedSince = -1f;
             public Vector3 EscapePosition;
+            public Transform[] Flames;
+            public Renderer[] FlameRenderers;
         }
 
         private readonly FireReactionScenarioData scenario;
@@ -72,8 +78,26 @@ namespace Paniq.Presentation
                 vision.endWidth = 0.025f;
                 vision.sharedMaterial = materials.Vision;
 
+                // Little flame cubes, children of the capsule so they follow it
+                // when it runs or falls; hidden until the person catches fire.
+                var flames = new Transform[FlamesPerPerson];
+                var flameRenderers = new Renderer[FlamesPerPerson];
+                for (int f = 0; f < FlamesPerPerson; f++)
+                {
+                    GameObject flame = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    flame.name = $"Flame {f + 1}";
+                    RemoveCollider(flame);
+                    flame.transform.SetParent(agentObject.transform, false);
+                    flameRenderers[f] = flame.GetComponent<Renderer>();
+                    flameRenderers[f].sharedMaterial = materials.Fire;
+                    flame.SetActive(false);
+                    flames[f] = flame.transform;
+                }
+
                 agents.Add(definition.AgentId, new AgentView
                 {
+                    Flames = flames,
+                    FlameRenderers = flameRenderers,
                     Transform = agentObject.transform,
                     Renderer = agentRenderer,
                     Icons = new AgentIconViews($"Agent {definition.AgentId.Value}", number.ToString(), materials.Icon,
@@ -182,6 +206,12 @@ namespace Paniq.Presentation
                         roll = Mathf.Sin(time * 26f + view.ShakePhase) * 14f;
                         lean = -8f;
                     }
+                    else if (agent.IsBurning)
+                    {
+                        // Flailing: thrashing side to side as they run.
+                        roll = Mathf.Sin(time * 22f + view.ShakePhase) * 18f;
+                        lean += Mathf.Sin(time * 15f + view.ShakePhase * 0.7f) * 8f;
+                    }
                     else if (frozen)
                     {
                         // Trembling on the spot.
@@ -284,10 +314,14 @@ namespace Paniq.Presentation
         {
             bool participating = agent.Participation == AgentParticipation.Participating;
             bool frozen = agent.ActivityState == AgentActivityState.Frozen;
-            materials.SetColor(view.Renderer, agent.Outcome == AgentTerminalOutcome.Lost
+            bool burning = agent.IsBurning && participating;
+            Color bodyColor = agent.Outcome == AgentTerminalOutcome.Lost
                 ? LostColor
+                : burning ? Color.Lerp(BurningColor, FlameRed, 0.5f + 0.5f * Mathf.Sin(time * 17f + view.ShakePhase))
                 : agent.FearState == AgentFearState.Calm ? CalmColor
-                : frozen ? FrozenColor : ScaredColor);
+                : frozen ? FrozenColor : ScaredColor;
+            materials.SetColor(view.Renderer, bodyColor);
+            UpdateFlames(view, burning, time);
 
             if (!participating)
             {
@@ -313,6 +347,36 @@ namespace Paniq.Presentation
 
             UpdateVisionCone(agent, view.Vision, planar, yaw);
         }
+
+        /// <summary>Flame cubes rise up the body, shrinking and flickering from yellow to red, then start again at the bottom.</summary>
+        private void UpdateFlames(AgentView view, bool burning, float time)
+        {
+            for (int f = 0; f < view.Flames.Length; f++)
+            {
+                Transform flame = view.Flames[f];
+                if (flame.gameObject.activeSelf != burning)
+                {
+                    flame.gameObject.SetActive(burning);
+                }
+
+                if (!burning)
+                {
+                    continue;
+                }
+
+                // Capsule space: the body runs from -1 to 1 along Y, radius 0.5.
+                float seed = view.ShakePhase * 0.37f + f * 1.618f;
+                float rise = Mathf.Repeat(time * 1.6f + seed, 1f);
+                float angle = seed * 2.4f + time * 2f;
+                flame.localPosition = new Vector3(Mathf.Cos(angle) * 0.45f, Mathf.Lerp(-0.7f, 1.3f, rise), Mathf.Sin(angle) * 0.45f);
+                flame.localScale = Vector3.one * Mathf.Lerp(0.42f, 0.08f, rise);
+                flame.localRotation = Quaternion.Euler(time * 200f + f * 40f, time * 150f + f * 70f, 0f);
+                Color color = Color.Lerp(FlameYellow, FlameRed, rise);
+                materials.SetColors(view.FlameRenderers[f], color, color * 2.2f);
+            }
+        }
+
+        private static readonly Color FlameRed = PresentationMaterials.FlameRed;
 
         private void UpdateVisionCone(FireReactionAgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw)
         {

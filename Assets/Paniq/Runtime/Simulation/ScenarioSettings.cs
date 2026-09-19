@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -11,11 +11,10 @@ namespace Paniq.Simulation
     // rates degrees per tick, durations ticks (50 ticks = 1 second), chances
     // whole percentages. Object velocities are noted where they differ.
 
-    /// <summary>The room, the size of a person, and the longest single step.</summary>
+    /// <summary>The size of a person and the longest single step; the rooms themselves are in the scenario.</summary>
     [Serializable]
     public sealed class WorldSettings
     {
-        public LogicalBounds RoomBounds = new LogicalBounds(-6000, 6000, -6000, 6000);
         public int OccupancyRadiusMillimetres = 250;
         public int MaximumStepDistanceMillimetres = 120;
 
@@ -23,9 +22,6 @@ namespace Paniq.Simulation
 
         internal void Validate()
         {
-            Settings.Require(RoomBounds.MinX < RoomBounds.MaxX && RoomBounds.MinZ < RoomBounds.MaxZ, "room bounds");
-            Settings.Require(RoomBounds.MinX >= -100000 && RoomBounds.MaxX <= 100000 &&
-                             RoomBounds.MinZ >= -100000 && RoomBounds.MaxZ <= 100000, "room within the 200 m coordinate span");
             Settings.Require(OccupancyRadiusMillimetres > 0 && OccupancyRadiusMillimetres <= 2000, "occupancy radius");
             Settings.Require(MaximumStepDistanceMillimetres >= 0 && MaximumStepDistanceMillimetres <= 1000, "maximum step");
         }
@@ -377,6 +373,14 @@ namespace Paniq.Simulation
         public int GiveUpGlanceMinimumTicks = 15;
         public int GiveUpGlanceMaximumTicks = 30;
 
+        /// <summary>Wedged beside an open door and stuck, a runner stands aside this long for whoever is lined up with it.</summary>
+        public int GiveWayMinimumTicks = 25;
+        public int GiveWayMaximumTicks = 50;
+
+        /// <summary>Standing aside: this far along the wall past the door's edge, and this far in from the wall.</summary>
+        public int GiveWayAsideMillimetres = 100;
+        public int GiveWayInsetMillimetres = 400;
+
         /// <summary>Runners aim this far inside a shut door.</summary>
         public int ApproachInsetMillimetres = 600;
 
@@ -390,6 +394,15 @@ namespace Paniq.Simulation
 
         /// <summary>Within this distance of their exit, runners stop swerving and following.</summary>
         public int NoSwerveDistanceMillimetres = 2000;
+
+        /// <summary>With every way out given up on, how much better the room they already stand in has to look.</summary>
+        public int CurrentRoomBonusMillimetres = 2000;
+
+        /// <summary>What a room with no fire in it at all is worth when picking somewhere to hide.</summary>
+        public int RefugeNoFireMillimetres = 20000;
+
+        /// <summary>How much floor one person needs before a room looks full to someone hoping to get in.</summary>
+        public int RefugeSpacePerPersonMillimetres = 1000;
 
         // Scoring doors: distance, plus these bonuses and penalties.
         public int OpenBonusMillimetres = 4000;
@@ -442,11 +455,15 @@ namespace Paniq.Simulation
                              Settings.Range(DoorShoveMinimumTicks, DoorShoveMaximumTicks, 1) &&
                              Settings.Range(DoorAvoidMinimumTicks, DoorAvoidMaximumTicks, 1) &&
                              Settings.Range(DoorCrowdedAvoidMinimumTicks, DoorCrowdedAvoidMaximumTicks, 1) &&
-                             Settings.Range(GiveUpGlanceMinimumTicks, GiveUpGlanceMaximumTicks, 1), "door timings");
+                             Settings.Range(GiveUpGlanceMinimumTicks, GiveUpGlanceMaximumTicks, 1) &&
+                             Settings.Range(GiveWayMinimumTicks, GiveWayMaximumTicks, 1), "door timings");
+            Settings.Require(GiveWayAsideMillimetres >= 0 && GiveWayInsetMillimetres >= 0, "giving way");
             Settings.Require(ApproachInsetMillimetres >= 0 && OutsideTargetMillimetres >= 0 && ArrivalDistanceMillimetres > 0 &&
                              CommitDistanceMillimetres >= 0 && NoSwerveDistanceMillimetres >= 0, "door approach");
             Settings.Require(OpenBonusMillimetres >= 0 && CurrentChoiceBonusMillimetres >= 0 &&
-                             ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0, "door scoring");
+                             ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0 &&
+                             CurrentRoomBonusMillimetres >= 0 && RefugeNoFireMillimetres >= 0 &&
+                             RefugeSpacePerPersonMillimetres > 0, "door scoring");
             Settings.Require(DoorStrength >= 1, "door strength");
             Settings.Require(CloseReachMillimetres >= 0 && CloseApproachRadiusMillimetres >= 0 &&
                              CloseFireRadiusMillimetres >= 0 && FireAtDoorRadiusMillimetres >= 0 &&

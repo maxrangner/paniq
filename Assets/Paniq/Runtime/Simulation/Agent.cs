@@ -1,4 +1,4 @@
-namespace Paniq.Simulation
+﻿namespace Paniq.Simulation
 {
     /// <summary>
     /// One person's runtime state, split by concern so it is clear which
@@ -146,13 +146,26 @@ namespace Paniq.Simulation
         public AgentDoorMemory(int doorCount)
         {
             AvoidUntilTick = new int[doorCount];
+            FoundShut = new bool[doorCount];
         }
 
         /// <summary>The door being run for, or -1.</summary>
         public int ExitDoorIndex = -1;
 
+        /// <summary>The room they are heading at that door from, so approach and target points work from either side.</summary>
+        public int ApproachRoom = -1;
+
+        /// <summary>The room they were in last tick, or -1; a change is the moment to think about the door behind them.</summary>
+        public int CurrentRoom = -1;
+
         /// <summary>Per door: the tick until which this person will not try it again.</summary>
         public readonly int[] AvoidUntilTick;
+
+        /// <summary>Per door: they have stood at it and it would not open, so they stop counting on it.</summary>
+        public readonly bool[] FoundShut;
+
+        /// <summary>Until this tick they stand aside beside their open door, letting whoever is lined up with it through first.</summary>
+        public int GiveWayUntilTick;
 
         public ulong AttemptEventId;
         public int NextShoveTick;

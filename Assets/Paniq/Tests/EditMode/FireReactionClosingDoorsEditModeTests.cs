@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
@@ -9,7 +9,13 @@ namespace Paniq.Tests.EditMode
     public sealed class FireReactionClosingDoorsEditModeTests
     {
         private static readonly SimulationId NorthDoor = new SimulationId(2001UL);
-        private static readonly SimulationId EastDoor = new SimulationId(2002UL);
+        private static readonly SimulationId ClosetDoor = new SimulationId(2002UL);
+
+        /// <summary>Someone near the north door, close enough to be shut out, but off to one side of the gap.</summary>
+        private static readonly LogicalPosition Nearby = new LogicalPosition(-400, 4600);
+
+        /// <summary>Someone right across the room, far too far away to be shut out.</summary>
+        private static readonly LogicalPosition FarOff = new LogicalPosition(-2500, -4000);
 
         private FireReactionScenario scenario;
 
@@ -90,24 +96,29 @@ namespace Paniq.Tests.EditMode
         /// 1.5 m outside the door (out of earshot of the alarm), as if about
         /// to come in.
         /// </summary>
-        private FireReactionSimulation ShelterWithSomeoneOutside(AgentTraitValues shelterer, int outsiderX = 4500)
+        /// <summary>
+        /// One person in the storage closet with its door already open and
+        /// fire just outside it, and another person out in the office walking
+        /// toward the closet.
+        /// </summary>
+        private FireReactionSimulation InTheClosetWithSomeoneOutside(AgentTraitValues insider, int outsiderX = 4500)
         {
             FireReactionScenarioData data = scenario.ToRuntimeData();
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(6400, 2500), CardinalDirection.West, shelterer),
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(7000, 2500), CardinalDirection.West, insider),
                 new FireReactionAgentDefinition(new SimulationId(2UL), new LogicalPosition(outsiderX, 2500), CardinalDirection.East,
                     AgentTraitValues.AllOrdinary)
             };
             data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
             data.Tables = new FireReactionTableDefinition[0];
             data.Fire.ActivationTick = 3;
-            data.Fire.SpawnBounds = new LogicalBounds(3250, 3250, 2250, 2250);
+            data.Fire.SpawnBounds = new LogicalBounds(5250, 5250, 2250, 2250);
             data.Fire.SpreadMinimumTicks = 10000;
             data.Fire.SpreadMaximumTicks = 10000;
             data.Hearing.FireHearingRadiusMillimetres = 0;
 
-            // The shelterer's yell must not send the person outside running in too.
+            // The person inside must not send the one outside running in too.
             data.Hearing.YellAlarmRadiusMillimetres = 1000;
             data.Hearing.YellHearingRadiusMillimetres = 1000;
             data.Calm.DecisionMinimumTicks = 5000;
@@ -116,69 +127,108 @@ namespace Paniq.Tests.EditMode
             data.Temperament.FreezeThenRunPercent = 0;
             data.Perception.MaximumReactionDelayTicks = 0;
             var simulation = new FireReactionSimulation(data);
-            Click(simulation, EastDoor, 1);
-            Click(simulation, EastDoor, 2);
+
+            // The closet door starts shut but unlocked, so one click opens it.
+            Click(simulation, ClosetDoor, 1);
             return simulation;
         }
 
         [Test]
-        public void EvilShelterer_SlamsAndLocksTheDoorInTheFaceOfSomeoneComing()
+        public void AnyoneInTheCloset_ShutsTheDoorWhenTheFireIsRightOutsideIt()
         {
-            FireReactionSimulation simulation = ShelterWithSomeoneOutside(new AgentTraitValues(5, 5, 5, 1, 9, 5));
-            for (int t = 0; t < 5 * FireReactionSimulation.TicksPerSecond && EventsOfType(simulation, FireReactionEventType.DoorLocked).Count == 0; t++)
+            // Kind and unafraid: they would hold it open if the flames were not at the door.
+            FireReactionSimulation simulation = InTheClosetWithSomeoneOutside(new AgentTraitValues(5, 5, 9, 9, 0, 1));
+            for (int t = 0; t < 5 * FireReactionSimulation.TicksPerSecond &&
+                            EventsOfType(simulation, FireReactionEventType.DoorClosed).Count == 0; t++)
             {
                 simulation.Step();
             }
 
-            Assert.That(StateOf(simulation, EastDoor), Is.EqualTo(DoorState.Locked));
+            Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Unlocked), "Shut against the flames, but not locked.");
             List<CausalEvent> closed = EventsOfType(simulation, FireReactionEventType.DoorClosed);
-            List<CausalEvent> locked = EventsOfType(simulation, FireReactionEventType.DoorLocked);
+            Assert.That(closed, Is.Not.Empty, "Nobody shut the door on the fire.");
             Assert.That(closed[0].SourceId, Is.EqualTo(new SimulationId(1UL)));
-            Assert.That(closed[0].TargetId, Is.EqualTo(EastDoor));
-            Assert.That(locked[0].CausalParentEventId, Is.EqualTo(closed[0].EventId));
-            Assert.That(LogicalPosition.DistanceSquared(simulation.GetAgent(1).Position, new LogicalPosition(6000, 2500)),
-                Is.LessThan(3000L * 3000L), "Someone was right outside when they shut it.");
+        }
+
+        /// <summary>
+        /// The moments people decide about a door: on their way out of the
+        /// building (tested below), and standing in a room with fire coming
+        /// through a door (tested above). Personality decides which way.
+        /// </summary>
+        private FireReactionSimulation EscapingWithSomeoneBehind(AgentTraitValues escaper, LogicalPosition follower)
+        {
+            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheNorthDoor(
+                scenario.ToRuntimeData(), 0, escaper);
+            FireReactionAgentDefinition runner = data.Agents[0];
+            data.Agents = new[]
+            {
+                runner,
+                new FireReactionAgentDefinition(new SimulationId(2UL), follower, CardinalDirection.North,
+                    AgentTraitValues.AllOrdinary)
+            };
+            // The other person neither sees the fire nor hears the runner,
+            // so they are still standing there when the runner reaches the door.
+            data.Hearing.FireHearingRadiusMillimetres = 0;
+            data.Hearing.YellAlarmRadiusMillimetres = 1;
+            data.Hearing.YellHearingRadiusMillimetres = 1;
+            data.Calm.DecisionMinimumTicks = 5000;
+            data.Calm.DecisionMaximumTicks = 5000;
+            var simulation = new FireReactionSimulation(data);
+            Click(simulation, NorthDoor, 1);
+            Click(simulation, NorthDoor, 2);
+            return simulation;
+        }
+
+        private static void RunUntilEscaped(FireReactionSimulation simulation)
+        {
+            for (int t = 0; t < 10 * FireReactionSimulation.TicksPerSecond &&
+                            simulation.GetAgent(0).Outcome != AgentTerminalOutcome.Escaped; t++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped), "The runner never got out.");
         }
 
         [Test]
-        public void CompassionateShelterer_KeepsTheDoorOpenWhileSomeoneIsNear()
+        public void CompassionateEscaper_HoldsTheDoorOpenForSomeoneComingBehind()
         {
-            FireReactionSimulation simulation = ShelterWithSomeoneOutside(new AgentTraitValues(5, 5, 5, 9, 0, 9));
-            bool sheltered = false;
-            for (int t = 0; t < 5 * FireReactionSimulation.TicksPerSecond; t++)
-            {
-                simulation.Step();
-                sheltered |= simulation.GetAgent(0).ActivityState == AgentActivityState.Sheltering;
-            }
-
-            Assert.That(sheltered, Is.True, "The first person should have sheltered.");
-            Assert.That(StateOf(simulation, EastDoor), Is.EqualTo(DoorState.Open), "Kind people hold the door for others.");
+            FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 5, 9, 0, 9), Nearby);
+            RunUntilEscaped(simulation);
+            Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed), Is.Empty,
+                "Kind people never shut a door with someone coming.");
+            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open));
         }
 
         [Test]
-        public void NervousShelterer_ShutsTheDoorWhenNobodyIsNear()
+        public void NervousEscaper_ShutsTheDoorWhenNobodyIsNear()
         {
-            // The other person stands far off across the room this time.
-            FireReactionSimulation simulation = ShelterWithSomeoneOutside(new AgentTraitValues(5, 5, 5, 3, 0, 9), -4000);
-            for (int t = 0; t < 5 * FireReactionSimulation.TicksPerSecond && EventsOfType(simulation, FireReactionEventType.DoorClosed).Count == 0; t++)
-            {
-                simulation.Step();
-            }
-
-            Assert.That(StateOf(simulation, EastDoor), Is.EqualTo(DoorState.Unlocked), "Shut, but not locked.");
+            // The other person is far away across the room this time.
+            FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 5, 3, 0, 9), FarOff);
+            RunUntilEscaped(simulation);
+            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Unlocked), "Shut, but not locked.");
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed)[0].SourceId, Is.EqualTo(new SimulationId(1UL)));
         }
 
         [Test]
-        public void OrdinaryShelterer_LeavesTheDoorOpenWhileTheFireIsFarAndNobodyIsNear()
+        public void OrdinaryEscaper_LeavesTheDoorOpenWhileTheFireIsFarAndNobodyIsNear()
         {
-            FireReactionSimulation simulation = ShelterWithSomeoneOutside(AgentTraitValues.AllOrdinary, -4000);
-            for (int t = 0; t < 5 * FireReactionSimulation.TicksPerSecond; t++)
-            {
-                simulation.Step();
-            }
+            FireReactionSimulation simulation = EscapingWithSomeoneBehind(AgentTraitValues.AllOrdinary, FarOff);
+            RunUntilEscaped(simulation);
+            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open));
+        }
 
-            Assert.That(StateOf(simulation, EastDoor), Is.EqualTo(DoorState.Open));
+        [Test]
+        public void EvilEscaper_SlamsAndLocksTheDoorInTheFaceOfSomeoneComing()
+        {
+            FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 5, 1, 9, 5), Nearby);
+            RunUntilEscaped(simulation);
+            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Locked));
+            List<CausalEvent> closed = EventsOfType(simulation, FireReactionEventType.DoorClosed);
+            List<CausalEvent> locked = EventsOfType(simulation, FireReactionEventType.DoorLocked);
+            Assert.That(closed[0].SourceId, Is.EqualTo(new SimulationId(1UL)));
+            Assert.That(closed[0].TargetId, Is.EqualTo(NorthDoor));
+            Assert.That(locked[0].CausalParentEventId, Is.EqualTo(closed[0].EventId));
         }
 
         [TestCase(9, true)]

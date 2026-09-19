@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -266,7 +266,7 @@ namespace Paniq.Simulation
             long minimumSquared = (long)settings.StrollMinimumDistanceMillimetres * settings.StrollMinimumDistanceMillimetres;
             for (int attempt = 0; attempt < 3; attempt++)
             {
-                intent.Target = geometry.RandomInteriorPoint(settings.StrollWallMarginMillimetres);
+                intent.Target = geometry.RandomInteriorPoint(geometry.RoomOf(agent), settings.StrollWallMarginMillimetres);
                 if (LogicalPosition.DistanceSquared(agent.Body.Position, intent.Target) >= minimumSquared)
                 {
                     return;

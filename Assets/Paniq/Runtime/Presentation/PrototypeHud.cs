@@ -1,4 +1,4 @@
-using Paniq.Simulation;
+﻿using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Presentation
@@ -21,7 +21,7 @@ namespace Paniq.Presentation
             GUI.Label(new Rect(20f, 68f, 900f, 24f),
                 $"Calm {snapshot.CalmCount}   Scared {snapshot.ScaredCount} (frozen {snapshot.FrozenCount}, on fire {snapshot.BurningCount})   " +
                 $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   " +
-                $"Escaped {snapshot.EscapedCount}   Sheltering {snapshot.ShelteringCount}");
+                $"Escaped {snapshot.EscapedCount}   In a room with no fire {snapshot.ClearOfFireCount}");
             GUI.Label(new Rect(20f, 92f, 900f, 24f),
                 "Click a door: red = locked. Click to unlock (green), again to open, again to close.   Tab: everyone's stats");
             if (hoveredDoor.HasValue)
@@ -132,7 +132,6 @@ namespace Paniq.Presentation
                 case AgentActivityState.TryingDoor: return "trying a door";
                 case AgentActivityState.ForcingDoor: return "shoving a door";
                 case AgentActivityState.OpeningDoor: return "opening a door";
-                case AgentActivityState.Sheltering: return "sheltering";
                 case AgentActivityState.ShakingAwake: return "shaking someone awake";
                 case AgentActivityState.Grabbing: return "grabbing someone";
                 case AgentActivityState.Dragging: return "dragging someone";

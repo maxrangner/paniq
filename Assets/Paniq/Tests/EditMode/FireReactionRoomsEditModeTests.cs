@@ -1,3 +1,4 @@
+﻿using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -5,10 +6,15 @@ using Paniq.Simulation;
 
 namespace Paniq.Tests.EditMode
 {
-    /// <summary>The small room behind the east door: shelter, and fire that only gets in through an open door.</summary>
-    public sealed class FireReactionSideRoomEditModeTests
+    /// <summary>
+    /// The building as rooms joined by doors: the storage closet behind the
+    /// office's east door is an ordinary room, fire only crosses an open
+    /// door, and people run to whatever room is furthest from the flames
+    /// when no way out is left.
+    /// </summary>
+    public sealed class FireReactionRoomsEditModeTests
     {
-        private static readonly SimulationId EastDoor = new SimulationId(2002UL);
+        private static readonly SimulationId ClosetDoor = new SimulationId(2002UL);
 
         private FireReactionScenario scenario;
 
@@ -24,15 +30,15 @@ namespace Paniq.Tests.EditMode
             UnityEngine.Object.DestroyImmediate(scenario);
         }
 
-        private static void OpenEastDoor(FireReactionSimulation simulation, int tick)
+        /// <summary>The closet door starts shut but unlocked, so one click opens it.</summary>
+        private static void OpenClosetDoor(FireReactionSimulation simulation, int tick)
         {
-            simulation.QueueCommand(PlayerCommandType.ClickDoor, EastDoor, tick);
-            simulation.QueueCommand(PlayerCommandType.ClickDoor, EastDoor, tick + 1);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, ClosetDoor, tick);
         }
 
-        private static bool InSideRoom(FireReactionScenarioData data, LogicalPosition point)
+        private static bool InCloset(FireReactionScenarioData data, LogicalPosition point)
         {
-            LogicalBounds b = data.SideRooms[0].Bounds;
+            LogicalBounds b = data.Rooms[1].Bounds;
             return point.X > b.MinX && point.X < b.MaxX && point.Z > b.MinZ && point.Z < b.MaxZ;
         }
 
@@ -53,12 +59,12 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
-        private static int BurningInSideRoom(FireReactionSimulation simulation, FireReactionScenarioData data)
+        private static int BurningInCloset(FireReactionSimulation simulation, FireReactionScenarioData data)
         {
             int count = 0;
             foreach (FireCellSnapshot cell in simulation.GetSnapshot().FireCells)
             {
-                if (InSideRoom(data, cell.Centre))
+                if (InCloset(data, cell.Centre))
                 {
                     count++;
                 }
@@ -68,13 +74,18 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void DefaultScenario_HasASmallRoomBehindTheEastDoor()
+        public void DefaultScenario_HasAStorageClosetBehindTheEastDoor()
         {
             FireReactionScenarioData data = scenario.ToRuntimeData();
-            Assert.That(data.SideRooms, Has.Length.EqualTo(1));
-            Assert.That(data.SideRooms[0].DoorId, Is.EqualTo(EastDoor));
-            LogicalBounds b = data.SideRooms[0].Bounds;
+            Assert.That(data.Rooms, Has.Length.EqualTo(2));
+            LogicalBounds b = data.Rooms[1].Bounds;
             Assert.That((b.MaxX - b.MinX) * (long)(b.MaxZ - b.MinZ), Is.EqualTo(4000000L), "2 × 2 m: room for two or three.");
+
+            // Its door is an inside door: shut, but not locked.
+            FireReactionDoorDefinition door = Array.Find(data.Doors, d => d.DoorId == ClosetDoor);
+            Assert.That(door.RoomId, Is.EqualTo(data.Rooms[0].RoomId), "The door sits in the office's east wall.");
+            Assert.That(door.StartsLocked, Is.False);
+            Assert.That(Array.FindAll(data.Doors, d => d.StartsLocked), Has.Length.EqualTo(3), "The three ways out start locked.");
         }
 
         [Test]
@@ -88,7 +99,7 @@ namespace Paniq.Tests.EditMode
             }
 
             Assert.That(simulation.FireCellCount, Is.EqualTo(24 * 24), "The main room should be full of fire.");
-            Assert.That(BurningInSideRoom(simulation, data), Is.EqualTo(0), "Fire got through the locked door.");
+            Assert.That(BurningInCloset(simulation, data), Is.EqualTo(0), "Fire got through the shut door.");
         }
 
         [Test]
@@ -96,19 +107,19 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = FireAtTheEastDoor();
             var simulation = new FireReactionSimulation(data);
-            OpenEastDoor(simulation, 2);
+            OpenClosetDoor(simulation, 2);
             for (int t = 0; t < 60 * FireReactionSimulation.TicksPerSecond; t++)
             {
                 simulation.Step();
             }
 
-            Assert.That(BurningInSideRoom(simulation, data), Is.EqualTo(16), "The whole side room should burn.");
+            Assert.That(BurningInCloset(simulation, data), Is.EqualTo(16), "The whole closet should burn.");
 
             // The first side-room square was lit from the main-room square right next to it, through the door gap.
             FireCellSnapshot first = default;
             foreach (FireCellSnapshot cell in simulation.GetSnapshot().FireCells)
             {
-                if (InSideRoom(data, cell.Centre))
+                if (InCloset(data, cell.Centre))
                 {
                     first = cell;
                     break;
@@ -123,7 +134,7 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void Runner_SheltersInTheSideRoomAndIsNotCountedAsEscaped()
+        public void Runner_WithNoWayOut_RunsToTheRoomFurthestFromTheFire()
         {
             FireReactionScenarioData data = scenario.ToRuntimeData();
             data.Agents = new[]
@@ -141,32 +152,27 @@ namespace Paniq.Tests.EditMode
             data.Fire.SpreadMaximumTicks = 5000;
             data.Perception.MaximumReactionDelayTicks = 0;
 
-            // Only the east door is open, so it is the obvious way out.
+            // Every way out of the building stays locked, so the closet next
+            // door is the only place left to get away from the flames.
             var simulation = new FireReactionSimulation(data);
-            OpenEastDoor(simulation, 1);
-            int shelteredFor = 0;
-            for (int t = 0; t < 20 * FireReactionSimulation.TicksPerSecond; t++)
+            int insideFor = 0;
+            for (int t = 0; t < 30 * FireReactionSimulation.TicksPerSecond; t++)
             {
                 simulation.Step();
-                if (simulation.GetAgent(0).ActivityState == AgentActivityState.Sheltering)
-                {
-                    shelteredFor++;
-                }
+                insideFor += InCloset(data, simulation.GetAgent(0).Position) ? 1 : 0;
             }
 
             FireReactionAgentSnapshot person = simulation.GetAgent(0);
-            Assert.That(shelteredFor, Is.GreaterThan(0), "The runner never sheltered.");
-            Assert.That(person.ActivityState, Is.EqualTo(AgentActivityState.Sheltering));
-            Assert.That(person.Outcome, Is.EqualTo(AgentTerminalOutcome.Unresolved), "Sheltering is not escaping.");
-            Assert.That(data.SideRooms[0].Bounds.ContainsCircle(person.Position, data.World.OccupancyRadiusMillimetres), Is.True);
-            Assert.That(simulation.GetSnapshot().ShelteringCount, Is.EqualTo(1));
-            Assert.That(person.Position.X, Is.GreaterThan(7000), "They move to the back of the room.");
+            Assert.That(insideFor, Is.GreaterThan(0), "The runner never got into the closet.");
+            Assert.That(InCloset(data, person.Position), Is.True, $"They ended up at {person.Position}.");
+            Assert.That(person.Outcome, Is.EqualTo(AgentTerminalOutcome.Unresolved), "A closet is not a way out.");
+            Assert.That(simulation.GetDoor(1).State, Is.Not.EqualTo(DoorState.Locked), "They opened the closet door themselves.");
         }
 
         [Test]
         public void ClosedDoor_HidesTheFireAndMufflesYells()
         {
-            // Someone inside the side room, facing the wall toward the main room, 1 m from a fire just beyond it.
+            // Someone inside the closet, facing the wall toward the office, 1 m from a fire just beyond it.
             FireReactionScenarioData data = scenario.ToRuntimeData();
             data.Agents = new[]
             {
@@ -192,6 +198,64 @@ namespace Paniq.Tests.EditMode
             FireReactionAgentSnapshot inside = simulation.GetAgent(0);
             Assert.That(inside.FearState, Is.EqualTo(AgentFearState.Calm),
                 "Behind a closed door they neither see the fire nor understand the yell.");
+        }
+
+        /// <summary>
+        /// The doorway-jam guard. Two runners reaching a 1 m door together
+        /// used to wedge against either side of the frame and block everyone
+        /// behind them until the fire came (seed 5, owner report). People now
+        /// give way beside a door they are not lined up with, so nobody
+        /// stands still in front of an open door for long.
+        /// </summary>
+        [TestCase(300)]
+        [TestCase(600)]
+        public void NobodyStandsStillInFrontOfAnOpenDoor(int unlockTick)
+        {
+            const int stuckLimitTicks = 2 * FireReactionSimulation.TicksPerSecond;
+            for (ulong seed = 1UL; seed <= 10UL; seed++)
+            {
+                FireReactionScenarioData data = scenario.ToRuntimeData();
+                var simulation = new FireReactionSimulation(data, seed);
+                foreach (FireReactionDoorDefinition door in data.Doors)
+                {
+                    simulation.QueueCommand(PlayerCommandType.ClickDoor, door.DoorId, unlockTick);
+                }
+
+                var stillFor = new int[simulation.AgentCount];
+                var wasAt = new LogicalPosition[simulation.AgentCount];
+                for (int t = 0; t < 40 * FireReactionSimulation.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                    for (int i = 0; i < simulation.AgentCount; i++)
+                    {
+                        FireReactionAgentSnapshot person = simulation.GetAgent(i);
+                        bool stuck = person.Participation == AgentParticipation.Participating &&
+                                     !person.IsBurning && !person.IsDown &&
+                                     person.Position.Equals(wasAt[i]) && NearAnOpenDoor(simulation, person.Position);
+                        wasAt[i] = person.Position;
+                        stillFor[i] = stuck ? stillFor[i] + 1 : 0;
+                        Assert.That(stillFor[i], Is.LessThan(stuckLimitTicks),
+                            $"Seed {seed}: person {person.AgentId} stood in a doorway at {person.Position} " +
+                            $"for {stillFor[i]} ticks up to tick {simulation.Tick}.");
+                    }
+                }
+            }
+        }
+
+        /// <summary>Within a metre of the middle of a door that is standing open.</summary>
+        private static bool NearAnOpenDoor(FireReactionSimulation simulation, LogicalPosition position)
+        {
+            for (int d = 0; d < simulation.DoorCount; d++)
+            {
+                FireReactionDoorSnapshot door = simulation.GetDoor(d);
+                if ((door.State == DoorState.Open || door.State == DoorState.Broken) &&
+                    LogicalPosition.DistanceSquared(position, door.Centre) < 1000L * 1000L)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

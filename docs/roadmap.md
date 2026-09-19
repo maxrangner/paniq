@@ -1,4 +1,4 @@
-# Prototype roadmap
+﻿# Prototype roadmap
 
 The prototype is built stone by stone (see [goals](goals.md) for what
 "prototype" means here). This page records the stones laid so far and how the
@@ -46,6 +46,8 @@ scene.
 | Side room | System | The east door opens into a small room where runners shelter; fire only gets in through the open door, and walls hide fire and muffle yells |
 | Closing doors | Behaviour | The player can close open doors; people shut and lock doors behind them by personality: the evil lock them in others' faces, the kind hold them open |
 | Helping each other | Behaviour | The kind shake people frozen with fear awake; the strong and kind drag the knocked-out to an open door and out; the cruel never help |
+| Giving way at doorways | Behaviour | Two people who reach a 1 m door together no longer wedge against the frame: whoever is not lined up steps aside, and people in a small room stand clear of the way in |
+| Rooms and doors | System | The building is rooms joined by doors: the closet is an ordinary room, inside doors start shut but unlocked, and people walk room to room toward a way out, hiding in the room furthest from the fire only when every way out has failed |
 
 ## Choosing the next stone
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -76,7 +76,7 @@ namespace Paniq.Tests.EditMode
         // ---------------------------------------------------------------- clicks
 
         [Test]
-        public void DefaultRoom_HasOneLockedDoorInEveryWall()
+        public void DefaultBuilding_HasALockedWayOutInEveryOutsideWall()
         {
             var simulation = new FireReactionSimulation(DefaultData());
             Assert.That(simulation.DoorCount, Is.EqualTo(4));
@@ -84,7 +84,11 @@ namespace Paniq.Tests.EditMode
             for (int i = 0; i < simulation.DoorCount; i++)
             {
                 FireReactionDoorSnapshot door = simulation.GetDoor(i);
-                Assert.That(door.State, Is.EqualTo(DoorState.Locked));
+
+                // The three ways out start locked; the closet's inside door is shut but not locked.
+                Assert.That(door.State, Is.EqualTo(door.DoorId == new SimulationId(2002UL)
+                    ? DoorState.Unlocked
+                    : DoorState.Locked));
                 sides.Add(door.Side);
             }
 
@@ -207,8 +211,8 @@ namespace Paniq.Tests.EditMode
                         FireReactionAgentSnapshot agent = simulation.GetAgent(i);
                         if (agent.Participation == AgentParticipation.Participating)
                         {
-                            Assert.That(data.World.RoomBounds.ContainsCircle(agent.Position, data.World.OccupancyRadiusMillimetres), Is.True,
-                                $"Seed {seed}: agent {agent.AgentId} got through a locked door at tick {simulation.Tick}.");
+                            Assert.That(InAnyRoom(data, agent.Position), Is.True,
+                                $"Seed {seed}: agent {agent.AgentId} got out of the building at tick {simulation.Tick}.");
                         }
                     }
                 }
@@ -285,31 +289,39 @@ namespace Paniq.Tests.EditMode
                     Assert.That(simulation.GetAgent(record.SourceId).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped));
                 }
 
-                // Safe means out through one of the three outside doors, or sheltering behind the fourth.
-                int safe = snapshot.EscapedCount + snapshot.ShelteringCount;
+                // Safe means out of the building, or at least in a room with no fire in it.
+                int safe = snapshot.EscapedCount + snapshot.ClearOfFireCount;
                 Assert.That(safe, Is.GreaterThanOrEqualTo(3),
-                    $"Seed {seed}: only {snapshot.EscapedCount} escaped and {snapshot.ShelteringCount} sheltered with every door open.");
+                    $"Seed {seed}: only {snapshot.EscapedCount} escaped and {snapshot.ClearOfFireCount} " +
+                    "were clear of the fire with every door open.");
                 escaped += snapshot.EscapedCount;
             }
 
             Assert.That(escaped, Is.GreaterThan(0));
         }
 
-        private static bool IsInRoomOrDoorway(FireReactionSimulation simulation, FireReactionScenarioData data, LogicalPosition position)
+        /// <summary>Whether a whole body stands inside one of the building's rooms.</summary>
+        private static bool InAnyRoom(FireReactionScenarioData data, LogicalPosition position)
         {
-            int radius = data.World.OccupancyRadiusMillimetres;
-            if (data.World.RoomBounds.ContainsCircle(position, radius))
+            foreach (FireReactionRoomDefinition room in data.Rooms)
             {
-                return true;
-            }
-
-            foreach (FireReactionSideRoomDefinition side in data.SideRooms)
-            {
-                if (side.Bounds.ContainsCircle(position, radius))
+                if (room.Bounds.ContainsCircle(position, data.World.OccupancyRadiusMillimetres))
                 {
                     return true;
                 }
             }
+
+            return false;
+        }
+
+        private static bool IsInRoomOrDoorway(FireReactionSimulation simulation, FireReactionScenarioData data, LogicalPosition position)
+        {
+            if (InAnyRoom(data, position))
+            {
+                return true;
+            }
+
+            int radius = data.World.OccupancyRadiusMillimetres;
 
             for (int d = 0; d < simulation.DoorCount; d++)
             {
@@ -515,17 +527,34 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void Validation_RejectsDoorsThatDoNotFit()
         {
+            SimulationId office = DefaultData().Rooms[0].RoomId;
+
             FireReactionScenarioData narrow = DefaultData();
-            narrow.Doors = new[] { new FireReactionDoorDefinition(new SimulationId(9001UL), WallSide.North, 0, 400) };
+            narrow.Doors = new[] { new FireReactionDoorDefinition(new SimulationId(9001UL), office, WallSide.North, 0, 400) };
             Assert.Throws<InvalidOperationException>(() => narrow.Validate());
 
             FireReactionScenarioData offTheEnd = DefaultData();
-            offTheEnd.Doors = new[] { new FireReactionDoorDefinition(new SimulationId(9001UL), WallSide.East, 5800, 1000) };
+            offTheEnd.Doors = new[] { new FireReactionDoorDefinition(new SimulationId(9001UL), office, WallSide.East, 5800, 1000) };
             Assert.Throws<InvalidOperationException>(() => offTheEnd.Validate());
 
             FireReactionScenarioData sharedId = DefaultData();
-            sharedId.Doors = new[] { new FireReactionDoorDefinition(new SimulationId(1001UL), WallSide.East, 0, 1000) };
+            sharedId.Doors = new[] { new FireReactionDoorDefinition(new SimulationId(1001UL), office, WallSide.East, 0, 1000) };
             Assert.Throws<InvalidOperationException>(() => sharedId.Validate());
+
+            FireReactionScenarioData unknownRoom = DefaultData();
+            unknownRoom.Doors = new[]
+            {
+                new FireReactionDoorDefinition(new SimulationId(9001UL), new SimulationId(9999UL), WallSide.North, 0, 1000)
+            };
+            Assert.Throws<InvalidOperationException>(() => unknownRoom.Validate());
+
+            // A door opening half into the closet and half into its wall.
+            FireReactionScenarioData halfIntoAWall = DefaultData();
+            halfIntoAWall.Doors = new[]
+            {
+                new FireReactionDoorDefinition(new SimulationId(9001UL), office, WallSide.East, 1500, 1000)
+            };
+            Assert.Throws<InvalidOperationException>(() => halfIntoAWall.Validate());
         }
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -221,9 +221,6 @@ namespace Paniq.Simulation
         PickingUp,
         CarryingItem,
         SettingDown,
-
-        /// <summary>Scared, but safe for now inside a side room, huddled at its back wall.</summary>
-        Sheltering,
 
         /// <summary>Helping: shaking someone frozen with fear, getting a grip on someone knocked out, or dragging them.</summary>
         ShakingAwake,

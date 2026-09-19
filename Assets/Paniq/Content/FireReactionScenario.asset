@@ -1,4 +1,4 @@
-%YAML 1.1
+﻿%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
@@ -14,15 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '22'
+    ContentRevision: '24'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 14
+    SimulationCompatibilityVersion: 16
     World:
-      RoomBounds:
-        minX: -6000
-        maxX: 6000
-        minZ: -6000
-        maxZ: 6000
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
     Perception:
@@ -161,6 +156,13 @@ MonoBehaviour:
       DoorCrowdedAvoidMaximumTicks: 200
       GiveUpGlanceMinimumTicks: 15
       GiveUpGlanceMaximumTicks: 30
+      GiveWayMinimumTicks: 25
+      GiveWayMaximumTicks: 50
+      GiveWayAsideMillimetres: 100
+      GiveWayInsetMillimetres: 400
+      CurrentRoomBonusMillimetres: 2000
+      RefugeNoFireMillimetres: 20000
+      RefugeSpacePerPersonMillimetres: 1000
       ApproachInsetMillimetres: 600
       OutsideTargetMillimetres: 1500
       ArrivalDistanceMillimetres: 400
@@ -407,24 +409,36 @@ MonoBehaviour:
     Doors:
     - doorId:
         value: 2001
+      roomId:
+        value: 5001
       side: 0
       centreAlongWallMillimetres: -2500
       widthMillimetres: 1000
+      startsLocked: 1
     - doorId:
         value: 2002
+      roomId:
+        value: 5001
       side: 1
       centreAlongWallMillimetres: 2500
       widthMillimetres: 1000
+      startsLocked: 0
     - doorId:
         value: 2003
+      roomId:
+        value: 5001
       side: 2
       centreAlongWallMillimetres: 2500
       widthMillimetres: 1000
+      startsLocked: 1
     - doorId:
         value: 2004
+      roomId:
+        value: 5001
       side: 3
       centreAlongWallMillimetres: -2500
       widthMillimetres: 1000
+      startsLocked: 1
     PhysicsObjects:
     - objectId:
         value: 3001
@@ -576,11 +590,16 @@ MonoBehaviour:
         z: 2000
       widthMillimetres: 1200
       depthMillimetres: 700
-    SideRooms:
+    Rooms:
     - roomId:
         value: 5001
-      doorId:
-        value: 2002
+      bounds:
+        minX: -6000
+        maxX: 6000
+        minZ: -6000
+        maxZ: 6000
+    - roomId:
+        value: 5002
       bounds:
         minX: 6000
         maxX: 8000

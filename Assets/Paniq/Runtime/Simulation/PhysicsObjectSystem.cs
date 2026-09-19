@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -179,7 +179,8 @@ namespace Paniq.Simulation
         private bool IsClearForItem(int index, LogicalPosition spot)
         {
             PhysicsBody item = bodies[index];
-            if (!geometry.Floor.ContainsCircle(spot, item.Radius) || geometry.TableAt(spot, item.Radius) >= 0)
+            if (geometry.RoomAtPoint(spot) < 0 || !geometry.RoomBounds(geometry.RoomAtPoint(spot)).ContainsCircle(spot, item.Radius) ||
+                geometry.TableAt(spot, item.Radius) >= 0)
             {
                 return false;
             }

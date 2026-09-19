@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -234,7 +234,7 @@ namespace Paniq.Simulation
             long bestDistance = long.MaxValue;
             for (int d = 0; d < geometry.DoorCount; d++)
             {
-                if (!geometry.IsDoorOpen(d) || geometry.DoorSideRoom(d) >= 0)
+                if (!geometry.IsDoorOpen(d) || !geometry.DoorLeadsOutside(d))
                 {
                     continue;
                 }
@@ -285,10 +285,12 @@ namespace Paniq.Simulation
 
             if (agent.Help.DragDoor >= 0)
             {
-                agent.Intent.Target = geometry.IsInsideRoom(agent.Body.Position) &&
+                int from = geometry.RoomAt(agent.Body.Position);
+                agent.Intent.Target = from >= 0 &&
                                       !geometry.IsLinedUpToPassThrough(agent.Help.DragDoor, agent.Body.Position)
-                    ? geometry.DoorPoint(agent.Help.DragDoor, 0, -context.Scenario.Exits.ApproachInsetMillimetres)
-                    : geometry.DoorPoint(agent.Help.DragDoor, 0, context.Scenario.Exits.OutsideTargetMillimetres);
+                    ? geometry.DoorPointFrom(agent.Help.DragDoor, from, 0, -context.Scenario.Exits.ApproachInsetMillimetres)
+                    : geometry.DoorPointFrom(agent.Help.DragDoor, geometry.RoomOf(agent), 0,
+                        context.Scenario.Exits.OutsideTargetMillimetres);
             }
 
             int heading = IntegerMath.HeadingBetween(agent.Body.Position, agent.Intent.Target, agent.Body.Heading);

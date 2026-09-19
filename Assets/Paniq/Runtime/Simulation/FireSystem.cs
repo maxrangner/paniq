@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -62,7 +62,7 @@ namespace Paniq.Simulation
                 FloorCellCount += cellRooms[cell] >= 0 ? 1 : 0;
             }
 
-            burningPerRoom = new int[1 + geometry.SideRoomCount];
+            burningPerRoom = new int[geometry.RoomCount];
 
             var origin = new LogicalPosition(
                 context.Random.NextIntInclusive(settings.SpawnBounds.MinX, settings.SpawnBounds.MaxX),

@@ -1,4 +1,4 @@
-# Fire-reaction prototype
+﻿# Fire-reaction prototype
 
 **Status:** current prototype. This scene is where prototype stones are laid
 one at a time (see the [prototype roadmap](roadmap.md)). So far it shows that
@@ -128,27 +128,39 @@ the player. At a shut door a runner:
 
 Someone who walks 0.8 m out through an open door has **escaped**: they keep
 walking for a moment and shrink out of view. People stuck in a crowd on the
-way to a door try a different one for a few seconds.
+way to a door try a different one for a few seconds. Someone wedged right
+beside an open door, not lined up with the gap, steps aside against the wall
+for half a second to a second so whoever is lined up can go first, instead of
+two people jamming the doorway shoulder to shoulder.
 
-**The side room.** The east door does not lead outside: it opens into a
-small 2 × 2 m room, big enough for two or three people. Runners choose it like
-any other door. Once inside they shelter: they shuffle to the back wall and
-stand facing the door (the counter shows how many are sheltering). Sheltering
-is not escaping. The fire can only get into the side room through its door
-while that door is open (or broken down); walls stop it, and nobody sees fire
-through a wall. A closed door muffles noises to half their reach. If the fire
-does get in, the people sheltering there run back out through the door, or
-away from the flames if the door is shut.
+**The building is rooms joined by doors.** The office is one room; behind
+its east door is a 2 × 2 m storage closet, which is just another room, with
+no special rules of its own. The three doors in the outside walls are the
+player's: they start locked. Inside doors, like the closet's, start shut but
+unlocked, so people open them themselves.
 
-**Closing doors behind them.** People close doors too, by personality: the
-door they just escaped through, and the side room's door while they shelter
-within reach of it. The evil (7+) shut it and lock it even with someone
+People try to save themselves wherever they can. They pick a way **out of the
+building** and head for the first door on the walk there, room by room. Only
+once every way out has been tried and would not open do they make for whichever
+room is furthest from the flames instead — but not into a room that already
+holds as many people as there is floor for (about one person per square
+metre, so four in the closet). The counter shows how many are in a room with
+no fire in it. Being in a room is not escaping.
+
+The fire can only get from one room to the next through an open (or broken)
+door; walls stop it, and nobody sees fire through a wall. A closed door
+muffles noises to half their reach.
+
+**Closing doors behind them.** People close doors too, by personality, at
+two moments: the door they just walked through (on the way out of the
+building, or from one room into the next), and a door within reach of them
+with fire in the room beyond it. The evil (7+) shut it and lock it even with someone
 running up behind; only a body in the doorway stops them. The compassionate
 (7+) never shut it on someone within 3 m, and while the fire is still more
 than 5 m from the door they leave it open for stragglers. Otherwise, with
 nobody within 3 m, the nervous (8+) shut it, and so do the brave and kind
 (bravery + compassion 12+) once fire is within 5 m of the door. Anyone
-sheltering shuts it when fire is within 2 m of the door. A closed door can be
+in a room with no fire in it shuts a door with flames within 2 m beyond it. A closed door can be
 opened again by anyone who reaches it (unless it was locked) or by the player.
 
 **Helping each other.** A runner who is compassionate (6+), not too timid
@@ -356,9 +368,10 @@ restart control, or end screen in this checkpoint.
   within the door's width (plus a radius) and no more than a radius + 0.1 m
   inside the wall, and either within a radius + 0.1 m outside it or, for a
   door to outside, anywhere in the outside doorway.
-- **Closing by people.** After an `AgentEscaped` (parent of the close), and
-  each tick for a sheltering person within 2 m of their side room's door
-  (parent: their `AgentScared`), the rules above decide; a close logs
+- **Closing by people.** When someone walks into another room (the door
+  behind them, within 2 m), after an `AgentEscaped` (parent of the close),
+  and each tick for someone within 2 m of an open door with fire in the room
+  beyond it (parent: their `AgentScared`), the rules above decide; a close logs
   `DoorClosed` (source: the person, target: the door) and an evil person's
   lock logs `DoorLocked` (parent: that close).
 - **Doors and escape.** See [spatial-world-rules.md](spatial-world-rules.md)
@@ -366,7 +379,11 @@ restart control, or end screen in this checkpoint.
   [technical decisions](technical-decisions.md)) and targets a point 0.6 m
   inside the chosen door, or 1.5 m outside once it is open and the runner is
   lined up. Near the door, swerves and following are switched off and the
-  runner is not pushed away from that wall. Reaching a shut door logs
+  runner is not pushed away from that wall. A runner blocked for 12 ticks
+  within 0.85 m of their open door, inside the room and not lined up, gives
+  way instead of making a new decision: for 25–50 ticks they target a point
+  0.4 m inside the wall and 0.85 m along it from the door's
+  centre, on their side (clear of anyone passing through). Reaching a shut door logs
   `AgentTriedDoor` (parent: `AgentScared`); each shove logs `AgentForcedDoor`
   and giving up logs `AgentGaveUpOnDoor` (both parent: the attempt). A runner
   who opens a door logs `DoorOpened` with their attempt as parent. After
@@ -378,19 +395,26 @@ restart control, or end screen in this checkpoint.
   is kept per door. When it reaches the door's strength (40) the door becomes
   `Broken`: it logs `DoorBrokenDown` (source: the shover; target: the door;
   parent: the shove) and counts as open for walking, choosing and escaping.
-- **Side rooms.** A side room is a rectangle flush against the outside of
-  one door's wall, covering the door gap. A footprint wholly inside it is
-  walkable; the door's strip joins it to the main room while the door is open.
-  Its door is never an escape. The fire grid covers the rectangle around all
-  rooms; each cell belongs to the room its centre is in (or none, and never
-  burns). Fire spreads between neighbouring cells of different rooms only
-  when the connecting door is open and the edge they share overlaps the door
-  gap. Fire in another room is neither touched nor seen unless the rooms are
-  joined by an open door. A noise's hearing and alarm reaches halve between
-  rooms whose door is shut. A scared person wholly inside a side room with
-  no fire in it is `Sheltering`: walks at walking pace to 0.6 m short of the
-  far wall on the door's line (stopping when blocked for 12 ticks) and faces
-  the door. With fire in the room: out through the door to 1.5 m inside the
+- **Rooms.** Rooms are rectangles that never overlap. Two rooms that share
+  a wall line are joined by a door in it; a door with no room beyond leads
+  outside. A footprint wholly inside any room is walkable, and an open door's
+  strip joins the rooms either side of it. Only a door leading outside can be
+  escaped through. The fire grid covers the rectangle around all rooms; each
+  cell belongs to the room its centre is in (or none, and never burns). Fire
+  spreads between neighbouring cells of different rooms only when the
+  connecting door is open and the edge they share overlaps the door gap. Fire
+  in another room is neither touched nor seen unless the rooms are joined by
+  an open door. A noise's hearing and alarm reaches halve between rooms not
+  joined by an open door.
+- **Choosing a way out.** Every door leading outside is scored by the length
+  of the walk to it through the rooms (doors are joined door-centre to
+  door-centre; a shut door still counts as a way through, a door they gave up
+  on does not), plus the usual open-door bonus, current-choice bonus, random
+  noise, fire and table penalties. The person then runs for the first door on
+  that walk. A door someone has stood at and failed to open stops counting as
+  a way out for them. With none left, they score rooms instead: distance from
+  the flames, minus a quarter of the walk there, rejecting rooms already full
+  (one person per square metre of floor). With fire in the room: out through the door to 1.5 m inside the
   main room if it is open, else directly away from the nearest fire.
 - **Helping.** Considered in the panic decision each tick by a fleeing,
   upright, empty-handed person not in danger: the nearest person in need

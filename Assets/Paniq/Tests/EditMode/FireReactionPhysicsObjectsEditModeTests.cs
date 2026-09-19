@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -71,7 +71,7 @@ namespace Paniq.Tests.EditMode
                 }
 
                 int boxRadius = box.SizeMillimetres / 2;
-                Assert.That(data.World.RoomBounds.ContainsCircle(box.Position, boxRadius), Is.True,
+                Assert.That(data.Rooms[0].Bounds.ContainsCircle(box.Position, boxRadius), Is.True,
                     $"{context}: box {box.ObjectId} left the room at tick {snapshot.Tick}.");
                 for (int a = 0; a < snapshot.Agents.Count; a++)
                 {
@@ -142,7 +142,7 @@ namespace Paniq.Tests.EditMode
                 highestX = Math.Max(highestX, simulation.GetPhysicsObject(0).Position.X);
             }
 
-            Assert.That(highestX, Is.EqualTo(data.World.RoomBounds.MaxX - 200), "The box should have reached the east wall.");
+            Assert.That(highestX, Is.EqualTo(data.Rooms[0].Bounds.MaxX - 200), "The box should have reached the east wall.");
             Assert.That(simulation.GetPhysicsObject(0).Position.X, Is.LessThan(highestX), "The box did not bounce off the wall.");
         }
 

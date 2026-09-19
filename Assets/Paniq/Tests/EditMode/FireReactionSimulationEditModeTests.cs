@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("22"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(14));
+            Assert.That(data.ContentRevision, Is.EqualTo("24"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(16));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -282,8 +282,8 @@ namespace Paniq.Tests.EditMode
                         Assert.That(fire.AnyCloserThan(position, reach), Is.EqualTo(anyCloser), $"fire within {reach} of {position}");
                     }
 
-                    // From inside the side room (its door stays locked here), walls hide the fire.
-                    LogicalBounds side = simulation.Scenario.SideRooms[0].Bounds;
+                    // From inside the closet (its door stays shut here), walls hide the fire.
+                    LogicalBounds side = simulation.Scenario.Rooms[1].Bounds;
                     bool walledOff = position.X > side.MinX && position.X < side.MaxX &&
                                      position.Z > side.MinZ && position.Z < side.MaxZ;
                     for (int heading = 0; heading < 360; heading += 45)
@@ -408,7 +408,7 @@ namespace Paniq.Tests.EditMode
                         continue;
                     }
 
-                    Assert.That(data.World.RoomBounds.ContainsCircle(agent.Position, data.World.OccupancyRadiusMillimetres), Is.True,
+                    Assert.That(data.Rooms[0].Bounds.ContainsCircle(agent.Position, data.World.OccupancyRadiusMillimetres), Is.True,
                         $"Agent {agent.AgentId} left the room at tick {snapshot.Tick}.");
                     for (int j = 0; j < i; j++)
                     {
@@ -469,7 +469,7 @@ namespace Paniq.Tests.EditMode
                     previous[i] = agent.Position;
 
                     // Footprint edge within 0.3 m of any wall.
-                    LogicalBounds room = data.World.RoomBounds;
+                    LogicalBounds room = data.Rooms[0].Bounds;
                     int gap = Math.Min(
                         Math.Min(agent.Position.X - room.MinX, room.MaxX - agent.Position.X),
                         Math.Min(agent.Position.Z - room.MinZ, room.MaxZ - agent.Position.Z)) - data.World.OccupancyRadiusMillimetres;
@@ -588,8 +588,14 @@ namespace Paniq.Tests.EditMode
                     }
                     else
                     {
-                        scaredSpeedTotal += agent.SpeedMillimetresPerTick;
-                        scaredSamples++;
+                        // Counted the same way as the calm pace above: how
+                        // fast they move while moving, not counting the ticks
+                        // they spend stopped by a wall or by each other.
+                        if (agent.SpeedMillimetresPerTick > 0)
+                        {
+                            scaredSpeedTotal += agent.SpeedMillimetresPerTick;
+                            scaredSamples++;
+                        }
                         if (tick % 10 == 0)
                         {
                             bigTurns += Math.Abs(IntegerMath.SignedAngleDifference(lastHeading[i], agent.HeadingDegrees)) > 30 ? 1 : 0;

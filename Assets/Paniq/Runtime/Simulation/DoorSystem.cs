@@ -7,6 +7,10 @@ namespace Paniq.Simulation
     internal sealed class DoorRuntime
     {
         public SimulationId Id;
+
+        /// <summary>The room whose wall holds this door; what lies beyond is worked out by the geometry.</summary>
+        public int Room;
+
         public WallSide Side;
         public int Centre;
         public int Width;
@@ -43,7 +47,11 @@ namespace Paniq.Simulation
             this.geometry = geometry;
         }
 
-        /// <summary>Doors in ascending ID order, all locked.</summary>
+        /// <summary>
+        /// Doors in ascending ID order. The ones leading out of the building
+        /// start locked (they are the player's to unlock); inside doors start
+        /// shut but unlocked, so people can open them themselves.
+        /// </summary>
         public static DoorRuntime[] CreateDoors(FireReactionScenarioData scenario)
         {
             var definitions = (FireReactionDoorDefinition[])scenario.Doors.Clone();
@@ -54,10 +62,11 @@ namespace Paniq.Simulation
                 doors[i] = new DoorRuntime
                 {
                     Id = definitions[i].DoorId,
+                    Room = Array.FindIndex(scenario.Rooms, r => r.RoomId == definitions[i].RoomId),
                     Side = definitions[i].Side,
                     Centre = definitions[i].CentreAlongWallMillimetres,
                     Width = definitions[i].WidthMillimetres,
-                    State = DoorState.Locked
+                    State = definitions[i].StartsLocked ? DoorState.Locked : DoorState.Unlocked
                 };
             }
 
@@ -254,6 +263,8 @@ namespace Paniq.Simulation
         }
 
         public SimulationId IdOf(int door) => doors[door].Id;
+
+        public int WidthOf(int door) => doors[door].Width;
 
         public ulong OpenedEventIdOf(int door) => doors[door].OpenedEventId;
 

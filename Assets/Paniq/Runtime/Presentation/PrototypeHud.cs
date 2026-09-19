@@ -132,6 +132,10 @@ namespace Paniq.Presentation
                 case AgentActivityState.TryingDoor: return "trying a door";
                 case AgentActivityState.ForcingDoor: return "shoving a door";
                 case AgentActivityState.OpeningDoor: return "opening a door";
+                case AgentActivityState.Sheltering: return "sheltering";
+                case AgentActivityState.ShakingAwake: return "shaking someone awake";
+                case AgentActivityState.Grabbing: return "grabbing someone";
+                case AgentActivityState.Dragging: return "dragging someone";
                 default: return agent.ActivityState.ToString().ToLowerInvariant();
             }
         }

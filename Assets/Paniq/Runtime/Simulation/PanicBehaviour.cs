@@ -19,6 +19,7 @@ namespace Paniq.Simulation
         private readonly SoundSystem sound;
         private readonly BodySystem body;
         private readonly DoorBehaviour doorBehaviour;
+        private readonly HelpBehaviour help;
         private readonly Locomotion locomotion;
         private readonly PanicSettings settings;
 
@@ -31,8 +32,10 @@ namespace Paniq.Simulation
             SoundSystem sound,
             BodySystem body,
             DoorBehaviour doorBehaviour,
+            HelpBehaviour help,
             Locomotion locomotion)
         {
+            this.help = help;
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
@@ -75,6 +78,12 @@ namespace Paniq.Simulation
             {
                 sound.Yell(agent, agent.Fear.ScaredEventId);
                 agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
+            }
+
+            MotorIntent? helping = help.Decide(agent, inDanger);
+            if (helping.HasValue)
+            {
+                return helping.Value;
             }
 
             int shelter = geometry.SideRoomAt(agent.Body.Position);

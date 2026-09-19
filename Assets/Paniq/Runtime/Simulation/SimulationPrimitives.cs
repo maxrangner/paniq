@@ -223,7 +223,12 @@ namespace Paniq.Simulation
         SettingDown,
 
         /// <summary>Scared, but safe for now inside a side room, huddled at its back wall.</summary>
-        Sheltering
+        Sheltering,
+
+        /// <summary>Helping: shaking someone frozen with fear, getting a grip on someone knocked out, or dragging them.</summary>
+        ShakingAwake,
+        Grabbing,
+        Dragging
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>
@@ -286,7 +291,11 @@ namespace Paniq.Simulation
         ItemThrown,
         ItemDropped,
         DoorClosed,
-        DoorLocked
+        DoorLocked,
+        AgentShookAwake,
+        AgentGrabbed,
+        AgentDropped,
+        AgentRescued
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>

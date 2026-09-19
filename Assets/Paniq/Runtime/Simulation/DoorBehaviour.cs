@@ -446,6 +446,7 @@ namespace Paniq.Simulation
                 agent.Outcome = AgentTerminalOutcome.Escaped;
                 ulong escaped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentEscaped,
                     agent.Body.Position, 0, 0, doors.OpenedEventIdOf(door), doors.IdOf(door)).EventId;
+                agent.Doors.EscapedEventId = escaped;
 
                 // Out: shut the door behind them, or leave it open for the others?
                 ConsiderClosing(agent, door, escaped);

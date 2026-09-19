@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '21'
+    ContentRevision: '22'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 13
+    SimulationCompatibilityVersion: 14
     World:
       RoomBounds:
         minX: -6000
@@ -244,6 +244,25 @@ MonoBehaviour:
       ThrowImpulse: 60
       ThrowMinimumSpeed: 20
       ThrowHitMultiplier: 3
+    Help:
+      HelpMaximumEvil: 4
+      ShakeMinimumCompassion: 6
+      ShakeMinimumBravery: 4
+      ShakeRangeMillimetres: 4000
+      ShakeMinimumTicks: 50
+      ShakeMaximumTicks: 75
+      ShakeFreezeForeverSuccessPercent: 50
+      DragMinimumStrength: 6
+      DragMinimumCompassion: 6
+      DragRangeMillimetres: 5000
+      GrabTicks: 50
+      DragSpeedBase: 10
+      DragSpeedPerStrength: 2
+      DragGapMillimetres: 50
+      DragAwayDistanceMillimetres: 3000
+      DragGiveUpBlockedTicks: 100
+      ReachMillimetres: 150
+      ReachTimeoutTicks: 250
     Agents:
     - agentId:
         value: 1001

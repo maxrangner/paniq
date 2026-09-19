@@ -151,6 +151,21 @@ nobody within 3 m, the nervous (8+) shut it, and so do the brave and kind
 sheltering shuts it when fire is within 2 m of the door. A closed door can be
 opened again by anyone who reaches it (unless it was locked) or by the player.
 
+**Helping each other.** A runner who is compassionate (6+), not too timid
+(bravery 4+) and not cruel (evil 4 or less) and who is within 4 m of someone
+frozen with fear runs over and shakes them by the shoulders for 1–1.5 s. The
+frozen-for-a-while always snap out of it and run; the frozen-for-good do half
+the time (otherwise the helper leaves them and does not try again). A runner
+who is strong and compassionate (both 6+, and not cruel) and within 5 m of
+someone knocked out cold runs over, gets a grip (1 s) and drags them along
+behind at 1.1–1.5 m/s (faster the stronger), toward the nearest open door to
+outside, or 3 m away from the fire if there is none. If the helper gets out,
+the person they drag is rescued with them. Helpers let go if the fire comes
+within their danger distance, if they fall, catch fire or are stuck for 2 s,
+if the person wakes up, or if they cannot reach them within 5 s. Nobody
+helps someone already close to the fire. In the default cast the saint, the
+hero and one ordinary person shake people awake; only the hero drags.
+
 **Tables and chairs.** Three 1.2 × 0.7 m tables stand in the room. Nobody
 and nothing can pass through a table: people slide along its edge as they
 would along a wall and steer away from it, loose objects bounce off it, and
@@ -377,6 +392,19 @@ restart control, or end screen in this checkpoint.
   far wall on the door's line (stopping when blocked for 12 ticks) and faces
   the door. With fire in the room: out through the door to 1.5 m inside the
   main room if it is open, else directly away from the nearest fire.
+- **Helping.** Considered in the panic decision each tick by a fleeing,
+  upright, empty-handed person not in danger: the nearest person in need
+  within range (frozen and upright for shaking, unconscious for dragging),
+  not already someone else's target and not within the helper's danger
+  distance of fire. `AgentShookAwake` (source: helper, target: the frozen
+  person, parent: helper's `AgentScared`) is the parent of their
+  `AgentUnfroze`. `AgentGrabbed` starts a drag; after each tick's movement the
+  dragged body is placed 0.55 m behind the helper; if there is no room there
+  the helper's step is undone, or, if someone has taken the helper's old
+  spot, the helper lets go (`AgentDropped`, parent: the grab). A helper who
+  escapes while dragging logs `AgentRescued` (target: the dragged person,
+  parent: the helper's `AgentEscaped`) and the dragged person's outcome is
+  `Escaped`.
 - **Tables.** A table is a fixed rectangle. A body of radius r overlaps it
   when its centre is strictly inside the rectangle grown by r on every side
   (square corners). A step into a table is moved onto the grown edge facing
@@ -429,7 +457,8 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentForcedDoor`, `AgentGaveUpOnDoor`, `AgentEscaped`, `BoxBumped`,
 `BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo`,
 `DoorBrokenDown`, `AgentCaughtFire`, `ObjectCaughtFire`, `ObjectBurntOut`,
-`ItemThrown`, `ItemDropped`, `DoorClosed` and `DoorLocked` events. Events that affect someone or
+`ItemThrown`, `ItemDropped`, `DoorClosed`, `DoorLocked`, `AgentShookAwake`,
+`AgentGrabbed`, `AgentDropped` and `AgentRescued` events. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,
 `BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
 and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor`, `DoorBrokenDown`

@@ -673,6 +673,60 @@ namespace Paniq.Simulation
         }
     }
 
+    /// <summary>People helping each other: shaking the frozen awake and dragging the knocked-out to safety.</summary>
+    [Serializable]
+    public sealed class HelpSettings
+    {
+        /// <summary>Anyone more evil than this never helps.</summary>
+        public int HelpMaximumEvil = 4;
+
+        /// <summary>Who shakes a frozen person awake, and from how far they notice them.</summary>
+        public int ShakeMinimumCompassion = 6;
+        public int ShakeMinimumBravery = 4;
+        public int ShakeRangeMillimetres = 4000;
+        public int ShakeMinimumTicks = 50;
+        public int ShakeMaximumTicks = 75;
+
+        /// <summary>Chance that someone frozen for good snaps out of it when shaken (the frozen-for-a-while always do).</summary>
+        public int ShakeFreezeForeverSuccessPercent = 50;
+
+        /// <summary>Who drags a knocked-out person, and from how far they notice them.</summary>
+        public int DragMinimumStrength = 6;
+        public int DragMinimumCompassion = 6;
+        public int DragRangeMillimetres = 5000;
+        public int GrabTicks = 50;
+
+        /// <summary>Dragging pace (mm per tick): base plus this much per strength point.</summary>
+        public int DragSpeedBase = 10;
+        public int DragSpeedPerStrength = 2;
+
+        /// <summary>Gap between a dragger and the person lying behind them.</summary>
+        public int DragGapMillimetres = 50;
+
+        /// <summary>With no open door to make for, how far away from the fire they drag someone.</summary>
+        public int DragAwayDistanceMillimetres = 3000;
+
+        /// <summary>Stuck this long while dragging, they let go.</summary>
+        public int DragGiveUpBlockedTicks = 100;
+
+        /// <summary>How far past touching they can reach someone, and how long they try to get there.</summary>
+        public int ReachMillimetres = 150;
+        public int ReachTimeoutTicks = 250;
+
+        public HelpSettings Clone() => (HelpSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(HelpMaximumEvil >= 0 && ShakeMinimumCompassion >= 0 && ShakeMinimumBravery >= 0 &&
+                             ShakeRangeMillimetres >= 0 && Settings.Range(ShakeMinimumTicks, ShakeMaximumTicks, 1) &&
+                             Settings.Percent(ShakeFreezeForeverSuccessPercent), "shaking awake");
+            Settings.Require(DragMinimumStrength >= 0 && DragMinimumCompassion >= 0 && DragRangeMillimetres >= 0 &&
+                             GrabTicks >= 1 && DragSpeedBase >= 0 && DragSpeedPerStrength >= 0 && DragGapMillimetres >= 0 &&
+                             DragAwayDistanceMillimetres >= 0 && DragGiveUpBlockedTicks >= 1, "dragging");
+            Settings.Require(ReachMillimetres >= 0 && ReachTimeoutTicks >= 1, "reaching someone");
+        }
+    }
+
     internal static class Settings
     {
         public static bool Range(int minimum, int maximum, int floor) => minimum >= floor && maximum >= minimum;

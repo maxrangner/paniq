@@ -18,6 +18,7 @@ namespace Paniq.Simulation
     /// <item><see cref="Doors"/>: the door they are running for and doors that failed them.</item>
     /// <item><see cref="Burning"/>: whether they are on fire, and until when.</item>
     /// <item><see cref="Carry"/>: the item they are going for or carrying.</item>
+    /// <item><see cref="Help"/>: the person they are helping, if any.</item>
     /// </list>
     /// </summary>
     internal sealed class Agent
@@ -46,6 +47,7 @@ namespace Paniq.Simulation
         public readonly AgentDoorMemory Doors;
         public readonly AgentBurning Burning = new AgentBurning();
         public readonly AgentCarry Carry = new AgentCarry();
+        public readonly AgentHelp Help = new AgentHelp();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -154,6 +156,32 @@ namespace Paniq.Simulation
 
         public ulong AttemptEventId;
         public int NextShoveTick;
+
+        /// <summary>Their AgentEscaped event, once they are out: anyone they drag out is rescued because of it.</summary>
+        public ulong EscapedEventId;
+    }
+
+    internal sealed class AgentHelp
+    {
+        /// <summary>The person (agent index) being helped, or -1.</summary>
+        public int TargetIndex = -1;
+
+        /// <summary>When the shaking or grabbing is done; 0 while still on the way.</summary>
+        public int WorkEndTick;
+
+        /// <summary>If they have not reached the person by then, they give up.</summary>
+        public int GiveUpTick;
+
+        /// <summary>Someone frozen for good they could not shake awake, and will not try again.</summary>
+        public int GaveUpOnIndex = -1;
+
+        public ulong GrabEventId;
+
+        /// <summary>The door they are dragging someone toward, or -1.</summary>
+        public int DragDoor = -1;
+
+        /// <summary>Where they stood before this tick's move, so a blocked drag can undo it.</summary>
+        public LogicalPosition PositionBeforeMove;
     }
 
     internal sealed class AgentCarry

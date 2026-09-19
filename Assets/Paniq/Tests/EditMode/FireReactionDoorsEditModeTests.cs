@@ -285,8 +285,10 @@ namespace Paniq.Tests.EditMode
                     Assert.That(simulation.GetAgent(record.SourceId).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped));
                 }
 
-                Assert.That(snapshot.EscapedCount, Is.GreaterThanOrEqualTo(3),
-                    $"Seed {seed}: only {snapshot.EscapedCount} escaped through four open doors.");
+                // Safe means out through one of the three outside doors, or sheltering behind the fourth.
+                int safe = snapshot.EscapedCount + snapshot.ShelteringCount;
+                Assert.That(safe, Is.GreaterThanOrEqualTo(3),
+                    $"Seed {seed}: only {snapshot.EscapedCount} escaped and {snapshot.ShelteringCount} sheltered with every door open.");
                 escaped += snapshot.EscapedCount;
             }
 
@@ -486,6 +488,12 @@ namespace Paniq.Tests.EditMode
                         break;
                     case FireReactionEventType.AgentEscaped:
                         Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, "An escape names the door used.");
+                        break;
+                    case FireReactionEventType.AgentShookAwake:
+                    case FireReactionEventType.AgentGrabbed:
+                    case FireReactionEventType.AgentDropped:
+                    case FireReactionEventType.AgentRescued:
+                        Assert.That(agents, Does.Contain(record.TargetId), $"{record.EventType} names the person helped.");
                         break;
                     case FireReactionEventType.ItemThrown:
                     case FireReactionEventType.ItemDropped:

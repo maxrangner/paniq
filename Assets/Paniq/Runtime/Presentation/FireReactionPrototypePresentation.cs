@@ -119,6 +119,10 @@ namespace Paniq.Presentation
                     case FireReactionEventType.AgentNoticedSound:
                         agents.Notice(record.SourceId, time);
                         break;
+                    case FireReactionEventType.AgentShookAwake:
+                        // The person shaken awake gets the "!".
+                        agents.Notice(record.TargetId, time);
+                        break;
                     case FireReactionEventType.AgentYelled:
                         agents.Yell(record.SourceId, time);
                         ripples.Start(record.Position, record.Strength, SoundRipples.YellColor, time);

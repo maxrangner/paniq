@@ -182,9 +182,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "21";
+        public string ContentRevision = "22";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 13;
+        public int SimulationCompatibilityVersion = 14;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -200,6 +200,7 @@ namespace Paniq.Simulation
         public TraitSettings Traits = new TraitSettings();
         public FlammableSettings Flammables = new FlammableSettings();
         public ItemSettings Items = new ItemSettings();
+        public HelpSettings Help = new HelpSettings();
 
         public FireReactionAgentDefinition[] Agents = DefaultAgents();
         public FireReactionDoorDefinition[] Doors = DefaultDoors();
@@ -225,6 +226,7 @@ namespace Paniq.Simulation
             copy.Traits = Traits?.Clone();
             copy.Flammables = Flammables?.Clone();
             copy.Items = Items?.Clone();
+            copy.Help = Help?.Clone();
             copy.Agents = (FireReactionAgentDefinition[])Agents?.Clone();
             copy.Doors = (FireReactionDoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (FireReactionPhysicsObjectDefinition[])PhysicsObjects?.Clone();
@@ -247,7 +249,7 @@ namespace Paniq.Simulation
 
             if (World == null || Perception == null || Fire == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
-                ObjectPhysics == null || Traits == null || Flammables == null || Items == null)
+                ObjectPhysics == null || Traits == null || Flammables == null || Items == null || Help == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -266,6 +268,7 @@ namespace Paniq.Simulation
             Traits.Validate();
             Flammables.Validate();
             Items.Validate();
+            Help.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");

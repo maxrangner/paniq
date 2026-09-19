@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(10));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("21"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(13));
+            Assert.That(data.ContentRevision, Is.EqualTo("22"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(14));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -880,7 +880,8 @@ namespace Paniq.Tests.EditMode
 
             data.Agents = crowd.ToArray();
 
-            // A bare room, so the grid of people fits.
+            // A bare room, so the grid of people fits, and nobody who shakes the frozen awake.
+            data.Help.ShakeMinimumCompassion = AgentTraitValues.Maximum + 1;
             data.Tables = new FireReactionTableDefinition[0];
             data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
             var simulation = new FireReactionSimulation(data);
@@ -974,6 +975,19 @@ namespace Paniq.Tests.EditMode
             Assert.That(thawed, Is.GreaterThan(0), "Nobody froze and then ran.");
         }
 
+        private static bool SomeoneIsDragging(FireReactionSimulation simulation)
+        {
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (simulation.GetAgent(i).ActivityState == AgentActivityState.Dragging)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // ---------------------------------------------------------------- collisions and falls
 
         [Test]
@@ -1007,7 +1021,8 @@ namespace Paniq.Tests.EditMode
 
                         // Someone can finish staggering, take a step and be bumped again in one
                         // tick, but nobody gets from the floor to their feet and back that fast.
-                        if (agent.IsDown && agent.BodyState == previous[i].BodyState)
+                        // (Someone knocked out can be dragged along by a helper.)
+                        if (agent.IsDown && agent.BodyState == previous[i].BodyState && !SomeoneIsDragging(simulation))
                         {
                             Assert.That(agent.Position, Is.EqualTo(previous[i].Position),
                                 $"Seed {seed}: agent {agent.AgentId} moved while not on its feet.");

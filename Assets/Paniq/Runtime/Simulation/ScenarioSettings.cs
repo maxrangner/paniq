@@ -209,6 +209,9 @@ namespace Paniq.Simulation
         public int EscapeTurnPenaltyPerDegree = 10;
         public int EscapeNoiseMillimetres = 1500;
 
+        /// <summary>A spot or door whose straight route runs into a table scores this much worse.</summary>
+        public int TableRoutePenaltyMillimetres = 3000;
+
         /// <summary>Steering weights, as percentages of the pull toward the goal.</summary>
         public int PeopleAvoidPercent = 50;
         public int WallAvoidPercent = 200;
@@ -233,7 +236,7 @@ namespace Paniq.Simulation
             Settings.Require(EscapeWallMarginMillimetres >= 0 && EscapeRouteClearanceMillimetres >= 0 &&
                              EscapeRoutePenaltyMillimetres >= 0 && EscapeShortHopDistanceMillimetres >= 0 &&
                              EscapeShortHopPenaltyMillimetres >= 0 && EscapeTurnPenaltyPerDegree >= 0 &&
-                             EscapeNoiseMillimetres >= 0, "escape scoring");
+                             EscapeNoiseMillimetres >= 0 && TableRoutePenaltyMillimetres >= 0, "escape scoring");
             Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0, "panic steering weights");
         }
     }

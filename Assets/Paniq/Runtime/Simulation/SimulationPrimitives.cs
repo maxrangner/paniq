@@ -296,10 +296,11 @@ namespace Paniq.Simulation
         Broken
     }
 
-    /// <summary>The shapes the physical-object system knows. Only boxes so far.</summary>
+    /// <summary>The kinds of loose object the physical-object system knows.</summary>
     public enum PhysicsObjectKind
     {
-        Box
+        Box,
+        Chair
     }
 
     public enum PlayerCommandType

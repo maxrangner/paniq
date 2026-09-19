@@ -301,7 +301,8 @@ namespace Paniq.Simulation
                 LimitSpeed(physicsBody, (long)context.Scenario.World.MaximumStepDistanceMillimetres * SubMillimetre);
                 long nextX = physicsBody.X + physicsBody.VelocityX;
                 long nextZ = physicsBody.Z + physicsBody.VelocityZ;
-                geometry.KeepObjectInRoom(physicsBody.Radius, SubMillimetre, ref nextX, ref nextZ, out bool hitX, out bool hitZ);
+                geometry.KeepObjectInRoom(physicsBody.Radius, SubMillimetre, physicsBody.X, physicsBody.Z,
+                    ref nextX, ref nextZ, out bool hitX, out bool hitZ);
                 if (hitX)
                 {
                     physicsBody.VelocityX = -physicsBody.VelocityX * settings.WallRestitutionPercent / 100L;

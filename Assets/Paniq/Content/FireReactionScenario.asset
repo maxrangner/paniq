@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '16'
+    ContentRevision: '17'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 8
+    SimulationCompatibilityVersion: 9
     World:
       RoomBounds:
         minX: -6000
@@ -104,6 +104,7 @@ MonoBehaviour:
       EscapeShortHopPenaltyMillimetres: 2000
       EscapeTurnPenaltyPerDegree: 10
       EscapeNoiseMillimetres: 1500
+      TableRoutePenaltyMillimetres: 3000
       PeopleAvoidPercent: 50
       WallAvoidPercent: 200
       ObjectAvoidPercent: 20
@@ -431,3 +432,89 @@ MonoBehaviour:
         z: -1250
       sizeMillimetres: 400
       massGrams: 6000
+    - objectId:
+        value: 3101
+      kind: 1
+      initialPosition:
+        x: -2800
+        z: -2125
+      sizeMillimetres: 450
+      massGrams: 5000
+    - objectId:
+        value: 3102
+      kind: 1
+      initialPosition:
+        x: -2200
+        z: -875
+      sizeMillimetres: 450
+      massGrams: 5000
+    - objectId:
+        value: 3103
+      kind: 1
+      initialPosition:
+        x: -3375
+        z: -1500
+      sizeMillimetres: 450
+      massGrams: 5000
+    - objectId:
+        value: 3104
+      kind: 1
+      initialPosition:
+        x: 2200
+        z: 2175
+      sizeMillimetres: 450
+      massGrams: 5000
+    - objectId:
+        value: 3105
+      kind: 1
+      initialPosition:
+        x: 2800
+        z: 3425
+      sizeMillimetres: 450
+      massGrams: 5000
+    - objectId:
+        value: 3106
+      kind: 1
+      initialPosition:
+        x: -1800
+        z: 1375
+      sizeMillimetres: 450
+      massGrams: 5000
+    - objectId:
+        value: 3107
+      kind: 1
+      initialPosition:
+        x: -1200
+        z: 2625
+      sizeMillimetres: 450
+      massGrams: 5000
+    - objectId:
+        value: 3108
+      kind: 1
+      initialPosition:
+        x: -625
+        z: 2000
+      sizeMillimetres: 450
+      massGrams: 5000
+    Tables:
+    - tableId:
+        value: 4001
+      centre:
+        x: -2500
+        z: -1500
+      widthMillimetres: 1200
+      depthMillimetres: 700
+    - tableId:
+        value: 4002
+      centre:
+        x: 2500
+        z: 2800
+      widthMillimetres: 1200
+      depthMillimetres: 700
+    - tableId:
+        value: 4003
+      centre:
+        x: -1500
+        z: 2000
+      widthMillimetres: 1200
+      depthMillimetres: 700

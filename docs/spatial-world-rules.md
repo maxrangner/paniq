@@ -171,3 +171,11 @@ whole millimetres. Objects stay inside the room and treat doorways as wall.
 - When an agent becomes `NoLongerParticipating`, its logical position remains
   available as historical run state, but another participating agent may later
   occupy that released space.
+
+## Prototype extension: tables
+
+The fire-reaction prototype adds fixed tables to the room. A table is an
+axis-aligned rectangle in scenario data. A person's footprint may not overlap
+the rectangle grown by the person's radius; the movement rules above apply
+unchanged, with tables treated as extra walls when choosing and resolving a
+step. `WorldGeometry` is the only code that knows where tables are.

@@ -4,8 +4,10 @@ namespace Paniq.Simulation
 {
     /// <summary>
     /// The shape of the world, and the only code that knows it: one
-    /// rectangular room with doors set into its walls. Each open door adds a
-    /// walkable strip through the wall. Every question about where a body may
+    /// rectangular room with doors set into its walls and tables standing
+    /// on its floor. Each open door adds a walkable strip through the wall.
+    /// A table is a solid rectangle: bodies slide along its edges as they
+    /// would along a wall. Every question about where a body may
     /// be (walking, steering off walls, leaving through a door, a box hitting
     /// a wall) is answered here, so a later world with inner walls or several
     /// rooms changes this class rather than every system.
@@ -15,11 +17,18 @@ namespace Paniq.Simulation
         /// <summary>How close to a door's centre line a runner must be to head out through it, beyond a full fit.</summary>
         private const int LinedUpTolerance = 50;
 
+        /// <summary>Random spots are redrawn this many times at most to keep them clear of tables.</summary>
+        private const int ClearSpotAttempts = 8;
+
+        /// <summary>Random spots stay at least this far clear of a table's edge, beyond a body's radius.</summary>
+        private const int TableSpotClearance = 300;
+
         private readonly SimulationContext context;
         private readonly DoorRuntime[] doors;
         private readonly LogicalBounds room;
         private readonly int radius;
         private readonly ExitSettings exits;
+        private readonly LogicalBounds[] tables;
 
         public WorldGeometry(SimulationContext context, DoorRuntime[] doors)
         {
@@ -28,7 +37,19 @@ namespace Paniq.Simulation
             room = context.Scenario.World.RoomBounds;
             radius = context.Scenario.World.OccupancyRadiusMillimetres;
             exits = context.Scenario.Exits;
+
+            var definitions = (FireReactionTableDefinition[])context.Scenario.Tables.Clone();
+            Array.Sort(definitions, (left, right) => left.TableId.CompareTo(right.TableId));
+            tables = new LogicalBounds[definitions.Length];
+            for (int i = 0; i < tables.Length; i++)
+            {
+                tables[i] = definitions[i].Bounds;
+            }
         }
+
+        public int TableCount => tables.Length;
+
+        public LogicalBounds TableBounds(int table) => tables[table];
 
         /// <summary>The floor area; the fire grid covers exactly this.</summary>
         public LogicalBounds Floor => room;
@@ -51,9 +72,112 @@ namespace Paniq.Simulation
         public LogicalPosition RandomInteriorPoint(int margin)
         {
             margin = Math.Min(margin, Math.Min(room.MaxX - room.MinX, room.MaxZ - room.MinZ) / 2);
-            int x = context.Random.NextIntInclusive(room.MinX + margin, room.MaxX - margin);
-            int z = context.Random.NextIntInclusive(room.MinZ + margin, room.MaxZ - margin);
-            return new LogicalPosition(x, z);
+            LogicalPosition point = default;
+            for (int attempt = 0; attempt < ClearSpotAttempts; attempt++)
+            {
+                // Redrawn while it lands on or right beside a table (at most a few times).
+                int x = context.Random.NextIntInclusive(room.MinX + margin, room.MaxX - margin);
+                int z = context.Random.NextIntInclusive(room.MinZ + margin, room.MaxZ - margin);
+                point = new LogicalPosition(x, z);
+                if (TableAt(point, radius + TableSpotClearance) < 0)
+                {
+                    break;
+                }
+            }
+
+            return point;
+        }
+
+        // ---------------------------------------------------------------- tables
+
+        /// <summary>
+        /// The lowest-index table a body of <paramref name="bodyRadius"/> at
+        /// <paramref name="position"/> would overlap, or -1. A table is
+        /// treated as its rectangle grown by the radius on every side, so
+        /// standing exactly at that edge is allowed.
+        /// </summary>
+        public int TableAt(LogicalPosition position, int bodyRadius)
+        {
+            for (int t = 0; t < tables.Length; t++)
+            {
+                LogicalBounds b = tables[t];
+                if (position.X > b.MinX - bodyRadius && position.X < b.MaxX + bodyRadius &&
+                    position.Z > b.MinZ - bodyRadius && position.Z < b.MaxZ + bodyRadius)
+                {
+                    return t;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>True when a person walking straight from one point to the other would run into a table.</summary>
+        public bool RouteCrossesTable(LogicalPosition from, LogicalPosition to)
+        {
+            for (int t = 0; t < tables.Length; t++)
+            {
+                if (IntegerMath.SweptCircleOverlapsBounds(from, to, radius, tables[t]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Moves <paramref name="destination"/> out of any table it overlaps,
+        /// onto the edge facing <paramref name="current"/>, so a body slides
+        /// along a table as it would along a wall. <paramref name="hitX"/> is
+        /// true when it was stopped along X, <paramref name="hitZ"/> along Z.
+        /// </summary>
+        public LogicalPosition PushOutOfTables(LogicalPosition current, LogicalPosition destination, int bodyRadius,
+            out bool hitX, out bool hitZ)
+        {
+            hitX = false;
+            hitZ = false;
+            for (int t = 0; t < tables.Length; t++)
+            {
+                LogicalBounds b = tables[t];
+                int minX = b.MinX - bodyRadius;
+                int maxX = b.MaxX + bodyRadius;
+                int minZ = b.MinZ - bodyRadius;
+                int maxZ = b.MaxZ + bodyRadius;
+                if (!(destination.X > minX && destination.X < maxX && destination.Z > minZ && destination.Z < maxZ))
+                {
+                    continue;
+                }
+
+                // Stop on the side the body came from: the X edge if it was
+                // already beside the table, otherwise the Z edge. A body that
+                // was somehow inside leaves by the nearest edge.
+                bool besideX = current.X <= minX || current.X >= maxX;
+                bool besideZ = current.Z <= minZ || current.Z >= maxZ;
+                if (!besideX && !besideZ)
+                {
+                    int left = destination.X - minX;
+                    int right = maxX - destination.X;
+                    int below = destination.Z - minZ;
+                    int above = maxZ - destination.Z;
+                    besideX = Math.Min(left, right) <= Math.Min(below, above);
+                    current = besideX
+                        ? new LogicalPosition(left <= right ? minX : maxX, destination.Z)
+                        : new LogicalPosition(destination.X, below <= above ? minZ : maxZ);
+                }
+
+                if (besideX)
+                {
+                    destination = new LogicalPosition(current.X <= minX ? minX : maxX, destination.Z);
+                    hitX = true;
+                }
+                else
+                {
+                    destination = new LogicalPosition(destination.X, current.Z <= minZ ? minZ : maxZ);
+                    hitZ = true;
+                }
+            }
+
+            return destination;
         }
 
         // ---------------------------------------------------------------- doors
@@ -149,7 +273,7 @@ namespace Paniq.Simulation
         {
             if (IsInsideRoom(position))
             {
-                return true;
+                return TableAt(position, radius) < 0;
             }
 
             for (int d = 0; d < doors.Length; d++)
@@ -175,15 +299,20 @@ namespace Paniq.Simulation
                 return position;
             }
 
-            if (!IsInsideRoom(current))
+            if (IsInsideRoom(current))
             {
-                for (int d = 0; d < doors.Length; d++)
+                // Keep to the room, sliding along any table in the way as along a wall.
+                LogicalPosition slid = PushOutOfTables(current, Clamp(position, room, radius), radius, out _, out _);
+                return Clamp(slid, room, radius);
+            }
+
+            // Outside the room (in a doorway): keep to the doorway strip.
+            for (int d = 0; d < doors.Length; d++)
+            {
+                LogicalBounds strip = DoorwayStrip(d);
+                if (CanUseDoorway(d, current, exitDoor) && strip.ContainsCircle(current, radius))
                 {
-                    LogicalBounds strip = DoorwayStrip(d);
-                    if (CanUseDoorway(d, current, exitDoor) && strip.ContainsCircle(current, radius))
-                    {
-                        return Clamp(position, strip, radius);
-                    }
+                    return Clamp(position, strip, radius);
                 }
             }
 
@@ -229,6 +358,23 @@ namespace Paniq.Simulation
             if (range <= 0L || percent <= 0 || !IsInsideRoom(position))
             {
                 return;
+            }
+
+            // Away from the nearest point of each nearby table, like a wall.
+            for (int t = 0; t < tables.Length; t++)
+            {
+                LogicalPosition closest = tables[t].ClosestPoint(position);
+                long dx = (long)position.X - closest.X;
+                long dz = (long)position.Z - closest.Z;
+                long distance = IntegerMath.Sqrt(dx * dx + dz * dz);
+                if (distance == 0L)
+                {
+                    continue;
+                }
+
+                long push = WallPush(distance - radius, range, percent);
+                steerX += dx * push / distance;
+                steerZ += dz * push / distance;
             }
 
             if (!IsLinedUpWithExit(exitDoor, WallSide.West, position))
@@ -295,10 +441,11 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Keeps an object's next position (in <paramref name="scale"/> units
-        /// per millimetre) inside the room walls, and says which walls it hit.
-        /// Objects never use doorways.
+        /// per millimetre) inside the room walls and out of the tables, and
+        /// says along which axes it hit something. Objects never use doorways.
         /// </summary>
-        public void KeepObjectInRoom(int objectRadius, long scale, ref long nextX, ref long nextZ, out bool hitX, out bool hitZ)
+        public void KeepObjectInRoom(int objectRadius, long scale, long fromX, long fromZ, ref long nextX, ref long nextZ,
+            out bool hitX, out bool hitZ)
         {
             long minX = (long)(room.MinX + objectRadius) * scale;
             long maxX = (long)(room.MaxX - objectRadius) * scale;
@@ -315,6 +462,32 @@ namespace Paniq.Simulation
             {
                 nextZ = Math.Max(minZ, Math.Min(maxZ, nextZ));
             }
+
+            if (tables.Length == 0)
+            {
+                return;
+            }
+
+            var from = new LogicalPosition((int)FloorDivide(fromX, scale), (int)FloorDivide(fromZ, scale));
+            var next = new LogicalPosition((int)FloorDivide(nextX, scale), (int)FloorDivide(nextZ, scale));
+            LogicalPosition pushed = PushOutOfTables(from, next, objectRadius, out bool tableX, out bool tableZ);
+            if (tableX)
+            {
+                nextX = (long)pushed.X * scale;
+                hitX = true;
+            }
+
+            if (tableZ)
+            {
+                nextZ = (long)pushed.Z * scale;
+                hitZ = true;
+            }
+        }
+
+        private static long FloorDivide(long value, long divisor)
+        {
+            long quotient = value / divisor;
+            return value % divisor != 0L && (value < 0L) != (divisor < 0L) ? quotient - 1L : quotient;
         }
 
         private static LogicalPosition Clamp(LogicalPosition position, LogicalBounds bounds, int radius)

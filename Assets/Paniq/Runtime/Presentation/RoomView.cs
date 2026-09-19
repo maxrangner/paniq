@@ -7,7 +7,8 @@ namespace Paniq.Presentation
 {
     /// <summary>
     /// The floor and walls from the scenario's room, each wall split around
-    /// its doors, a door leaf in every gap and a strip of ground outside.
+    /// its doors, a door leaf in every gap, a strip of ground outside, and
+    /// the tables.
     /// Door leaves swing open, judder when shoved, fall flat when broken
     /// down, and keep a collider only so a click can find which door was hit.
     /// </summary>
@@ -43,6 +44,9 @@ namespace Paniq.Presentation
         private readonly FireReactionScenarioData scenario;
         private readonly Dictionary<SimulationId, DoorView> doors = new Dictionary<SimulationId, DoorView>();
         private readonly Dictionary<Collider, SimulationId> doorByCollider = new Dictionary<Collider, SimulationId>();
+
+        /// <summary>Every renderer of each table (top and legs), so later effects can recolour it.</summary>
+        private readonly Dictionary<SimulationId, Renderer[]> tables = new Dictionary<SimulationId, Renderer[]>();
 
         public RoomView(FireReactionScenarioData scenario, PresentationMaterials materials, Transform parent)
         {
@@ -91,6 +95,47 @@ namespace Paniq.Presentation
 
                 CreateWallPiece(side, piece, alongX, wallLine, cursor, end);
             }
+
+            foreach (FireReactionTableDefinition table in scenario.Tables)
+            {
+                CreateTable(table);
+            }
+        }
+
+        /// <summary>A plain wooden table: a thin top on four legs.</summary>
+        private void CreateTable(FireReactionTableDefinition table)
+        {
+            const float height = 0.74f;
+            const float topThickness = 0.06f;
+            const float leg = 0.06f;
+            float width = Metres(table.WidthMillimetres);
+            float depth = Metres(table.DepthMillimetres);
+            Vector3 centre = ToUnityPosition(table.Centre);
+            var root = new GameObject($"Table {table.TableId.Value} (presentation)").transform;
+            root.SetParent(parent, false);
+            root.position = centre;
+
+            var renderers = new List<Renderer>
+            {
+                CreatePrimitive("Top", PrimitiveType.Cube, root, centre + Vector3.up * (height - topThickness * 0.5f),
+                    new Vector3(width, topThickness, depth), materials.Box).GetComponent<Renderer>()
+            };
+            float legX = width * 0.5f - leg;
+            float legZ = depth * 0.5f - leg;
+            foreach (Vector2 corner in new[] { new Vector2(-1f, -1f), new Vector2(1f, -1f), new Vector2(-1f, 1f), new Vector2(1f, 1f) })
+            {
+                renderers.Add(CreatePrimitive("Leg", PrimitiveType.Cube, root,
+                    centre + new Vector3(corner.x * legX, (height - topThickness) * 0.5f, corner.y * legZ),
+                    new Vector3(leg, height - topThickness, leg), materials.Box).GetComponent<Renderer>());
+            }
+
+            Renderer[] parts = renderers.ToArray();
+            foreach (Renderer part in parts)
+            {
+                materials.SetColor(part, PresentationMaterials.WoodColor);
+            }
+
+            tables.Add(table.TableId, parts);
         }
 
         private void CreateWallPiece(WallSide side, int piece, bool alongX, float wallLine, float from, float to)

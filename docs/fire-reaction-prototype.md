@@ -8,8 +8,8 @@ hazard, and leave an explainable causal event trail.
 ## Experience
 
 The `FireReactionPrototype` scene shows one abstract 12 m by 12 m room with a
-door in each wall, eight cardboard boxes on the floor, and ten people
-(capsules).
+door in each wall, three wooden tables with eight chairs pulled up to them,
+eight cardboard boxes on the floor, and ten people (capsules).
 
 **Everyone has a personality.** Each person has six traits from 0 to 10:
 strength, speed, bravery, compassion, evil and nervousness. 5 is an ordinary
@@ -127,6 +127,14 @@ the player. At a shut door a runner:
 Someone who walks 0.8 m out through an open door has **escaped**: they keep
 walking for a moment and shrink out of view. People stuck in a crowd on the
 way to a door try a different one for a few seconds.
+
+**Tables and chairs.** Three 1.2 × 0.7 m tables stand in the room. Nobody
+and nothing can pass through a table: people slide along its edge as they
+would along a wall and steer away from it, loose objects bounce off it, and
+random spots people pick to stroll to or run for stay clear of tables.
+Runners also avoid spots and doors whose straight route runs into a table.
+Eight chairs (0.45 m, 5 kg) behave like light boxes: runners kick them
+skidding across the floor and trip over them.
 
 **Boxes.** Eight cardboard boxes, 0.3–0.6 m wide and 3–20 kg, sit on the floor.
 Calm people walk around them. Runners barely look: they kick a box sliding
@@ -296,6 +304,14 @@ restart control, or end screen in this checkpoint.
   is kept per door. When it reaches the door's strength (40) the door becomes
   `Broken`: it logs `DoorBrokenDown` (source: the shover; target: the door;
   parent: the shove) and counts as open for walking, choosing and escaping.
+- **Tables.** A table is a fixed rectangle. A body of radius r overlaps it
+  when its centre is strictly inside the rectangle grown by r on every side
+  (square corners). A step into a table is moved onto the grown edge facing
+  where the body came from, so it slides along; a sliding object that hits it
+  is stopped there and bounces on that axis like a wall. Random spots are
+  redrawn (up to 8 draws) until they are 0.3 m clear of every grown table. A
+  candidate escape spot or door whose straight route (swept by a person's
+  radius) meets a table scores 3 m worse. Tables push people away like walls.
 - **Physical objects.** After collisions, each moving box in ascending ID order
   slides by its velocity, stops touching the first person or box in its way
   (found by an integer halving search along its path), bounces, then loses

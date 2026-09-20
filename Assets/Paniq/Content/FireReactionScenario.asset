@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '24'
+    ContentRevision: '25'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 16
+    SimulationCompatibilityVersion: 17
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -161,6 +161,7 @@ MonoBehaviour:
       GiveWayAsideMillimetres: 100
       GiveWayInsetMillimetres: 400
       CurrentRoomBonusMillimetres: 2000
+      RefugeClearRoomMillimetres: 8000
       RefugeNoFireMillimetres: 20000
       RefugeSpacePerPersonMillimetres: 1000
       ApproachInsetMillimetres: 600
@@ -406,6 +407,146 @@ MonoBehaviour:
         compassion: 6
         evil: 3
         nervousness: 5
+    - agentId:
+        value: 1011
+      initialPosition:
+        x: 10500
+        z: -4500
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 5
+        bravery: 6
+        compassion: 5
+        evil: 3
+        nervousness: 4
+    - agentId:
+        value: 1012
+      initialPosition:
+        x: 13500
+        z: -4500
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 9
+        speed: 4
+        bravery: 7
+        compassion: 6
+        evil: 2
+        nervousness: 3
+    - agentId:
+        value: 1013
+      initialPosition:
+        x: 16500
+        z: -4500
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 4
+        speed: 7
+        bravery: 3
+        compassion: 7
+        evil: 1
+        nervousness: 7
+    - agentId:
+        value: 1014
+      initialPosition:
+        x: 19500
+        z: -4500
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 6
+        speed: 5
+        bravery: 5
+        compassion: 5
+        evil: 5
+        nervousness: 5
+    - agentId:
+        value: 1015
+      initialPosition:
+        x: 10500
+        z: 0
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 3
+        speed: 6
+        bravery: 2
+        compassion: 8
+        evil: 0
+        nervousness: 9
+    - agentId:
+        value: 1016
+      initialPosition:
+        x: 13500
+        z: 1200
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 7
+        speed: 8
+        bravery: 8
+        compassion: 4
+        evil: 7
+        nervousness: 2
+    - agentId:
+        value: 1017
+      initialPosition:
+        x: 16500
+        z: 0
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 5
+        bravery: 4
+        compassion: 5
+        evil: 4
+        nervousness: 6
+    - agentId:
+        value: 1018
+      initialPosition:
+        x: 19500
+        z: 1200
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 8
+        speed: 6
+        bravery: 6
+        compassion: 2
+        evil: 8
+        nervousness: 4
+    - agentId:
+        value: 1019
+      initialPosition:
+        x: 12000
+        z: 4500
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 4
+        speed: 9
+        bravery: 5
+        compassion: 6
+        evil: 2
+        nervousness: 6
+    - agentId:
+        value: 1020
+      initialPosition:
+        x: 18000
+        z: 4500
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 6
+        speed: 5
+        bravery: 7
+        compassion: 9
+        evil: 1
+        nervousness: 3
     Doors:
     - doorId:
         value: 2001
@@ -437,6 +578,38 @@ MonoBehaviour:
         value: 5001
       side: 3
       centreAlongWallMillimetres: -2500
+      widthMillimetres: 1000
+      startsLocked: 1
+    - doorId:
+        value: 2005
+      roomId:
+        value: 5001
+      side: 1
+      centreAlongWallMillimetres: 0
+      widthMillimetres: 1000
+      startsLocked: 0
+    - doorId:
+        value: 2006
+      roomId:
+        value: 5003
+      side: 1
+      centreAlongWallMillimetres: 0
+      widthMillimetres: 1000
+      startsLocked: 0
+    - doorId:
+        value: 2007
+      roomId:
+        value: 5004
+      side: 0
+      centreAlongWallMillimetres: 15000
+      widthMillimetres: 1000
+      startsLocked: 1
+    - doorId:
+        value: 2008
+      roomId:
+        value: 5004
+      side: 1
+      centreAlongWallMillimetres: 2500
       widthMillimetres: 1000
       startsLocked: 1
     PhysicsObjects:
@@ -605,3 +778,17 @@ MonoBehaviour:
         maxX: 8000
         minZ: 1500
         maxZ: 3500
+    - roomId:
+        value: 5003
+      bounds:
+        minX: 6000
+        maxX: 9000
+        minZ: -1000
+        maxZ: 1000
+    - roomId:
+        value: 5004
+      bounds:
+        minX: 9000
+        maxX: 21000
+        minZ: -6000
+        maxZ: 6000

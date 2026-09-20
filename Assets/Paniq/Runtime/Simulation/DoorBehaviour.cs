@@ -62,7 +62,7 @@
             for (int d = 0; d < doors.Count; d++)
             {
                 if (!geometry.DoorLeadsOutside(d) ||
-                    !geometry.TryFindRoute(room, position, geometry.DoorRoom(d), agent, out int first, out long routeCost))
+                    !geometry.TryFindRoute(room, position, geometry.DoorRoom(d), agent, out int first, out int last, out long routeCost))
                 {
                     continue;
                 }
@@ -77,9 +77,13 @@
                     continue;
                 }
 
+                // The whole walk: to the first door, room to room, and
+                // across the last room to the way out itself.
                 LogicalPosition approach = ApproachPoint(d, geometry.DoorRoom(d));
-                long score = context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) - routeCost;
-                score -= first < 0 ? IntegerMath.Distance(position, approach) : 0L;
+                long walk = first < 0
+                    ? IntegerMath.Distance(position, approach)
+                    : routeCost + IntegerMath.Distance(geometry.DoorCentre(last), approach);
+                long score = context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) - walk;
                 if (geometry.IsDoorOpen(d))
                 {
                     score += settings.OpenBonusMillimetres;
@@ -92,6 +96,14 @@
 
                 score -= RoutePenalties(agent, position, next);
                 if (fire.AnyCloserThan(approach, TraitEffects.DangerDistance(agent, context.Scenario)))
+                {
+                    score -= settings.InFirePenaltyMillimetres;
+                }
+
+                // Nobody walks into the next room, or all the way to a
+                // door in a far room, while that room is alight.
+                int into = geometry.RoomBeyond(next, room);
+                if ((into >= 0 && fire.IsBurningInRoom(into)) || fire.IsBurningInRoom(geometry.DoorRoom(d)))
                 {
                     score -= settings.InFirePenaltyMillimetres;
                 }
@@ -116,22 +128,28 @@
         private int ChooseRefugeDoor(Agent agent, int room, LogicalPosition position)
         {
             int best = -1;
-            long bestScore = RefugeScore(room, position) + settings.CurrentRoomBonusMillimetres;
+            long bestScore = RefugeScore(room, 0L) + settings.CurrentRoomBonusMillimetres;
             for (int r = 0; r < geometry.RoomCount; r++)
             {
-                if (r == room || !geometry.TryFindRoute(room, position, r, agent, out int first, out long routeCost) || first < 0)
+                if (r == room ||
+                    !geometry.TryFindRoute(room, position, r, agent, out int first, out int last, out long routeCost) ||
+                    first < 0)
                 {
                     continue;
                 }
+
+                routeCost += IntegerMath.Distance(geometry.DoorCentre(last), geometry.RoomBounds(r).Centre);
 
                 if ((!geometry.IsDoorOpen(first) && context.Tick < agent.Doors.AvoidUntilTick[first]) || IsRoomFull(r, agent))
                 {
                     continue;
                 }
 
-                long score = RefugeScore(r, geometry.DoorCentre(first)) - routeCost +
+                int into = geometry.RoomBeyond(first, room);
+                long score = RefugeScore(r, routeCost) +
                              context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) -
-                             RoutePenalties(agent, position, first);
+                             RoutePenalties(agent, position, first) -
+                             (into >= 0 && fire.IsBurningInRoom(into) ? settings.InFirePenaltyMillimetres : 0L);
                 if (score > bestScore)
                 {
                     bestScore = score;
@@ -165,8 +183,12 @@
             return inside >= capacity;
         }
 
-        /// <summary>How good a room looks to hide in: how far its middle is from the flames, and empty of fire.</summary>
-        private long RefugeScore(int room, LogicalPosition from)
+        /// <summary>
+        /// How good a room looks to get away to: how far its middle is from
+        /// the nearest flames, plus a bonus if nothing in it is alight, less
+        /// half the walk there. A room already burning is worth nothing.
+        /// </summary>
+        private long RefugeScore(int room, long routeCost)
         {
             LogicalPosition middle = geometry.RoomBounds(room).Centre;
             long fireDistanceSquared = fire.NearestDistanceSquared(middle);
@@ -177,8 +199,12 @@
             {
                 score -= settings.InFirePenaltyMillimetres;
             }
+            else
+            {
+                score += settings.RefugeClearRoomMillimetres;
+            }
 
-            return score - IntegerMath.Distance(from, middle) / 4L;
+            return score - routeCost / 2L;
         }
 
         /// <summary>What is in the way on the first leg: flames to squeeze past, or a table to go around.</summary>
@@ -216,7 +242,7 @@
             LogicalPosition position = agent.Body.Position;
             int from = agent.Doors.ApproachRoom;
             int room = geometry.RoomAt(position);
-            if (context.Tick < agent.Doors.GiveWayUntilTick && geometry.IsDoorOpen(door) && room >= 0)
+            if (context.Tick < agent.Doors.GiveWayUntilTick && geometry.IsDoorOpen(door))
             {
                 // Standing aside, against the wall on their side of the gap.
                 int radius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -459,9 +485,16 @@
         public bool TryGiveWay(Agent agent)
         {
             int door = agent.Doors.ExitDoorIndex;
-            if (door < 0 || !geometry.IsDoorOpen(door) || geometry.RoomAt(agent.Body.Position) < 0 ||
-                geometry.IsLinedUpToPassThrough(door, agent.Body.Position) ||
+            if (door < 0 || !geometry.IsDoorOpen(door) ||
                 !IsNearExit(agent, settings.ApproachInsetMillimetres + context.Scenario.World.OccupancyRadiusMillimetres))
+            {
+                return false;
+            }
+
+            // Standing in the gap itself, nose to nose with someone coming
+            // the other way, counts too: they back out of it.
+            bool inDoorway = geometry.RoomAt(agent.Body.Position) < 0;
+            if (!inDoorway && geometry.IsLinedUpToPassThrough(door, agent.Body.Position))
             {
                 return false;
             }
@@ -578,7 +611,10 @@
             {
                 int door = candidates[i];
                 int beyond = geometry.RoomBeyond(door, room);
-                if (!geometry.IsDoorOpen(door) || beyond < 0 || !fire.IsBurningInRoom(beyond) ||
+
+                // Never the door they are about to walk through themselves.
+                if (door == agent.Doors.ExitDoorIndex || !geometry.IsDoorOpen(door) || beyond < 0 ||
+                    !fire.IsBurningInRoom(beyond) ||
                     LogicalPosition.DistanceSquared(agent.Body.Position, geometry.DoorCentre(door)) > reach * reach)
                 {
                     continue;

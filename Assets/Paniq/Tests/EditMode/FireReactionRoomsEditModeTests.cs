@@ -36,6 +36,21 @@ namespace Paniq.Tests.EditMode
             simulation.QueueCommand(PlayerCommandType.ClickDoor, ClosetDoor, tick);
         }
 
+        /// <summary>Inside one of the building's other rooms, away from the office where the fire is.</summary>
+        private static bool OutOfTheOffice(FireReactionScenarioData data, LogicalPosition point)
+        {
+            for (int r = 1; r < data.Rooms.Length; r++)
+            {
+                LogicalBounds b = data.Rooms[r].Bounds;
+                if (point.X > b.MinX && point.X < b.MaxX && point.Z > b.MinZ && point.Z < b.MaxZ)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool InCloset(FireReactionScenarioData data, LogicalPosition point)
         {
             LogicalBounds b = data.Rooms[1].Bounds;
@@ -77,7 +92,7 @@ namespace Paniq.Tests.EditMode
         public void DefaultScenario_HasAStorageClosetBehindTheEastDoor()
         {
             FireReactionScenarioData data = scenario.ToRuntimeData();
-            Assert.That(data.Rooms, Has.Length.EqualTo(2));
+            Assert.That(data.Rooms, Has.Length.EqualTo(4), "Office, closet, corridor and meeting room.");
             LogicalBounds b = data.Rooms[1].Bounds;
             Assert.That((b.MaxX - b.MinX) * (long)(b.MaxZ - b.MinZ), Is.EqualTo(4000000L), "2 × 2 m: room for two or three.");
 
@@ -85,7 +100,7 @@ namespace Paniq.Tests.EditMode
             FireReactionDoorDefinition door = Array.Find(data.Doors, d => d.DoorId == ClosetDoor);
             Assert.That(door.RoomId, Is.EqualTo(data.Rooms[0].RoomId), "The door sits in the office's east wall.");
             Assert.That(door.StartsLocked, Is.False);
-            Assert.That(Array.FindAll(data.Doors, d => d.StartsLocked), Has.Length.EqualTo(3), "The three ways out start locked.");
+            Assert.That(Array.FindAll(data.Doors, d => d.StartsLocked), Has.Length.EqualTo(5), "The five ways out start locked.");
         }
 
         [Test]
@@ -159,14 +174,14 @@ namespace Paniq.Tests.EditMode
             for (int t = 0; t < 30 * FireReactionSimulation.TicksPerSecond; t++)
             {
                 simulation.Step();
-                insideFor += InCloset(data, simulation.GetAgent(0).Position) ? 1 : 0;
+                insideFor += OutOfTheOffice(data, simulation.GetAgent(0).Position) ? 1 : 0;
             }
 
             FireReactionAgentSnapshot person = simulation.GetAgent(0);
-            Assert.That(insideFor, Is.GreaterThan(0), "The runner never got into the closet.");
-            Assert.That(InCloset(data, person.Position), Is.True, $"They ended up at {person.Position}.");
-            Assert.That(person.Outcome, Is.EqualTo(AgentTerminalOutcome.Unresolved), "A closet is not a way out.");
-            Assert.That(simulation.GetDoor(1).State, Is.Not.EqualTo(DoorState.Locked), "They opened the closet door themselves.");
+            Assert.That(insideFor, Is.GreaterThan(0), "The runner never got out of the burning office.");
+            Assert.That(person.Outcome, Is.EqualTo(AgentTerminalOutcome.Unresolved), "Another room is not a way out.");
+            Assert.That(OutOfTheOffice(data, person.Position), Is.True,
+                $"They should have got out of the burning office, but are at {person.Position}.");
         }
 
         [Test]
@@ -229,8 +244,11 @@ namespace Paniq.Tests.EditMode
                     for (int i = 0; i < simulation.AgentCount; i++)
                     {
                         FireReactionAgentSnapshot person = simulation.GetAgent(i);
+                        // Only people actually trying to run: someone frozen,
+                        // helping, or working a door handle is meant to stand still.
                         bool stuck = person.Participation == AgentParticipation.Participating &&
                                      !person.IsBurning && !person.IsDown &&
+                                     person.ActivityState == AgentActivityState.Fleeing &&
                                      person.Position.Equals(wasAt[i]) && NearAnOpenDoor(simulation, person.Position);
                         wasAt[i] = person.Position;
                         stillFor[i] = stuck ? stillFor[i] + 1 : 0;

@@ -324,15 +324,17 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// How far it is to walk from one room to another through doors, and
-        /// which door to head for first. Distance is measured from where the
-        /// traveller stands, door centre to door centre. A shut door still
+        /// which door to head for first, and which door they would walk in
+        /// through at the end. Distance is measured from where the traveller
+        /// stands, door centre to door centre. A shut door still
         /// counts as a way through (people expect to open one), but not one
         /// this person has just given up on. False when there is no way at all.
         /// </summary>
         public bool TryFindRoute(int fromRoom, LogicalPosition from, int toRoom, Agent traveller,
-            out int firstDoor, out long cost)
+            out int firstDoor, out int lastDoor, out long cost)
         {
             firstDoor = -1;
+            lastDoor = -1;
             cost = 0L;
             if (fromRoom < 0 || toRoom < 0)
             {
@@ -376,6 +378,7 @@ namespace Paniq.Simulation
                 if (room == toRoom)
                 {
                     firstDoor = routeFirstDoor[room];
+                    lastDoor = routeEntryDoor[room];
                     cost = routeCost[room];
                     return true;
                 }

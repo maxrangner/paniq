@@ -398,7 +398,10 @@ namespace Paniq.Simulation
         /// <summary>With every way out given up on, how much better the room they already stand in has to look.</summary>
         public int CurrentRoomBonusMillimetres = 2000;
 
-        /// <summary>What a room with no fire in it at all is worth when picking somewhere to hide.</summary>
+        /// <summary>What a room with nothing burning in it is worth when picking somewhere to get away from the fire.</summary>
+        public int RefugeClearRoomMillimetres = 8000;
+
+        /// <summary>What any room is worth while nothing anywhere is alight.</summary>
         public int RefugeNoFireMillimetres = 20000;
 
         /// <summary>How much floor one person needs before a room looks full to someone hoping to get in.</summary>
@@ -463,7 +466,7 @@ namespace Paniq.Simulation
             Settings.Require(OpenBonusMillimetres >= 0 && CurrentChoiceBonusMillimetres >= 0 &&
                              ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0 &&
                              CurrentRoomBonusMillimetres >= 0 && RefugeNoFireMillimetres >= 0 &&
-                             RefugeSpacePerPersonMillimetres > 0, "door scoring");
+                             RefugeClearRoomMillimetres >= 0 && RefugeSpacePerPersonMillimetres > 0, "door scoring");
             Settings.Require(DoorStrength >= 1, "door strength");
             Settings.Require(CloseReachMillimetres >= 0 && CloseApproachRadiusMillimetres >= 0 &&
                              CloseFireRadiusMillimetres >= 0 && FireAtDoorRadiusMillimetres >= 0 &&

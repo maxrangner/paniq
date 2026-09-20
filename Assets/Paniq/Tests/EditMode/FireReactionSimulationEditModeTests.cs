@@ -39,10 +39,10 @@ namespace Paniq.Tests.EditMode
         {
             Assert.That(scenario.IsValid(out string error), Is.True, error);
             FireReactionScenarioData data = DefaultData();
-            Assert.That(data.Agents, Has.Length.EqualTo(10));
+            Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("24"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(16));
+            Assert.That(data.ContentRevision, Is.EqualTo("25"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(17));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -208,21 +208,64 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>The room whose walls hold this position, or the first room.</summary>
+        private static LogicalBounds RoomHolding(FireReactionScenarioData data, LogicalPosition position)
+        {
+            foreach (FireReactionRoomDefinition room in data.Rooms)
+            {
+                if (room.Bounds.ContainsCircle(position, data.World.OccupancyRadiusMillimetres))
+                {
+                    return room.Bounds;
+                }
+            }
+
+            return data.Rooms[0].Bounds;
+        }
+
+        /// <summary>Whether someone is standing in a doorway, between two rooms.</summary>
+        private static bool InADoorway(FireReactionSnapshot snapshot, LogicalPosition position)
+        {
+            foreach (FireReactionDoorSnapshot door in snapshot.Doors)
+            {
+                if (LogicalPosition.DistanceSquared(position, door.Centre) < 1000L * 1000L)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether a whole body stands inside one of the building's rooms.</summary>
+        private static bool InAnyRoom(FireReactionScenarioData data, LogicalPosition position)
+        {
+            foreach (FireReactionRoomDefinition room in data.Rooms)
+            {
+                if (room.Bounds.ContainsCircle(position, data.World.OccupancyRadiusMillimetres))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         [Test]
         public void Fire_FillsTheRoomWithinAMinute()
         {
             FireReactionScenarioData data = DefaultData();
             data.Fire.ActivationTick = 1;
             var simulation = new FireReactionSimulation(data);
-            // The main room's 24 × 24 squares; the side room behind its locked door stays untouched.
-            int mainRoomCells = 24 * 24;
-            Assert.That(simulation.FireFloorCellCount, Is.EqualTo(mainRoomCells + 4 * 4));
-            for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond && simulation.FireCellCount < mainRoomCells; i++)
+            // The office's 24 × 24 squares, plus the closet, the corridor and the meeting room.
+            int officeCells = 24 * 24;
+            Assert.That(simulation.FireFloorCellCount, Is.EqualTo(officeCells + 4 * 4 + 6 * 4 + 24 * 24));
+            for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond && simulation.FireCellCount < officeCells; i++)
             {
                 simulation.Step();
             }
 
-            Assert.That(simulation.FireCellCount, Is.EqualTo(mainRoomCells));
+            Assert.That(simulation.FireCellCount, Is.GreaterThanOrEqualTo(officeCells),
+                "The office should be full of fire within a minute.");
         }
 
         /// <summary>
@@ -282,14 +325,20 @@ namespace Paniq.Tests.EditMode
                         Assert.That(fire.AnyCloserThan(position, reach), Is.EqualTo(anyCloser), $"fire within {reach} of {position}");
                     }
 
-                    // From inside the closet (its door stays shut here), walls hide the fire.
-                    LogicalBounds side = simulation.Scenario.Rooms[1].Bounds;
-                    bool walledOff = position.X > side.MinX && position.X < side.MaxX &&
-                                     position.Z > side.MinZ && position.Z < side.MaxZ;
+                    // Sight is checked inside the office, where the fire is;
+                    // walls hiding fire from the other rooms is covered by the
+                    // room tests.
+                    LogicalBounds office = simulation.Scenario.Rooms[0].Bounds;
+                    if (position.X <= office.MinX || position.X >= office.MaxX ||
+                        position.Z <= office.MinZ || position.Z >= office.MaxZ)
+                    {
+                        continue;
+                    }
+
                     for (int heading = 0; heading < 360; heading += 45)
                     {
                         Assert.That(fire.IsVisibleFrom(position, heading, 3000),
-                            Is.EqualTo(!walledOff && SeesAnyCell(cells, position, heading, 3000)),
+                            Is.EqualTo(SeesAnyCell(cells, position, heading, 3000)),
                             $"vision from {position} facing {heading}");
                     }
                 }
@@ -408,8 +457,8 @@ namespace Paniq.Tests.EditMode
                         continue;
                     }
 
-                    Assert.That(data.Rooms[0].Bounds.ContainsCircle(agent.Position, data.World.OccupancyRadiusMillimetres), Is.True,
-                        $"Agent {agent.AgentId} left the room at tick {snapshot.Tick}.");
+                    Assert.That(InAnyRoom(data, agent.Position) || InADoorway(snapshot, agent.Position), Is.True,
+                        $"Agent {agent.AgentId} left the building at tick {snapshot.Tick}.");
                     for (int j = 0; j < i; j++)
                     {
                         FireReactionAgentSnapshot other = snapshot.Agents[j];
@@ -468,8 +517,8 @@ namespace Paniq.Tests.EditMode
                     travelled[i] += (long)Math.Sqrt(LogicalPosition.DistanceSquared(previous[i], agent.Position));
                     previous[i] = agent.Position;
 
-                    // Footprint edge within 0.3 m of any wall.
-                    LogicalBounds room = data.Rooms[0].Bounds;
+                    // Footprint edge within 0.3 m of any wall of the room they are in.
+                    LogicalBounds room = RoomHolding(data, agent.Position);
                     int gap = Math.Min(
                         Math.Min(agent.Position.X - room.MinX, room.MaxX - agent.Position.X),
                         Math.Min(agent.Position.Z - room.MinZ, room.MaxZ - agent.Position.Z)) - data.World.OccupancyRadiusMillimetres;

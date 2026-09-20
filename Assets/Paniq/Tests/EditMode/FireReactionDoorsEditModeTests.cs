@@ -76,23 +76,30 @@ namespace Paniq.Tests.EditMode
         // ---------------------------------------------------------------- clicks
 
         [Test]
-        public void DefaultBuilding_HasALockedWayOutInEveryOutsideWall()
+        public void DefaultBuilding_LocksItsWaysOutAndLeavesItsInsideDoorsShut()
         {
-            var simulation = new FireReactionSimulation(DefaultData());
-            Assert.That(simulation.DoorCount, Is.EqualTo(4));
+            FireReactionScenarioData data = DefaultData();
+            var simulation = new FireReactionSimulation(data);
+            Assert.That(simulation.DoorCount, Is.EqualTo(8));
             var sides = new HashSet<WallSide>();
+            int locked = 0;
             for (int i = 0; i < simulation.DoorCount; i++)
             {
                 FireReactionDoorSnapshot door = simulation.GetDoor(i);
+                FireReactionDoorDefinition definition = Array.Find(data.Doors, d => d.DoorId == door.DoorId);
 
-                // The three ways out start locked; the closet's inside door is shut but not locked.
-                Assert.That(door.State, Is.EqualTo(door.DoorId == new SimulationId(2002UL)
-                    ? DoorState.Unlocked
-                    : DoorState.Locked));
-                sides.Add(door.Side);
+                // The ways out start locked; the inside doors are shut but not locked.
+                Assert.That(door.State, Is.EqualTo(definition.StartsLocked ? DoorState.Locked : DoorState.Unlocked));
+                locked += definition.StartsLocked ? 1 : 0;
+                if (definition.RoomId == data.Rooms[0].RoomId && definition.StartsLocked)
+                {
+                    sides.Add(door.Side);
+                }
             }
 
-            Assert.That(sides, Is.EquivalentTo(new[] { WallSide.North, WallSide.East, WallSide.South, WallSide.West }));
+            Assert.That(locked, Is.EqualTo(5), "Five ways out of the building.");
+            Assert.That(sides, Is.EquivalentTo(new[] { WallSide.North, WallSide.South, WallSide.West }),
+                "The office's three ways out; its east wall holds the closet and corridor doors instead.");
         }
 
         [Test]
@@ -200,6 +207,10 @@ namespace Paniq.Tests.EditMode
             {
                 FireReactionScenarioData data = DefaultData();
 
+                // Every door is locked here, inside doors included.
+                data.Doors = Array.ConvertAll(data.Doors, d => new FireReactionDoorDefinition(
+                    d.DoorId, d.RoomId, d.Side, d.CentreAlongWallMillimetres, d.WidthMillimetres, true));
+
                 // Nobody here is strong enough to break a door down.
                 data.Traits.DoorDamagePerPoint = 0;
                 var simulation = new FireReactionSimulation(data, seed);
@@ -211,7 +222,7 @@ namespace Paniq.Tests.EditMode
                         FireReactionAgentSnapshot agent = simulation.GetAgent(i);
                         if (agent.Participation == AgentParticipation.Participating)
                         {
-                            Assert.That(InAnyRoom(data, agent.Position), Is.True,
+                            Assert.That(IsInRoomOrDoorway(simulation, data, agent.Position), Is.True,
                                 $"Seed {seed}: agent {agent.AgentId} got out of the building at tick {simulation.Tick}.");
                         }
                     }

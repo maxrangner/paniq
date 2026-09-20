@@ -133,14 +133,19 @@ beside an open door, not lined up with the gap, steps aside against the wall
 for half a second to a second so whoever is lined up can go first, instead of
 two people jamming the doorway shoulder to shoulder.
 
-**The building is rooms joined by doors.** The office is one room; behind
-its east door is a 2 × 2 m storage closet, which is just another room, with
-no special rules of its own. The three doors in the outside walls are the
-player's: they start locked. Inside doors, like the closet's, start shut but
-unlocked, so people open them themselves.
+**The building is rooms joined by doors.** The 12 × 12 m open-plan office is
+where the fire starts. Behind its east wall are a 2 × 2 m storage closet and a
+3 m corridor; the corridor leads to a second 12 × 12 m room, the meeting room.
+Ten people start in the office and ten in the meeting room, where they cannot
+see the fire and only learn of it from the shouting. The five doors in the
+outside walls are the player's: they start locked. The three inside doors (the
+closet, and the corridor at each end) start shut but unlocked, so people open
+them themselves.
 
 People try to save themselves wherever they can. They pick a way **out of the
-building** and head for the first door on the walk there, room by room. Only
+building** — scored by the whole walk there, including crossing the last room —
+and head for the first door on that walk, room by room. Nobody walks into a
+room that is alight, or across one to reach a door on its far side. Only
 once every way out has been tried and would not open do they make for whichever
 room is furthest from the flames instead — but not into a room that already
 holds as many people as there is floor for (about one person per square

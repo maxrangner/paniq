@@ -196,9 +196,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "24";
+        public string ContentRevision = "25";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 16;
+        public int SimulationCompatibilityVersion = 17;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -585,9 +585,9 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Ten people spread around the room, facing different ways, each
-        /// with an authored personality so every trait shows up in play:
-        /// Str, Spd, Brv, Cmp, Evl, Nrv.
+        /// Twenty people, ten in the office and ten in the meeting room,
+        /// facing different ways, each with an authored personality so every
+        /// trait shows up in play: Str, Spd, Brv, Cmp, Evl, Nrv.
         /// </summary>
         public static FireReactionAgentDefinition[] DefaultAgents()
         {
@@ -602,15 +602,29 @@ namespace Paniq.Simulation
                 Agent(1007UL, -5000, 5000, CardinalDirection.South, 5, 10, 5, 5, 3, 6), // the sprinter
                 Agent(1008UL, 0, 5000, CardinalDirection.West, 7, 5, 4, 2, 9, 5), // the bully
                 Agent(1009UL, 5000, 5000, CardinalDirection.South, 3, 4, 2, 4, 3, 8), // the coward
-                Agent(1010UL, 0, -1800, CardinalDirection.North, 5, 5, 5, 6, 3, 5) // ordinary
+                Agent(1010UL, 0, -1800, CardinalDirection.North, 5, 5, 5, 6, 3, 5), // ordinary
+
+                // The meeting room: ten more people who cannot see the fire
+                // when it starts and only learn about it through the shouting.
+                Agent(1011UL, 10500, -4500, CardinalDirection.North, 5, 5, 6, 5, 3, 4), // ordinary
+                Agent(1012UL, 13500, -4500, CardinalDirection.West, 9, 4, 7, 6, 2, 3), // the strong one
+                Agent(1013UL, 16500, -4500, CardinalDirection.North, 4, 7, 3, 7, 1, 7), // the worrier
+                Agent(1014UL, 19500, -4500, CardinalDirection.West, 6, 5, 5, 5, 5, 5), // ordinary
+                Agent(1015UL, 10500, 0, CardinalDirection.East, 3, 6, 2, 8, 0, 9), // the timid carer
+                Agent(1016UL, 13500, 1200, CardinalDirection.South, 7, 8, 8, 4, 7, 2), // the chancer
+                Agent(1017UL, 16500, 0, CardinalDirection.West, 5, 5, 4, 5, 4, 6), // ordinary
+                Agent(1018UL, 19500, 1200, CardinalDirection.North, 8, 6, 6, 2, 8, 4), // the other bully
+                Agent(1019UL, 12000, 4500, CardinalDirection.South, 4, 9, 5, 6, 2, 6), // the runner
+                Agent(1020UL, 18000, 4500, CardinalDirection.South, 6, 5, 7, 9, 1, 3) // the other hero
             };
         }
 
         /// <summary>
-        /// The doors. The three in the office's outside walls are the
-        /// player's, set off-centre in a pinwheel so each corner has a
-        /// different nearest exit, and they start locked. The door to the
-        /// storage closet is an inside door: shut, but not locked.
+        /// The doors. The five in outside walls are the player's, set
+        /// off-centre so different corners have different nearest exits, and
+        /// they start locked. The three inside doors (the storage closet, and
+        /// the corridor at each end) start shut but not locked, so people can
+        /// open them themselves.
         /// </summary>
         public static FireReactionDoorDefinition[] DefaultDoors()
         {
@@ -619,7 +633,11 @@ namespace Paniq.Simulation
                 new FireReactionDoorDefinition(new SimulationId(2001UL), Office, WallSide.North, -2500, 1000),
                 new FireReactionDoorDefinition(new SimulationId(2002UL), Office, WallSide.East, 2500, 1000, false),
                 new FireReactionDoorDefinition(new SimulationId(2003UL), Office, WallSide.South, 2500, 1000),
-                new FireReactionDoorDefinition(new SimulationId(2004UL), Office, WallSide.West, -2500, 1000)
+                new FireReactionDoorDefinition(new SimulationId(2004UL), Office, WallSide.West, -2500, 1000),
+                new FireReactionDoorDefinition(new SimulationId(2005UL), Office, WallSide.East, 0, 1000, false),
+                new FireReactionDoorDefinition(new SimulationId(2006UL), Corridor, WallSide.East, 0, 1000, false),
+                new FireReactionDoorDefinition(new SimulationId(2007UL), MeetingRoom, WallSide.North, 15000, 1000),
+                new FireReactionDoorDefinition(new SimulationId(2008UL), MeetingRoom, WallSide.East, 2500, 1000)
             };
         }
 
@@ -656,17 +674,26 @@ namespace Paniq.Simulation
         /// <summary>The storage closet off the office's east wall.</summary>
         public static readonly SimulationId Closet = new SimulationId(5002UL);
 
+        /// <summary>The short corridor from the office to the meeting room.</summary>
+        public static readonly SimulationId Corridor = new SimulationId(5003UL);
+
+        /// <summary>The meeting room at the far end of the corridor.</summary>
+        public static readonly SimulationId MeetingRoom = new SimulationId(5004UL);
+
         /// <summary>
-        /// The building: a 12 × 12 m open-plan office, and a 2 × 2 m storage
-        /// closet against its east wall. The closet is an ordinary room, not
-        /// a refuge; it simply happens to be somewhere to run to.
+        /// The building: a 12 × 12 m open-plan office where the fire starts, a
+        /// 2 × 2 m storage closet against its east wall, a 3 m corridor east
+        /// out of the office, and a second 12 × 12 m room, the meeting room,
+        /// at the end of it. None of them is a refuge; they are simply rooms.
         /// </summary>
         public static FireReactionRoomDefinition[] DefaultRooms()
         {
             return new[]
             {
                 new FireReactionRoomDefinition(Office, new LogicalBounds(-6000, 6000, -6000, 6000)),
-                new FireReactionRoomDefinition(Closet, new LogicalBounds(6000, 8000, 1500, 3500))
+                new FireReactionRoomDefinition(Closet, new LogicalBounds(6000, 8000, 1500, 3500)),
+                new FireReactionRoomDefinition(Corridor, new LogicalBounds(6000, 9000, -1000, 1000)),
+                new FireReactionRoomDefinition(MeetingRoom, new LogicalBounds(9000, 21000, -6000, 6000))
             };
         }
 

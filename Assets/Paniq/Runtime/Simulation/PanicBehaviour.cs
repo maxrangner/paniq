@@ -126,7 +126,8 @@ namespace Paniq.Simulation
                 return doorBehaviour.FaceDoor(agent);
             }
             else if (agent.Body.BlockedTicks >= settings.BlockedGiveUpTicks &&
-                     !(leaving && geometry.RoomAt(agent.Body.Position) < 0))
+                     !(leaving && geometry.RoomAt(agent.Body.Position) < 0 &&
+                       agent.Body.BlockedTicks < settings.BlockedGiveUpTicks * 2))
             {
                 // Wedged beside an open door: stand aside for whoever is lined up with it.
                 // Otherwise stuck in the crowd: if it was on the way to a door, try another one for a while.

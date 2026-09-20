@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -74,7 +74,7 @@ namespace Paniq.Presentation
             {
                 GameObject puff = CreatePrimitive($"Puff {i + 1}", PrimitiveType.Cube, root, Vector3.zero,
                     Vector3.one * 0.12f, materials.Fire);
-                ShowThroughWalls(puff);
+                ShowThroughWalls(puff, materials);
                 jet.Puffs[i] = puff.transform;
                 jet.Renderers[i] = puff.GetComponent<Renderer>();
                 jet.Seeds[i] = Hash01(number, i, 5);

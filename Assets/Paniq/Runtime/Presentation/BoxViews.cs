@@ -55,7 +55,7 @@ namespace Paniq.Presentation
                     ToUnityPosition(definition.InitialPosition) + Vector3.up * (height * 0.5f),
                     new Vector3(size, height, size), materials.Box);
 
-                ShowThroughWalls(box);
+                ShowThroughWalls(box, materials);
 
                 // Slightly different cardboard for each box; presentation-only variation.
                 Color shade = PresentationMaterials.BoxColor * (0.85f + 0.3f * Hash01((int)definition.ObjectId.Value, 7, 3));
@@ -91,7 +91,7 @@ namespace Paniq.Presentation
             void Part(string name, PrimitiveType shape, Vector3 localPosition, Vector3 scale)
             {
                 GameObject part = CreatePrimitive(name, shape, root, root.position + localPosition, scale, materials.Box);
-                ShowThroughWalls(part);
+                ShowThroughWalls(part, materials);
                 renderers.Add(part.GetComponent<Renderer>());
             }
 
@@ -163,7 +163,7 @@ namespace Paniq.Presentation
             void Part(string name, Vector3 localPosition, Vector3 scale)
             {
                 GameObject part = CreatePrimitive(name, PrimitiveType.Cube, root, root.position + localPosition, scale, materials.Box);
-                ShowThroughWalls(part);
+                ShowThroughWalls(part, materials);
                 renderers.Add(part.GetComponent<Renderer>());
             }
 

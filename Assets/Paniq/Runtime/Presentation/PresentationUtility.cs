@@ -6,30 +6,32 @@ namespace Paniq.Presentation
     /// <summary>Small helpers shared by the prototype's display classes. Presentation only.</summary>
     internal static class PresentationUtility
     {
-        /// <summary>
-        /// The layer for anything that should still be visible, faintly,
-        /// when a wall is between it and the camera. The renderer draws this
-        /// layer twice: once normally, once as a see-through silhouette
-        /// wherever something is in front of it (see ConfigureUrpProject).
-        /// </summary>
-        public const string SeeThroughLayer = "SeeThrough";
-
         public static float Metres(int millimetres) => millimetres / (float)FireReactionSimulation.MillimetresPerMetre;
 
-        /// <summary>Puts an object, and everything under it, on the see-through layer.</summary>
-        public static void ShowThroughWalls(GameObject gameObject)
+        /// <summary>
+        /// Makes an object, and everything under it, show faintly through
+        /// walls: the see-through material is added as a second material on
+        /// each renderer, so Unity draws the same mesh again with a shader
+        /// that only paints where something nearer the camera already has.
+        /// </summary>
+        public static void ShowThroughWalls(GameObject gameObject, PresentationMaterials materials)
         {
-            int layer = LayerMask.NameToLayer(SeeThroughLayer);
-            if (layer < 0)
+            if (materials.SeeThrough == null)
             {
-                // The project has not been set up for it yet; drawn normally.
                 return;
             }
 
-            gameObject.layer = layer;
-            foreach (Transform child in gameObject.transform)
+            foreach (MeshRenderer renderer in gameObject.GetComponentsInChildren<MeshRenderer>(true))
             {
-                ShowThroughWalls(child.gameObject);
+                Material[] existing = renderer.sharedMaterials;
+                var withGhost = new Material[existing.Length + 1];
+                for (int i = 0; i < existing.Length; i++)
+                {
+                    withGhost[i] = existing[i];
+                }
+
+                withGhost[existing.Length] = materials.SeeThrough;
+                renderer.sharedMaterials = withGhost;
             }
         }
 

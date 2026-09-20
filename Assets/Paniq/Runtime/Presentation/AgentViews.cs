@@ -66,7 +66,7 @@ namespace Paniq.Presentation
                 agentObject.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
                 Renderer agentRenderer = agentObject.GetComponent<Renderer>();
                 agentRenderer.sharedMaterial = materials.Agent;
-                ShowThroughWalls(agentObject);
+                ShowThroughWalls(agentObject, materials);
 
                 var visionObject = new GameObject($"Agent {definition.AgentId.Value} vision cone (presentation)");
                 visionObject.transform.SetParent(parent, false);

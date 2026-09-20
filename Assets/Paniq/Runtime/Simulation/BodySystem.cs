@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -12,11 +12,15 @@ namespace Paniq.Simulation
         private readonly SimulationContext context;
         private readonly FireSystem fire;
         private readonly SoundSystem sound;
+        private readonly WorldGeometry geometry;
+        private readonly Crowd crowd;
         private readonly FallSettings settings;
 
-        public BodySystem(SimulationContext context, FireSystem fire, SoundSystem sound)
+        public BodySystem(SimulationContext context, Crowd crowd, WorldGeometry geometry, FireSystem fire, SoundSystem sound)
         {
             this.context = context;
+            this.crowd = crowd;
+            this.geometry = geometry;
             this.fire = fire;
             this.sound = sound;
             settings = context.Scenario.Falls;
@@ -107,6 +111,52 @@ namespace Paniq.Simulation
             CausalEvent passedOut = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentPassedOut,
                 agent.Body.Position, 0, duration, downEventId);
             PutDown(agent, AgentBodyState.Unconscious, duration, passedOut.EventId);
+        }
+
+        /// <summary>
+        /// Shoved bodily backwards and onto the floor: the jet from an
+        /// extinguisher. They slide as far as there is room for and land
+        /// facing the way they were pushed.
+        /// </summary>
+        public void ShoveBack(Agent agent, int away, int distance, ulong causeEventId)
+        {
+            Slide(agent, away, distance);
+            int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
+            CausalEvent down = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentKnockedDown,
+                agent.Body.Position, 0, duration, causeEventId);
+            PutDown(agent, AgentBodyState.Fallen, duration, down.EventId);
+        }
+
+        /// <summary>
+        /// Pushed across the floor without falling: as far as the walls, the
+        /// furniture and the other people allow.
+        /// </summary>
+        public void Slide(Agent agent, int heading, int distance)
+        {
+            LogicalPosition step = agent.Body.Position + IntegerMath.Displacement(heading, distance);
+            LogicalPosition destination = geometry.ClampIntoWalkable(agent.Body.Position, agent.Doors.ExitDoorIndex, step);
+            if (crowd.FindBlocking(agent, agent.Body.Position, destination) != null ||
+                geometry.ClipsDoorFrame(agent.Body.Position, destination))
+            {
+                return;
+            }
+
+            agent.Body.Position = destination;
+            agent.Body.Speed = 0;
+        }
+
+        /// <summary>The flames on someone are put out by a jet of water.</summary>
+        public void PutOutPerson(Agent agent, ulong causeEventId)
+        {
+            if (!agent.Burning.IsBurning)
+            {
+                return;
+            }
+
+            agent.Burning.IsBurning = false;
+            agent.Burning.EventId = 0UL;
+            context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentDoused,
+                agent.Body.Position, 0, 0, causeEventId, agent.Id);
         }
 
         /// <summary>Knocked off balance: reeling for a moment, jolted a little to one side.</summary>

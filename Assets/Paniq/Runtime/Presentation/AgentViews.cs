@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -66,6 +66,7 @@ namespace Paniq.Presentation
                 agentObject.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
                 Renderer agentRenderer = agentObject.GetComponent<Renderer>();
                 agentRenderer.sharedMaterial = materials.Agent;
+                ShowThroughWalls(agentObject, materials);
 
                 var visionObject = new GameObject($"Agent {definition.AgentId.Value} vision cone (presentation)");
                 visionObject.transform.SetParent(parent, false);
@@ -228,9 +229,23 @@ namespace Paniq.Presentation
                         lean += push * 20f;
                     }
 
+                    // Sitting: lowered onto the seat, and rising back out of
+                    // it as they stand, so the change reads as a movement.
+                    float seated = 0f;
+                    if (agent.ActivityState == AgentActivityState.Sitting)
+                    {
+                        seated = 1f;
+                        bounce = 0f;
+                    }
+                    else if (agent.ActivityState == AgentActivityState.StandingUp)
+                    {
+                        seated = 0.5f;
+                        bounce = 0f;
+                    }
+
                     view.Transform.SetPositionAndRotation(
-                        planar + shake + lunge + Vector3.up * (0.5f + bounce + alertJump),
-                        Quaternion.Euler(lean, yaw, roll));
+                        planar + shake + lunge + Vector3.up * (0.5f - 0.16f * seated + bounce + alertJump),
+                        Quaternion.Euler(lean + 6f * seated, yaw, roll));
                 }
 
                 UpdateAppearance(agent, view, planar, yaw, down, alertJump, time, cameraTransform);
@@ -338,6 +353,8 @@ namespace Paniq.Presentation
                     calm && agent.ActivityState == AgentActivityState.Investigating,
                     calm && (agent.ActivityState == AgentActivityState.Standing ||
                              agent.ActivityState == AgentActivityState.LookingAround),
+                    agent.IsLeading,
+                    agent.ActivityState == AgentActivityState.Following,
                     time);
             }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -33,20 +33,20 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void DefaultRoom_HasThreeTablesAndEightChairs()
+        public void DefaultBuilding_HasTablesAndChairsInBothRooms()
         {
             FireReactionScenarioData data = DefaultData();
-            Assert.That(data.Tables, Has.Length.EqualTo(3));
+            Assert.That(data.Tables, Has.Length.EqualTo(5), "Three in the office, and the meeting table in two halves.");
             int chairs = 0;
+            int officeChairs = 0;
             foreach (FireReactionPhysicsObjectDefinition item in data.PhysicsObjects)
             {
-                if (item.Kind == PhysicsObjectKind.Chair)
-                {
-                    chairs++;
-                }
+                chairs += item.Kind == PhysicsObjectKind.Chair ? 1 : 0;
+                officeChairs += item.Kind == PhysicsObjectKind.OfficeChair ? 1 : 0;
             }
 
-            Assert.That(chairs, Is.EqualTo(8));
+            Assert.That(chairs, Is.EqualTo(8), "Wooden chairs around the office tables.");
+            Assert.That(officeChairs, Is.EqualTo(8), "Office chairs on castors around the meeting table.");
             Assert.That(data.Tables[0].Bounds.MaxX - data.Tables[0].Bounds.MinX, Is.EqualTo(1200));
         }
 

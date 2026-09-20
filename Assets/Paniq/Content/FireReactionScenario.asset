@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '25'
+    ContentRevision: '29'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 17
+    SimulationCompatibilityVersion: 21
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -42,6 +42,8 @@ MonoBehaviour:
       BurningScreamMaximumTicks: 50
       BurningSpreadGapMillimetres: 100
       BurningSpreadChancePercent: 20
+      DousedWetTicks: 1000
+      DouseTicksPerCell: 30
     Steering:
       PersonalSpaceMillimetres: 800
       WallAvoidDistanceMillimetres: 600
@@ -216,8 +218,83 @@ MonoBehaviour:
       StrengthForceChancePerPoint: 5
       DoorBreakMinimumStrength: 7
       DoorDamagePerPoint: 1
+    Extinguishers:
+      FuelTicks: 300
+      FightMinimumBravery: 7
+      SaveMinimumCompassion: 7
+      FightMaximumFireCells: 24
+      FetchRangeMillimetres: 9000
+      PickUpDistanceMillimetres: 400
+      SaveRangeMillimetres: 8000
+      FetchTimeoutTicks: 500
+      FightTimeoutTicks: 1500
+      DangerTolerancePercent: 50
+      StandOffMillimetres: 2000
+      SprayRangeMillimetres: 3000
+      SprayConeDegrees: 30
+      CellsPerTick: 1
+      BlastPushMillimetres: 400
+      BlastRecoveryTicks: 100
+      RecoilPushMillimetres: 60
+      RecoilPushPerStrength: 12
+      RecoilFloorsMaximumStrength: 0
+    Leadership:
+      LeaderMinimum: 7
+      PlanMinimumTicks: 50
+      PlanMaximumTicks: 100
+      RallyRangeMillimetres: 5000
+      OrderRangeMillimetres: 6000
+      OrderLastsTicks: 750
+      FollowLastsTicks: 400
+      FollowGapMillimetres: 1500
+      OrderedFightMinimumBravery: 5
+      DefiantMinimumEvil: 7
+      ObeyBasePercent: 55
+      ObeyPercentPerNervousness: 4
+      ObeyPercentPerBravery: 3
     Flammables:
       HeatDistanceMillimetres: 500
+      Kinds:
+      - Kind: 0
+        FrictionPercent: 100
+        IgniteTicks: 75
+        BurnMinimumTicks: 400
+        BurnMaximumTicks: 750
+      - Kind: 1
+        FrictionPercent: 120
+        IgniteTicks: 150
+        BurnMinimumTicks: 600
+        BurnMaximumTicks: 900
+      - Kind: 2
+        FrictionPercent: 35
+        IgniteTicks: 175
+        BurnMinimumTicks: 600
+        BurnMaximumTicks: 900
+      - Kind: 3
+        FrictionPercent: 80
+        IgniteTicks: 50
+        BurnMinimumTicks: 250
+        BurnMaximumTicks: 450
+      - Kind: 4
+        FrictionPercent: 200
+        IgniteTicks: 0
+        BurnMinimumTicks: 0
+        BurnMaximumTicks: 0
+      - Kind: 5
+        FrictionPercent: 90
+        IgniteTicks: 100
+        BurnMinimumTicks: 300
+        BurnMaximumTicks: 500
+      - Kind: 6
+        FrictionPercent: 55
+        IgniteTicks: 200
+        BurnMinimumTicks: 200
+        BurnMaximumTicks: 400
+      - Kind: 7
+        FrictionPercent: 90
+        IgniteTicks: 0
+        BurnMinimumTicks: 0
+        BurnMaximumTicks: 0
       BoxIgniteTicks: 75
       ChairIgniteTicks: 150
       TableIgniteTicks: 250
@@ -234,6 +311,14 @@ MonoBehaviour:
       CarryGramsPerStrength: 2500
       CarrySlowdownPercent: 40
       TidyChancePercent: 12
+      SitChancePercent: 14
+      SitSearchDistanceMillimetres: 6000
+      SitArrivalDistanceMillimetres: 600
+      SitMinimumTicks: 250
+      SitMaximumTicks: 1000
+      StandUpTicks: 40
+      StandUpTicksPerNervousness: 2
+      StandUpShoveSpeed: 8
       FetchRangeMillimetres: 4000
       CarryMinimumDistanceMillimetres: 1500
       ReachMillimetres: 150
@@ -281,6 +366,7 @@ MonoBehaviour:
         compassion: 5
         evil: 2
         nervousness: 5
+        leadership: 4
     - agentId:
         value: 1002
       initialPosition:
@@ -295,6 +381,7 @@ MonoBehaviour:
         compassion: 3
         evil: 6
         nervousness: 3
+        leadership: 3
     - agentId:
         value: 1003
       initialPosition:
@@ -309,6 +396,7 @@ MonoBehaviour:
         compassion: 8
         evil: 1
         nervousness: 3
+        leadership: 8
     - agentId:
         value: 1004
       initialPosition:
@@ -323,6 +411,7 @@ MonoBehaviour:
         compassion: 9
         evil: 0
         nervousness: 4
+        leadership: 5
     - agentId:
         value: 1005
       initialPosition:
@@ -337,6 +426,7 @@ MonoBehaviour:
         compassion: 1
         evil: 8
         nervousness: 4
+        leadership: 6
     - agentId:
         value: 1006
       initialPosition:
@@ -351,6 +441,7 @@ MonoBehaviour:
         compassion: 5
         evil: 2
         nervousness: 10
+        leadership: 1
     - agentId:
         value: 1007
       initialPosition:
@@ -365,6 +456,7 @@ MonoBehaviour:
         compassion: 5
         evil: 3
         nervousness: 6
+        leadership: 4
     - agentId:
         value: 1008
       initialPosition:
@@ -379,6 +471,7 @@ MonoBehaviour:
         compassion: 2
         evil: 9
         nervousness: 5
+        leadership: 5
     - agentId:
         value: 1009
       initialPosition:
@@ -393,6 +486,7 @@ MonoBehaviour:
         compassion: 4
         evil: 3
         nervousness: 8
+        leadership: 2
     - agentId:
         value: 1010
       initialPosition:
@@ -407,6 +501,7 @@ MonoBehaviour:
         compassion: 6
         evil: 3
         nervousness: 5
+        leadership: 5
     - agentId:
         value: 1011
       initialPosition:
@@ -421,6 +516,7 @@ MonoBehaviour:
         compassion: 5
         evil: 3
         nervousness: 4
+        leadership: 4
     - agentId:
         value: 1012
       initialPosition:
@@ -435,6 +531,7 @@ MonoBehaviour:
         compassion: 6
         evil: 2
         nervousness: 3
+        leadership: 5
     - agentId:
         value: 1013
       initialPosition:
@@ -449,6 +546,7 @@ MonoBehaviour:
         compassion: 7
         evil: 1
         nervousness: 7
+        leadership: 2
     - agentId:
         value: 1014
       initialPosition:
@@ -463,6 +561,7 @@ MonoBehaviour:
         compassion: 5
         evil: 5
         nervousness: 5
+        leadership: 5
     - agentId:
         value: 1015
       initialPosition:
@@ -477,6 +576,7 @@ MonoBehaviour:
         compassion: 8
         evil: 0
         nervousness: 9
+        leadership: 1
     - agentId:
         value: 1016
       initialPosition:
@@ -491,11 +591,12 @@ MonoBehaviour:
         compassion: 4
         evil: 7
         nervousness: 2
+        leadership: 6
     - agentId:
         value: 1017
       initialPosition:
-        x: 16500
-        z: 0
+        x: 17200
+        z: -1800
       initialFacingDirection: 3
       hasAuthoredTraits: 1
       traits:
@@ -505,6 +606,7 @@ MonoBehaviour:
         compassion: 5
         evil: 4
         nervousness: 6
+        leadership: 4
     - agentId:
         value: 1018
       initialPosition:
@@ -519,6 +621,7 @@ MonoBehaviour:
         compassion: 2
         evil: 8
         nervousness: 4
+        leadership: 6
     - agentId:
         value: 1019
       initialPosition:
@@ -533,6 +636,7 @@ MonoBehaviour:
         compassion: 6
         evil: 2
         nervousness: 6
+        leadership: 3
     - agentId:
         value: 1020
       initialPosition:
@@ -547,6 +651,7 @@ MonoBehaviour:
         compassion: 9
         evil: 1
         nervousness: 3
+        leadership: 9
     Doors:
     - doorId:
         value: 2001
@@ -741,6 +846,214 @@ MonoBehaviour:
         z: 2000
       sizeMillimetres: 450
       massGrams: 5000
+    - objectId:
+        value: 3201
+      kind: 3
+      initialPosition:
+        x: -5400
+        z: 200
+      sizeMillimetres: 300
+      massGrams: 2000
+    - objectId:
+        value: 3202
+      kind: 3
+      initialPosition:
+        x: 5400
+        z: -3200
+      sizeMillimetres: 300
+      massGrams: 2000
+    - objectId:
+        value: 3203
+      kind: 3
+      initialPosition:
+        x: 10200
+        z: -1500
+      sizeMillimetres: 300
+      massGrams: 2000
+    - objectId:
+        value: 3204
+      kind: 3
+      initialPosition:
+        x: 20200
+        z: 3200
+      sizeMillimetres: 300
+      massGrams: 2000
+    - objectId:
+        value: 3211
+      kind: 4
+      initialPosition:
+        x: -5400
+        z: -3400
+      sizeMillimetres: 450
+      massGrams: 25000
+    - objectId:
+        value: 3212
+      kind: 4
+      initialPosition:
+        x: 5400
+        z: 5400
+      sizeMillimetres: 450
+      massGrams: 25000
+    - objectId:
+        value: 3213
+      kind: 4
+      initialPosition:
+        x: 9800
+        z: 5200
+      sizeMillimetres: 450
+      massGrams: 25000
+    - objectId:
+        value: 3214
+      kind: 4
+      initialPosition:
+        x: 20200
+        z: -5200
+      sizeMillimetres: 450
+      massGrams: 25000
+    - objectId:
+        value: 3221
+      kind: 5
+      initialPosition:
+        x: -3400
+        z: 3400
+      sizeMillimetres: 350
+      massGrams: 4000
+    - objectId:
+        value: 3222
+      kind: 5
+      initialPosition:
+        x: 1200
+        z: -2600
+      sizeMillimetres: 350
+      massGrams: 4000
+    - objectId:
+        value: 3223
+      kind: 5
+      initialPosition:
+        x: 14500
+        z: -2400
+      sizeMillimetres: 350
+      massGrams: 4000
+    - objectId:
+        value: 3224
+      kind: 5
+      initialPosition:
+        x: 17500
+        z: 3400
+      sizeMillimetres: 350
+      massGrams: 4000
+    - objectId:
+        value: 3231
+      kind: 6
+      initialPosition:
+        x: -1100
+        z: -700
+      sizeMillimetres: 300
+      massGrams: 1500
+    - objectId:
+        value: 3232
+      kind: 6
+      initialPosition:
+        x: 3400
+        z: 1800
+      sizeMillimetres: 300
+      massGrams: 1500
+    - objectId:
+        value: 3233
+      kind: 6
+      initialPosition:
+        x: 15800
+        z: 2400
+      sizeMillimetres: 300
+      massGrams: 1500
+    - objectId:
+        value: 3234
+      kind: 6
+      initialPosition:
+        x: 12200
+        z: -3200
+      sizeMillimetres: 300
+      massGrams: 1500
+    - objectId:
+        value: 3241
+      kind: 2
+      initialPosition:
+        x: 11500
+        z: 2400
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3242
+      kind: 2
+      initialPosition:
+        x: 13000
+        z: 3000
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3243
+      kind: 2
+      initialPosition:
+        x: 14500
+        z: 2400
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3244
+      kind: 2
+      initialPosition:
+        x: 16000
+        z: 3000
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3245
+      kind: 2
+      initialPosition:
+        x: 17500
+        z: 2400
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3246
+      kind: 2
+      initialPosition:
+        x: 19000
+        z: -2400
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3247
+      kind: 2
+      initialPosition:
+        x: 11500
+        z: -1200
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3248
+      kind: 2
+      initialPosition:
+        x: 16800
+        z: -3600
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3301
+      kind: 7
+      initialPosition:
+        x: -1000
+        z: -5700
+      sizeMillimetres: 250
+      massGrams: 7000
+    - objectId:
+        value: 3302
+      kind: 7
+      initialPosition:
+        x: 14000
+        z: -5700
+      sizeMillimetres: 250
+      massGrams: 7000
     Tables:
     - tableId:
         value: 4001
@@ -763,6 +1076,20 @@ MonoBehaviour:
         z: 2000
       widthMillimetres: 1200
       depthMillimetres: 700
+    - tableId:
+        value: 4004
+      centre:
+        x: 13500
+        z: 0
+      widthMillimetres: 2400
+      depthMillimetres: 900
+    - tableId:
+        value: 4005
+      centre:
+        x: 16500
+        z: 0
+      widthMillimetres: 2400
+      depthMillimetres: 900
     Rooms:
     - roomId:
         value: 5001

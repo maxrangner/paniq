@@ -26,6 +26,7 @@ namespace Paniq.Presentation
         private BoxViews boxes;
         private FireView fire;
         private SoundRipples ripples;
+        private SprayView spray;
         private DoorClickInput clicks;
         private FireReactionSnapshot frameSnapshot;
         private SimulationId? hoveredDoor;
@@ -49,6 +50,7 @@ namespace Paniq.Presentation
             boxes = new BoxViews(scenario, materials, root);
             fire = new FireView(materials, root);
             ripples = new SoundRipples(materials.Icon, root);
+            spray = new SprayView(materials, root);
             clicks = new DoorClickInput(runner, room);
         }
 
@@ -90,6 +92,7 @@ namespace Paniq.Presentation
             boxes.Update(frameSnapshot, previous, blend, time);
             ripples.Update(time);
             fire.Update(frameSnapshot, time);
+            spray.Update(frameSnapshot, time);
         }
 
         private void OnGUI()
@@ -180,10 +183,10 @@ namespace Paniq.Presentation
             float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
             foreach (FireReactionRoomDefinition room in scenario.Rooms)
             {
-                minX = Mathf.Min(minX, Metres(room.Bounds.MinX));
-                maxX = Mathf.Max(maxX, Metres(room.Bounds.MaxX));
-                minZ = Mathf.Min(minZ, Metres(room.Bounds.MinZ));
-                maxZ = Mathf.Max(maxZ, Metres(room.Bounds.MaxZ));
+                minX = Mathf.Min(minX, PresentationUtility.Metres(room.Bounds.MinX));
+                maxX = Mathf.Max(maxX, PresentationUtility.Metres(room.Bounds.MaxX));
+                minZ = Mathf.Min(minZ, PresentationUtility.Metres(room.Bounds.MinZ));
+                maxZ = Mathf.Max(maxZ, PresentationUtility.Metres(room.Bounds.MaxZ));
             }
 
             var centre = new Vector3((minX + maxX) * 0.5f, 0f, (minZ + maxZ) * 0.5f);

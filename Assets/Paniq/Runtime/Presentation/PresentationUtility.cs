@@ -1,4 +1,4 @@
-using Paniq.Simulation;
+﻿using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Presentation
@@ -7,6 +7,33 @@ namespace Paniq.Presentation
     internal static class PresentationUtility
     {
         public static float Metres(int millimetres) => millimetres / (float)FireReactionSimulation.MillimetresPerMetre;
+
+        /// <summary>
+        /// Makes an object, and everything under it, show faintly through
+        /// walls: the see-through material is added as a second material on
+        /// each renderer, so Unity draws the same mesh again with a shader
+        /// that only paints where something nearer the camera already has.
+        /// </summary>
+        public static void ShowThroughWalls(GameObject gameObject, PresentationMaterials materials)
+        {
+            if (materials.SeeThrough == null)
+            {
+                return;
+            }
+
+            foreach (MeshRenderer renderer in gameObject.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                Material[] existing = renderer.sharedMaterials;
+                var withGhost = new Material[existing.Length + 1];
+                for (int i = 0; i < existing.Length; i++)
+                {
+                    withGhost[i] = existing[i];
+                }
+
+                withGhost[existing.Length] = materials.SeeThrough;
+                renderer.sharedMaterials = withGhost;
+            }
+        }
 
         public static Vector3 ToUnityPosition(LogicalPosition position)
         {

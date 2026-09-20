@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace Paniq.Presentation
 {
@@ -26,6 +26,9 @@ namespace Paniq.Presentation
         private static readonly Color YellCyan = new Color(0.4f, 0.92f, 1f);
         private static readonly Color IceBlue = new Color(0.7f, 0.93f, 1f);
         private static readonly Color QuestionYellow = new Color(1f, 0.88f, 0.25f);
+
+        /// <summary>The leader's arrow, and the smaller one over whoever is following them.</summary>
+        private static readonly Color LeaderGreen = new Color(0.45f, 0.95f, 0.5f);
         private static readonly Color IdleGrey = new Color(0.72f, 0.82f, 0.95f);
         private static readonly Color StarYellow = new Color(1f, 0.9f, 0.2f);
         private static readonly Color NumberWhite = new Color(1f, 1f, 1f, 0.85f);
@@ -105,6 +108,8 @@ namespace Paniq.Presentation
             question = CreateText("Investigating ?", "?", 0.2f, 64, QuestionYellow, new Vector3(0f, 0.2f, 0f));
             idle = CreateText("Idle ...", "...", 0.13f, 48, IdleGrey, new Vector3(0f, -0.05f, 0f));
             number = CreateText("Number", numberLabel, 0.07f, 64, NumberWhite, new Vector3(0.32f, -0.28f, 0f));
+            leading = CreateText("Leading", "^", 0.2f, 64, LeaderGreen, new Vector3(0f, 0.3f, 0f));
+            followingLeader = CreateText("Following", "^", 0.1f, 48, LeaderGreen, new Vector3(-0.2f, 0.22f, 0f));
 
             SetColor(noticeStrokes, NoticeRed);
             SetColor(snowflakeStrokes, IceBlue);
@@ -124,6 +129,8 @@ namespace Paniq.Presentation
             snowflake.gameObject.SetActive(false);
             SetActive(stars, false);
             question.gameObject.SetActive(false);
+            leading.gameObject.SetActive(false);
+            followingLeader.gameObject.SetActive(false);
             idle.gameObject.SetActive(false);
             number.gameObject.SetActive(false);
         }
@@ -137,6 +144,8 @@ namespace Paniq.Presentation
             bool knockedOut,
             bool investigating,
             bool idling,
+            bool leadingOthers,
+            bool followingSomeone,
             float time)
         {
             root.SetPositionAndRotation(anchor, cameraRotation);
@@ -205,6 +214,15 @@ namespace Paniq.Presentation
             }
 
             question.gameObject.SetActive(investigating && !showNotice);
+
+            // A leader's call: an arrow over the head, bobbing as they shout.
+            leading.gameObject.SetActive(leadingOthers);
+            if (leadingOthers)
+            {
+                leading.transform.localPosition = new Vector3(0f, 0.3f + 0.03f * Mathf.Sin(time * 7f), 0f);
+            }
+
+            followingLeader.gameObject.SetActive(followingSomeone && !leadingOthers);
             idle.gameObject.SetActive(idling && !showNotice && !showYell);
         }
 
@@ -246,6 +264,9 @@ namespace Paniq.Presentation
             line.SetPositions(points);
             return line;
         }
+
+        private readonly TextMesh leading;
+        private readonly TextMesh followingLeader;
 
         private TextMesh CreateText(string objectName, string text, float characterSize, int fontSize, Color color,
             Vector3 localPosition)

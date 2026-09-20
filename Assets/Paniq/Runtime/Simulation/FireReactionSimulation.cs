@@ -33,6 +33,9 @@ namespace Paniq.Simulation
         private readonly FlammablesSystem flammables;
         private readonly ItemBehaviour items;
         private readonly HelpBehaviour help;
+        private readonly ChairBehaviour chairs;
+        private readonly ExtinguisherBehaviour extinguishers;
+        private readonly LeaderBehaviour leaders;
         private readonly WorldGeometry geometry;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
@@ -59,17 +62,22 @@ namespace Paniq.Simulation
             doors.UseCrowd(crowd);
             var sound = new SoundSystem(context, crowd, fire, fear, geometry);
             perception = new PerceptionSystem(context, fire, fear, sound);
-            body = new BodySystem(context, fire, sound);
+            body = new BodySystem(context, crowd, geometry, fire, sound);
             collisions = new CollisionSystem(context, crowd, body, fear, sound);
             objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound);
             locomotion = new Locomotion(context, crowd, geometry, fire, body, collisions, objects);
             flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
             items = new ItemBehaviour(context, geometry, objects, flammables);
-            calm = new CalmBehaviour(context, crowd, geometry, locomotion, items);
+            chairs = new ChairBehaviour(context, crowd, geometry, objects);
+            calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs);
             doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
             help = new HelpBehaviour(context, crowd, geometry, fire, fear, body, objects, locomotion);
-            panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, locomotion);
+            panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, chairs, locomotion);
             burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
+            extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
+            panic.UseExtinguishers(extinguishers);
+            leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion);
+            panic.UseLeaders(leaders);
         }
 
         private Agent[] CreateAgents(int doorCount)
@@ -145,6 +153,9 @@ namespace Paniq.Simulation
         }
 
         public FireReactionDoorSnapshot GetDoor(int index) => doors.GetSnapshot(index);
+
+        /// <summary>Tests only: how much spray is left in an extinguisher.</summary>
+        internal int ExtinguisherFuel(int index) => objects.FuelOf(index);
 
         public FireReactionPhysicsObjectSnapshot GetPhysicsObject(int index) =>
             objects.GetSnapshot(index).WithBurn(flammables.ObjectState(index), flammables.ObjectHeatPercent(index));
@@ -244,6 +255,9 @@ namespace Paniq.Simulation
                 locomotion.RequestMove(agent);
             }
 
+            chairs.ResolveStanding();
+            leaders.CountFollowers();
+            extinguishers.Spray();
             locomotion.ResolveMovement();
             help.MoveDragged(agents);
             items.FollowCarriers(agents);

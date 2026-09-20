@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("25"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(17));
+            Assert.That(data.ContentRevision, Is.EqualTo("29"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(21));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -74,6 +74,22 @@ namespace Paniq.Tests.EditMode
                 if (field.FieldType.IsClass && field.FieldType != typeof(string) && !field.FieldType.IsArray)
                 {
                     compared += AssertSameValues(assetValue, codeValue, fieldPath);
+                    continue;
+                }
+
+                // An array of settings objects (the per-kind table): compare entry by entry.
+                if (field.FieldType.IsArray && field.FieldType.GetElementType()?.IsClass == true &&
+                    field.FieldType.GetElementType() != typeof(string))
+                {
+                    var assetEntries = (Array)assetValue;
+                    var codeEntries = (Array)codeValue;
+                    Assert.That(assetEntries?.Length, Is.EqualTo(codeEntries?.Length),
+                        $"Asset and code defaults disagree on how many {fieldPath} there are.");
+                    for (int i = 0; assetEntries != null && i < assetEntries.Length; i++)
+                    {
+                        compared += AssertSameValues(assetEntries.GetValue(i), codeEntries.GetValue(i), $"{fieldPath}[{i}]");
+                    }
+
                     continue;
                 }
 
@@ -167,10 +183,25 @@ namespace Paniq.Tests.EditMode
                 Is.EqualTo(FireReactionEventType.FireActivated));
         }
 
+        /// <summary>
+        /// The same scenario with nobody brave or kind enough to pick up an
+        /// extinguisher, for tests about the fire itself.
+        /// </summary>
+        private FireReactionScenarioData NobodyFightsTheFire()
+        {
+            FireReactionScenarioData data = DefaultData();
+            data.Extinguishers.FightMinimumBravery = 11;
+            data.Extinguishers.SaveMinimumCompassion = 11;
+
+            // And nobody sends anyone else at it either.
+            data.Leadership.LeaderMinimum = 11;
+            return data;
+        }
+
         [Test]
         public void Fire_OnlySpreadsFromCellsAlreadyBurning()
         {
-            var simulation = new FireReactionSimulation(DefaultData());
+            var simulation = new FireReactionSimulation(NobodyFightsTheFire());
             for (int i = 0; i < 2500; i++)
             {
                 simulation.Step();
@@ -253,7 +284,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void Fire_FillsTheRoomWithinAMinute()
         {
-            FireReactionScenarioData data = DefaultData();
+            FireReactionScenarioData data = NobodyFightsTheFire();
             data.Fire.ActivationTick = 1;
             var simulation = new FireReactionSimulation(data);
             // The office's 24 × 24 squares, plus the closet, the corridor and the meeting room.
@@ -279,7 +310,7 @@ namespace Paniq.Tests.EditMode
         [TestCase(1800)]
         public void FireQueries_MatchCheckingEveryBurningCell(int ticks)
         {
-            var simulation = new FireReactionSimulation(DefaultData());
+            var simulation = new FireReactionSimulation(NobodyFightsTheFire());
             for (int i = 0; i < ticks; i++)
             {
                 simulation.Step();
@@ -299,6 +330,11 @@ namespace Paniq.Tests.EditMode
                     LogicalPosition expectedPoint = position;
                     foreach (FireCellSnapshot cell in cells)
                     {
+                        if (cell.IsOut)
+                        {
+                            continue;
+                        }
+
                         LogicalPosition point = cell.Bounds.ClosestPoint(position);
                         long distance = LogicalPosition.DistanceSquared(position, point);
                         if (distance < expected || (distance == expected && cell.EventId < expectedEvent))
@@ -319,7 +355,7 @@ namespace Paniq.Tests.EditMode
                         bool anyCloser = false;
                         foreach (FireCellSnapshot cell in cells)
                         {
-                            anyCloser |= cell.Bounds.DistanceSquaredTo(position) < (long)reach * reach;
+                            anyCloser |= !cell.IsOut && cell.Bounds.DistanceSquaredTo(position) < (long)reach * reach;
                         }
 
                         Assert.That(fire.AnyCloserThan(position, reach), Is.EqualTo(anyCloser), $"fire within {reach} of {position}");
@@ -352,6 +388,11 @@ namespace Paniq.Tests.EditMode
             LogicalPosition direction = IntegerMath.Direction(heading);
             foreach (FireCellSnapshot cell in cells)
             {
+                if (cell.IsOut)
+                {
+                    continue;
+                }
+
                 LogicalBounds b = cell.Bounds;
                 LogicalPosition closest = b.ClosestPoint(eye);
                 if (LogicalPosition.DistanceSquared(eye, closest) > rangeSquared)
@@ -480,6 +521,10 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = DefaultData();
             data.Fire.ActivationTick = int.MaxValue;
+
+            // Nobody sits down here: this is about how people walk about, and
+            // sitting is covered by its own tests.
+            data.Items.SitChancePercent = 0;
             var simulation = new FireReactionSimulation(data);
             int count = simulation.AgentCount;
             var paused = new bool[count];
@@ -623,14 +668,19 @@ namespace Paniq.Tests.EditMode
                         calmSamples++;
                     }
 
-                    // Frozen, staggering and fallen people are meant to stand still,
-                    // and so are people opening, rattling or forcing a door.
+                    // Frozen, staggering and fallen people are meant to stand
+                    // still, and so are people working a door handle or
+                    // crouching over someone they are helping.
                     bool fleeing = agent.FearState == AgentFearState.Scared &&
                                    agent.BodyState == AgentBodyState.Upright &&
                                    agent.ActivityState != AgentActivityState.Frozen &&
                                    agent.ActivityState != AgentActivityState.OpeningDoor &&
                                    agent.ActivityState != AgentActivityState.TryingDoor &&
-                                   agent.ActivityState != AgentActivityState.ForcingDoor;
+                                   agent.ActivityState != AgentActivityState.ForcingDoor &&
+                                   agent.ActivityState != AgentActivityState.ShakingAwake &&
+                                   agent.ActivityState != AgentActivityState.Grabbing &&
+                                   agent.ActivityState != AgentActivityState.Spraying &&
+                                   agent.ActivityState != AgentActivityState.FetchingExtinguisher;
                     if (!fleeing)
                     {
                         stillTicks[i] = 0;
@@ -746,7 +796,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void LostAgents_TraceBackThroughTheFlamesToABurningSquare()
         {
-            var simulation = new FireReactionSimulation(DefaultData());
+            var simulation = new FireReactionSimulation(NobodyFightsTheFire());
             for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond; i++)
             {
                 simulation.Step();
@@ -1116,7 +1166,14 @@ namespace Paniq.Tests.EditMode
                             break;
                         case FireReactionEventType.AgentKnockedDown:
                             knockdowns++;
-                            knockdownsPerCollision[record.CausalParentEventId]++;
+
+                            // A jet of water floors people too; only the ones a
+                            // collision caused are counted against that collision.
+                            if (knockdownsPerCollision.ContainsKey(record.CausalParentEventId))
+                            {
+                                knockdownsPerCollision[record.CausalParentEventId]++;
+                            }
+
                             break;
                         case FireReactionEventType.AgentTripped:
                             trips++;

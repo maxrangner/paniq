@@ -57,6 +57,20 @@ namespace Paniq.Tests.EditMode
             return found;
         }
 
+        /// <summary>Whether something of this size stands wholly inside one of the building's rooms.</summary>
+        private static bool InAnyRoom(FireReactionScenarioData data, LogicalPosition position, int radius)
+        {
+            foreach (FireReactionRoomDefinition room in data.Rooms)
+            {
+                if (room.Bounds.ContainsCircle(position, radius))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static void AssertNothingOverlaps(FireReactionSimulation simulation, FireReactionScenarioData data, string context)
         {
             FireReactionSnapshot snapshot = simulation.GetSnapshot();
@@ -64,15 +78,16 @@ namespace Paniq.Tests.EditMode
             for (int b = 0; b < snapshot.PhysicsObjects.Count; b++)
             {
                 FireReactionPhysicsObjectSnapshot box = snapshot.PhysicsObjects[b];
-                if (box.IsHeld)
+                if (box.IsHeld || box.IsSatOn)
                 {
-                    // Carried in someone's arms: off the floor, touching nothing.
+                    // Carried in someone's arms, or with someone sitting on
+                    // it: not something to walk around.
                     continue;
                 }
 
                 int boxRadius = box.SizeMillimetres / 2;
-                Assert.That(data.Rooms[0].Bounds.ContainsCircle(box.Position, boxRadius), Is.True,
-                    $"{context}: box {box.ObjectId} left the room at tick {snapshot.Tick}.");
+                Assert.That(InAnyRoom(data, box.Position, boxRadius), Is.True,
+                    $"{context}: box {box.ObjectId} left the rooms at tick {snapshot.Tick}.");
                 for (int a = 0; a < snapshot.Agents.Count; a++)
                 {
                     FireReactionAgentSnapshot agent = snapshot.Agents[a];

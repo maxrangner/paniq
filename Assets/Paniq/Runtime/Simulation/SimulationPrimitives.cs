@@ -128,8 +128,16 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private int compassion;
         [UnityEngine.SerializeField] private int evil;
         [UnityEngine.SerializeField] private int nervousness;
+        [UnityEngine.SerializeField] private int leadership;
 
-        public AgentTraitValues(int strength, int speed, int bravery, int compassion, int evil, int nervousness)
+        public AgentTraitValues(
+            int strength,
+            int speed,
+            int bravery,
+            int compassion,
+            int evil,
+            int nervousness,
+            int leadership = Ordinary)
         {
             this.strength = strength;
             this.speed = speed;
@@ -137,9 +145,11 @@ namespace Paniq.Simulation
             this.compassion = compassion;
             this.evil = evil;
             this.nervousness = nervousness;
+            this.leadership = leadership;
         }
 
-        public static AgentTraitValues AllOrdinary => new AgentTraitValues(Ordinary, Ordinary, Ordinary, Ordinary, Ordinary, Ordinary);
+        public static AgentTraitValues AllOrdinary =>
+            new AgentTraitValues(Ordinary, Ordinary, Ordinary, Ordinary, Ordinary, Ordinary, Ordinary);
 
         public int Strength => strength;
         public int Speed => speed;
@@ -148,23 +158,27 @@ namespace Paniq.Simulation
         public int Evil => evil;
         public int Nervousness => nervousness;
 
+        /// <summary>How readily other people do what this person says.</summary>
+        public int Leadership => leadership;
+
         public bool IsValid =>
             InRange(strength) && InRange(speed) && InRange(bravery) &&
-            InRange(compassion) && InRange(evil) && InRange(nervousness);
+            InRange(compassion) && InRange(evil) && InRange(nervousness) && InRange(leadership);
 
         private static bool InRange(int value) => value >= Minimum && value <= Maximum;
 
         public bool Equals(AgentTraitValues other) =>
             strength == other.strength && speed == other.speed && bravery == other.bravery &&
-            compassion == other.compassion && evil == other.evil && nervousness == other.nervousness;
+            compassion == other.compassion && evil == other.evil && nervousness == other.nervousness &&
+            leadership == other.leadership;
 
         public override bool Equals(object obj) => obj is AgentTraitValues other && Equals(other);
 
         public override int GetHashCode() =>
-            ((((strength * 11 + speed) * 11 + bravery) * 11 + compassion) * 11 + evil) * 11 + nervousness;
+            (((((strength * 11 + speed) * 11 + bravery) * 11 + compassion) * 11 + evil) * 11 + nervousness) * 11 + leadership;
 
         public override string ToString() =>
-            $"Str {strength} Spd {speed} Brv {bravery} Cmp {compassion} Evl {evil} Nrv {nervousness}";
+            $"Str {strength} Spd {speed} Brv {bravery} Cmp {compassion} Evl {evil} Nrv {nervousness} Ldr {leadership}";
     }
 
     /// <summary>Authoring-only starting facing; the simulation stores whole-degree headings.</summary>
@@ -215,6 +229,18 @@ namespace Paniq.Simulation
 
         /// <summary>On fire: running around wildly until they collapse.</summary>
         Burning,
+
+        /// <summary>Running along behind whoever is leading them.</summary>
+        Following,
+
+        /// <summary>Going for an extinguisher, and spraying it at the fire.</summary>
+        FetchingExtinguisher,
+        Spraying,
+
+        /// <summary>Going to sit down, sitting on a chair, and getting back up off it.</summary>
+        GoingToSit,
+        Sitting,
+        StandingUp,
 
         /// <summary>Tidying up: walking over to an item, picking it up, carrying it off and setting it down.</summary>
         FetchingItem,
@@ -276,6 +302,30 @@ namespace Paniq.Simulation
         AgentForcedDoor,
         AgentGaveUpOnDoor,
         AgentEscaped,
+
+        /// <summary>A burning square put out by an extinguisher.</summary>
+        FireDoused,
+
+        /// <summary>Picking up an extinguisher, spraying it, and running it dry (target: the extinguisher).</summary>
+        AgentTookExtinguisher,
+        ExtinguisherSprayed,
+        ExtinguisherEmptied,
+
+        /// <summary>Someone knocked off their feet by the jet (target: the person hit).</summary>
+        AgentBlasted,
+
+        /// <summary>Someone on fire hosed down (target: the person put out).</summary>
+        AgentDoused,
+
+        /// <summary>
+        /// Taking charge: calling people on (no target), sending someone at a
+        /// door, or sending someone for an extinguisher (target: the person
+        /// told). The shout carries as far as its strength.
+        /// </summary>
+        LeaderCalledPeopleOn,
+        LeaderOrderedDoorBroken,
+        LeaderOrderedFireFought,
+
         BoxBumped,
         BoxHitAgent,
         BoxesCollided,
@@ -325,11 +375,32 @@ namespace Paniq.Simulation
         Broken
     }
 
-    /// <summary>The kinds of loose object the physical-object system knows.</summary>
+    /// <summary>
+    /// The kinds of loose object the physical-object system knows. How far
+    /// each slides and how it burns comes from the scenario's table of kinds.
+    /// </summary>
     public enum PhysicsObjectKind
     {
         Box,
-        Chair
+        Chair,
+
+        /// <summary>An office chair on castors: it rolls a long way when kicked.</summary>
+        OfficeChair,
+
+        /// <summary>A waste-paper basket: light, and it catches quickly.</summary>
+        WasteBin,
+
+        /// <summary>A potted plant: heavy, and too green to burn.</summary>
+        PottedPlant,
+
+        /// <summary>A bag left on the floor: light, and easy to trip over.</summary>
+        Bag,
+
+        /// <summary>A laptop: small, hard, and it skitters across the floor.</summary>
+        Laptop,
+
+        /// <summary>A fire extinguisher: a few seconds of spray in the bottle.</summary>
+        Extinguisher
     }
 
     public enum PlayerCommandType

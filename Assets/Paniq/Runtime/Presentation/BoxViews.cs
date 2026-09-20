@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -37,9 +37,15 @@ namespace Paniq.Presentation
             this.materials = materials;
             foreach (FireReactionPhysicsObjectDefinition definition in scenario.PhysicsObjects)
             {
-                if (definition.Kind == PhysicsObjectKind.Chair)
+                if (definition.Kind == PhysicsObjectKind.Chair || definition.Kind == PhysicsObjectKind.OfficeChair)
                 {
                     boxes.Add(definition.ObjectId, CreateChair(definition, materials, parent));
+                    continue;
+                }
+
+                if (definition.Kind != PhysicsObjectKind.Box)
+                {
+                    boxes.Add(definition.ObjectId, CreateOfficeThing(definition, materials, parent));
                     continue;
                 }
 
@@ -48,6 +54,8 @@ namespace Paniq.Presentation
                 GameObject box = CreatePrimitive($"Box {definition.ObjectId.Value} (presentation)", PrimitiveType.Cube, parent,
                     ToUnityPosition(definition.InitialPosition) + Vector3.up * (height * 0.5f),
                     new Vector3(size, height, size), materials.Box);
+
+                ShowThroughWalls(box, materials);
 
                 // Slightly different cardboard for each box; presentation-only variation.
                 Color shade = PresentationMaterials.BoxColor * (0.85f + 0.3f * Hash01((int)definition.ObjectId.Value, 7, 3));
@@ -62,6 +70,82 @@ namespace Paniq.Presentation
                     Height = height
                 });
             }
+        }
+
+        /// <summary>
+        /// The rest of the office's things, each a couple of primitives on a
+        /// root at floor level: a waste bin, a potted plant, a soft bag, or a
+        /// laptop lying open.
+        /// </summary>
+        private static BoxView CreateOfficeThing(FireReactionPhysicsObjectDefinition definition,
+            PresentationMaterials materials, Transform parent)
+        {
+            float size = Metres(definition.SizeMillimetres);
+            var root = new GameObject($"{definition.Kind} {definition.ObjectId.Value} (presentation)").transform;
+            root.SetParent(parent, false);
+            root.position = ToUnityPosition(definition.InitialPosition);
+
+            var renderers = new List<Renderer>();
+            Color colour;
+            float height;
+            void Part(string name, PrimitiveType shape, Vector3 localPosition, Vector3 scale)
+            {
+                GameObject part = CreatePrimitive(name, shape, root, root.position + localPosition, scale, materials.Box);
+                ShowThroughWalls(part, materials);
+                renderers.Add(part.GetComponent<Renderer>());
+            }
+
+            switch (definition.Kind)
+            {
+                case PhysicsObjectKind.WasteBin:
+                    height = size * 1.1f;
+                    colour = new Color(0.35f, 0.38f, 0.42f);
+                    Part("Bin", PrimitiveType.Cylinder, Vector3.up * (height * 0.5f), new Vector3(size, height * 0.5f, size));
+                    break;
+
+                case PhysicsObjectKind.PottedPlant:
+                    height = size * 1.6f;
+                    colour = new Color(0.30f, 0.52f, 0.28f);
+                    Part("Pot", PrimitiveType.Cylinder, Vector3.up * (size * 0.25f), new Vector3(size, size * 0.25f, size));
+                    Part("Leaves", PrimitiveType.Sphere, Vector3.up * (height * 0.7f), new Vector3(size * 1.1f, size * 1.2f, size * 1.1f));
+                    break;
+
+                case PhysicsObjectKind.Extinguisher:
+                    height = size * 2f;
+                    colour = new Color(0.72f, 0.12f, 0.10f);
+                    Part("Bottle", PrimitiveType.Cylinder, Vector3.up * (height * 0.5f), new Vector3(size, height * 0.5f, size));
+                    Part("Nozzle", PrimitiveType.Cube, Vector3.up * (height + 0.03f), new Vector3(size * 0.5f, 0.06f, size * 0.5f));
+                    break;
+
+                case PhysicsObjectKind.Bag:
+                    height = size * 0.7f;
+                    colour = new Color(0.42f, 0.30f, 0.45f);
+                    Part("Bag", PrimitiveType.Sphere, Vector3.up * (height * 0.5f), new Vector3(size, height, size * 0.75f));
+                    break;
+
+                default:
+                    height = size * 0.5f;
+                    colour = new Color(0.55f, 0.57f, 0.60f);
+                    Part("Base", PrimitiveType.Cube, Vector3.up * 0.015f, new Vector3(size, 0.03f, size * 0.7f));
+                    Part("Screen", PrimitiveType.Cube, new Vector3(0f, height * 0.5f, -size * 0.3f),
+                        new Vector3(size, height, 0.03f));
+                    break;
+            }
+
+            foreach (Renderer part in renderers)
+            {
+                materials.SetColor(part, colour);
+            }
+
+            return new BoxView
+            {
+                Transform = root,
+                Renderers = renderers.ToArray(),
+                Colour = colour,
+                Flames = new FlameCubes(root, 4, materials, definition.ObjectId.Value % 89UL),
+                Size = size,
+                Height = 0f
+            };
         }
 
         /// <summary>A simple wooden chair built on a root at floor level, facing its back toward -Z.</summary>
@@ -79,18 +163,32 @@ namespace Paniq.Presentation
             void Part(string name, Vector3 localPosition, Vector3 scale)
             {
                 GameObject part = CreatePrimitive(name, PrimitiveType.Cube, root, root.position + localPosition, scale, materials.Box);
+                ShowThroughWalls(part, materials);
                 renderers.Add(part.GetComponent<Renderer>());
             }
 
             Part("Seat", new Vector3(0f, seatHeight, 0f), new Vector3(size, 0.05f, size));
             Part("Back", new Vector3(0f, seatHeight + 0.22f, -size * 0.5f + 0.025f), new Vector3(size, 0.42f, 0.05f));
-            float corner = size * 0.5f - leg;
-            foreach (Vector2 c in new[] { new Vector2(-1f, -1f), new Vector2(1f, -1f), new Vector2(-1f, 1f), new Vector2(1f, 1f) })
+            if (definition.Kind != PhysicsObjectKind.OfficeChair)
             {
-                Part("Leg", new Vector3(c.x * corner, seatHeight * 0.5f, c.y * corner), new Vector3(leg, seatHeight, leg));
+                float corner = size * 0.5f - leg;
+                foreach (Vector2 c in new[] { new Vector2(-1f, -1f), new Vector2(1f, -1f), new Vector2(-1f, 1f), new Vector2(1f, 1f) })
+                {
+                    Part("Leg", new Vector3(c.x * corner, seatHeight * 0.5f, c.y * corner), new Vector3(leg, seatHeight, leg));
+                }
             }
 
-            Color wood = PresentationMaterials.WoodColor * (0.9f + 0.25f * Hash01((int)definition.ObjectId.Value, 11, 5));
+            // An office chair is grey plastic on a castor base; a wooden one is wood.
+            bool office = definition.Kind == PhysicsObjectKind.OfficeChair;
+            if (office)
+            {
+                Part("Castors", new Vector3(0f, 0.04f, 0f), new Vector3(size * 0.9f, 0.08f, size * 0.9f));
+                Part("Post", new Vector3(0f, seatHeight * 0.5f, 0f), new Vector3(0.06f, seatHeight, 0.06f));
+            }
+
+            Color wood = office
+                ? new Color(0.30f, 0.32f, 0.36f)
+                : PresentationMaterials.WoodColor * (0.9f + 0.25f * Hash01((int)definition.ObjectId.Value, 11, 5));
             foreach (Renderer part in renderers)
             {
                 materials.SetColor(part, wood);

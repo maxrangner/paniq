@@ -38,7 +38,7 @@ namespace Paniq.Presentation
         public static void DrawStats(FireReactionSnapshot snapshot)
         {
             const float rowHeight = 20f;
-            float width = 560f;
+            float width = 600f;
             float height = rowHeight * (snapshot.Agents.Count + 2) + 12f;
             var area = new Rect(Screen.width - width - 20f, 20f, width, height);
             GUI.color = new Color(0f, 0f, 0f, 0.75f);
@@ -46,7 +46,7 @@ namespace Paniq.Presentation
             GUI.color = Color.white;
             float x = area.x + 10f;
             float y = area.y + 6f;
-            string[] headings = { "#", "Str", "Spd", "Brv", "Cmp", "Evl", "Nrv", "Panics by", "Now" };
+            string[] headings = { "#", "Str", "Spd", "Brv", "Cmp", "Evl", "Nrv", "Ldr", "Panics by", "Now" };
             DrawRow(x, y, rowHeight, headings);
             y += rowHeight;
             for (int i = 0; i < snapshot.Agents.Count; i++)
@@ -56,7 +56,7 @@ namespace Paniq.Presentation
                 DrawRow(x, y, rowHeight, new[]
                 {
                     (i + 1).ToString(), t.Strength.ToString(), t.Speed.ToString(), t.Bravery.ToString(),
-                    t.Compassion.ToString(), t.Evil.ToString(), t.Nervousness.ToString(),
+                    t.Compassion.ToString(), t.Evil.ToString(), t.Nervousness.ToString(), t.Leadership.ToString(),
                     TemperamentText(agent.Temperament), StateText(agent)
                 });
                 y += rowHeight;
@@ -65,7 +65,7 @@ namespace Paniq.Presentation
             GUI.Label(new Rect(x, y, width, rowHeight), "Traits run 0-10; 5 is an ordinary person.");
         }
 
-        private static readonly float[] ColumnX = { 0f, 40f, 80f, 120f, 160f, 200f, 240f, 290f, 400f };
+        private static readonly float[] ColumnX = { 0f, 40f, 80f, 120f, 160f, 200f, 240f, 280f, 330f, 440f };
 
         private static void DrawRow(float x, float y, float height, string[] cells)
         {
@@ -135,6 +135,12 @@ namespace Paniq.Presentation
                 case AgentActivityState.ShakingAwake: return "shaking someone awake";
                 case AgentActivityState.Grabbing: return "grabbing someone";
                 case AgentActivityState.Dragging: return "dragging someone";
+                case AgentActivityState.Following: return "following someone";
+                case AgentActivityState.FetchingExtinguisher: return "going for an extinguisher";
+                case AgentActivityState.Spraying: return "spraying the fire";
+                case AgentActivityState.GoingToSit: return "going to sit down";
+                case AgentActivityState.Sitting: return "sitting";
+                case AgentActivityState.StandingUp: return "getting up";
                 default: return agent.ActivityState.ToString().ToLowerInvariant();
             }
         }

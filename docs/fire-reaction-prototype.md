@@ -394,6 +394,49 @@ restart control, or end screen in this checkpoint.
   who opens a door logs `DoorOpened` with their attempt as parent. After
   movement, anyone 0.8 m out through an open door logs `AgentEscaped` (parent:
   that door's `DoorOpened`, or `DoorBrokenDown`).
+- **Taking charge.** Everyone has a seventh trait, leadership. Someone with
+  7+ who is not in immediate danger looks around every second or so and takes
+  charge. First choice: a way out they have tried themselves and found shut,
+  with somebody strong enough to break it (strength 7+) within 6 m — they send
+  that person at it, and the breaker keeps at it for 15 s instead of giving up.
+  Second: the fire is still small and a bottle is free — they send the bravest
+  person nearby (bravery 5+) for it. Otherwise they simply shout, and anyone
+  within 5 m in the same room falls in behind them for 8 s, running where they
+  run until they are a stride and a half away.
+  Whether somebody does as they are told is personality: evil 7+ never does,
+  nor does anyone whose own leadership is as high as the leader's, and
+  otherwise the chance is 55% plus 4% per point of nervousness less 3% per
+  point of bravery. Nobody frozen with fear hears any of it: they have to be
+  shaken. A green arrow marks whoever is being followed, a small one whoever
+  is following.
+- **Fire extinguishers.** One red bottle stands by a wall in each big room,
+  with six seconds of spray in it. Someone brave (7+) near a fire of no more
+  than 24 squares, or someone kind (7+) who can see a person alight within
+  8 m, fetches the nearest free bottle, carries it to about 2 m from what they
+  are fighting, and holds the trigger down. The jet is a 3 m, 30° cone: it
+  puts a burning square out after 0.6 s on it (one square at a time), puts out
+  burning things and people it covers, and knocks anyone standing in it
+  backwards and onto the floor. A square that has been put out stays too wet
+  to catch again for 20 s. Holding the bottle makes them brave enough to stand
+  at half their usual keep-away distance from the flames, but no closer. The
+  recoil shoves them back 60 mm a tick, less 12 mm per point of strength, so
+  anyone with strength 5 or more holds it steady and the weak are walked
+  backwards; strength 0 is put on the floor by their own extinguisher. When
+  the bottle runs dry they drop it and run.
+- **Sitting.** A calm person choosing what to do next may walk to the
+  nearest free chair in their room within 6 m and sit on it for 5–20 s. A
+  chair with someone on it does not slide, cannot be picked up and cannot be
+  tidied away. Anyone startled, knocked over or set alight in a chair has to
+  get out of it first: 0.8 s less 0.04 s per point of nervousness, and never
+  less than 0.2 s, so the nervous are out of it first. Standing up steps them
+  clear of the seat and shoves the chair the other way.
+- **Loose things.** Every kind of loose object has an entry in the
+  scenario's table of kinds: friction as a percentage of the floor's, and how
+  long it takes to catch fire and how long it burns. An ignite time of 0 means
+  it never catches and never even heats up. Boxes and wooden chairs behave as
+  before; office chairs roll on castors (friction 35%), laptops skitter (55%),
+  bags and bins slide about as boxes do, and potted plants (200%) barely shift
+  and never burn.
 - **Breaking doors.** The chance to start shoving rather than give up is
   60% plus 5% per strength point above 5. Each shove adds
   `(strength − 6) × 1` damage to the door (nothing below strength 7); damage
@@ -531,6 +574,14 @@ hash of the cell's grid position, never from the simulation's random
 generator. The cubes (and people, doors and boxes) share materials, recoloured per object through
 a `MaterialPropertyBlock`. The camera is 45 degrees around the room and
 35.264 degrees above the ground, which gives a standard isometric view.
+
+**Seeing through walls.** People and the objects they knock about are drawn
+twice: normally, and again as a pale blue silhouette wherever a wall stands
+between them and the camera, so the crowd in the meeting room, the corridor
+and the closet can be watched without moving the camera. The second drawing
+uses `Content/Rendering/SeeThrough.shader`, added as an extra material on each
+renderer; it needs no project setup. This is rendering only; the simulation
+neither knows nor cares.
 
 This prototype deliberately remains ordinary GameObjects and C# code. The next
 stone is chosen by the owner after playing it. Profile a standalone build

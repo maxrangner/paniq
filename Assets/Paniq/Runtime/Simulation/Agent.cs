@@ -19,6 +19,8 @@
     /// <item><see cref="Burning"/>: whether they are on fire, and until when.</item>
     /// <item><see cref="Carry"/>: the item they are going for or carrying.</item>
     /// <item><see cref="Help"/>: the person they are helping, if any.</item>
+    /// <item><see cref="Sitting"/>: the chair they are on, if any.</item>
+    /// <item><see cref="Leading"/>: who they are following, and what they were told to do.</item>
     /// </list>
     /// </summary>
     internal sealed class Agent
@@ -48,6 +50,8 @@
         public readonly AgentBurning Burning = new AgentBurning();
         public readonly AgentCarry Carry = new AgentCarry();
         public readonly AgentHelp Help = new AgentHelp();
+        public readonly AgentSitting Sitting = new AgentSitting();
+        public readonly AgentLeading Leading = new AgentLeading();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -73,7 +77,8 @@
                 Personality.Temperament,
                 Body.State,
                 Traits,
-                Burning.IsBurning);
+                Burning.IsBurning,
+                Leading.LedCount > 0);
         }
     }
 
@@ -89,6 +94,9 @@
 
         /// <summary>Ticks in a row this person wanted to move and could not.</summary>
         public int BlockedTicks;
+
+        /// <summary>Until this tick, the same jet of water cannot knock them over again.</summary>
+        public int BlastedUntilTick;
 
         public AgentBodyState State;
         public int EndTick;
@@ -172,6 +180,37 @@
 
         /// <summary>Their AgentEscaped event, once they are out: anyone they drag out is rescued because of it.</summary>
         public ulong EscapedEventId;
+    }
+
+    internal sealed class AgentLeading
+    {
+        /// <summary>The leader (agent index) they are following, or -1.</summary>
+        public int FollowingIndex = -1;
+
+        /// <summary>They stop following at this tick unless called on again.</summary>
+        public int FollowUntilTick;
+
+        /// <summary>When they may next look around and form a plan.</summary>
+        public int NextPlanTick;
+
+        /// <summary>A door they were sent to break down, or -1, and until when.</summary>
+        public int OrderedDoor = -1;
+        public int OrderedUntilTick;
+
+        /// <summary>The shout that set them on, so what follows can name its cause.</summary>
+        public ulong OrderEventId;
+
+        /// <summary>How many people are following this person at the moment (presentation only).</summary>
+        public int LedCount;
+    }
+
+    internal sealed class AgentSitting
+    {
+        /// <summary>The chair they are on, or walking to, or -1.</summary>
+        public int ChairIndex = -1;
+
+        /// <summary>True once they are actually on it.</summary>
+        public bool OnIt;
     }
 
     internal sealed class AgentHelp

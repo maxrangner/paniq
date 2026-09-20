@@ -156,11 +156,14 @@ namespace Paniq.Simulation
             agent.Fear.FrozeEventId = froze.EventId;
         }
 
-        /// <summary>Snapping out of a freeze: log it, start running, and shout straight away.</summary>
-        public void Unfreeze(Agent agent)
+        /// <summary>
+        /// Snapping out of a freeze: log it, start running, and shout straight
+        /// away. The cause is their own freeze running out, or someone shaking them.
+        /// </summary>
+        public void Unfreeze(Agent agent, ulong causalParentEventId = 0UL)
         {
             context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentUnfroze, agent.Body.Position, 0, 0,
-                agent.Fear.FrozeEventId);
+                causalParentEventId != 0UL ? causalParentEventId : agent.Fear.FrozeEventId);
             StartFleeing(agent);
             agent.Fear.NextShoutTick = context.Tick;
         }

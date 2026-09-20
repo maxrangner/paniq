@@ -1,4 +1,4 @@
-using Paniq.Simulation;
+﻿using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Presentation
@@ -18,18 +18,19 @@ namespace Paniq.Presentation
                 : $"FIRE IN {Mathf.Max(0f, (scenario.Fire.ActivationTick - snapshot.Tick) / (float)FireReactionSimulation.TicksPerSecond):0.00} s";
             GUI.Label(new Rect(20f, 20f, 360f, 24f), $"Fire-reaction prototype  |  tick {snapshot.Tick}");
             GUI.Label(new Rect(20f, 44f, 360f, 24f), fireText);
-            GUI.Label(new Rect(20f, 68f, 640f, 24f),
+            GUI.Label(new Rect(20f, 68f, 900f, 24f),
                 $"Calm {snapshot.CalmCount}   Scared {snapshot.ScaredCount} (frozen {snapshot.FrozenCount}, on fire {snapshot.BurningCount})   " +
-                $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   Escaped {snapshot.EscapedCount}");
-            GUI.Label(new Rect(20f, 92f, 520f, 24f),
-                "Click a door: red = locked. Click once to unlock (green), again to open.   Tab: everyone's stats");
+                $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   " +
+                $"Escaped {snapshot.EscapedCount}   In a room with no fire {snapshot.ClearOfFireCount}");
+            GUI.Label(new Rect(20f, 92f, 900f, 24f),
+                "Click a door: red = locked. Click to unlock (green), again to open, again to close.   Tab: everyone's stats");
             if (hoveredDoor.HasValue)
             {
                 string action = hoveredState == DoorState.Locked ? "Click to unlock"
                     : hoveredState == DoorState.Unlocked ? "Click to open"
                     : hoveredState == DoorState.Broken ? "Broken down"
-                    : "Open";
-                GUI.Label(new Rect(20f, 116f, 360f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
+                    : "Click to close (if nobody is in the doorway)";
+                GUI.Label(new Rect(20f, 116f, 600f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
             }
         }
 
@@ -131,6 +132,9 @@ namespace Paniq.Presentation
                 case AgentActivityState.TryingDoor: return "trying a door";
                 case AgentActivityState.ForcingDoor: return "shoving a door";
                 case AgentActivityState.OpeningDoor: return "opening a door";
+                case AgentActivityState.ShakingAwake: return "shaking someone awake";
+                case AgentActivityState.Grabbing: return "grabbing someone";
+                case AgentActivityState.Dragging: return "dragging someone";
                 default: return agent.ActivityState.ToString().ToLowerInvariant();
             }
         }

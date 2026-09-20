@@ -1,4 +1,4 @@
-using Paniq.Gameplay;
+﻿using Paniq.Gameplay;
 using Paniq.Simulation;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -43,7 +43,7 @@ namespace Paniq.Presentation
             FireReactionScenarioData scenario = runner.Simulation.Scenario;
             materials = new PresentationMaterials();
             root = new GameObject("Fire reaction presentation").transform;
-            prototypeCamera = CreateCameraAndLight(root);
+            prototypeCamera = CreateCameraAndLight(root, scenario);
             room = new RoomView(scenario, materials, root);
             agents = new AgentViews(scenario, materials, root);
             boxes = new BoxViews(scenario, materials, root);
@@ -119,6 +119,10 @@ namespace Paniq.Presentation
                     case FireReactionEventType.AgentNoticedSound:
                         agents.Notice(record.SourceId, time);
                         break;
+                    case FireReactionEventType.AgentShookAwake:
+                        // The person shaken awake gets the "!".
+                        agents.Notice(record.TargetId, time);
+                        break;
                     case FireReactionEventType.AgentYelled:
                         agents.Yell(record.SourceId, time);
                         ripples.Start(record.Position, record.Strength, SoundRipples.YellColor, time);
@@ -130,6 +134,7 @@ namespace Paniq.Presentation
                         ripples.Start(record.Position, record.Strength, SoundRipples.ThudColor, time);
                         break;
                     case FireReactionEventType.DoorBrokenDown:
+                    case FireReactionEventType.DoorClosed:
                         ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
                         break;
                     case FireReactionEventType.AgentForcedDoor:
@@ -160,7 +165,7 @@ namespace Paniq.Presentation
         /// the camera 35.264 degrees above the ground and 45 degrees around
         /// the room.
         /// </summary>
-        private static Camera CreateCameraAndLight(Transform parent)
+        private static Camera CreateCameraAndLight(Transform parent, FireReactionScenarioData scenario)
         {
             Camera camera = Camera.main;
             if (camera == null)
@@ -171,12 +176,28 @@ namespace Paniq.Presentation
                 camera = cameraObject.GetComponent<Camera>();
             }
 
-            var cameraPosition = new Vector3(10f, 10f, -10f);
-            camera.transform.SetPositionAndRotation(
-                cameraPosition,
-                Quaternion.LookRotation((Vector3.zero - cameraPosition).normalized));
+            // Framed around every room, so a bigger floor plan still fits on screen.
+            float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+            foreach (FireReactionRoomDefinition room in scenario.Rooms)
+            {
+                minX = Mathf.Min(minX, Metres(room.Bounds.MinX));
+                maxX = Mathf.Max(maxX, Metres(room.Bounds.MaxX));
+                minZ = Mathf.Min(minZ, Metres(room.Bounds.MinZ));
+                maxZ = Mathf.Max(maxZ, Metres(room.Bounds.MaxZ));
+            }
+
+            var centre = new Vector3((minX + maxX) * 0.5f, 0f, (minZ + maxZ) * 0.5f);
+            Vector3 offset = new Vector3(10f, 10f, -10f).normalized * 40f;
+            camera.transform.SetPositionAndRotation(centre + offset, Quaternion.LookRotation(-offset.normalized));
             camera.orthographic = true;
-            camera.orthographicSize = 9.5f;
+
+            // Seen from 35.264 degrees up, the floor's diagonal spans this much
+            // across the screen, and this much up it; 1.5 m of wall and a
+            // tenth of a margin are added on top.
+            float across = (maxX - minX + (maxZ - minZ)) * 0.70711f;
+            float up = across * 0.57735f + 1.5f;
+            float aspect = camera.aspect > 0.1f ? camera.aspect : 16f / 9f;
+            camera.orthographicSize = Mathf.Max(up * 0.5f, across * 0.5f / aspect) * 1.1f;
 
             var lightObject = new GameObject("Fire Reaction Light", typeof(Light));
             lightObject.transform.SetParent(parent, false);

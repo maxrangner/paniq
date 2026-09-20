@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -7,8 +7,11 @@ namespace Paniq.Simulation
     /// Grid fire. The floor is split into square cells. The fire starts in
     /// one seeded cell; each burning cell periodically lights one random
     /// unburnt north/east/south/west neighbour, so it only ever grows outward
-    /// from itself. Burning cells stay burning. This system owns the fire's
-    /// state and answers every question about where the fire is.
+    /// from itself. Burning cells stay burning. The grid covers every room;
+    /// cells outside the rooms never burn, and fire only jumps between rooms
+    /// through an open door. Fire in another room can be neither touched nor
+    /// seen through a wall. This system owns the fire's state and answers
+    /// every question about where the fire is.
     /// </summary>
     internal sealed class FireSystem
     {
@@ -16,6 +19,7 @@ namespace Paniq.Simulation
         private static readonly int[] NeighbourOffsetZ = { 1, 0, -1, 0 };
 
         private readonly SimulationContext context;
+        private readonly WorldGeometry geometry;
         private readonly FireSettings settings;
         private readonly LogicalBounds floor;
         private readonly int radius;
@@ -26,6 +30,12 @@ namespace Paniq.Simulation
         private readonly int gridRows;
         private readonly ulong[] cellEventIds;
         private readonly int[] cellNextSpreadTicks;
+
+        /// <summary>Per cell: the room it is in (0 main, 1 + n side room n), or -1 for no room.</summary>
+        private readonly int[] cellRooms;
+
+        /// <summary>Per room: how many of its cells are burning.</summary>
+        private readonly int[] burningPerRoom;
         private readonly int originCell;
         private bool active;
         private ulong activationEventId;
@@ -34,8 +44,9 @@ namespace Paniq.Simulation
         public FireSystem(SimulationContext context, WorldGeometry geometry)
         {
             this.context = context;
+            this.geometry = geometry;
             settings = context.Scenario.Fire;
-            floor = geometry.Floor;
+            floor = geometry.FireArea;
             radius = context.Scenario.World.OccupancyRadiusMillimetres;
 
             int cellSize = settings.CellSizeMillimetres;
@@ -44,6 +55,14 @@ namespace Paniq.Simulation
             int cellCount = checked(gridColumns * gridRows);
             cellEventIds = new ulong[cellCount];
             cellNextSpreadTicks = new int[cellCount];
+            cellRooms = new int[cellCount];
+            for (int cell = 0; cell < cellCount; cell++)
+            {
+                cellRooms[cell] = geometry.RoomAtPoint(CellBounds(cell).Centre);
+                FloorCellCount += cellRooms[cell] >= 0 ? 1 : 0;
+            }
+
+            burningPerRoom = new int[geometry.RoomCount];
 
             var origin = new LogicalPosition(
                 context.Random.NextIntInclusive(settings.SpawnBounds.MinX, settings.SpawnBounds.MaxX),
@@ -56,6 +75,12 @@ namespace Paniq.Simulation
         public int GridColumns => gridColumns;
         public int GridRows => gridRows;
         public LogicalPosition Origin => CellBounds(originCell).Centre;
+
+        /// <summary>How many grid cells are floor in some room (the rest can never burn).</summary>
+        public int FloorCellCount { get; }
+
+        /// <summary>Whether any floor square of this room (0 main, 1 + n side room n) is burning.</summary>
+        public bool IsBurningInRoom(int room) => room >= 0 && burningPerRoom[room] > 0;
         public ulong ActivationEventId => activationEventId;
 
         /// <summary>Phase 2: the fire starts on its tick, then spreads.</summary>
@@ -112,6 +137,7 @@ namespace Paniq.Simulation
             cellEventIds[cell] = ignition.EventId;
             cellNextSpreadTicks[cell] = checked(tick + NextSpreadDelay());
             burningCells.Add(cell);
+            burningPerRoom[cellRooms[cell]]++;
             cellRecords.Add(new FireCellSnapshot(cell % gridColumns, cell / gridColumns, CellBounds(cell), tick, ignition.EventId));
             return ignition.EventId;
         }
@@ -136,10 +162,19 @@ namespace Paniq.Simulation
                 }
 
                 int neighbour = z * gridColumns + x;
-                if (cellEventIds[neighbour] == 0UL)
+                if (cellEventIds[neighbour] != 0UL || cellRooms[neighbour] < 0)
                 {
-                    neighbourScratch.Add(neighbour);
+                    continue;
                 }
+
+                // Into another room only through its open door.
+                if (cellRooms[neighbour] != cellRooms[cell] &&
+                    !geometry.FireCanCross(cellRooms[cell], CellBounds(cell), cellRooms[neighbour], CellBounds(neighbour)))
+                {
+                    continue;
+                }
+
+                neighbourScratch.Add(neighbour);
             }
         }
 
@@ -172,7 +207,7 @@ namespace Paniq.Simulation
         /// </summary>
         public void IgniteCell(int cell, ulong causeEventId)
         {
-            if (!active || cellEventIds[cell] != 0UL)
+            if (!active || cellEventIds[cell] != 0UL || cellRooms[cell] < 0)
             {
                 return;
             }
@@ -228,6 +263,8 @@ namespace Paniq.Simulation
 
         private ulong FindTouchingSweep(LogicalPosition start, LogicalPosition end, int radius)
         {
+            // Fire on the far side of a wall cannot reach you.
+            int bodyRoom = geometry.RoomAtPoint(start);
             int cellSize = settings.CellSizeMillimetres;
             int firstX = Math.Max(0, (Math.Min(start.X, end.X) - radius - floor.MinX) / cellSize);
             int lastX = Math.Min(gridColumns - 1, (Math.Max(start.X, end.X) + radius - floor.MinX) / cellSize);
@@ -241,7 +278,7 @@ namespace Paniq.Simulation
                 {
                     int cell = z * gridColumns + x;
                     ulong eventId = cellEventIds[cell];
-                    if (eventId == 0UL || (earliest != 0UL && eventId >= earliest))
+                    if (eventId == 0UL || (earliest != 0UL && eventId >= earliest) || !Reaches(bodyRoom, cell))
                     {
                         continue;
                     }
@@ -458,9 +495,20 @@ namespace Paniq.Simulation
             return false;
         }
 
-        /// <summary>The nearest point, centre or a corner of the cell lies inside the vision cone.</summary>
+        /// <summary>Fire in this cell can touch or be seen from a room: the same room, or one joined to it by an open door.</summary>
+        private bool Reaches(int room, int cell)
+        {
+            return room < 0 || cellRooms[cell] == room || geometry.RoomsOpenToEachOther(room, cellRooms[cell]);
+        }
+
+        /// <summary>The nearest point, centre or a corner of the cell lies inside the vision cone, and no wall is in the way.</summary>
         private bool CellIsVisible(int cell, LogicalPosition eye, LogicalPosition direction, long rangeSquared)
         {
+            if (!Reaches(geometry.RoomAtPoint(eye), cell))
+            {
+                return false;
+            }
+
             LogicalBounds bounds = CellBounds(cell);
             LogicalPosition closest = bounds.ClosestPoint(eye);
             if (LogicalPosition.DistanceSquared(eye, closest) > rangeSquared)

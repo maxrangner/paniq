@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -39,10 +39,10 @@ namespace Paniq.Tests.EditMode
         {
             Assert.That(scenario.IsValid(out string error), Is.True, error);
             FireReactionScenarioData data = DefaultData();
-            Assert.That(data.Agents, Has.Length.EqualTo(10));
+            Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("19"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(11));
+            Assert.That(data.ContentRevision, Is.EqualTo("25"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(17));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -208,20 +208,64 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>The room whose walls hold this position, or the first room.</summary>
+        private static LogicalBounds RoomHolding(FireReactionScenarioData data, LogicalPosition position)
+        {
+            foreach (FireReactionRoomDefinition room in data.Rooms)
+            {
+                if (room.Bounds.ContainsCircle(position, data.World.OccupancyRadiusMillimetres))
+                {
+                    return room.Bounds;
+                }
+            }
+
+            return data.Rooms[0].Bounds;
+        }
+
+        /// <summary>Whether someone is standing in a doorway, between two rooms.</summary>
+        private static bool InADoorway(FireReactionSnapshot snapshot, LogicalPosition position)
+        {
+            foreach (FireReactionDoorSnapshot door in snapshot.Doors)
+            {
+                if (LogicalPosition.DistanceSquared(position, door.Centre) < 1000L * 1000L)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether a whole body stands inside one of the building's rooms.</summary>
+        private static bool InAnyRoom(FireReactionScenarioData data, LogicalPosition position)
+        {
+            foreach (FireReactionRoomDefinition room in data.Rooms)
+            {
+                if (room.Bounds.ContainsCircle(position, data.World.OccupancyRadiusMillimetres))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         [Test]
         public void Fire_FillsTheRoomWithinAMinute()
         {
             FireReactionScenarioData data = DefaultData();
             data.Fire.ActivationTick = 1;
             var simulation = new FireReactionSimulation(data);
-            int totalCells = simulation.FireGridColumns * simulation.FireGridRows;
-            Assert.That(totalCells, Is.EqualTo(24 * 24));
-            for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond && simulation.FireCellCount < totalCells; i++)
+            // The office's 24 × 24 squares, plus the closet, the corridor and the meeting room.
+            int officeCells = 24 * 24;
+            Assert.That(simulation.FireFloorCellCount, Is.EqualTo(officeCells + 4 * 4 + 6 * 4 + 24 * 24));
+            for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond && simulation.FireCellCount < officeCells; i++)
             {
                 simulation.Step();
             }
 
-            Assert.That(simulation.FireCellCount, Is.EqualTo(totalCells));
+            Assert.That(simulation.FireCellCount, Is.GreaterThanOrEqualTo(officeCells),
+                "The office should be full of fire within a minute.");
         }
 
         /// <summary>
@@ -281,9 +325,20 @@ namespace Paniq.Tests.EditMode
                         Assert.That(fire.AnyCloserThan(position, reach), Is.EqualTo(anyCloser), $"fire within {reach} of {position}");
                     }
 
+                    // Sight is checked inside the office, where the fire is;
+                    // walls hiding fire from the other rooms is covered by the
+                    // room tests.
+                    LogicalBounds office = simulation.Scenario.Rooms[0].Bounds;
+                    if (position.X <= office.MinX || position.X >= office.MaxX ||
+                        position.Z <= office.MinZ || position.Z >= office.MaxZ)
+                    {
+                        continue;
+                    }
+
                     for (int heading = 0; heading < 360; heading += 45)
                     {
-                        Assert.That(fire.IsVisibleFrom(position, heading, 3000), Is.EqualTo(SeesAnyCell(cells, position, heading, 3000)),
+                        Assert.That(fire.IsVisibleFrom(position, heading, 3000),
+                            Is.EqualTo(SeesAnyCell(cells, position, heading, 3000)),
                             $"vision from {position} facing {heading}");
                     }
                 }
@@ -402,8 +457,8 @@ namespace Paniq.Tests.EditMode
                         continue;
                     }
 
-                    Assert.That(data.World.RoomBounds.ContainsCircle(agent.Position, data.World.OccupancyRadiusMillimetres), Is.True,
-                        $"Agent {agent.AgentId} left the room at tick {snapshot.Tick}.");
+                    Assert.That(InAnyRoom(data, agent.Position) || InADoorway(snapshot, agent.Position), Is.True,
+                        $"Agent {agent.AgentId} left the building at tick {snapshot.Tick}.");
                     for (int j = 0; j < i; j++)
                     {
                         FireReactionAgentSnapshot other = snapshot.Agents[j];
@@ -462,8 +517,8 @@ namespace Paniq.Tests.EditMode
                     travelled[i] += (long)Math.Sqrt(LogicalPosition.DistanceSquared(previous[i], agent.Position));
                     previous[i] = agent.Position;
 
-                    // Footprint edge within 0.3 m of any wall.
-                    LogicalBounds room = data.World.RoomBounds;
+                    // Footprint edge within 0.3 m of any wall of the room they are in.
+                    LogicalBounds room = RoomHolding(data, agent.Position);
                     int gap = Math.Min(
                         Math.Min(agent.Position.X - room.MinX, room.MaxX - agent.Position.X),
                         Math.Min(agent.Position.Z - room.MinZ, room.MaxZ - agent.Position.Z)) - data.World.OccupancyRadiusMillimetres;
@@ -582,8 +637,14 @@ namespace Paniq.Tests.EditMode
                     }
                     else
                     {
-                        scaredSpeedTotal += agent.SpeedMillimetresPerTick;
-                        scaredSamples++;
+                        // Counted the same way as the calm pace above: how
+                        // fast they move while moving, not counting the ticks
+                        // they spend stopped by a wall or by each other.
+                        if (agent.SpeedMillimetresPerTick > 0)
+                        {
+                            scaredSpeedTotal += agent.SpeedMillimetresPerTick;
+                            scaredSamples++;
+                        }
                         if (tick % 10 == 0)
                         {
                             bigTurns += Math.Abs(IntegerMath.SignedAngleDifference(lastHeading[i], agent.HeadingDegrees)) > 30 ? 1 : 0;
@@ -874,7 +935,8 @@ namespace Paniq.Tests.EditMode
 
             data.Agents = crowd.ToArray();
 
-            // A bare room, so the grid of people fits.
+            // A bare room, so the grid of people fits, and nobody who shakes the frozen awake.
+            data.Help.ShakeMinimumCompassion = AgentTraitValues.Maximum + 1;
             data.Tables = new FireReactionTableDefinition[0];
             data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
             var simulation = new FireReactionSimulation(data);
@@ -968,6 +1030,19 @@ namespace Paniq.Tests.EditMode
             Assert.That(thawed, Is.GreaterThan(0), "Nobody froze and then ran.");
         }
 
+        private static bool SomeoneIsDragging(FireReactionSimulation simulation)
+        {
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (simulation.GetAgent(i).ActivityState == AgentActivityState.Dragging)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // ---------------------------------------------------------------- collisions and falls
 
         [Test]
@@ -1001,7 +1076,8 @@ namespace Paniq.Tests.EditMode
 
                         // Someone can finish staggering, take a step and be bumped again in one
                         // tick, but nobody gets from the floor to their feet and back that fast.
-                        if (agent.IsDown && agent.BodyState == previous[i].BodyState)
+                        // (Someone knocked out can be dragged along by a helper.)
+                        if (agent.IsDown && agent.BodyState == previous[i].BodyState && !SomeoneIsDragging(simulation))
                         {
                             Assert.That(agent.Position, Is.EqualTo(previous[i].Position),
                                 $"Seed {seed}: agent {agent.AgentId} moved while not on its feet.");

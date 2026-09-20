@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -220,7 +220,12 @@ namespace Paniq.Simulation
         FetchingItem,
         PickingUp,
         CarryingItem,
-        SettingDown
+        SettingDown,
+
+        /// <summary>Helping: shaking someone frozen with fear, getting a grip on someone knocked out, or dragging them.</summary>
+        ShakingAwake,
+        Grabbing,
+        Dragging
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>
@@ -281,7 +286,13 @@ namespace Paniq.Simulation
         ObjectCaughtFire,
         ObjectBurntOut,
         ItemThrown,
-        ItemDropped
+        ItemDropped,
+        DoorClosed,
+        DoorLocked,
+        AgentShookAwake,
+        AgentGrabbed,
+        AgentDropped,
+        AgentRescued
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>
@@ -323,7 +334,7 @@ namespace Paniq.Simulation
 
     public enum PlayerCommandType
     {
-        /// <summary>Locked becomes unlocked; unlocked becomes open; open stays open.</summary>
+        /// <summary>Locked becomes unlocked; unlocked becomes open; open closes (unless someone is in the doorway). Broken stays broken.</summary>
         ClickDoor
     }
 

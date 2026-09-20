@@ -706,10 +706,17 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>This kind of object's grip on the floor, per tick.</summary>
+        private long FrictionFor(PhysicsBody physicsBody)
+        {
+            return Math.Max(1L, (long)settings.Friction * context.Scenario.Flammables.Of(physicsBody.Kind).FrictionPercent / 100L);
+        }
+
         private void ApplyFriction(PhysicsBody physicsBody)
         {
+            long friction = FrictionFor(physicsBody);
             long speed = IntegerMath.Sqrt(physicsBody.VelocityX * physicsBody.VelocityX + physicsBody.VelocityZ * physicsBody.VelocityZ);
-            if (speed <= settings.Friction)
+            if (speed <= friction)
             {
                 physicsBody.VelocityX = 0L;
                 physicsBody.VelocityZ = 0L;
@@ -717,8 +724,8 @@ namespace Paniq.Simulation
                 return;
             }
 
-            physicsBody.VelocityX = physicsBody.VelocityX * (speed - settings.Friction) / speed;
-            physicsBody.VelocityZ = physicsBody.VelocityZ * (speed - settings.Friction) / speed;
+            physicsBody.VelocityX = physicsBody.VelocityX * (speed - friction) / speed;
+            physicsBody.VelocityZ = physicsBody.VelocityZ * (speed - friction) / speed;
         }
 
         private static void LimitSpeed(PhysicsBody physicsBody, long maximum)

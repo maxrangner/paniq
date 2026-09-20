@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -64,14 +64,16 @@ namespace Paniq.Simulation
             things = new Flammable[objects.Count + geometry.TableCount];
             for (int i = 0; i < objects.Count; i++)
             {
-                bool chair = objects.KindOf(i) == PhysicsObjectKind.Chair;
+                ObjectKindSettings kind = settings.Of(objects.KindOf(i));
                 things[i] = new Flammable
                 {
                     Id = objects.IdOf(i),
                     Index = i,
-                    IgniteTicks = chair ? settings.ChairIgniteTicks : settings.BoxIgniteTicks,
-                    BurnMinimumTicks = chair ? settings.ChairBurnMinimumTicks : settings.BoxBurnMinimumTicks,
-                    BurnMaximumTicks = chair ? settings.ChairBurnMaximumTicks : settings.BoxBurnMaximumTicks
+
+                    // Nothing that takes no time to catch: 0 means it never does.
+                    IgniteTicks = kind.IgniteTicks,
+                    BurnMinimumTicks = kind.BurnMinimumTicks,
+                    BurnMaximumTicks = kind.BurnMaximumTicks
                 };
             }
 
@@ -126,7 +128,9 @@ namespace Paniq.Simulation
             for (int i = 0; i < things.Length; i++)
             {
                 Flammable thing = things[i];
-                if (thing.State != ObjectBurnState.Intact)
+
+                // Ignite time 0 means this thing never catches at all (a potted plant).
+                if (thing.State != ObjectBurnState.Intact || thing.IgniteTicks <= 0)
                 {
                     continue;
                 }
@@ -300,7 +304,12 @@ namespace Paniq.Simulation
 
         private static int HeatPercent(Flammable thing)
         {
-            return thing.State == ObjectBurnState.Intact ? Math.Min(100, thing.Heat * 100 / thing.IgniteTicks) : 100;
+            if (thing.State != ObjectBurnState.Intact)
+            {
+                return 100;
+            }
+
+            return thing.IgniteTicks <= 0 ? 0 : Math.Min(100, thing.Heat * 100 / thing.IgniteTicks);
         }
     }
 }

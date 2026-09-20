@@ -325,11 +325,29 @@ namespace Paniq.Simulation
         Broken
     }
 
-    /// <summary>The kinds of loose object the physical-object system knows.</summary>
+    /// <summary>
+    /// The kinds of loose object the physical-object system knows. How far
+    /// each slides and how it burns comes from the scenario's table of kinds.
+    /// </summary>
     public enum PhysicsObjectKind
     {
         Box,
-        Chair
+        Chair,
+
+        /// <summary>An office chair on castors: it rolls a long way when kicked.</summary>
+        OfficeChair,
+
+        /// <summary>A waste-paper basket: light, and it catches quickly.</summary>
+        WasteBin,
+
+        /// <summary>A potted plant: heavy, and too green to burn.</summary>
+        PottedPlant,
+
+        /// <summary>A bag left on the floor: light, and easy to trip over.</summary>
+        Bag,
+
+        /// <summary>A laptop: small, hard, and it skitters across the floor.</summary>
+        Laptop
     }
 
     public enum PlayerCommandType

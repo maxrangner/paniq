@@ -598,11 +598,74 @@ namespace Paniq.Simulation
     /// are close and catch once hot for long enough; cardboard catches
     /// sooner than wood, and wood burns longer.
     /// </summary>
+    /// <summary>
+    /// One kind of loose object: how far it slides when kicked, and how
+    /// readily it burns. Friction is a percentage of the shared floor
+    /// friction, so 50 slides twice as far and 200 half as far; an object
+    /// that never burns has <see cref="IgniteTicks"/> 0.
+    /// </summary>
+    [Serializable]
+    public sealed class ObjectKindSettings
+    {
+        public const int KindCount = 7;
+
+        public PhysicsObjectKind Kind;
+        public int FrictionPercent = 100;
+        public int IgniteTicks = 75;
+        public int BurnMinimumTicks = 400;
+        public int BurnMaximumTicks = 750;
+
+        public ObjectKindSettings Clone() => (ObjectKindSettings)MemberwiseClone();
+
+        /// <summary>The office's things, in enum order.</summary>
+        public static ObjectKindSettings[] Defaults()
+        {
+            return new[]
+            {
+                Entry(PhysicsObjectKind.Box, 100, 75, 400, 750),
+                Entry(PhysicsObjectKind.Chair, 120, 150, 600, 900),
+
+                // Castors: it rolls away across the floor.
+                Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900),
+                Entry(PhysicsObjectKind.WasteBin, 80, 50, 250, 450),
+
+                // Earth and green leaves: it never catches.
+                Entry(PhysicsObjectKind.PottedPlant, 200, 0, 0, 0),
+                Entry(PhysicsObjectKind.Bag, 90, 100, 300, 500),
+
+                // Hard plastic on hard floor: it skitters.
+                Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400)
+            };
+        }
+
+        private static ObjectKindSettings Entry(PhysicsObjectKind kind, int friction, int ignite, int burnMinimum, int burnMaximum)
+        {
+            return new ObjectKindSettings
+            {
+                Kind = kind,
+                FrictionPercent = friction,
+                IgniteTicks = ignite,
+                BurnMinimumTicks = burnMinimum,
+                BurnMaximumTicks = burnMaximum
+            };
+        }
+
+        internal void Validate()
+        {
+            Settings.Require(FrictionPercent > 0 && FrictionPercent <= 1000, "object friction");
+            Settings.Require(IgniteTicks >= 0, "object ignite time");
+            Settings.Require(IgniteTicks == 0 || Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1), "object burn time");
+        }
+    }
+
     [Serializable]
     public sealed class FlammableSettings
     {
         /// <summary>Flames (a burning square or burning thing) this close to a thing's edge heat it.</summary>
         public int HeatDistanceMillimetres = 500;
+
+        /// <summary>How each kind of loose object slides and burns; one entry per kind.</summary>
+        public ObjectKindSettings[] Kinds = ObjectKindSettings.Defaults();
 
         /// <summary>Ticks of heat before each kind catches fire.</summary>
         public int BoxIgniteTicks = 75;
@@ -623,7 +686,23 @@ namespace Paniq.Simulation
         /// <summary>A person this close to a burning thing's edge touches it (and catches fire).</summary>
         public int TouchGapMillimetres = 50;
 
-        public FlammableSettings Clone() => (FlammableSettings)MemberwiseClone();
+        public FlammableSettings Clone()
+        {
+            var copy = (FlammableSettings)MemberwiseClone();
+            if (Kinds != null)
+            {
+                copy.Kinds = new ObjectKindSettings[Kinds.Length];
+                for (int i = 0; i < Kinds.Length; i++)
+                {
+                    copy.Kinds[i] = Kinds[i]?.Clone();
+                }
+            }
+
+            return copy;
+        }
+
+        /// <summary>How this kind of object slides and burns.</summary>
+        public ObjectKindSettings Of(PhysicsObjectKind kind) => Kinds[(int)kind];
 
         internal void Validate()
         {
@@ -633,6 +712,12 @@ namespace Paniq.Simulation
                              Settings.Range(ChairBurnMinimumTicks, ChairBurnMaximumTicks, 1) &&
                              Settings.Range(TableBurnMinimumTicks, TableBurnMaximumTicks, 1), "burn times");
             Settings.Require(FloorIgniteRestTicks >= 1 && TouchGapMillimetres >= 0, "burning things");
+            Settings.Require(Kinds != null && Kinds.Length == ObjectKindSettings.KindCount, "one entry per kind of object");
+            for (int i = 0; i < Kinds.Length; i++)
+            {
+                Settings.Require((int)Kinds[i].Kind == i, "kinds in enum order");
+                Kinds[i].Validate();
+            }
         }
     }
 

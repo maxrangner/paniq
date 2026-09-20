@@ -394,6 +394,13 @@ restart control, or end screen in this checkpoint.
   who opens a door logs `DoorOpened` with their attempt as parent. After
   movement, anyone 0.8 m out through an open door logs `AgentEscaped` (parent:
   that door's `DoorOpened`, or `DoorBrokenDown`).
+- **Loose things.** Every kind of loose object has an entry in the
+  scenario's table of kinds: friction as a percentage of the floor's, and how
+  long it takes to catch fire and how long it burns. An ignite time of 0 means
+  it never catches and never even heats up. Boxes and wooden chairs behave as
+  before; office chairs roll on castors (friction 35%), laptops skitter (55%),
+  bags and bins slide about as boxes do, and potted plants (200%) barely shift
+  and never burn.
 - **Breaking doors.** The chance to start shoving rather than give up is
   60% plus 5% per strength point above 5. Each shove adds
   `(strength − 6) × 1` damage to the door (nothing below strength 7); damage

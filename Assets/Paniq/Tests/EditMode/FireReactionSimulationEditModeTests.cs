@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("25"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(17));
+            Assert.That(data.ContentRevision, Is.EqualTo("26"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(18));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -74,6 +74,22 @@ namespace Paniq.Tests.EditMode
                 if (field.FieldType.IsClass && field.FieldType != typeof(string) && !field.FieldType.IsArray)
                 {
                     compared += AssertSameValues(assetValue, codeValue, fieldPath);
+                    continue;
+                }
+
+                // An array of settings objects (the per-kind table): compare entry by entry.
+                if (field.FieldType.IsArray && field.FieldType.GetElementType()?.IsClass == true &&
+                    field.FieldType.GetElementType() != typeof(string))
+                {
+                    var assetEntries = (Array)assetValue;
+                    var codeEntries = (Array)codeValue;
+                    Assert.That(assetEntries?.Length, Is.EqualTo(codeEntries?.Length),
+                        $"Asset and code defaults disagree on how many {fieldPath} there are.");
+                    for (int i = 0; assetEntries != null && i < assetEntries.Length; i++)
+                    {
+                        compared += AssertSameValues(assetEntries.GetValue(i), codeEntries.GetValue(i), $"{fieldPath}[{i}]");
+                    }
+
                     continue;
                 }
 
@@ -623,14 +639,17 @@ namespace Paniq.Tests.EditMode
                         calmSamples++;
                     }
 
-                    // Frozen, staggering and fallen people are meant to stand still,
-                    // and so are people opening, rattling or forcing a door.
+                    // Frozen, staggering and fallen people are meant to stand
+                    // still, and so are people working a door handle or
+                    // crouching over someone they are helping.
                     bool fleeing = agent.FearState == AgentFearState.Scared &&
                                    agent.BodyState == AgentBodyState.Upright &&
                                    agent.ActivityState != AgentActivityState.Frozen &&
                                    agent.ActivityState != AgentActivityState.OpeningDoor &&
                                    agent.ActivityState != AgentActivityState.TryingDoor &&
-                                   agent.ActivityState != AgentActivityState.ForcingDoor;
+                                   agent.ActivityState != AgentActivityState.ForcingDoor &&
+                                   agent.ActivityState != AgentActivityState.ShakingAwake &&
+                                   agent.ActivityState != AgentActivityState.Grabbing;
                     if (!fleeing)
                     {
                         stillTicks[i] = 0;

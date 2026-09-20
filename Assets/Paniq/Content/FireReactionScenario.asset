@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '25'
+    ContentRevision: '26'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 17
+    SimulationCompatibilityVersion: 18
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -218,6 +218,42 @@ MonoBehaviour:
       DoorDamagePerPoint: 1
     Flammables:
       HeatDistanceMillimetres: 500
+      Kinds:
+      - Kind: 0
+        FrictionPercent: 100
+        IgniteTicks: 75
+        BurnMinimumTicks: 400
+        BurnMaximumTicks: 750
+      - Kind: 1
+        FrictionPercent: 120
+        IgniteTicks: 150
+        BurnMinimumTicks: 600
+        BurnMaximumTicks: 900
+      - Kind: 2
+        FrictionPercent: 35
+        IgniteTicks: 175
+        BurnMinimumTicks: 600
+        BurnMaximumTicks: 900
+      - Kind: 3
+        FrictionPercent: 80
+        IgniteTicks: 50
+        BurnMinimumTicks: 250
+        BurnMaximumTicks: 450
+      - Kind: 4
+        FrictionPercent: 200
+        IgniteTicks: 0
+        BurnMinimumTicks: 0
+        BurnMaximumTicks: 0
+      - Kind: 5
+        FrictionPercent: 90
+        IgniteTicks: 100
+        BurnMinimumTicks: 300
+        BurnMaximumTicks: 500
+      - Kind: 6
+        FrictionPercent: 55
+        IgniteTicks: 200
+        BurnMinimumTicks: 200
+        BurnMaximumTicks: 400
       BoxIgniteTicks: 75
       ChairIgniteTicks: 150
       TableIgniteTicks: 250
@@ -494,8 +530,8 @@ MonoBehaviour:
     - agentId:
         value: 1017
       initialPosition:
-        x: 16500
-        z: 0
+        x: 17200
+        z: -1800
       initialFacingDirection: 3
       hasAuthoredTraits: 1
       traits:
@@ -741,6 +777,198 @@ MonoBehaviour:
         z: 2000
       sizeMillimetres: 450
       massGrams: 5000
+    - objectId:
+        value: 3201
+      kind: 3
+      initialPosition:
+        x: -5400
+        z: 200
+      sizeMillimetres: 300
+      massGrams: 2000
+    - objectId:
+        value: 3202
+      kind: 3
+      initialPosition:
+        x: 5400
+        z: -3200
+      sizeMillimetres: 300
+      massGrams: 2000
+    - objectId:
+        value: 3203
+      kind: 3
+      initialPosition:
+        x: 10200
+        z: -1500
+      sizeMillimetres: 300
+      massGrams: 2000
+    - objectId:
+        value: 3204
+      kind: 3
+      initialPosition:
+        x: 20200
+        z: 3200
+      sizeMillimetres: 300
+      massGrams: 2000
+    - objectId:
+        value: 3211
+      kind: 4
+      initialPosition:
+        x: -5400
+        z: -3400
+      sizeMillimetres: 450
+      massGrams: 25000
+    - objectId:
+        value: 3212
+      kind: 4
+      initialPosition:
+        x: 5400
+        z: 5400
+      sizeMillimetres: 450
+      massGrams: 25000
+    - objectId:
+        value: 3213
+      kind: 4
+      initialPosition:
+        x: 9800
+        z: 5200
+      sizeMillimetres: 450
+      massGrams: 25000
+    - objectId:
+        value: 3214
+      kind: 4
+      initialPosition:
+        x: 20200
+        z: -5200
+      sizeMillimetres: 450
+      massGrams: 25000
+    - objectId:
+        value: 3221
+      kind: 5
+      initialPosition:
+        x: -3400
+        z: 3400
+      sizeMillimetres: 350
+      massGrams: 4000
+    - objectId:
+        value: 3222
+      kind: 5
+      initialPosition:
+        x: 1200
+        z: -2600
+      sizeMillimetres: 350
+      massGrams: 4000
+    - objectId:
+        value: 3223
+      kind: 5
+      initialPosition:
+        x: 14500
+        z: -2400
+      sizeMillimetres: 350
+      massGrams: 4000
+    - objectId:
+        value: 3224
+      kind: 5
+      initialPosition:
+        x: 17500
+        z: 3400
+      sizeMillimetres: 350
+      massGrams: 4000
+    - objectId:
+        value: 3231
+      kind: 6
+      initialPosition:
+        x: -1100
+        z: -700
+      sizeMillimetres: 300
+      massGrams: 1500
+    - objectId:
+        value: 3232
+      kind: 6
+      initialPosition:
+        x: 3400
+        z: 1800
+      sizeMillimetres: 300
+      massGrams: 1500
+    - objectId:
+        value: 3233
+      kind: 6
+      initialPosition:
+        x: 15800
+        z: 2400
+      sizeMillimetres: 300
+      massGrams: 1500
+    - objectId:
+        value: 3234
+      kind: 6
+      initialPosition:
+        x: 12200
+        z: -3200
+      sizeMillimetres: 300
+      massGrams: 1500
+    - objectId:
+        value: 3241
+      kind: 2
+      initialPosition:
+        x: 11500
+        z: 2400
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3242
+      kind: 2
+      initialPosition:
+        x: 13000
+        z: 3000
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3243
+      kind: 2
+      initialPosition:
+        x: 14500
+        z: 2400
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3244
+      kind: 2
+      initialPosition:
+        x: 16000
+        z: 3000
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3245
+      kind: 2
+      initialPosition:
+        x: 17500
+        z: 2400
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3246
+      kind: 2
+      initialPosition:
+        x: 19000
+        z: -2400
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3247
+      kind: 2
+      initialPosition:
+        x: 11500
+        z: -1200
+      sizeMillimetres: 500
+      massGrams: 9000
+    - objectId:
+        value: 3248
+      kind: 2
+      initialPosition:
+        x: 16800
+        z: -3600
+      sizeMillimetres: 500
+      massGrams: 9000
     Tables:
     - tableId:
         value: 4001
@@ -763,6 +991,20 @@ MonoBehaviour:
         z: 2000
       widthMillimetres: 1200
       depthMillimetres: 700
+    - tableId:
+        value: 4004
+      centre:
+        x: 13500
+        z: 0
+      widthMillimetres: 2400
+      depthMillimetres: 900
+    - tableId:
+        value: 4005
+      centre:
+        x: 16500
+        z: 0
+      widthMillimetres: 2400
+      depthMillimetres: 900
     Rooms:
     - roomId:
         value: 5001

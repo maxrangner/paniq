@@ -1,0 +1,250 @@
+﻿namespace Paniq.Simulation
+{
+    /// <summary>
+    /// Sitting down. A calm person now and then walks to a free chair, sits
+    /// on it for a while, and gets up again. A chair with someone on it does
+    /// not slide, cannot be picked up and cannot be tidied away. Anyone who
+    /// is startled, knocked over or set alight while sitting has to get up
+    /// first, which costs them a moment: the nervous are quicker out of the
+    /// chair than the placid. Sitting causes nothing in the world, so it
+    /// logs no events; who is on which chair is in the snapshot.
+    /// </summary>
+    internal sealed class ChairBehaviour
+    {
+        private readonly SimulationContext context;
+        private readonly PhysicsObjectSystem objects;
+        private readonly WorldGeometry geometry;
+        private readonly Crowd crowd;
+        private readonly ItemSettings settings;
+
+        public ChairBehaviour(SimulationContext context, Crowd crowd, WorldGeometry geometry, PhysicsObjectSystem objects)
+        {
+            this.context = context;
+            this.crowd = crowd;
+            this.geometry = geometry;
+            this.objects = objects;
+            settings = context.Scenario.Items;
+        }
+
+        public static bool IsSitting(Agent agent)
+        {
+            AgentActivityState activity = agent.Intent.Activity;
+            return activity == AgentActivityState.GoingToSit ||
+                   activity == AgentActivityState.Sitting ||
+                   activity == AgentActivityState.StandingUp;
+        }
+
+        /// <summary>
+        /// Picks the nearest free chair in the room and walks over to it.
+        /// False when there is none worth crossing the room for.
+        /// </summary>
+        public bool TryStartSitting(Agent agent)
+        {
+            if (agent.Carry.ItemIndex >= 0)
+            {
+                return false;
+            }
+
+            int room = geometry.RoomOf(agent);
+            long reach = settings.SitSearchDistanceMillimetres;
+            int best = -1;
+            long bestDistance = reach * reach;
+            for (int i = 0; i < objects.Count; i++)
+            {
+                if (!objects.IsFreeChair(i))
+                {
+                    continue;
+                }
+
+                LogicalPosition chair = objects.PositionOf(i);
+                if (geometry.RoomAtPoint(chair) != room)
+                {
+                    continue;
+                }
+
+                long distance = LogicalPosition.DistanceSquared(agent.Body.Position, chair);
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    best = i;
+                }
+            }
+
+            if (best < 0)
+            {
+                return false;
+            }
+
+            agent.Sitting.ChairIndex = best;
+            agent.Sitting.OnIt = false;
+            agent.Intent.Activity = AgentActivityState.GoingToSit;
+            agent.Intent.Target = objects.PositionOf(best);
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Scenario.Calm.StrollTimeoutTicks);
+            return true;
+        }
+
+        /// <summary>
+        /// Walking to the chair, sitting on it, or getting up again. Returns
+        /// false when they are done (or gave up) and should choose something
+        /// else to do.
+        /// </summary>
+        public bool UpdateSitting(Agent agent, out int goalHeading, out int goalSpeed)
+        {
+            int tick = context.Tick;
+            goalHeading = agent.Body.Heading;
+            goalSpeed = 0;
+            int chair = agent.Sitting.ChairIndex;
+            switch (agent.Intent.Activity)
+            {
+                case AgentActivityState.GoingToSit:
+                    if (chair < 0 || (!agent.Sitting.OnIt && !objects.IsFreeChair(chair)) ||
+                        tick >= agent.Intent.ActivityEndTick ||
+                        agent.Body.BlockedTicks > context.Scenario.Calm.BlockedGiveUpTicks)
+                    {
+                        // Somebody else got there first, or the way is blocked.
+                        Forget(agent);
+                        return false;
+                    }
+
+                    LogicalPosition seat = objects.PositionOf(chair);
+                    agent.Intent.Target = seat;
+                    long gap = IntegerMath.Distance(agent.Body.Position, seat);
+                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, seat, agent.Body.Heading);
+                    if (gap > settings.SitArrivalDistanceMillimetres)
+                    {
+                        goalSpeed = agent.Personality.CalmSpeed;
+                        return true;
+                    }
+
+                    // Right beside it: they settle onto it, unless someone is
+                    // in the way of where they would end up.
+                    if (crowd.FindBlocking(agent, agent.Body.Position, seat) != null)
+                    {
+                        Forget(agent);
+                        return false;
+                    }
+
+                    SitDown(agent, chair);
+                    return true;
+
+                case AgentActivityState.Sitting:
+                    goalHeading = agent.Intent.LookHeading;
+                    if (tick >= agent.Intent.ActivityEndTick)
+                    {
+                        StartStandingUp(agent);
+                    }
+
+                    return true;
+
+                default:
+                    if (tick < agent.Intent.ActivityEndTick)
+                    {
+                        return true;
+                    }
+
+                    Forget(agent);
+                    return false;
+            }
+        }
+
+        /// <summary>They settle onto the chair and face the way it faces.</summary>
+        private void SitDown(Agent agent, int chair)
+        {
+            // Settling onto the chair puts them on it: the one place a body
+            // moves outside the movement phase, and only by a stride.
+            agent.Body.Position = objects.PositionOf(chair);
+            agent.Body.Speed = 0;
+            objects.SitOn(chair, agent);
+            agent.Sitting.OnIt = true;
+            agent.Intent.Activity = AgentActivityState.Sitting;
+            agent.Intent.LookHeading = agent.Body.Heading;
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Random.NextIntInclusive(
+                settings.SitMinimumTicks, settings.SitMaximumTicks));
+        }
+
+        /// <summary>Getting out of the chair, which takes a moment longer if they are placid.</summary>
+        public void StartStandingUp(Agent agent)
+        {
+            if (agent.Intent.Activity == AgentActivityState.StandingUp)
+            {
+                return;
+            }
+
+            agent.Intent.Activity = AgentActivityState.StandingUp;
+            agent.Intent.ActivityEndTick = checked(context.Tick + TraitEffects.StandUpTicks(agent, context.Scenario));
+        }
+
+        /// <summary>
+        /// Phase 4½: anyone who is on a chair but no longer sitting on
+        /// purpose — knocked over, alight, or up and running — is off it, and
+        /// the chair is shoved back as they go.
+        /// </summary>
+        public void ResolveStanding()
+        {
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                if (!agent.Sitting.OnIt)
+                {
+                    continue;
+                }
+
+                bool stillSeated = agent.IsParticipating && !agent.Burning.IsBurning &&
+                                   agent.Body.State == AgentBodyState.Upright &&
+                                   (agent.Intent.Activity == AgentActivityState.Sitting ||
+                                    agent.Intent.Activity == AgentActivityState.StandingUp ||
+
+                                    // Startled, but still in the chair until they get out of it.
+                                    agent.Intent.Activity == AgentActivityState.Reacting);
+                if (!stillSeated)
+                {
+                    Forget(agent);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Off the chair: they step out of it, and it is shoved the other way
+        /// as they go. If there is nowhere to step they stay put and the
+        /// chair simply comes loose again.
+        /// </summary>
+        private void Forget(Agent agent)
+        {
+            int chair = agent.Sitting.ChairIndex;
+            if (chair >= 0 && agent.Sitting.OnIt)
+            {
+                int away = IntegerMath.NormalizeDegrees(agent.Body.Heading + 180);
+                LogicalPosition shove = IntegerMath.Displacement(away, settings.StandUpShoveSpeed);
+                objects.StandUp(chair, -shove.X * PhysicsObjectSystem.SubMillimetre, -shove.Z * PhysicsObjectSystem.SubMillimetre);
+                StepOutOfTheChair(agent, chair, away);
+            }
+
+            agent.Sitting.ChairIndex = -1;
+            agent.Sitting.OnIt = false;
+        }
+
+        /// <summary>One step clear of the seat, so they are not standing in the chair.</summary>
+        private void StepOutOfTheChair(Agent agent, int chair, int away)
+        {
+            int clearance = context.Scenario.World.OccupancyRadiusMillimetres + objects.RadiusOf(chair) + 50;
+            for (int turn = 0; turn <= 180; turn += 45)
+            {
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    int heading = IntegerMath.NormalizeDegrees(away + side * turn);
+                    LogicalPosition step = agent.Body.Position + IntegerMath.Displacement(heading, clearance);
+                    if (geometry.RoomAt(step) < 0 || geometry.TableAt(step, context.Scenario.World.OccupancyRadiusMillimetres) >= 0 ||
+                        crowd.FindBlocking(agent, agent.Body.Position, step) != null ||
+                        objects.FindBlocking(agent.Body.Position, step, context.Scenario.World.OccupancyRadiusMillimetres, chair) >= 0)
+                    {
+                        continue;
+                    }
+
+                    agent.Body.Position = step;
+                    return;
+                }
+            }
+        }
+    }
+}

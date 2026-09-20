@@ -485,8 +485,10 @@
         public bool TryGiveWay(Agent agent)
         {
             int door = agent.Doors.ExitDoorIndex;
+            // About a metre of the door: close enough that they are part of
+            // the crush at it rather than still on their way.
             if (door < 0 || !geometry.IsDoorOpen(door) ||
-                !IsNearExit(agent, settings.ApproachInsetMillimetres + context.Scenario.World.OccupancyRadiusMillimetres))
+                !IsNearExit(agent, settings.ApproachInsetMillimetres + context.Scenario.World.OccupancyRadiusMillimetres * 2))
             {
                 return false;
             }

@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '26'
+    ContentRevision: '27'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 18
+    SimulationCompatibilityVersion: 19
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -270,6 +270,14 @@ MonoBehaviour:
       CarryGramsPerStrength: 2500
       CarrySlowdownPercent: 40
       TidyChancePercent: 12
+      SitChancePercent: 14
+      SitSearchDistanceMillimetres: 6000
+      SitArrivalDistanceMillimetres: 600
+      SitMinimumTicks: 250
+      SitMaximumTicks: 1000
+      StandUpTicks: 40
+      StandUpTicksPerNervousness: 2
+      StandUpShoveSpeed: 8
       FetchRangeMillimetres: 4000
       CarryMinimumDistanceMillimetres: 1500
       ReachMillimetres: 150

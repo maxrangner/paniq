@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -77,6 +77,16 @@ namespace Paniq.Simulation
         {
             return Percent(scenario.Exits.DoorForceChancePercent +
                            scenario.Traits.StrengthForceChancePerPoint * FromOrdinary(agent.Traits.Strength));
+        }
+
+        /// <summary>
+        /// Getting out of a chair: the nervous are out of it fastest, the
+        /// placid take their time, and nobody takes less than a fifth of a second.
+        /// </summary>
+        public static int StandUpTicks(Agent agent, FireReactionScenarioData scenario)
+        {
+            ItemSettings items = scenario.Items;
+            return Math.Max(10, items.StandUpTicks - agent.Traits.Nervousness * items.StandUpTicksPerNervousness);
         }
 
         /// <summary>Damage one shove does to a locked door; zero below the minimum strength.</summary>

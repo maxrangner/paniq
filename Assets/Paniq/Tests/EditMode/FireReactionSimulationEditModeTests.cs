@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("26"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(18));
+            Assert.That(data.ContentRevision, Is.EqualTo("27"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(19));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -496,6 +496,10 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = DefaultData();
             data.Fire.ActivationTick = int.MaxValue;
+
+            // Nobody sits down here: this is about how people walk about, and
+            // sitting is covered by its own tests.
+            data.Items.SitChancePercent = 0;
             var simulation = new FireReactionSimulation(data);
             int count = simulation.AgentCount;
             var paused = new bool[count];

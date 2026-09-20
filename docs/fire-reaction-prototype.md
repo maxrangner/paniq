@@ -394,6 +394,13 @@ restart control, or end screen in this checkpoint.
   who opens a door logs `DoorOpened` with their attempt as parent. After
   movement, anyone 0.8 m out through an open door logs `AgentEscaped` (parent:
   that door's `DoorOpened`, or `DoorBrokenDown`).
+- **Sitting.** A calm person choosing what to do next may walk to the
+  nearest free chair in their room within 6 m and sit on it for 5–20 s. A
+  chair with someone on it does not slide, cannot be picked up and cannot be
+  tidied away. Anyone startled, knocked over or set alight in a chair has to
+  get out of it first: 0.8 s less 0.04 s per point of nervousness, and never
+  less than 0.2 s, so the nervous are out of it first. Standing up steps them
+  clear of the seat and shoves the chair the other way.
 - **Loose things.** Every kind of loose object has an entry in the
   scenario's table of kinds: friction as a percentage of the floor's, and how
   long it takes to catch fire and how long it burns. An ignite time of 0 means

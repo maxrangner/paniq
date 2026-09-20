@@ -33,6 +33,7 @@ namespace Paniq.Simulation
         private readonly FlammablesSystem flammables;
         private readonly ItemBehaviour items;
         private readonly HelpBehaviour help;
+        private readonly ChairBehaviour chairs;
         private readonly WorldGeometry geometry;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
@@ -65,10 +66,11 @@ namespace Paniq.Simulation
             locomotion = new Locomotion(context, crowd, geometry, fire, body, collisions, objects);
             flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
             items = new ItemBehaviour(context, geometry, objects, flammables);
-            calm = new CalmBehaviour(context, crowd, geometry, locomotion, items);
+            chairs = new ChairBehaviour(context, crowd, geometry, objects);
+            calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs);
             doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
             help = new HelpBehaviour(context, crowd, geometry, fire, fear, body, objects, locomotion);
-            panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, locomotion);
+            panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, chairs, locomotion);
             burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
         }
 
@@ -244,6 +246,7 @@ namespace Paniq.Simulation
                 locomotion.RequestMove(agent);
             }
 
+            chairs.ResolveStanding();
             locomotion.ResolveMovement();
             help.MoveDragged(agents);
             items.FollowCarriers(agents);

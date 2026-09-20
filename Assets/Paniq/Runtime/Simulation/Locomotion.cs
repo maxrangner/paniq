@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -264,7 +264,8 @@ namespace Paniq.Simulation
             }
 
             return crowd.FindBlocking(agent, start, destination) == null &&
-                   objects.FindBlocking(start, destination, context.Scenario.World.OccupancyRadiusMillimetres) < 0;
+                   objects.FindBlocking(start, destination, context.Scenario.World.OccupancyRadiusMillimetres,
+                       agent.Sitting.OnIt ? agent.Sitting.ChairIndex : -1) < 0;
         }
 
         private readonly struct MovementRequest

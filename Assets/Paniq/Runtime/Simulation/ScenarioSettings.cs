@@ -734,6 +734,24 @@ namespace Paniq.Simulation
 
         /// <summary>Chance that a calm person's fresh decision is to tidy up the nearest item they can lift.</summary>
         public int TidyChancePercent = 12;
+
+        /// <summary>How often a calm person who is choosing what to do next goes to sit down.</summary>
+        public int SitChancePercent = 14;
+
+        /// <summary>They will cross this much floor for a free chair, and are sitting once this close to one.</summary>
+        public int SitSearchDistanceMillimetres = 6000;
+        public int SitArrivalDistanceMillimetres = 600;
+
+        /// <summary>How long they stay in the chair.</summary>
+        public int SitMinimumTicks = 250;
+        public int SitMaximumTicks = 1000;
+
+        /// <summary>Getting out of a chair: this long, less a little for the nervous.</summary>
+        public int StandUpTicks = 40;
+        public int StandUpTicksPerNervousness = 2;
+
+        /// <summary>How hard the chair is shoved back as they stand, in millimetres per tick.</summary>
+        public int StandUpShoveSpeed = 8;
         public int FetchRangeMillimetres = 4000;
 
         /// <summary>They carry it at least this far before setting it down.</summary>

@@ -19,6 +19,7 @@
     /// <item><see cref="Burning"/>: whether they are on fire, and until when.</item>
     /// <item><see cref="Carry"/>: the item they are going for or carrying.</item>
     /// <item><see cref="Help"/>: the person they are helping, if any.</item>
+    /// <item><see cref="Sitting"/>: the chair they are on, if any.</item>
     /// </list>
     /// </summary>
     internal sealed class Agent
@@ -48,6 +49,7 @@
         public readonly AgentBurning Burning = new AgentBurning();
         public readonly AgentCarry Carry = new AgentCarry();
         public readonly AgentHelp Help = new AgentHelp();
+        public readonly AgentSitting Sitting = new AgentSitting();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -172,6 +174,15 @@
 
         /// <summary>Their AgentEscaped event, once they are out: anyone they drag out is rescued because of it.</summary>
         public ulong EscapedEventId;
+    }
+
+    internal sealed class AgentSitting
+    {
+        /// <summary>The chair they are on, or walking to, or -1.</summary>
+        public int ChairIndex = -1;
+
+        /// <summary>True once they are actually on it.</summary>
+        public bool OnIt;
     }
 
     internal sealed class AgentHelp

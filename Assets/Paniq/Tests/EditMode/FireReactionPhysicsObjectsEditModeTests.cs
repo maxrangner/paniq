@@ -78,9 +78,10 @@ namespace Paniq.Tests.EditMode
             for (int b = 0; b < snapshot.PhysicsObjects.Count; b++)
             {
                 FireReactionPhysicsObjectSnapshot box = snapshot.PhysicsObjects[b];
-                if (box.IsHeld)
+                if (box.IsHeld || box.IsSatOn)
                 {
-                    // Carried in someone's arms: off the floor, touching nothing.
+                    // Carried in someone's arms, or with someone sitting on
+                    // it: not something to walk around.
                     continue;
                 }
 

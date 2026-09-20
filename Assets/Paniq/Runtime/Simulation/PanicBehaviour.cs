@@ -20,6 +20,7 @@ namespace Paniq.Simulation
         private readonly BodySystem body;
         private readonly DoorBehaviour doorBehaviour;
         private readonly HelpBehaviour help;
+        private readonly ChairBehaviour chairs;
         private readonly Locomotion locomotion;
         private readonly PanicSettings settings;
 
@@ -33,9 +34,11 @@ namespace Paniq.Simulation
             BodySystem body,
             DoorBehaviour doorBehaviour,
             HelpBehaviour help,
+            ChairBehaviour chairs,
             Locomotion locomotion)
         {
             this.help = help;
+            this.chairs = chairs;
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
@@ -78,6 +81,18 @@ namespace Paniq.Simulation
             {
                 sound.Yell(agent, agent.Fear.ScaredEventId);
                 agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
+            }
+
+            if (agent.Sitting.OnIt)
+            {
+                // Still in a chair: they have to get out of it first.
+                chairs.StartStandingUp(agent);
+                if (tick < intent.ActivityEndTick)
+                {
+                    return new MotorIntent(agent.Body.Heading, 0, agent.Personality.PanicTurnRate, settings.Acceleration);
+                }
+
+                intent.Activity = AgentActivityState.Fleeing;
             }
 
             MotorIntent? helping = help.Decide(agent, inDanger);

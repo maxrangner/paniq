@@ -23,7 +23,8 @@ namespace Paniq.Simulation
     internal sealed class PhysicsObjectSystem
     {
         /// <summary>Object positions and velocities are kept in hundredths of a millimetre.</summary>
-        private const int SubMillimetre = 100;
+        /// <summary>Object positions and velocities are kept in hundredths of a millimetre.</summary>
+        public const int SubMillimetre = 100;
 
         /// <summary>Resolution of the halving search for where a sliding object first touches something.</summary>
         private const int ContactSearchSteps = 1024;
@@ -44,6 +45,9 @@ namespace Paniq.Simulation
 
             /// <summary>The index of the person carrying it, or -1 when it is on the floor.</summary>
             public int HeldBy = -1;
+
+            /// <summary>The person sitting on this chair, or -1. A chair with someone on it does not budge.</summary>
+            public int OccupiedBy = -1;
 
             /// <summary>Thrown and still flying: it hits harder until it stops or hits someone.</summary>
             public bool Thrown;
@@ -122,12 +126,44 @@ namespace Paniq.Simulation
         /// <summary>The index of the person carrying it, or -1.</summary>
         public int HolderOf(int index) => bodies[index].HeldBy;
 
+        /// <summary>The person sitting on this chair, or -1.</summary>
+        public int OccupantOf(int index) => bodies[index].OccupiedBy;
+
+        /// <summary>Whether this is a chair nobody is on, nobody is carrying, and that is standing still.</summary>
+        public bool IsFreeChair(int index)
+        {
+            PhysicsBody body = bodies[index];
+            return (body.Kind == PhysicsObjectKind.Chair || body.Kind == PhysicsObjectKind.OfficeChair) &&
+                   body.OccupiedBy < 0 && body.HeldBy < 0 && !IsMoving(index);
+        }
+
+        /// <summary>Someone sits down on a chair: it stops dead and stays put until they get up.</summary>
+        public void SitOn(int index, Agent sitter)
+        {
+            PhysicsBody body = bodies[index];
+            body.OccupiedBy = sitter.Index;
+            body.VelocityX = 0L;
+            body.VelocityZ = 0L;
+            body.Spin = 0;
+            body.Thrown = false;
+        }
+
+        /// <summary>They get up: the chair is loose again, and shoved back a little as they stand.</summary>
+        public void StandUp(int index, int shoveX, int shoveZ)
+        {
+            PhysicsBody body = bodies[index];
+            body.OccupiedBy = -1;
+            body.VelocityX = shoveX;
+            body.VelocityZ = shoveZ;
+        }
+
         // ---------------------------------------------------------------- items
 
         /// <summary>Whether this person could lift this item at all (items are boxes and chairs; the limit grows with strength).</summary>
         public bool CanLift(Agent agent, int index)
         {
-            return bodies[index].MassGrams <= TraitEffects.CarryLimitGrams(agent, context.Scenario);
+            return bodies[index].OccupiedBy < 0 &&
+                   bodies[index].MassGrams <= TraitEffects.CarryLimitGrams(agent, context.Scenario);
         }
 
         /// <summary>Takes an item off the floor into someone's arms. It stops moving and touches nothing while held.</summary>
@@ -499,7 +535,10 @@ namespace Paniq.Simulation
             for (int b = 0; b < bodies.Length; b++)
             {
                 PhysicsBody physicsBody = bodies[b];
-                if (physicsBody.HeldBy >= 0)
+
+                // Carried in someone's arms, or with someone sitting on it:
+                // it goes nowhere by itself.
+                if (physicsBody.HeldBy >= 0 || physicsBody.OccupiedBy >= 0)
                 {
                     continue;
                 }
@@ -763,7 +802,8 @@ namespace Paniq.Simulation
                 physicsBody.Heading,
                 (int)(speed / SubMillimetre),
                 heldBy: physicsBody.HeldBy >= 0 ? crowd.All[physicsBody.HeldBy].Id : default,
-                thrown: physicsBody.Thrown);
+                thrown: physicsBody.Thrown,
+                occupiedBy: physicsBody.OccupiedBy >= 0 ? crowd.All[physicsBody.OccupiedBy].Id : default);
         }
 
         public FireReactionPhysicsObjectSnapshot[] GetSnapshots()

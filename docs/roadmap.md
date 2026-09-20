@@ -51,6 +51,7 @@ scene.
 | A second room | System | A corridor east out of the office leads to a meeting room with ten more people in it, who cannot see the fire and learn of it from the shouting; twenty people now share the building |
 | Seeing through walls | Style | People and loose objects behind a wall show as pale blue silhouettes through it |
 | Office clutter | System | Waste bins, potted plants that never burn, bags, laptops that skitter across the floor, and office chairs on castors that roll when kicked |
+| Sitting down | Behaviour | Calm people walk over to a free chair and sit for a while; a fright costs them a moment getting out of it, and the chair is shoved back as they go |
 
 ## Choosing the next stone
 

@@ -216,6 +216,11 @@ namespace Paniq.Simulation
         /// <summary>On fire: running around wildly until they collapse.</summary>
         Burning,
 
+        /// <summary>Going to sit down, sitting on a chair, and getting back up off it.</summary>
+        GoingToSit,
+        Sitting,
+        StandingUp,
+
         /// <summary>Tidying up: walking over to an item, picking it up, carrying it off and setting it down.</summary>
         FetchingItem,
         PickingUp,
@@ -276,6 +281,7 @@ namespace Paniq.Simulation
         AgentForcedDoor,
         AgentGaveUpOnDoor,
         AgentEscaped,
+
         BoxBumped,
         BoxHitAgent,
         BoxesCollided,

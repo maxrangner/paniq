@@ -123,14 +123,14 @@ namespace Paniq.Editor
         {
             var feature = ScriptableObject.CreateInstance<RenderObjects>();
             feature.name = featureName;
-            RenderObjectsSettings settings = feature.settings;
+            RenderObjects.RenderObjectsSettings settings = feature.settings;
             settings.Event = RenderPassEvent.AfterRenderingOpaques;
             settings.filterSettings.RenderQueueType = RenderQueueType.Opaque;
             settings.filterSettings.LayerMask = layerMask;
             settings.overrideMaterial = overrideMaterial;
             settings.overrideMode = overrideMaterial != null
-                ? RenderObjectsSettings.OverrideMaterialMode.Material
-                : RenderObjectsSettings.OverrideMaterialMode.None;
+                ? RenderObjects.RenderObjectsSettings.OverrideMaterialMode.Material
+                : RenderObjects.RenderObjectsSettings.OverrideMaterialMode.None;
 
             // Behind: drawn only where something else is nearer the camera, and
             // the depth buffer is left alone so the ordinary pass still wins.

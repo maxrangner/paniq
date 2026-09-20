@@ -52,10 +52,9 @@ do in Unity yourself.
    This downloads the small set of Unity features Paniq currently needs.
 4. Select **Paniq > Project > Configure URP**. This creates the version-matched
    URP assets in `Assets/Paniq/Content/Rendering/` and assigns the pipeline in
-   Graphics settings, and sets up the passes that draw people and objects
-   through walls. The expected result is a confirmation with the new asset
+   Graphics settings. The expected result is a confirmation with the new asset
    highlighted in the Project window. Commit the generated assets and updated
-   project settings. Run it again after pulling changes to that command.
+   project settings.
 5. Open `Assets/Paniq/Scenes/Bootstrap.unity` and press Play. It loads the
    `FireReactionPrototype` scene: ten people loiter in one room, then panic as
    a fire made of small glowing cubes spreads across the floor. Some run,

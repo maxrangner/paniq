@@ -1,4 +1,4 @@
-# Fire-reaction prototype
+﻿# Fire-reaction prototype
 
 **Status:** current prototype. This scene is where prototype stones are laid
 one at a time (see the [prototype roadmap](roadmap.md)). So far it shows that
@@ -99,8 +99,10 @@ Collisions and trips make a thud that calm people within 3 m turn toward. The
 counter at the top left shows calm, scared (and frozen), down and lost people.
 
 **Doors.** Each wall has a 1 m door, set off-centre. Every door starts locked
-and is drawn red. The player clicks a door once to unlock it (it turns green)
-and again to open it (it swings outward). Clicking an open door does nothing.
+and is drawn red. The player clicks a door once to unlock it (it turns green),
+again to open it (it swings outward), and again to close it (it stays
+unlocked); a door with someone standing in the doorway cannot be closed.
+Clicking a broken door does nothing.
 Hovering over a door brightens it and the top-left text says what a click will
 do.
 
@@ -126,7 +128,60 @@ the player. At a shut door a runner:
 
 Someone who walks 0.8 m out through an open door has **escaped**: they keep
 walking for a moment and shrink out of view. People stuck in a crowd on the
-way to a door try a different one for a few seconds.
+way to a door try a different one for a few seconds. Someone wedged right
+beside an open door, not lined up with the gap, steps aside against the wall
+for half a second to a second so whoever is lined up can go first, instead of
+two people jamming the doorway shoulder to shoulder.
+
+**The building is rooms joined by doors.** The 12 × 12 m open-plan office is
+where the fire starts. Behind its east wall are a 2 × 2 m storage closet and a
+3 m corridor; the corridor leads to a second 12 × 12 m room, the meeting room.
+Ten people start in the office and ten in the meeting room, where they cannot
+see the fire and only learn of it from the shouting. The five doors in the
+outside walls are the player's: they start locked. The three inside doors (the
+closet, and the corridor at each end) start shut but unlocked, so people open
+them themselves.
+
+People try to save themselves wherever they can. They pick a way **out of the
+building** — scored by the whole walk there, including crossing the last room —
+and head for the first door on that walk, room by room. Nobody walks into a
+room that is alight, or across one to reach a door on its far side. Only
+once every way out has been tried and would not open do they make for whichever
+room is furthest from the flames instead — but not into a room that already
+holds as many people as there is floor for (about one person per square
+metre, so four in the closet). The counter shows how many are in a room with
+no fire in it. Being in a room is not escaping.
+
+The fire can only get from one room to the next through an open (or broken)
+door; walls stop it, and nobody sees fire through a wall. A closed door
+muffles noises to half their reach.
+
+**Closing doors behind them.** People close doors too, by personality, at
+two moments: the door they just walked through (on the way out of the
+building, or from one room into the next), and a door within reach of them
+with fire in the room beyond it. The evil (7+) shut it and lock it even with someone
+running up behind; only a body in the doorway stops them. The compassionate
+(7+) never shut it on someone within 3 m, and while the fire is still more
+than 5 m from the door they leave it open for stragglers. Otherwise, with
+nobody within 3 m, the nervous (8+) shut it, and so do the brave and kind
+(bravery + compassion 12+) once fire is within 5 m of the door. Anyone
+in a room with no fire in it shuts a door with flames within 2 m beyond it. A closed door can be
+opened again by anyone who reaches it (unless it was locked) or by the player.
+
+**Helping each other.** A runner who is compassionate (6+), not too timid
+(bravery 4+) and not cruel (evil 4 or less) and who is within 4 m of someone
+frozen with fear runs over and shakes them by the shoulders for 1–1.5 s. The
+frozen-for-a-while always snap out of it and run; the frozen-for-good do half
+the time (otherwise the helper leaves them and does not try again). A runner
+who is strong and compassionate (both 6+, and not cruel) and within 5 m of
+someone knocked out cold runs over, gets a grip (1 s) and drags them along
+behind at 1.1–1.5 m/s (faster the stronger), toward the nearest open door to
+outside, or 3 m away from the fire if there is none. If the helper gets out,
+the person they drag is rescued with them. Helpers let go if the fire comes
+within their danger distance, if they fall, catch fire or are stuck for 2 s,
+if the person wakes up, or if they cannot reach them within 5 s. Nobody
+helps someone already close to the fire. In the default cast the saint, the
+hero and one ordinary person shake people awake; only the hero drags.
 
 **Tables and chairs.** Three 1.2 × 0.7 m tables stand in the room. Nobody
 and nothing can pass through a table: people slide along its edge as they
@@ -313,13 +368,27 @@ restart control, or end screen in this checkpoint.
 - **Player commands.** A door click is a `ClickDoor` command for the next tick,
   consumed at the start of that tick in queue order. Locked → unlocked logs
   `DoorUnlocked` (a root event: the player is the cause); unlocked → open logs
-  `DoorOpened` with the unlock as its parent.
+  `DoorOpened` with the unlock as its parent; open → unlocked logs
+  `DoorClosed` (a root event), but only if nobody is in the doorway: a body
+  within the door's width (plus a radius) and no more than a radius + 0.1 m
+  inside the wall, and either within a radius + 0.1 m outside it or, for a
+  door to outside, anywhere in the outside doorway.
+- **Closing by people.** When someone walks into another room (the door
+  behind them, within 2 m), after an `AgentEscaped` (parent of the close),
+  and each tick for someone within 2 m of an open door with fire in the room
+  beyond it (parent: their `AgentScared`), the rules above decide; a close logs
+  `DoorClosed` (source: the person, target: the door) and an evil person's
+  lock logs `DoorLocked` (parent: that close).
 - **Doors and escape.** See [spatial-world-rules.md](spatial-world-rules.md)
   for the doorway strip. A panic decision first scores the doors (see
   [technical decisions](technical-decisions.md)) and targets a point 0.6 m
   inside the chosen door, or 1.5 m outside once it is open and the runner is
   lined up. Near the door, swerves and following are switched off and the
-  runner is not pushed away from that wall. Reaching a shut door logs
+  runner is not pushed away from that wall. A runner blocked for 12 ticks
+  within 0.85 m of their open door, inside the room and not lined up, gives
+  way instead of making a new decision: for 25–50 ticks they target a point
+  0.4 m inside the wall and 0.85 m along it from the door's
+  centre, on their side (clear of anyone passing through). Reaching a shut door logs
   `AgentTriedDoor` (parent: `AgentScared`); each shove logs `AgentForcedDoor`
   and giving up logs `AgentGaveUpOnDoor` (both parent: the attempt). A runner
   who opens a door logs `DoorOpened` with their attempt as parent. After
@@ -331,6 +400,40 @@ restart control, or end screen in this checkpoint.
   is kept per door. When it reaches the door's strength (40) the door becomes
   `Broken`: it logs `DoorBrokenDown` (source: the shover; target: the door;
   parent: the shove) and counts as open for walking, choosing and escaping.
+- **Rooms.** Rooms are rectangles that never overlap. Two rooms that share
+  a wall line are joined by a door in it; a door with no room beyond leads
+  outside. A footprint wholly inside any room is walkable, and an open door's
+  strip joins the rooms either side of it. Only a door leading outside can be
+  escaped through. The fire grid covers the rectangle around all rooms; each
+  cell belongs to the room its centre is in (or none, and never burns). Fire
+  spreads between neighbouring cells of different rooms only when the
+  connecting door is open and the edge they share overlaps the door gap. Fire
+  in another room is neither touched nor seen unless the rooms are joined by
+  an open door. A noise's hearing and alarm reaches halve between rooms not
+  joined by an open door.
+- **Choosing a way out.** Every door leading outside is scored by the length
+  of the walk to it through the rooms (doors are joined door-centre to
+  door-centre; a shut door still counts as a way through, a door they gave up
+  on does not), plus the usual open-door bonus, current-choice bonus, random
+  noise, fire and table penalties. The person then runs for the first door on
+  that walk. A door someone has stood at and failed to open stops counting as
+  a way out for them. With none left, they score rooms instead: distance from
+  the flames, minus a quarter of the walk there, rejecting rooms already full
+  (one person per square metre of floor). With fire in the room: out through the door to 1.5 m inside the
+  main room if it is open, else directly away from the nearest fire.
+- **Helping.** Considered in the panic decision each tick by a fleeing,
+  upright, empty-handed person not in danger: the nearest person in need
+  within range (frozen and upright for shaking, unconscious for dragging),
+  not already someone else's target and not within the helper's danger
+  distance of fire. `AgentShookAwake` (source: helper, target: the frozen
+  person, parent: helper's `AgentScared`) is the parent of their
+  `AgentUnfroze`. `AgentGrabbed` starts a drag; after each tick's movement the
+  dragged body is placed 0.55 m behind the helper; if there is no room there
+  the helper's step is undone, or, if someone has taken the helper's old
+  spot, the helper lets go (`AgentDropped`, parent: the grab). A helper who
+  escapes while dragging logs `AgentRescued` (target: the dragged person,
+  parent: the helper's `AgentEscaped`) and the dragged person's outcome is
+  `Escaped`.
 - **Tables.** A table is a fixed rectangle. A body of radius r overlaps it
   when its centre is strictly inside the rectangle grown by r on every side
   (square corners). A step into a table is moved onto the grown edge facing
@@ -383,7 +486,8 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentForcedDoor`, `AgentGaveUpOnDoor`, `AgentEscaped`, `BoxBumped`,
 `BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo`,
 `DoorBrokenDown`, `AgentCaughtFire`, `ObjectCaughtFire`, `ObjectBurntOut`,
-`ItemThrown` and `ItemDropped` events. Events that affect someone or
+`ItemThrown`, `ItemDropped`, `DoorClosed`, `DoorLocked`, `AgentShookAwake`,
+`AgentGrabbed`, `AgentDropped` and `AgentRescued` events. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,
 `BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
 and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor`, `DoorBrokenDown`

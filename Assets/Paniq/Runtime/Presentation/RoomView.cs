@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -66,12 +66,32 @@ namespace Paniq.Presentation
 
         private void Build()
         {
-            LogicalBounds room = scenario.World.RoomBounds;
-            float minX = Metres(room.MinX);
-            float maxX = Metres(room.MaxX);
-            float minZ = Metres(room.MinZ);
-            float maxZ = Metres(room.MaxZ);
-            CreatePrimitive("Room Floor", PrimitiveType.Cube, parent, new Vector3((minX + maxX) * 0.5f, -0.05f, (minZ + maxZ) * 0.5f),
+            foreach (FireReactionRoomDefinition room in scenario.Rooms)
+            {
+                CreateRoom(room);
+            }
+
+            foreach (FireReactionTableDefinition table in scenario.Tables)
+            {
+                CreateTable(table);
+            }
+        }
+
+        /// <summary>
+        /// One room: its floor, and its four walls with a gap cut wherever a
+        /// door crosses them. A wall shared with the next room is drawn by
+        /// both, so each cuts the gaps of every door along that wall line;
+        /// the swinging leaf itself belongs to the room that holds the door.
+        /// </summary>
+        private void CreateRoom(FireReactionRoomDefinition room)
+        {
+            float minX = Metres(room.Bounds.MinX);
+            float maxX = Metres(room.Bounds.MaxX);
+            float minZ = Metres(room.Bounds.MinZ);
+            float maxZ = Metres(room.Bounds.MaxZ);
+            string name = $"Room {room.RoomId.Value}";
+            CreatePrimitive($"{name} floor", PrimitiveType.Cube, parent,
+                new Vector3((minX + maxX) * 0.5f, -0.05f, (minZ + maxZ) * 0.5f),
                 new Vector3(maxX - minX, 0.1f, maxZ - minZ), materials.Room);
 
             foreach (WallSide side in new[] { WallSide.North, WallSide.East, WallSide.South, WallSide.West })
@@ -84,7 +104,7 @@ namespace Paniq.Presentation
                 var gaps = new List<FireReactionDoorDefinition>();
                 foreach (FireReactionDoorDefinition door in scenario.Doors)
                 {
-                    if (door.Side == side)
+                    if (CrossesWall(door, alongX, wallLine, start, end))
                     {
                         gaps.Add(door);
                     }
@@ -96,18 +116,91 @@ namespace Paniq.Presentation
                 foreach (FireReactionDoorDefinition door in gaps)
                 {
                     float gapStart = Metres(door.CentreAlongWallMillimetres - door.WidthMillimetres / 2);
-                    CreateWallPiece(side, piece++, alongX, wallLine, cursor, gapStart);
+                    CreateWallPiece(side, piece++, alongX, wallLine, cursor, gapStart, name);
                     cursor = Metres(door.CentreAlongWallMillimetres + door.WidthMillimetres / 2);
-                    CreateDoor(door, alongX, wallLine);
+                    if (door.RoomId == room.RoomId)
+                    {
+                        CreateDoor(door, alongX, wallLine);
+                    }
                 }
 
-                CreateWallPiece(side, piece, alongX, wallLine, cursor, end);
+                CreateWallPiece(side, piece, alongX, wallLine, cursor, end, name);
+            }
+        }
+
+        /// <summary>Whether this door's gap lies in a wall along <paramref name="wallLine"/>, between the two ends.</summary>
+        private bool CrossesWall(FireReactionDoorDefinition door, bool alongX, float wallLine, float from, float to)
+        {
+            bool doorAlongX = door.Side == WallSide.North || door.Side == WallSide.South;
+            if (doorAlongX != alongX)
+            {
+                return false;
             }
 
-            foreach (FireReactionTableDefinition table in scenario.Tables)
+            LogicalBounds owner = RoomBoundsOf(door.RoomId);
+            float doorLine = Metres(door.Side == WallSide.North ? owner.MaxZ
+                : door.Side == WallSide.South ? owner.MinZ
+                : door.Side == WallSide.East ? owner.MaxX
+                : owner.MinX);
+            float half = Metres(door.WidthMillimetres) * 0.5f;
+            float centre = Metres(door.CentreAlongWallMillimetres);
+            return Mathf.Approximately(doorLine, wallLine) && centre - half >= from && centre + half <= to;
+        }
+
+        private LogicalBounds RoomBoundsOf(SimulationId roomId)
+        {
+            foreach (FireReactionRoomDefinition room in scenario.Rooms)
             {
-                CreateTable(table);
+                if (room.RoomId == roomId)
+                {
+                    return room.Bounds;
+                }
             }
+
+            return default;
+        }
+
+        /// <summary>Whether a door leads out of the building: no room lies beyond its wall.</summary>
+        private bool LeadsOutside(FireReactionDoorDefinition door)
+        {
+            LogicalBounds owner = RoomBoundsOf(door.RoomId);
+            bool alongX = door.Side == WallSide.North || door.Side == WallSide.South;
+            int half = door.WidthMillimetres / 2;
+            foreach (FireReactionRoomDefinition other in scenario.Rooms)
+            {
+                if (other.RoomId == door.RoomId)
+                {
+                    continue;
+                }
+
+                LogicalBounds b = other.Bounds;
+                bool flush;
+                switch (door.Side)
+                {
+                    case WallSide.North:
+                        flush = b.MinZ == owner.MaxZ;
+                        break;
+                    case WallSide.South:
+                        flush = b.MaxZ == owner.MinZ;
+                        break;
+                    case WallSide.East:
+                        flush = b.MinX == owner.MaxX;
+                        break;
+                    default:
+                        flush = b.MaxX == owner.MinX;
+                        break;
+                }
+
+                int otherMin = alongX ? b.MinX : b.MinZ;
+                int otherMax = alongX ? b.MaxX : b.MaxZ;
+                if (flush && otherMin <= door.CentreAlongWallMillimetres - half &&
+                    otherMax >= door.CentreAlongWallMillimetres + half)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>A plain wooden table: a thin top on four legs.</summary>
@@ -152,7 +245,8 @@ namespace Paniq.Presentation
             });
         }
 
-        private void CreateWallPiece(WallSide side, int piece, bool alongX, float wallLine, float from, float to)
+        private void CreateWallPiece(WallSide side, int piece, bool alongX, float wallLine, float from, float to,
+            string owner = "Room")
         {
             if (to - from <= 0.001f)
             {
@@ -162,7 +256,7 @@ namespace Paniq.Presentation
             float middle = (from + to) * 0.5f;
             Vector3 position = alongX ? new Vector3(middle, WallHeight * 0.5f, wallLine) : new Vector3(wallLine, WallHeight * 0.5f, middle);
             Vector3 scale = alongX ? new Vector3(to - from, WallHeight, WallThickness) : new Vector3(WallThickness, WallHeight, to - from);
-            CreatePrimitive($"Room Wall {side} {piece}", PrimitiveType.Cube, parent, position, scale, materials.Wall);
+            CreatePrimitive($"{owner} Wall {side} {piece}", PrimitiveType.Cube, parent, position, scale, materials.Wall);
         }
 
         /// <summary>A door leaf hinged at one side of the gap, which swings outward when the door opens.</summary>
@@ -188,12 +282,15 @@ namespace Paniq.Presentation
             Renderer leafRenderer = leaf.GetComponent<Renderer>();
             leafRenderer.sharedMaterial = materials.Door;
 
-            // A strip of ground outside, as far as the doorway reaches.
+            // A strip of ground outside, as far as the doorway reaches (an inside door opens into the next room's floor).
             float depth = Metres(scenario.Exits.DoorwayDepthMillimetres);
-            CreatePrimitive($"Door {door.DoorId.Value} outside ground", PrimitiveType.Cube, parent,
-                gapCentre + outward * (depth * 0.5f + WallThickness * 0.25f) + Vector3.down * 0.05f,
-                alongX ? new Vector3(width + 0.4f, 0.1f, depth) : new Vector3(depth, 0.1f, width + 0.4f),
-                materials.Outside);
+            if (LeadsOutside(door))
+            {
+                CreatePrimitive($"Door {door.DoorId.Value} outside ground", PrimitiveType.Cube, parent,
+                    gapCentre + outward * (depth * 0.5f + WallThickness * 0.25f) + Vector3.down * 0.05f,
+                    alongX ? new Vector3(width + 0.4f, 0.1f, depth) : new Vector3(depth, 0.1f, width + 0.4f),
+                    materials.Outside);
+            }
 
             var view = new DoorView
             {

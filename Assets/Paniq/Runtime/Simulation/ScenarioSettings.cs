@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -11,11 +11,10 @@ namespace Paniq.Simulation
     // rates degrees per tick, durations ticks (50 ticks = 1 second), chances
     // whole percentages. Object velocities are noted where they differ.
 
-    /// <summary>The room, the size of a person, and the longest single step.</summary>
+    /// <summary>The size of a person and the longest single step; the rooms themselves are in the scenario.</summary>
     [Serializable]
     public sealed class WorldSettings
     {
-        public LogicalBounds RoomBounds = new LogicalBounds(-6000, 6000, -6000, 6000);
         public int OccupancyRadiusMillimetres = 250;
         public int MaximumStepDistanceMillimetres = 120;
 
@@ -23,9 +22,6 @@ namespace Paniq.Simulation
 
         internal void Validate()
         {
-            Settings.Require(RoomBounds.MinX < RoomBounds.MaxX && RoomBounds.MinZ < RoomBounds.MaxZ, "room bounds");
-            Settings.Require(RoomBounds.MinX >= -100000 && RoomBounds.MaxX <= 100000 &&
-                             RoomBounds.MinZ >= -100000 && RoomBounds.MaxZ <= 100000, "room within the 200 m coordinate span");
             Settings.Require(OccupancyRadiusMillimetres > 0 && OccupancyRadiusMillimetres <= 2000, "occupancy radius");
             Settings.Require(MaximumStepDistanceMillimetres >= 0 && MaximumStepDistanceMillimetres <= 1000, "maximum step");
         }
@@ -377,6 +373,14 @@ namespace Paniq.Simulation
         public int GiveUpGlanceMinimumTicks = 15;
         public int GiveUpGlanceMaximumTicks = 30;
 
+        /// <summary>Wedged beside an open door and stuck, a runner stands aside this long for whoever is lined up with it.</summary>
+        public int GiveWayMinimumTicks = 25;
+        public int GiveWayMaximumTicks = 50;
+
+        /// <summary>Standing aside: this far along the wall past the door's edge, and this far in from the wall.</summary>
+        public int GiveWayAsideMillimetres = 100;
+        public int GiveWayInsetMillimetres = 400;
+
         /// <summary>Runners aim this far inside a shut door.</summary>
         public int ApproachInsetMillimetres = 600;
 
@@ -391,6 +395,18 @@ namespace Paniq.Simulation
         /// <summary>Within this distance of their exit, runners stop swerving and following.</summary>
         public int NoSwerveDistanceMillimetres = 2000;
 
+        /// <summary>With every way out given up on, how much better the room they already stand in has to look.</summary>
+        public int CurrentRoomBonusMillimetres = 2000;
+
+        /// <summary>What a room with nothing burning in it is worth when picking somewhere to get away from the fire.</summary>
+        public int RefugeClearRoomMillimetres = 8000;
+
+        /// <summary>What any room is worth while nothing anywhere is alight.</summary>
+        public int RefugeNoFireMillimetres = 20000;
+
+        /// <summary>How much floor one person needs before a room looks full to someone hoping to get in.</summary>
+        public int RefugeSpacePerPersonMillimetres = 1000;
+
         // Scoring doors: distance, plus these bonuses and penalties.
         public int OpenBonusMillimetres = 4000;
         public int CurrentChoiceBonusMillimetres = 1500;
@@ -399,6 +415,34 @@ namespace Paniq.Simulation
 
         /// <summary>How much shoving damage a door takes before it breaks. Damage stays between attempts.</summary>
         public int DoorStrength = 40;
+
+        // Closing doors, by personality. People close the door of the side
+        // room they shelter in (if within reach of it), and the door they
+        // have just escaped through.
+
+        /// <summary>How close to a door someone sheltering must be to pull it shut.</summary>
+        public int CloseReachMillimetres = 2000;
+
+        /// <summary>Anyone else this close to the door counts as "someone coming".</summary>
+        public int CloseApproachRadiusMillimetres = 3000;
+
+        /// <summary>Fire this close to the door makes brave, kind people shut it.</summary>
+        public int CloseFireRadiusMillimetres = 5000;
+
+        /// <summary>Fire this close to the door makes anyone sheltering shut it, compassionate or not.</summary>
+        public int FireAtDoorRadiusMillimetres = 2000;
+
+        /// <summary>This evil: shut and lock the door behind them, even in the face of someone coming.</summary>
+        public int EvilCloseMinimum = 7;
+
+        /// <summary>This compassionate: never shut the door on someone coming.</summary>
+        public int CompassionHoldMinimum = 7;
+
+        /// <summary>This nervous: shut the door as soon as nobody is coming.</summary>
+        public int NervousCloseMinimum = 8;
+
+        /// <summary>Bravery plus compassion at least this: shut the door against approaching fire when nobody is coming.</summary>
+        public int BraveKindCloseSum = 12;
 
         public ExitSettings Clone() => (ExitSettings)MemberwiseClone();
 
@@ -414,12 +458,20 @@ namespace Paniq.Simulation
                              Settings.Range(DoorShoveMinimumTicks, DoorShoveMaximumTicks, 1) &&
                              Settings.Range(DoorAvoidMinimumTicks, DoorAvoidMaximumTicks, 1) &&
                              Settings.Range(DoorCrowdedAvoidMinimumTicks, DoorCrowdedAvoidMaximumTicks, 1) &&
-                             Settings.Range(GiveUpGlanceMinimumTicks, GiveUpGlanceMaximumTicks, 1), "door timings");
+                             Settings.Range(GiveUpGlanceMinimumTicks, GiveUpGlanceMaximumTicks, 1) &&
+                             Settings.Range(GiveWayMinimumTicks, GiveWayMaximumTicks, 1), "door timings");
+            Settings.Require(GiveWayAsideMillimetres >= 0 && GiveWayInsetMillimetres >= 0, "giving way");
             Settings.Require(ApproachInsetMillimetres >= 0 && OutsideTargetMillimetres >= 0 && ArrivalDistanceMillimetres > 0 &&
                              CommitDistanceMillimetres >= 0 && NoSwerveDistanceMillimetres >= 0, "door approach");
             Settings.Require(OpenBonusMillimetres >= 0 && CurrentChoiceBonusMillimetres >= 0 &&
-                             ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0, "door scoring");
+                             ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0 &&
+                             CurrentRoomBonusMillimetres >= 0 && RefugeNoFireMillimetres >= 0 &&
+                             RefugeClearRoomMillimetres >= 0 && RefugeSpacePerPersonMillimetres > 0, "door scoring");
             Settings.Require(DoorStrength >= 1, "door strength");
+            Settings.Require(CloseReachMillimetres >= 0 && CloseApproachRadiusMillimetres >= 0 &&
+                             CloseFireRadiusMillimetres >= 0 && FireAtDoorRadiusMillimetres >= 0 &&
+                             EvilCloseMinimum >= 0 && CompassionHoldMinimum >= 0 && NervousCloseMinimum >= 0 &&
+                             BraveKindCloseSum >= 0, "closing doors");
         }
     }
 
@@ -638,6 +690,60 @@ namespace Paniq.Simulation
                              SetDownTicks >= 1 && HoldGapMillimetres >= 0, "tidying up");
             Settings.Require(DropNervousness >= 0 && HurlMinimumStrength >= 0 && EvilAimMinimum >= 0 && AimRangeMillimetres >= 0 &&
                              ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1, "throwing");
+        }
+    }
+
+    /// <summary>People helping each other: shaking the frozen awake and dragging the knocked-out to safety.</summary>
+    [Serializable]
+    public sealed class HelpSettings
+    {
+        /// <summary>Anyone more evil than this never helps.</summary>
+        public int HelpMaximumEvil = 4;
+
+        /// <summary>Who shakes a frozen person awake, and from how far they notice them.</summary>
+        public int ShakeMinimumCompassion = 6;
+        public int ShakeMinimumBravery = 4;
+        public int ShakeRangeMillimetres = 4000;
+        public int ShakeMinimumTicks = 50;
+        public int ShakeMaximumTicks = 75;
+
+        /// <summary>Chance that someone frozen for good snaps out of it when shaken (the frozen-for-a-while always do).</summary>
+        public int ShakeFreezeForeverSuccessPercent = 50;
+
+        /// <summary>Who drags a knocked-out person, and from how far they notice them.</summary>
+        public int DragMinimumStrength = 6;
+        public int DragMinimumCompassion = 6;
+        public int DragRangeMillimetres = 5000;
+        public int GrabTicks = 50;
+
+        /// <summary>Dragging pace (mm per tick): base plus this much per strength point.</summary>
+        public int DragSpeedBase = 10;
+        public int DragSpeedPerStrength = 2;
+
+        /// <summary>Gap between a dragger and the person lying behind them.</summary>
+        public int DragGapMillimetres = 50;
+
+        /// <summary>With no open door to make for, how far away from the fire they drag someone.</summary>
+        public int DragAwayDistanceMillimetres = 3000;
+
+        /// <summary>Stuck this long while dragging, they let go.</summary>
+        public int DragGiveUpBlockedTicks = 100;
+
+        /// <summary>How far past touching they can reach someone, and how long they try to get there.</summary>
+        public int ReachMillimetres = 150;
+        public int ReachTimeoutTicks = 250;
+
+        public HelpSettings Clone() => (HelpSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(HelpMaximumEvil >= 0 && ShakeMinimumCompassion >= 0 && ShakeMinimumBravery >= 0 &&
+                             ShakeRangeMillimetres >= 0 && Settings.Range(ShakeMinimumTicks, ShakeMaximumTicks, 1) &&
+                             Settings.Percent(ShakeFreezeForeverSuccessPercent), "shaking awake");
+            Settings.Require(DragMinimumStrength >= 0 && DragMinimumCompassion >= 0 && DragRangeMillimetres >= 0 &&
+                             GrabTicks >= 1 && DragSpeedBase >= 0 && DragSpeedPerStrength >= 0 && DragGapMillimetres >= 0 &&
+                             DragAwayDistanceMillimetres >= 0 && DragGiveUpBlockedTicks >= 1, "dragging");
+            Settings.Require(ReachMillimetres >= 0 && ReachTimeoutTicks >= 1, "reaching someone");
         }
     }
 

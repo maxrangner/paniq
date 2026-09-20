@@ -5,7 +5,8 @@ namespace Paniq.Simulation
     /// reach. Calm people who hear one turn to look ("what was that?"), and
     /// a yell close enough to be understood alarms them outright. Alarmed
     /// and panicking people ignore noises. Noises are delivered the moment
-    /// they are made, to listeners in ascending ID order.
+    /// they are made, to listeners in ascending ID order. A closed door
+    /// between rooms muffles a noise to half its reach.
     /// </summary>
     internal sealed class SoundSystem
     {
@@ -13,14 +14,16 @@ namespace Paniq.Simulation
         private readonly Crowd crowd;
         private readonly FireSystem fire;
         private readonly FearSystem fear;
+        private readonly WorldGeometry geometry;
         private readonly HearingSettings settings;
 
-        public SoundSystem(SimulationContext context, Crowd crowd, FireSystem fire, FearSystem fear)
+        public SoundSystem(SimulationContext context, Crowd crowd, FireSystem fire, FearSystem fear, WorldGeometry geometry)
         {
             this.context = context;
             this.crowd = crowd;
             this.fire = fire;
             this.fear = fear;
+            this.geometry = geometry;
             settings = context.Scenario.Hearing;
         }
 
@@ -57,8 +60,7 @@ namespace Paniq.Simulation
             int alarmRadius,
             ulong soundEventId)
         {
-            long hearingSquared = (long)hearingRadius * hearingRadius;
-            long alarmSquared = (long)alarmRadius * alarmRadius;
+            int sourceRoom = geometry.RoomAtPoint(position);
             Agent[] agents = crowd.All;
             for (int i = 0; i < agents.Length; i++)
             {
@@ -70,12 +72,16 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                // Through a closed door a noise carries half as far.
+                int divisor = geometry.RoomsOpenToEachOther(sourceRoom, geometry.RoomAtPoint(listener.Body.Position)) ? 1 : 2;
+                long hearing = hearingRadius / divisor;
+                long alarm = alarmRadius / divisor;
                 long distanceSquared = LogicalPosition.DistanceSquared(listener.Body.Position, position);
-                if (alarmRadius > 0 && distanceSquared <= alarmSquared)
+                if (alarm > 0 && distanceSquared <= alarm * alarm)
                 {
                     fear.Alarm(listener, soundEventId, AgentAlertSource.Yell, position);
                 }
-                else if (distanceSquared <= hearingSquared)
+                else if (distanceSquared <= hearing * hearing)
                 {
                     Notice(listener, position, soundEventId);
                 }

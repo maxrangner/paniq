@@ -1,20 +1,22 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
     /// <summary>
-    /// The shape of the world, and the only code that knows it: one
-    /// rectangular room with doors set into its walls and tables standing
-    /// on its floor. Each open door adds a walkable strip through the wall.
-    /// A table is a solid rectangle: bodies slide along its edges as they
-    /// would along a wall. Every question about where a body may
-    /// be (walking, steering off walls, leaving through a door, a box hitting
-    /// a wall) is answered here, so a later world with inner walls or several
-    /// rooms changes this class rather than every system.
+    /// The shape of the world, and the only code that knows it: rectangular
+    /// rooms that never overlap, doors set into their walls, and tables
+    /// standing on their floors. Two rooms that share a wall line are joined
+    /// by a door in it; a door with no room beyond leads outside, which is
+    /// how people escape. Each open door adds a walkable strip through the
+    /// wall. A table is a solid rectangle: bodies slide along its edges as
+    /// they would along a wall. Every question about where a body may be
+    /// (walking, steering off walls, getting from one room to the next,
+    /// leaving the building) is answered here, so a new floor plan changes
+    /// this class rather than every system.
     /// </summary>
     internal sealed class WorldGeometry
     {
-        /// <summary>How close to a door's centre line a runner must be to head out through it, beyond a full fit.</summary>
+        /// <summary>How close to a door's centre line a runner must be to head through it, beyond a full fit.</summary>
         private const int LinedUpTolerance = 50;
 
         /// <summary>Random spots are redrawn this many times at most to keep them clear of tables.</summary>
@@ -25,17 +27,29 @@ namespace Paniq.Simulation
 
         private readonly SimulationContext context;
         private readonly DoorRuntime[] doors;
-        private readonly LogicalBounds room;
         private readonly int radius;
         private readonly ExitSettings exits;
         private readonly LogicalBounds[] tables;
         private readonly SimulationId[] tableIds;
+        private readonly LogicalBounds[] rooms;
+        private readonly SimulationId[] roomIds;
+
+        /// <summary>Per door: the room beyond it, or -1 when it leads outside.</summary>
+        private readonly int[] doorNeighbour;
+
+        /// <summary>Per room: every door in its walls, whichever room holds the door.</summary>
+        private readonly int[][] roomDoors;
+
+        // Route-finding scratch space, reused every call so a run allocates nothing.
+        private readonly long[] routeCost;
+        private readonly int[] routeFirstDoor;
+        private readonly int[] routeEntryDoor;
+        private readonly bool[] routeSettled;
 
         public WorldGeometry(SimulationContext context, DoorRuntime[] doors)
         {
             this.context = context;
             this.doors = doors;
-            room = context.Scenario.World.RoomBounds;
             radius = context.Scenario.World.OccupancyRadiusMillimetres;
             exits = context.Scenario.Exits;
 
@@ -48,41 +62,254 @@ namespace Paniq.Simulation
                 tables[i] = definitions[i].Bounds;
                 tableIds[i] = definitions[i].TableId;
             }
-        }
 
-        public int TableCount => tables.Length;
+            // Rooms keep their authored order: the first one is where the fire starts.
+            FireReactionRoomDefinition[] authored = context.Scenario.Rooms;
+            rooms = new LogicalBounds[authored.Length];
+            roomIds = new SimulationId[authored.Length];
+            for (int r = 0; r < authored.Length; r++)
+            {
+                rooms[r] = authored[r].Bounds;
+                roomIds[r] = authored[r].RoomId;
+            }
 
-        public LogicalBounds TableBounds(int table) => tables[table];
+            doorNeighbour = new int[doors.Length];
+            var counts = new int[rooms.Length];
+            for (int d = 0; d < doors.Length; d++)
+            {
+                doorNeighbour[d] = FindNeighbour(d);
+                counts[doors[d].Room]++;
+                if (doorNeighbour[d] >= 0)
+                {
+                    counts[doorNeighbour[d]]++;
+                }
+            }
 
-        public SimulationId TableId(int table) => tableIds[table];
+            roomDoors = new int[rooms.Length][];
+            for (int r = 0; r < rooms.Length; r++)
+            {
+                roomDoors[r] = new int[counts[r]];
+                counts[r] = 0;
+            }
 
-        /// <summary>The floor area; the fire grid covers exactly this.</summary>
-        public LogicalBounds Floor => room;
+            for (int d = 0; d < doors.Length; d++)
+            {
+                int room = doors[d].Room;
+                roomDoors[room][counts[room]++] = d;
+                int beyond = doorNeighbour[d];
+                if (beyond >= 0)
+                {
+                    roomDoors[beyond][counts[beyond]++] = d;
+                }
+            }
 
-        public int DoorCount => doors.Length;
+            routeCost = new long[rooms.Length];
+            routeFirstDoor = new int[rooms.Length];
+            routeEntryDoor = new int[rooms.Length];
+            routeSettled = new bool[rooms.Length];
 
-        /// <summary>Open, or broken down: either way there is a gap to walk through.</summary>
-        public bool IsDoorOpen(int door) => doors[door].State == DoorState.Open || doors[door].State == DoorState.Broken;
+            int minX = int.MaxValue, maxX = int.MinValue, minZ = int.MaxValue, maxZ = int.MinValue;
+            foreach (LogicalBounds room in rooms)
+            {
+                minX = Math.Min(minX, room.MinX);
+                maxX = Math.Max(maxX, room.MaxX);
+                minZ = Math.Min(minZ, room.MinZ);
+                maxZ = Math.Max(maxZ, room.MaxZ);
+            }
 
-        /// <summary>A person's whole footprint is inside the room (not in a doorway or outside).</summary>
-        public bool IsInsideRoom(LogicalPosition position)
-        {
-            return room.ContainsCircle(position, radius);
+            FireArea = new LogicalBounds(minX, maxX, minZ, maxZ);
         }
 
         /// <summary>
-        /// A random point at least <paramref name="margin"/> from every wall
-        /// (less if the room is too small), drawn X first then Z.
+        /// The room on the far side of a door's wall: the one flush against
+        /// it whose wall covers the whole gap, or -1 for the outside. The
+        /// scenario refuses a room that covers only part of a gap.
         /// </summary>
-        public LogicalPosition RandomInteriorPoint(int margin)
+        private int FindNeighbour(int door)
         {
-            margin = Math.Min(margin, Math.Min(room.MaxX - room.MinX, room.MaxZ - room.MinZ) / 2);
+            DoorRuntime d = doors[door];
+            LogicalBounds room = rooms[d.Room];
+            bool alongX = d.Side == WallSide.North || d.Side == WallSide.South;
+            int half = d.Width / 2;
+            for (int r = 0; r < rooms.Length; r++)
+            {
+                if (r == d.Room)
+                {
+                    continue;
+                }
+
+                LogicalBounds other = rooms[r];
+                bool flush;
+                switch (d.Side)
+                {
+                    case WallSide.North:
+                        flush = other.MinZ == room.MaxZ;
+                        break;
+                    case WallSide.South:
+                        flush = other.MaxZ == room.MinZ;
+                        break;
+                    case WallSide.East:
+                        flush = other.MinX == room.MaxX;
+                        break;
+                    default:
+                        flush = other.MaxX == room.MinX;
+                        break;
+                }
+
+                int otherMin = alongX ? other.MinX : other.MinZ;
+                int otherMax = alongX ? other.MaxX : other.MaxZ;
+                if (flush && otherMin <= d.Centre - half && otherMax >= d.Centre + half)
+                {
+                    return r;
+                }
+            }
+
+            return -1;
+        }
+
+        // ---------------------------------------------------------------- rooms
+
+        /// <summary>The rectangle around every room; the fire grid covers exactly this.</summary>
+        public LogicalBounds FireArea { get; }
+
+        public int RoomCount => rooms.Length;
+
+        public LogicalBounds RoomBounds(int room) => rooms[room];
+
+        public SimulationId RoomId(int room) => roomIds[room];
+
+        /// <summary>Every door in this room's walls, whichever of the two rooms holds it.</summary>
+        public int[] RoomDoors(int room) => roomDoors[room];
+
+        /// <summary>The room a person's whole footprint is inside, or -1 (in a doorway, or out of the building).</summary>
+        public int RoomAt(LogicalPosition position)
+        {
+            for (int r = 0; r < rooms.Length; r++)
+            {
+                if (rooms[r].ContainsCircle(position, radius))
+                {
+                    return r;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// The room a person counts as being in: the one holding their whole
+        /// body, or, while they are in a doorway, the last one they were in.
+        /// </summary>
+        public int RoomOf(Agent agent)
+        {
+            int room = RoomAt(agent.Body.Position);
+            return room >= 0 ? room : Math.Max(0, agent.Doors.CurrentRoom);
+        }
+
+        /// <summary>The room a point is in, ignoring body size, or -1 (outside, or exactly on a wall line).</summary>
+        public int RoomAtPoint(LogicalPosition point)
+        {
+            for (int r = 0; r < rooms.Length; r++)
+            {
+                LogicalBounds b = rooms[r];
+                if (point.X > b.MinX && point.X < b.MaxX && point.Z > b.MinZ && point.Z < b.MaxZ)
+                {
+                    return r;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>The room the other side of a door from <paramref name="room"/>, or -1 for outside.</summary>
+        public int RoomBeyond(int door, int room)
+        {
+            return doors[door].Room == room ? doorNeighbour[door] : doors[door].Room;
+        }
+
+        /// <summary>True when this door leads out of the building.</summary>
+        public bool DoorLeadsOutside(int door) => doorNeighbour[door] < 0;
+
+        /// <summary>The room whose wall holds this door.</summary>
+        public int DoorRoom(int door) => doors[door].Room;
+
+        /// <summary>True when the door is in one of this room's walls.</summary>
+        public bool DoorTouchesRoom(int door, int room)
+        {
+            return room >= 0 && (doors[door].Room == room || doorNeighbour[door] == room);
+        }
+
+        /// <summary>
+        /// Two rooms can see and hear each other freely: the same room, or
+        /// joined by an open door. Anything not in a room counts as connected.
+        /// </summary>
+        public bool RoomsOpenToEachOther(int roomA, int roomB)
+        {
+            if (roomA < 0 || roomB < 0 || roomA == roomB)
+            {
+                return true;
+            }
+
+            int[] candidates = roomDoors[roomA];
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                if (IsDoorOpen(candidates[i]) && RoomBeyond(candidates[i], roomA) == roomB)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Whether fire may jump between two neighbouring grid cells in
+        /// different rooms: only through the open door between them, where
+        /// the edge the cells share lies across the door gap.
+        /// </summary>
+        public bool FireCanCross(int roomA, LogicalBounds cellA, int roomB, LogicalBounds cellB)
+        {
+            if (roomA < 0 || roomB < 0)
+            {
+                return false;
+            }
+
+            int[] candidates = roomDoors[roomA];
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                int door = candidates[i];
+                if (!IsDoorOpen(door) || RoomBeyond(door, roomA) != roomB)
+                {
+                    continue;
+                }
+
+                DoorRuntime d = doors[door];
+                bool alongX = d.Side == WallSide.North || d.Side == WallSide.South;
+                int shareMin = alongX ? Math.Max(cellA.MinX, cellB.MinX) : Math.Max(cellA.MinZ, cellB.MinZ);
+                int shareMax = alongX ? Math.Min(cellA.MaxX, cellB.MaxX) : Math.Min(cellA.MaxZ, cellB.MaxZ);
+                int half = d.Width / 2;
+                if (Math.Min(shareMax, d.Centre + half) > Math.Max(shareMin, d.Centre - half))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// A random point in a room, at least <paramref name="margin"/> from
+        /// its walls (less if the room is small), drawn X first then Z.
+        /// </summary>
+        public LogicalPosition RandomInteriorPoint(int room, int margin)
+        {
+            LogicalBounds b = rooms[room];
+            margin = Math.Min(margin, Math.Min(b.MaxX - b.MinX, b.MaxZ - b.MinZ) / 2);
             LogicalPosition point = default;
             for (int attempt = 0; attempt < ClearSpotAttempts; attempt++)
             {
                 // Redrawn while it lands on or right beside a table (at most a few times).
-                int x = context.Random.NextIntInclusive(room.MinX + margin, room.MaxX - margin);
-                int z = context.Random.NextIntInclusive(room.MinZ + margin, room.MaxZ - margin);
+                int x = context.Random.NextIntInclusive(b.MinX + margin, b.MaxX - margin);
+                int z = context.Random.NextIntInclusive(b.MinZ + margin, b.MaxZ - margin);
                 point = new LogicalPosition(x, z);
                 if (TableAt(point, radius + TableSpotClearance) < 0)
                 {
@@ -93,7 +320,115 @@ namespace Paniq.Simulation
             return point;
         }
 
+        // ---------------------------------------------------------------- routes
+
+        /// <summary>
+        /// How far it is to walk from one room to another through doors, and
+        /// which door to head for first, and which door they would walk in
+        /// through at the end. Distance is measured from where the traveller
+        /// stands, door centre to door centre. A shut door still
+        /// counts as a way through (people expect to open one), but not one
+        /// this person has just given up on. False when there is no way at all.
+        /// </summary>
+        public bool TryFindRoute(int fromRoom, LogicalPosition from, int toRoom, Agent traveller,
+            out int firstDoor, out int lastDoor, out long cost)
+        {
+            firstDoor = -1;
+            lastDoor = -1;
+            cost = 0L;
+            if (fromRoom < 0 || toRoom < 0)
+            {
+                return false;
+            }
+
+            if (fromRoom == toRoom)
+            {
+                return true;
+            }
+
+            // Dijkstra over a handful of rooms: the building is far smaller
+            // than a dozen rooms, so scanning for the nearest one is enough.
+            for (int r = 0; r < rooms.Length; r++)
+            {
+                routeCost[r] = long.MaxValue;
+                routeFirstDoor[r] = -1;
+                routeEntryDoor[r] = -1;
+                routeSettled[r] = false;
+            }
+
+            routeCost[fromRoom] = 0L;
+            while (true)
+            {
+                int room = -1;
+                long best = long.MaxValue;
+                for (int r = 0; r < rooms.Length; r++)
+                {
+                    if (!routeSettled[r] && routeCost[r] < best)
+                    {
+                        best = routeCost[r];
+                        room = r;
+                    }
+                }
+
+                if (room < 0)
+                {
+                    return false;
+                }
+
+                if (room == toRoom)
+                {
+                    firstDoor = routeFirstDoor[room];
+                    lastDoor = routeEntryDoor[room];
+                    cost = routeCost[room];
+                    return true;
+                }
+
+                routeSettled[room] = true;
+                LogicalPosition here = routeEntryDoor[room] < 0 ? from : DoorCentre(routeEntryDoor[room]);
+                int[] candidates = roomDoors[room];
+                for (int i = 0; i < candidates.Length; i++)
+                {
+                    int door = candidates[i];
+                    int next = RoomBeyond(door, room);
+                    if (next < 0 || routeSettled[next] || !CanRouteThrough(door, traveller))
+                    {
+                        continue;
+                    }
+
+                    long total = routeCost[room] + IntegerMath.Distance(here, DoorCentre(door));
+                    if (total >= routeCost[next])
+                    {
+                        continue;
+                    }
+
+                    routeCost[next] = total;
+                    routeEntryDoor[next] = door;
+                    routeFirstDoor[next] = routeFirstDoor[room] < 0 ? door : routeFirstDoor[room];
+                }
+            }
+        }
+
+        /// <summary>
+        /// A door someone may plan a route through: open, or shut but not one
+        /// they have just given up on. A broken door counts as open.
+        /// </summary>
+        private bool CanRouteThrough(int door, Agent traveller)
+        {
+            return IsDoorOpen(door) || traveller == null || context.Tick >= traveller.Doors.AvoidUntilTick[door];
+        }
+
         // ---------------------------------------------------------------- tables
+
+        public int TableCount => tables.Length;
+
+        public LogicalBounds TableBounds(int table) => tables[table];
+
+        public SimulationId TableId(int table) => tableIds[table];
+
+        public int DoorCount => doors.Length;
+
+        /// <summary>Open, or broken down: either way there is a gap to walk through.</summary>
+        public bool IsDoorOpen(int door) => doors[door].State == DoorState.Open || doors[door].State == DoorState.Broken;
 
         /// <summary>
         /// The lowest-index table a body of <paramref name="bodyRadius"/> at
@@ -189,12 +524,13 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// A point near a door: <paramref name="along"/> millimetres along the
-        /// wall from the door's centre and <paramref name="outward"/>
-        /// millimetres out of the room (negative is inside).
+        /// wall from the door's centre, and <paramref name="outward"/>
+        /// millimetres out of the door's own room (negative is inside it).
         /// </summary>
         public LogicalPosition DoorPoint(int door, int along, int outward)
         {
             DoorRuntime d = doors[door];
+            LogicalBounds room = rooms[d.Room];
             switch (d.Side)
             {
                 case WallSide.North:
@@ -208,12 +544,43 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// A point near a door as seen by someone in <paramref name="room"/>:
+        /// <paramref name="outward"/> is away from that room, so the same call
+        /// works from either side of the door.
+        /// </summary>
+        public LogicalPosition DoorPointFrom(int door, int room, int along, int outward)
+        {
+            return DoorPoint(door, along, doors[door].Room == room || room < 0 ? outward : -outward);
+        }
+
         public LogicalPosition DoorCentre(int door) => DoorPoint(door, 0, 0);
 
-        /// <summary>How far past the door's wall a point is (negative inside the room).</summary>
-        private long OutsideDistance(int door, LogicalPosition position)
+        /// <summary>
+        /// A person here would be in the way of the door swinging shut: in
+        /// the gap itself, from either side, or (for a door leading outside)
+        /// anywhere in the doorway beyond it.
+        /// </summary>
+        public bool IsInDoorway(int door, LogicalPosition position)
         {
-            switch (doors[door].Side)
+            long along = Math.Abs(AlongOffset(door, position));
+            long beyond = BeyondDistance(door, position);
+            long clearance = radius + 100L;
+            if (along >= doors[door].Width / 2 + (long)radius)
+            {
+                return false;
+            }
+
+            return Math.Abs(beyond) <= clearance ||
+                   (doorNeighbour[door] < 0 && beyond > 0L && beyond <= exits.DoorwayDepthMillimetres);
+        }
+
+        /// <summary>How far past the door's wall a point is, out of the door's own room (negative inside it).</summary>
+        private long BeyondDistance(int door, LogicalPosition position)
+        {
+            DoorRuntime d = doors[door];
+            LogicalBounds room = rooms[d.Room];
+            switch (d.Side)
             {
                 case WallSide.North:
                     return (long)position.Z - room.MaxZ;
@@ -226,8 +593,15 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>How far past a door's wall a point is, away from <paramref name="room"/>.</summary>
+        public long BeyondDistanceFrom(int door, int room, LogicalPosition position)
+        {
+            long beyond = BeyondDistance(door, position);
+            return doors[door].Room == room || room < 0 ? beyond : -beyond;
+        }
+
         /// <summary>How far along the wall a point is from the door's centre.</summary>
-        private long AlongOffset(int door, LogicalPosition position)
+        public long AlongOffset(int door, LogicalPosition position)
         {
             DoorRuntime d = doors[door];
             return d.Side == WallSide.North || d.Side == WallSide.South
@@ -247,24 +621,29 @@ namespace Paniq.Simulation
             return Math.Abs(AlongOffset(door, position)) <= doors[door].Width / 2 - radius + LinedUpTolerance;
         }
 
-        /// <summary>The walkable strip through an open door: from just inside the wall to the end of the doorway outside.</summary>
+        /// <summary>
+        /// The walkable strip through an open door: from just inside the
+        /// door's room to just inside the next room, or, for a door leading
+        /// outside, to the end of the doorway beyond the wall.
+        /// </summary>
         private LogicalBounds DoorwayStrip(int door)
         {
             int width = doors[door].Width;
+            int beyond = doorNeighbour[door] < 0 ? exits.DoorwayDepthMillimetres : exits.DoorwayInsetMillimetres;
             LogicalPosition inner = DoorPoint(door, -width / 2, -exits.DoorwayInsetMillimetres);
-            LogicalPosition outer = DoorPoint(door, width / 2, exits.DoorwayDepthMillimetres);
+            LogicalPosition outer = DoorPoint(door, width / 2, beyond);
             return new LogicalBounds(
                 Math.Min(inner.X, outer.X), Math.Max(inner.X, outer.X),
                 Math.Min(inner.Z, outer.Z), Math.Max(inner.Z, outer.Z));
         }
 
         /// <summary>
-        /// Only someone heading for this door, or already out of the room,
-        /// may step into its doorway. Calm people treat every door as wall.
+        /// Only someone heading for this door, or already standing in a
+        /// doorway, may step into it. Calm people treat every door as wall.
         /// </summary>
         private bool CanUseDoorway(int door, LogicalPosition current, int exitDoor)
         {
-            return IsDoorOpen(door) && (exitDoor == door || !IsInsideRoom(current));
+            return IsDoorOpen(door) && (exitDoor == door || RoomAt(current) < 0);
         }
 
         // ---------------------------------------------------------------- people
@@ -272,11 +651,11 @@ namespace Paniq.Simulation
         /// <summary>
         /// A person standing at <paramref name="current"/> and heading for
         /// <paramref name="exitDoor"/> (or -1) may have their whole footprint
-        /// at <paramref name="position"/>: inside the room or in a doorway they may use.
+        /// at <paramref name="position"/>: inside a room, or in a doorway they may use.
         /// </summary>
         public bool IsWalkable(LogicalPosition current, int exitDoor, LogicalPosition position)
         {
-            if (IsInsideRoom(position))
+            if (RoomAt(position) >= 0)
             {
                 return TableAt(position, radius) < 0;
             }
@@ -295,7 +674,7 @@ namespace Paniq.Simulation
         /// <summary>
         /// Keeps a step inside the space the person may walk in: if the
         /// destination is already fine it stays; otherwise it is clamped into
-        /// the room, or into the doorway the person is standing in.
+        /// the room they are in, or into the doorway they are standing in.
         /// </summary>
         public LogicalPosition ClampIntoWalkable(LogicalPosition current, int exitDoor, LogicalPosition position)
         {
@@ -304,14 +683,15 @@ namespace Paniq.Simulation
                 return position;
             }
 
-            if (IsInsideRoom(current))
+            int room = RoomAt(current);
+            if (room >= 0)
             {
                 // Keep to the room, sliding along any table in the way as along a wall.
-                LogicalPosition slid = PushOutOfTables(current, Clamp(position, room, radius), radius, out _, out _);
-                return Clamp(slid, room, radius);
+                LogicalPosition slid = PushOutOfTables(current, Clamp(position, rooms[room], radius), radius, out _, out _);
+                return Clamp(slid, rooms[room], radius);
             }
 
-            // Outside the room (in a doorway): keep to the doorway strip.
+            // In a doorway: keep to its strip.
             for (int d = 0; d < doors.Length; d++)
             {
                 LogicalBounds strip = DoorwayStrip(d);
@@ -321,7 +701,7 @@ namespace Paniq.Simulation
                 }
             }
 
-            return Clamp(position, room, radius);
+            return Clamp(position, rooms[Math.Max(0, RoomAtPoint(current))], radius);
         }
 
         /// <summary>True when a person's swept footprint clips the frame of any open door.</summary>
@@ -347,10 +727,11 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Adds a push away from each wall within <paramref name="range"/>,
-        /// weighted as a percentage of a unit goal vector. The wall of the
-        /// door the person is lined up with does not push, so they can walk
-        /// through it. Nothing pushes once they are out of the room.
+        /// Adds a push away from each wall of the room the person is in,
+        /// within <paramref name="range"/>, weighted as a percentage of a
+        /// unit goal vector. The wall holding the door they are lined up with
+        /// does not push, so they can walk through it. Nothing pushes while
+        /// they are in a doorway.
         /// </summary>
         public void AddWallRepulsion(
             LogicalPosition position,
@@ -360,7 +741,13 @@ namespace Paniq.Simulation
             ref long steerX,
             ref long steerZ)
         {
-            if (range <= 0L || percent <= 0 || !IsInsideRoom(position))
+            if (range <= 0L || percent <= 0)
+            {
+                return;
+            }
+
+            int room = RoomAt(position);
+            if (room < 0)
             {
                 return;
             }
@@ -382,30 +769,54 @@ namespace Paniq.Simulation
                 steerZ += dz * push / distance;
             }
 
-            if (!IsLinedUpWithExit(exitDoor, WallSide.West, position))
+            LogicalBounds b = rooms[room];
+            if (!IsLinedUpWithExit(exitDoor, room, WallSide.West, position))
             {
-                steerX += WallPush(position.X - radius - room.MinX, range, percent);
+                steerX += WallPush(position.X - radius - b.MinX, range, percent);
             }
 
-            if (!IsLinedUpWithExit(exitDoor, WallSide.East, position))
+            if (!IsLinedUpWithExit(exitDoor, room, WallSide.East, position))
             {
-                steerX -= WallPush(room.MaxX - radius - position.X, range, percent);
+                steerX -= WallPush(b.MaxX - radius - position.X, range, percent);
             }
 
-            if (!IsLinedUpWithExit(exitDoor, WallSide.South, position))
+            if (!IsLinedUpWithExit(exitDoor, room, WallSide.South, position))
             {
-                steerZ += WallPush(position.Z - radius - room.MinZ, range, percent);
+                steerZ += WallPush(position.Z - radius - b.MinZ, range, percent);
             }
 
-            if (!IsLinedUpWithExit(exitDoor, WallSide.North, position))
+            if (!IsLinedUpWithExit(exitDoor, room, WallSide.North, position))
             {
-                steerZ -= WallPush(room.MaxZ - radius - position.Z, range, percent);
+                steerZ -= WallPush(b.MaxZ - radius - position.Z, range, percent);
             }
         }
 
-        private bool IsLinedUpWithExit(int exitDoor, WallSide side, LogicalPosition position)
+        /// <summary>The wall of <paramref name="room"/> this door sits in, seen from inside that room.</summary>
+        public WallSide WallSideFrom(int door, int room)
         {
-            return exitDoor >= 0 && doors[exitDoor].Side == side && IsInFrontOf(exitDoor, position);
+            WallSide side = doors[door].Side;
+            if (doors[door].Room == room)
+            {
+                return side;
+            }
+
+            switch (side)
+            {
+                case WallSide.North:
+                    return WallSide.South;
+                case WallSide.South:
+                    return WallSide.North;
+                case WallSide.East:
+                    return WallSide.West;
+                default:
+                    return WallSide.East;
+            }
+        }
+
+        private bool IsLinedUpWithExit(int exitDoor, int room, WallSide side, LogicalPosition position)
+        {
+            return exitDoor >= 0 && DoorTouchesRoom(exitDoor, room) &&
+                   WallSideFrom(exitDoor, room) == side && IsInFrontOf(exitDoor, position);
         }
 
         private static long WallPush(long gap, long range, int percent)
@@ -419,20 +830,21 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// The open door this person has walked far enough out through to
-        /// count as escaped, or -1. Only someone outside the room can escape.
+        /// The door out of the building this person has walked far enough
+        /// through to count as escaped, or -1. Only someone out of every room
+        /// can escape; a door between two rooms is never a way out.
         /// </summary>
         public int EscapedThrough(LogicalPosition position)
         {
-            if (IsInsideRoom(position))
+            if (RoomAt(position) >= 0)
             {
                 return -1;
             }
 
             for (int d = 0; d < doors.Length; d++)
             {
-                if (IsDoorOpen(d) &&
-                    OutsideDistance(d, position) >= exits.EscapeDepthMillimetres &&
+                if (IsDoorOpen(d) && doorNeighbour[d] < 0 &&
+                    BeyondDistance(d, position) >= exits.EscapeDepthMillimetres &&
                     IsInFrontOf(d, position))
                 {
                     return d;
@@ -446,12 +858,15 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Keeps an object's next position (in <paramref name="scale"/> units
-        /// per millimetre) inside the room walls and out of the tables, and
-        /// says along which axes it hit something. Objects never use doorways.
+        /// per millimetre) inside the walls of the room it is in and out of
+        /// the tables, and says along which axes it hit something. Objects
+        /// never use doorways.
         /// </summary>
         public void KeepObjectInRoom(int objectRadius, long scale, long fromX, long fromZ, ref long nextX, ref long nextZ,
             out bool hitX, out bool hitZ)
         {
+            var from = new LogicalPosition((int)FloorDivide(fromX, scale), (int)FloorDivide(fromZ, scale));
+            LogicalBounds room = rooms[Math.Max(0, RoomAtPoint(from))];
             long minX = (long)(room.MinX + objectRadius) * scale;
             long maxX = (long)(room.MaxX - objectRadius) * scale;
             long minZ = (long)(room.MinZ + objectRadius) * scale;
@@ -473,7 +888,6 @@ namespace Paniq.Simulation
                 return;
             }
 
-            var from = new LogicalPosition((int)FloorDivide(fromX, scale), (int)FloorDivide(fromZ, scale));
             var next = new LogicalPosition((int)FloorDivide(nextX, scale), (int)FloorDivide(nextZ, scale));
             LogicalPosition pushed = PushOutOfTables(from, next, objectRadius, out bool tableX, out bool tableZ);
             if (tableX)

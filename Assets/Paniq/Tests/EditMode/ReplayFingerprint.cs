@@ -40,7 +40,7 @@ namespace Paniq.Tests.EditMode
             {
                 // Every box slides toward the middle of the room, so they meet
                 // each other and whoever stands in between.
-                LogicalPosition middle = data.World.RoomBounds.Centre;
+                LogicalPosition middle = data.Rooms[0].Bounds.Centre;
                 for (int i = 0; i < simulation.PhysicsObjectCount; i++)
                 {
                     LogicalPosition from = simulation.GetPhysicsObject(i).Position;

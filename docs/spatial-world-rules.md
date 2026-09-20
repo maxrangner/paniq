@@ -1,4 +1,4 @@
-# Movement and spatial-world rules
+﻿# Movement and spatial-world rules
 
 **Status:** decided foundation. This note defines the logical ground plane,
 authored world constraints, occupancy, and basic movement resolution. It does
@@ -179,3 +179,18 @@ axis-aligned rectangle in scenario data. A person's footprint may not overlap
 the rectangle grown by the person's radius; the movement rules above apply
 unchanged, with tables treated as extra walls when choosing and resolving a
 step. `WorldGeometry` is the only code that knows where tables are.
+
+## Prototype extension: several rooms
+
+A building is a set of axis-aligned rectangular rooms that never overlap. Two
+rooms that share a wall line are joined by a door set in it; a door with no
+room beyond it leads outside, and only such a door can be escaped through. A
+footprint wholly inside any room is walkable, and an open door's walkable
+strip joins the rooms on either side of it. `WorldGeometry` numbers the rooms
+so fire, sight and sound can respect walls, and answers "how do I walk from
+this room to that one" by searching the rooms as a graph, with each door
+costing the distance from the door walked in through to the door walked out
+of. The first room is where the fire starts.
+
+A scenario is refused if two rooms overlap, if a door names a room that does
+not exist, or if a door would open half into a room and half into its wall.

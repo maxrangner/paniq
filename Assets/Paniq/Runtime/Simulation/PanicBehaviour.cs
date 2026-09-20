@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -19,6 +19,7 @@ namespace Paniq.Simulation
         private readonly SoundSystem sound;
         private readonly BodySystem body;
         private readonly DoorBehaviour doorBehaviour;
+        private readonly HelpBehaviour help;
         private readonly Locomotion locomotion;
         private readonly PanicSettings settings;
 
@@ -31,8 +32,10 @@ namespace Paniq.Simulation
             SoundSystem sound,
             BodySystem body,
             DoorBehaviour doorBehaviour,
+            HelpBehaviour help,
             Locomotion locomotion)
         {
+            this.help = help;
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
@@ -77,6 +80,19 @@ namespace Paniq.Simulation
                 agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
             }
 
+            MotorIntent? helping = help.Decide(agent, inDanger);
+            if (helping.HasValue)
+            {
+                return helping.Value;
+            }
+
+            int room = geometry.RoomAt(agent.Body.Position);
+            if (room >= 0 && !DoorBehaviour.IsAtDoor(agent))
+            {
+                // Fire coming through the door of the room they are in.
+                doorBehaviour.ConsiderClosingAgainstFire(agent, room);
+            }
+
             if (DoorBehaviour.IsAtDoor(agent))
             {
                 // Worked out first: giving up forgets which door this was.
@@ -110,11 +126,16 @@ namespace Paniq.Simulation
                 return doorBehaviour.FaceDoor(agent);
             }
             else if (agent.Body.BlockedTicks >= settings.BlockedGiveUpTicks &&
-                     !(leaving && !geometry.IsInsideRoom(agent.Body.Position)))
+                     !(leaving && geometry.RoomAt(agent.Body.Position) < 0 &&
+                       agent.Body.BlockedTicks < settings.BlockedGiveUpTicks * 2))
             {
-                // Stuck in the crowd: if it was on the way to a door, try another one for a while.
-                doorBehaviour.AvoidCrowdedExit(agent);
-                DecideMove(agent, false);
+                // Wedged beside an open door: stand aside for whoever is lined up with it.
+                // Otherwise stuck in the crowd: if it was on the way to a door, try another one for a while.
+                if (!doorBehaviour.TryGiveWay(agent))
+                {
+                    doorBehaviour.AvoidCrowdedExit(agent);
+                    DecideMove(agent, false);
+                }
             }
             else if (!leaving &&
                      (tick >= intent.NextPanicDecisionTick ||
@@ -226,18 +247,20 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Samples spots in the room and scores them: far from fire is good,
-        /// a route that brushes past the fire is bad, a U-turn is a little
-        /// bad, and random noise keeps the choice human and imperfect.
+        /// Samples spots in the room they are in and scores them: far from
+        /// fire is good, a route that brushes past the fire is bad, a U-turn
+        /// is a little bad, and random noise keeps the choice human and
+        /// imperfect.
         /// </summary>
         private LogicalPosition ChooseEscapeTarget(Agent agent)
         {
             LogicalPosition position = agent.Body.Position;
             LogicalPosition best = position;
             long bestScore = long.MinValue;
+            int room = geometry.RoomOf(agent);
             for (int sample = 0; sample < settings.EscapeSampleCount; sample++)
             {
-                LogicalPosition candidate = geometry.RandomInteriorPoint(settings.EscapeWallMarginMillimetres);
+                LogicalPosition candidate = geometry.RandomInteriorPoint(room, settings.EscapeWallMarginMillimetres);
                 long score = context.Random.NextIntInclusive(0, settings.EscapeNoiseMillimetres);
 
                 long fireDistanceSquared = fire.NearestDistanceSquared(candidate);

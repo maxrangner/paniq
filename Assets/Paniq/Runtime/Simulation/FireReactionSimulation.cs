@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -32,6 +32,8 @@ namespace Paniq.Simulation
         private readonly BurningBehaviour burning;
         private readonly FlammablesSystem flammables;
         private readonly ItemBehaviour items;
+        private readonly HelpBehaviour help;
+        private readonly WorldGeometry geometry;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
         {
@@ -46,7 +48,7 @@ namespace Paniq.Simulation
             // and first decision (ascending ID), then the temperament deck.
             // Nothing else draws before the first tick.
             DoorRuntime[] doorStates = DoorSystem.CreateDoors(scenario);
-            var geometry = new WorldGeometry(context, doorStates);
+            geometry = new WorldGeometry(context, doorStates);
             fire = new FireSystem(context, geometry);
             agents = CreateAgents(doorStates.Length);
             fear = new FearSystem(context, fire);
@@ -54,7 +56,8 @@ namespace Paniq.Simulation
 
             var crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres);
             doors = new DoorSystem(context, doorStates, geometry);
-            var sound = new SoundSystem(context, crowd, fire, fear);
+            doors.UseCrowd(crowd);
+            var sound = new SoundSystem(context, crowd, fire, fear, geometry);
             perception = new PerceptionSystem(context, fire, fear, sound);
             body = new BodySystem(context, fire, sound);
             collisions = new CollisionSystem(context, crowd, body, fear, sound);
@@ -64,7 +67,8 @@ namespace Paniq.Simulation
             items = new ItemBehaviour(context, geometry, objects, flammables);
             calm = new CalmBehaviour(context, crowd, geometry, locomotion, items);
             doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
-            panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, locomotion);
+            help = new HelpBehaviour(context, crowd, geometry, fire, fear, body, objects, locomotion);
+            panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, locomotion);
             burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
         }
 
@@ -112,6 +116,9 @@ namespace Paniq.Simulation
         public int FireCellCount => fire.BurningCount;
         public int FireGridColumns => fire.GridColumns;
         public int FireGridRows => fire.GridRows;
+
+        /// <summary>Grid cells that are floor in some room; the others never burn.</summary>
+        public int FireFloorCellCount => fire.FloorCellCount;
         public LogicalPosition FireOrigin => fire.Origin;
         public ulong FireActivationEventId => fire.ActivationEventId;
 
@@ -179,6 +186,7 @@ namespace Paniq.Simulation
             locomotion.BeginTick();
             collisions.BeginTick();
             objects.BeginTick();
+            help.BeginTick(agents);
             for (int i = 0; i < agents.Length; i++)
             {
                 Agent agent = agents[i];
@@ -237,9 +245,11 @@ namespace Paniq.Simulation
             }
 
             locomotion.ResolveMovement();
+            help.MoveDragged(agents);
             items.FollowCarriers(agents);
             burning.SpreadFlames();
-            doorBehaviour.ResolveEscapes();
+            doorBehaviour.ResolveRoomChangesAndEscapes();
+            help.ResolveRescues(agents);
             collisions.Resolve();
             objects.ResolveContacts();
             objects.Advance();
@@ -270,6 +280,25 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>People still in the run who are in a room with nothing burning in it.</summary>
+        private int CountClearOfFire()
+        {
+            int count = 0;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                if (!agent.IsParticipating || agent.Burning.IsBurning)
+                {
+                    continue;
+                }
+
+                int room = geometry.RoomAt(agent.Body.Position);
+                count += room >= 0 && !fire.IsBurningInRoom(room) ? 1 : 0;
+            }
+
+            return count;
+        }
+
         public FireReactionSnapshot GetSnapshot()
         {
             var agentSnapshots = new FireReactionAgentSnapshot[agents.Length];
@@ -288,7 +317,8 @@ namespace Paniq.Simulation
                 doors.GetSnapshots(),
                 PhysicsObjectSnapshots(),
                 flammables.GetTableSnapshots(),
-                context.Events.View());
+                context.Events.View(),
+                CountClearOfFire());
         }
 
         private FireReactionPhysicsObjectSnapshot[] PhysicsObjectSnapshots()

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -63,22 +63,39 @@ namespace Paniq.Simulation
     public struct FireReactionDoorDefinition
     {
         [UnityEngine.SerializeField] private SimulationId doorId;
+        [UnityEngine.SerializeField] private SimulationId roomId;
         [UnityEngine.SerializeField] private WallSide side;
         [UnityEngine.SerializeField] private int centreAlongWallMillimetres;
         [UnityEngine.SerializeField] private int widthMillimetres;
+        [UnityEngine.SerializeField] private bool startsLocked;
 
-        public FireReactionDoorDefinition(SimulationId doorId, WallSide side, int centreAlongWallMillimetres, int widthMillimetres)
+        public FireReactionDoorDefinition(
+            SimulationId doorId,
+            SimulationId roomId,
+            WallSide side,
+            int centreAlongWallMillimetres,
+            int widthMillimetres,
+            bool startsLocked = true)
         {
             this.doorId = doorId;
+            this.roomId = roomId;
             this.side = side;
             this.centreAlongWallMillimetres = centreAlongWallMillimetres;
             this.widthMillimetres = widthMillimetres;
+            this.startsLocked = startsLocked;
         }
 
         public SimulationId DoorId => doorId;
+
+        /// <summary>The room whose wall holds this door; what lies beyond is worked out from the rooms.</summary>
+        public SimulationId RoomId => roomId;
+
         public WallSide Side => side;
         public int CentreAlongWallMillimetres => centreAlongWallMillimetres;
         public int WidthMillimetres => widthMillimetres;
+
+        /// <summary>Locked at the start (the player's doors); otherwise it starts shut but openable.</summary>
+        public bool StartsLocked => startsLocked;
     }
 
     /// <summary>
@@ -114,6 +131,28 @@ namespace Paniq.Simulation
         public int SizeMillimetres => sizeMillimetres;
         public int MassGrams => massGrams;
         public int RadiusMillimetres => sizeMillimetres / 2;
+    }
+
+    /// <summary>
+    /// One rectangular room of the building. Rooms never overlap, but they
+    /// may share a wall line; a door in that shared wall joins them. The
+    /// first room is where the fire starts. A door with no room beyond it
+    /// leads outside, which is how people escape.
+    /// </summary>
+    [Serializable]
+    public struct FireReactionRoomDefinition
+    {
+        [UnityEngine.SerializeField] private SimulationId roomId;
+        [UnityEngine.SerializeField] private LogicalBounds bounds;
+
+        public FireReactionRoomDefinition(SimulationId roomId, LogicalBounds bounds)
+        {
+            this.roomId = roomId;
+            this.bounds = bounds;
+        }
+
+        public SimulationId RoomId => roomId;
+        public LogicalBounds Bounds => bounds;
     }
 
     /// <summary>
@@ -157,9 +196,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "19";
+        public string ContentRevision = "25";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 11;
+        public int SimulationCompatibilityVersion = 17;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -175,11 +214,13 @@ namespace Paniq.Simulation
         public TraitSettings Traits = new TraitSettings();
         public FlammableSettings Flammables = new FlammableSettings();
         public ItemSettings Items = new ItemSettings();
+        public HelpSettings Help = new HelpSettings();
 
         public FireReactionAgentDefinition[] Agents = DefaultAgents();
         public FireReactionDoorDefinition[] Doors = DefaultDoors();
         public FireReactionPhysicsObjectDefinition[] PhysicsObjects = DefaultPhysicsObjects();
         public FireReactionTableDefinition[] Tables = DefaultTables();
+        public FireReactionRoomDefinition[] Rooms = DefaultRooms();
 
         /// <summary>A deep copy: changing the copy never changes this one.</summary>
         public FireReactionScenarioData Clone()
@@ -199,10 +240,12 @@ namespace Paniq.Simulation
             copy.Traits = Traits?.Clone();
             copy.Flammables = Flammables?.Clone();
             copy.Items = Items?.Clone();
+            copy.Help = Help?.Clone();
             copy.Agents = (FireReactionAgentDefinition[])Agents?.Clone();
             copy.Doors = (FireReactionDoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (FireReactionPhysicsObjectDefinition[])PhysicsObjects?.Clone();
             copy.Tables = (FireReactionTableDefinition[])Tables?.Clone();
+            copy.Rooms = (FireReactionRoomDefinition[])Rooms?.Clone();
             return copy;
         }
 
@@ -220,7 +263,7 @@ namespace Paniq.Simulation
 
             if (World == null || Perception == null || Fire == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
-                ObjectPhysics == null || Traits == null || Flammables == null || Items == null)
+                ObjectPhysics == null || Traits == null || Flammables == null || Items == null || Help == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -239,16 +282,21 @@ namespace Paniq.Simulation
             Traits.Validate();
             Flammables.Validate();
             Items.Validate();
+            Help.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");
 
-            LogicalBounds room = World.RoomBounds;
+            var roomIds = new HashSet<SimulationId>();
+            ValidateRooms(roomIds);
+
+            // The fire starts in the first room.
+            LogicalBounds room = Rooms[0].Bounds;
             int spawnMargin = Fire.CellSizeMillimetres / 2;
             if (!room.ContainsCircle(new LogicalPosition(Fire.SpawnBounds.MinX, Fire.SpawnBounds.MinZ), spawnMargin) ||
                 !room.ContainsCircle(new LogicalPosition(Fire.SpawnBounds.MaxX, Fire.SpawnBounds.MaxZ), spawnMargin))
             {
-                throw new InvalidOperationException("The fire spawn rectangle must remain inside the room.");
+                throw new InvalidOperationException("The fire spawn rectangle must remain inside the first room.");
             }
 
             if (Agents == null || Agents.Length == 0)
@@ -272,9 +320,9 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Agent {agent.AgentId} has a trait outside 0–10.");
                 }
 
-                if (!room.ContainsCircle(agent.InitialPosition, radius))
+                if (RoomHolding(agent.InitialPosition, radius) < 0)
                 {
-                    throw new InvalidOperationException($"Agent {agent.AgentId} starts outside the room.");
+                    throw new InvalidOperationException($"Agent {agent.AgentId} starts outside every room.");
                 }
 
                 for (int previous = 0; previous < i; previous++)
@@ -287,9 +335,71 @@ namespace Paniq.Simulation
                 }
             }
 
+            foreach (FireReactionRoomDefinition definition in Rooms)
+            {
+                ids.Add(definition.RoomId);
+            }
+
             ValidateDoors(ids);
             ValidateTables(ids);
             ValidatePhysicsObjects(ids);
+        }
+
+        /// <summary>The room whose walls hold a body of this radius, or -1.</summary>
+        private int RoomHolding(LogicalPosition position, int radius)
+        {
+            for (int r = 0; r < Rooms.Length; r++)
+            {
+                if (Rooms[r].Bounds.ContainsCircle(position, radius))
+                {
+                    return r;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Rooms: at least one, unique IDs, big enough for people to pass
+        /// each other, and never overlapping (sharing a wall line is how they
+        /// are joined, so touching is fine).
+        /// </summary>
+        private void ValidateRooms(HashSet<SimulationId> roomIds)
+        {
+            if (Rooms == null || Rooms.Length == 0)
+            {
+                throw new InvalidOperationException("A fire-reaction scenario needs at least one room.");
+            }
+
+            int radius = World.OccupancyRadiusMillimetres;
+            for (int r = 0; r < Rooms.Length; r++)
+            {
+                FireReactionRoomDefinition definition = Rooms[r];
+                if (definition.RoomId.Value == 0UL || !roomIds.Add(definition.RoomId))
+                {
+                    throw new InvalidOperationException("Room IDs must be unique and non-zero.");
+                }
+
+                LogicalBounds b = definition.Bounds;
+                if (b.MaxX - b.MinX < radius * 4 || b.MaxZ - b.MinZ < radius * 4)
+                {
+                    throw new InvalidOperationException($"Room {definition.RoomId} is too small to walk in.");
+                }
+
+                if (b.MinX < -100000 || b.MaxX > 100000 || b.MinZ < -100000 || b.MaxZ > 100000)
+                {
+                    throw new InvalidOperationException($"Room {definition.RoomId} leaves the 200 m coordinate span.");
+                }
+
+                for (int previous = 0; previous < r; previous++)
+                {
+                    LogicalBounds other = Rooms[previous].Bounds;
+                    if (b.MinX < other.MaxX && b.MaxX > other.MinX && b.MinZ < other.MaxZ && b.MaxZ > other.MinZ)
+                    {
+                        throw new InvalidOperationException($"Rooms {definition.RoomId} and {Rooms[previous].RoomId} overlap.");
+                    }
+                }
+            }
         }
 
         private void ValidateTables(HashSet<SimulationId> ids)
@@ -306,10 +416,10 @@ namespace Paniq.Simulation
 
                 LogicalBounds bounds = table.Bounds;
                 if (table.WidthMillimetres < 200 || table.DepthMillimetres < 200 ||
-                    bounds.MinX < World.RoomBounds.MinX || bounds.MaxX > World.RoomBounds.MaxX ||
-                    bounds.MinZ < World.RoomBounds.MinZ || bounds.MaxZ > World.RoomBounds.MaxZ)
+                    RoomHolding(new LogicalPosition(bounds.MinX, bounds.MinZ), 0) < 0 ||
+                    RoomHolding(new LogicalPosition(bounds.MaxX, bounds.MaxZ), 0) < 0)
                 {
-                    throw new InvalidOperationException($"Table {table.TableId} is too small or outside the room.");
+                    throw new InvalidOperationException($"Table {table.TableId} is too small or outside every room.");
                 }
 
                 for (int a = 0; a < Agents.Length; a++)
@@ -325,7 +435,6 @@ namespace Paniq.Simulation
         private void ValidateDoors(HashSet<SimulationId> ids)
         {
             Doors ??= Array.Empty<FireReactionDoorDefinition>();
-            LogicalBounds room = World.RoomBounds;
             int radius = World.OccupancyRadiusMillimetres;
             for (int i = 0; i < Doors.Length; i++)
             {
@@ -335,7 +444,14 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException("Door IDs must be unique and non-zero.");
                 }
 
+                int roomIndex = Array.FindIndex(Rooms, r => r.RoomId == door.RoomId);
+                if (roomIndex < 0)
+                {
+                    throw new InvalidOperationException($"Door {door.DoorId} names an unknown room.");
+                }
+
                 // Wide enough for one person, with a solid bit of wall either side.
+                LogicalBounds room = Rooms[roomIndex].Bounds;
                 bool alongX = door.Side == WallSide.North || door.Side == WallSide.South;
                 int wallMin = alongX ? room.MinX : room.MinZ;
                 int wallMax = alongX ? room.MaxX : room.MaxZ;
@@ -347,16 +463,72 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Door {door.DoorId} does not fit in its wall.");
                 }
 
+                ValidateDoorNeighbour(door, roomIndex, half);
+
                 for (int previous = 0; previous < i; previous++)
                 {
                     FireReactionDoorDefinition other = Doors[previous];
-                    if (other.Side == door.Side &&
+                    if (other.Side == door.Side && other.RoomId == door.RoomId &&
                         Math.Abs((long)other.CentreAlongWallMillimetres - door.CentreAlongWallMillimetres) <
                         (other.WidthMillimetres + door.WidthMillimetres) / 2 + radius * 2)
                     {
                         throw new InvalidOperationException("Doors in the same wall cannot overlap.");
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// What lies beyond a door: either nothing (it leads outside) or one
+        /// room flush against the far side of that wall, whose wall covers
+        /// the whole gap. A room that only half covers the gap would leave a
+        /// doorway opening into a wall, so it is rejected.
+        /// </summary>
+        private void ValidateDoorNeighbour(FireReactionDoorDefinition door, int roomIndex, int half)
+        {
+            LogicalBounds room = Rooms[roomIndex].Bounds;
+            bool alongX = door.Side == WallSide.North || door.Side == WallSide.South;
+            int gapMin = door.CentreAlongWallMillimetres - half;
+            int gapMax = door.CentreAlongWallMillimetres + half;
+            for (int r = 0; r < Rooms.Length; r++)
+            {
+                if (r == roomIndex)
+                {
+                    continue;
+                }
+
+                LogicalBounds other = Rooms[r].Bounds;
+                bool flush;
+                switch (door.Side)
+                {
+                    case WallSide.North:
+                        flush = other.MinZ == room.MaxZ;
+                        break;
+                    case WallSide.South:
+                        flush = other.MaxZ == room.MinZ;
+                        break;
+                    case WallSide.East:
+                        flush = other.MinX == room.MaxX;
+                        break;
+                    default:
+                        flush = other.MaxX == room.MinX;
+                        break;
+                }
+
+                int otherMin = alongX ? other.MinX : other.MinZ;
+                int otherMax = alongX ? other.MaxX : other.MaxZ;
+                if (!flush || otherMax <= gapMin || otherMin >= gapMax)
+                {
+                    continue;
+                }
+
+                if (otherMin > gapMin || otherMax < gapMax)
+                {
+                    throw new InvalidOperationException(
+                        $"Door {door.DoorId} opens partly into room {Rooms[r].RoomId} and partly into a wall.");
+                }
+
+                return;
             }
         }
 
@@ -378,9 +550,9 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Object {body.ObjectId} has an invalid size or mass.");
                 }
 
-                if (!World.RoomBounds.ContainsCircle(body.InitialPosition, body.RadiusMillimetres))
+                if (RoomHolding(body.InitialPosition, body.RadiusMillimetres) < 0)
                 {
-                    throw new InvalidOperationException($"Object {body.ObjectId} starts outside the room.");
+                    throw new InvalidOperationException($"Object {body.ObjectId} starts outside every room.");
                 }
 
                 for (int t = 0; t < Tables.Length; t++)
@@ -413,9 +585,9 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Ten people spread around the room, facing different ways, each
-        /// with an authored personality so every trait shows up in play:
-        /// Str, Spd, Brv, Cmp, Evl, Nrv.
+        /// Twenty people, ten in the office and ten in the meeting room,
+        /// facing different ways, each with an authored personality so every
+        /// trait shows up in play: Str, Spd, Brv, Cmp, Evl, Nrv.
         /// </summary>
         public static FireReactionAgentDefinition[] DefaultAgents()
         {
@@ -430,19 +602,42 @@ namespace Paniq.Simulation
                 Agent(1007UL, -5000, 5000, CardinalDirection.South, 5, 10, 5, 5, 3, 6), // the sprinter
                 Agent(1008UL, 0, 5000, CardinalDirection.West, 7, 5, 4, 2, 9, 5), // the bully
                 Agent(1009UL, 5000, 5000, CardinalDirection.South, 3, 4, 2, 4, 3, 8), // the coward
-                Agent(1010UL, 0, -1800, CardinalDirection.North, 5, 5, 5, 6, 3, 5) // ordinary
+                Agent(1010UL, 0, -1800, CardinalDirection.North, 5, 5, 5, 6, 3, 5), // ordinary
+
+                // The meeting room: ten more people who cannot see the fire
+                // when it starts and only learn about it through the shouting.
+                Agent(1011UL, 10500, -4500, CardinalDirection.North, 5, 5, 6, 5, 3, 4), // ordinary
+                Agent(1012UL, 13500, -4500, CardinalDirection.West, 9, 4, 7, 6, 2, 3), // the strong one
+                Agent(1013UL, 16500, -4500, CardinalDirection.North, 4, 7, 3, 7, 1, 7), // the worrier
+                Agent(1014UL, 19500, -4500, CardinalDirection.West, 6, 5, 5, 5, 5, 5), // ordinary
+                Agent(1015UL, 10500, 0, CardinalDirection.East, 3, 6, 2, 8, 0, 9), // the timid carer
+                Agent(1016UL, 13500, 1200, CardinalDirection.South, 7, 8, 8, 4, 7, 2), // the chancer
+                Agent(1017UL, 16500, 0, CardinalDirection.West, 5, 5, 4, 5, 4, 6), // ordinary
+                Agent(1018UL, 19500, 1200, CardinalDirection.North, 8, 6, 6, 2, 8, 4), // the other bully
+                Agent(1019UL, 12000, 4500, CardinalDirection.South, 4, 9, 5, 6, 2, 6), // the runner
+                Agent(1020UL, 18000, 4500, CardinalDirection.South, 6, 5, 7, 9, 1, 3) // the other hero
             };
         }
 
-        /// <summary>One 1 m door per wall, set off-centre in a pinwheel so each corner has a different nearest exit.</summary>
+        /// <summary>
+        /// The doors. The five in outside walls are the player's, set
+        /// off-centre so different corners have different nearest exits, and
+        /// they start locked. The three inside doors (the storage closet, and
+        /// the corridor at each end) start shut but not locked, so people can
+        /// open them themselves.
+        /// </summary>
         public static FireReactionDoorDefinition[] DefaultDoors()
         {
             return new[]
             {
-                new FireReactionDoorDefinition(new SimulationId(2001UL), WallSide.North, -2500, 1000),
-                new FireReactionDoorDefinition(new SimulationId(2002UL), WallSide.East, 2500, 1000),
-                new FireReactionDoorDefinition(new SimulationId(2003UL), WallSide.South, 2500, 1000),
-                new FireReactionDoorDefinition(new SimulationId(2004UL), WallSide.West, -2500, 1000)
+                new FireReactionDoorDefinition(new SimulationId(2001UL), Office, WallSide.North, -2500, 1000),
+                new FireReactionDoorDefinition(new SimulationId(2002UL), Office, WallSide.East, 2500, 1000, false),
+                new FireReactionDoorDefinition(new SimulationId(2003UL), Office, WallSide.South, 2500, 1000),
+                new FireReactionDoorDefinition(new SimulationId(2004UL), Office, WallSide.West, -2500, 1000),
+                new FireReactionDoorDefinition(new SimulationId(2005UL), Office, WallSide.East, 0, 1000, false),
+                new FireReactionDoorDefinition(new SimulationId(2006UL), Corridor, WallSide.East, 0, 1000, false),
+                new FireReactionDoorDefinition(new SimulationId(2007UL), MeetingRoom, WallSide.North, 15000, 1000),
+                new FireReactionDoorDefinition(new SimulationId(2008UL), MeetingRoom, WallSide.East, 2500, 1000)
             };
         }
 
@@ -470,6 +665,35 @@ namespace Paniq.Simulation
                 Chair(3106UL, -1800, 1375),
                 Chair(3107UL, -1200, 2625),
                 Chair(3108UL, -625, 2000)
+            };
+        }
+
+        /// <summary>The open-plan office where the fire starts.</summary>
+        public static readonly SimulationId Office = new SimulationId(5001UL);
+
+        /// <summary>The storage closet off the office's east wall.</summary>
+        public static readonly SimulationId Closet = new SimulationId(5002UL);
+
+        /// <summary>The short corridor from the office to the meeting room.</summary>
+        public static readonly SimulationId Corridor = new SimulationId(5003UL);
+
+        /// <summary>The meeting room at the far end of the corridor.</summary>
+        public static readonly SimulationId MeetingRoom = new SimulationId(5004UL);
+
+        /// <summary>
+        /// The building: a 12 × 12 m open-plan office where the fire starts, a
+        /// 2 × 2 m storage closet against its east wall, a 3 m corridor east
+        /// out of the office, and a second 12 × 12 m room, the meeting room,
+        /// at the end of it. None of them is a refuge; they are simply rooms.
+        /// </summary>
+        public static FireReactionRoomDefinition[] DefaultRooms()
+        {
+            return new[]
+            {
+                new FireReactionRoomDefinition(Office, new LogicalBounds(-6000, 6000, -6000, 6000)),
+                new FireReactionRoomDefinition(Closet, new LogicalBounds(6000, 8000, 1500, 3500)),
+                new FireReactionRoomDefinition(Corridor, new LogicalBounds(6000, 9000, -1000, 1000)),
+                new FireReactionRoomDefinition(MeetingRoom, new LogicalBounds(9000, 21000, -6000, 6000))
             };
         }
 

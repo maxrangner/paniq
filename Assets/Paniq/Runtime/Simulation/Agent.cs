@@ -1,4 +1,4 @@
-namespace Paniq.Simulation
+﻿namespace Paniq.Simulation
 {
     /// <summary>
     /// One person's runtime state, split by concern so it is clear which
@@ -18,6 +18,7 @@ namespace Paniq.Simulation
     /// <item><see cref="Doors"/>: the door they are running for and doors that failed them.</item>
     /// <item><see cref="Burning"/>: whether they are on fire, and until when.</item>
     /// <item><see cref="Carry"/>: the item they are going for or carrying.</item>
+    /// <item><see cref="Help"/>: the person they are helping, if any.</item>
     /// </list>
     /// </summary>
     internal sealed class Agent
@@ -46,6 +47,7 @@ namespace Paniq.Simulation
         public readonly AgentDoorMemory Doors;
         public readonly AgentBurning Burning = new AgentBurning();
         public readonly AgentCarry Carry = new AgentCarry();
+        public readonly AgentHelp Help = new AgentHelp();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -144,16 +146,55 @@ namespace Paniq.Simulation
         public AgentDoorMemory(int doorCount)
         {
             AvoidUntilTick = new int[doorCount];
+            FoundShut = new bool[doorCount];
         }
 
         /// <summary>The door being run for, or -1.</summary>
         public int ExitDoorIndex = -1;
 
+        /// <summary>The room they are heading at that door from, so approach and target points work from either side.</summary>
+        public int ApproachRoom = -1;
+
+        /// <summary>The room they were in last tick, or -1; a change is the moment to think about the door behind them.</summary>
+        public int CurrentRoom = -1;
+
         /// <summary>Per door: the tick until which this person will not try it again.</summary>
         public readonly int[] AvoidUntilTick;
 
+        /// <summary>Per door: they have stood at it and it would not open, so they stop counting on it.</summary>
+        public readonly bool[] FoundShut;
+
+        /// <summary>Until this tick they stand aside beside their open door, letting whoever is lined up with it through first.</summary>
+        public int GiveWayUntilTick;
+
         public ulong AttemptEventId;
         public int NextShoveTick;
+
+        /// <summary>Their AgentEscaped event, once they are out: anyone they drag out is rescued because of it.</summary>
+        public ulong EscapedEventId;
+    }
+
+    internal sealed class AgentHelp
+    {
+        /// <summary>The person (agent index) being helped, or -1.</summary>
+        public int TargetIndex = -1;
+
+        /// <summary>When the shaking or grabbing is done; 0 while still on the way.</summary>
+        public int WorkEndTick;
+
+        /// <summary>If they have not reached the person by then, they give up.</summary>
+        public int GiveUpTick;
+
+        /// <summary>Someone frozen for good they could not shake awake, and will not try again.</summary>
+        public int GaveUpOnIndex = -1;
+
+        public ulong GrabEventId;
+
+        /// <summary>The door they are dragging someone toward, or -1.</summary>
+        public int DragDoor = -1;
+
+        /// <summary>Where they stood before this tick's move, so a blocked drag can undo it.</summary>
+        public LogicalPosition PositionBeforeMove;
     }
 
     internal sealed class AgentCarry

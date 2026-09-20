@@ -10,7 +10,8 @@ namespace Paniq.Presentation
     /// is smooth at any frame rate, bob with each stride, lean with speed,
     /// tip over when they fall, wobble when staggering, tremble when frozen,
     /// flail with little flames licking up them when on fire, lunge at doors
-    /// they shove, and shrink away when they escape. Each has
+    /// they shove, shake whoever they are shaking awake, lean back when
+    /// dragging someone, and shrink away when they escape. Each has
     /// a vision-cone outline and floating icons.
     /// </summary>
     internal sealed class AgentViews
@@ -187,6 +188,18 @@ namespace Paniq.Presentation
                         // Reeling from a bump.
                         roll = Mathf.Sin(time * 26f + view.ShakePhase) * 14f;
                         lean = -8f;
+                    }
+                    else if (agent.ActivityState == AgentActivityState.ShakingAwake && agent.SpeedMillimetresPerTick == 0)
+                    {
+                        // Shaking someone by the shoulders: a quick back-and-forth.
+                        Vector3 facing = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+                        shake = facing * (Mathf.Sin(time * 30f + view.ShakePhase) * 0.06f);
+                        roll = Mathf.Sin(time * 30f + view.ShakePhase) * 6f;
+                    }
+                    else if (agent.ActivityState == AgentActivityState.Dragging)
+                    {
+                        // Hauling someone along behind them.
+                        lean = -18f;
                     }
                     else if (agent.IsBurning)
                     {

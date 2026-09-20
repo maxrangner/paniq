@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
@@ -229,8 +229,10 @@ namespace Paniq.Simulation
             FireReactionDoorSnapshot[] doors,
             FireReactionPhysicsObjectSnapshot[] physicsObjects,
             FireReactionTableSnapshot[] tables,
-            IReadOnlyList<CausalEvent> events)
+            IReadOnlyList<CausalEvent> events,
+            int clearOfFireCount)
         {
+            ClearOfFireCount = clearOfFireCount;
             this.tables = tables;
             this.doors = doors;
             this.physicsObjects = physicsObjects;
@@ -244,6 +246,10 @@ namespace Paniq.Simulation
         }
 
         public int Tick { get; }
+
+        /// <summary>People still in the building, but in a room with nothing burning in it.</summary>
+        public int ClearOfFireCount { get; }
+
         public bool FireActive { get; }
         public LogicalPosition FireOrigin { get; }
         public int FireCellSizeMillimetres { get; }

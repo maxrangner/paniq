@@ -1,4 +1,4 @@
-using Paniq.Simulation;
+﻿using Paniq.Simulation;
 
 namespace Paniq.Tests.EditMode
 {
@@ -20,14 +20,45 @@ namespace Paniq.Tests.EditMode
             (2001UL, 300), (2001UL, 301), (2003UL, 900), (2003UL, 901)
         };
 
+        /// <summary>
+        /// Cards for the "cards played" runs: Beefcake on the nervous wreck, a
+        /// fire of the player's own, a spare extinguisher put down, and a wall
+        /// blown open. Enough to cover every command type in a replay.
+        /// </summary>
+        public static readonly (PlayerCommandType Card, SimulationId Target, LogicalPosition Point, int Tick)[] Cards =
+        {
+            (PlayerCommandType.PlayBeefcake, new SimulationId(1006UL), default, 200),
+            (PlayerCommandType.SpawnFire, default, new LogicalPosition(3000, 3000), 400),
+            (PlayerCommandType.SpawnExtinguisher, default, new LogicalPosition(-4000, 4000), 600),
+            (PlayerCommandType.BlastWall, default, new LogicalPosition(0, -5900), 800)
+        };
+
         /// <param name="kickBoxes">
         /// Start every box sliding, so box-on-box and box-on-person hits
         /// happen often enough to be covered; the default scenario only
         /// produces a few.
         /// </param>
-        public static ulong Run(FireReactionScenarioData data, ulong seed, bool openDoors, bool kickBoxes = false)
+        public static ulong Run(FireReactionScenarioData data, ulong seed, bool openDoors, bool kickBoxes = false,
+            bool playCards = false)
         {
             var simulation = new FireReactionSimulation(data, seed);
+            if (playCards)
+            {
+                // Queued before the run starts, in card order, so a replay plays
+                // exactly the same hand at exactly the same ticks.
+                foreach ((PlayerCommandType card, SimulationId target, LogicalPosition point, int tick) in Cards)
+                {
+                    if (target.Value != 0UL)
+                    {
+                        simulation.QueueCommand(card, target, tick);
+                    }
+                    else
+                    {
+                        simulation.QueueCommand(card, point, tick);
+                    }
+                }
+            }
+
             if (openDoors)
             {
                 foreach ((ulong doorId, int tick) in OpeningClicks)

@@ -27,7 +27,7 @@ namespace Paniq.Presentation
         private FireView fire;
         private SoundRipples ripples;
         private SprayView spray;
-        private DoorClickInput clicks;
+        private PlayerInput input;
         private FireReactionSnapshot frameSnapshot;
         private SimulationId? hoveredDoor;
         private bool showStats;
@@ -51,7 +51,7 @@ namespace Paniq.Presentation
             fire = new FireView(materials, root);
             ripples = new SoundRipples(materials.Icon, root);
             spray = new SprayView(materials, root);
-            clicks = new DoorClickInput(runner, room);
+            input = new PlayerInput(runner, room);
         }
 
         private void OnDestroy()
@@ -79,7 +79,8 @@ namespace Paniq.Presentation
             float blend = Mathf.Clamp01((Time.time - Time.fixedTime) / Time.fixedDeltaTime);
             FireReactionSnapshot previous = runner.PreviousSnapshot;
 
-            hoveredDoor = clicks.Update(prototypeCamera);
+            input.Update(prototypeCamera, frameSnapshot);
+            hoveredDoor = input.HoveredDoor;
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
             {
@@ -89,6 +90,8 @@ namespace Paniq.Presentation
             PlayNewEvents(frameSnapshot, time);
             agents.Update(frameSnapshot, previous, blend, time, prototypeCamera.transform);
             room.Update(frameSnapshot, hoveredDoor, time, Time.deltaTime);
+            room.UpdateAlarms(frameSnapshot, time);
+            room.UpdateHoles(frameSnapshot);
             boxes.Update(frameSnapshot, previous, blend, time);
             ripples.Update(time);
             fire.Update(frameSnapshot, time);
@@ -101,6 +104,7 @@ namespace Paniq.Presentation
             {
                 PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, hoveredDoor,
                     hoveredDoor.HasValue ? room.StateOf(hoveredDoor.Value) : DoorState.Locked);
+                PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input);
                 if (showStats)
                 {
                     PrototypeHud.DrawStats(frameSnapshot);
@@ -132,6 +136,35 @@ namespace Paniq.Presentation
                         break;
                     case FireReactionEventType.AgentsCollided:
                         ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        break;
+                    case FireReactionEventType.AgentShoved:
+                        // The shover lunges; the person shoved gets the thud.
+                        agents.Lunge(record.SourceId, time);
+                        ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        break;
+                    case FireReactionEventType.AlarmPulled:
+                        agents.Lunge(record.SourceId, time);
+                        break;
+                    case FireReactionEventType.AlarmRang:
+                        // One big ring from every bell, so the noise is visible.
+                        ripples.Start(record.Position, record.Strength, SoundRipples.YellColor, time);
+                        break;
+                    case FireReactionEventType.PowerBeefcake:
+                        agents.Notice(record.TargetId, time);
+                        break;
+                    case FireReactionEventType.PowerBlastedWall:
+                        // A very big ring: the bang carries across the building.
+                        ripples.Start(record.Position, scenario.Blast.BangHearingRadiusMillimetres,
+                            SoundRipples.ThudColor, time);
+                        break;
+                    case FireReactionEventType.ObjectExploded:
+                        // A big ring for the bang, and the thing itself hops.
+                        ripples.Start(record.Position, record.Strength * 6, SoundRipples.ThudColor, time);
+                        boxes.Hop(record.SourceId, 1f, time);
+                        break;
+                    case FireReactionEventType.ObjectBroke:
+                        ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        boxes.Hop(record.SourceId, 0.8f, time);
                         break;
                     case FireReactionEventType.AgentTripped:
                         ripples.Start(record.Position, record.Strength, SoundRipples.ThudColor, time);

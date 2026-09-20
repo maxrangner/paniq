@@ -22,6 +22,9 @@
         private readonly SoundSystem sound;
         private readonly ExitSettings settings;
 
+        /// <summary>Set once the objects exist, for heaving whatever is wedged in a doorway.</summary>
+        private PhysicsObjectSystem objects;
+
         public DoorBehaviour(
             SimulationContext context,
             Crowd crowd,
@@ -322,7 +325,7 @@
                 0,
                 agent.Fear.ScaredEventId,
                 doors.IdOf(door)).EventId;
-            if (doors.StateOf(door) == DoorState.Unlocked)
+            if (doors.StateOf(door) == DoorState.Unlocked && !doors.IsObstructed(door))
             {
                 agent.Intent.Activity = AgentActivityState.OpeningDoor;
                 agent.Intent.ActivityEndTick = checked(context.Tick + settings.DoorOpenTicks);
@@ -339,7 +342,8 @@
             AgentActivityState activity = agent.Intent.Activity;
             return activity == AgentActivityState.OpeningDoor ||
                    activity == AgentActivityState.TryingDoor ||
-                   activity == AgentActivityState.ForcingDoor;
+                   activity == AgentActivityState.ForcingDoor ||
+                   activity == AgentActivityState.ShovingObstruction;
         }
 
         /// <summary>
@@ -371,7 +375,8 @@
                 return false;
             }
 
-            if (state == DoorState.Unlocked && agent.Intent.Activity != AgentActivityState.OpeningDoor)
+            if (state == DoorState.Unlocked && !doors.IsObstructed(door) &&
+                agent.Intent.Activity != AgentActivityState.OpeningDoor)
             {
                 // Unlocked while they were rattling it: it opens at once.
                 doors.Open(door, agent.Doors.AttemptEventId);
@@ -382,6 +387,14 @@
             switch (agent.Intent.Activity)
             {
                 case AgentActivityState.OpeningDoor:
+                    if (doors.IsObstructed(door))
+                    {
+                        // Wedged while they were pulling at it: it will not come.
+                        agent.Intent.Activity = AgentActivityState.TryingDoor;
+                        agent.Intent.ActivityEndTick = checked(tick + settings.DoorTryTicks);
+                        return true;
+                    }
+
                     if (tick >= agent.Intent.ActivityEndTick)
                     {
                         doors.Open(door, agent.Doors.AttemptEventId);
@@ -391,9 +404,38 @@
 
                     return true;
 
+                case AgentActivityState.ShovingObstruction:
+                    if (tick < agent.Intent.ActivityEndTick)
+                    {
+                        return true;
+                    }
+
+                    HeaveObstructionClear(agent, door);
+                    agent.Intent.Activity = AgentActivityState.TryingDoor;
+                    agent.Intent.ActivityEndTick = checked(tick + settings.DoorTryTicks);
+                    return true;
+
                 case AgentActivityState.TryingDoor:
                     if (tick < agent.Intent.ActivityEndTick)
                     {
+                        return true;
+                    }
+
+                    if (doors.IsObstructed(door))
+                    {
+                        // Something is wedged against it. Somebody strong heaves
+                        // it clear; anybody else gives up as they would on a
+                        // locked door.
+                        if (agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength)
+                        {
+                            agent.Intent.Activity = AgentActivityState.ShovingObstruction;
+                            agent.Intent.ActivityEndTick = checked(tick + context.Scenario.Blockades.ShoveTicks);
+                        }
+                        else
+                        {
+                            GiveUp(agent);
+                        }
+
                         return true;
                     }
 
@@ -502,6 +544,27 @@
             return true;
         }
 
+        /// <summary>
+        /// Heaves whatever is wedged in a doorway out along the wall, to the side
+        /// the heaver is standing, because nothing ever goes through a doorway.
+        /// The stronger they are, the further it goes.
+        /// </summary>
+        private void HeaveObstructionClear(Agent agent, int door)
+        {
+            int thing = doors.ObstructionIn(door);
+            if (thing < 0)
+            {
+                return;
+            }
+
+            BlockadeSettings blockades = context.Scenario.Blockades;
+            long offset = geometry.AlongOffset(door, agent.Body.Position);
+            int side = offset < 0L ? -1 : 1;
+            int along = geometry.AlongWallHeading(door, side);
+            int speed = blockades.ShoveSpeedBase + blockades.ShoveSpeedPerStrength * agent.Traits.Strength;
+            objects.ShoveAside(thing, agent, along, speed, agent.Doors.AttemptEventId);
+        }
+
         /// <summary>Stuck in the crowd on the way to a door: try another for a little while.</summary>
         public void AvoidCrowdedExit(Agent agent)
         {
@@ -515,14 +578,17 @@
         }
 
         /// <summary>
-        /// Whether to shut <paramref name="door"/> behind them, by personality:
-        /// the evil shut it and lock it even with someone coming (only a body
-        /// in the doorway stops them); the compassionate never shut it on
-        /// someone coming; otherwise, with nobody coming, the nervous shut it,
-        /// and so do the brave and kind if fire is getting near. Fire right
-        /// outside the door of the room they are in makes anyone shut it.
+        /// The door they have just come through: only the cruel shut it behind
+        /// them, and they do it whoever is running up (only a body in the
+        /// doorway stops them). The cruellest turn the key as well. Everyone
+        /// else leaves it for the people behind them — unless the room they
+        /// have just left is alight, which is
+        /// <see cref="ConsiderShuttingAgainstFire"/>'s business, not spite.
         /// </summary>
-        public void ConsiderClosing(Agent agent, int door, ulong causeEventId)
+        /// <summary>Wired up after construction, because the objects are built after this behaviour.</summary>
+        public void UseObjects(PhysicsObjectSystem physicsObjects) => objects = physicsObjects;
+
+        public void ConsiderSlammingBehind(Agent agent, int door, int previousRoom, ulong causeEventId)
         {
             if (doors.StateOf(door) != DoorState.Open)
             {
@@ -530,42 +596,56 @@
             }
 
             AgentTraitValues traits = agent.Traits;
-            LogicalPosition doorCentre = geometry.DoorCentre(door);
-            bool evil = traits.Evil >= settings.EvilCloseMinimum;
-            int room = geometry.RoomAt(agent.Body.Position);
-            bool fireAtDoor = room >= 0 && !fire.IsBurningInRoom(room) &&
-                              fire.AnyCloserThan(doorCentre, settings.FireAtDoorRadiusMillimetres);
-            bool shut;
-            if (evil || fireAtDoor)
+            if (traits.Evil < settings.EvilCloseMinimum)
             {
-                shut = true;
-            }
-            else if (SomeoneComing(agent, door, room))
-            {
-                shut = false;
-            }
-            else if (traits.Compassion >= settings.CompassionHoldMinimum && !fire.AnyCloserThan(doorCentre, settings.CloseFireRadiusMillimetres))
-            {
-                // Keeps it open for stragglers while the fire is still well away.
-                shut = false;
-            }
-            else
-            {
-                shut = traits.Nervousness >= settings.NervousCloseMinimum ||
-                       (traits.Bravery + traits.Compassion >= settings.BraveKindCloseSum &&
-                        fire.AnyCloserThan(doorCentre, settings.CloseFireRadiusMillimetres));
-            }
+                // Not cruel: the only reason left to shut it is the fire.
+                if (previousRoom >= 0 && fire.IsBurningInRoom(previousRoom))
+                {
+                    ConsiderShuttingAgainstFire(agent, door, causeEventId);
+                }
 
-            if (!shut)
-            {
                 return;
             }
 
             ulong closed = doors.TryClose(door, agent.Id, causeEventId, agent);
-            if (closed != 0UL && evil)
+            if (closed != 0UL && traits.Evil >= settings.EvilLockMinimum)
             {
                 doors.Lock(door, agent, closed);
             }
+        }
+
+        /// <summary>
+        /// A door with fire beyond it, and they are standing in a room that is
+        /// not alight: anyone shuts that, cruel or not, because it is the fire
+        /// they are shutting out and not the people. The kind hold it open
+        /// while somebody is still coming through — but not once the flames are
+        /// right at the door.
+        /// </summary>
+        public void ConsiderShuttingAgainstFire(Agent agent, int door, ulong causeEventId)
+        {
+            if (doors.StateOf(door) != DoorState.Open)
+            {
+                return;
+            }
+
+            int room = geometry.RoomAt(agent.Body.Position);
+            if (room < 0 || fire.IsBurningInRoom(room))
+            {
+                // Their own room is alight: shutting this door saves nobody.
+                return;
+            }
+
+            LogicalPosition doorCentre = geometry.DoorCentre(door);
+            bool flamesAtTheDoor = fire.AnyCloserThan(doorCentre, settings.FireAtDoorRadiusMillimetres);
+            if (!flamesAtTheDoor &&
+                agent.Traits.Compassion >= settings.CompassionHoldMinimum &&
+                SomeoneComing(agent, door, room))
+            {
+                // Holding it for whoever is still coming through.
+                return;
+            }
+
+            doors.TryClose(door, agent.Id, causeEventId, agent);
         }
 
         /// <summary>Anyone else still in the run near the door, on the side the closer is not.</summary>
@@ -617,7 +697,7 @@
                     continue;
                 }
 
-                ConsiderClosing(agent, door, agent.Fear.ScaredEventId);
+                ConsiderShuttingAgainstFire(agent, door, agent.Fear.ScaredEventId);
             }
         }
 
@@ -645,7 +725,7 @@
                     agent.Doors.CurrentRoom = room;
                     if (previous >= 0 && !agent.Burning.IsBurning)
                     {
-                        ConsiderClosingBehind(agent, room, previous);
+                        ConsiderSlammingTheDoorBehind(agent, room, previous);
                     }
                 }
 
@@ -667,13 +747,13 @@
                     agent.Body.Position, 0, 0, doors.OpenedEventIdOf(door), doors.IdOf(door)).EventId;
                 agent.Doors.EscapedEventId = escaped;
 
-                // Out: shut the door behind them, or leave it open for the others?
-                ConsiderClosing(agent, door, escaped);
+                // Out: only the cruel shut it behind them.
+                ConsiderSlammingBehind(agent, door, agent.Doors.CurrentRoom, escaped);
             }
         }
 
-        /// <summary>Just through a door into the next room: shut it behind them, or leave it for the others?</summary>
-        private void ConsiderClosingBehind(Agent agent, int room, int previousRoom)
+        /// <summary>Just through a door into the next room: the cruel shut it behind them, and the fire makes anyone shut it.</summary>
+        private void ConsiderSlammingTheDoorBehind(Agent agent, int room, int previousRoom)
         {
             long reach = settings.CloseReachMillimetres;
             int[] candidates = geometry.RoomDoors(room);
@@ -686,7 +766,7 @@
                     continue;
                 }
 
-                ConsiderClosing(agent, door, agent.Fear.ScaredEventId);
+                ConsiderSlammingBehind(agent, door, previousRoom, agent.Fear.ScaredEventId);
             }
         }
     }

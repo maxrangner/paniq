@@ -31,6 +31,16 @@ namespace Paniq.Simulation
         private readonly ExitSettings exits;
         private readonly LogicalBounds[] tables;
         private readonly SimulationId[] tableIds;
+
+        /// <summary>How many of the door slots are really there; the rest are spare.</summary>
+        private int placedCount;
+
+        /// <summary>
+        /// A table that has been smashed. It leaves wreckage on the floor but
+        /// stops being something people have to walk around, so the shape of the
+        /// room changes mid-run.
+        /// </summary>
+        private readonly bool[] tableBroken;
         private readonly LogicalBounds[] rooms;
         private readonly SimulationId[] roomIds;
 
@@ -38,7 +48,7 @@ namespace Paniq.Simulation
         private readonly int[] doorNeighbour;
 
         /// <summary>Per room: every door in its walls, whichever room holds the door.</summary>
-        private readonly int[][] roomDoors;
+        private int[][] roomDoors;
 
         // Route-finding scratch space, reused every call so a run allocates nothing.
         private readonly long[] routeCost;
@@ -57,6 +67,7 @@ namespace Paniq.Simulation
             Array.Sort(definitions, (left, right) => left.TableId.CompareTo(right.TableId));
             tables = new LogicalBounds[definitions.Length];
             tableIds = new SimulationId[definitions.Length];
+            tableBroken = new bool[definitions.Length];
             for (int i = 0; i < tables.Length; i++)
             {
                 tables[i] = definitions[i].Bounds;
@@ -74,34 +85,16 @@ namespace Paniq.Simulation
             }
 
             doorNeighbour = new int[doors.Length];
-            var counts = new int[rooms.Length];
+
+            // Doors the scenario authored come first; the spare slots a blast
+            // hole can be placed in sit at the tail and are not in the world yet.
+            placedCount = 0;
             for (int d = 0; d < doors.Length; d++)
             {
-                doorNeighbour[d] = FindNeighbour(d);
-                counts[doors[d].Room]++;
-                if (doorNeighbour[d] >= 0)
-                {
-                    counts[doorNeighbour[d]]++;
-                }
+                placedCount += doors[d].Placed ? 1 : 0;
             }
 
-            roomDoors = new int[rooms.Length][];
-            for (int r = 0; r < rooms.Length; r++)
-            {
-                roomDoors[r] = new int[counts[r]];
-                counts[r] = 0;
-            }
-
-            for (int d = 0; d < doors.Length; d++)
-            {
-                int room = doors[d].Room;
-                roomDoors[room][counts[room]++] = d;
-                int beyond = doorNeighbour[d];
-                if (beyond >= 0)
-                {
-                    roomDoors[beyond][counts[beyond]++] = d;
-                }
-            }
+            BuildRoomDoors();
 
             routeCost = new long[rooms.Length];
             routeFirstDoor = new int[rooms.Length];
@@ -425,7 +418,266 @@ namespace Paniq.Simulation
 
         public SimulationId TableId(int table) => tableIds[table];
 
-        public int DoorCount => doors.Length;
+        /// <summary>
+        /// Blasts a hole through the wall nearest <paramref name="where"/> and
+        /// fills in the spare slot <paramref name="slot"/> with it. Refuses when
+        /// no wall is near enough, the wall is too short, or the hole would run
+        /// over a corner or into an opening that is already there.
+        /// <para>
+        /// The wall is chosen in whole millimetres, and ties go to the lowest room
+        /// index and then the wall order, so the same click always blasts the same
+        /// wall however the rooms were authored.
+        /// </para>
+        /// </summary>
+        public bool TryPlaceHole(int slot, LogicalPosition where, out LogicalPosition centre)
+        {
+            centre = default;
+            BlastSettings blast = context.Scenario.Blast;
+            int bestRoom = -1;
+            WallSide bestSide = WallSide.North;
+            long bestDistance = long.MaxValue;
+            long bestAlong = 0L;
+
+            for (int r = 0; r < rooms.Length; r++)
+            {
+                LogicalBounds room = rooms[r];
+                for (int side = 0; side < 4; side++)
+                {
+                    var wall = (WallSide)side;
+                    bool alongX = wall == WallSide.North || wall == WallSide.South;
+                    long line = wall == WallSide.North ? room.MaxZ
+                        : wall == WallSide.South ? room.MinZ
+                        : wall == WallSide.East ? room.MaxX
+                        : room.MinX;
+                    long along = alongX ? where.X : where.Z;
+                    long across = alongX ? where.Z : where.X;
+                    long lowest = alongX ? room.MinX : room.MinZ;
+                    long highest = alongX ? room.MaxX : room.MaxZ;
+                    if (along < lowest || along > highest)
+                    {
+                        continue;
+                    }
+
+                    long distance = Math.Abs(across - line);
+                    if (distance > blast.WallReachMillimetres || distance >= bestDistance)
+                    {
+                        continue;
+                    }
+
+                    bestDistance = distance;
+                    bestRoom = r;
+                    bestSide = wall;
+                    bestAlong = along;
+                }
+            }
+
+            if (bestRoom < 0)
+            {
+                return false;
+            }
+
+            // The whole gap, plus a body's width of wall at each end, has to fit
+            // along that wall.
+            LogicalBounds owner = rooms[bestRoom];
+            bool ownerAlongX = bestSide == WallSide.North || bestSide == WallSide.South;
+            long wallLow = ownerAlongX ? owner.MinX : owner.MinZ;
+            long wallHigh = ownerAlongX ? owner.MaxX : owner.MaxZ;
+            long half = blast.HoleWidthMillimetres / 2L;
+            long margin = half + radius;
+            if (wallHigh - wallLow < margin * 2L)
+            {
+                return false;
+            }
+
+            long at = Math.Max(wallLow + margin, Math.Min(wallHigh - margin, bestAlong));
+            if (!HoleFits(bestRoom, bestSide, (int)at, blast.HoleWidthMillimetres, blast.ClearanceMillimetres) ||
+                WouldStraddle(bestRoom, bestSide, (int)at, blast.HoleWidthMillimetres))
+            {
+                return false;
+            }
+
+            doors[slot].Room = bestRoom;
+            doors[slot].Side = bestSide;
+            doors[slot].Centre = (int)at;
+            doors[slot].Width = blast.HoleWidthMillimetres;
+            doors[slot].State = DoorState.Broken;
+            doors[slot].Placed = true;
+            placedCount++;
+            BuildRoomDoors();
+            centre = DoorCentre(slot);
+            return true;
+        }
+
+        /// <summary>
+        /// Whether a gap here would open half into the next room and half into
+        /// solid wall, which the scenario refuses for authored doors and which
+        /// would leave a hole that goes nowhere in particular.
+        /// </summary>
+        private bool WouldStraddle(int room, WallSide side, int at, int width)
+        {
+            LogicalBounds mine = rooms[room];
+            bool alongX = side == WallSide.North || side == WallSide.South;
+            int half = width / 2;
+            for (int r = 0; r < rooms.Length; r++)
+            {
+                if (r == room)
+                {
+                    continue;
+                }
+
+                LogicalBounds other = rooms[r];
+                bool flush;
+                switch (side)
+                {
+                    case WallSide.North:
+                        flush = other.MinZ == mine.MaxZ;
+                        break;
+                    case WallSide.South:
+                        flush = other.MaxZ == mine.MinZ;
+                        break;
+                    case WallSide.East:
+                        flush = other.MinX == mine.MaxX;
+                        break;
+                    default:
+                        flush = other.MaxX == mine.MinX;
+                        break;
+                }
+
+                if (!flush)
+                {
+                    continue;
+                }
+
+                int otherMin = alongX ? other.MinX : other.MinZ;
+                int otherMax = alongX ? other.MaxX : other.MaxZ;
+                bool overlapsAtAll = otherMax > at - half && otherMin < at + half;
+                bool coversItAll = otherMin <= at - half && otherMax >= at + half;
+                if (overlapsAtAll && !coversItAll)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Whether a gap this wide, centred here, keeps clear of every opening
+        /// already in the same wall line — whichever room owns it.
+        /// </summary>
+        private bool HoleFits(int room, WallSide side, int at, int width, int clearance)
+        {
+            for (int d = 0; d < placedCount; d++)
+            {
+                if (!SharesWallLine(d, room, side))
+                {
+                    continue;
+                }
+
+                long needed = (doors[d].Width + width) / 2L + clearance;
+                if (Math.Abs((long)doors[d].Centre - at) < needed)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Whether a door sits in the same wall line as this room's side. Two rooms
+        /// share a wall, so a door in the room on the far side of it counts too.
+        /// </summary>
+        private bool SharesWallLine(int door, int room, WallSide side)
+        {
+            LogicalBounds mine = rooms[room];
+            long myLine = side == WallSide.North ? mine.MaxZ
+                : side == WallSide.South ? mine.MinZ
+                : side == WallSide.East ? mine.MaxX
+                : mine.MinX;
+            bool myAlongX = side == WallSide.North || side == WallSide.South;
+
+            LogicalBounds theirs = rooms[doors[door].Room];
+            WallSide their = doors[door].Side;
+            long theirLine = their == WallSide.North ? theirs.MaxZ
+                : their == WallSide.South ? theirs.MinZ
+                : their == WallSide.East ? theirs.MaxX
+                : theirs.MinX;
+            bool theirAlongX = their == WallSide.North || their == WallSide.South;
+            return myAlongX == theirAlongX && myLine == theirLine;
+        }
+
+        /// <summary>
+        /// Which doors touch which room, and what lies beyond each door. The only
+        /// two things this class caches per door, so placing a blast hole rebuilds
+        /// exactly this and nothing else. Kept in one method because the order
+        /// doors appear in per room decides the order behaviours consider them,
+        /// which is part of the replay contract.
+        /// </summary>
+        private void BuildRoomDoors()
+        {
+            var counts = new int[rooms.Length];
+            for (int d = 0; d < placedCount; d++)
+            {
+                doorNeighbour[d] = FindNeighbour(d);
+                counts[doors[d].Room]++;
+                if (doorNeighbour[d] >= 0)
+                {
+                    counts[doorNeighbour[d]]++;
+                }
+            }
+
+            roomDoors = new int[rooms.Length][];
+            for (int r = 0; r < rooms.Length; r++)
+            {
+                roomDoors[r] = new int[counts[r]];
+                counts[r] = 0;
+            }
+
+            for (int d = 0; d < placedCount; d++)
+            {
+                int room = doors[d].Room;
+                roomDoors[room][counts[room]++] = d;
+                int beyond = doorNeighbour[d];
+                if (beyond >= 0)
+                {
+                    roomDoors[beyond][counts[beyond]++] = d;
+                }
+            }
+        }
+
+        /// <summary>Smashed: it is wreckage on the floor and no longer in anybody's way.</summary>
+        public bool IsTableBroken(int table) => tableBroken[table];
+
+        /// <summary>
+        /// Which unbroken table a moving thing of this size would run into on
+        /// its way, or -1. Used to work out what a flying object just hit.
+        /// </summary>
+        public int TableHit(LogicalPosition from, LogicalPosition to, int radius)
+        {
+            for (int t = 0; t < tables.Length; t++)
+            {
+                if (!tableBroken[t] && IntegerMath.SweptCircleOverlapsBounds(from, to, radius, tables[t]))
+                {
+                    return t;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Smashes a table. Nothing else about the world changes, because a
+        /// table is only ever a rectangle people and objects keep out of.
+        /// </summary>
+        public void BreakTable(int table) => tableBroken[table] = true;
+
+        /// <summary>
+        /// The openings that are actually in the world. Spare slots for blast
+        /// holes live past this, so every loop over doors skips them without
+        /// having to know they exist.
+        /// </summary>
+        public int DoorCount => placedCount;
 
         /// <summary>Open, or broken down: either way there is a gap to walk through.</summary>
         public bool IsDoorOpen(int door) => doors[door].State == DoorState.Open || doors[door].State == DoorState.Broken;
@@ -440,6 +692,11 @@ namespace Paniq.Simulation
         {
             for (int t = 0; t < tables.Length; t++)
             {
+                if (tableBroken[t])
+                {
+                    continue;
+                }
+
                 LogicalBounds b = tables[t];
                 if (position.X > b.MinX - bodyRadius && position.X < b.MaxX + bodyRadius &&
                     position.Z > b.MinZ - bodyRadius && position.Z < b.MaxZ + bodyRadius)
@@ -456,7 +713,7 @@ namespace Paniq.Simulation
         {
             for (int t = 0; t < tables.Length; t++)
             {
-                if (IntegerMath.SweptCircleOverlapsBounds(from, to, radius, tables[t]))
+                if (!tableBroken[t] && IntegerMath.SweptCircleOverlapsBounds(from, to, radius, tables[t]))
                 {
                     return true;
                 }
@@ -478,6 +735,11 @@ namespace Paniq.Simulation
             hitZ = false;
             for (int t = 0; t < tables.Length; t++)
             {
+                if (tableBroken[t])
+                {
+                    continue;
+                }
+
                 LogicalBounds b = tables[t];
                 int minX = b.MinX - bodyRadius;
                 int maxX = b.MaxX + bodyRadius;
@@ -575,6 +837,23 @@ namespace Paniq.Simulation
                    (doorNeighbour[door] < 0 && beyond > 0L && beyond <= exits.DoorwayDepthMillimetres);
         }
 
+        /// <summary>
+        /// A thing of this size resting here would jam the door: in front of the
+        /// gap, and close enough to the wall line on either side to be in the
+        /// leaf's way. Symmetric about the wall, because a bag wedged against a
+        /// door stops it whichever side it is on.
+        /// </summary>
+        public bool IsObjectInDoorway(int door, LogicalPosition where, int objectRadius, int gap)
+        {
+            long along = Math.Abs(AlongOffset(door, where));
+            if (along >= doors[door].Width / 2 + (long)objectRadius)
+            {
+                return false;
+            }
+
+            return Math.Abs(BeyondDistance(door, where)) <= objectRadius + (long)gap;
+        }
+
         /// <summary>How far past the door's wall a point is, out of the door's own room (negative inside it).</summary>
         private long BeyondDistance(int door, LogicalPosition position)
         {
@@ -598,6 +877,18 @@ namespace Paniq.Simulation
         {
             long beyond = BeyondDistance(door, position);
             return doors[door].Room == room || room < 0 ? beyond : -beyond;
+        }
+
+        /// <summary>
+        /// The heading that runs along a door's wall, toward the positive side
+        /// when <paramref name="side"/> is 1 and the other way when it is -1.
+        /// Used to heave an obstruction out of a doorway sideways.
+        /// </summary>
+        public int AlongWallHeading(int door, int side)
+        {
+            bool alongX = doors[door].Side == WallSide.North || doors[door].Side == WallSide.South;
+            int heading = alongX ? 90 : 0;
+            return IntegerMath.NormalizeDegrees(side >= 0 ? heading : heading + 180);
         }
 
         /// <summary>How far along the wall a point is from the door's centre.</summary>
@@ -660,7 +951,7 @@ namespace Paniq.Simulation
                 return TableAt(position, radius) < 0;
             }
 
-            for (int d = 0; d < doors.Length; d++)
+            for (int d = 0; d < placedCount; d++)
             {
                 if (CanUseDoorway(d, current, exitDoor) && DoorwayStrip(d).ContainsCircle(position, radius))
                 {
@@ -692,7 +983,7 @@ namespace Paniq.Simulation
             }
 
             // In a doorway: keep to its strip.
-            for (int d = 0; d < doors.Length; d++)
+            for (int d = 0; d < placedCount; d++)
             {
                 LogicalBounds strip = DoorwayStrip(d);
                 if (CanUseDoorway(d, current, exitDoor) && strip.ContainsCircle(current, radius))
@@ -708,7 +999,7 @@ namespace Paniq.Simulation
         public bool ClipsDoorFrame(LogicalPosition start, LogicalPosition destination)
         {
             long radiusSquared = (long)radius * radius;
-            for (int d = 0; d < doors.Length; d++)
+            for (int d = 0; d < placedCount; d++)
             {
                 if (!IsDoorOpen(d))
                 {
@@ -755,6 +1046,11 @@ namespace Paniq.Simulation
             // Away from the nearest point of each nearby table, like a wall.
             for (int t = 0; t < tables.Length; t++)
             {
+                if (tableBroken[t])
+                {
+                    continue;
+                }
+
                 LogicalPosition closest = tables[t].ClosestPoint(position);
                 long dx = (long)position.X - closest.X;
                 long dz = (long)position.Z - closest.Z;
@@ -841,7 +1137,7 @@ namespace Paniq.Simulation
                 return -1;
             }
 
-            for (int d = 0; d < doors.Length; d++)
+            for (int d = 0; d < placedCount; d++)
             {
                 if (IsDoorOpen(d) && doorNeighbour[d] < 0 &&
                     BeyondDistance(d, position) >= exits.EscapeDepthMillimetres &&

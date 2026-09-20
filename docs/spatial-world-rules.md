@@ -157,7 +157,7 @@ has escaped and leaves occupancy at once.
 also occupy space: a person's sweep may not pass through one, and a box's sweep
 may not pass through a person or another box. Box positions keep hundredths of
 a millimetre so slow slides do not round away, but every overlap test uses
-whole millimetres. Objects stay inside the room and treat doorways as wall.
+whole millimetres. Objects stay inside the room and treat doorways as wall (they never pass through one), but an object may come to rest *in* a doorway, against the wall line, and one that does jams that door.
 
 ## Resolution examples
 
@@ -194,3 +194,35 @@ of. The first room is where the fire starts.
 
 A scenario is refused if two rooms overlap, if a door names a room that does
 not exist, or if a door would open half into a room and half into its wall.
+
+## Prototype extensions
+
+These are rules the fire-reaction prototype added on top of the foundation
+above. They are recorded here because they change what the shape of the world
+means, not just what happens in it.
+
+**A thing resting in a doorway jams the door.** A loose object in front of a
+door's gap, within its own radius plus a small clearance of the wall line on
+either side, stops that door opening *and* stops it shutting. It is worked out
+once at the end of each tick, after every object has finished moving, so the
+decisions in the following tick read a settled answer. Fire, sound and sight are
+deliberately unaffected: a cardboard box does not stop flames or shouting, so the
+geometry never needs to know about objects.
+
+**A smashed table stops being an obstacle.** Tables are fixed rectangles that
+people, objects and route choices all keep out of. A table that has been broken
+is flagged, and from then on every one of those queries skips it: the floor it
+stood on becomes walkable, and routes may cross it. This is the one thing in the
+prototype that changes the shape of a room during a run.
+
+**An opening may appear during a run.** A blast hole is not a new kind of thing:
+it is one of a fixed number of spare door slots the scenario reserves, filled in
+at the moment a charge is spent and set permanently open. Walkability, route
+finding, fire spread, sound, sight and escaping all ask about doors, so they pick
+a hole up with no rules of their own. Two consequences are load-bearing. A spare
+slot that has not been placed must be skipped by *every* loop over doors,
+because an unplaced slot reads as a door leading outside and would be routed to.
+And placing one must rebuild exactly the two things the geometry caches per door —
+what lies beyond it, and which doors touch which room — through the same code the
+constructor uses, because the order doors appear in per room decides the order
+behaviours consider them.

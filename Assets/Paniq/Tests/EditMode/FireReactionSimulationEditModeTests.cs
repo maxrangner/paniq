@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("29"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(21));
+            Assert.That(data.ContentRevision, Is.EqualTo("30"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(22));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -221,9 +221,13 @@ namespace Paniq.Tests.EditMode
                 else
                 {
                     Assert.That(ignition.EventType, Is.EqualTo(FireReactionEventType.FireSpread));
-                    if (simulation.EventLog.Get(ignition.CausalParentEventId).EventType == FireReactionEventType.ObjectCaughtFire)
+                    FireReactionEventType cause = simulation.EventLog.Get(ignition.CausalParentEventId).EventType;
+                    if (cause == FireReactionEventType.ObjectCaughtFire ||
+                        cause == FireReactionEventType.ObjectExploded)
                     {
-                        // Lit by a burning box, chair or table resting on it; that is the burning thing's own rule.
+                        // Lit by a burning box, chair or table resting on it, or
+                        // scattered by something electrical going off. Both are
+                        // those things' own rules, not the fire spreading.
                         cellByEvent.Add(cell.EventId, cell);
                         continue;
                     }
@@ -985,8 +989,12 @@ namespace Paniq.Tests.EditMode
 
             data.Agents = crowd.ToArray();
 
-            // A bare room, so the grid of people fits, and nobody who shakes the frozen awake.
+            // A bare room, so the grid of people fits, and nobody who shakes the
+            // frozen awake. Nobody cruel enough to heave them aside either:
+            // this test is about never moving of one's own accord, and being
+            // shoved is somebody else's doing (see the shoving tests).
             data.Help.ShakeMinimumCompassion = AgentTraitValues.Maximum + 1;
+            data.Falls.ShoveMinimumEvil = AgentTraitValues.Maximum + 1;
             data.Tables = new FireReactionTableDefinition[0];
             data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
             var simulation = new FireReactionSimulation(data);

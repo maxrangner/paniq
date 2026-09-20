@@ -20,6 +20,11 @@ namespace Paniq.Simulation
         private readonly Agent[] agents;
         private readonly FireSystem fire;
         private readonly DoorSystem doors;
+        private readonly PlayerCommandSystem playerCommands;
+        private readonly InfluenceSystem influence;
+
+        /// <summary>How many people had got out as of the end of last tick, so this tick can pay for the new ones.</summary>
+        private int escapedLastTick;
         private readonly FearSystem fear;
         private readonly PerceptionSystem perception;
         private readonly BodySystem body;
@@ -36,6 +41,8 @@ namespace Paniq.Simulation
         private readonly ChairBehaviour chairs;
         private readonly ExtinguisherBehaviour extinguishers;
         private readonly LeaderBehaviour leaders;
+        private readonly AlarmSystem alarms;
+        private readonly AlarmBehaviour alarmBehaviour;
         private readonly WorldGeometry geometry;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
@@ -60,24 +67,71 @@ namespace Paniq.Simulation
             var crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres);
             doors = new DoorSystem(context, doorStates, geometry);
             doors.UseCrowd(crowd);
+            playerCommands = new PlayerCommandSystem(context);
+            influence = new InfluenceSystem(context);
             var sound = new SoundSystem(context, crowd, fire, fear, geometry);
             perception = new PerceptionSystem(context, fire, fear, sound);
-            body = new BodySystem(context, crowd, geometry, fire, sound);
+            body = new BodySystem(context, crowd, geometry, fire, sound, fear);
             collisions = new CollisionSystem(context, crowd, body, fear, sound);
             objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound);
+            body.UseObjects(objects);
+            doors.UseObjects(objects);
+            GiveOutStartingPossessions();
             locomotion = new Locomotion(context, crowd, geometry, fire, body, collisions, objects);
-            flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
+            flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body, sound);
             items = new ItemBehaviour(context, geometry, objects, flammables);
             chairs = new ChairBehaviour(context, crowd, geometry, objects);
             calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs);
             doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
+            doorBehaviour.UseObjects(objects);
             help = new HelpBehaviour(context, crowd, geometry, fire, fear, body, objects, locomotion);
+            help.UseDoors(doors);
             panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, chairs, locomotion);
             burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
             extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
             panic.UseExtinguishers(extinguishers);
             leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion);
             panic.UseLeaders(leaders);
+            alarms = new AlarmSystem(context, sound, geometry);
+            alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion);
+            panic.UseAlarms(alarmBehaviour);
+            var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, fire, objects, flammables, locomotion);
+            panic.UseBarricades(barricades);
+            playerCommands.Use(doors, fire, objects, crowd, influence, sound, body);
+        }
+
+        /// <summary>
+        /// Puts the things people walk in holding into their arms. Done once the
+        /// objects exist, and it draws no random numbers, so the start-up draw
+        /// order above is untouched.
+        /// </summary>
+        private void GiveOutStartingPossessions()
+        {
+            FireReactionAgentDefinition[] definitions = context.Scenario.Agents;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                SimulationId carried = default;
+                for (int d = 0; d < definitions.Length; d++)
+                {
+                    if (definitions[d].AgentId == agent.Id)
+                    {
+                        carried = definitions[d].CarriedObjectId;
+                        break;
+                    }
+                }
+
+                if (carried.Value == 0UL)
+                {
+                    continue;
+                }
+
+                int item = objects.IndexOf(carried);
+                agent.Carry.ItemIndex = item;
+                agent.Carry.Holding = true;
+                agent.Carry.OwnsIt = true;
+                objects.PickUp(item, agent);
+            }
         }
 
         private Agent[] CreateAgents(int doorCount)
@@ -132,8 +186,31 @@ namespace Paniq.Simulation
 
         public int DoorCount => doors.Count;
 
+        /// <summary>The fire alarms, for the display.</summary>
+        public int AlarmCount => alarms.Count;
+
+        public SimulationId AlarmId(int index) => alarms.IdOf(index);
+
+        public LogicalPosition AlarmPosition(int index) => alarms.PositionOf(index);
+
+        /// <summary>Whether the alarms are ringing.</summary>
+        public bool AlarmsRinging => alarms.Ringing;
+
+        /// <summary>What the player has left to spend on cards.</summary>
+        public int Influence => influence.Influence;
+
+        /// <summary>Influence earned back by getting people out, and spent on cards, for the display.</summary>
+        public int InfluenceEarned => influence.Earned;
+        public int InfluenceSpent => influence.Spent;
+
+        /// <summary>How many sticks of TNT the player has left.</summary>
+        public int BlastChargesRemaining => doors.BlastChargesRemaining;
+
+        /// <summary>What a card costs, so the display can grey out what the player cannot afford.</summary>
+        public int CostOf(PlayerCommandType card) => influence.CostOf(card);
+
         /// <summary>Every command queued so far, in sequence order. Replaying them gives the same run.</summary>
-        public IReadOnlyList<PlayerCommand> Commands => doors.Commands;
+        public IReadOnlyList<PlayerCommand> Commands => playerCommands.Commands;
 
         public int PhysicsObjectCount => objects.Count;
 
@@ -167,6 +244,9 @@ namespace Paniq.Simulation
         /// <summary>Tests only: sets an object sliding at a velocity in millimetres per tick.</summary>
         internal void LaunchObjectForTests(int index, int velocityX, int velocityZ) => objects.Launch(index, velocityX, velocityZ);
 
+        /// <summary>Tests only: whether a straight walk between two points runs into a table that is still standing.</summary>
+        internal bool RouteCrossesTableForTests(LogicalPosition from, LogicalPosition to) => geometry.RouteCrossesTable(from, to);
+
         /// <summary>Tests only: the fire system, to check its queries against a brute-force answer.</summary>
         internal FireSystem FireForTests => fire;
 
@@ -176,7 +256,16 @@ namespace Paniq.Simulation
         /// </summary>
         public PlayerCommand QueueCommand(PlayerCommandType commandType, SimulationId targetId, int targetTick)
         {
-            return doors.QueueCommand(commandType, targetId, targetTick);
+            return playerCommands.Queue(commandType, targetId, default, targetTick);
+        }
+
+        /// <summary>
+        /// Queues a player action aimed at a place rather than at a thing, in
+        /// whole millimetres. Same rules as the overload above.
+        /// </summary>
+        public PlayerCommand QueueCommand(PlayerCommandType commandType, LogicalPosition point, int targetTick)
+        {
+            return playerCommands.Queue(commandType, default, point, targetTick);
         }
 
         /// <summary>
@@ -190,7 +279,7 @@ namespace Paniq.Simulation
         public void Step()
         {
             context.Tick = checked(context.Tick + 1);
-            doors.ConsumeCommands();
+            playerCommands.Consume();
             fire.Advance();
             ResolveCurrentFireContact();
 
@@ -268,6 +357,29 @@ namespace Paniq.Simulation
             objects.ResolveContacts();
             objects.Advance();
             flammables.Update();
+            doors.ResolveBlockages();
+            CreditInfluenceForPeopleSaved();
+        }
+
+        /// <summary>
+        /// Everybody who got out this tick pays the player back. Counted rather
+        /// than reported by the behaviours, so nothing in the simulation has to
+        /// know the player's purse exists.
+        /// </summary>
+        private void CreditInfluenceForPeopleSaved()
+        {
+            int escaped = 0;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                escaped += agents[i].Outcome == AgentTerminalOutcome.Escaped ? 1 : 0;
+            }
+
+            for (int saved = escapedLastTick; saved < escaped; saved++)
+            {
+                influence.CreditPersonSaved();
+            }
+
+            escapedLastTick = escaped;
         }
 
         /// <summary>Phase 3: anyone standing in fire catches fire.</summary>
@@ -332,7 +444,26 @@ namespace Paniq.Simulation
                 PhysicsObjectSnapshots(),
                 flammables.GetTableSnapshots(),
                 context.Events.View(),
-                CountClearOfFire());
+                CountClearOfFire(),
+                alarms.Ringing,
+                influence.Influence,
+                context.Scenario.Influence.Maximum,
+                influence.Spent,
+                influence.Earned,
+                CardCosts(),
+                doors.BlastChargesRemaining);
+        }
+
+        /// <summary>What every command costs, by command type, for the display.</summary>
+        private int[] CardCosts()
+        {
+            var costs = new int[System.Enum.GetValues(typeof(PlayerCommandType)).Length];
+            for (int i = 0; i < costs.Length; i++)
+            {
+                costs[i] = influence.CostOf((PlayerCommandType)i);
+            }
+
+            return costs;
         }
 
         private FireReactionPhysicsObjectSnapshot[] PhysicsObjectSnapshots()

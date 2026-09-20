@@ -12,6 +12,9 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private bool hasAuthoredTraits;
         [UnityEngine.SerializeField] private AgentTraitValues traits;
 
+        /// <summary>The thing they walk in holding, or the default ID for empty-handed.</summary>
+        [UnityEngine.SerializeField] private SimulationId carriedObjectId;
+
         public FireReactionAgentDefinition(SimulationId agentId, LogicalPosition initialPosition)
             : this(agentId, initialPosition, CardinalDirection.North)
         {
@@ -28,6 +31,7 @@ namespace Paniq.Simulation
             this.initialFacingDirection = initialFacingDirection;
             hasAuthoredTraits = false;
             traits = default;
+            carriedObjectId = default;
         }
 
         /// <summary>A person with an authored personality.</summary>
@@ -42,6 +46,23 @@ namespace Paniq.Simulation
             this.initialFacingDirection = initialFacingDirection;
             hasAuthoredTraits = true;
             this.traits = traits;
+            carriedObjectId = default;
+        }
+
+        /// <summary>A person with an authored personality who walks in carrying something.</summary>
+        public FireReactionAgentDefinition(
+            SimulationId agentId,
+            LogicalPosition initialPosition,
+            CardinalDirection initialFacingDirection,
+            AgentTraitValues traits,
+            SimulationId carriedObjectId)
+        {
+            this.agentId = agentId;
+            this.initialPosition = initialPosition;
+            this.initialFacingDirection = initialFacingDirection;
+            hasAuthoredTraits = true;
+            this.traits = traits;
+            this.carriedObjectId = carriedObjectId;
         }
 
         public SimulationId AgentId => agentId;
@@ -52,6 +73,32 @@ namespace Paniq.Simulation
         public bool HasAuthoredTraits => hasAuthoredTraits;
 
         public AgentTraitValues Traits => traits;
+
+        /// <summary>What they are already holding when the run starts, if anything.</summary>
+        public SimulationId CarriedObjectId => carriedObjectId;
+
+        public bool StartsCarryingSomething => carriedObjectId.Value != 0UL;
+    }
+
+    /// <summary>
+    /// A fire alarm on a wall. One per room. Anybody who has taken in that
+    /// there is a fire can walk over and hit it, and then every alarm in the
+    /// building rings at once.
+    /// </summary>
+    [Serializable]
+    public struct FireReactionAlarmDefinition
+    {
+        [UnityEngine.SerializeField] private SimulationId alarmId;
+        [UnityEngine.SerializeField] private LogicalPosition position;
+
+        public FireReactionAlarmDefinition(SimulationId alarmId, LogicalPosition position)
+        {
+            this.alarmId = alarmId;
+            this.position = position;
+        }
+
+        public SimulationId AlarmId => alarmId;
+        public LogicalPosition Position => position;
     }
 
     /// <summary>
@@ -111,18 +158,23 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private int sizeMillimetres;
         [UnityEngine.SerializeField] private int massGrams;
 
+        /// <summary>A spare kept out of the world until the player puts it down.</summary>
+        [UnityEngine.SerializeField] private bool startsDormant;
+
         public FireReactionPhysicsObjectDefinition(
             SimulationId objectId,
             PhysicsObjectKind kind,
             LogicalPosition initialPosition,
             int sizeMillimetres,
-            int massGrams)
+            int massGrams,
+            bool startsDormant = false)
         {
             this.objectId = objectId;
             this.kind = kind;
             this.initialPosition = initialPosition;
             this.sizeMillimetres = sizeMillimetres;
             this.massGrams = massGrams;
+            this.startsDormant = startsDormant;
         }
 
         public SimulationId ObjectId => objectId;
@@ -131,6 +183,13 @@ namespace Paniq.Simulation
         public int SizeMillimetres => sizeMillimetres;
         public int MassGrams => massGrams;
         public int RadiusMillimetres => sizeMillimetres / 2;
+
+        /// <summary>
+        /// True for one of the spares the run keeps aside for the player's
+        /// cards. It is nowhere until a card puts it somewhere, so where it is
+        /// authored does not matter.
+        /// </summary>
+        public bool StartsDormant => startsDormant;
     }
 
     /// <summary>
@@ -196,9 +255,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "29";
+        public string ContentRevision = "30";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 21;
+        public int SimulationCompatibilityVersion = 22;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -217,12 +276,23 @@ namespace Paniq.Simulation
         public LeadershipSettings Leadership = new LeadershipSettings();
         public ItemSettings Items = new ItemSettings();
         public HelpSettings Help = new HelpSettings();
+        public InfluenceSettings Influence = new InfluenceSettings();
+        public AlarmSettings Alarm = new AlarmSettings();
+        public BlockadeSettings Blockades = new BlockadeSettings();
+        public BlastSettings Blast = new BlastSettings();
 
         public FireReactionAgentDefinition[] Agents = DefaultAgents();
         public FireReactionDoorDefinition[] Doors = DefaultDoors();
         public FireReactionPhysicsObjectDefinition[] PhysicsObjects = DefaultPhysicsObjects();
         public FireReactionTableDefinition[] Tables = DefaultTables();
         public FireReactionRoomDefinition[] Rooms = DefaultRooms();
+        public FireReactionAlarmDefinition[] Alarms = DefaultAlarms();
+
+        /// <summary>
+        /// The sticks of TNT the player has: one spare opening each, kept out of
+        /// the world until a charge is spent on a wall.
+        /// </summary>
+        public SimulationId[] BlastHoles = DefaultBlastHoles();
 
         /// <summary>A deep copy: changing the copy never changes this one.</summary>
         public FireReactionScenarioData Clone()
@@ -245,11 +315,17 @@ namespace Paniq.Simulation
             copy.Leadership = Leadership?.Clone();
             copy.Items = Items?.Clone();
             copy.Help = Help?.Clone();
+            copy.Influence = Influence?.Clone();
+            copy.Alarm = Alarm?.Clone();
+            copy.Blockades = Blockades?.Clone();
+            copy.Blast = Blast?.Clone();
             copy.Agents = (FireReactionAgentDefinition[])Agents?.Clone();
             copy.Doors = (FireReactionDoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (FireReactionPhysicsObjectDefinition[])PhysicsObjects?.Clone();
             copy.Tables = (FireReactionTableDefinition[])Tables?.Clone();
             copy.Rooms = (FireReactionRoomDefinition[])Rooms?.Clone();
+            copy.Alarms = (FireReactionAlarmDefinition[])Alarms?.Clone();
+            copy.BlastHoles = (SimulationId[])BlastHoles?.Clone();
             return copy;
         }
 
@@ -268,6 +344,7 @@ namespace Paniq.Simulation
             if (World == null || Perception == null || Fire == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
                 ObjectPhysics == null || Traits == null || Flammables == null || Items == null || Help == null ||
+                Influence == null || Alarm == null || Blockades == null || Blast == null ||
                 Extinguishers == null || Leadership == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
@@ -290,6 +367,10 @@ namespace Paniq.Simulation
             Leadership.Validate();
             Items.Validate();
             Help.Validate();
+            Influence.Validate();
+            Alarm.Validate();
+            Blockades.Validate();
+            Blast.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");
@@ -350,6 +431,61 @@ namespace Paniq.Simulation
             ValidateDoors(ids);
             ValidateTables(ids);
             ValidatePhysicsObjects(ids);
+            ValidateStartingPossessions();
+            ValidateAlarms(ids);
+            ValidateBlastHoles(ids);
+        }
+
+        /// <summary>
+        /// Everything somebody walks in holding must be a thing this scenario
+        /// has, light enough for them to hold, and held by only one person.
+        /// </summary>
+        private void ValidateStartingPossessions()
+        {
+            var taken = new HashSet<SimulationId>();
+            for (int i = 0; i < Agents.Length; i++)
+            {
+                FireReactionAgentDefinition agent = Agents[i];
+                if (!agent.StartsCarryingSomething)
+                {
+                    continue;
+                }
+
+                int found = -1;
+                for (int o = 0; o < PhysicsObjects.Length; o++)
+                {
+                    if (PhysicsObjects[o].ObjectId == agent.CarriedObjectId)
+                    {
+                        found = o;
+                        break;
+                    }
+                }
+
+                if (found < 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Agent {agent.AgentId} starts holding {agent.CarriedObjectId}, which this scenario does not have.");
+                }
+
+                if (!taken.Add(agent.CarriedObjectId))
+                {
+                    throw new InvalidOperationException($"Two people cannot both start holding {agent.CarriedObjectId}.");
+                }
+
+                if (PhysicsObjects[found].Kind == PhysicsObjectKind.Extinguisher)
+                {
+                    throw new InvalidOperationException(
+                        $"Agent {agent.AgentId} cannot start holding an extinguisher; the brave fetch those themselves.");
+                }
+
+                long limit = Items.CarryBaseGrams + (long)Items.CarryGramsPerStrength *
+                    (agent.HasAuthoredTraits ? agent.Traits.Strength : AgentTraitValues.Minimum);
+                if (PhysicsObjects[found].MassGrams > limit)
+                {
+                    throw new InvalidOperationException(
+                        $"Agent {agent.AgentId} is not strong enough to carry {agent.CarriedObjectId}.");
+                }
+            }
         }
 
         /// <summary>The room whose walls hold a body of this radius, or -1.</summary>
@@ -551,18 +687,23 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException("Physical object IDs must be unique and non-zero.");
                 }
 
+                // Something that starts in somebody's hand is not on the floor:
+                // it is moved in front of its owner at tick zero, so where it is
+                // authored does not matter and it cannot be in anything's way.
+                bool inSomebodysHand = IsCarriedAtTheStart(body.ObjectId) || body.StartsDormant;
+
                 if (body.SizeMillimetres < 100 || body.SizeMillimetres > 1000 ||
                     body.MassGrams <= 0 || body.MassGrams > 200000)
                 {
                     throw new InvalidOperationException($"Object {body.ObjectId} has an invalid size or mass.");
                 }
 
-                if (RoomHolding(body.InitialPosition, body.RadiusMillimetres) < 0)
+                if (!body.StartsDormant && RoomHolding(body.InitialPosition, body.RadiusMillimetres) < 0)
                 {
                     throw new InvalidOperationException($"Object {body.ObjectId} starts outside every room.");
                 }
 
-                for (int t = 0; t < Tables.Length; t++)
+                for (int t = 0; t < Tables.Length && !inSomebodysHand; t++)
                 {
                     if (Tables[t].Bounds.DistanceSquaredTo(body.InitialPosition) < (long)body.RadiusMillimetres * body.RadiusMillimetres)
                     {
@@ -571,7 +712,7 @@ namespace Paniq.Simulation
                 }
 
                 long agentReach = radius + (long)body.RadiusMillimetres;
-                for (int a = 0; a < Agents.Length; a++)
+                for (int a = 0; a < Agents.Length && !inSomebodysHand; a++)
                 {
                     if (LogicalPosition.DistanceSquared(body.InitialPosition, Agents[a].InitialPosition) < agentReach * agentReach)
                     {
@@ -582,6 +723,11 @@ namespace Paniq.Simulation
                 for (int previous = 0; previous < i; previous++)
                 {
                     FireReactionPhysicsObjectDefinition other = PhysicsObjects[previous];
+                    if (inSomebodysHand || IsCarriedAtTheStart(other.ObjectId))
+                    {
+                        continue;
+                    }
+
                     long reach = (long)other.RadiusMillimetres + body.RadiusMillimetres;
                     if (LogicalPosition.DistanceSquared(body.InitialPosition, other.InitialPosition) < reach * reach)
                     {
@@ -589,6 +735,62 @@ namespace Paniq.Simulation
                     }
                 }
             }
+        }
+
+        /// <summary>Four sticks of TNT, each with its own stable ID.</summary>
+        public static SimulationId[] DefaultBlastHoles()
+        {
+            return new[]
+            {
+                new SimulationId(2901UL), new SimulationId(2902UL),
+                new SimulationId(2903UL), new SimulationId(2904UL)
+            };
+        }
+
+        /// <summary>Every stick of TNT needs its own ID, like anything else in the run.</summary>
+        private void ValidateBlastHoles(HashSet<SimulationId> ids)
+        {
+            BlastHoles ??= Array.Empty<SimulationId>();
+            for (int i = 0; i < BlastHoles.Length; i++)
+            {
+                if (BlastHoles[i].Value == 0UL || !ids.Add(BlastHoles[i]))
+                {
+                    throw new InvalidOperationException("Blast-hole IDs must be unique and non-zero.");
+                }
+            }
+        }
+
+        /// <summary>One alarm per room, each on that room's wall and each with its own ID.</summary>
+        private void ValidateAlarms(HashSet<SimulationId> ids)
+        {
+            Alarms ??= Array.Empty<FireReactionAlarmDefinition>();
+            for (int i = 0; i < Alarms.Length; i++)
+            {
+                FireReactionAlarmDefinition alarm = Alarms[i];
+                if (alarm.AlarmId.Value == 0UL || !ids.Add(alarm.AlarmId))
+                {
+                    throw new InvalidOperationException("Fire-alarm IDs must be unique and non-zero.");
+                }
+
+                if (RoomHolding(alarm.Position, 0) < 0)
+                {
+                    throw new InvalidOperationException($"Fire alarm {alarm.AlarmId} is not in any room.");
+                }
+            }
+        }
+
+        /// <summary>Whether somebody walks in holding this thing.</summary>
+        private bool IsCarriedAtTheStart(SimulationId objectId)
+        {
+            for (int a = 0; a < Agents.Length; a++)
+            {
+                if (Agents[a].CarriedObjectId == objectId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -601,9 +803,9 @@ namespace Paniq.Simulation
             return new[]
             {
                 Agent(1001UL, -5000, -5000, CardinalDirection.North, 5, 5, 5, 5, 2, 5, 4), // ordinary
-                Agent(1002UL, 0, -5000, CardinalDirection.East, 9, 6, 6, 3, 6, 3, 3), // the brute
+                Agent(1002UL, 0, -5000, CardinalDirection.East, 9, 6, 6, 3, 6, 3, 3, 3251UL), // the brute, briefcase in hand
                 Agent(1003UL, 5000, -5000, CardinalDirection.West, 8, 6, 8, 8, 1, 3, 8), // the hero
-                Agent(1004UL, -5000, 0, CardinalDirection.East, 4, 4, 7, 9, 0, 4, 5), // the saint
+                Agent(1004UL, -5000, 0, CardinalDirection.East, 4, 4, 7, 9, 0, 4, 5, 3221UL), // the saint, bag over her shoulder
                 Agent(1005UL, 900, 0, CardinalDirection.South, 6, 6, 5, 1, 8, 4, 6), // the villain
                 Agent(1006UL, 5000, 0, CardinalDirection.North, 3, 5, 1, 5, 2, 10, 1), // the nervous wreck
                 Agent(1007UL, -5000, 5000, CardinalDirection.South, 5, 10, 5, 5, 3, 6, 4), // the sprinter
@@ -615,12 +817,12 @@ namespace Paniq.Simulation
                 // when it starts and only learn about it through the shouting.
                 Agent(1011UL, 10500, -4500, CardinalDirection.North, 5, 5, 6, 5, 3, 4, 4), // ordinary
                 Agent(1012UL, 13500, -4500, CardinalDirection.West, 9, 4, 7, 6, 2, 3, 5), // the strong one
-                Agent(1013UL, 16500, -4500, CardinalDirection.North, 4, 7, 3, 7, 1, 7, 2), // the worrier
+                Agent(1013UL, 16500, -4500, CardinalDirection.North, 4, 7, 3, 7, 1, 7, 2, 3223UL), // the worrier, bag in hand
                 Agent(1014UL, 19500, -4500, CardinalDirection.West, 6, 5, 5, 5, 5, 5, 5), // ordinary
                 Agent(1015UL, 10500, 0, CardinalDirection.East, 3, 6, 2, 8, 0, 9, 1), // the timid carer
                 Agent(1016UL, 13500, 1200, CardinalDirection.South, 7, 8, 8, 4, 7, 2, 6), // the chancer
                 Agent(1017UL, 17200, -1800, CardinalDirection.West, 5, 5, 4, 5, 4, 6, 4), // ordinary
-                Agent(1018UL, 19500, 1200, CardinalDirection.North, 8, 6, 6, 2, 8, 4, 6), // the other bully
+                Agent(1018UL, 19500, 1200, CardinalDirection.North, 8, 6, 6, 2, 8, 4, 6, 3252UL), // the other bully, briefcase in hand
                 Agent(1019UL, 12000, 4500, CardinalDirection.South, 4, 9, 5, 6, 2, 6, 3), // the runner
                 Agent(1020UL, 18000, 4500, CardinalDirection.South, 6, 5, 7, 9, 1, 3, 9) // the other hero
             };
@@ -686,10 +888,14 @@ namespace Paniq.Simulation
                 Plant(3212UL, 5400, 5400),
                 Plant(3213UL, 9800, 5200),
                 Plant(3214UL, 20200, -5200),
-                Bag(3221UL, -3400, 3400),
+                Bag(3221UL, -5000, 0),
                 Bag(3222UL, 1200, -2600),
-                Bag(3223UL, 14500, -2400),
+                Bag(3223UL, 16500, -4500),
                 Bag(3224UL, 17500, 3400),
+                // Two briefcases and two of the bags start in somebody's hand,
+                // so they are parked where their owner stands.
+                Briefcase(3251UL, 0, -5000),
+                Briefcase(3252UL, 19500, 1200),
                 Laptop(3231UL, -1100, -700),
                 Laptop(3232UL, 3400, 1800),
                 Laptop(3233UL, 15800, 2400),
@@ -705,7 +911,21 @@ namespace Paniq.Simulation
 
                 // One extinguisher by each big room's wall.
                 Extinguisher(3301UL, -1000, -5700),
-                Extinguisher(3302UL, 14000, -5700)
+                Extinguisher(3302UL, 14000, -5700),
+
+                // Electrical things, which go off when the flames reach them.
+                Microwave(3261UL, 5400, -1400),
+                Microwave(3262UL, 20400, -3000),
+                WallSocket(3271UL, -5800, -4000),
+                WallSocket(3272UL, 5800, 4000),
+                WallSocket(3273UL, 20800, -1000),
+
+                // Four spares the player can stand anywhere with a card. They
+                // are nowhere at all until then.
+                SpareExtinguisher(3391UL),
+                SpareExtinguisher(3392UL),
+                SpareExtinguisher(3393UL),
+                SpareExtinguisher(3394UL)
             };
         }
 
@@ -803,6 +1023,67 @@ namespace Paniq.Simulation
         {
             return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
                 new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, leadership));
+        }
+
+        /// <summary>The same person, but walking in with something in their hand.</summary>
+        private static FireReactionAgentDefinition Agent(
+            ulong id, int x, int z, CardinalDirection facing,
+            int strength, int speed, int bravery, int compassion, int evil, int nervousness, int leadership,
+            ulong carrying)
+        {
+            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
+                new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, leadership),
+                new SimulationId(carrying));
+        }
+
+        /// <summary>
+        /// One of the spare extinguishers the player's card puts down. It is not
+        /// in the world until then, so its position is never used.
+        /// </summary>
+        private static FireReactionPhysicsObjectDefinition SpareExtinguisher(ulong id)
+        {
+            return new FireReactionPhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.Extinguisher, new LogicalPosition(0, 0), 220, 9000, true);
+        }
+
+        /// <summary>A microwave on a counter: heavy, and it goes off with a bang.</summary>
+        private static FireReactionPhysicsObjectDefinition Microwave(ulong id, int x, int z)
+        {
+            return new FireReactionPhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.Microwave, new LogicalPosition(x, z), 450, 14000);
+        }
+
+        /// <summary>A wall socket: it never shifts, but it pops.</summary>
+        private static FireReactionPhysicsObjectDefinition WallSocket(ulong id, int x, int z)
+        {
+            return new FireReactionPhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.WallSocket, new LogicalPosition(x, z), 160, 60000);
+        }
+
+        private static FireReactionPhysicsObjectDefinition Briefcase(ulong id, int x, int z)
+        {
+            return new FireReactionPhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.Briefcase, new LogicalPosition(x, z), 400, 6000);
+        }
+
+        /// <summary>
+        /// One alarm on a wall of each room, just inside it so somebody can
+        /// stand at it. The closet has none: it is a cupboard.
+        /// </summary>
+        public static FireReactionAlarmDefinition[] DefaultAlarms()
+        {
+            return new[]
+            {
+                // The open-plan office, on the west wall.
+                new FireReactionAlarmDefinition(new SimulationId(6001UL), new LogicalPosition(-5700, 2000)),
+
+                // The corridor, on its north wall.
+                new FireReactionAlarmDefinition(new SimulationId(6002UL), new LogicalPosition(7500, 700)),
+
+                // The meeting room, on its north wall, well clear of both its
+                // doors: an alarm beside a doorway turns into a queue.
+                new FireReactionAlarmDefinition(new SimulationId(6003UL), new LogicalPosition(11000, 5700))
+            };
         }
 
         private static FireReactionPhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams)

@@ -148,6 +148,14 @@ namespace Paniq.Simulation
             this.leadership = leadership;
         }
 
+        /// <summary>
+        /// The same person with a different strength. Used by the player's
+        /// Beefcake power; everything that reads strength picks it up on the
+        /// next tick, because traits are read when used and never cached.
+        /// </summary>
+        public AgentTraitValues WithStrength(int newStrength) =>
+            new AgentTraitValues(newStrength, speed, bravery, compassion, evil, nervousness, leadership);
+
         public static AgentTraitValues AllOrdinary =>
             new AgentTraitValues(Ordinary, Ordinary, Ordinary, Ordinary, Ordinary, Ordinary, Ordinary);
 
@@ -208,7 +216,10 @@ namespace Paniq.Simulation
         None,
         Visual,
         Yell,
-        Bumped
+        Bumped,
+
+        /// <summary>A fire alarm went off. Appended only.</summary>
+        Alarm
     }
 
     /// <summary>What an agent is currently choosing to do. Calm and panic activities are separate.</summary>
@@ -251,7 +262,21 @@ namespace Paniq.Simulation
         /// <summary>Helping: shaking someone frozen with fear, getting a grip on someone knocked out, or dragging them.</summary>
         ShakingAwake,
         Grabbing,
-        Dragging
+        Dragging,
+
+        // Appended only: an activity's number is part of the replay fingerprint.
+
+        /// <summary>On the way to a fire alarm, and hitting it.</summary>
+        GoingToAlarm,
+        PullingAlarm,
+
+        /// <summary>Fetching something to wedge a door with, carrying it there, and wedging it.</summary>
+        FetchingBarricade,
+        CarryingBarricade,
+        Barricading,
+
+        /// <summary>Heaving whatever is wedged in a doorway out of the way.</summary>
+        ShovingObstruction
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>
@@ -342,7 +367,56 @@ namespace Paniq.Simulation
         AgentShookAwake,
         AgentGrabbed,
         AgentDropped,
-        AgentRescued
+        AgentRescued,
+
+        // Appended only, never inserted: an event type's number is part of the
+        // replay fingerprint, so renumbering would silently invalidate every
+        // recorded run.
+
+        /// <summary>Somebody cruel took hold of the person in their way and heaved them aside (target: the person shoved).</summary>
+        AgentShoved,
+
+        /// <summary>Somebody hit a fire alarm (target: the alarm).</summary>
+        AlarmPulled,
+
+        /// <summary>An alarm ringing, which is the noise everybody hears (source: the alarm).</summary>
+        AlarmRang,
+
+        /// <summary>A chair or table smashed by something hitting it hard (source: the thing that broke, target: what hit it).</summary>
+        ObjectBroke,
+
+        /// <summary>
+        /// Something electrical going off: it flings whatever is near it about,
+        /// knocks people down, and sets the floor alight (source: the thing).
+        /// </summary>
+        ObjectExploded,
+
+        /// <summary>Something came to rest in a doorway and jammed the door (source: the thing, target: the door).</summary>
+        DoorBlocked,
+
+        /// <summary>Whatever was jamming a door is out of the way again (source: the thing, target: the door).</summary>
+        DoorUnblocked,
+
+        /// <summary>Somebody wedged something against a door on purpose (source: the person, target: the door).</summary>
+        AgentBarricadedDoor,
+
+        /// <summary>Somebody strong heaved an obstruction out of a doorway (source: the person, target: the thing).</summary>
+        AgentShovedObstruction,
+
+        // The player's cards. Each is a root event, because the player is the
+        // cause, and its strength is the influence it cost.
+
+        /// <summary>Beefcake played on somebody (target: the person made strong).</summary>
+        PowerBeefcake,
+
+        /// <summary>A fire started by the player, at the place they pointed at.</summary>
+        PowerSpawnedFire,
+
+        /// <summary>An extinguisher put on the floor by the player (target: the bottle).</summary>
+        PowerSpawnedExtinguisher,
+
+        /// <summary>A wall blown open by the player (source and target: the hole itself).</summary>
+        PowerBlastedWall
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>
@@ -400,33 +474,82 @@ namespace Paniq.Simulation
         Laptop,
 
         /// <summary>A fire extinguisher: a few seconds of spray in the bottle.</summary>
-        Extinguisher
+        Extinguisher,
+
+        // Appended only: a kind's number indexes the scenario's table of kinds.
+
+        /// <summary>A briefcase: heavier and harder than a bag, so it hurts more when it hits somebody.</summary>
+        Briefcase,
+
+        /// <summary>A microwave oven on a counter: when the flames reach it, it goes off with a bang.</summary>
+        Microwave,
+
+        /// <summary>A wall socket: it never moves and never burns, but it spits sparks and pops.</summary>
+        WallSocket
     }
 
+    /// <summary>
+    /// What the player did. Append new values only: a command type's number is
+    /// part of the replay fingerprint.
+    /// </summary>
     public enum PlayerCommandType
     {
         /// <summary>Locked becomes unlocked; unlocked becomes open; open closes (unless someone is in the doorway). Broken stays broken.</summary>
-        ClickDoor
+        ClickDoor,
+
+        // The cards. Each one spends influence, and each names either a person
+        // or a place. Appended only.
+
+        /// <summary>Beefcake: the named person becomes as strong as anyone can be, for good.</summary>
+        PlayBeefcake,
+
+        /// <summary>Start a fire on the floor square under the named place.</summary>
+        SpawnFire,
+
+        /// <summary>Stand a full fire extinguisher on the floor at the named place.</summary>
+        SpawnExtinguisher,
+
+        /// <summary>TNT: blow a hole through the wall nearest the named place.</summary>
+        BlastWall
     }
 
     /// <summary>
     /// One player action, already turned into simulation data. It is consumed
     /// at the start of its target tick; commands sharing a tick run in
     /// sequence order.
+    /// <para>
+    /// A command names either a thing (<see cref="TargetId"/>, as a door click
+    /// does) or a place (<see cref="Point"/>, in whole millimetres, as a power
+    /// aimed at the floor or a wall does). Screen positions, rays and colliders
+    /// are presentation's business: they are turned into one of these two
+    /// before the command is queued, so replaying the queue never depends on a
+    /// camera.
+    /// </para>
     /// </summary>
     public readonly struct PlayerCommand
     {
-        public PlayerCommand(int targetTick, long sequence, PlayerCommandType commandType, SimulationId targetId)
+        public PlayerCommand(
+            int targetTick,
+            long sequence,
+            PlayerCommandType commandType,
+            SimulationId targetId,
+            LogicalPosition point = default)
         {
             TargetTick = targetTick;
             Sequence = sequence;
             CommandType = commandType;
             TargetId = targetId;
+            Point = point;
         }
 
         public int TargetTick { get; }
         public long Sequence { get; }
         public PlayerCommandType CommandType { get; }
+
+        /// <summary>The thing this command is aimed at, or the default ID for a command aimed at a place.</summary>
         public SimulationId TargetId { get; }
+
+        /// <summary>The place this command is aimed at, in whole millimetres, or the origin for a command aimed at a thing.</summary>
+        public LogicalPosition Point { get; }
     }
 }

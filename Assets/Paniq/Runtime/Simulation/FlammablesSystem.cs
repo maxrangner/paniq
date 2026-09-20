@@ -38,6 +38,7 @@ namespace Paniq.Simulation
         private readonly FireSystem fire;
         private readonly PhysicsObjectSystem objects;
         private readonly BodySystem body;
+        private readonly SoundSystem sound;
         private readonly FlammableSettings settings;
         private readonly int personRadius;
 
@@ -50,8 +51,10 @@ namespace Paniq.Simulation
             WorldGeometry geometry,
             FireSystem fire,
             PhysicsObjectSystem objects,
-            BodySystem body)
+            BodySystem body,
+            SoundSystem sound)
         {
+            this.sound = sound;
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
@@ -243,6 +246,62 @@ namespace Paniq.Simulation
                 0, duration, causeEventId).EventId;
             thing.RestCell = -1;
             thing.RestTicks = 0;
+
+            // Something electrical does not sit and burn: it goes off.
+            Pop(thing);
+        }
+
+        /// <summary>
+        /// An electrical thing goes off the moment the flames reach it: a bang
+        /// everybody hears, whatever is loose nearby flung away from it, anybody
+        /// close knocked off their feet, and a scatter of new fire on the floor
+        /// around it. Then it is wreckage, and it burns out quickly.
+        /// <para>
+        /// Everything here is somebody else's existing rule, in a fixed order so
+        /// the run stays repeatable: the objects in ascending ID order, then the
+        /// people in ascending ID order, then the floor squares row by row.
+        /// </para>
+        /// </summary>
+        private void Pop(Flammable thing)
+        {
+            if (thing.IsTable)
+            {
+                return;
+            }
+
+            ObjectKindSettings kind = settings.Of(objects.KindOf(thing.Index));
+            if (kind.PopRadiusMillimetres <= 0)
+            {
+                return;
+            }
+
+            LogicalPosition centre = objects.PositionOf(thing.Index);
+            long radius = kind.PopRadiusMillimetres;
+            ulong bang = context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ObjectExploded, centre,
+                kind.PopRadiusMillimetres, 0, thing.EventId).EventId;
+
+            // Heard well beyond the blast itself, which is how the far side of
+            // the building learns something has happened.
+            sound.Bang(thing.Id, centre, kind.PopRadiusMillimetres * 6, kind.PopRadiusMillimetres * 3, bang);
+
+            objects.FlingFrom(centre, kind.PopRadiusMillimetres, kind.PopSpeed, thing.Index, bang);
+
+            Agent[] people = crowd.All;
+            for (int i = 0; i < people.Length; i++)
+            {
+                Agent agent = people[i];
+                if (!agent.IsParticipating ||
+                    LogicalPosition.DistanceSquared(agent.Body.Position, centre) > radius * radius)
+                {
+                    continue;
+                }
+
+                int away = IntegerMath.HeadingBetween(centre, agent.Body.Position, agent.Body.Heading);
+                body.ShoveBack(agent, away, kind.PopRadiusMillimetres / 3, bang);
+            }
+
+            fire.IgniteAround(centre, kind.PopRadiusMillimetres, kind.PopIgniteCells, bang);
+            objects.Wreck(thing.Index, thing.Id, bang);
         }
 
         /// <summary>A burning thing that stays in one square for a moment sets that square alight.</summary>
@@ -328,7 +387,8 @@ namespace Paniq.Simulation
             for (int t = 0; t < tables.Length; t++)
             {
                 Flammable thing = things[objects.Count + t];
-                tables[t] = new FireReactionTableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing));
+                tables[t] = new FireReactionTableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
+                    geometry.IsTableBroken(t));
             }
 
             return tables;

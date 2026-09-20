@@ -76,8 +76,15 @@ namespace Paniq.Tests.EditMode
                 {
                     simulation.Step();
                     FireReactionSnapshot snapshot = simulation.GetSnapshot();
-                    foreach (FireReactionTableDefinition table in data.Tables)
+                    foreach (FireReactionTableSnapshot table in snapshot.Tables)
                     {
+                        if (table.Broken)
+                        {
+                            // Collapsed: it is wreckage, and the floor it stood
+                            // on is walkable again.
+                            continue;
+                        }
+
                         foreach (FireReactionAgentSnapshot agent in snapshot.Agents)
                         {
                             Assert.That(agent.Participation == AgentParticipation.Participating &&

@@ -475,6 +475,12 @@ namespace Paniq.Tests.EditMode
                 boxes.Add(simulation.GetPhysicsObject(i).ObjectId);
             }
 
+            var alarms = new HashSet<SimulationId>();
+            for (int i = 0; i < simulation.AlarmCount; i++)
+            {
+                alarms.Add(simulation.AlarmId(i));
+            }
+
             var doorCentres = new Dictionary<SimulationId, LogicalPosition>();
             for (int i = 0; i < simulation.DoorCount; i++)
             {
@@ -489,6 +495,30 @@ namespace Paniq.Tests.EditMode
                 {
                     case FireReactionEventType.AgentsCollided:
                         Assert.That(agents, Does.Contain(record.TargetId), "A collision names the person run into.");
+                        Assert.That(record.TargetId, Is.Not.EqualTo(record.SourceId));
+                        break;
+                    case FireReactionEventType.DoorBlocked:
+                    case FireReactionEventType.DoorUnblocked:
+                        Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True,
+                            "A jammed doorway names the door.");
+                        Assert.That(boxes, Does.Contain(record.SourceId), "And the thing wedged in it.");
+                        break;
+                    case FireReactionEventType.AgentBarricadedDoor:
+                        Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True,
+                            "Barricading names the door.");
+                        break;
+                    case FireReactionEventType.AgentShovedObstruction:
+                        Assert.That(boxes, Does.Contain(record.TargetId), "Heaving names the thing heaved.");
+                        break;
+                    case FireReactionEventType.ObjectBroke:
+                        Assert.That(record.TargetId, Is.Not.EqualTo(record.SourceId),
+                            "Breaking names both what broke and what hit it.");
+                        break;
+                    case FireReactionEventType.AlarmPulled:
+                        Assert.That(alarms, Does.Contain(record.TargetId), "Raising the alarm names the alarm.");
+                        break;
+                    case FireReactionEventType.AgentShoved:
+                        Assert.That(agents, Does.Contain(record.TargetId), "A shove names the person shoved aside.");
                         Assert.That(record.TargetId, Is.Not.EqualTo(record.SourceId));
                         break;
                     case FireReactionEventType.BoxBumped:

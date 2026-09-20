@@ -55,8 +55,24 @@ namespace Paniq.Simulation
             /// <summary>Thrown and still flying: it hits harder until it stops or hits someone.</summary>
             public bool Thrown;
 
+            /// <summary>
+            /// A spare the run keeps aside until the player puts it down with a
+            /// card. It is not in the world: nothing can touch it, reach it,
+            /// burn it or see it.
+            /// </summary>
+            public bool Dormant;
+
+            /// <summary>
+            /// Smashed. It is wreckage now: flatter, lighter, still something to
+            /// trip over, but no longer a chair anybody can sit on.
+            /// </summary>
+            public bool Wrecked;
+
             /// <summary>The event that last set this object moving, so its later hits can name their cause.</summary>
             public ulong LastPushEventId;
+
+            /// <summary>The <c>DoorBlocked</c> event while this thing is jamming a door, so clearing it names the same door.</summary>
+            public ulong BlockedEventId;
 
             public LogicalPosition Position => new LogicalPosition(
                 (int)FloorDivide(X, SubMillimetre),
@@ -108,7 +124,11 @@ namespace Paniq.Simulation
                     Radius = definition.RadiusMillimetres,
                     Size = definition.SizeMillimetres,
                     MassGrams = definition.MassGrams,
-                    Fuel = definition.Kind == PhysicsObjectKind.Extinguisher
+                    Dormant = definition.StartsDormant,
+
+                    // A spare has no spray in it until a card puts it down, which
+                    // is also why nobody ever goes to fetch one.
+                    Fuel = definition.Kind == PhysicsObjectKind.Extinguisher && !definition.StartsDormant
                         ? context.Scenario.Extinguishers.FuelTicks
                         : 0
                 };
@@ -118,6 +138,20 @@ namespace Paniq.Simulation
         public int Count => bodies.Length;
 
         public SimulationId IdOf(int index) => bodies[index].Id;
+
+        /// <summary>The thing with this ID, or -1 if the run has no such thing.</summary>
+        public int IndexOf(SimulationId id)
+        {
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                if (bodies[i].Id == id)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
 
         public PhysicsObjectKind KindOf(int index) => bodies[index].Kind;
 
@@ -131,6 +165,72 @@ namespace Paniq.Simulation
 
         /// <summary>The index of the person carrying it, or -1.</summary>
         public int HolderOf(int index) => bodies[index].HeldBy;
+
+        /// <summary>A spare the player has not put down yet.</summary>
+        public bool IsDormant(int index) => bodies[index].Dormant;
+
+        /// <summary>Smashed into wreckage on the floor.</summary>
+        public bool IsWrecked(int index) => bodies[index].Wrecked;
+
+        /// <summary>
+        /// This thing has come to rest in a doorway. Its cause is whatever last
+        /// set it moving, so the log can say who jammed the door; a thing that
+        /// has never been touched is a root cause of its own.
+        /// </summary>
+        public void RecordBlockage(int index, SimulationId doorId, LogicalPosition doorCentre)
+        {
+            bodies[index].BlockedEventId = context.Events.Append(context.Tick, bodies[index].Id,
+                FireReactionEventType.DoorBlocked, doorCentre, 0, 0, bodies[index].LastPushEventId, doorId).EventId;
+        }
+
+        /// <summary>Whatever was jamming that door is clear of it again.</summary>
+        public void RecordUnblocking(int index, SimulationId doorId, LogicalPosition doorCentre)
+        {
+            if (index < 0)
+            {
+                return;
+            }
+
+            context.Events.Append(context.Tick, bodies[index].Id, FireReactionEventType.DoorUnblocked, doorCentre,
+                0, 0, bodies[index].BlockedEventId, doorId);
+            bodies[index].BlockedEventId = 0UL;
+        }
+
+        /// <summary>
+        /// Heaves a thing out of a doorway, along the wall rather than through
+        /// the door, because a thing never passes through a doorway.
+        /// </summary>
+        public void ShoveAside(int index, Agent shover, int heading, int speed, ulong causeEventId)
+        {
+            PhysicsBody thing = bodies[index];
+            LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
+            thing.VelocityX = (long)velocity.X * SubMillimetre;
+            thing.VelocityZ = (long)velocity.Z * SubMillimetre;
+            thing.Thrown = false;
+            thing.LastPushEventId = context.Events.Append(context.Tick, shover.Id,
+                FireReactionEventType.AgentShovedObstruction, thing.Position, speed, 0, causeEventId, thing.Id).EventId;
+            sound.Thud(shover.Id, thing.Position, thing.LastPushEventId);
+        }
+
+        /// <summary>Sets a carried thing down on an exact spot, if that spot is clear.</summary>
+        public bool TrySetDownAt(int index, LogicalPosition spot, ulong causeEventId)
+        {
+            if (!IsClearForItem(index, spot))
+            {
+                return false;
+            }
+
+            Release(index, spot, 0, 0, causeEventId);
+            return true;
+        }
+
+        /// <summary>
+        /// Off the floor as far as every other system is concerned: in somebody's
+        /// arms, or a spare that is not in the world yet. Both are skipped by
+        /// collisions, avoidance, movement and anything looking for something to
+        /// pick up.
+        /// </summary>
+        private bool IsOutOfPlay(int index) => bodies[index].HeldBy >= 0 || bodies[index].Dormant;
 
         /// <summary>The person sitting on this chair, or -1.</summary>
         public int OccupantOf(int index) => bodies[index].OccupiedBy;
@@ -149,7 +249,7 @@ namespace Paniq.Simulation
         {
             PhysicsBody body = bodies[index];
             return (body.Kind == PhysicsObjectKind.Chair || body.Kind == PhysicsObjectKind.OfficeChair) &&
-                   body.OccupiedBy < 0 && body.HeldBy < 0 && !IsMoving(index);
+                   body.OccupiedBy < 0 && body.HeldBy < 0 && !body.Dormant && !body.Wrecked && !IsMoving(index);
         }
 
         /// <summary>Someone sits down on a chair: it stops dead and stays put until they get up.</summary>
@@ -240,7 +340,8 @@ namespace Paniq.Simulation
             Agent[] agents = crowd.All;
             for (int i = 0; i < agents.Length; i++)
             {
-                if (agents[i].IsParticipating && LogicalPosition.DistanceSquared(agents[i].Body.Position, spot) < agentReach * agentReach)
+                if (agents[i].IsParticipating &&
+                    LogicalPosition.DistanceSquared(agents[i].Body.Position, spot) < agentReach * agentReach)
                 {
                     return false;
                 }
@@ -248,7 +349,7 @@ namespace Paniq.Simulation
 
             for (int b = 0; b < bodies.Length; b++)
             {
-                if (b == index || bodies[b].HeldBy >= 0)
+                if (b == index || IsOutOfPlay(b))
                 {
                     continue;
                 }
@@ -301,11 +402,24 @@ namespace Paniq.Simulation
         }
 
         /// <summary>The lowest-ID object a circle of this radius would pass through on this move, or -1.</summary>
+        /// <summary>
+        /// Whether a thing on the floor stands in the way of a body being slid
+        /// across it (a shove, or the jet from an extinguisher). Only what is
+        /// actually in their arms is ignored, because that travels with them;
+        /// something they were merely walking toward is still on the floor and
+        /// still in the way.
+        /// </summary>
+        public bool BlocksBody(Agent agent, LogicalPosition start, LogicalPosition destination)
+        {
+            int held = agent.Carry.Holding ? agent.Carry.ItemIndex : -1;
+            return FindBlocking(start, destination, personRadius, held) >= 0;
+        }
+
         public int FindBlocking(LogicalPosition start, LogicalPosition destination, int radius, int ignoreIndex = -1)
         {
             for (int b = 0; b < bodies.Length; b++)
             {
-                if (b == ignoreIndex || bodies[b].HeldBy >= 0)
+                if (b == ignoreIndex || IsOutOfPlay(b))
                 {
                     continue;
                 }
@@ -321,13 +435,115 @@ namespace Paniq.Simulation
             return -1;
         }
 
+        /// <summary>
+        /// Stands one of the spare extinguishers on the floor where the player
+        /// pointed, full of spray. Refuses if there is no spare left or the spot
+        /// is not clear floor, and takes the lowest-numbered spare so a replay
+        /// always picks the same bottle.
+        /// </summary>
+        public bool TryPlaceSpareExtinguisher(LogicalPosition spot, out int index)
+        {
+            index = -1;
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                if (bodies[b].Dormant && bodies[b].Kind == PhysicsObjectKind.Extinguisher)
+                {
+                    index = b;
+                    break;
+                }
+            }
+
+            if (index < 0 || !IsClearForItem(index, spot))
+            {
+                index = -1;
+                return false;
+            }
+
+            PhysicsBody bottle = bodies[index];
+            bottle.Dormant = false;
+            bottle.X = (long)spot.X * SubMillimetre;
+            bottle.Z = (long)spot.Z * SubMillimetre;
+            bottle.VelocityX = 0L;
+            bottle.VelocityZ = 0L;
+            bottle.Spin = 0;
+            bottle.Thrown = false;
+            bottle.Fuel = context.Scenario.Extinguishers.FuelTicks;
+            return true;
+        }
+
+        /// <summary>
+        /// Sends every loose thing within <paramref name="radius"/> of a blast
+        /// flying away from it, in ascending ID order so a replay agrees. What
+        /// somebody is holding or sitting on stays put, and so does the thing
+        /// that went off.
+        /// </summary>
+        public void FlingFrom(LogicalPosition centre, int radius, int speed, int exceptIndex, ulong causeEventId)
+        {
+            long reach = radius;
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                PhysicsBody thing = bodies[b];
+                if (b == exceptIndex || thing.Dormant || thing.HeldBy >= 0 || thing.OccupiedBy >= 0)
+                {
+                    continue;
+                }
+
+                if (LogicalPosition.DistanceSquared(thing.Position, centre) > reach * reach)
+                {
+                    continue;
+                }
+
+                int away = IntegerMath.HeadingBetween(centre, thing.Position, thing.Heading);
+                LogicalPosition velocity = IntegerMath.Displacement(away, speed);
+                thing.VelocityX = (long)velocity.X * SubMillimetre;
+                thing.VelocityZ = (long)velocity.Z * SubMillimetre;
+                thing.Thrown = true;
+                thing.LastPushEventId = causeEventId;
+                context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ItemThrown, thing.Position,
+                    speed, 0, causeEventId, thing.Id);
+            }
+        }
+
+        /// <summary>
+        /// A table takes the momentum of whatever just bounced off it, and
+        /// collapses if that was hard enough. A smashed table stops being
+        /// something people walk around, so the room opens up.
+        /// </summary>
+        private void TrySmashTable(PhysicsBody thrown, LogicalPosition from, LogicalPosition to)
+        {
+            int table = geometry.TableHit(from, to, thrown.Radius);
+            if (table < 0)
+            {
+                return;
+            }
+
+            long speed = IntegerMath.Sqrt(thrown.VelocityX * thrown.VelocityX + thrown.VelocityZ * thrown.VelocityZ);
+            long momentum = thrown.MassGrams * speed / (1000L * SubMillimetre);
+            if (momentum < context.Scenario.Flammables.TableBreakMomentum)
+            {
+                return;
+            }
+
+            geometry.BreakTable(table);
+            context.Events.Append(context.Tick, geometry.TableId(table), FireReactionEventType.ObjectBroke,
+                geometry.TableBounds(table).Centre, (int)Math.Min(int.MaxValue, momentum), 0,
+                thrown.LastPushEventId, thrown.Id);
+            sound.Thud(geometry.TableId(table), geometry.TableBounds(table).Centre, thrown.LastPushEventId);
+        }
+
+        /// <summary>Smashes a thing outright, whatever hit it: used by a blast.</summary>
+        public void Wreck(int index, SimulationId brokenBy, ulong causeEventId)
+        {
+            TryWreck(bodies[index], long.MaxValue, brokenBy, causeEventId);
+        }
+
         /// <summary>A push away from nearby objects, so people walk around boxes rather than into them.</summary>
         public void AddAvoidance(LogicalPosition position, int percent, ref long steerX, ref long steerZ)
         {
             int margin = context.Scenario.Steering.ObjectAvoidMarginMillimetres;
             for (int b = 0; b < bodies.Length; b++)
             {
-                if (bodies[b].HeldBy >= 0)
+                if (IsOutOfPlay(b))
                 {
                     continue;
                 }
@@ -489,6 +705,25 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Which way a frightened person flings whatever they were holding:
+        /// roughly where they are already facing, veering to one side or the
+        /// other, because it is a reflex and not a plan. The cruel are the
+        /// exception: they aim it at the nearest person.
+        /// </summary>
+        public int PanicThrowHeading(Agent thrower, LogicalPosition from)
+        {
+            int spread = items.PanicThrowSpreadDegrees;
+            int heading = thrower.Body.Heading + context.Random.NextIntInclusive(-spread, spread);
+            if (thrower.Traits.Evil < items.EvilAimMinimum)
+            {
+                return heading;
+            }
+
+            Agent victim = NearestOtherPerson(thrower, from, items.AimRangeMillimetres);
+            return victim == null ? heading : IntegerMath.HeadingBetween(from, victim.Body.Position, heading);
+        }
+
+        /// <summary>
         /// A strong runner flings an item in their way: aside, or, if they
         /// are cruel enough, straight at the nearest other person. They lose
         /// half their speed doing it.
@@ -555,7 +790,7 @@ namespace Paniq.Simulation
 
                 // Carried in someone's arms, or with someone sitting on it:
                 // it goes nowhere by itself.
-                if (physicsBody.HeldBy >= 0 || physicsBody.OccupiedBy >= 0)
+                if (physicsBody.HeldBy >= 0 || physicsBody.OccupiedBy >= 0 || physicsBody.Dormant)
                 {
                     continue;
                 }
@@ -574,8 +809,21 @@ namespace Paniq.Simulation
                 LimitSpeed(physicsBody, (long)context.Scenario.World.MaximumStepDistanceMillimetres * SubMillimetre);
                 long nextX = physicsBody.X + physicsBody.VelocityX;
                 long nextZ = physicsBody.Z + physicsBody.VelocityZ;
+                LogicalPosition before = physicsBody.Position;
+
+                // Where it was heading before the walls and tables stopped it.
+                // The smash has to be tested against that, because the clamped
+                // position stops just short of whatever it ran into.
+                var intended = new LogicalPosition((int)FloorDivide(nextX, SubMillimetre), (int)FloorDivide(nextZ, SubMillimetre));
                 geometry.KeepObjectInRoom(physicsBody.Radius, SubMillimetre, physicsBody.X, physicsBody.Z,
                     ref nextX, ref nextZ, out bool hitX, out bool hitZ);
+                if (hitX || hitZ)
+                {
+                    // Anything that slams into a table hard enough may smash it,
+                    // whether it was hurled or merely kicked very hard.
+                    TrySmashTable(physicsBody, before, intended);
+                }
+
                 if (hitX)
                 {
                     physicsBody.VelocityX = -physicsBody.VelocityX * settings.WallRestitutionPercent / 100L;
@@ -760,6 +1008,33 @@ namespace Paniq.Simulation
             {
                 other.LastPushEventId = physicsBody.LastPushEventId;
             }
+
+            // A hard enough knock smashes what was hit.
+            long momentum = physicsBody.MassGrams * closing / (1000L * SubMillimetre);
+            TryWreck(other, momentum, physicsBody.Id, other.LastPushEventId);
+        }
+
+        /// <summary>
+        /// Smashes a thing if the blow was hard enough for its kind: it
+        /// collapses where it stands into lower, lighter wreckage that people
+        /// still trip over but nobody can sit on. Wreckage cannot be smashed
+        /// twice.
+        /// </summary>
+        private void TryWreck(PhysicsBody target, long momentum, SimulationId brokenBy, ulong causeEventId)
+        {
+            int breakMomentum = context.Scenario.Flammables.Of(target.Kind).BreakMomentum;
+            if (target.Wrecked || breakMomentum <= 0 || momentum < breakMomentum || target.OccupiedBy >= 0)
+            {
+                return;
+            }
+
+            target.Wrecked = true;
+            target.Size = Math.Max(100, target.Size * 3 / 4);
+            target.Radius = target.Size / 2;
+            target.MassGrams = Math.Max(1000, target.MassGrams / 2);
+            context.Events.Append(context.Tick, target.Id, FireReactionEventType.ObjectBroke, target.Position,
+                (int)Math.Min(int.MaxValue, momentum), 0, causeEventId, brokenBy);
+            sound.Thud(target.Id, target.Position, target.LastPushEventId);
         }
 
         /// <summary>This kind of object's grip on the floor, per tick.</summary>
@@ -820,7 +1095,9 @@ namespace Paniq.Simulation
                 (int)(speed / SubMillimetre),
                 heldBy: physicsBody.HeldBy >= 0 ? crowd.All[physicsBody.HeldBy].Id : default,
                 thrown: physicsBody.Thrown,
-                occupiedBy: physicsBody.OccupiedBy >= 0 ? crowd.All[physicsBody.OccupiedBy].Id : default);
+                occupiedBy: physicsBody.OccupiedBy >= 0 ? crowd.All[physicsBody.OccupiedBy].Id : default,
+                dormant: physicsBody.Dormant,
+                wrecked: physicsBody.Wrecked);
         }
 
         public FireReactionPhysicsObjectSnapshot[] GetSnapshots()

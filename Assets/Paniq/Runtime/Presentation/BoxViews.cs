@@ -27,6 +27,9 @@ namespace Paniq.Presentation
             public float HopStrength;
             public float Lift;
             public float Arc;
+
+            /// <summary>0 while it is in one piece, 1 once it has collapsed into wreckage.</summary>
+            public float Wreck;
         }
 
         private readonly Dictionary<SimulationId, BoxView> boxes = new Dictionary<SimulationId, BoxView>();
@@ -121,6 +124,31 @@ namespace Paniq.Presentation
                     height = size * 0.7f;
                     colour = new Color(0.42f, 0.30f, 0.45f);
                     Part("Bag", PrimitiveType.Sphere, Vector3.up * (height * 0.5f), new Vector3(size, height, size * 0.75f));
+                    break;
+
+                case PhysicsObjectKind.Microwave:
+                    // A boxy appliance with a dark door on the front.
+                    height = size * 0.6f;
+                    colour = new Color(0.62f, 0.63f, 0.66f);
+                    Part("Body", PrimitiveType.Cube, Vector3.up * (height * 0.5f), new Vector3(size, height, size * 0.8f));
+                    Part("Door", PrimitiveType.Cube, new Vector3(0f, height * 0.55f, -size * 0.42f),
+                        new Vector3(size * 0.8f, height * 0.6f, 0.03f));
+                    break;
+
+                case PhysicsObjectKind.WallSocket:
+                    // A small flat plate; it never moves, so it is barely there.
+                    height = size * 0.5f;
+                    colour = new Color(0.88f, 0.87f, 0.84f);
+                    Part("Plate", PrimitiveType.Cube, Vector3.up * (height * 0.5f), new Vector3(size, height, 0.03f));
+                    break;
+
+                case PhysicsObjectKind.Briefcase:
+                    // A flat slab on its edge, with a handle: harder and heavier
+                    // than a bag, and it shows.
+                    height = size * 0.8f;
+                    colour = new Color(0.34f, 0.24f, 0.16f);
+                    Part("Case", PrimitiveType.Cube, Vector3.up * (height * 0.5f), new Vector3(size, height, size * 0.3f));
+                    Part("Handle", PrimitiveType.Cube, Vector3.up * (height + 0.02f), new Vector3(size * 0.4f, 0.03f, 0.03f));
                     break;
 
                 default:
@@ -255,6 +283,18 @@ namespace Paniq.Presentation
                     continue;
                 }
 
+                // A spare the player has not put down yet is not in the world,
+                // so it is not drawn either.
+                if (view.Transform.gameObject.activeSelf == box.Dormant)
+                {
+                    view.Transform.gameObject.SetActive(!box.Dormant);
+                }
+
+                if (box.Dormant)
+                {
+                    continue;
+                }
+
                 FireReactionPhysicsObjectSnapshot previous = previousSnapshot != null && i < previousSnapshot.PhysicsObjects.Count
                     ? previousSnapshot.PhysicsObjects[i]
                     : box;
@@ -271,9 +311,13 @@ namespace Paniq.Presentation
                 view.Arc = Mathf.MoveTowards(view.Arc, arcTarget, delta * 3f);
                 float raised = view.Lift * 0.75f + view.Arc * 0.6f;
                 float tumble = view.Arc * time * 540f;
+                // Smashed: it collapses to a flat heap and stays that way.
+                view.Wreck = Mathf.MoveTowards(view.Wreck, box.Wrecked ? 1f : 0f, delta * 6f);
+                float squash = Mathf.Lerp(1f, 0.3f, view.Wreck);
+                view.Transform.localScale = new Vector3(1f, squash, 1f);
                 view.Transform.SetPositionAndRotation(
-                    planar + Vector3.up * (view.Height * 0.5f + hop * 0.12f + raised),
-                    Quaternion.Euler(hop * 18f + tumble, yaw, 0f));
+                    planar + Vector3.up * (view.Height * 0.5f * squash + hop * 0.12f + raised),
+                    Quaternion.Euler(hop * 18f + tumble, yaw, view.Wreck * 12f));
 
                 ShowFire(view, box.BurnState, box.HeatPercent, time);
             }

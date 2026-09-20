@@ -1,4 +1,4 @@
-namespace Paniq.Simulation
+﻿namespace Paniq.Simulation
 {
     /// <summary>
     /// Sound is a simulation idea, not audio: a noise has a position and a
@@ -49,6 +49,28 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// A bang: something going off. It carries a long way and frightens
+        /// people near it outright, but it shows them nothing, so it works on
+        /// them like a yell rather than like a bell.
+        /// </summary>
+        public void Bang(SimulationId sourceId, LogicalPosition position, int hearingRadius, int alarmRadius, ulong soundEventId)
+        {
+            Emit(sourceId, position, hearingRadius, alarmRadius, soundEventId);
+        }
+
+        /// <summary>
+        /// An alarm bell. Unlike a yell it tells everybody who hears it that
+        /// there is a fire, without showing them one, so the level-headed among
+        /// them leave briskly instead of panicking.
+        /// </summary>
+        public void Bell(SimulationId alarmId, LogicalPosition position, ulong soundEventId)
+        {
+            AlarmSettings alarm = context.Scenario.Alarm;
+            Emit(alarmId, position, alarm.BellHearingRadiusMillimetres, alarm.BellAlarmRadiusMillimetres, soundEventId,
+                AgentAlertSource.Alarm);
+        }
+
+        /// <summary>
         /// Delivers one noise to every other calm participating person, in
         /// ascending ID order. Inside <paramref name="alarmRadius"/> the noise
         /// alarms; inside <paramref name="hearingRadius"/> it only draws attention.
@@ -58,7 +80,8 @@ namespace Paniq.Simulation
             LogicalPosition position,
             int hearingRadius,
             int alarmRadius,
-            ulong soundEventId)
+            ulong soundEventId,
+            AgentAlertSource alertSource = AgentAlertSource.Yell)
         {
             int sourceRoom = geometry.RoomAtPoint(position);
             Agent[] agents = crowd.All;
@@ -79,7 +102,7 @@ namespace Paniq.Simulation
                 long distanceSquared = LogicalPosition.DistanceSquared(listener.Body.Position, position);
                 if (alarm > 0 && distanceSquared <= alarm * alarm)
                 {
-                    fear.Alarm(listener, soundEventId, AgentAlertSource.Yell, position);
+                    fear.Alarm(listener, soundEventId, alertSource, position);
                 }
                 else if (distanceSquared <= hearing * hearing)
                 {

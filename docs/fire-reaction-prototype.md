@@ -7,29 +7,37 @@ hazard, and leave an explainable causal event trail.
 
 ## Experience
 
-The `FireReactionPrototype` scene shows one abstract 12 m by 12 m room with a
-door in each wall, three wooden tables with eight chairs pulled up to them,
-eight cardboard boxes on the floor, and ten people (capsules).
+The `FireReactionPrototype` scene shows a small office floor plan: a 12 m by
+12 m open-plan office with a door in each wall, a 2 m storage closet and a 3 m
+corridor behind its east wall, and a second 12 m by 12 m meeting room beyond
+that. Twenty people (capsules) share it, ten in each big room. The office holds
+three wooden tables with chairs pulled up to them, cardboard boxes, waste bins,
+potted plants, bags, laptops, office chairs on castors, a microwave, wall
+sockets, a fire extinguisher and a fire alarm; the meeting room is furnished the
+same way.
 
-**Everyone has a personality.** Each person has six traits from 0 to 10:
-strength, speed, bravery, compassion, evil and nervousness. 5 is an ordinary
-person. A number floats beside each head; press **Tab** for a table of
-everyone's traits, how they will panic, and what they are doing now. The ten
-people are authored as a cast (a scenario can also leave traits out and let the
-seed draw them):
+**Everyone has a personality.** Each person has seven traits from 0 to 10:
+strength, speed, bravery, compassion, evil, nervousness and leadership. 5 is an
+ordinary person. A number floats beside each head; press **Tab** for a table of
+everyone's traits, how they will panic, and what they are doing now. The people
+are authored as a cast (a scenario can also leave traits out and let the seed
+draw them). The ten in the office:
 
-| # | Who | Str | Spd | Brv | Cmp | Evl | Nrv |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | ordinary | 5 | 5 | 5 | 5 | 2 | 5 |
-| 2 | the brute | 9 | 6 | 6 | 3 | 6 | 3 |
-| 3 | the hero | 8 | 6 | 8 | 8 | 1 | 3 |
-| 4 | the saint | 4 | 4 | 7 | 9 | 0 | 4 |
-| 5 | the villain | 6 | 6 | 5 | 1 | 8 | 4 |
-| 6 | the nervous wreck | 3 | 5 | 1 | 5 | 2 | 10 |
-| 7 | the sprinter | 5 | 10 | 5 | 5 | 3 | 6 |
-| 8 | the bully | 7 | 5 | 4 | 2 | 9 | 5 |
-| 9 | the coward | 3 | 4 | 2 | 4 | 3 | 8 |
-| 10 | ordinary | 5 | 5 | 5 | 6 | 3 | 5 |
+| # | Who | Str | Spd | Brv | Cmp | Evl | Nrv | Ldr |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | ordinary | 5 | 5 | 5 | 5 | 2 | 5 | 4 |
+| 2 | the brute | 9 | 6 | 6 | 3 | 6 | 3 | 3 |
+| 3 | the hero | 8 | 6 | 8 | 8 | 1 | 3 | 8 |
+| 4 | the saint | 4 | 4 | 7 | 9 | 0 | 4 | 5 |
+| 5 | the villain | 6 | 6 | 5 | 1 | 8 | 4 | 6 |
+| 6 | the nervous wreck | 3 | 5 | 1 | 5 | 2 | 10 | 1 |
+| 7 | the sprinter | 5 | 10 | 5 | 5 | 3 | 6 | 4 |
+| 8 | the bully | 7 | 5 | 4 | 2 | 9 | 5 | 5 |
+| 9 | the coward | 3 | 4 | 2 | 4 | 3 | 8 | 2 |
+| 10 | ordinary | 5 | 5 | 5 | 6 | 3 | 5 | 5 |
+
+The brute and the saint walk in carrying something; so do two of the ten in the
+meeting room.
 
 What the traits do:
 - **Speed** sets walking pace (1.0–1.6 m/s) and sprinting pace (3–5.5 m/s).
@@ -42,7 +50,11 @@ What the traits do:
 - **Nervousness** makes a runner shout more often, change their mind more
   often, zig-zag, hesitate and trip more.
 - **Compassion** makes a runner weave around people and dodge rather than ram
-  them; **evil** does the opposite and barges straight through.
+  them; **evil** does the opposite and barges straight through. The cruel also
+  take hold of whoever is in the way and heave them aside, slam and lock doors
+  behind them, and wedge doors shut to keep other people out.
+- **Leadership** makes somebody take charge: sending the strong at a door,
+  sending the brave for an extinguisher, and calling people on.
 
 **Before the fire, people loiter.** Each person makes their own small decisions
 every few seconds. They stroll to a spot on a gently curving path, stop, glance
@@ -156,17 +168,19 @@ The fire can only get from one room to the next through an open (or broken)
 door; walls stop it, and nobody sees fire through a wall. A closed door
 muffles noises to half their reach.
 
-**Closing doors behind them.** People close doors too, by personality, at
-two moments: the door they just walked through (on the way out of the
-building, or from one room into the next), and a door within reach of them
-with fire in the room beyond it. The evil (7+) shut it and lock it even with someone
-running up behind; only a body in the doorway stops them. The compassionate
-(7+) never shut it on someone within 3 m, and while the fire is still more
-than 5 m from the door they leave it open for stragglers. Otherwise, with
-nobody within 3 m, the nervous (8+) shut it, and so do the brave and kind
-(bravery + compassion 12+) once fire is within 5 m of the door. Anyone
-in a room with no fire in it shuts a door with flames within 2 m beyond it. A closed door can be
-opened again by anyone who reaches it (unless it was locked) or by the player.
+**Slamming the door behind them is a villain's move.** Shutting the door you
+have just come through, as you leave a room or the building, is something only
+the cruel do: evil 7+ shut it whoever is running up behind, and only a body in
+the doorway stops them. Evil 9+ turn the key as well, so nobody can follow.
+Everybody else leaves it open for the people behind them.
+
+Shutting a door because there is **fire on the other side of it** is a
+different act, and anybody does it — it is the flames they are shutting out,
+not the people. Somebody standing in a room that is not alight, within 2 m of
+an open door with fire in the room beyond, pulls it shut. The kind (compassion
+7+) hold it for somebody still coming, unless the flames are within 2 m of the
+door itself, at which point everybody shuts it. A closed door can be opened
+again by anyone who reaches it (unless it was locked) or by the player.
 
 **Helping each other.** A runner who is compassionate (6+), not too timid
 (bravery 4+) and not cruel (evil 4 or less) and who is within 4 m of someone
@@ -237,6 +251,100 @@ can be caught by the fire too. Nobody on fire can escape through a door. With
 every door locked, everyone who does not get out is eventually caught (about
 40 seconds after the fire starts with the default seed). There is no score,
 restart control, or end screen in this checkpoint.
+
+**Shoving people out of the way.** Running into somebody is an accident that
+needs speed. Taking hold of them and heaving them aside is deliberate, works at
+a walk, and only the cruel do it — which is why you see it in the queue at a
+doorway, where nothing used to happen. The person shoved is sent about a third
+of a metre clear and goes down rather than just reeling if the shover is much
+stronger; a calm person shoved is alarmed, and it makes a thud. Somebody frozen
+with fear can be heaved aside too: they never move of their own accord, but this
+is somebody else's doing. One shove per person every 0.8 s, so a bully clears a
+doorway over several seconds rather than at a stroke.
+
+**Bags and briefcases.** Four people walk in holding something: the brute and
+the other bully with briefcases, the saint and the worrier with bags. It is
+theirs, so they keep hold of it while they are calm rather than tidying it
+away. The moment something frightens them they let go — the very nervous fumble
+it onto the floor, everybody else flings it away from them in whatever
+direction they happen to be facing, and the cruel aim it at the nearest person.
+It is a reflex rather than a plan, so a briefcase sails off at an angle and
+clatters into a table.
+
+**Fire alarms.** There is a red box on the wall of each room people use. Anyone
+who has taken in that there is a fire, is not in immediate danger, has their
+hands free, and either leads (6+) or thinks of others (compassion 6+) breaks off
+to hit the one in their own room — four paces at most, half a second to press it
+— and then runs. Hitting one rings **every** bell in the building at once, so a
+shut door cannot leave a room in the dark.
+
+What a bell *does* depends who hears it, because it tells you there is a fire
+without showing you one. Somebody brave and steady keeps their head: they still
+head for a way out, but at a brisk walk, never zig-zagging, never dithering and
+never freezing. Everybody else loses it exactly as they would on seeing the
+flames. Composure lasts only while the fire stays an abstraction — it ends the
+moment the fire comes at them, somebody knocks them down or shoves them, they
+catch light, or they see the flames themselves. So an alarm in a room of cool
+heads empties it neatly, and an alarm in a room of anxious people starts a
+stampede. The whole thing can be switched off in the scenario.
+
+**Furniture breaks.** A hurled box or chair that slams into a chair hard enough
+smashes it: it collapses into flatter, lighter wreckage that people still trip
+over but nobody can sit on. A hard enough hit **collapses a table**, and a
+collapsed table stops being something to walk around — so people start running
+straight across ground they had been picking their way around all game, and the
+shape of the room changes while you watch.
+
+**Electrical things pop.** The microwave and the wall sockets do not sit and
+burn: the moment the flames reach them they go off. A bang the whole building
+hears, everything loose nearby flung away from it, anybody standing close
+knocked off their feet, a scatter of fresh fire on the floor around it, and the
+thing itself left as wreckage. One pop can start a second fire across the room
+from the first.
+
+**Wedged doorways.** Anything left resting in a doorway jams that door, from
+either side, and both ways: it cannot be opened and it cannot be shut. It
+happens by accident all the time — a kicked bin comes to rest in a gap — and
+people discover it exactly as they discover a locked door: they walk up, try it,
+and go looking elsewhere. Somebody strong (7+) instead heaves the obstruction
+out along the wall and then goes through.
+
+People also wedge doors **on purpose**. Somebody frightened (nervousness 7+),
+sheltering in a room, fetches the nearest thing they can lift, carries it to a
+shut door and sets it down in the gap to keep the fire out. The cruel (evil 7+)
+do the same thing to keep other people out. The kind never seal a door with
+somebody still coming through it, and nobody seals the door they are counting
+on themselves — unless the room beyond it is already alight, at which point it
+has stopped being a way out.
+
+## What the player can do
+
+**Doors,** as before: click to unlock, again to open, again to close.
+
+**Influence and cards.** A bar along the bottom of the screen shows what you
+have left to spend. You start with 100. Every card takes a bite out of it, and
+the only thing that pays any back is a person getting out of the building
+alive — 15 each. Spend it all and save nobody and there is nothing left to do
+but watch the fire finish. A card you cannot afford is dimmed and cannot be
+picked up; a card that cannot be played where you point costs nothing.
+
+Press **1** to **4** to pick a card up, then click. Escape or a right click puts
+it back down.
+
+1. **Beefcake (20)** — click a person and they become as strong as anyone can
+   be, for good. They shoulder a locked door off its hinges in a few swings
+   where before they gave up on it, shrug off hits that used to floor them,
+   heave obstructions out of doorways, and carry the heaviest thing in the room.
+2. **Start a fire (10)** — click the floor and a fire starts on that square. If
+   the scenario's own fire has not begun yet, yours is the one the run gets.
+3. **Put down an extinguisher (25)** — click clear floor and a full red bottle
+   appears there for somebody brave to pick up. There are four spares.
+4. **TNT (40)** — click a wall and it blows open into a ragged gap half again as
+   wide as a door. A hole is not a door: nobody can shut it, lock it or batter
+   it, and it stays open for the rest of the run. A hole in an outside wall is a
+   new way out of the building that nobody can take away. The bang is heard
+   across the building, flings loose things away from it, and knocks anybody
+   within a stride and a half off their feet. There are four sticks.
 
 ## Deterministic rules
 
@@ -365,8 +473,13 @@ restart control, or end screen in this checkpoint.
   `AgentGotUp` (parent: `AgentCameTo`).
 - Lost agents keep their state and position but leave occupancy and make no
   later decisions.
-- **Player commands.** A door click is a `ClickDoor` command for the next tick,
-  consumed at the start of that tick in queue order. Locked → unlocked logs
+- **Player commands.** Every command is queued for a tick that has not started,
+  and consumed at the start of that tick in the order it was queued, by
+  `PlayerCommandSystem` — which holds the queue but decides nothing: each command
+  is carried out by the system that owns those rules. A command names either a
+  thing (a stable ID) or a place (whole millimetres). Screen positions, rays and
+  colliders stay in the presentation and are turned into one of those two before
+  anything is queued. A door click is a `ClickDoor` command. Locked → unlocked logs
   `DoorUnlocked` (a root event: the player is the cause); unlocked → open logs
   `DoorOpened` with the unlock as its parent; open → unlocked logs
   `DoorClosed` (a root event), but only if nobody is in the doorway: a body
@@ -520,6 +633,127 @@ restart control, or end screen in this checkpoint.
   moving) and staggers or trips them; a hard box-on-box hit logs
   `BoxesCollided`.
 
+- **Shoving.** In the same place a collision is recorded, when a fleeing,
+  upright runner's straight step is blocked by an upright person and the closing
+  speed is *below* their bump speed: if their evil is 7+ and `Intent.NextShoveTick`
+  has passed, a shove is recorded instead of a side-step, and the cooldown is set
+  40 ticks ahead. Resolved with the collisions, in the order recorded:
+  `AgentShoved` (source the shover, target the person shoved, parent the shover's
+  `AgentScared`, strength the push distance), then the victim is slid 350 mm along
+  the line away from the shover — through the same clamp a jet of water uses, so
+  they cannot be pushed into a wall, a table, a person or a thing — and is knocked
+  down if the shover's strength exceeds theirs by 2 or more, and staggered
+  otherwise. A calm victim is alarmed (`Bumped`); it makes a thud. A shove needs
+  no speed, so it is what happens in a doorway queue.
+- **Starting possessions.** `FireReactionAgentDefinition.CarriedObjectId` names a
+  thing somebody walks in holding. Bound after the objects exist and before the
+  first tick, drawing no random numbers, so the start-up draw order is unchanged.
+  The thing is marked `Carry.OwnsIt`, which exempts it from the calm put-down and
+  from being tidied; a scenario is refused if the thing does not exist, is too
+  heavy for its owner, is an extinguisher, or is given to two people.
+- **The primal throw.** The direction a frightened person flings what they were
+  holding is their own heading plus a seeded ±60°, except that evil 7+ aim at the
+  nearest person within the existing aim range. Nothing else about letting go
+  changed: the very nervous still drop rather than throw.
+- **Fire alarms.** One authored alarm per room (`FireReactionAlarmDefinition`).
+  `AlarmBehaviour.Decide` sits in the panic chain after helping and before the
+  door work, so somebody with an unconscious person in front of them sees to them
+  rather than walking off to the bell. A scared, upright, empty-handed person not
+  in danger, with leadership 6+ or compassion 6+, and an unpulled alarm in their
+  own room within 4 m, walks to it (giving up if blocked for 12 ticks, if somebody
+  else rings first, or after 8 s) and presses it for 20 ticks. `AlarmPulled`
+  (source the person, target the alarm, parent their `AgentScared`) is followed by
+  one `AlarmRang` per alarm, in alarm order, each emitting its own noise through
+  the ordinary sound path with a 14 m hearing and alarm reach — so everybody calm
+  in the building is alerted, with a new `AgentAlertSource.Alarm`.
+- **Composure.** `AgentFear.Composed` is set when a bell alerts somebody whose
+  bravery less nervousness is 2 or more. A composed person flees at their calm
+  pace rather than their panic pace, and their swerve and hesitation chances are
+  zero; they never freeze, whatever temperament they were dealt.
+  `FearSystem.BreakComposure` clears it, from the panic decision when the fire is
+  inside their danger distance, and from `KnockDown`, `Stagger`, `Trip`,
+  `CatchFire`, `ShoveBack` and `PromoteAlertToVisual`. A broken composure forces a
+  fresh panic decision on the next tick.
+- **Breaking.** Each kind has a `BreakMomentum` in kilograms times millimetres
+  per tick; 0 never breaks. An object-on-object hit computes the striker's
+  momentum and smashes the thing struck if it is over that kind's figure:
+  `ObjectBroke` (source the thing that broke, target what hit it), and the thing
+  becomes three-quarters its size, half its mass, and `Wrecked` — still solid,
+  still trippable, no longer a chair anybody can sit on. A moving thing that is
+  stopped by a table tests its momentum against `TableBreakMomentum` along the
+  path it *intended* to take, not the clamped one, and on breaking the table is
+  flagged in `WorldGeometry`: `TableAt`, `RouteCrossesTable`, `PushOutOfTables`,
+  `AddWallRepulsion` and the random-spot redraw all skip it from then on.
+- **Popping.** A kind with a `PopRadiusMillimetres` above zero goes off the
+  instant it catches fire, in place of burning: `ObjectExploded` (parent its
+  `ObjectCaughtFire`), then, in a fixed order, a bang through the sound system
+  (six times the radius heard, three times alarming), every loose thing inside the
+  radius flung away from it in ascending ID order, every upright person inside it
+  shoved back and floored in ascending ID order, up to `PopIgniteCells` floor
+  squares inside it lit row by row, and the thing itself wrecked. Nothing is lit
+  before the run's fire has started.
+- **Wedged doorways.** `WorldGeometry.IsObjectInDoorway` is true for a thing in
+  front of a door's gap whose distance from the wall line is within its own radius
+  plus 150 mm, measured on either side. `DoorSystem.ResolveBlockages` runs at the
+  end of the tick, after the objects have finished moving: doors in ascending
+  index, and within a door the lowest-numbered thing wins. Decisions in the next
+  tick therefore read last tick's answer. A blockage appearing logs `DoorBlocked`
+  (source the thing, target the door, parent whatever last set the thing moving)
+  and clearing logs `DoorUnblocked`. An obstructed door does not open and does not
+  shut: `IsDoorwayClear` and `Open` both refuse. A runner at one rattles it as
+  they would a locked door; strength 7+ instead spends 40 ticks on
+  `ShovingObstruction` and then heaves the thing along the wall, to the side they
+  are standing, at 30 + 8 per strength point mm/tick (`AgentShovedObstruction`).
+- **Barricading.** `BarricadeBehaviour.Decide` sits in the panic chain after the
+  alarm step. Somebody upright, empty-handed, not in danger, in a room that is not
+  alight, with nervousness 7+ or evil 7+, picks a shut door of that room that
+  nothing is wedged in and nobody else is wedging — preferring one with fire
+  beyond it — then the nearest liftable, intact, still thing in the room within
+  5 m. They walk straight at it (no steering, as all fetching does), pick it up,
+  carry it to a standing spot back from the gap by their own width plus the
+  thing's, and set it down dead centre of the gap 80 mm short of the wall line:
+  `AgentBarricadedDoor` (target the door). They abandon it if the fire closes in,
+  if they are knocked about, if the door opens or is already wedged, if their room
+  catches, after 60 ticks of getting nowhere, or after 10 s. `LetGoIfNeeded`
+  exempts a barricade carrier, or they would fling the thing away the tick after
+  picking it up. All the timings are fixed rather than seeded, so this adds no
+  randomness of its own. The kind never seal a door with somebody beyond it, and
+  nobody seals their own chosen way out unless the room beyond it is alight.
+- **Influence.** Starts at 100; a card that actually does something spends its
+  cost; every person whose outcome becomes `Escaped` credits 15, capped at 300,
+  counted at the end of the tick rather than reported by the behaviours. A card
+  nobody can pay for does nothing. Influence is not an event, for the same reason
+  sitting is not; each card's event records its cost in `Strength`.
+- **The cards.** All four are root events, because the player is the cause.
+  `PlayBeefcake` sets that person's strength to 10 and nothing else — traits are
+  read when used and never cached, so every strength rule picks it up on the next
+  tick; it is refused on somebody already at 10 or no longer in the run.
+  `SpawnFire` needs a floor square that is in a room, unlit and not wet, asked
+  before anything is written down because the log is append-only; the square it
+  lights names the card as its cause, and if the scenario's fire has not started
+  the card's square becomes `FireActivated`. `SpawnExtinguisher` takes the
+  lowest-numbered spare bottle and stands it on clear floor with full fuel.
+  `BlastWall` is below.
+- **Blast holes.** The scenario reserves four spare openings, appended after the
+  authored doors and flagged `IsHole` and not `Placed`. Everything that loops over
+  doors stops at the placed count, including four loops inside `WorldGeometry`
+  that would otherwise read an unplaced slot as a door leading outside — and
+  therefore score it and draw a random number for it, silently changing every
+  recorded run. `TryPlaceHole` picks the nearest wall line within 0.9 m of the
+  clicked point, in integers, with ties going to the lowest room index and then
+  the wall order; clamps the gap into the wall with a body's width of wall at each
+  end; refuses a gap that comes within 0.5 m of any opening in the same wall line,
+  whichever room owns it, or that would open half into the next room and half into
+  solid wall. Placing one writes the slot's room, side, centre and width, sets it
+  `Broken`, and rebuilds the only two things cached per door — `doorNeighbour` and
+  the per-room door lists — through the same method the constructor uses, because
+  the order doors appear in per room is part of the replay contract. Nothing else
+  is rebuilt: the fire grid is derived from rooms, not doors. `PowerBlastedWall`
+  becomes the hole's `OpenedEventId`, so an escape through it names the blast as
+  its cause. Then the bang (20 m heard, 12 m alarming), the loose things within
+  2.5 m flung at 90 mm/tick, and the people within 1.5 m shoved back 600 mm and
+  floored. No fire.
+
 ## Causal events and presentation
 
 The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
@@ -530,12 +764,22 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `BoxHitAgent`, `BoxesCollided`, `AgentPassedOut`, `AgentCameTo`,
 `DoorBrokenDown`, `AgentCaughtFire`, `ObjectCaughtFire`, `ObjectBurntOut`,
 `ItemThrown`, `ItemDropped`, `DoorClosed`, `DoorLocked`, `AgentShookAwake`,
-`AgentGrabbed`, `AgentDropped` and `AgentRescued` events. Events that affect someone or
+`AgentGrabbed`, `AgentDropped`, `AgentRescued`, `AgentShoved`, `AlarmPulled`,
+`AlarmRang`, `ObjectBroke`, `ObjectExploded`, `DoorBlocked`, `DoorUnblocked`,
+`AgentBarricadedDoor`, `AgentShovedObstruction`, `PowerBeefcake`,
+`PowerSpawnedFire`, `PowerSpawnedExtinguisher` and `PowerBlastedWall` events.
+Event types are only ever appended, never inserted, because a type's number is
+part of the replay fingerprint. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,
 `BoxBumped` the box, `BoxHitAgent` the person hit, `BoxesCollided` the other box,
 and `AgentTriedDoor`, `AgentForcedDoor`, `AgentGaveUpOnDoor`, `DoorBrokenDown`
-and `AgentEscaped` the door. Every event except `FireActivated`
-and the player's `DoorUnlocked` has a causal parent (a box set moving by a calm
+and `AgentEscaped` the door; `AgentShoved` the person shoved, `AlarmPulled` the
+alarm, `ObjectBroke` what hit the thing that broke, `DoorBlocked` and
+`DoorUnblocked` the door jammed, `AgentBarricadedDoor` the door wedged,
+`AgentShovedObstruction` the thing heaved aside, `PowerBeefcake` the person made
+strong, and `PowerSpawnedExtinguisher` and `PowerBlastedWall` the bottle and the
+hole. Every event except `FireActivated`, the player's `DoorUnlocked` and the
+four cards (the player is the cause of those) has a causal parent (a box set moving by a calm
 person's unlogged push is the one rare exception). The room, isometric camera, capsules, fire cubes, vision-cone
 outlines, icons, floor ripples and the counter are observational
 presentation. They map logical millimetres to Unity metres and never write
@@ -582,6 +826,24 @@ and the closet can be watched without moving the camera. The second drawing
 uses `Content/Rendering/SeeThrough.shader`, added as an extra material on each
 renderer; it needs no project setup. This is rendering only; the simulation
 neither knows nor cares.
+
+**What the new things look like.** A fire alarm is a small red box on the wall;
+every box flashes twice a second once the alarms are ringing. A briefcase is a
+flat slab on its edge with a handle; a microwave is a boxy appliance with a dark
+door; a wall socket is a small pale plate that never moves. A smashed thing
+squashes to a third of its height and tilts; a collapsed table drops to a flat
+heap. A spare extinguisher the player has not put down is not drawn at all. A
+blast hole cuts back the wall pieces it crosses — splitting one in two where the
+hole is in the middle of it — and leaves five lumps of rubble in the gap, laid out
+from the hole's own ID so it looks the same every run without touching the
+simulation's randomness; a hole leading outside gets the same strip of outside
+ground a door does. Explosions and blasts throw a large floor ring, and a shove
+makes the shover lunge.
+
+**The player's own controls** are the card row along the bottom, the influence
+bar above it, and the line above that saying what a click will do. Clicking a
+place is worked out against the mathematical ground plane, so no collider is
+needed for it; door leaves remain the only colliders in the scene.
 
 This prototype deliberately remains ordinary GameObjects and C# code. The next
 stone is chosen by the owner after playing it. Profile a standalone build

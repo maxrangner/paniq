@@ -59,9 +59,10 @@
 | Doorway jams (2026-09-19) | A runner blocked for 12 ticks within 0.85 m of their open door, inside the room and not lined up with the gap, gives way: for 25–50 ticks they head for a spot 0.4 m inside the wall, 0.85 m along it from the door's centre on their side, then try again. People sheltering in a side room take the first free of five spots (back middle, back corners, front corners beside the door); a spot is taken when someone else nearer to it stands within 0.3 m. Measured headless, seeds 1–30, every door unlocked at 6, 8 or 12 s, 60 s each (90 runs): the longest anyone stood still next to an open door fell from 1,407 ticks (28 s) to 19 ticks, jams over 2 s fell from 9 runs to 0, and escaped plus sheltering people rose from 687 to 724. | Owner report, seed 5: with the side room's door unlocked, person 9 blocked it. Two runners reached the 1 m door at once, each ended up against one side of the frame, and the one lined up behind them could not pass; nobody moved until the fire came. A second case: everyone sheltering aimed for the same spot at the back, so the second one in stopped just inside the door and blocked the next. Stepping aside and fixed spots are the smallest rules that clear both, and read as ordinary courtesy in a queue. Chosen on the owner's behalf. | People visibly hover beside doors too long (shorten 25–50 ticks), or larger side rooms need more spots (derive spots from the room size). |
 | Prototype presentation camera | Orthographic camera at a 45-degree horizontal angle and 35.264-degree elevation | This is the familiar isometric game view and keeps the whole 12 m room readable. | Playtesting shows that depth or agent readability requires a different camera. |
 
-Run **Paniq > Project > Configure URP** after Unity resolves packages. The
-command creates and assigns Unity-version-matched URP assets; commit its
-generated assets and project-settings changes as part of project initialization.
+Run **Paniq > Project > Configure URP** after Unity resolves packages, and
+again whenever that command changes. It creates and assigns Unity-version-matched
+URP assets and adds the two see-through passes described above; commit its
+generated assets and project-settings changes.
 
 ## How decisions are made
 

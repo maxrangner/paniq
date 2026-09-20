@@ -1,4 +1,4 @@
-# Paniq
+﻿# Paniq
 
 Paniq is a darkly comedic 3D crowd-survival game inspired by the
 indirect-control lineage of *Lemmings*. The player influences an autonomous

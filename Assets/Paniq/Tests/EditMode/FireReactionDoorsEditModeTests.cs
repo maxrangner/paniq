@@ -520,7 +520,14 @@ namespace Paniq.Tests.EditMode
                         break;
                     case FireReactionEventType.ItemThrown:
                     case FireReactionEventType.ItemDropped:
+                    case FireReactionEventType.AgentTookExtinguisher:
+                    case FireReactionEventType.ExtinguisherSprayed:
+                    case FireReactionEventType.ExtinguisherEmptied:
                         Assert.That(boxes, Does.Contain(record.TargetId), $"{record.EventType} names the item.");
+                        break;
+                    case FireReactionEventType.AgentBlasted:
+                    case FireReactionEventType.AgentDoused:
+                        Assert.That(agents, Does.Contain(record.TargetId), $"{record.EventType} names the person hit.");
                         break;
                     default:
                         Assert.That(record.HasTarget, Is.False, $"{record.EventType} should not name a target.");

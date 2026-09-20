@@ -5,13 +5,14 @@ namespace Paniq.Simulation
     /// <summary>One burning grid square. Cells are listed in the order they ignited.</summary>
     public readonly struct FireCellSnapshot
     {
-        public FireCellSnapshot(int cellX, int cellZ, LogicalBounds bounds, int ignitionTick, ulong eventId)
+        public FireCellSnapshot(int cellX, int cellZ, LogicalBounds bounds, int ignitionTick, ulong eventId, int outTick = 0)
         {
             CellX = cellX;
             CellZ = cellZ;
             Bounds = bounds;
             IgnitionTick = ignitionTick;
             EventId = eventId;
+            OutTick = outTick;
         }
 
         public int CellX { get; }
@@ -19,6 +20,17 @@ namespace Paniq.Simulation
         public LogicalBounds Bounds { get; }
         public LogicalPosition Centre => Bounds.Centre;
         public int IgnitionTick { get; }
+
+        /// <summary>The tick this square was put out, or 0 while it still burns.</summary>
+        public int OutTick { get; }
+
+        public bool IsOut => OutTick != 0;
+
+        /// <summary>The same square, put out at this tick.</summary>
+        internal FireCellSnapshot PutOut(int tick)
+        {
+            return new FireCellSnapshot(CellX, CellZ, Bounds, IgnitionTick, EventId, tick);
+        }
 
         /// <summary>The FireActivated or FireSpread event that lit this cell.</summary>
         public ulong EventId { get; }
@@ -42,10 +54,12 @@ namespace Paniq.Simulation
             AgentPanicTemperament temperament,
             AgentBodyState bodyState,
             AgentTraitValues traits,
-            bool isBurning)
+            bool isBurning,
+            bool isLeading = false)
         {
             Traits = traits;
             IsBurning = isBurning;
+            IsLeading = isLeading;
             Temperament = temperament;
             BodyState = bodyState;
             AgentId = agentId;
@@ -95,6 +109,9 @@ namespace Paniq.Simulation
 
         /// <summary>On fire and running around wildly until they collapse.</summary>
         public bool IsBurning { get; }
+
+        /// <summary>Somebody is following this person right now.</summary>
+        public bool IsLeading { get; }
 
         public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp ||
                               BodyState == AgentBodyState.Unconscious;
@@ -159,8 +176,10 @@ namespace Paniq.Simulation
             ObjectBurnState burnState = ObjectBurnState.Intact,
             int heatPercent = 0,
             SimulationId heldBy = default,
-            bool thrown = false)
+            bool thrown = false,
+            SimulationId occupiedBy = default)
         {
+            OccupiedBy = occupiedBy;
             HeldBy = heldBy;
             Thrown = thrown;
             BurnState = burnState;
@@ -193,6 +212,11 @@ namespace Paniq.Simulation
 
         public bool IsHeld => HeldBy.Value != 0UL;
 
+        /// <summary>Who is sitting on it (a zero ID when nobody is).</summary>
+        public SimulationId OccupiedBy { get; }
+
+        public bool IsSatOn => OccupiedBy.Value != 0UL;
+
         /// <summary>Thrown and still flying.</summary>
         public bool Thrown { get; }
 
@@ -200,7 +224,7 @@ namespace Paniq.Simulation
         internal FireReactionPhysicsObjectSnapshot WithBurn(ObjectBurnState burnState, int heatPercent)
         {
             return new FireReactionPhysicsObjectSnapshot(ObjectId, Kind, Position, SizeMillimetres, HeadingDegrees,
-                SpeedMillimetresPerTick, burnState, heatPercent, HeldBy, Thrown);
+                SpeedMillimetresPerTick, burnState, heatPercent, HeldBy, Thrown, OccupiedBy);
         }
     }
 

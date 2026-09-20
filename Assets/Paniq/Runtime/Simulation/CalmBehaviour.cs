@@ -7,7 +7,8 @@ namespace Paniq.Simulation
     /// few seconds - stroll somewhere, stand, look around, or wander over to
     /// stand near someone - using the seeded generator and their own seeded
     /// pace and turn rate. Also turning toward, and edging toward, a noise,
-    /// and now and then tidying an item away (see <see cref="ItemBehaviour"/>).
+    /// now and then tidying an item away (see <see cref="ItemBehaviour"/>),
+    /// and now and then sitting down on a chair (see <see cref="ChairBehaviour"/>).
     /// </summary>
     internal sealed class CalmBehaviour
     {
@@ -16,15 +17,23 @@ namespace Paniq.Simulation
         private readonly WorldGeometry geometry;
         private readonly Locomotion locomotion;
         private readonly ItemBehaviour items;
+        private readonly ChairBehaviour chairs;
         private readonly CalmSettings settings;
 
-        public CalmBehaviour(SimulationContext context, Crowd crowd, WorldGeometry geometry, Locomotion locomotion, ItemBehaviour items)
+        public CalmBehaviour(
+            SimulationContext context,
+            Crowd crowd,
+            WorldGeometry geometry,
+            Locomotion locomotion,
+            ItemBehaviour items,
+            ChairBehaviour chairs)
         {
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
             this.locomotion = locomotion;
             this.items = items;
+            this.chairs = chairs;
             settings = context.Scenario.Calm;
         }
 
@@ -138,6 +147,18 @@ namespace Paniq.Simulation
                     break;
                 }
 
+                case AgentActivityState.GoingToSit:
+                case AgentActivityState.Sitting:
+                case AgentActivityState.StandingUp:
+                    if (chairs.UpdateSitting(agent, out goalHeading, out goalSpeed))
+                    {
+                        steer = goalSpeed > 0;
+                        break;
+                    }
+
+                    ChooseActivity(agent, true);
+                    break;
+
                 case AgentActivityState.FetchingItem:
                 case AgentActivityState.PickingUp:
                 case AgentActivityState.CarryingItem:
@@ -206,6 +227,13 @@ namespace Paniq.Simulation
 
             agent.Intent.SocialPartnerIndex = -1;
             if (roll < context.Scenario.Items.TidyChancePercent && items.TryStartTidying(agent))
+            {
+                return;
+            }
+
+            // The same roll decides both, so sitting takes the band just above tidying.
+            if (roll < context.Scenario.Items.TidyChancePercent + context.Scenario.Items.SitChancePercent &&
+                chairs.TryStartSitting(agent))
             {
                 return;
             }

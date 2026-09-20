@@ -20,6 +20,13 @@ namespace Paniq.Simulation
         private readonly BodySystem body;
         private readonly DoorBehaviour doorBehaviour;
         private readonly HelpBehaviour help;
+        private readonly ChairBehaviour chairs;
+
+        /// <summary>Set once the extinguishers exist, which need the behaviours around them first.</summary>
+        private ExtinguisherBehaviour extinguishers;
+
+        /// <summary>Set once the leaders exist, for the same reason.</summary>
+        private LeaderBehaviour leaders;
         private readonly Locomotion locomotion;
         private readonly PanicSettings settings;
 
@@ -33,9 +40,11 @@ namespace Paniq.Simulation
             BodySystem body,
             DoorBehaviour doorBehaviour,
             HelpBehaviour help,
+            ChairBehaviour chairs,
             Locomotion locomotion)
         {
             this.help = help;
+            this.chairs = chairs;
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
@@ -47,6 +56,12 @@ namespace Paniq.Simulation
             this.locomotion = locomotion;
             settings = context.Scenario.Panic;
         }
+
+        /// <summary>Wired up after construction, because each needs the other's neighbours.</summary>
+        public void UseExtinguishers(ExtinguisherBehaviour behaviour) => extinguishers = behaviour;
+
+        /// <summary>Wired up after construction, for the same reason.</summary>
+        public void UseLeaders(LeaderBehaviour behaviour) => leaders = behaviour;
 
         /// <summary>
         /// This tick's panicked decision. Returns no intent when the person
@@ -78,6 +93,30 @@ namespace Paniq.Simulation
             {
                 sound.Yell(agent, agent.Fear.ScaredEventId);
                 agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
+            }
+
+            if (agent.Sitting.OnIt)
+            {
+                // Still in a chair: they have to get out of it first.
+                chairs.StartStandingUp(agent);
+                if (tick < intent.ActivityEndTick)
+                {
+                    return new MotorIntent(agent.Body.Heading, 0, agent.Personality.PanicTurnRate, settings.Acceleration);
+                }
+
+                intent.Activity = AgentActivityState.Fleeing;
+            }
+
+            MotorIntent? following = leaders.Decide(agent, inDanger);
+            if (following.HasValue)
+            {
+                return following.Value;
+            }
+
+            MotorIntent? fighting = extinguishers.Decide(agent, inDanger);
+            if (fighting.HasValue)
+            {
+                return fighting.Value;
             }
 
             MotorIntent? helping = help.Decide(agent, inDanger);

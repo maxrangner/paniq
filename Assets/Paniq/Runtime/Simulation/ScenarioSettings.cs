@@ -67,6 +67,12 @@ namespace Paniq.Simulation
         public int BurningScreamMinimumTicks = 25;
         public int BurningScreamMaximumTicks = 50;
 
+        /// <summary>How long a square that has been put out stays too wet to catch again.</summary>
+        public int DousedWetTicks = 1000;
+
+        /// <summary>How many ticks of spray one burning square takes to put out.</summary>
+        public int DouseTicksPerCell = 30;
+
         /// <summary>A gap between two bodies at most this wide lets the flames jump across.</summary>
         public int BurningSpreadGapMillimetres = 100;
 
@@ -84,7 +90,8 @@ namespace Paniq.Simulation
                              Settings.Range(BurningTurnMinimumTicks, BurningTurnMaximumTicks, 1) &&
                              BurningBlockedTurnTicks >= 1 &&
                              Settings.Range(BurningScreamMinimumTicks, BurningScreamMaximumTicks, 1) &&
-                             BurningSpreadGapMillimetres >= 0 && Settings.Percent(BurningSpreadChancePercent), "burning people");
+                             BurningSpreadGapMillimetres >= 0 && Settings.Percent(BurningSpreadChancePercent) &&
+                             DousedWetTicks >= 0 && DouseTicksPerCell >= 1, "burning people");
         }
     }
 
@@ -593,16 +600,203 @@ namespace Paniq.Simulation
         }
     }
 
+    /// <summary>Taking charge: who leads, who follows, and what leaders tell people to do.</summary>
+    [Serializable]
+    public sealed class LeadershipSettings
+    {
+        /// <summary>Leadership needed before someone starts telling other people what to do.</summary>
+        public int LeaderMinimum = 7;
+
+        /// <summary>How often a leader looks around and forms a plan.</summary>
+        public int PlanMinimumTicks = 50;
+        public int PlanMaximumTicks = 100;
+
+        /// <summary>How far a shout gathers people, and how far an order carries.</summary>
+        public int RallyRangeMillimetres = 5000;
+        public int OrderRangeMillimetres = 6000;
+
+        /// <summary>How long an order and a following last before they lapse.</summary>
+        public int OrderLastsTicks = 750;
+        public int FollowLastsTicks = 400;
+
+        /// <summary>A follower keeps about this far behind before running their own way.</summary>
+        public int FollowGapMillimetres = 1500;
+
+        /// <summary>Bravery needed before a leader sends someone at the fire with a bottle.</summary>
+        public int OrderedFightMinimumBravery = 5;
+
+        /// <summary>Evil this high never does as it is told.</summary>
+        public int DefiantMinimumEvil = 7;
+
+        /// <summary>The chance of doing as told: this, plus per point of nervousness, less per point of bravery.</summary>
+        public int ObeyBasePercent = 55;
+        public int ObeyPercentPerNervousness = 4;
+        public int ObeyPercentPerBravery = 3;
+
+        public LeadershipSettings Clone() => (LeadershipSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(LeaderMinimum >= 0 && DefiantMinimumEvil >= 0 && OrderedFightMinimumBravery >= 0, "who leads");
+            Settings.Require(Settings.Range(PlanMinimumTicks, PlanMaximumTicks, 1), "leader planning");
+            Settings.Require(RallyRangeMillimetres >= 0 && OrderRangeMillimetres >= 0 && FollowGapMillimetres > 0,
+                "leader distances");
+            Settings.Require(OrderLastsTicks > 0 && FollowLastsTicks > 0, "how long orders last");
+            Settings.Require(ObeyBasePercent >= 0 && ObeyPercentPerNervousness >= 0 && ObeyPercentPerBravery >= 0,
+                "doing as told");
+        }
+    }
+
+    /// <summary>
+    /// Fire extinguishers: who picks one up, how the spray works, and what
+    /// it does to whoever is caught in it.
+    /// </summary>
+    [Serializable]
+    public sealed class ExtinguisherSettings
+    {
+        /// <summary>How many ticks of spray one bottle holds.</summary>
+        public int FuelTicks = 300;
+
+        /// <summary>Bravery needed to take on the flames, and compassion needed to hose down a burning person.</summary>
+        public int FightMinimumBravery = 7;
+        public int SaveMinimumCompassion = 7;
+
+        /// <summary>Nobody takes on a fire bigger than this many burning squares (saving someone is always worth it).</summary>
+        public int FightMaximumFireCells = 24;
+
+        /// <summary>They will cross this much floor for an extinguisher, and hold it once this close.</summary>
+        public int FetchRangeMillimetres = 9000;
+        public int PickUpDistanceMillimetres = 400;
+
+        /// <summary>How far they will go to hose down someone who is alight.</summary>
+        public int SaveRangeMillimetres = 8000;
+
+        /// <summary>Give up fetching after this long, and stop fighting after this long.</summary>
+        public int FetchTimeoutTicks = 500;
+        public int FightTimeoutTicks = 1500;
+
+        /// <summary>
+        /// How much of their usual keep-away distance from the flames someone
+        /// with an extinguisher in their hands still keeps: the bottle makes
+        /// them braver, up to a point.
+        /// </summary>
+        public int DangerTolerancePercent = 50;
+
+        /// <summary>How close they get to what they are hosing down before they stop walking.</summary>
+        public int StandOffMillimetres = 2000;
+
+        /// <summary>The jet: this far, this wide, and this many squares put out per tick.</summary>
+        public int SprayRangeMillimetres = 3000;
+        public int SprayConeDegrees = 30;
+        public int CellsPerTick = 1;
+
+        /// <summary>How far the jet shoves someone, and how long before it can knock them over again.</summary>
+        public int BlastPushMillimetres = 400;
+        public int BlastRecoveryTicks = 100;
+
+        /// <summary>
+        /// The recoil: this far back per tick, less this much per point of
+        /// strength, so anyone strong holds it steady. At or below the last
+        /// value, the recoil puts them on the floor.
+        /// </summary>
+        public int RecoilPushMillimetres = 60;
+        public int RecoilPushPerStrength = 12;
+        public int RecoilFloorsMaximumStrength = 0;
+
+        public ExtinguisherSettings Clone() => (ExtinguisherSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(FuelTicks > 0 && FightMaximumFireCells >= 0, "extinguisher fuel");
+            Settings.Require(FightMinimumBravery >= 0 && SaveMinimumCompassion >= 0, "who fights a fire");
+            Settings.Require(FetchRangeMillimetres >= 0 && PickUpDistanceMillimetres > 0 && SaveRangeMillimetres >= 0,
+                "extinguisher distances");
+            Settings.Require(FetchTimeoutTicks > 0 && FightTimeoutTicks > 0, "extinguisher timeouts");
+            Settings.Require(SprayRangeMillimetres > 0 && SprayConeDegrees > 0 && SprayConeDegrees <= 180 && CellsPerTick > 0 &&
+                StandOffMillimetres > 0 && StandOffMillimetres <= SprayRangeMillimetres, "the spray");
+            Settings.Require(BlastPushMillimetres >= 0 && BlastRecoveryTicks >= 0, "the blast");
+            Settings.Require(Settings.Percent(DangerTolerancePercent), "extinguisher nerve");
+            Settings.Require(RecoilPushMillimetres >= 0 && RecoilPushPerStrength >= 0 && RecoilFloorsMaximumStrength >= 0,
+                "the recoil");
+        }
+    }
+
     /// <summary>
     /// Boxes, chairs and tables catching fire. Things heat up while flames
     /// are close and catch once hot for long enough; cardboard catches
     /// sooner than wood, and wood burns longer.
     /// </summary>
+    /// <summary>
+    /// One kind of loose object: how far it slides when kicked, and how
+    /// readily it burns. Friction is a percentage of the shared floor
+    /// friction, so 50 slides twice as far and 200 half as far; an object
+    /// that never burns has <see cref="IgniteTicks"/> 0.
+    /// </summary>
+    [Serializable]
+    public sealed class ObjectKindSettings
+    {
+        public const int KindCount = 8;
+
+        public PhysicsObjectKind Kind;
+        public int FrictionPercent = 100;
+        public int IgniteTicks = 75;
+        public int BurnMinimumTicks = 400;
+        public int BurnMaximumTicks = 750;
+
+        public ObjectKindSettings Clone() => (ObjectKindSettings)MemberwiseClone();
+
+        /// <summary>The office's things, in enum order.</summary>
+        public static ObjectKindSettings[] Defaults()
+        {
+            return new[]
+            {
+                Entry(PhysicsObjectKind.Box, 100, 75, 400, 750),
+                Entry(PhysicsObjectKind.Chair, 120, 150, 600, 900),
+
+                // Castors: it rolls away across the floor.
+                Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900),
+                Entry(PhysicsObjectKind.WasteBin, 80, 50, 250, 450),
+
+                // Earth and green leaves: it never catches.
+                Entry(PhysicsObjectKind.PottedPlant, 200, 0, 0, 0),
+                Entry(PhysicsObjectKind.Bag, 90, 100, 300, 500),
+
+                // Hard plastic on hard floor: it skitters.
+                Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400),
+
+                // Steel: it never catches.
+                Entry(PhysicsObjectKind.Extinguisher, 90, 0, 0, 0)
+            };
+        }
+
+        private static ObjectKindSettings Entry(PhysicsObjectKind kind, int friction, int ignite, int burnMinimum, int burnMaximum)
+        {
+            return new ObjectKindSettings
+            {
+                Kind = kind,
+                FrictionPercent = friction,
+                IgniteTicks = ignite,
+                BurnMinimumTicks = burnMinimum,
+                BurnMaximumTicks = burnMaximum
+            };
+        }
+
+        internal void Validate()
+        {
+            Settings.Require(FrictionPercent > 0 && FrictionPercent <= 1000, "object friction");
+            Settings.Require(IgniteTicks >= 0, "object ignite time");
+            Settings.Require(IgniteTicks == 0 || Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1), "object burn time");
+        }
+    }
+
     [Serializable]
     public sealed class FlammableSettings
     {
         /// <summary>Flames (a burning square or burning thing) this close to a thing's edge heat it.</summary>
         public int HeatDistanceMillimetres = 500;
+
+        /// <summary>How each kind of loose object slides and burns; one entry per kind.</summary>
+        public ObjectKindSettings[] Kinds = ObjectKindSettings.Defaults();
 
         /// <summary>Ticks of heat before each kind catches fire.</summary>
         public int BoxIgniteTicks = 75;
@@ -623,7 +817,23 @@ namespace Paniq.Simulation
         /// <summary>A person this close to a burning thing's edge touches it (and catches fire).</summary>
         public int TouchGapMillimetres = 50;
 
-        public FlammableSettings Clone() => (FlammableSettings)MemberwiseClone();
+        public FlammableSettings Clone()
+        {
+            var copy = (FlammableSettings)MemberwiseClone();
+            if (Kinds != null)
+            {
+                copy.Kinds = new ObjectKindSettings[Kinds.Length];
+                for (int i = 0; i < Kinds.Length; i++)
+                {
+                    copy.Kinds[i] = Kinds[i]?.Clone();
+                }
+            }
+
+            return copy;
+        }
+
+        /// <summary>How this kind of object slides and burns.</summary>
+        public ObjectKindSettings Of(PhysicsObjectKind kind) => Kinds[(int)kind];
 
         internal void Validate()
         {
@@ -633,6 +843,12 @@ namespace Paniq.Simulation
                              Settings.Range(ChairBurnMinimumTicks, ChairBurnMaximumTicks, 1) &&
                              Settings.Range(TableBurnMinimumTicks, TableBurnMaximumTicks, 1), "burn times");
             Settings.Require(FloorIgniteRestTicks >= 1 && TouchGapMillimetres >= 0, "burning things");
+            Settings.Require(Kinds != null && Kinds.Length == ObjectKindSettings.KindCount, "one entry per kind of object");
+            for (int i = 0; i < Kinds.Length; i++)
+            {
+                Settings.Require((int)Kinds[i].Kind == i, "kinds in enum order");
+                Kinds[i].Validate();
+            }
         }
     }
 
@@ -649,6 +865,24 @@ namespace Paniq.Simulation
 
         /// <summary>Chance that a calm person's fresh decision is to tidy up the nearest item they can lift.</summary>
         public int TidyChancePercent = 12;
+
+        /// <summary>How often a calm person who is choosing what to do next goes to sit down.</summary>
+        public int SitChancePercent = 14;
+
+        /// <summary>They will cross this much floor for a free chair, and are sitting once this close to one.</summary>
+        public int SitSearchDistanceMillimetres = 6000;
+        public int SitArrivalDistanceMillimetres = 600;
+
+        /// <summary>How long they stay in the chair.</summary>
+        public int SitMinimumTicks = 250;
+        public int SitMaximumTicks = 1000;
+
+        /// <summary>Getting out of a chair: this long, less a little for the nervous.</summary>
+        public int StandUpTicks = 40;
+        public int StandUpTicksPerNervousness = 2;
+
+        /// <summary>How hard the chair is shoved back as they stand, in millimetres per tick.</summary>
+        public int StandUpShoveSpeed = 8;
         public int FetchRangeMillimetres = 4000;
 
         /// <summary>They carry it at least this far before setting it down.</summary>

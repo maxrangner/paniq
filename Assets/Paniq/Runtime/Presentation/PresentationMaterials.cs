@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace Paniq.Presentation
 {
@@ -14,6 +14,7 @@ namespace Paniq.Presentation
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
         private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+        private static readonly int GhostColorId = Shader.PropertyToID("_GhostColor");
 
         public static readonly Color LockedDoorColor = new Color(0.86f, 0.14f, 0.1f);
         public static readonly Color BoxColor = new Color(0.62f, 0.45f, 0.26f);
@@ -40,7 +41,24 @@ namespace Paniq.Presentation
             Fire.EnableKeyword("_EMISSION");
             Fire.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
             Fire.SetColor(EmissionColorId, FlameRed);
+
+            // The pale silhouette drawn wherever a wall is in the way. Its
+            // shader lives in Content/Rendering; without it, things behind a
+            // wall are simply hidden.
+            Shader seeThrough = Shader.Find("Paniq/See-Through");
+            if (seeThrough != null)
+            {
+                SeeThrough = new Material(seeThrough);
+                SeeThrough.SetColor(GhostColorId, new Color(0.62f, 0.78f, 0.98f, 0.32f));
+            }
+            else
+            {
+                Debug.LogWarning("Paniq: the See-Through shader is missing, so nothing will show through walls.");
+            }
         }
+
+        /// <summary>The silhouette material, or null when its shader is missing.</summary>
+        public Material SeeThrough { get; }
 
         public Material Room { get; }
         public Material Wall { get; }

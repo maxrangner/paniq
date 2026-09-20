@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -24,6 +24,9 @@ namespace Paniq.Presentation
             public float[] Sizes;
             public float[] Seeds;
             public float SpawnTime;
+
+            /// <summary>When this square was hosed down, or -1 while it burns.</summary>
+            public float OutSince = -1f;
         }
 
         private readonly PresentationMaterials materials;
@@ -46,7 +49,32 @@ namespace Paniq.Presentation
 
             for (int i = 0; i < cells.Count; i++)
             {
+                // A square that has been put out: the flames drop away and a
+                // dark wet patch is left behind.
+                if (snapshot.FireCells[i].IsOut)
+                {
+                    PutOut(cells[i], time);
+                    continue;
+                }
+
                 Animate(cells[i], time);
+            }
+        }
+
+        /// <summary>A square someone has hosed down: cubes gone, a damp scorch mark left.</summary>
+        private void PutOut(CellView view, float time)
+        {
+            if (view.OutSince < 0f)
+            {
+                view.OutSince = time;
+            }
+
+            float age = Mathf.Clamp01((time - view.OutSince) / 0.6f);
+            materials.SetColors(view.Tile, Color.Lerp(new Color(0.55f, 0.1f, 0.02f), new Color(0.12f, 0.13f, 0.16f), age),
+                Color.black);
+            for (int k = 0; k < view.Cubes.Length; k++)
+            {
+                view.Cubes[k].localScale = Vector3.one * Mathf.Max(0f, 0.12f * (1f - age));
             }
         }
 

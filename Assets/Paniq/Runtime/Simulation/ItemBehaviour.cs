@@ -216,6 +216,24 @@ namespace Paniq.Simulation
         }
 
         /// <summary>Someone who collapsed with an item in their arms leaves it on the floor where they fell.</summary>
+        /// <summary>Sets whatever they hold down where they stand (an empty extinguisher).</summary>
+        public void PutDownWhereTheyStand(Agent agent, ulong causeEventId)
+        {
+            if (!agent.Carry.Holding)
+            {
+                agent.Carry.ItemIndex = -1;
+                return;
+            }
+
+            int item = agent.Carry.ItemIndex;
+            LogicalPosition spot = objects.FindSpotToPutDown(item, agent, out LogicalPosition clear) ? clear : agent.Body.Position;
+            ulong dropped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemDropped, spot, 0, 0,
+                causeEventId, objects.IdOf(item)).EventId;
+            objects.Release(item, spot, 0, 0, dropped);
+            agent.Carry.ItemIndex = -1;
+            agent.Carry.Holding = false;
+        }
+
         public void DropFromLost(Agent agent)
         {
             if (!agent.Carry.Holding)
@@ -242,6 +260,14 @@ namespace Paniq.Simulation
         public void LetGoIfNeeded(Agent agent)
         {
             if (!agent.Carry.Holding)
+            {
+                return;
+            }
+
+            // Somebody fighting the fire is holding that extinguisher on purpose.
+            if (ExtinguisherBehaviour.IsFighting(agent) &&
+                objects.KindOf(agent.Carry.ItemIndex) == PhysicsObjectKind.Extinguisher &&
+                agent.Body.State == AgentBodyState.Upright && !agent.Burning.IsBurning)
             {
                 return;
             }

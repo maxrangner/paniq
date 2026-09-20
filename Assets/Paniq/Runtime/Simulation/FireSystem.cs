@@ -31,6 +31,15 @@ namespace Paniq.Simulation
         private readonly ulong[] cellEventIds;
         private readonly int[] cellNextSpreadTicks;
 
+        /// <summary>Per cell: the tick until which it is too wet to catch again, after being put out.</summary>
+        private readonly int[] cellWetUntilTicks;
+
+        /// <summary>Per cell: ticks of spray it has taken so far.</summary>
+        private readonly int[] cellSprayedTicks;
+
+        /// <summary>Per cell: where its record sits in <see cref="cellRecords"/>, or -1.</summary>
+        private readonly int[] cellRecordIndex;
+
         /// <summary>Per cell: the room it is in (0 main, 1 + n side room n), or -1 for no room.</summary>
         private readonly int[] cellRooms;
 
@@ -55,10 +64,14 @@ namespace Paniq.Simulation
             int cellCount = checked(gridColumns * gridRows);
             cellEventIds = new ulong[cellCount];
             cellNextSpreadTicks = new int[cellCount];
+            cellWetUntilTicks = new int[cellCount];
+            cellSprayedTicks = new int[cellCount];
+            cellRecordIndex = new int[cellCount];
             cellRooms = new int[cellCount];
             for (int cell = 0; cell < cellCount; cell++)
             {
                 cellRooms[cell] = geometry.RoomAtPoint(CellBounds(cell).Centre);
+                cellRecordIndex[cell] = -1;
                 FloorCellCount += cellRooms[cell] >= 0 ? 1 : 0;
             }
 
@@ -138,6 +151,7 @@ namespace Paniq.Simulation
             cellNextSpreadTicks[cell] = checked(tick + NextSpreadDelay());
             burningCells.Add(cell);
             burningPerRoom[cellRooms[cell]]++;
+            cellRecordIndex[cell] = cellRecords.Count;
             cellRecords.Add(new FireCellSnapshot(cell % gridColumns, cell / gridColumns, CellBounds(cell), tick, ignition.EventId));
             return ignition.EventId;
         }
@@ -162,7 +176,7 @@ namespace Paniq.Simulation
                 }
 
                 int neighbour = z * gridColumns + x;
-                if (cellEventIds[neighbour] != 0UL || cellRooms[neighbour] < 0)
+                if (cellEventIds[neighbour] != 0UL || cellRooms[neighbour] < 0 || IsWet(neighbour))
                 {
                     continue;
                 }
@@ -197,8 +211,69 @@ namespace Paniq.Simulation
         /// <summary>The ignition event of a burning cell.</summary>
         public ulong CellEventId(int cell) => cellEventIds[cell];
 
+        /// <summary>Too wet to catch again, after being put out.</summary>
+        public bool IsWet(int cell) => context.Tick < cellWetUntilTicks[cell];
+
+        /// <summary>
+        /// Puts a burning square out: it stops burning, cannot spread, and
+        /// stays too wet to catch again for a while. Returns false when it
+        /// was not alight in the first place.
+        /// </summary>
+        public bool Douse(int cell, SimulationId source, ulong causeEventId)
+        {
+            if (!active || cellEventIds[cell] == 0UL)
+            {
+                return false;
+            }
+
+            // It takes a few seconds of spray on one square to put it out.
+            if (++cellSprayedTicks[cell] < settings.DouseTicksPerCell)
+            {
+                return false;
+            }
+
+            cellSprayedTicks[cell] = 0;
+
+            burningCells.Remove(cell);
+            burningPerRoom[cellRooms[cell]]--;
+            cellEventIds[cell] = 0UL;
+            cellWetUntilTicks[cell] = checked(context.Tick + settings.DousedWetTicks);
+
+            int record = cellRecordIndex[cell];
+            if (record >= 0)
+            {
+                cellRecords[record] = cellRecords[record].PutOut(context.Tick);
+                cellRecordIndex[cell] = -1;
+            }
+
+            context.Events.Append(context.Tick, source, FireReactionEventType.FireDoused,
+                CellBounds(cell).Centre, settings.CellSizeMillimetres, 0, causeEventId);
+            return true;
+        }
+
+        /// <summary>Every burning square with any part of it inside this circle, nearest first.</summary>
+        public void CollectBurningWithin(LogicalPosition centre, int reach, List<int> into)
+        {
+            into.Clear();
+            long reachSquared = (long)reach * reach;
+            for (int i = 0; i < burningCells.Count; i++)
+            {
+                int cell = burningCells[i];
+                if (LogicalPosition.DistanceSquared(CellBounds(cell).ClosestPoint(centre), centre) <= reachSquared)
+                {
+                    into.Add(cell);
+                }
+            }
+        }
+
+        /// <summary>The nearest point of a square to somewhere.</summary>
+        public LogicalPosition CellClosestPoint(int cell, LogicalPosition from) => CellBounds(cell).ClosestPoint(from);
+
         /// <summary>The grid cell under a point (clamped to the grid).</summary>
         public int CellIndexAt(LogicalPosition position) => CellAt(position);
+
+        /// <summary>The middle of a grid cell.</summary>
+        public LogicalPosition CellCentre(int cell) => CellBounds(cell).Centre;
 
         /// <summary>
         /// Something burning (not the spreading fire itself) sets a cell
@@ -207,7 +282,7 @@ namespace Paniq.Simulation
         /// </summary>
         public void IgniteCell(int cell, ulong causeEventId)
         {
-            if (!active || cellEventIds[cell] != 0UL || cellRooms[cell] < 0)
+            if (!active || cellEventIds[cell] != 0UL || cellRooms[cell] < 0 || IsWet(cell))
             {
                 return;
             }

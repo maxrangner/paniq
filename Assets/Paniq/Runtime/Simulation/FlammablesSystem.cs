@@ -177,6 +177,38 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// A jet of water over an area: everything burning inside the cone
+        /// from <paramref name="from"/> goes out, and is left charred.
+        /// </summary>
+        public void DouseWithin(LogicalPosition from, int reach, ulong causeEventId, int heading, int coneDegrees)
+        {
+            long reachSquared = (long)reach * reach;
+            for (int i = 0; i < things.Length; i++)
+            {
+                Flammable thing = things[i];
+                if (thing.State != ObjectBurnState.Burning)
+                {
+                    continue;
+                }
+
+                LogicalPosition where = PositionOf(thing);
+                if (LogicalPosition.DistanceSquared(from, where) > reachSquared)
+                {
+                    continue;
+                }
+
+                int toIt = IntegerMath.HeadingBetween(from, where, heading);
+                if (Math.Abs(IntegerMath.SignedAngleDifference(heading, toIt)) > coneDegrees)
+                {
+                    continue;
+                }
+
+                thing.State = ObjectBurnState.Burnt;
+                context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ObjectBurntOut, where, 0, 0, causeEventId);
+            }
+        }
+
         /// <summary>The event of the flames heating this thing (the earliest-lit square, or a burning thing), or 0 when nothing is close.</summary>
         private ulong HeatSource(Flammable thing)
         {

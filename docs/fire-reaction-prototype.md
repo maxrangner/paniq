@@ -394,6 +394,20 @@ restart control, or end screen in this checkpoint.
   who opens a door logs `DoorOpened` with their attempt as parent. After
   movement, anyone 0.8 m out through an open door logs `AgentEscaped` (parent:
   that door's `DoorOpened`, or `DoorBrokenDown`).
+- **Fire extinguishers.** One red bottle stands by a wall in each big room,
+  with six seconds of spray in it. Someone brave (7+) near a fire of no more
+  than 24 squares, or someone kind (7+) who can see a person alight within
+  8 m, fetches the nearest free bottle, carries it to about 2 m from what they
+  are fighting, and holds the trigger down. The jet is a 3 m, 30° cone: it
+  puts a burning square out after 0.6 s on it (one square at a time), puts out
+  burning things and people it covers, and knocks anyone standing in it
+  backwards and onto the floor. A square that has been put out stays too wet
+  to catch again for 20 s. Holding the bottle makes them brave enough to stand
+  at half their usual keep-away distance from the flames, but no closer. The
+  recoil shoves them back 60 mm a tick, less 12 mm per point of strength, so
+  anyone with strength 5 or more holds it steady and the weak are walked
+  backwards; strength 0 is put on the floor by their own extinguisher. When
+  the bottle runs dry they drop it and run.
 - **Sitting.** A calm person choosing what to do next may walk to the
   nearest free chair in their room within 6 m and sit on it for 5–20 s. A
   chair with someone on it does not slide, cannot be picked up and cannot be

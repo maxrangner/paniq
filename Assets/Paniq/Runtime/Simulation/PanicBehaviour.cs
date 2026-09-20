@@ -21,6 +21,9 @@ namespace Paniq.Simulation
         private readonly DoorBehaviour doorBehaviour;
         private readonly HelpBehaviour help;
         private readonly ChairBehaviour chairs;
+
+        /// <summary>Set once the extinguishers exist, which need the behaviours around them first.</summary>
+        private ExtinguisherBehaviour extinguishers;
         private readonly Locomotion locomotion;
         private readonly PanicSettings settings;
 
@@ -50,6 +53,9 @@ namespace Paniq.Simulation
             this.locomotion = locomotion;
             settings = context.Scenario.Panic;
         }
+
+        /// <summary>Wired up after construction, because each needs the other's neighbours.</summary>
+        public void UseExtinguishers(ExtinguisherBehaviour behaviour) => extinguishers = behaviour;
 
         /// <summary>
         /// This tick's panicked decision. Returns no intent when the person
@@ -93,6 +99,12 @@ namespace Paniq.Simulation
                 }
 
                 intent.Activity = AgentActivityState.Fleeing;
+            }
+
+            MotorIntent? fighting = extinguishers.Decide(agent, inDanger);
+            if (fighting.HasValue)
+            {
+                return fighting.Value;
             }
 
             MotorIntent? helping = help.Decide(agent, inDanger);

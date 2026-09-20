@@ -92,6 +92,9 @@
         /// <summary>Ticks in a row this person wanted to move and could not.</summary>
         public int BlockedTicks;
 
+        /// <summary>Until this tick, the same jet of water cannot knock them over again.</summary>
+        public int BlastedUntilTick;
+
         public AgentBodyState State;
         public int EndTick;
 

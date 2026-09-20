@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '27'
+    ContentRevision: '28'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 19
+    SimulationCompatibilityVersion: 20
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -42,6 +42,8 @@ MonoBehaviour:
       BurningScreamMaximumTicks: 50
       BurningSpreadGapMillimetres: 100
       BurningSpreadChancePercent: 20
+      DousedWetTicks: 1000
+      DouseTicksPerCell: 30
     Steering:
       PersonalSpaceMillimetres: 800
       WallAvoidDistanceMillimetres: 600
@@ -216,6 +218,26 @@ MonoBehaviour:
       StrengthForceChancePerPoint: 5
       DoorBreakMinimumStrength: 7
       DoorDamagePerPoint: 1
+    Extinguishers:
+      FuelTicks: 300
+      FightMinimumBravery: 7
+      SaveMinimumCompassion: 7
+      FightMaximumFireCells: 24
+      FetchRangeMillimetres: 9000
+      PickUpDistanceMillimetres: 400
+      SaveRangeMillimetres: 8000
+      FetchTimeoutTicks: 500
+      FightTimeoutTicks: 1500
+      DangerTolerancePercent: 50
+      StandOffMillimetres: 2000
+      SprayRangeMillimetres: 3000
+      SprayConeDegrees: 30
+      CellsPerTick: 1
+      BlastPushMillimetres: 400
+      BlastRecoveryTicks: 100
+      RecoilPushMillimetres: 60
+      RecoilPushPerStrength: 12
+      RecoilFloorsMaximumStrength: 0
     Flammables:
       HeatDistanceMillimetres: 500
       Kinds:
@@ -254,6 +276,11 @@ MonoBehaviour:
         IgniteTicks: 200
         BurnMinimumTicks: 200
         BurnMaximumTicks: 400
+      - Kind: 7
+        FrictionPercent: 90
+        IgniteTicks: 0
+        BurnMinimumTicks: 0
+        BurnMaximumTicks: 0
       BoxIgniteTicks: 75
       ChairIgniteTicks: 150
       TableIgniteTicks: 250
@@ -977,6 +1004,22 @@ MonoBehaviour:
         z: -3600
       sizeMillimetres: 500
       massGrams: 9000
+    - objectId:
+        value: 3301
+      kind: 7
+      initialPosition:
+        x: -1000
+        z: -5700
+      sizeMillimetres: 250
+      massGrams: 7000
+    - objectId:
+        value: 3302
+      kind: 7
+      initialPosition:
+        x: 14000
+        z: -5700
+      sizeMillimetres: 250
+      massGrams: 7000
     Tables:
     - tableId:
         value: 4001

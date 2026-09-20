@@ -196,9 +196,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "27";
+        public string ContentRevision = "28";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 19;
+        public int SimulationCompatibilityVersion = 20;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -213,6 +213,7 @@ namespace Paniq.Simulation
         public ObjectPhysicsSettings ObjectPhysics = new ObjectPhysicsSettings();
         public TraitSettings Traits = new TraitSettings();
         public FlammableSettings Flammables = new FlammableSettings();
+        public ExtinguisherSettings Extinguishers = new ExtinguisherSettings();
         public ItemSettings Items = new ItemSettings();
         public HelpSettings Help = new HelpSettings();
 
@@ -239,6 +240,7 @@ namespace Paniq.Simulation
             copy.ObjectPhysics = ObjectPhysics?.Clone();
             copy.Traits = Traits?.Clone();
             copy.Flammables = Flammables?.Clone();
+            copy.Extinguishers = Extinguishers?.Clone();
             copy.Items = Items?.Clone();
             copy.Help = Help?.Clone();
             copy.Agents = (FireReactionAgentDefinition[])Agents?.Clone();
@@ -263,7 +265,8 @@ namespace Paniq.Simulation
 
             if (World == null || Perception == null || Fire == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
-                ObjectPhysics == null || Traits == null || Flammables == null || Items == null || Help == null)
+                ObjectPhysics == null || Traits == null || Flammables == null || Items == null || Help == null ||
+                Extinguishers == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -281,6 +284,7 @@ namespace Paniq.Simulation
             ObjectPhysics.Validate();
             Traits.Validate();
             Flammables.Validate();
+            Extinguishers.Validate();
             Items.Validate();
             Help.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
@@ -694,7 +698,11 @@ namespace Paniq.Simulation
                 OfficeChair(3245UL, 17500, 2400),
                 OfficeChair(3246UL, 19000, -2400),
                 OfficeChair(3247UL, 11500, -1200),
-                OfficeChair(3248UL, 16800, -3600)
+                OfficeChair(3248UL, 16800, -3600),
+
+                // One extinguisher by each big room's wall.
+                Extinguisher(3301UL, -1000, -5700),
+                Extinguisher(3302UL, 14000, -5700)
             };
         }
 
@@ -771,6 +779,13 @@ namespace Paniq.Simulation
         {
             return new FireReactionPhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Bag, new LogicalPosition(x, z), 350, 4000);
+        }
+
+        /// <summary>A fire extinguisher: small, heavy for its size, and it never burns.</summary>
+        private static FireReactionPhysicsObjectDefinition Extinguisher(ulong id, int x, int z)
+        {
+            return new FireReactionPhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.Extinguisher, new LogicalPosition(x, z), 250, 7000);
         }
 
         private static FireReactionPhysicsObjectDefinition Laptop(ulong id, int x, int z)

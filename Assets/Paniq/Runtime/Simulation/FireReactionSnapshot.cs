@@ -5,13 +5,14 @@ namespace Paniq.Simulation
     /// <summary>One burning grid square. Cells are listed in the order they ignited.</summary>
     public readonly struct FireCellSnapshot
     {
-        public FireCellSnapshot(int cellX, int cellZ, LogicalBounds bounds, int ignitionTick, ulong eventId)
+        public FireCellSnapshot(int cellX, int cellZ, LogicalBounds bounds, int ignitionTick, ulong eventId, int outTick = 0)
         {
             CellX = cellX;
             CellZ = cellZ;
             Bounds = bounds;
             IgnitionTick = ignitionTick;
             EventId = eventId;
+            OutTick = outTick;
         }
 
         public int CellX { get; }
@@ -19,6 +20,17 @@ namespace Paniq.Simulation
         public LogicalBounds Bounds { get; }
         public LogicalPosition Centre => Bounds.Centre;
         public int IgnitionTick { get; }
+
+        /// <summary>The tick this square was put out, or 0 while it still burns.</summary>
+        public int OutTick { get; }
+
+        public bool IsOut => OutTick != 0;
+
+        /// <summary>The same square, put out at this tick.</summary>
+        internal FireCellSnapshot PutOut(int tick)
+        {
+            return new FireCellSnapshot(CellX, CellZ, Bounds, IgnitionTick, EventId, tick);
+        }
 
         /// <summary>The FireActivated or FireSpread event that lit this cell.</summary>
         public ulong EventId { get; }

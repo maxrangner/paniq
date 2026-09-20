@@ -49,6 +49,9 @@ namespace Paniq.Simulation
             /// <summary>The person sitting on this chair, or -1. A chair with someone on it does not budge.</summary>
             public int OccupiedBy = -1;
 
+            /// <summary>Ticks of spray left, for an extinguisher.</summary>
+            public int Fuel;
+
             /// <summary>Thrown and still flying: it hits harder until it stops or hits someone.</summary>
             public bool Thrown;
 
@@ -104,7 +107,10 @@ namespace Paniq.Simulation
                     Z = (long)definition.InitialPosition.Z * SubMillimetre,
                     Radius = definition.RadiusMillimetres,
                     Size = definition.SizeMillimetres,
-                    MassGrams = definition.MassGrams
+                    MassGrams = definition.MassGrams,
+                    Fuel = definition.Kind == PhysicsObjectKind.Extinguisher
+                        ? context.Scenario.Extinguishers.FuelTicks
+                        : 0
                 };
             }
         }
@@ -128,6 +134,15 @@ namespace Paniq.Simulation
 
         /// <summary>The person sitting on this chair, or -1.</summary>
         public int OccupantOf(int index) => bodies[index].OccupiedBy;
+
+        /// <summary>Ticks of spray left in an extinguisher.</summary>
+        public int FuelOf(int index) => bodies[index].Fuel;
+
+        /// <summary>Uses up a tick of spray.</summary>
+        public void UseFuel(int index, int ticks)
+        {
+            bodies[index].Fuel = System.Math.Max(0, bodies[index].Fuel - ticks);
+        }
 
         /// <summary>Whether this is a chair nobody is on, nobody is carrying, and that is standing still.</summary>
         public bool IsFreeChair(int index)
@@ -352,7 +367,9 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            int bodyIndex = FindBlocking(agent.Body.Position, destination, personRadius);
+            // Never the thing they are on their way to pick up: they reach
+            // for it rather than punting it across the room.
+            int bodyIndex = FindBlocking(agent.Body.Position, destination, personRadius, agent.Carry.ItemIndex);
             if (bodyIndex < 0)
             {
                 return false;

@@ -26,6 +26,7 @@ namespace Paniq.Presentation
         private BoxViews boxes;
         private FireView fire;
         private SoundRipples ripples;
+        private SprayView spray;
         private DoorClickInput clicks;
         private FireReactionSnapshot frameSnapshot;
         private SimulationId? hoveredDoor;
@@ -49,6 +50,7 @@ namespace Paniq.Presentation
             boxes = new BoxViews(scenario, materials, root);
             fire = new FireView(materials, root);
             ripples = new SoundRipples(materials.Icon, root);
+            spray = new SprayView(materials, root);
             clicks = new DoorClickInput(runner, room);
         }
 
@@ -90,6 +92,7 @@ namespace Paniq.Presentation
             boxes.Update(frameSnapshot, previous, blend, time);
             ripples.Update(time);
             fire.Update(frameSnapshot, time);
+            spray.Update(frameSnapshot, time);
         }
 
         private void OnGUI()

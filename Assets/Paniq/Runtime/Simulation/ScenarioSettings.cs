@@ -67,6 +67,12 @@ namespace Paniq.Simulation
         public int BurningScreamMinimumTicks = 25;
         public int BurningScreamMaximumTicks = 50;
 
+        /// <summary>How long a square that has been put out stays too wet to catch again.</summary>
+        public int DousedWetTicks = 1000;
+
+        /// <summary>How many ticks of spray one burning square takes to put out.</summary>
+        public int DouseTicksPerCell = 30;
+
         /// <summary>A gap between two bodies at most this wide lets the flames jump across.</summary>
         public int BurningSpreadGapMillimetres = 100;
 
@@ -84,7 +90,8 @@ namespace Paniq.Simulation
                              Settings.Range(BurningTurnMinimumTicks, BurningTurnMaximumTicks, 1) &&
                              BurningBlockedTurnTicks >= 1 &&
                              Settings.Range(BurningScreamMinimumTicks, BurningScreamMaximumTicks, 1) &&
-                             BurningSpreadGapMillimetres >= 0 && Settings.Percent(BurningSpreadChancePercent), "burning people");
+                             BurningSpreadGapMillimetres >= 0 && Settings.Percent(BurningSpreadChancePercent) &&
+                             DousedWetTicks >= 0 && DouseTicksPerCell >= 1, "burning people");
         }
     }
 
@@ -594,6 +601,80 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
+    /// Fire extinguishers: who picks one up, how the spray works, and what
+    /// it does to whoever is caught in it.
+    /// </summary>
+    [Serializable]
+    public sealed class ExtinguisherSettings
+    {
+        /// <summary>How many ticks of spray one bottle holds.</summary>
+        public int FuelTicks = 300;
+
+        /// <summary>Bravery needed to take on the flames, and compassion needed to hose down a burning person.</summary>
+        public int FightMinimumBravery = 7;
+        public int SaveMinimumCompassion = 7;
+
+        /// <summary>Nobody takes on a fire bigger than this many burning squares (saving someone is always worth it).</summary>
+        public int FightMaximumFireCells = 24;
+
+        /// <summary>They will cross this much floor for an extinguisher, and hold it once this close.</summary>
+        public int FetchRangeMillimetres = 9000;
+        public int PickUpDistanceMillimetres = 400;
+
+        /// <summary>How far they will go to hose down someone who is alight.</summary>
+        public int SaveRangeMillimetres = 8000;
+
+        /// <summary>Give up fetching after this long, and stop fighting after this long.</summary>
+        public int FetchTimeoutTicks = 500;
+        public int FightTimeoutTicks = 1500;
+
+        /// <summary>
+        /// How much of their usual keep-away distance from the flames someone
+        /// with an extinguisher in their hands still keeps: the bottle makes
+        /// them braver, up to a point.
+        /// </summary>
+        public int DangerTolerancePercent = 50;
+
+        /// <summary>How close they get to what they are hosing down before they stop walking.</summary>
+        public int StandOffMillimetres = 2000;
+
+        /// <summary>The jet: this far, this wide, and this many squares put out per tick.</summary>
+        public int SprayRangeMillimetres = 3000;
+        public int SprayConeDegrees = 30;
+        public int CellsPerTick = 1;
+
+        /// <summary>How far the jet shoves someone, and how long before it can knock them over again.</summary>
+        public int BlastPushMillimetres = 400;
+        public int BlastRecoveryTicks = 100;
+
+        /// <summary>
+        /// The recoil: this far back per tick, less this much per point of
+        /// strength, so anyone strong holds it steady. At or below the last
+        /// value, the recoil puts them on the floor.
+        /// </summary>
+        public int RecoilPushMillimetres = 60;
+        public int RecoilPushPerStrength = 12;
+        public int RecoilFloorsMaximumStrength = 0;
+
+        public ExtinguisherSettings Clone() => (ExtinguisherSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(FuelTicks > 0 && FightMaximumFireCells >= 0, "extinguisher fuel");
+            Settings.Require(FightMinimumBravery >= 0 && SaveMinimumCompassion >= 0, "who fights a fire");
+            Settings.Require(FetchRangeMillimetres >= 0 && PickUpDistanceMillimetres > 0 && SaveRangeMillimetres >= 0,
+                "extinguisher distances");
+            Settings.Require(FetchTimeoutTicks > 0 && FightTimeoutTicks > 0, "extinguisher timeouts");
+            Settings.Require(SprayRangeMillimetres > 0 && SprayConeDegrees > 0 && SprayConeDegrees <= 180 && CellsPerTick > 0 &&
+                StandOffMillimetres > 0 && StandOffMillimetres <= SprayRangeMillimetres, "the spray");
+            Settings.Require(BlastPushMillimetres >= 0 && BlastRecoveryTicks >= 0, "the blast");
+            Settings.Require(Settings.Percent(DangerTolerancePercent), "extinguisher nerve");
+            Settings.Require(RecoilPushMillimetres >= 0 && RecoilPushPerStrength >= 0 && RecoilFloorsMaximumStrength >= 0,
+                "the recoil");
+        }
+    }
+
+    /// <summary>
     /// Boxes, chairs and tables catching fire. Things heat up while flames
     /// are close and catch once hot for long enough; cardboard catches
     /// sooner than wood, and wood burns longer.
@@ -607,7 +688,7 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ObjectKindSettings
     {
-        public const int KindCount = 7;
+        public const int KindCount = 8;
 
         public PhysicsObjectKind Kind;
         public int FrictionPercent = 100;
@@ -634,7 +715,10 @@ namespace Paniq.Simulation
                 Entry(PhysicsObjectKind.Bag, 90, 100, 300, 500),
 
                 // Hard plastic on hard floor: it skitters.
-                Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400)
+                Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400),
+
+                // Steel: it never catches.
+                Entry(PhysicsObjectKind.Extinguisher, 90, 0, 0, 0)
             };
         }
 

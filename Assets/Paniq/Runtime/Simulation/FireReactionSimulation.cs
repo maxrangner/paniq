@@ -34,6 +34,7 @@ namespace Paniq.Simulation
         private readonly ItemBehaviour items;
         private readonly HelpBehaviour help;
         private readonly ChairBehaviour chairs;
+        private readonly ExtinguisherBehaviour extinguishers;
         private readonly WorldGeometry geometry;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
@@ -60,7 +61,7 @@ namespace Paniq.Simulation
             doors.UseCrowd(crowd);
             var sound = new SoundSystem(context, crowd, fire, fear, geometry);
             perception = new PerceptionSystem(context, fire, fear, sound);
-            body = new BodySystem(context, fire, sound);
+            body = new BodySystem(context, crowd, geometry, fire, sound);
             collisions = new CollisionSystem(context, crowd, body, fear, sound);
             objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound);
             locomotion = new Locomotion(context, crowd, geometry, fire, body, collisions, objects);
@@ -72,6 +73,8 @@ namespace Paniq.Simulation
             help = new HelpBehaviour(context, crowd, geometry, fire, fear, body, objects, locomotion);
             panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, chairs, locomotion);
             burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
+            extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
+            panic.UseExtinguishers(extinguishers);
         }
 
         private Agent[] CreateAgents(int doorCount)
@@ -147,6 +150,9 @@ namespace Paniq.Simulation
         }
 
         public FireReactionDoorSnapshot GetDoor(int index) => doors.GetSnapshot(index);
+
+        /// <summary>Tests only: how much spray is left in an extinguisher.</summary>
+        internal int ExtinguisherFuel(int index) => objects.FuelOf(index);
 
         public FireReactionPhysicsObjectSnapshot GetPhysicsObject(int index) =>
             objects.GetSnapshot(index).WithBurn(flammables.ObjectState(index), flammables.ObjectHeatPercent(index));
@@ -247,6 +253,7 @@ namespace Paniq.Simulation
             }
 
             chairs.ResolveStanding();
+            extinguishers.Spray();
             locomotion.ResolveMovement();
             help.MoveDragged(agents);
             items.FollowCarriers(agents);

@@ -216,6 +216,10 @@ namespace Paniq.Simulation
         /// <summary>On fire: running around wildly until they collapse.</summary>
         Burning,
 
+        /// <summary>Going for an extinguisher, and spraying it at the fire.</summary>
+        FetchingExtinguisher,
+        Spraying,
+
         /// <summary>Going to sit down, sitting on a chair, and getting back up off it.</summary>
         GoingToSit,
         Sitting,
@@ -281,6 +285,20 @@ namespace Paniq.Simulation
         AgentForcedDoor,
         AgentGaveUpOnDoor,
         AgentEscaped,
+
+        /// <summary>A burning square put out by an extinguisher.</summary>
+        FireDoused,
+
+        /// <summary>Picking up an extinguisher, spraying it, and running it dry (target: the extinguisher).</summary>
+        AgentTookExtinguisher,
+        ExtinguisherSprayed,
+        ExtinguisherEmptied,
+
+        /// <summary>Someone knocked off their feet by the jet (target: the person hit).</summary>
+        AgentBlasted,
+
+        /// <summary>Someone on fire hosed down (target: the person put out).</summary>
+        AgentDoused,
 
         BoxBumped,
         BoxHitAgent,
@@ -353,7 +371,10 @@ namespace Paniq.Simulation
         Bag,
 
         /// <summary>A laptop: small, hard, and it skitters across the floor.</summary>
-        Laptop
+        Laptop,
+
+        /// <summary>A fire extinguisher: a few seconds of spray in the bottle.</summary>
+        Extinguisher
     }
 
     public enum PlayerCommandType

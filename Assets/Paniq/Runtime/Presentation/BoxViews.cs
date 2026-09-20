@@ -110,6 +110,13 @@ namespace Paniq.Presentation
                     Part("Leaves", PrimitiveType.Sphere, Vector3.up * (height * 0.7f), new Vector3(size * 1.1f, size * 1.2f, size * 1.1f));
                     break;
 
+                case PhysicsObjectKind.Extinguisher:
+                    height = size * 2f;
+                    colour = new Color(0.72f, 0.12f, 0.10f);
+                    Part("Bottle", PrimitiveType.Cylinder, Vector3.up * (height * 0.5f), new Vector3(size, height * 0.5f, size));
+                    Part("Nozzle", PrimitiveType.Cube, Vector3.up * (height + 0.03f), new Vector3(size * 0.5f, 0.06f, size * 0.5f));
+                    break;
+
                 case PhysicsObjectKind.Bag:
                     height = size * 0.7f;
                     colour = new Color(0.42f, 0.30f, 0.45f);

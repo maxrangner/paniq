@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -66,6 +66,7 @@ namespace Paniq.Presentation
                 agentObject.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
                 Renderer agentRenderer = agentObject.GetComponent<Renderer>();
                 agentRenderer.sharedMaterial = materials.Agent;
+                ShowThroughWalls(agentObject);
 
                 var visionObject = new GameObject($"Agent {definition.AgentId.Value} vision cone (presentation)");
                 visionObject.transform.SetParent(parent, false);

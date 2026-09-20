@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -49,6 +49,8 @@ namespace Paniq.Presentation
                     ToUnityPosition(definition.InitialPosition) + Vector3.up * (height * 0.5f),
                     new Vector3(size, height, size), materials.Box);
 
+                ShowThroughWalls(box);
+
                 // Slightly different cardboard for each box; presentation-only variation.
                 Color shade = PresentationMaterials.BoxColor * (0.85f + 0.3f * Hash01((int)definition.ObjectId.Value, 7, 3));
                 materials.SetColor(box.GetComponent<Renderer>(), shade);
@@ -79,6 +81,7 @@ namespace Paniq.Presentation
             void Part(string name, Vector3 localPosition, Vector3 scale)
             {
                 GameObject part = CreatePrimitive(name, PrimitiveType.Cube, root, root.position + localPosition, scale, materials.Box);
+                ShowThroughWalls(part);
                 renderers.Add(part.GetComponent<Renderer>());
             }
 

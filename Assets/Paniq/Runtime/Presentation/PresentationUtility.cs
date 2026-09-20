@@ -1,4 +1,4 @@
-using Paniq.Simulation;
+﻿using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Presentation
@@ -6,7 +6,32 @@ namespace Paniq.Presentation
     /// <summary>Small helpers shared by the prototype's display classes. Presentation only.</summary>
     internal static class PresentationUtility
     {
+        /// <summary>
+        /// The layer for anything that should still be visible, faintly,
+        /// when a wall is between it and the camera. The renderer draws this
+        /// layer twice: once normally, once as a see-through silhouette
+        /// wherever something is in front of it (see ConfigureUrpProject).
+        /// </summary>
+        public const string SeeThroughLayer = "SeeThrough";
+
         public static float Metres(int millimetres) => millimetres / (float)FireReactionSimulation.MillimetresPerMetre;
+
+        /// <summary>Puts an object, and everything under it, on the see-through layer.</summary>
+        public static void ShowThroughWalls(GameObject gameObject)
+        {
+            int layer = LayerMask.NameToLayer(SeeThroughLayer);
+            if (layer < 0)
+            {
+                // The project has not been set up for it yet; drawn normally.
+                return;
+            }
+
+            gameObject.layer = layer;
+            foreach (Transform child in gameObject.transform)
+            {
+                ShowThroughWalls(child.gameObject);
+            }
+        }
 
         public static Vector3 ToUnityPosition(LogicalPosition position)
         {

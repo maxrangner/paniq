@@ -532,6 +532,12 @@ generator. The cubes (and people, doors and boxes) share materials, recoloured p
 a `MaterialPropertyBlock`. The camera is 45 degrees around the room and
 35.264 degrees above the ground, which gives a standard isometric view.
 
+**Seeing through walls.** People and the objects they knock about are drawn
+twice: normally, and again as a pale blue silhouette wherever a wall stands
+between them and the camera. So the crowd in the meeting room, the corridor
+and the closet can be watched without moving the camera. This is rendering
+only; the simulation neither knows nor cares.
+
 This prototype deliberately remains ordinary GameObjects and C# code. The next
 stone is chosen by the owner after playing it. Profile a standalone build
 before adding scale tooling.

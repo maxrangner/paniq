@@ -196,9 +196,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "28";
+        public string ContentRevision = "29";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 20;
+        public int SimulationCompatibilityVersion = 21;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -214,6 +214,7 @@ namespace Paniq.Simulation
         public TraitSettings Traits = new TraitSettings();
         public FlammableSettings Flammables = new FlammableSettings();
         public ExtinguisherSettings Extinguishers = new ExtinguisherSettings();
+        public LeadershipSettings Leadership = new LeadershipSettings();
         public ItemSettings Items = new ItemSettings();
         public HelpSettings Help = new HelpSettings();
 
@@ -241,6 +242,7 @@ namespace Paniq.Simulation
             copy.Traits = Traits?.Clone();
             copy.Flammables = Flammables?.Clone();
             copy.Extinguishers = Extinguishers?.Clone();
+            copy.Leadership = Leadership?.Clone();
             copy.Items = Items?.Clone();
             copy.Help = Help?.Clone();
             copy.Agents = (FireReactionAgentDefinition[])Agents?.Clone();
@@ -266,7 +268,7 @@ namespace Paniq.Simulation
             if (World == null || Perception == null || Fire == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
                 ObjectPhysics == null || Traits == null || Flammables == null || Items == null || Help == null ||
-                Extinguishers == null)
+                Extinguishers == null || Leadership == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -285,6 +287,7 @@ namespace Paniq.Simulation
             Traits.Validate();
             Flammables.Validate();
             Extinguishers.Validate();
+            Leadership.Validate();
             Items.Validate();
             Help.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
@@ -591,35 +594,35 @@ namespace Paniq.Simulation
         /// <summary>
         /// Twenty people, ten in the office and ten in the meeting room,
         /// facing different ways, each with an authored personality so every
-        /// trait shows up in play: Str, Spd, Brv, Cmp, Evl, Nrv.
+        /// trait shows up in play: Str, Spd, Brv, Cmp, Evl, Nrv, Ldr.
         /// </summary>
         public static FireReactionAgentDefinition[] DefaultAgents()
         {
             return new[]
             {
-                Agent(1001UL, -5000, -5000, CardinalDirection.North, 5, 5, 5, 5, 2, 5), // ordinary
-                Agent(1002UL, 0, -5000, CardinalDirection.East, 9, 6, 6, 3, 6, 3), // the brute
-                Agent(1003UL, 5000, -5000, CardinalDirection.West, 8, 6, 8, 8, 1, 3), // the hero
-                Agent(1004UL, -5000, 0, CardinalDirection.East, 4, 4, 7, 9, 0, 4), // the saint
-                Agent(1005UL, 900, 0, CardinalDirection.South, 6, 6, 5, 1, 8, 4), // the villain
-                Agent(1006UL, 5000, 0, CardinalDirection.North, 3, 5, 1, 5, 2, 10), // the nervous wreck
-                Agent(1007UL, -5000, 5000, CardinalDirection.South, 5, 10, 5, 5, 3, 6), // the sprinter
-                Agent(1008UL, 0, 5000, CardinalDirection.West, 7, 5, 4, 2, 9, 5), // the bully
-                Agent(1009UL, 5000, 5000, CardinalDirection.South, 3, 4, 2, 4, 3, 8), // the coward
-                Agent(1010UL, 0, -1800, CardinalDirection.North, 5, 5, 5, 6, 3, 5), // ordinary
+                Agent(1001UL, -5000, -5000, CardinalDirection.North, 5, 5, 5, 5, 2, 5, 4), // ordinary
+                Agent(1002UL, 0, -5000, CardinalDirection.East, 9, 6, 6, 3, 6, 3, 3), // the brute
+                Agent(1003UL, 5000, -5000, CardinalDirection.West, 8, 6, 8, 8, 1, 3, 8), // the hero
+                Agent(1004UL, -5000, 0, CardinalDirection.East, 4, 4, 7, 9, 0, 4, 5), // the saint
+                Agent(1005UL, 900, 0, CardinalDirection.South, 6, 6, 5, 1, 8, 4, 6), // the villain
+                Agent(1006UL, 5000, 0, CardinalDirection.North, 3, 5, 1, 5, 2, 10, 1), // the nervous wreck
+                Agent(1007UL, -5000, 5000, CardinalDirection.South, 5, 10, 5, 5, 3, 6, 4), // the sprinter
+                Agent(1008UL, 0, 5000, CardinalDirection.West, 7, 5, 4, 2, 9, 5, 5), // the bully
+                Agent(1009UL, 5000, 5000, CardinalDirection.South, 3, 4, 2, 4, 3, 8, 2), // the coward
+                Agent(1010UL, 0, -1800, CardinalDirection.North, 5, 5, 5, 6, 3, 5, 5), // ordinary
 
                 // The meeting room: ten more people who cannot see the fire
                 // when it starts and only learn about it through the shouting.
-                Agent(1011UL, 10500, -4500, CardinalDirection.North, 5, 5, 6, 5, 3, 4), // ordinary
-                Agent(1012UL, 13500, -4500, CardinalDirection.West, 9, 4, 7, 6, 2, 3), // the strong one
-                Agent(1013UL, 16500, -4500, CardinalDirection.North, 4, 7, 3, 7, 1, 7), // the worrier
-                Agent(1014UL, 19500, -4500, CardinalDirection.West, 6, 5, 5, 5, 5, 5), // ordinary
-                Agent(1015UL, 10500, 0, CardinalDirection.East, 3, 6, 2, 8, 0, 9), // the timid carer
-                Agent(1016UL, 13500, 1200, CardinalDirection.South, 7, 8, 8, 4, 7, 2), // the chancer
-                Agent(1017UL, 17200, -1800, CardinalDirection.West, 5, 5, 4, 5, 4, 6), // ordinary
-                Agent(1018UL, 19500, 1200, CardinalDirection.North, 8, 6, 6, 2, 8, 4), // the other bully
-                Agent(1019UL, 12000, 4500, CardinalDirection.South, 4, 9, 5, 6, 2, 6), // the runner
-                Agent(1020UL, 18000, 4500, CardinalDirection.South, 6, 5, 7, 9, 1, 3) // the other hero
+                Agent(1011UL, 10500, -4500, CardinalDirection.North, 5, 5, 6, 5, 3, 4, 4), // ordinary
+                Agent(1012UL, 13500, -4500, CardinalDirection.West, 9, 4, 7, 6, 2, 3, 5), // the strong one
+                Agent(1013UL, 16500, -4500, CardinalDirection.North, 4, 7, 3, 7, 1, 7, 2), // the worrier
+                Agent(1014UL, 19500, -4500, CardinalDirection.West, 6, 5, 5, 5, 5, 5, 5), // ordinary
+                Agent(1015UL, 10500, 0, CardinalDirection.East, 3, 6, 2, 8, 0, 9, 1), // the timid carer
+                Agent(1016UL, 13500, 1200, CardinalDirection.South, 7, 8, 8, 4, 7, 2, 6), // the chancer
+                Agent(1017UL, 17200, -1800, CardinalDirection.West, 5, 5, 4, 5, 4, 6, 4), // ordinary
+                Agent(1018UL, 19500, 1200, CardinalDirection.North, 8, 6, 6, 2, 8, 4, 6), // the other bully
+                Agent(1019UL, 12000, 4500, CardinalDirection.South, 4, 9, 5, 6, 2, 6, 3), // the runner
+                Agent(1020UL, 18000, 4500, CardinalDirection.South, 6, 5, 7, 9, 1, 3, 9) // the other hero
             };
         }
 
@@ -796,10 +799,10 @@ namespace Paniq.Simulation
 
         private static FireReactionAgentDefinition Agent(
             ulong id, int x, int z, CardinalDirection facing,
-            int strength, int speed, int bravery, int compassion, int evil, int nervousness)
+            int strength, int speed, int bravery, int compassion, int evil, int nervousness, int leadership)
         {
             return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
-                new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness));
+                new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, leadership));
         }
 
         private static FireReactionPhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams)

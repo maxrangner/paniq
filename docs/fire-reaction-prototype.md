@@ -394,6 +394,21 @@ restart control, or end screen in this checkpoint.
   who opens a door logs `DoorOpened` with their attempt as parent. After
   movement, anyone 0.8 m out through an open door logs `AgentEscaped` (parent:
   that door's `DoorOpened`, or `DoorBrokenDown`).
+- **Taking charge.** Everyone has a seventh trait, leadership. Someone with
+  7+ who is not in immediate danger looks around every second or so and takes
+  charge. First choice: a way out they have tried themselves and found shut,
+  with somebody strong enough to break it (strength 7+) within 6 m — they send
+  that person at it, and the breaker keeps at it for 15 s instead of giving up.
+  Second: the fire is still small and a bottle is free — they send the bravest
+  person nearby (bravery 5+) for it. Otherwise they simply shout, and anyone
+  within 5 m in the same room falls in behind them for 8 s, running where they
+  run until they are a stride and a half away.
+  Whether somebody does as they are told is personality: evil 7+ never does,
+  nor does anyone whose own leadership is as high as the leader's, and
+  otherwise the chance is 55% plus 4% per point of nervousness less 3% per
+  point of bravery. Nobody frozen with fear hears any of it: they have to be
+  shaken. A green arrow marks whoever is being followed, a small one whoever
+  is following.
 - **Fire extinguishers.** One red bottle stands by a wall in each big room,
   with six seconds of spray in it. Someone brave (7+) near a fire of no more
   than 24 squares, or someone kind (7+) who can see a person alight within

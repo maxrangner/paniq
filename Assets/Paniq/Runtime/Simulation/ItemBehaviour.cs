@@ -71,7 +71,10 @@ namespace Paniq.Simulation
         /// <summary>On the floor, still, light enough, and not burning or burnt.</summary>
         private bool IsFreeToTake(Agent agent, int index)
         {
-            return objects.HolderOf(index) < 0 && !objects.IsMoving(index) && objects.CanLift(agent, index) &&
+            // An extinguisher is not clutter: it is left on its wall until
+            // somebody needs it (see ExtinguisherBehaviour).
+            return objects.KindOf(index) != PhysicsObjectKind.Extinguisher &&
+                   objects.HolderOf(index) < 0 && !objects.IsMoving(index) && objects.CanLift(agent, index) &&
                    flammables.ObjectState(index) == ObjectBurnState.Intact;
         }
 

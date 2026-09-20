@@ -54,10 +54,12 @@ namespace Paniq.Simulation
             AgentPanicTemperament temperament,
             AgentBodyState bodyState,
             AgentTraitValues traits,
-            bool isBurning)
+            bool isBurning,
+            bool isLeading = false)
         {
             Traits = traits;
             IsBurning = isBurning;
+            IsLeading = isLeading;
             Temperament = temperament;
             BodyState = bodyState;
             AgentId = agentId;
@@ -107,6 +109,9 @@ namespace Paniq.Simulation
 
         /// <summary>On fire and running around wildly until they collapse.</summary>
         public bool IsBurning { get; }
+
+        /// <summary>Somebody is following this person right now.</summary>
+        public bool IsLeading { get; }
 
         public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp ||
                               BodyState == AgentBodyState.Unconscious;

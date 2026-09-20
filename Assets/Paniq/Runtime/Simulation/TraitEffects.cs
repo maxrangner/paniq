@@ -17,7 +17,7 @@ namespace Paniq.Simulation
         public static AgentTraitValues Draw(ref Pcg32 random)
         {
             return new AgentTraitValues(DrawOne(ref random), DrawOne(ref random), DrawOne(ref random),
-                DrawOne(ref random), DrawOne(ref random), DrawOne(ref random));
+                DrawOne(ref random), DrawOne(ref random), DrawOne(ref random), DrawOne(ref random));
         }
 
         private static int DrawOne(ref Pcg32 random)

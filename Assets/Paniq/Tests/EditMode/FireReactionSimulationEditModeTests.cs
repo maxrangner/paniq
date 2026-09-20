@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("28"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(20));
+            Assert.That(data.ContentRevision, Is.EqualTo("29"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(21));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -192,6 +192,9 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             data.Extinguishers.FightMinimumBravery = 11;
             data.Extinguishers.SaveMinimumCompassion = 11;
+
+            // And nobody sends anyone else at it either.
+            data.Leadership.LeaderMinimum = 11;
             return data;
         }
 
@@ -281,7 +284,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void Fire_FillsTheRoomWithinAMinute()
         {
-            FireReactionScenarioData data = DefaultData();
+            FireReactionScenarioData data = NobodyFightsTheFire();
             data.Fire.ActivationTick = 1;
             var simulation = new FireReactionSimulation(data);
             // The office's 24 × 24 squares, plus the closet, the corridor and the meeting room.

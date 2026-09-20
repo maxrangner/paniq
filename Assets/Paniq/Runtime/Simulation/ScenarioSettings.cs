@@ -600,6 +600,53 @@ namespace Paniq.Simulation
         }
     }
 
+    /// <summary>Taking charge: who leads, who follows, and what leaders tell people to do.</summary>
+    [Serializable]
+    public sealed class LeadershipSettings
+    {
+        /// <summary>Leadership needed before someone starts telling other people what to do.</summary>
+        public int LeaderMinimum = 7;
+
+        /// <summary>How often a leader looks around and forms a plan.</summary>
+        public int PlanMinimumTicks = 50;
+        public int PlanMaximumTicks = 100;
+
+        /// <summary>How far a shout gathers people, and how far an order carries.</summary>
+        public int RallyRangeMillimetres = 5000;
+        public int OrderRangeMillimetres = 6000;
+
+        /// <summary>How long an order and a following last before they lapse.</summary>
+        public int OrderLastsTicks = 750;
+        public int FollowLastsTicks = 400;
+
+        /// <summary>A follower keeps about this far behind before running their own way.</summary>
+        public int FollowGapMillimetres = 1500;
+
+        /// <summary>Bravery needed before a leader sends someone at the fire with a bottle.</summary>
+        public int OrderedFightMinimumBravery = 5;
+
+        /// <summary>Evil this high never does as it is told.</summary>
+        public int DefiantMinimumEvil = 7;
+
+        /// <summary>The chance of doing as told: this, plus per point of nervousness, less per point of bravery.</summary>
+        public int ObeyBasePercent = 55;
+        public int ObeyPercentPerNervousness = 4;
+        public int ObeyPercentPerBravery = 3;
+
+        public LeadershipSettings Clone() => (LeadershipSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(LeaderMinimum >= 0 && DefiantMinimumEvil >= 0 && OrderedFightMinimumBravery >= 0, "who leads");
+            Settings.Require(Settings.Range(PlanMinimumTicks, PlanMaximumTicks, 1), "leader planning");
+            Settings.Require(RallyRangeMillimetres >= 0 && OrderRangeMillimetres >= 0 && FollowGapMillimetres > 0,
+                "leader distances");
+            Settings.Require(OrderLastsTicks > 0 && FollowLastsTicks > 0, "how long orders last");
+            Settings.Require(ObeyBasePercent >= 0 && ObeyPercentPerNervousness >= 0 && ObeyPercentPerBravery >= 0,
+                "doing as told");
+        }
+    }
+
     /// <summary>
     /// Fire extinguishers: who picks one up, how the spray works, and what
     /// it does to whoever is caught in it.

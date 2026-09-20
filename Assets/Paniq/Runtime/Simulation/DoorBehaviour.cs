@@ -436,8 +436,10 @@
                             settings.DoorShoveMinimumTicks, settings.DoorShoveMaximumTicks));
                     }
 
-                    if (tick >= agent.Intent.ActivityEndTick)
+                    if (tick >= agent.Intent.ActivityEndTick &&
+                        !LeaderBehaviour.IsUnderOrdersAtThisDoor(agent, door, tick))
                     {
+                        // Sent at this door by somebody: they keep at it.
                         GiveUp(agent);
                     }
 
@@ -477,10 +479,10 @@
         }
 
         /// <summary>
-        /// Stuck right beside an open door without being lined up with the
-        /// gap: step aside and let whoever is lined up go first, instead of
-        /// everyone wedging against the frame at once. Returns false when
-        /// this does not apply.
+        /// Stuck at an open door, whether wedged beside the gap or nose to
+        /// nose with somebody in it: step aside for a moment and try again,
+        /// instead of everyone leaning on each other in the doorway. Returns
+        /// false when this does not apply.
         /// </summary>
         public bool TryGiveWay(Agent agent)
         {
@@ -493,13 +495,6 @@
                 return false;
             }
 
-            // Standing in the gap itself, nose to nose with someone coming
-            // the other way, counts too: they back out of it.
-            bool inDoorway = geometry.RoomAt(agent.Body.Position) < 0;
-            if (!inDoorway && geometry.IsLinedUpToPassThrough(door, agent.Body.Position))
-            {
-                return false;
-            }
 
             agent.Body.BlockedTicks = 0;
             agent.Doors.GiveWayUntilTick = checked(context.Tick + context.Random.NextIntInclusive(

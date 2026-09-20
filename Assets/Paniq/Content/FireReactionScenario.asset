@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: '28'
+    ContentRevision: '29'
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 20
+    SimulationCompatibilityVersion: 21
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -238,6 +238,20 @@ MonoBehaviour:
       RecoilPushMillimetres: 60
       RecoilPushPerStrength: 12
       RecoilFloorsMaximumStrength: 0
+    Leadership:
+      LeaderMinimum: 7
+      PlanMinimumTicks: 50
+      PlanMaximumTicks: 100
+      RallyRangeMillimetres: 5000
+      OrderRangeMillimetres: 6000
+      OrderLastsTicks: 750
+      FollowLastsTicks: 400
+      FollowGapMillimetres: 1500
+      OrderedFightMinimumBravery: 5
+      DefiantMinimumEvil: 7
+      ObeyBasePercent: 55
+      ObeyPercentPerNervousness: 4
+      ObeyPercentPerBravery: 3
     Flammables:
       HeatDistanceMillimetres: 500
       Kinds:
@@ -352,6 +366,7 @@ MonoBehaviour:
         compassion: 5
         evil: 2
         nervousness: 5
+        leadership: 4
     - agentId:
         value: 1002
       initialPosition:
@@ -366,6 +381,7 @@ MonoBehaviour:
         compassion: 3
         evil: 6
         nervousness: 3
+        leadership: 3
     - agentId:
         value: 1003
       initialPosition:
@@ -380,6 +396,7 @@ MonoBehaviour:
         compassion: 8
         evil: 1
         nervousness: 3
+        leadership: 8
     - agentId:
         value: 1004
       initialPosition:
@@ -394,6 +411,7 @@ MonoBehaviour:
         compassion: 9
         evil: 0
         nervousness: 4
+        leadership: 5
     - agentId:
         value: 1005
       initialPosition:
@@ -408,6 +426,7 @@ MonoBehaviour:
         compassion: 1
         evil: 8
         nervousness: 4
+        leadership: 6
     - agentId:
         value: 1006
       initialPosition:
@@ -422,6 +441,7 @@ MonoBehaviour:
         compassion: 5
         evil: 2
         nervousness: 10
+        leadership: 1
     - agentId:
         value: 1007
       initialPosition:
@@ -436,6 +456,7 @@ MonoBehaviour:
         compassion: 5
         evil: 3
         nervousness: 6
+        leadership: 4
     - agentId:
         value: 1008
       initialPosition:
@@ -450,6 +471,7 @@ MonoBehaviour:
         compassion: 2
         evil: 9
         nervousness: 5
+        leadership: 5
     - agentId:
         value: 1009
       initialPosition:
@@ -464,6 +486,7 @@ MonoBehaviour:
         compassion: 4
         evil: 3
         nervousness: 8
+        leadership: 2
     - agentId:
         value: 1010
       initialPosition:
@@ -478,6 +501,7 @@ MonoBehaviour:
         compassion: 6
         evil: 3
         nervousness: 5
+        leadership: 5
     - agentId:
         value: 1011
       initialPosition:
@@ -492,6 +516,7 @@ MonoBehaviour:
         compassion: 5
         evil: 3
         nervousness: 4
+        leadership: 4
     - agentId:
         value: 1012
       initialPosition:
@@ -506,6 +531,7 @@ MonoBehaviour:
         compassion: 6
         evil: 2
         nervousness: 3
+        leadership: 5
     - agentId:
         value: 1013
       initialPosition:
@@ -520,6 +546,7 @@ MonoBehaviour:
         compassion: 7
         evil: 1
         nervousness: 7
+        leadership: 2
     - agentId:
         value: 1014
       initialPosition:
@@ -534,6 +561,7 @@ MonoBehaviour:
         compassion: 5
         evil: 5
         nervousness: 5
+        leadership: 5
     - agentId:
         value: 1015
       initialPosition:
@@ -548,6 +576,7 @@ MonoBehaviour:
         compassion: 8
         evil: 0
         nervousness: 9
+        leadership: 1
     - agentId:
         value: 1016
       initialPosition:
@@ -562,6 +591,7 @@ MonoBehaviour:
         compassion: 4
         evil: 7
         nervousness: 2
+        leadership: 6
     - agentId:
         value: 1017
       initialPosition:
@@ -576,6 +606,7 @@ MonoBehaviour:
         compassion: 5
         evil: 4
         nervousness: 6
+        leadership: 4
     - agentId:
         value: 1018
       initialPosition:
@@ -590,6 +621,7 @@ MonoBehaviour:
         compassion: 2
         evil: 8
         nervousness: 4
+        leadership: 6
     - agentId:
         value: 1019
       initialPosition:
@@ -604,6 +636,7 @@ MonoBehaviour:
         compassion: 6
         evil: 2
         nervousness: 6
+        leadership: 3
     - agentId:
         value: 1020
       initialPosition:
@@ -618,6 +651,7 @@ MonoBehaviour:
         compassion: 9
         evil: 1
         nervousness: 3
+        leadership: 9
     Doors:
     - doorId:
         value: 2001

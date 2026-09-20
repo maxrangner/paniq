@@ -24,6 +24,9 @@ namespace Paniq.Simulation
 
         /// <summary>Set once the extinguishers exist, which need the behaviours around them first.</summary>
         private ExtinguisherBehaviour extinguishers;
+
+        /// <summary>Set once the leaders exist, for the same reason.</summary>
+        private LeaderBehaviour leaders;
         private readonly Locomotion locomotion;
         private readonly PanicSettings settings;
 
@@ -56,6 +59,9 @@ namespace Paniq.Simulation
 
         /// <summary>Wired up after construction, because each needs the other's neighbours.</summary>
         public void UseExtinguishers(ExtinguisherBehaviour behaviour) => extinguishers = behaviour;
+
+        /// <summary>Wired up after construction, for the same reason.</summary>
+        public void UseLeaders(LeaderBehaviour behaviour) => leaders = behaviour;
 
         /// <summary>
         /// This tick's panicked decision. Returns no intent when the person
@@ -99,6 +105,12 @@ namespace Paniq.Simulation
                 }
 
                 intent.Activity = AgentActivityState.Fleeing;
+            }
+
+            MotorIntent? following = leaders.Decide(agent, inDanger);
+            if (following.HasValue)
+            {
+                return following.Value;
             }
 
             MotorIntent? fighting = extinguishers.Decide(agent, inDanger);

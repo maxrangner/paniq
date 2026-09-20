@@ -353,6 +353,8 @@ namespace Paniq.Presentation
                     calm && agent.ActivityState == AgentActivityState.Investigating,
                     calm && (agent.ActivityState == AgentActivityState.Standing ||
                              agent.ActivityState == AgentActivityState.LookingAround),
+                    agent.IsLeading,
+                    agent.ActivityState == AgentActivityState.Following,
                     time);
             }
 

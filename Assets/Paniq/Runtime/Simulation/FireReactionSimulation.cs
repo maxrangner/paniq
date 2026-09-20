@@ -35,6 +35,7 @@ namespace Paniq.Simulation
         private readonly HelpBehaviour help;
         private readonly ChairBehaviour chairs;
         private readonly ExtinguisherBehaviour extinguishers;
+        private readonly LeaderBehaviour leaders;
         private readonly WorldGeometry geometry;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
@@ -75,6 +76,8 @@ namespace Paniq.Simulation
             burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
             extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
             panic.UseExtinguishers(extinguishers);
+            leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion);
+            panic.UseLeaders(leaders);
         }
 
         private Agent[] CreateAgents(int doorCount)
@@ -253,6 +256,7 @@ namespace Paniq.Simulation
             }
 
             chairs.ResolveStanding();
+            leaders.CountFollowers();
             extinguishers.Spray();
             locomotion.ResolveMovement();
             help.MoveDragged(agents);

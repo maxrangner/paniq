@@ -335,10 +335,10 @@ namespace Paniq.Simulation
                 return;
             }
 
-            LiftOff(body);
             LogicalPosition from = body.Position;
             if (IsClearForItem(index, from))
             {
+                LiftOff(body);
                 return;
             }
 
@@ -357,6 +357,7 @@ namespace Paniq.Simulation
                         LogicalPosition spot = from + IntegerMath.Displacement(preferredHeading + side * turn, distance);
                         if (IsClearForItem(index, spot))
                         {
+                            LiftOff(body);
                             body.X = (long)spot.X * SubMillimetre;
                             body.Z = (long)spot.Z * SubMillimetre;
                             return;
@@ -364,6 +365,11 @@ namespace Paniq.Simulation
                     }
                 }
             }
+
+            // Nowhere within reach is clear. It stays up where it is rather than
+            // becoming something solid standing inside somebody: a laptop still
+            // on the desk is at worst odd to look at, one inside a person is a
+            // body that can never move again.
         }
 
         /// <summary>
@@ -412,7 +418,10 @@ namespace Paniq.Simulation
             {
                 if (bodies[b].Resting && bodies[b].RestsOn < 0 && bounds.ContainsCircle(bodies[b].Position, 0))
                 {
-                    LiftOff(bodies[b]);
+                    // Off the edge it was nearest, and onto clear floor: dropping
+                    // it straight down would leave it standing inside whoever was
+                    // walking past the table as it went.
+                    FallOff(b, IntegerMath.HeadingBetween(bounds.Centre, bodies[b].Position, 0));
                 }
             }
         }
@@ -446,6 +455,31 @@ namespace Paniq.Simulation
             body.VelocityZ = 0L;
             body.Spin = 0;
             body.Thrown = false;
+        }
+
+        /// <summary>
+        /// Somebody settling into a chair scoots it in under the table, the
+        /// mirror of the shove back that getting out of it gives. It goes as far
+        /// as it can without running into the table, a wall or anything else, so
+        /// a chair pulled up to a meeting table ends up tucked against it rather
+        /// than half a metre out from it. Returns where it came to rest, which is
+        /// where the sitter ends up too. Draws nothing.
+        /// </summary>
+        public LogicalPosition ScootIn(int index, int distance, Agent sitter)
+        {
+            PhysicsBody chair = bodies[index];
+            for (int part = distance; part >= distance / 4 && part > 0; part /= 2)
+            {
+                LogicalPosition spot = chair.Position + IntegerMath.Displacement(chair.Heading, part);
+                if (IsClearForItem(index, spot) && crowd.FindBlocking(sitter, chair.Position, spot) == null)
+                {
+                    chair.X = (long)spot.X * SubMillimetre;
+                    chair.Z = (long)spot.Z * SubMillimetre;
+                    return spot;
+                }
+            }
+
+            return chair.Position;
         }
 
         /// <summary>They get up: the chair is loose again, and shoved back a little as they stand.</summary>
@@ -715,14 +749,81 @@ namespace Paniq.Simulation
                 return;
             }
 
+            LogicalBounds bounds = geometry.TableBounds(table);
             geometry.BreakTable(table);
 
-            // Whatever the table was holding up drops to the floor with it.
-            LooseEverythingRestingIn(geometry.TableBounds(table));
-            context.Events.Append(context.Tick, geometry.TableId(table), FireReactionEventType.ObjectBroke,
-                geometry.TableBounds(table).Centre, (int)Math.Min(int.MaxValue, momentum), 0,
-                thrown.LastPushEventId, thrown.Id);
-            sound.Thud(geometry.TableId(table), geometry.TableBounds(table).Centre, thrown.LastPushEventId);
+            // The event first, so the heap and the laptops sliding off it both
+            // have something to name as the reason they are where they are.
+            CausalEvent broke = context.Events.Append(context.Tick, geometry.TableId(table), FireReactionEventType.ObjectBroke,
+                bounds.Centre, (int)Math.Min(int.MaxValue, momentum), 0, thrown.LastPushEventId, thrown.Id);
+
+            // It goes over rather than vanishing: a heap of boards that still
+            // blocks, still slides when kicked, and can still be tripped over.
+            TipTableOver(table, bounds, thrown, broke.EventId);
+
+            // Whatever the table was holding up drops to the floor beside it.
+            LooseEverythingRestingIn(bounds);
+            sound.Thud(geometry.TableId(table), bounds.Centre, thrown.LastPushEventId);
+        }
+
+        /// <summary>
+        /// A collapsed table becomes a real thing on the floor. It takes the
+        /// lowest-numbered spare heap, the short side of the table for its size,
+        /// and a share of whatever knocked it over, so it skids rather than
+        /// appearing. Nothing is made mid-run: the spares are authored.
+        ///
+        /// It cannot land inside anybody: until the moment the table broke, the
+        /// walking rules kept every person and every thing out of its rectangle,
+        /// and the heap is at most half the short side across, centred on it.
+        /// If there is somehow no spare left the table simply goes, exactly as
+        /// it used to — breaking a table must never fail.
+        /// </summary>
+        private void TipTableOver(int table, LogicalBounds bounds, PhysicsBody thrown, ulong causeEventId)
+        {
+            int slot = -1;
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                if (bodies[b].Dormant && bodies[b].Kind == PhysicsObjectKind.TableWreck)
+                {
+                    slot = b;
+                    break;
+                }
+            }
+
+            if (slot < 0)
+            {
+                return;
+            }
+
+            PhysicsBody heap = bodies[slot];
+
+            // Half the table's short side: a table that has gone over is a flat
+            // heap of boards you edge round, not a post standing where it was.
+            // Left at the table's own width, two collapsed halves of the meeting
+            // table wall the room off and the people behind them die there.
+            FlammableSettings flammables = context.Scenario.Flammables;
+            int across = Math.Min(bounds.MaxX - bounds.MinX, bounds.MaxZ - bounds.MinZ) / 2;
+            across = Math.Max(flammables.TableWreckMinimumSizeMillimetres,
+                Math.Min(flammables.TableWreckMaximumSizeMillimetres, across));
+            heap.Size = across;
+            heap.Radius = across / 2;
+            heap.MassGrams = flammables.TableWreckMassGrams;
+            heap.Dormant = false;
+            heap.Wrecked = true;
+            heap.Thrown = false;
+            heap.Heading = 0;
+            heap.X = (long)bounds.Centre.X * SubMillimetre;
+            heap.Z = (long)bounds.Centre.Z * SubMillimetre;
+            heap.LastPushEventId = causeEventId;
+
+            // A share of the blow that felled it, by mass, so a hurled briefcase
+            // barely shifts a desk and a stick of TNT sends it sliding.
+            long share = thrown.MassGrams + heap.MassGrams;
+            heap.VelocityX = thrown.VelocityX * thrown.MassGrams / share;
+            heap.VelocityZ = thrown.VelocityZ * thrown.MassGrams / share;
+            LimitSpeed(heap, (long)context.Scenario.World.MaximumStepDistanceMillimetres * SubMillimetre);
+            heap.Spin = SpinFromImpact(heap, (int)IntegerMath.Sqrt(
+                heap.VelocityX * heap.VelocityX + heap.VelocityZ * heap.VelocityZ) / SubMillimetre);
         }
 
         /// <summary>Smashes a thing outright, whatever hit it: used by a blast.</summary>

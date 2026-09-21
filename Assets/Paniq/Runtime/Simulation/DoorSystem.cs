@@ -32,6 +32,36 @@ namespace Paniq.Simulation
         public bool Placed = true;
         public ulong UnlockedEventId;
         public ulong OpenedEventId;
+
+        /// <summary>
+        /// Which way this leaf is allowed to swing: both ways by default, so it
+        /// gives way to whoever pushes it and is only stopped by something lying
+        /// on the side it would swing into.
+        /// </summary>
+        public DoorSwingRule Swing = DoorSwingRule.BothWays;
+
+        /// <summary>
+        /// Which way the leaf stands open: +1 out of <see cref="Room"/>, -1 into
+        /// it, 0 while it is shut. Chosen when it opens, and the side that has to
+        /// be clear again before it can be shut.
+        /// </summary>
+        public int OpenSide;
+    }
+
+    /// <summary>
+    /// Which way a door leaf may swing. Both ways is ordinary; the one-way rules
+    /// are here for a fire door or a turnstile a later scenario may want to
+    /// author. Append only: the value is part of the replay fingerprint.
+    /// </summary>
+    public enum DoorSwingRule
+    {
+        BothWays,
+
+        /// <summary>Only away from the room whose wall holds it.</summary>
+        AwayFromItsRoom,
+
+        /// <summary>Only into the room whose wall holds it.</summary>
+        IntoItsRoom
     }
 
     /// <summary>
@@ -65,6 +95,7 @@ namespace Paniq.Simulation
             this.doors = doors;
             this.geometry = geometry;
             blockedBy = new int[doors.Length];
+            openedThisTick = new int[doors.Length];
             for (int i = 0; i < blockedBy.Length; i++)
             {
                 blockedBy[i] = -1;
@@ -157,6 +188,10 @@ namespace Paniq.Simulation
             ulong blasted = context.Events.Append(context.Tick, doors[slot].Id, FireReactionEventType.PowerBlastedWall,
                 centre, costForTheLog, 0, 0UL, doors[slot].Id).EventId;
             doors[slot].OpenedEventId = blasted;
+
+            // A hole in a wall is a way out that was not there a moment ago, and
+            // it deserves the same notice as a door swinging open.
+            RecordOpening(slot);
             return blasted;
         }
 
@@ -166,13 +201,62 @@ namespace Paniq.Simulation
         /// <summary>The loose things, needed to tell whether a doorway is wedged. Set once, when they exist.</summary>
         public void UseObjects(PhysicsObjectSystem physicsObjects) => objects = physicsObjects;
 
+        /// <summary>
+        /// The doors that became a way through this tick, in the order it
+        /// happened, so the crowd can be told once at the end of the tick rather
+        /// than mid-decision. Fixed size, filled and emptied in place.
+        /// </summary>
+        private readonly int[] openedThisTick;
+        private int openedCount;
+
+        /// <summary>How many doors opened this tick, and which.</summary>
+        public int OpeningsThisTick => openedCount;
+
+        public int OpeningAt(int index) => openedThisTick[index];
+
+        /// <summary>Everybody has been told; start the next tick's list empty.</summary>
+        public void ClearOpenings() => openedCount = 0;
+
+        /// <summary>A door became a way through: note it for the end of the tick.</summary>
+        private void RecordOpening(int door)
+        {
+            for (int i = 0; i < openedCount; i++)
+            {
+                if (openedThisTick[i] == door)
+                {
+                    return;
+                }
+            }
+
+            openedThisTick[openedCount++] = door;
+        }
+
         /// <summary>The thing wedged in this doorway, or -1.</summary>
         public int ObstructionIn(int door) => blockedBy[door];
 
-        /// <summary>Whether something is wedged in this doorway, so the door will not budge either way.</summary>
+        /// <summary>
+        /// Whether something is wedged in this doorway. A thing lying in the gap
+        /// stops the leaf whichever way it would swing — it is sitting in the
+        /// hole the leaf has to sweep — so this is the whole answer to "will
+        /// this door move?".
+        /// </summary>
         public bool IsObstructed(int door) => blockedBy[door] >= 0;
 
+        /// <summary>
+        /// Whether the leaf is allowed to swing this way at all. Ordinary doors
+        /// go both ways; the one-way rules are here for a fire door a later
+        /// scenario may author. +1 is out of the door's own room.
+        /// </summary>
+        public bool CanSwing(int door, int side)
+        {
+            DoorRuntime d = doors[door];
+            return side > 0 ? d.Swing != DoorSwingRule.IntoItsRoom : d.Swing != DoorSwingRule.AwayFromItsRoom;
+        }
+
         public DoorState StateOf(int door) => doors[door].State;
+
+        /// <summary>A ragged gap blasted through a wall: there is no leaf to swing, pull at or shoulder.</summary>
+        public bool IsHole(int door) => doors[door].IsHole;
 
         /// <summary>
         /// Phase 8's tail, once every object has finished moving: which doorway
@@ -261,6 +345,19 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// Which way the leaf swings when somebody standing on
+        /// <paramref name="pushedFrom"/> opens it: away from them, which is what
+        /// happens when you push a door, unless the scenario says this one only
+        /// goes one way. The player (0) gets the door's usual way out of its
+        /// room, so a door nobody is touching swings the way it always has.
+        /// </summary>
+        private int ChooseSwing(int door, int pushedFrom)
+        {
+            int first = pushedFrom == 0 ? 1 : -pushedFrom;
+            return CanSwing(door, first) ? first : -first;
+        }
+
         /// <summary>True when nobody (other than <paramref name="ignore"/>) is in the way of the door swinging shut.</summary>
         public bool IsDoorwayClear(int door, Agent ignore = null)
         {
@@ -294,6 +391,7 @@ namespace Paniq.Simulation
             }
 
             d.State = DoorState.Unlocked;
+            d.OpenSide = 0;
             return context.Events.Append(context.Tick, closer, FireReactionEventType.DoorClosed, geometry.DoorCentre(door),
                 0, 0, causalParentEventId, d.Id).EventId;
         }
@@ -313,16 +411,27 @@ namespace Paniq.Simulation
         }
 
         /// <summary>Opens a door, caused by the player's unlock or by a person's attempt.</summary>
-        public void Open(int door, ulong causalParentEventId)
+        /// <param name="pushedFrom">
+        /// Which side the person opening it is standing on: +1 beyond the door's
+        /// own room, -1 inside it, 0 for the player, who is not standing
+        /// anywhere. The leaf swings away from them if it can, the way a real
+        /// door gives when you push it.
+        /// </param>
+        public void Open(int door, ulong causalParentEventId, int pushedFrom = 0)
         {
             if (IsObstructed(door))
             {
-                // Something is wedged against it: it will not budge.
+                // Something is wedged in the gap: it will not budge, however
+                // many times anybody tries it.
                 return;
             }
 
+            int swing = ChooseSwing(door, pushedFrom);
+
             DoorRuntime d = doors[door];
+            d.OpenSide = swing;
             d.State = DoorState.Open;
+            RecordOpening(door);
             d.OpenedEventId = context.Events.Append(
                 context.Tick,
                 d.Id,
@@ -363,6 +472,11 @@ namespace Paniq.Simulation
         {
             DoorRuntime d = doors[door];
             d.State = DoorState.Broken;
+
+            // It comes off its hinges away from whoever was shouldering it,
+            // whatever is lying on the far side: it is not swinging any more.
+            d.OpenSide = -geometry.SideOf(door, breaker.Body.Position);
+            RecordOpening(door);
             d.OpenedEventId = context.Events.Append(
                 context.Tick,
                 breaker.Id,
@@ -385,7 +499,7 @@ namespace Paniq.Simulation
             DoorRuntime d = doors[door];
             int damagePercent = Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength);
             return new FireReactionDoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent,
-                d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door));
+                d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door));
         }
 
         public FireReactionDoorSnapshot[] GetSnapshots()

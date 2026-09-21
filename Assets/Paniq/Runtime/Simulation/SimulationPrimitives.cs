@@ -416,7 +416,14 @@ namespace Paniq.Simulation
         PowerSpawnedExtinguisher,
 
         /// <summary>A wall blown open by the player (source and target: the hole itself).</summary>
-        PowerBlastedWall
+        PowerBlastedWall,
+
+        /// <summary>
+        /// Somebody alight threw themselves down and rolled to smother the
+        /// flames (source: the person). Whether it worked is a separate
+        /// <c>AgentDoused</c> naming this as its cause.
+        /// </summary>
+        AgentRolled
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>
@@ -485,7 +492,14 @@ namespace Paniq.Simulation
         Microwave,
 
         /// <summary>A wall socket: it never moves and never burns, but it spits sparks and pops.</summary>
-        WallSocket
+        WallSocket,
+
+        /// <summary>
+        /// The heap of boards a table collapses into. Not authored anywhere in
+        /// the world: a spare slot stands ready for each table and only comes
+        /// into it when that table goes over.
+        /// </summary>
+        TableWreck
     }
 
     /// <summary>

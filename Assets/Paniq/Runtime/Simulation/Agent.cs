@@ -154,6 +154,14 @@
         public int SwerveEndTick;
         public int NextPanicDecisionTick;
 
+        /// <summary>
+        /// They are on their way to a way out of the building they have seen
+        /// standing open. Written once per decision by the panic behaviour, and
+        /// read wherever dithering is decided: somebody with a clear way out in
+        /// front of them does not hesitate, zig-zag or drift with the crowd.
+        /// </summary>
+        public bool SetOnAWayOut;
+
         /// <summary>The soonest a cruel person will heave another person out of their way (not the door shoving in <see cref="AgentDoorMemory"/>).</summary>
         public int NextShoveTick;
     }
@@ -171,10 +179,19 @@
         {
             AvoidUntilTick = new int[doorCount];
             FoundShut = new bool[doorCount];
+            ShutItThemselves = new bool[doorCount];
         }
 
         /// <summary>The door being run for, or -1.</summary>
         public int ExitDoorIndex = -1;
+
+        /// <summary>
+        /// The way out of the building at the far end of the route they are on,
+        /// or -1. <see cref="ExitDoorIndex"/> is the next door on the walk; this
+        /// is the one that actually leads outside, so "is their way out open?"
+        /// can be answered without working the route out again.
+        /// </summary>
+        public int WayOutDoorIndex = -1;
 
         /// <summary>The room they are heading at that door from, so approach and target points work from either side.</summary>
         public int ApproachRoom = -1;
@@ -187,6 +204,13 @@
 
         /// <summary>Per door: they have stood at it and it would not open, so they stop counting on it.</summary>
         public readonly bool[] FoundShut;
+
+        /// <summary>
+        /// Per door: they pulled this one shut themselves. Knowing a door opened
+        /// again does not change that — they shut it on purpose, and they are not
+        /// going to walk back and shoulder their own handiwork.
+        /// </summary>
+        public readonly bool[] ShutItThemselves;
 
         /// <summary>Until this tick they stand aside beside their open door, letting whoever is lined up with it through first.</summary>
         public int GiveWayUntilTick;
@@ -285,6 +309,13 @@
 
     internal sealed class AgentCarry
     {
+        /// <summary>
+        /// Where in its back-and-forth swing this person's jet is, drawn once as
+        /// the trigger goes down so two people fighting the same fire do not
+        /// wave in unison.
+        /// </summary>
+        public int SprayPhase;
+
         /// <summary>The item (physical-object index) being fetched or carried, or -1.</summary>
         public int ItemIndex = -1;
 
@@ -319,6 +350,16 @@
 
         public int NextTurnTick;
         public int NextScreamTick;
+
+        /// <summary>
+        /// While this tick has not passed, they are on the floor rolling on
+        /// purpose to smother the flames, rather than simply knocked over. Only
+        /// deliberate rolling can put a person out.
+        /// </summary>
+        public int RollingUntilTick;
+
+        /// <summary>The AgentRolled event, so a fire that goes out can name the roll that did it.</summary>
+        public ulong RollEventId;
     }
 
     /// <summary>

@@ -839,9 +839,10 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// A thing of this size resting here would jam the door: in front of the
-        /// gap, and close enough to the wall line on either side to be in the
-        /// leaf's way. Symmetric about the wall, because a bag wedged against a
-        /// door stops it whichever side it is on.
+        /// gap, and close enough to the wall line to be in the leaf's way.
+        /// Symmetric about the wall, because a chair wedged against a door stops
+        /// it whichever side it is on — the leaf has to sweep the gap either way,
+        /// and the chair is sitting in it.
         /// </summary>
         public bool IsObjectInDoorway(int door, LogicalPosition where, int objectRadius, int gap)
         {
@@ -871,6 +872,13 @@ namespace Paniq.Simulation
                     return (long)room.MinX - position.X;
             }
         }
+
+        /// <summary>
+        /// Which side of a door's wall a point is on: +1 out of the door's own
+        /// room, -1 inside it. A point exactly on the wall line counts as
+        /// inside, so the answer is never 0 and a leaf always has a way to go.
+        /// </summary>
+        public int SideOf(int door, LogicalPosition position) => BeyondDistance(door, position) > 0 ? 1 : -1;
 
         /// <summary>How far past a door's wall a point is, away from <paramref name="room"/>.</summary>
         public long BeyondDistanceFrom(int door, int room, LogicalPosition position)

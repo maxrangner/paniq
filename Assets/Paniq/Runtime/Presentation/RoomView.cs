@@ -28,12 +28,20 @@ namespace Paniq.Presentation
             public SimulationId DoorId;
             public Transform Hinge;
             public Vector3 HingePosition;
-            public float FallDirection;
             public float Fall;
             public Renderer Leaf;
             public float ClosedYaw;
-            public float OpenYaw;
+
+            /// <summary>Where the leaf sits open on each side of the frame.</summary>
+            public float OpenYawOut;
+            public float OpenYawIn;
             public float Swing;
+
+            /// <summary>Which way the leaf swung: +1 out of the room whose wall holds it, -1 into it.</summary>
+            public int OpenSide = 1;
+
+            /// <summary>The way out of the door's own room, in world space.</summary>
+            public Vector3 OutwardDirection;
             public float ShakeStart = -10f;
             public DoorState State;
             public int DamagePercent;
@@ -57,6 +65,12 @@ namespace Paniq.Presentation
 
             /// <summary>0 while it stands, 1 once it has collapsed.</summary>
             public float Collapse;
+
+            /// <summary>Where it stands, so a table going over can drop from it.</summary>
+            public Vector3 RestingPosition;
+
+            /// <summary>Its ID, so which way it tips is the same every run.</summary>
+            public SimulationId TableId;
         }
 
         /// <summary>Every table's parts (top and legs), recoloured as it heats, burns and chars.</summary>
@@ -314,7 +328,9 @@ namespace Paniq.Presentation
                 Flames = new FlameCubes(root, 10, materials, table.TableId.Value % 83UL),
                 Width = width,
                 Depth = depth,
-                Root = root
+                Root = root,
+                RestingPosition = root.localPosition,
+                TableId = table.TableId
             });
         }
 
@@ -469,11 +485,16 @@ namespace Paniq.Presentation
                 Hinge = hinge,
                 HingePosition = hinge.position,
 
-                // Which way round the leaf must tip about the wall line to fall outward.
-                FallDirection = Vector3.Dot(Quaternion.Euler(0f, YawOf(along), 0f) * Vector3.forward, outward) >= 0f ? 1f : -1f,
+
                 Leaf = leafRenderer,
                 ClosedYaw = YawOf(along),
-                OpenYaw = YawOf(outward),
+
+                // A door swings both ways, so the leaf has an open position on
+                // each side of the frame and takes whichever one the simulation
+                // says it went: away from whoever pushed it.
+                OpenYawOut = YawOf(outward),
+                OpenYawIn = YawOf(-outward),
+                OutwardDirection = outward,
                 State = DoorState.Locked
             };
             hinge.rotation = Quaternion.Euler(0f, view.ClosedYaw, 0f);
@@ -507,6 +528,10 @@ namespace Paniq.Presentation
                 {
                     known.State = door.State;
                     known.DamagePercent = door.DamagePercent;
+                    if (door.OpenSide != 0)
+                    {
+                        known.OpenSide = door.OpenSide;
+                    }
                 }
             }
 
@@ -523,12 +548,20 @@ namespace Paniq.Presentation
                     materials.SetColor(part, colour);
                 }
 
-                // A collapsed table drops into a flat heap of wreckage, so it is
-                // obvious the floor it stood on is walkable again.
-                view.Collapse = Mathf.MoveTowards(view.Collapse, table.Broken ? 1f : 0f, deltaTime * 5f);
+                // A table that has been hit hard enough tips up on one edge and
+                // goes over, rather than simply squashing flat where it stood.
+                // Which way it goes comes from its own ID, so it looks the same
+                // every run without touching the simulation's dice.
+                view.Collapse = Mathf.MoveTowards(view.Collapse, table.Broken ? 1f : 0f, deltaTime * 3f);
                 if (view.Collapse > 0f)
                 {
-                    view.Root.localScale = new Vector3(1f, Mathf.Lerp(1f, 0.12f, view.Collapse), 1f);
+                    float fallen = Mathf.SmoothStep(0f, 1f, view.Collapse);
+                    float lean = Hash01((int)view.TableId.Value, 13, 7) < 0.5f ? -1f : 1f;
+                    view.Root.localScale = new Vector3(1f, Mathf.Lerp(1f, 0.25f, fallen), 1f);
+                    view.Root.localRotation = Quaternion.Euler(
+                        lean * 82f * fallen, view.Root.localRotation.eulerAngles.y, 0f);
+                    view.Root.localPosition = view.RestingPosition +
+                                              Vector3.down * (TableHeight * 0.5f * fallen);
                 }
 
                 view.Flames.Update(table.BurnState == ObjectBurnState.Burning, time, new Vector3(0f, 0.72f, 0f),
@@ -539,7 +572,8 @@ namespace Paniq.Presentation
             {
                 float target = view.State == DoorState.Open ? 1f : 0f;
                 view.Swing = Mathf.MoveTowards(view.Swing, target, deltaTime / DoorSwingSeconds);
-                float yaw = Mathf.LerpAngle(view.ClosedYaw, view.OpenYaw, Mathf.SmoothStep(0f, 1f, view.Swing));
+                float openYaw = view.OpenSide >= 0 ? view.OpenYawOut : view.OpenYawIn;
+                float yaw = Mathf.LerpAngle(view.ClosedYaw, openYaw, Mathf.SmoothStep(0f, 1f, view.Swing));
 
                 float shakeAge = time - view.ShakeStart;
                 if (shakeAge < 0.3f && view.State != DoorState.Open && view.State != DoorState.Broken)
@@ -553,7 +587,13 @@ namespace Paniq.Presentation
                 {
                     // Burst off its hinges: the leaf slams down flat outside the doorway.
                     view.Fall = Mathf.MoveTowards(view.Fall, 1f, deltaTime / DoorFallSeconds);
-                    float tip = 90f * view.FallDirection * view.Fall * view.Fall;
+
+                    // It falls flat on the side it came off, which is the side it
+                    // would have swung to.
+                    Vector3 fallTowards = view.OpenSide >= 0 ? view.OutwardDirection : -view.OutwardDirection;
+                    float fallDirection = Vector3.Dot(
+                        Quaternion.Euler(0f, view.ClosedYaw, 0f) * Vector3.forward, fallTowards) >= 0f ? 1f : -1f;
+                    float tip = 90f * fallDirection * view.Fall * view.Fall;
                     view.Hinge.rotation = Quaternion.Euler(0f, view.ClosedYaw, 0f) * Quaternion.Euler(tip, 0f, 0f);
                     view.Hinge.position = view.HingePosition + Vector3.up * (0.05f * view.Fall);
                 }

@@ -294,9 +294,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "33";
+        public string ContentRevision = "34";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 25;
+        public int SimulationCompatibilityVersion = 26;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -1126,7 +1126,15 @@ namespace Paniq.Simulation
                 SpareExtinguisher(3391UL),
                 SpareExtinguisher(3392UL),
                 SpareExtinguisher(3393UL),
-                SpareExtinguisher(3394UL)
+                SpareExtinguisher(3394UL),
+
+                // One spare heap per table in DefaultTables, kept out of the
+                // world until that table collapses into it.
+                SpareTableWreck(3401UL),
+                SpareTableWreck(3402UL),
+                SpareTableWreck(3403UL),
+                SpareTableWreck(3404UL),
+                SpareTableWreck(3405UL)
             };
         }
 
@@ -1290,6 +1298,19 @@ namespace Paniq.Simulation
         {
             return new FireReactionPhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Extinguisher, new LogicalPosition(0, 0), 220, 9000, true);
+        }
+
+        /// <summary>
+        /// The heap a table collapses into. Like a spare extinguisher it is not
+        /// in the world until something makes it: its size, weight and place all
+        /// come from the table it stands in for, at the moment that table goes.
+        /// One is reserved per authored table, so a collapse never has to make
+        /// anything mid-run.
+        /// </summary>
+        private static FireReactionPhysicsObjectDefinition SpareTableWreck(ulong id)
+        {
+            return new FireReactionPhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.TableWreck, new LogicalPosition(0, 0), 700, 40000, true);
         }
 
         /// <summary>A microwave on a counter: heavy, and it goes off with a bang.</summary>

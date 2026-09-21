@@ -213,9 +213,51 @@ namespace Paniq.Simulation
                     burningPerson >= 0 ? agent.Personality.PanicSpeed : agent.Personality.CalmSpeed);
             }
 
+            if (!spraying)
+            {
+                // The trigger goes down: fix the phase of the sweep now, once,
+                // so two people fighting the same fire do not wave in unison.
+                agent.Carry.SprayPhase = context.Random.NextIntInclusive(0, SweepPeriodTicks - 1);
+            }
+
             agent.Intent.Activity = AgentActivityState.Spraying;
             agent.Intent.Target = target;
-            return new MotorIntent(heading, 0, agent.Personality.PanicTurnRate, context.Scenario.Panic.Acceleration);
+            return new MotorIntent(
+                IntegerMath.NormalizeDegrees(heading + Sweep(agent)),
+                0,
+                agent.Personality.PanicTurnRate,
+                context.Scenario.Panic.Acceleration);
+        }
+
+        /// <summary>
+        /// How long a full sweep takes, there and back. Two and a half seconds
+        /// reads as somebody working a jet across a fire rather than shaking it.
+        /// </summary>
+        private const int SweepPeriodTicks = 125;
+
+        /// <summary>
+        /// The jet is not a laser. Somebody holding the trigger down works it
+        /// back and forth across what they are fighting: a triangle wave, so the
+        /// arc is even and turns at the ends rather than snapping round. How wide
+        /// it swings is strength — a strong pair of hands keeps a narrow, steady
+        /// arc while the weak are wrestled about by the hose, which is the same
+        /// rule the recoil already follows. Arithmetic on the tick and one draw
+        /// per trigger-pull, so it adds no randomness of its own.
+        /// </summary>
+        private int Sweep(Agent agent)
+        {
+            int width = TraitEffects.SpraySweepDegrees(agent, context.Scenario);
+            if (width <= 0)
+            {
+                return 0;
+            }
+
+            int step = (context.Tick + agent.Carry.SprayPhase) % SweepPeriodTicks;
+            int half = SweepPeriodTicks / 2;
+
+            // 0 .. half .. 0 again, scaled to the full swing either side of centre.
+            int up = step < half ? step : SweepPeriodTicks - step;
+            return up * (2 * width) / half - width;
         }
 
         /// <summary>Phase 4½: everyone holding a trigger down sprays, before anybody moves.</summary>

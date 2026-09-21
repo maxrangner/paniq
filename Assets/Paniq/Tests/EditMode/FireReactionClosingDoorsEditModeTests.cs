@@ -276,6 +276,18 @@ namespace Paniq.Tests.EditMode
                     {
                         shutItThemselves.Add(who);
                     }
+                    else if (record.EventType == FireReactionEventType.DoorOpened ||
+                             record.EventType == FireReactionEventType.DoorBrokenDown)
+                    {
+                        // Somebody opened it again, so nobody's own shutting of
+                        // it stands any more. If a villain then locks it, the
+                        // person who shut it earlier is as locked in as anybody
+                        // and may hammer on it like anybody.
+                        // A door names itself as the source when it opens and as
+                        // the target when somebody breaks it down.
+                        shutItThemselves.RemoveWhere(pair => pair.Door == record.TargetId.Value ||
+                                                             pair.Door == record.SourceId.Value);
+                    }
                     else if (record.EventType == FireReactionEventType.AgentForcedDoor)
                     {
                         Assert.That(shutItThemselves.Contains(who), Is.False,

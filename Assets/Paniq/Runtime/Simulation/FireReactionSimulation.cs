@@ -407,6 +407,7 @@ namespace Paniq.Simulation
             locomotion.ResolveMovement();
             help.MoveDragged(agents);
             items.FollowCarriers(agents);
+            burning.RollToPutItOut();
             burning.SpreadFlames();
             doorBehaviour.ResolveRoomChangesAndEscapes();
             help.ResolveRescues(agents);
@@ -415,6 +416,13 @@ namespace Paniq.Simulation
             objects.Advance();
             flammables.Update();
             doors.ResolveBlockages();
+
+            // Last of all, once the tick has settled: anybody who could have
+            // seen or heard a door open this tick thinks again on the next one.
+            // Here for the same reason the blockages are worked out here — the
+            // next tick's decisions read one settled answer instead of one that
+            // changes as the door swings.
+            doorBehaviour.AnnounceWaysOut();
             CreditInfluenceForPeopleSaved();
         }
 

@@ -298,6 +298,40 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Puts a loose thing beside a table if it has ended up inside one.
+        ///
+        /// Keeping things out of the furniture as they slide works by asking
+        /// which side of the table they came from, and that cannot answer for a
+        /// thing that did not slide in: one kicked while it stood on a table, or
+        /// shoved a couple of millimetres over an edge by somebody's foot in a
+        /// single tick. Those are rare and small, and they used to leave a
+        /// laptop hanging in the middle of a desk with nothing to correct it.
+        /// Checked once a tick for anything actually on the floor, so the rule
+        /// "a loose thing is never inside a table" holds however it got there.
+        /// </summary>
+        private void KeepOutOfFurniture(int index)
+        {
+            PhysicsBody body = bodies[index];
+            if (body.HeldBy >= 0 || body.Dormant || body.Resting)
+            {
+                return;
+            }
+
+            LogicalPosition where = body.Position;
+            LogicalPosition beside = geometry.PushOutOfTables(where, where, body.Radius, out _, out _);
+
+            // Only if there is really somewhere to put it. Shoving it off a
+            // table edge into the box behind it would trade one thing standing
+            // in the furniture for two things standing in each other, and in a
+            // room with no room left the honest answer is to leave it where it
+            // is and let the next kick sort it out.
+            if (!beside.Equals(where) && IsClearForItem(index, beside))
+            {
+                MoveBody(index, (long)beside.X * SubMillimetre, (long)beside.Z * SubMillimetre);
+            }
+        }
+
+        /// <summary>
         /// The things that might be inside <paramref name="area"/>, in
         /// ascending order, written into a buffer belonging to this system. The
         /// list is a superset: every caller still applies its own exact test.
@@ -452,10 +486,15 @@ namespace Paniq.Simulation
         /// It is lifted straight off whatever held it up: into somebody's arms,
         /// where its floor position no longer matters.
         /// </summary>
-        private static void LiftOff(PhysicsBody body)
+        private void LiftOff(int index)
         {
+            PhysicsBody body = bodies[index];
             body.Resting = false;
             body.RestsOn = -1;
+
+            // It stood on a table, so its position is inside one until
+            // something moves it off.
+            KeepOutOfFurniture(index);
         }
 
         /// <summary>
@@ -476,7 +515,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            LiftOff(body);
+            LiftOff(index);
             LogicalPosition from = body.Position;
             if (IsClearForItem(index, from))
             {
@@ -545,15 +584,22 @@ namespace Paniq.Simulation
         /// Everything resting inside these bounds drops where it is: what a
         /// table was holding up when it collapsed. The table is rubble now, not
         /// something solid, so there is floor for them right there.
+        ///
+        /// Except where there is not. A long table can be authored as two
+        /// rectangles side by side, and collapsing one of them leaves anything
+        /// near the seam standing inside the half that is still up. So each
+        /// thing is pushed clear of whatever is still solid as it drops.
         /// </summary>
         public void LooseEverythingRestingIn(LogicalBounds bounds)
         {
             for (int b = 0; b < bodies.Length; b++)
             {
-                if (bodies[b].Resting && bodies[b].RestsOn < 0 && bounds.ContainsCircle(bodies[b].Position, 0))
+                if (!bodies[b].Resting || bodies[b].RestsOn >= 0 || !bounds.ContainsCircle(bodies[b].Position, 0))
                 {
-                    LiftOff(bodies[b]);
+                    continue;
                 }
+
+                LiftOff(b);
             }
         }
 
@@ -610,7 +656,7 @@ namespace Paniq.Simulation
         public void PickUp(int index, Agent carrier)
         {
             PhysicsBody item = bodies[index];
-            LiftOff(item);
+            LiftOff(index);
             item.HeldBy = carrier.Index;
             item.VelocityX = 0L;
             item.VelocityZ = 0L;

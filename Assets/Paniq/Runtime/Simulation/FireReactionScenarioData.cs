@@ -294,9 +294,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "34";
+        public string ContentRevision = "35";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 26;
+        public int SimulationCompatibilityVersion = 27;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -1174,12 +1174,17 @@ namespace Paniq.Simulation
                 new FireReactionTableDefinition(new SimulationId(4002UL), new LogicalPosition(2500, 2800), 1200, 700),
                 new FireReactionTableDefinition(new SimulationId(4003UL), new LogicalPosition(-1500, 2000), 1200, 700),
 
-                // The meeting room's long table, in two touching halves
-                // because the geometry only understands single rectangles.
-                // Together they are one 5.4 × 1 m table down the middle of the
-                // room, from x 11300 to x 16700.
-                new FireReactionTableDefinition(new SimulationId(4004UL), new LogicalPosition(12650, 0), 2700, 1000),
-                new FireReactionTableDefinition(new SimulationId(4005UL), new LogicalPosition(15350, 0), 2700, 1000)
+                // The meeting room's long table: one 5.4 x 1 m table down the
+                // middle of the room, from x 11300 to x 16700.
+                //
+                // It used to be authored as two touching halves. The seam was
+                // not a thing in the room, but it was a thing in the rules: one
+                // half could collapse while the other stood, and anything the
+                // collapsing half had been holding up was left standing inside
+                // the half that had not, with nothing able to correct it,
+                // because keeping things out of furniture works by asking which
+                // side they came from and the answer was "neither".
+                new FireReactionTableDefinition(new SimulationId(4004UL), new LogicalPosition(14000, 0), 5400, 1000)
             };
         }
 

@@ -45,11 +45,17 @@ namespace Paniq.Simulation
         private const int FieldsBuiltPerTick = 8;
 
         /// <summary>
-        /// A clear line this long or shorter is walked straight. Past that it is
-        /// not worth checking square by square, and the field is the better
-        /// answer anyway.
+        /// How far ahead a person looks before trusting a field instead. Far
+        /// enough to cross most rooms, short enough that checking it square by
+        /// square costs little.
         /// </summary>
-        private const int LineOfSightMillimetres = 8000;
+        private const int LookAheadMillimetres = 8000;
+
+        /// <summary>How far down the field to look for a point to make straight for: four metres.</summary>
+        private const int SmoothingSquares = 16;
+
+        /// <summary>One in this many squares along the way is tested, to keep the cost down.</summary>
+        private const int SmoothingCheckEvery = 4;
 
         private readonly SimulationContext context;
         private readonly NavigationGrid grid;
@@ -79,7 +85,7 @@ namespace Paniq.Simulation
         public int HeadingToward(LogicalPosition from, LogicalPosition target, int radius, int currentHeading)
         {
             int straight = IntegerMath.HeadingBetween(from, target, currentHeading);
-            if (CanSeeStraightTo(from, target, radius))
+            if (IsTheWayAheadClear(from, target, radius))
             {
                 return straight;
             }
@@ -95,6 +101,12 @@ namespace Paniq.Simulation
             if (field == null || !field.Reaches(here))
             {
                 return straight;
+            }
+
+            LogicalPosition makeFor = FurthestPointStraightAhead(field, here, from, radius);
+            if (makeFor.X != from.X || makeFor.Z != from.Z)
+            {
+                return IntegerMath.HeadingBetween(from, makeFor, currentHeading);
             }
 
             int downhill = field.DownhillHeading(here, currentHeading, out bool found);
@@ -126,6 +138,38 @@ namespace Paniq.Simulation
             return (long)field.CostAt(here) * NavigationGrid.CellSizeMillimetres / FlowField.StraightCost;
         }
 
+        /// <summary>
+        /// How far it is to walk to everywhere else from one place, worked out
+        /// in one go. Null when this tick's share of the work is already spent.
+        ///
+        /// Walking distance is the same in both directions, so a field worked
+        /// out from where somebody stands answers "how far to each of these?"
+        /// for every candidate at once. That is what makes "the nearest chair",
+        /// "the nearest alarm" and "the nearest fire worth fighting" mean the
+        /// nearest one they could actually walk to, rather than the nearest one
+        /// in the room they happen to be standing in.
+        /// </summary>
+        public FlowField ReachFrom(LogicalPosition from, int radius)
+        {
+            int here = grid.CellAt(from);
+            return here < 0 ? null : FieldTo(here, radius);
+        }
+
+        /// <summary>
+        /// How far it is to walk to a place, read off a field from
+        /// <see cref="ReachFrom"/>. Long.MaxValue when there is no way there.
+        /// </summary>
+        public long DistanceIn(FlowField reach, LogicalPosition to)
+        {
+            int cell = grid.CellAt(to);
+            if (reach == null || cell < 0 || !reach.Reaches(cell))
+            {
+                return long.MaxValue;
+            }
+
+            return (long)reach.CostAt(cell) * NavigationGrid.CellSizeMillimetres / FlowField.StraightCost;
+        }
+
         /// <summary>Whether there is any way at all from one place to another.</summary>
         public bool CanGetFromHereToThere(LogicalPosition from, LogicalPosition target, int radius)
         {
@@ -133,23 +177,67 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// A clear straight walk, with nothing solid in the way. Checked every
-        /// half square, which is finer than anything a body could slip through.
+        /// Follows the field a few squares down and returns the furthest one
+        /// the person can walk straight to.
+        ///
+        /// Without this they would take the direction of the next square every
+        /// tick, and a route across a grid looks like one: a faint constant
+        /// weave, and -- because a body slows down to make a sharp turn -- a
+        /// run that is measurably slower than a straight one. Aiming at the
+        /// furthest square in plain sight turns the same route into a few long
+        /// straight runs with a corner between them, which is how somebody
+        /// crossing a room actually moves.
         /// </summary>
-        private bool CanSeeStraightTo(LogicalPosition from, LogicalPosition target, int radius)
+        private LogicalPosition FurthestPointStraightAhead(FlowField field, int here, LogicalPosition from, int radius)
         {
-            long distance = IntegerMath.Distance(from, target);
-            if (distance > LineOfSightMillimetres)
+            int cell = here;
+            int found = -1;
+            for (int step = 0; step < SmoothingSquares; step++)
             {
-                return false;
+                cell = field.NextDownhill(cell);
+                if (cell < 0)
+                {
+                    break;
+                }
+
+                // Only every few squares, because each check walks the line.
+                if (step % SmoothingCheckEvery == SmoothingCheckEvery - 1 &&
+                    IsTheWayAheadClear(from, grid.CentreOfCell(cell), radius))
+                {
+                    found = cell;
+                }
             }
 
-            int steps = (int)(distance / (NavigationGrid.CellSizeMillimetres / 2)) + 1;
+            return found < 0 ? from : grid.CentreOfCell(found);
+        }
+
+        /// <summary>
+        /// Nothing solid in the next stretch of the straight walk towards the
+        /// goal. Checked every half square, which is finer than anything a body
+        /// could slip through.
+        ///
+        /// This asks about the way ahead rather than about the whole journey on
+        /// purpose. Somebody crossing an empty hall towards a door thirty
+        /// metres away should walk straight at it, not pick their way down a
+        /// grid; whatever is in the way further on is dealt with once they are
+        /// near enough to see it, which is what a person does.
+        /// </summary>
+        private bool IsTheWayAheadClear(LogicalPosition from, LogicalPosition target, int radius)
+        {
+            long distance = IntegerMath.Distance(from, target);
+            if (distance == 0L)
+            {
+                return true;
+            }
+
+            long looked = Math.Min(distance, LookAheadMillimetres);
+            int steps = (int)(looked / (NavigationGrid.CellSizeMillimetres / 2)) + 1;
             for (int i = 0; i <= steps; i++)
             {
+                long along = looked * i / steps;
                 var at = new LogicalPosition(
-                    from.X + (int)((long)(target.X - from.X) * i / steps),
-                    from.Z + (int)((long)(target.Z - from.Z) * i / steps));
+                    from.X + (int)((long)(target.X - from.X) * along / distance),
+                    from.Z + (int)((long)(target.Z - from.Z) * along / distance));
                 if (!grid.Fits(grid.CellAt(at), radius))
                 {
                     return false;

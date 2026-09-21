@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// Raising the alarm. Somebody who has taken in that there is a fire, who
@@ -14,6 +14,9 @@
     internal sealed class AlarmBehaviour
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly WorldGeometry geometry;
         private readonly AlarmSystem alarms;
         private readonly Locomotion locomotion;
@@ -23,6 +26,7 @@
         public AlarmBehaviour(SimulationContext context, WorldGeometry geometry, AlarmSystem alarms, Locomotion locomotion)
         {
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.geometry = geometry;
             this.alarms = alarms;
             this.locomotion = locomotion;
@@ -64,7 +68,11 @@
                 return null;
             }
 
-            int alarm = alarms.NearestUnpulledInRoom(agent.Body.Position, geometry.RoomOf(agent));
+            int alarm = alarms.NearestUnpulledWithin(
+                agent.Body.Position,
+                geometry.RoomOf(agent),
+                geometry.Routes.ReachFrom(agent.Body.Position, bodyRadius),
+                geometry.Routes);
             if (alarm < 0)
             {
                 return null;

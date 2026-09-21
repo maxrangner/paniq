@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("34"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(26));
+            Assert.That(data.ContentRevision, Is.EqualTo("35"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(27));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -379,7 +379,7 @@ namespace Paniq.Tests.EditMode
                     for (int heading = 0; heading < 360; heading += 45)
                     {
                         Assert.That(fire.IsVisibleFrom(position, heading, 3000),
-                            Is.EqualTo(SeesAnyCell(cells, position, heading, 3000)),
+                            Is.EqualTo(SeesAnyCell(cells, position, heading, 3000, simulation.GeometryForTests)),
                             $"vision from {position} facing {heading}");
                     }
                 }
@@ -387,13 +387,25 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>The vision rule, checked against every burning cell: nearest point, centre or a corner inside a 90-degree cone.</summary>
-        private static bool SeesAnyCell(IReadOnlyList<FireCellSnapshot> cells, LogicalPosition eye, int heading, int range)
+        private static bool SeesAnyCell(IReadOnlyList<FireCellSnapshot> cells, LogicalPosition eye, int heading,
+            int range, WorldGeometry geometry)
         {
             long rangeSquared = (long)range * range;
             LogicalPosition direction = IntegerMath.Direction(heading);
+            int eyeRoom = geometry.RoomAtPoint(eye);
             foreach (FireCellSnapshot cell in cells)
             {
                 if (cell.IsOut)
+                {
+                    continue;
+                }
+
+                // A wall hides fire. This used to be left out, because all the
+                // fire was in the office and the check was only made from
+                // inside it -- an assumption that stopped holding the moment
+                // fire could reach another room by the time this runs.
+                int cellRoom = geometry.RoomAtPoint(cell.Bounds.Centre);
+                if (eyeRoom >= 0 && cellRoom >= 0 && !geometry.RoomsOpenToEachOther(eyeRoom, cellRoom))
                 {
                     continue;
                 }
@@ -1002,6 +1014,14 @@ namespace Paniq.Tests.EditMode
             data.Falls.ShoveMinimumEvil = AgentTraitValues.Maximum + 1;
             data.Tables = new FireReactionTableDefinition[0];
             data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
+
+            // A fire that starts and does not grow. This test is about who
+            // freezes and who comes out of it, and in a packed room with no way
+            // out a spreading fire reaches the frozen before their freeze is
+            // over -- which proves nothing about temperaments either way.
+            data.Fire.SpreadMinimumTicks = 1000000;
+            data.Fire.SpreadMaximumTicks = 1000000;
+
             var simulation = new FireReactionSimulation(data);
             var temperaments = new HashSet<AgentPanicTemperament>();
             for (int i = 0; i < simulation.AgentCount; i++)

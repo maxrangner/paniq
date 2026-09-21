@@ -12,6 +12,9 @@ namespace Paniq.Simulation
     internal sealed class ChairBehaviour
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly PhysicsObjectSystem objects;
         private readonly WorldGeometry geometry;
         private readonly Crowd crowd;
@@ -20,6 +23,7 @@ namespace Paniq.Simulation
         public ChairBehaviour(SimulationContext context, Crowd crowd, WorldGeometry geometry, PhysicsObjectSystem objects)
         {
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
             this.objects = objects;
@@ -48,7 +52,13 @@ namespace Paniq.Simulation
             int room = geometry.RoomOf(agent);
             long reach = settings.SitSearchDistanceMillimetres;
             int best = -1;
-            long bestDistance = reach * reach;
+            long bestDistance = reach;
+
+            // The nearest chair they could walk to, which may be through a
+            // doorway. It used to have to be in the room they were standing in,
+            // because walking to one anywhere else meant walking at the wall
+            // between.
+            FlowField walking = geometry.Routes.ReachFrom(agent.Body.Position, bodyRadius);
             using PhysicsObjectSystem.Nearby candidates =
                 objects.Gather(UniformGridIndex.Around(agent.Body.Position, reach));
             for (int c = 0; c < candidates.Count; c++)
@@ -60,12 +70,19 @@ namespace Paniq.Simulation
                 }
 
                 LogicalPosition chair = objects.PositionOf(i);
-                if (geometry.RoomAtPoint(chair) != room)
+                if (walking == null)
                 {
-                    continue;
+                    // No routing to spare this tick: keep to this room, which
+                    // is all anybody could do before.
+                    if (geometry.RoomAtPoint(chair) != room)
+                    {
+                        continue;
+                    }
                 }
 
-                long distance = LogicalPosition.DistanceSquared(agent.Body.Position, chair);
+                long distance = walking == null
+                    ? IntegerMath.Distance(agent.Body.Position, chair)
+                    : geometry.Routes.DistanceIn(walking, chair);
                 if (distance < bestDistance)
                 {
                     bestDistance = distance;

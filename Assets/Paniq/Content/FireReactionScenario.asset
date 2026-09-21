@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 34
+    ContentRevision: 35
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 26
+    SimulationCompatibilityVersion: 27
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -1549,16 +1549,9 @@ MonoBehaviour:
     - tableId:
         value: 4004
       centre:
-        x: 12650
+        x: 14000
         z: 0
-      widthMillimetres: 2700
-      depthMillimetres: 1000
-    - tableId:
-        value: 4005
-      centre:
-        x: 15350
-        z: 0
-      widthMillimetres: 2700
+      widthMillimetres: 5400
       depthMillimetres: 1000
     Rooms:
     - roomId:

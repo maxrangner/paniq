@@ -175,6 +175,53 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// The cheapest neighbour of a square, or -1 at the goal or nowhere.
+        /// Neighbours are tried in a fixed order, so the same field always
+        /// gives the same next square.
+        /// </summary>
+        public int NextDownhill(int cell)
+        {
+            int here = CostAt(cell);
+            if (here == Unreachable || here == 0)
+            {
+                return -1;
+            }
+
+            int column = cell % grid.Columns;
+            int row = cell / grid.Columns;
+            int best = -1;
+            int bestCost = here;
+
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if (dx == 0 && dz == 0)
+                    {
+                        continue;
+                    }
+
+                    int nextColumn = column + dx;
+                    int nextRow = row + dz;
+                    if (nextColumn < 0 || nextRow < 0 || nextColumn >= grid.Columns || nextRow >= grid.Rows)
+                    {
+                        continue;
+                    }
+
+                    int neighbour = nextRow * grid.Columns + nextColumn;
+                    int there = CostAt(neighbour);
+                    if (there < bestCost)
+                    {
+                        bestCost = there;
+                        best = neighbour;
+                    }
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>
         /// Which way is downhill from this square, as a whole-degree heading.
         /// Taken from how the cost falls away across all eight neighbours
         /// together rather than from whichever single neighbour is cheapest: a

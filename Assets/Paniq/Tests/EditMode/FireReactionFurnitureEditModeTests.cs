@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -36,7 +36,7 @@ namespace Paniq.Tests.EditMode
         public void DefaultBuilding_HasTablesAndChairsInBothRooms()
         {
             FireReactionScenarioData data = DefaultData();
-            Assert.That(data.Tables, Has.Length.EqualTo(5), "Three in the office, and the meeting table in two halves.");
+            Assert.That(data.Tables, Has.Length.EqualTo(4), "Three in the office, and the meeting room’s long table.");
             int chairs = 0;
             int officeChairs = 0;
             foreach (FireReactionPhysicsObjectDefinition item in data.PhysicsObjects)

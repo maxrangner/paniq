@@ -1,4 +1,4 @@
-﻿# Prototype roadmap
+# Prototype roadmap
 
 The prototype is built stone by stone (see [goals](goals.md) for what
 "prototype" means here). This page records the stones laid so far and how the
@@ -67,6 +67,38 @@ scene.
 | Things that rest on things | System | A laptop stands on a desk and a box on another box, out of everybody's way, until somebody lifts, throws or smashes what holds it up — and then it drops to clear floor beside it |
 | Bangs you can see | Style | A laptop battery, a wall socket, a microwave or a stick of TNT goes off with a flash that lights the room, sparks that fall to the floor, a puff of smoke and a jolt of the camera, sized to the blast |
 | Solid furniture | Style | People are drawn their real height, so desks come to their hips; and the see-through silhouette only paints where a wall or a door hides something, so a chair no longer shows through itself |
+
+## Foundations rebuilt (2026-09-21)
+
+Not a stone: the ground the stones stand on. The owner asked whether bugs were
+being hidden by moving props around the prototype level. They were, and worse
+-- whole behaviours had been switched off because nothing could work out how to
+cross a room.
+
+| What changed | What it means |
+| --- | --- |
+| Edit-mode tests run without closing Unity (`tools/RunEditModeTests.ps1`) | The whole suite in about twenty seconds, so a large change can be checked as it is made |
+| An index of who and what is standing where | "Who is near me" stops meaning "look at everyone"; the costs that grew with the square of the crowd are gone |
+| The floor drawn as 250 mm squares, with real clearance | A doorway too narrow to walk through is refused when the floor plan loads, instead of sealing a room in silence |
+| Flow fields | People find their way round furniture and across the building; a crowd of two hundred costs no more to steer than twenty |
+| Errands that cross the building | Fetching an extinguisher, hitting an alarm, finding a chair, hauling somebody out and wandering next door all work anywhere they can walk to |
+| No more "room zero" | Three places guessed the first room when they could not tell; in a bigger building that threw things across the floor plan |
+| What a thing is for, written down once | Sitting and equipment are a row in a table rather than nine rules naming kinds |
+| Lay a building out by dragging it | **Paniq > Bake Scenario From Scene** reads rooms, doors, props and people from the scene |
+
+Two hundred people finding their way round furniture now cost about half what
+twenty people walking in straight lines used to.
+
+### Deliberately left for later
+
+- **Rooms that are not rectangles**, and TNT cutting a real hole rather than
+  installing a permanently-open door. The floor squares already handle any
+  shape, so this is a change to how rooms are described rather than to how
+  anybody moves. Worth doing when a floor plan actually needs an L-shaped room,
+  a room inside a room, or stairs.
+- **Burst and Jobs on the movement loops.** The simulation stays plain C# so
+  this remains possible. Worth doing when a measurement passes about 5 ms a
+  tick, a quarter of the budget, with drawing still to pay for.
 
 ## Choosing the next stone
 

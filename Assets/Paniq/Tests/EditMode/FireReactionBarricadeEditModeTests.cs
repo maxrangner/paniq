@@ -77,11 +77,11 @@ namespace Paniq.Tests.EditMode
             };
             data.Doors = new[]
             {
-                new FireReactionDoorDefinition(NorthDoor, FireReactionScenarioData.Office, WallSide.North, -2500, 1000, false)
+                new FireReactionDoorDefinition(NorthDoor, PrototypeBuilding.Office, WallSide.North, -2500, 1000, false)
             };
             data.Rooms = new[]
             {
-                new FireReactionRoomDefinition(FireReactionScenarioData.Office,
+                new FireReactionRoomDefinition(PrototypeBuilding.Office,
                     new LogicalBounds(-6000, 6000, -6000, 6000))
             };
             data.Fire.ActivationTick = int.MaxValue;

@@ -362,7 +362,7 @@ namespace Paniq.Tests.EditMode
         {
             var doors = new List<FireReactionDoorDefinition>(data.Doors)
             {
-                new FireReactionDoorDefinition(NorthDoor, FireReactionScenarioData.Office, WallSide.North, -2500, 1000,
+                new FireReactionDoorDefinition(NorthDoor, PrototypeBuilding.Office, WallSide.North, -2500, 1000,
                     startsLocked)
             };
             data.Doors = doors.ToArray();

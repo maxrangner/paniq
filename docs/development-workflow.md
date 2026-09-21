@@ -57,6 +57,40 @@ game-development knowledge to answer.
   bumps the scenario's `SimulationCompatibilityVersion` and `ContentRevision`
   and re-records the numbers in the same commit, saying why.
 
+### Running the edit-mode tests without closing Unity
+
+Unity's batch-mode test runner cannot open the project while the editor has it
+open, which is the normal state while working. The simulation is plain C# --
+it touches one Unity type, and only as a serialization marker -- so it can be
+compiled and run on its own:
+
+```powershell
+.\tools\RunEditModeTests.ps1                  # every edit-mode test, about 20 seconds
+.\tools\RunEditModeTests.ps1 -FingerprintsOnly # just the ten replay fingerprints
+.\tools\RunEditModeTests.ps1 -Filter Doors     # tests whose name contains "Doors"
+.\tools\RunEditModeTests.ps1 -Record           # re-record fingerprints, ready to paste
+```
+
+The script compiles the simulation, the edit-mode tests, a few small Unity
+stand-ins (`tools/Stubs`) and a reflection-driven runner (`tools/TestRunner`)
+with Unity's own bundled Roslyn compiler, and runs them on the installed .NET
+runtime. It needs the editor installed, not running.
+
+Use `-Record` only for a deliberate behaviour change: it prints the ten
+fingerprints as `[TestCase]` lines to paste into
+`ReplayFingerprintEditModeTests.cs`, which still has to be accompanied by the
+version bumps above.
+
+Two checks that cannot run outside the editor are covered another way by the
+script -- the fixed timestep is read from `ProjectSettings/TimeManager.asset`,
+and the saved scenario asset is compared with the code defaults by reading its
+YAML. Everything it genuinely cannot check is listed as skipped at the end of
+every run, never as passed.
+
+**This is a fast check, not a substitute for Unity's own runners.** Run the
+EditMode and PlayMode runners in the editor before calling a change verified in
+the engine.
+
 ## Profiling checkpoint
 
 Before adopting any scale tooling, and whenever a prototype stone noticeably

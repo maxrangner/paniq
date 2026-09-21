@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
@@ -21,6 +22,9 @@ namespace Paniq.Simulation
             public SimulationId Id;
             public bool IsTable;
             public int Index;
+
+            /// <summary>Its place in the list of things, which is also its place in the burning list.</summary>
+            public int Slot;
             public int IgniteTicks;
             public int BurnMinimumTicks;
             public int BurnMaximumTicks;
@@ -44,6 +48,15 @@ namespace Paniq.Simulation
 
         /// <summary>Loose objects first (ascending ID), then tables (ascending ID): the order every pass uses.</summary>
         private readonly Flammable[] things;
+
+        /// <summary>
+        /// The slots of everything currently alight, ascending, kept up to date
+        /// as things catch and go out. Looking for what is heating a thing means
+        /// reading this rather than every object and table in the building, and
+        /// because it stays in the same order as <see cref="things"/> the answer
+        /// -- which fire gets the blame -- is the one a full scan would give.
+        /// </summary>
+        private readonly List<int> alight = new List<int>();
 
         public FlammablesSystem(
             SimulationContext context,
@@ -78,6 +91,8 @@ namespace Paniq.Simulation
                     BurnMinimumTicks = kind.BurnMinimumTicks,
                     BurnMaximumTicks = kind.BurnMaximumTicks
                 };
+
+                things[i].Slot = i;
             }
 
             for (int t = 0; t < geometry.TableCount; t++)
@@ -91,6 +106,8 @@ namespace Paniq.Simulation
                     BurnMinimumTicks = settings.TableBurnMinimumTicks,
                     BurnMaximumTicks = settings.TableBurnMaximumTicks
                 };
+
+                things[objects.Count + t].Slot = objects.Count + t;
             }
         }
 
@@ -161,7 +178,7 @@ namespace Paniq.Simulation
 
                 if (tick >= thing.BurnEndTick)
                 {
-                    thing.State = ObjectBurnState.Burnt;
+                    StopBurning(thing);
                     context.Events.Append(tick, thing.Id, FireReactionEventType.ObjectBurntOut, PositionOf(thing), 0, 0,
                         thing.EventId);
                     continue;
@@ -207,7 +224,7 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                thing.State = ObjectBurnState.Burnt;
+                StopBurning(thing);
                 context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ObjectBurntOut, where, 0, 0, causeEventId);
             }
         }
@@ -224,10 +241,10 @@ namespace Paniq.Simulation
                 return cell;
             }
 
-            for (int i = 0; i < things.Length; i++)
+            for (int i = 0; i < alight.Count; i++)
             {
-                Flammable other = things[i];
-                if (other != thing && other.State == ObjectBurnState.Burning && Gap(thing, other) <= reach)
+                Flammable other = things[alight[i]];
+                if (other != thing && Gap(thing, other) <= reach)
                 {
                     return other.EventId;
                 }
@@ -236,11 +253,31 @@ namespace Paniq.Simulation
             return 0UL;
         }
 
+        /// <summary>Marks a thing alight and adds it to the burning list, keeping that list ascending.</summary>
+        private void StartBurning(Flammable thing)
+        {
+            thing.State = ObjectBurnState.Burning;
+            int at = alight.Count;
+            while (at > 0 && alight[at - 1] > thing.Slot)
+            {
+                at--;
+            }
+
+            alight.Insert(at, thing.Slot);
+        }
+
+        /// <summary>Marks a thing burnt out and takes it off the burning list.</summary>
+        private void StopBurning(Flammable thing)
+        {
+            thing.State = ObjectBurnState.Burnt;
+            alight.Remove(thing.Slot);
+        }
+
         private void Ignite(Flammable thing, ulong causeEventId)
         {
             int tick = context.Tick;
             int duration = context.Random.NextIntInclusive(thing.BurnMinimumTicks, thing.BurnMaximumTicks);
-            thing.State = ObjectBurnState.Burning;
+            StartBurning(thing);
             thing.BurnEndTick = checked(tick + duration);
             thing.EventId = context.Events.Append(tick, thing.Id, FireReactionEventType.ObjectCaughtFire, PositionOf(thing),
                 0, duration, causeEventId).EventId;

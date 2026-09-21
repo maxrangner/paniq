@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -382,10 +382,10 @@ namespace Paniq.Simulation
 
             long radiusSquared = radius * radius;
             int count = 0;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby neighbours = crowd.Within(agent.Body.Position, radius);
+            for (int i = 0; i < neighbours.Count; i++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[neighbours[i]];
                 if (other == agent ||
                     !other.IsParticipating ||
                     other.Fear.State != AgentFearState.Scared ||

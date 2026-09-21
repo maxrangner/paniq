@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -51,8 +51,11 @@ namespace Paniq.Simulation
 
             int best = -1;
             long bestDistance = (long)settings.FetchRangeMillimetres * settings.FetchRangeMillimetres;
-            for (int i = 0; i < objects.Count; i++)
+            using PhysicsObjectSystem.Nearby candidates =
+                objects.Gather(UniformGridIndex.Around(agent.Body.Position, settings.FetchRangeMillimetres));
+            for (int c = 0; c < candidates.Count; c++)
             {
+                int i = candidates[c];
                 if (!IsFreeToTake(agent, i))
                 {
                     continue;

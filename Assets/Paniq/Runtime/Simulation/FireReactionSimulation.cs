@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -44,6 +44,7 @@ namespace Paniq.Simulation
         private readonly AlarmSystem alarms;
         private readonly AlarmBehaviour alarmBehaviour;
         private readonly WorldGeometry geometry;
+        private readonly Crowd crowd;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
         {
@@ -64,7 +65,7 @@ namespace Paniq.Simulation
             fear = new FearSystem(context, fire);
             fear.DealTemperaments(agents);
 
-            var crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres);
+            crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres, geometry.FireArea);
             doors = new DoorSystem(context, doorStates, geometry);
             doors.UseCrowd(crowd);
             playerCommands = new PlayerCommandSystem(context);
@@ -178,7 +179,7 @@ namespace Paniq.Simulation
                         $"Agent {agent.Id} starts seated on {chairId}, which somebody else already starts on.");
                 }
 
-                agent.Body.Position = objects.PositionOf(chair);
+                crowd.MoveTo(agent, objects.PositionOf(chair));
                 agent.Body.Heading = objects.HeadingOf(chair);
                 agent.Body.Speed = 0;
                 objects.SitOn(chair, agent);
@@ -206,7 +207,9 @@ namespace Paniq.Simulation
                     Participation = AgentParticipation.Participating,
                     Outcome = AgentTerminalOutcome.Unresolved
                 };
-                agent.Body.Position = definition.InitialPosition;
+                // Before the crowd exists, so there is no index to tell yet;
+                // the crowd indexes everybody as it is built.
+                agent.Body.MoveWithoutTellingTheCrowd(definition.InitialPosition);
                 agent.Body.Heading = heading;
                 agent.Fear.State = AgentFearState.Calm;
                 agent.Fear.AlertSource = AgentAlertSource.None;
@@ -306,6 +309,15 @@ namespace Paniq.Simulation
 
         /// <summary>Tests only: the fire system, to check its queries against a brute-force answer.</summary>
         internal FireSystem FireForTests => fire;
+
+        /// <summary>
+        /// Whether the indexes of who and what is standing where still agree
+        /// with the actual positions. False means something moved without
+        /// saying so, which would quietly wrong every "what is near here"
+        /// answer from that moment on.
+        /// </summary>
+        internal bool SpatialIndexesAreConsistentForTests =>
+            crowd.IndexMatchesPositions() && objects.IndexMatchesPositions();
 
         /// <summary>
         /// Queues a player action for a tick that has not started yet. Commands

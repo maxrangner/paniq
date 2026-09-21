@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -843,6 +843,25 @@ namespace Paniq.Simulation
         /// leaf's way. Symmetric about the wall, because a bag wedged against a
         /// door stops it whichever side it is on.
         /// </summary>
+        /// <summary>
+        /// The patch of floor holding every point <see cref="IsObjectInDoorway"/>
+        /// could say yes to, for a thing of this radius. Asking the index for
+        /// this area rather than reading every object in the building is what
+        /// keeps "is anything wedged in this doorway?" cheap, and because the
+        /// area is exactly the one the test accepts, the answer cannot change.
+        /// </summary>
+        public LogicalBounds DoorwaySearchArea(int door, int objectRadius, int gap)
+        {
+            DoorRuntime d = doors[door];
+            LogicalPosition centre = DoorCentre(door);
+            int along = d.Width / 2 + objectRadius;
+            int beyond = objectRadius + gap;
+            bool alongX = d.Side == WallSide.North || d.Side == WallSide.South;
+            int halfX = alongX ? along : beyond;
+            int halfZ = alongX ? beyond : along;
+            return new LogicalBounds(centre.X - halfX, centre.X + halfX, centre.Z - halfZ, centre.Z + halfZ);
+        }
+
         public bool IsObjectInDoorway(int door, LogicalPosition where, int objectRadius, int gap)
         {
             long along = Math.Abs(AlongOffset(door, where));

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -24,6 +24,9 @@ namespace Paniq.Simulation
         private readonly HelpSettings settings;
         private readonly int radius;
 
+        /// <summary>Per person: somebody is already on their way to them. Reused every search.</summary>
+        private readonly bool[] alreadyBeingHelped;
+
         /// <summary>Set once the doors exist, so a dragger can tell a jammed doorway from a clear one.</summary>
         private DoorSystem doors;
 
@@ -45,6 +48,7 @@ namespace Paniq.Simulation
             this.body = body;
             this.objects = objects;
             this.locomotion = locomotion;
+            alreadyBeingHelped = new bool[crowd.All.Length];
             settings = context.Scenario.Help;
             radius = context.Scenario.World.OccupancyRadiusMillimetres;
         }
@@ -100,15 +104,21 @@ namespace Paniq.Simulation
             }
 
             int danger = TraitEffects.DangerDistance(agent, context.Scenario);
-            Agent[] agents = crowd.All;
+            MarkWhoIsAlreadyBeingHelped();
+
+            // Nobody outside the longer of the two reaches can be chosen, so
+            // only the people near enough are worth looking at.
+            long furthest = Math.Max(settings.ShakeRangeMillimetres, settings.DragRangeMillimetres);
             int best = -1;
             long bestDistance = long.MaxValue;
             bool bestIsShake = false;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby candidates = crowd.Within(agent.Body.Position, furthest);
+            for (int c = 0; c < candidates.Count; c++)
             {
-                Agent other = agents[i];
+                int i = candidates[c];
+                Agent other = crowd.All[i];
                 if (other == agent || !other.IsParticipating || other.Burning.IsBurning || i == agent.Help.GaveUpOnIndex ||
-                    IsTargeted(i) || fire.AnyCloserThan(other.Body.Position, danger))
+                    alreadyBeingHelped[i] || fire.AnyCloserThan(other.Body.Position, danger))
                 {
                     continue;
                 }
@@ -141,18 +151,24 @@ namespace Paniq.Simulation
             return true;
         }
 
-        private bool IsTargeted(int index)
+        /// <summary>
+        /// Who somebody is already seeing to, so that two people do not both
+        /// set off for the same casualty. Worked out once for the whole search
+        /// rather than once per candidate: nobody starts or stops helping while
+        /// the search runs, so the answer cannot change partway through it.
+        /// </summary>
+        private void MarkWhoIsAlreadyBeingHelped()
         {
+            Array.Clear(alreadyBeingHelped, 0, alreadyBeingHelped.Length);
             Agent[] agents = crowd.All;
             for (int i = 0; i < agents.Length; i++)
             {
-                if (agents[i].IsParticipating && IsHelping(agents[i]) && agents[i].Help.TargetIndex == index)
+                Agent helper = agents[i];
+                if (helper.IsParticipating && IsHelping(helper) && helper.Help.TargetIndex >= 0)
                 {
-                    return true;
+                    alreadyBeingHelped[helper.Help.TargetIndex] = true;
                 }
             }
-
-            return false;
         }
 
         /// <summary>Running to the person in need, then shaking them, or getting a grip on them.</summary>
@@ -392,7 +408,7 @@ namespace Paniq.Simulation
                     if (IsClearFor(helper, dragged, helper.Help.PositionBeforeMove))
                     {
                         // No room behind them: the step is undone and they try again.
-                        helper.Body.Position = helper.Help.PositionBeforeMove;
+                        crowd.MoveTo(helper, helper.Help.PositionBeforeMove);
                         helper.Body.Speed = 0;
                         helper.Body.BlockedTicks++;
                         helper.Help.StuckTicks++;
@@ -408,7 +424,7 @@ namespace Paniq.Simulation
 
                 // They actually got somewhere this tick, with the person in tow.
                 helper.Help.StuckTicks = 0;
-                dragged.Body.Position = spot;
+                crowd.MoveTo(dragged, spot);
                 dragged.Body.Heading = helper.Body.Heading;
                 if (fire.Active)
                 {

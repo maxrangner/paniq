@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -100,10 +100,12 @@ namespace Paniq.Simulation
             long space = settings.PersonalSpaceMillimetres;
             if (space > 0L && peopleAvoidPercent > 0)
             {
-                Agent[] agents = crowd.All;
-                for (int i = 0; i < agents.Length; i++)
+                // Only the people whose cell this reaches: anybody further off
+                // than personal space contributes nothing to the sum anyway.
+                using Crowd.Nearby neighbours = crowd.Within(position, space);
+                for (int i = 0; i < neighbours.Count; i++)
                 {
-                    Agent other = agents[i];
+                    Agent other = crowd.All[neighbours[i]];
                     if (other == agent || !other.IsParticipating)
                     {
                         continue;
@@ -247,7 +249,7 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                agent.Body.Position = destination;
+                crowd.MoveTo(agent, destination);
                 agent.Body.BlockedTicks = 0;
                 if (fire.Active)
                 {

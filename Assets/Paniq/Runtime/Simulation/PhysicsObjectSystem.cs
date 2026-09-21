@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -43,12 +43,28 @@ namespace Paniq.Simulation
         private const int FallSearchStepMillimetres = 50;
         private const int FallSearchReachMillimetres = 1500;
 
+        /// <summary>How wide a patch of floor one cell of the index covers.</summary>
+        private const int CellSizeMillimetres = 1000;
+
+        /// <summary>How far past the rooms the index reaches, for things flung out of the building.</summary>
+        private const int OutsideMarginMillimetres = 8000;
+
         private sealed class PhysicsBody
         {
             public SimulationId Id;
             public PhysicsObjectKind Kind;
-            public long X;
-            public long Z;
+
+            /// <summary>
+            /// Where it stands, in hundredths of a millimetre. Read freely; to
+            /// move it, call <see cref="PhysicsObjectSystem.MoveBody"/>, which
+            /// also tells the index of what is lying where. The setters are
+            /// private so a new way of moving something cannot be written
+            /// without noticing that.
+            /// </summary>
+            public long X { get; private set; }
+
+            public long Z { get; private set; }
+
             public long VelocityX;
             public long VelocityZ;
             public int Radius;
@@ -107,6 +123,13 @@ namespace Paniq.Simulation
             public LogicalPosition Position => new LogicalPosition(
                 (int)FloorDivide(X, SubMillimetre),
                 (int)FloorDivide(Z, SubMillimetre));
+
+            /// <summary>Moves it. Go through <see cref="PhysicsObjectSystem.MoveBody"/>, which keeps the index true.</summary>
+            public void MoveWithoutTellingTheIndex(long x, long z)
+            {
+                X = x;
+                Z = z;
+            }
         }
 
         private readonly SimulationContext context;
@@ -120,6 +143,16 @@ namespace Paniq.Simulation
         private readonly List<ObjectContact> contacts = new List<ObjectContact>();
         private readonly ItemSettings items;
         private readonly PhysicsBody[] bodies;
+
+        /// <summary>Which patch of floor each thing is lying on.</summary>
+        private readonly UniformGridIndex whereThingsAre;
+
+        /// <summary>The largest thing in the scenario, so a question can be widened enough to catch it.</summary>
+        private readonly int widestRadius;
+
+        /// <summary>Reused by <see cref="Gather"/>, one per level of nesting.</summary>
+        private readonly int[][] gathered;
+        private int gatherDepth;
 
         public PhysicsObjectSystem(
             SimulationContext context,
@@ -149,8 +182,6 @@ namespace Paniq.Simulation
                 {
                     Id = definition.ObjectId,
                     Kind = definition.Kind,
-                    X = (long)definition.InitialPosition.X * SubMillimetre,
-                    Z = (long)definition.InitialPosition.Z * SubMillimetre,
                     Radius = definition.RadiusMillimetres,
                     Size = definition.SizeMillimetres,
                     MassGrams = definition.MassGrams,
@@ -164,6 +195,31 @@ namespace Paniq.Simulation
                         ? context.Scenario.Extinguishers.FuelTicks
                         : 0
                 };
+
+                bodies[i].MoveWithoutTellingTheIndex(
+                    (long)definition.InitialPosition.X * SubMillimetre,
+                    (long)definition.InitialPosition.Z * SubMillimetre);
+                widestRadius = Math.Max(widestRadius, definition.RadiusMillimetres);
+            }
+
+            // Things are flung about, so the grid reaches well past the rooms.
+            LogicalBounds area = geometry.FireArea;
+            whereThingsAre = new UniformGridIndex(
+                new LogicalBounds(
+                    area.MinX - OutsideMarginMillimetres, area.MaxX + OutsideMarginMillimetres,
+                    area.MinZ - OutsideMarginMillimetres, area.MaxZ + OutsideMarginMillimetres),
+                CellSizeMillimetres,
+                bodies.Length);
+
+            gathered = new int[4][];
+            for (int i = 0; i < gathered.Length; i++)
+            {
+                gathered[i] = new int[bodies.Length];
+            }
+
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                whereThingsAre.Place(i, bodies[i].Position);
             }
 
             FindWhatEachStackedThingStandsOn();
@@ -225,6 +281,91 @@ namespace Paniq.Simulation
         public LogicalPosition PositionOf(int index) => bodies[index].Position;
 
         public int RadiusOf(int index) => bodies[index].Radius;
+
+        /// <summary>The largest thing in the building, for widening a question enough to catch it.</summary>
+        public int WidestRadius => widestRadius;
+
+        /// <summary>
+        /// Moves a thing, and tells the index of what is lying where at the
+        /// same moment. Things slide during a tick and the next question about
+        /// that patch of floor has to see where they got to, so this is kept up
+        /// to date as they move rather than rebuilt once a tick.
+        /// </summary>
+        private void MoveBody(int index, long x, long z)
+        {
+            bodies[index].MoveWithoutTellingTheIndex(x, z);
+            whereThingsAre.Place(index, bodies[index].Position);
+        }
+
+        /// <summary>
+        /// The things that might be inside <paramref name="area"/>, in
+        /// ascending order, written into a buffer belonging to this system. The
+        /// list is a superset: every caller still applies its own exact test.
+        /// </summary>
+        public Nearby Gather(LogicalBounds area)
+        {
+            if (gatherDepth == gathered.Length)
+            {
+                throw new InvalidOperationException(
+                    "Too many questions about what is lying where are open at once.");
+            }
+
+            int[] buffer = gathered[gatherDepth++];
+            return new Nearby(this, buffer, whereThingsAre.Gather(area, buffer));
+        }
+
+        /// <summary>
+        /// Whether the index still describes where everything actually is.
+        /// Nothing in a run calls this; it is how a test proves no new way of
+        /// moving something has been written that forgets to say so.
+        /// </summary>
+        internal bool IndexMatchesPositions()
+        {
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                using Nearby here = Gather(UniformGridIndex.Around(bodies[i].Position, 0L));
+                bool found = false;
+                for (int n = 0; n < here.Count && !found; n++)
+                {
+                    found = here[n] == i;
+                }
+
+                if (!found)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void ReleaseGatherBuffer()
+        {
+            gatherDepth--;
+        }
+
+        /// <summary>A borrowed list of things that might be in some area, in ascending order.</summary>
+        internal readonly struct Nearby : IDisposable
+        {
+            private readonly PhysicsObjectSystem owner;
+            private readonly int[] items;
+
+            public Nearby(PhysicsObjectSystem owner, int[] items, int count)
+            {
+                this.owner = owner;
+                this.items = items;
+                Count = count;
+            }
+
+            public int Count { get; }
+
+            public int this[int i] => items[i];
+
+            public void Dispose()
+            {
+                owner.ReleaseGatherBuffer();
+            }
+        }
 
         /// <summary>Which way this thing faces, in whole degrees. A chair faces the way somebody sitting on it looks.</summary>
         public int HeadingOf(int index) => bodies[index].Heading;
@@ -357,8 +498,7 @@ namespace Paniq.Simulation
                         LogicalPosition spot = from + IntegerMath.Displacement(preferredHeading + side * turn, distance);
                         if (IsClearForItem(index, spot))
                         {
-                            body.X = (long)spot.X * SubMillimetre;
-                            body.Z = (long)spot.Z * SubMillimetre;
+                            MoveBody(index, (long)spot.X * SubMillimetre, (long)spot.Z * SubMillimetre);
                             return;
                         }
                     }
@@ -485,8 +625,7 @@ namespace Paniq.Simulation
             PhysicsBody item = bodies[index];
             LogicalPosition spot = carrier.Body.Position +
                                    IntegerMath.Displacement(carrier.Body.Heading, personRadius + item.Radius + items.HoldGapMillimetres);
-            item.X = (long)spot.X * SubMillimetre;
-            item.Z = (long)spot.Z * SubMillimetre;
+            MoveBody(index, (long)spot.X * SubMillimetre, (long)spot.Z * SubMillimetre);
             item.Heading = carrier.Body.Heading;
         }
 
@@ -523,27 +662,34 @@ namespace Paniq.Simulation
             }
 
             long agentReach = (long)personRadius + item.Radius;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using (Crowd.Nearby people = crowd.Within(spot, agentReach))
             {
-                if (agents[i].IsParticipating &&
-                    LogicalPosition.DistanceSquared(agents[i].Body.Position, spot) < agentReach * agentReach)
+                for (int c = 0; c < people.Count; c++)
                 {
-                    return false;
+                    Agent other = crowd.All[people[c]];
+                    if (other.IsParticipating &&
+                        LogicalPosition.DistanceSquared(other.Body.Position, spot) < agentReach * agentReach)
+                    {
+                        return false;
+                    }
                 }
             }
 
-            for (int b = 0; b < bodies.Length; b++)
+            using (Nearby things = Gather(UniformGridIndex.Around(spot, (long)item.Radius + widestRadius)))
             {
-                if (b == index || IsOutOfPlay(b))
+                for (int c = 0; c < things.Count; c++)
                 {
-                    continue;
-                }
+                    int b = things[c];
+                    if (b == index || IsOutOfPlay(b))
+                    {
+                        continue;
+                    }
 
-                long reach = (long)item.Radius + bodies[b].Radius;
-                if (LogicalPosition.DistanceSquared(bodies[b].Position, spot) < reach * reach)
-                {
-                    return false;
+                    long reach = (long)item.Radius + bodies[b].Radius;
+                    if (LogicalPosition.DistanceSquared(bodies[b].Position, spot) < reach * reach)
+                    {
+                        return false;
+                    }
                 }
             }
 
@@ -559,8 +705,7 @@ namespace Paniq.Simulation
         {
             PhysicsBody item = bodies[index];
             item.HeldBy = -1;
-            item.X = (long)spot.X * SubMillimetre;
-            item.Z = (long)spot.Z * SubMillimetre;
+            MoveBody(index, (long)spot.X * SubMillimetre, (long)spot.Z * SubMillimetre);
             item.VelocityX = (long)velocityX * SubMillimetre;
             item.VelocityZ = (long)velocityZ * SubMillimetre;
             item.Thrown = velocityX != 0 || velocityZ != 0;
@@ -606,8 +751,11 @@ namespace Paniq.Simulation
 
         public int FindBlocking(LogicalPosition start, LogicalPosition destination, int radius, int ignoreIndex = -1)
         {
-            for (int b = 0; b < bodies.Length; b++)
+            using Nearby candidates = Gather(
+                UniformGridIndex.Sweeping(start, destination, (long)radius + widestRadius));
+            for (int c = 0; c < candidates.Count; c++)
             {
+                int b = candidates[c];
                 if (b == ignoreIndex || IsOutOfPlay(b))
                 {
                     continue;
@@ -617,6 +765,7 @@ namespace Paniq.Simulation
                 long reach = (long)radius + bodies[b].Radius;
                 if (IntegerMath.SegmentPassesWithin(start, destination, centre, reach * reach))
                 {
+                    // Ascending order, so the first match is the lowest ID.
                     return b;
                 }
             }
@@ -650,8 +799,7 @@ namespace Paniq.Simulation
 
             PhysicsBody bottle = bodies[index];
             bottle.Dormant = false;
-            bottle.X = (long)spot.X * SubMillimetre;
-            bottle.Z = (long)spot.Z * SubMillimetre;
+            MoveBody(index, (long)spot.X * SubMillimetre, (long)spot.Z * SubMillimetre);
             bottle.VelocityX = 0L;
             bottle.VelocityZ = 0L;
             bottle.Spin = 0;
@@ -735,8 +883,11 @@ namespace Paniq.Simulation
         public void AddAvoidance(LogicalPosition position, int percent, ref long steerX, ref long steerZ)
         {
             int margin = context.Scenario.Steering.ObjectAvoidMarginMillimetres;
-            for (int b = 0; b < bodies.Length; b++)
+            long furthest = (long)personRadius + widestRadius + margin;
+            using Nearby candidates = Gather(UniformGridIndex.Around(position, furthest));
+            for (int c = 0; c < candidates.Count; c++)
             {
+                int b = candidates[c];
                 if (IsOutOfPlay(b))
                 {
                     continue;
@@ -963,10 +1114,10 @@ namespace Paniq.Simulation
         {
             Agent nearest = null;
             long best = (long)range * range;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby candidates = crowd.Within(from, range);
+            for (int c = 0; c < candidates.Count; c++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[candidates[c]];
                 if (other == thrower || !other.IsParticipating)
                 {
                     continue;
@@ -1048,8 +1199,7 @@ namespace Paniq.Simulation
                 var to = new LogicalPosition((int)FloorDivide(nextX, SubMillimetre), (int)FloorDivide(nextZ, SubMillimetre));
                 if (!IsPathBlocked(b, from, to, out _, out _))
                 {
-                    physicsBody.X = nextX;
-                    physicsBody.Z = nextZ;
+                    MoveBody(b, nextX, nextZ);
                 }
                 else
                 {
@@ -1070,8 +1220,7 @@ namespace Paniq.Simulation
                     }
 
                     LogicalPosition stop = Lerp(from, to, clear);
-                    physicsBody.X = (long)stop.X * SubMillimetre;
-                    physicsBody.Z = (long)stop.Z * SubMillimetre;
+                    MoveBody(b, (long)stop.X * SubMillimetre, (long)stop.Z * SubMillimetre);
                     IsPathBlocked(b, from, Lerp(from, to, blocked), out Agent agent, out int otherIndex);
                     if (agent != null)
                     {

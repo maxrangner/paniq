@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -187,17 +187,23 @@ namespace Paniq.Simulation
             for (int door = 0; door < Count; door++)
             {
                 int found = -1;
-                for (int i = 0; i < objects.Count; i++)
+                using (PhysicsObjectSystem.Nearby candidates =
+                    objects.Gather(geometry.DoorwaySearchArea(door, objects.WidestRadius, gap)))
                 {
-                    if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0)
+                    for (int c = 0; c < candidates.Count; c++)
                     {
-                        continue;
-                    }
+                        int i = candidates[c];
+                        if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0)
+                        {
+                            continue;
+                        }
 
-                    if (geometry.IsObjectInDoorway(door, objects.PositionOf(i), objects.RadiusOf(i), gap))
-                    {
-                        found = i;
-                        break;
+                        if (geometry.IsObjectInDoorway(door, objects.PositionOf(i), objects.RadiusOf(i), gap))
+                        {
+                            // Ascending order, so this is still the lowest-numbered one.
+                            found = i;
+                            break;
+                        }
                     }
                 }
 

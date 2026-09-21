@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -161,7 +161,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            agent.Body.Position = destination;
+            crowd.MoveTo(agent, destination);
             agent.Body.Speed = 0;
         }
 

@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// Sitting down. A calm person now and then walks to a free chair, sits
@@ -49,8 +49,11 @@
             long reach = settings.SitSearchDistanceMillimetres;
             int best = -1;
             long bestDistance = reach * reach;
-            for (int i = 0; i < objects.Count; i++)
+            using PhysicsObjectSystem.Nearby candidates =
+                objects.Gather(UniformGridIndex.Around(agent.Body.Position, reach));
+            for (int c = 0; c < candidates.Count; c++)
             {
+                int i = candidates[c];
                 if (!objects.IsFreeChair(i))
                 {
                     continue;
@@ -152,7 +155,7 @@
         {
             // Settling onto the chair puts them on it: the one place a body
             // moves outside the movement phase, and only by a stride.
-            agent.Body.Position = objects.PositionOf(chair);
+            crowd.MoveTo(agent, objects.PositionOf(chair));
             agent.Body.Speed = 0;
             objects.SitOn(chair, agent);
             agent.Sitting.OnIt = true;
@@ -262,7 +265,7 @@
                         continue;
                     }
 
-                    agent.Body.Position = step;
+                    crowd.MoveTo(agent, step);
                     return;
                 }
             }

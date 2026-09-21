@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// One person's runtime state, split by concern so it is clear which
@@ -89,7 +89,21 @@
 
     internal sealed class AgentBody
     {
-        public LogicalPosition Position;
+        /// <summary>
+        /// Where the body stands. Read freely; to move it, call
+        /// <see cref="Crowd.MoveTo"/> rather than assigning here. The crowd
+        /// keeps an index of who is standing where, and a move that did not go
+        /// through it would leave that index describing the last tick. The
+        /// setter is private so that a new way of moving somebody cannot be
+        /// written without noticing this.
+        /// </summary>
+        public LogicalPosition Position { get; private set; }
+
+        /// <summary>Moves the body. Call <see cref="Crowd.MoveTo"/>, which is what keeps the index true.</summary>
+        internal void MoveWithoutTellingTheCrowd(LogicalPosition position)
+        {
+            Position = position;
+        }
 
         /// <summary>Whole degrees clockwise from north.</summary>
         public int Heading;

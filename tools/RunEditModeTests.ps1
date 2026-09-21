@@ -26,6 +26,10 @@
 .PARAMETER List
     List the tests that would run, and exit.
 
+.PARAMETER Measure
+    Also run the tests marked [Explicit], which report measurements rather
+    than checking anything. Pair it with -Filter to run just one.
+
 .EXAMPLE
     .\tools\RunEditModeTests.ps1
     .\tools\RunEditModeTests.ps1 -FingerprintsOnly
@@ -36,7 +40,8 @@ param(
     [string] $Filter,
     [switch] $FingerprintsOnly,
     [switch] $Record,
-    [switch] $List
+    [switch] $List,
+    [switch] $Measure
 )
 
 $ErrorActionPreference = 'Stop'
@@ -159,6 +164,7 @@ if ($Filter)           { $arguments += "--filter=$Filter" }
 if ($FingerprintsOnly) { $arguments += '--fingerprints-only' }
 if ($Record)           { $arguments += '--record' }
 if ($List)             { $arguments += '--list' }
+if ($Measure)          { $arguments += '--include-explicit' }
 
 & $dotnetExe $assembly @arguments
 $testsExitCode = $LASTEXITCODE

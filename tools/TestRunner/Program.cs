@@ -41,6 +41,9 @@ internal static class Program
     /// <summary>Where the repository is, so the scenario asset can be read. Set by --repo.</summary>
     private static string repositoryRoot;
 
+    /// <summary>Whether to run the tests marked [Explicit], which are measurements rather than checks.</summary>
+    private static bool includeExplicit;
+
     /// <summary>Pulls the run's own fingerprint out of the message the test writes on a mismatch.</summary>
     private static readonly Regex ActualFingerprint =
         new Regex("fingerprint is (0x[0-9A-F]{16}UL)", RegexOptions.Compiled);
@@ -66,6 +69,10 @@ internal static class Program
             {
                 record = true;
                 fingerprintsOnly = true;
+            }
+            else if (argument == "--include-explicit")
+            {
+                includeExplicit = true;
             }
             else if (argument == "--list")
             {
@@ -120,7 +127,7 @@ internal static class Program
 
         foreach (Type type in types)
         {
-            if (HasAttribute<ExplicitAttribute>(type) || HasAttribute<IgnoreAttribute>(type))
+            if ((HasAttribute<ExplicitAttribute>(type) && !includeExplicit) || HasAttribute<IgnoreAttribute>(type))
             {
                 continue;
             }
@@ -131,7 +138,8 @@ internal static class Program
 
             foreach (MethodInfo method in methods)
             {
-                if (HasAttribute<ExplicitAttribute>(method) || HasAttribute<IgnoreAttribute>(method))
+                if ((HasAttribute<ExplicitAttribute>(method) && !includeExplicit) ||
+                    HasAttribute<IgnoreAttribute>(method))
                 {
                     continue;
                 }

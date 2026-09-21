@@ -91,6 +91,40 @@ every run, never as passed.
 EditMode and PlayMode runners in the editor before calling a change verified in
 the engine.
 
+## Building a floor plan
+
+A building used to be four typed coordinates per room in a C# file, with no
+picture of it until you pressed play. That is why there were four rooms. You
+can now lay one out by dragging things around in the scene.
+
+1. Open a scene and make a cube (**GameObject > 3D Object > Cube**).
+2. Add **Paniq > Room** to it and scale it to the shape of the room. A blue
+   outline shows the floor the simulation will actually use.
+3. Give each room a number nothing else in the building uses.
+4. Put **Paniq > Door** objects on the walls. The baker works out which room's
+   wall each one is in and where along it, so sliding a door along a wall, or
+   onto a different wall, is all there is to do. Red means locked to start
+   with, green means unlocked.
+5. Add **Paniq > Table** for solid furniture, **Paniq > Prop** for loose things
+   (a box, a chair, an extinguisher), **Paniq > Person** for people,
+   **Paniq > Alarm** for alarms, and exactly one **Paniq > Fire Start** for
+   where the fire begins.
+6. Run **Paniq > Bake Scenario From Scene**.
+
+The baker rounds everything to whole millimetres, and rooms to the size of a
+navigation square, because a run only repeats exactly if every number in it is
+a whole one. It refuses to write a floor plan the simulation would reject and
+says what is wrong in terms of the object in the scene, so a doorway nobody
+could fit through, or two rooms overlapping, is caught with the scene still in
+front of you rather than at play time.
+
+Press **G** while playing to paint the floor square by square wherever a
+person could stand. That is the quickest way to see whether a doorway really
+is a way through and whether furniture leaves a route around it.
+
+Tuning numbers -- speeds, tempers, how fire spreads -- are not touched by the
+baker. It only takes the shape of the building from the scene.
+
 ## Profiling checkpoint
 
 Before adopting any scale tooling, and whenever a prototype stone noticeably

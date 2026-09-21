@@ -310,6 +310,8 @@ namespace Paniq.Simulation
         /// <summary>Tests only: the fire system, to check its queries against a brute-force answer.</summary>
         internal FireSystem FireForTests => fire;
 
+        internal WorldGeometry GeometryForTests => geometry;
+
         /// <summary>
         /// Whether the indexes of who and what is standing where still agree
         /// with the actual positions. False means something moved without

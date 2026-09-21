@@ -245,8 +245,8 @@ namespace Paniq.Tests.EditMode
             var simulation = new FireReactionSimulation(data);
             int before = simulation.DoorCount;
 
-            // The office's south door is centred on x = 2500 in the wall at z = -6000.
-            Blast(simulation, new LogicalPosition(2500, -5900));
+            // The corridor door is centred on z = 0 in the office's east wall at x = 6000.
+            Blast(simulation, new LogicalPosition(5900, 0));
 
             Assert.That(simulation.DoorCount, Is.EqualTo(before), "A hole cannot be cut through a doorway.");
             Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting));

@@ -157,9 +157,27 @@
             objects.SitOn(chair, agent);
             agent.Sitting.OnIt = true;
             agent.Intent.Activity = AgentActivityState.Sitting;
-            agent.Intent.LookHeading = agent.Body.Heading;
+
+            // They turn to face the way the chair faces, not the way they
+            // happened to walk up to it, so a chair pulled up to a table seats
+            // somebody looking at the table. They swivel round at their usual
+            // turning pace while sitting; nobody snaps round in one go.
+            agent.Intent.LookHeading = objects.HeadingOf(chair);
             agent.Intent.ActivityEndTick = checked(context.Tick + context.Random.NextIntInclusive(
                 settings.SitMinimumTicks, settings.SitMaximumTicks));
+            agent.Sitting.SitUntilTick = agent.Intent.ActivityEndTick;
+        }
+
+        /// <summary>
+        /// They turned in their seat to look at a noise and saw nothing worth
+        /// getting up for: they settle back, facing the way the chair faces,
+        /// for however long they had meant to sit anyway.
+        /// </summary>
+        public void ResumeSitting(Agent agent)
+        {
+            agent.Intent.Activity = AgentActivityState.Sitting;
+            agent.Intent.LookHeading = objects.HeadingOf(agent.Sitting.ChairIndex);
+            agent.Intent.ActivityEndTick = System.Math.Max(agent.Sitting.SitUntilTick, context.Tick + 1);
         }
 
         /// <summary>Getting out of the chair, which takes a moment longer if they are placid.</summary>
@@ -196,7 +214,10 @@
                                     agent.Intent.Activity == AgentActivityState.StandingUp ||
 
                                     // Startled, but still in the chair until they get out of it.
-                                    agent.Intent.Activity == AgentActivityState.Reacting);
+                                    agent.Intent.Activity == AgentActivityState.Reacting ||
+
+                                    // Heard something and turned in the seat to look.
+                                    agent.Intent.Activity == AgentActivityState.Investigating);
                 if (!stillSeated)
                 {
                     Forget(agent);

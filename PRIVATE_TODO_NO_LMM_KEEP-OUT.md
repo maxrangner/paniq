@@ -15,16 +15,11 @@ New scenarios:
     Zombies break trough a door. Bites most people, themselves becoming zombies after a short while. The ones fighting back might get injured and dies instead. Add weapons as items. Guns and bats. Agents can pick them up and fight back. Nervous agents can by mistake attack friends. Gun have ammo and bats break after a while.
 
 Bugs:
-- In seed 33 agents in the safe room towards the end gets stuck in the corridor between the rooms for no reason
-- Agents sometimes go through a door and lock them, the starts to bang on them. No reason for this.
-- Agents sometimes try to open a door from where they know the danger is, or at least the direction of sounds that trigger the panic.
-- Agents often close doors behind them when escaping. Should onyl be evil agents that do that. really evil also lock door behind them.
 
-In progress:
-- Objects can block doors from opening/closing. Agents can barricade doors for safety. Evil agents might block doors for selfish reasons.
-- Chairs and tables etc can brake. Electrical stuff like microwave oven, laptops, wall sockets make small explosion/pop that might set more things on fire. Should be stuff flying when happening.
-Some actual gameplay features:
-- Influence meter. Start off with a set amount. Depletes for every action/influence. Rises for every agent saved.
-- Cards/powers: Select card, then click agent to apply.
-   - "Beefcake" power to be used on an agent to give it max strength.
-   - TNT. Blast hole in wall.
+Next:
+- Seems like a lot of bugs are solved by moving/placing objects in the scenario so it doesnt trigger certain situations, instead of solving the underlying issue. Is that the case?
+- The underlying systems needs to be robust without band-aid fixes. Do a major review and if neccessary, refactor to bring the project to a professional, flexible and optimized state - with the final product in line as a future goal. Agent behavior, physics, pathfinding, etc. No special rules to make the systems behave correct just for the prototype rooms. Everything should work on all future scenarios with many more items, layouts and interactive elements.
+
+- Add particle system.
+
+- For some reason most agents in the meeting room strives to get into, or next to the main room on fire. They should try to find an exit away from danger.

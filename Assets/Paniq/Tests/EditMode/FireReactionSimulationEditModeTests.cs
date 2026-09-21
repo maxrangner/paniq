@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("30"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(22));
+            Assert.That(data.ContentRevision, Is.EqualTo("33"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(25));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -291,9 +291,10 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = NobodyFightsTheFire();
             data.Fire.ActivationTick = 1;
             var simulation = new FireReactionSimulation(data);
-            // The office's 24 × 24 squares, plus the closet, the corridor and the meeting room.
+            // The office's 24 × 24 squares, plus the closet, the 3 m corridor
+            // and the 10 × 9 m meeting room.
             int officeCells = 24 * 24;
-            Assert.That(simulation.FireFloorCellCount, Is.EqualTo(officeCells + 4 * 4 + 6 * 4 + 24 * 24));
+            Assert.That(simulation.FireFloorCellCount, Is.EqualTo(officeCells + 4 * 4 + 6 * 6 + 20 * 18));
             for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond && simulation.FireCellCount < officeCells; i++)
             {
                 simulation.Step();
@@ -527,8 +528,10 @@ namespace Paniq.Tests.EditMode
             data.Fire.ActivationTick = int.MaxValue;
 
             // Nobody sits down here: this is about how people walk about, and
-            // sitting is covered by its own tests.
+            // sitting is covered by its own tests. The meeting that starts
+            // seated breaks up at once, so they walk about like everyone else.
             data.Items.SitChancePercent = 0;
+            data.Items.SeatedAtStartTicks = 1;
             var simulation = new FireReactionSimulation(data);
             int count = simulation.AgentCount;
             var paused = new bool[count];
@@ -736,7 +739,9 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void Vision_SeesFireAheadButNotBehind()
         {
-            FireReactionScenarioData data = DefaultData();
+            // A way out of the office, so somebody who sees the fire has
+            // somewhere to run from it.
+            FireReactionScenarioData data = FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(DefaultData());
             data.Agents = new[] { Agent(1UL, 0, 0, CardinalDirection.East) };
             data.Fire.ActivationTick = 1;
             data.Perception.MaximumReactionDelayTicks = 0;

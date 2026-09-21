@@ -29,6 +29,20 @@ namespace Paniq.Simulation
         /// <summary>Resolution of the halving search for where a sliding object first touches something.</summary>
         private const int ContactSearchSteps = 1024;
 
+        /// <summary>
+        /// The size of thing that turns at the full spin rate when it is sent
+        /// off at full speed. Anything bigger turns more slowly in proportion,
+        /// anything smaller faster, up to the cap.
+        /// </summary>
+        private const int SpinReferenceRadiusMillimetres = 200;
+
+        /// <summary>
+        /// How a thing coming off a table or a stack looks for clear floor: out
+        /// from where it was in steps this long, up to this far.
+        /// </summary>
+        private const int FallSearchStepMillimetres = 50;
+        private const int FallSearchReachMillimetres = 1500;
+
         private sealed class PhysicsBody
         {
             public SimulationId Id;
@@ -67,6 +81,22 @@ namespace Paniq.Simulation
             /// trip over, but no longer a chair anybody can sit on.
             /// </summary>
             public bool Wrecked;
+
+            /// <summary>
+            /// Sitting on a table or on another object rather than on the floor:
+            /// a laptop on a desk, the upper box of a stacked pair. It is not in
+            /// anybody's way while it rests there and it does not slide, but it
+            /// can still be picked up, burnt and blown off. The moment anything
+            /// moves it, it comes loose and is an ordinary loose object again.
+            /// </summary>
+            public bool Resting;
+
+            /// <summary>
+            /// The object it is stacked on, or -1 when it rests on a table (or
+            /// not at all). If that object moves, is lifted or is smashed, this
+            /// one topples off it.
+            /// </summary>
+            public int RestsOn = -1;
 
             /// <summary>The event that last set this object moving, so its later hits can name their cause.</summary>
             public ulong LastPushEventId;
@@ -125,6 +155,8 @@ namespace Paniq.Simulation
                     Size = definition.SizeMillimetres,
                     MassGrams = definition.MassGrams,
                     Dormant = definition.StartsDormant,
+                    Heading = IntegerMath.NormalizeDegrees(definition.InitialFacingDegrees),
+                    Resting = definition.StartsResting,
 
                     // A spare has no spray in it until a card puts it down, which
                     // is also why nobody ever goes to fetch one.
@@ -132,6 +164,41 @@ namespace Paniq.Simulation
                         ? context.Scenario.Extinguishers.FuelTicks
                         : 0
                 };
+            }
+
+            FindWhatEachStackedThingStandsOn();
+        }
+
+        /// <summary>
+        /// A thing authored as resting but not on a table is stacked on the
+        /// floor object at its spot: the lowest-numbered one there, so a replay
+        /// always agrees. Done once, at the start.
+        /// </summary>
+        private void FindWhatEachStackedThingStandsOn()
+        {
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                PhysicsBody top = bodies[b];
+                if (!top.Resting || geometry.TableAt(top.Position, 0) >= 0)
+                {
+                    continue;
+                }
+
+                for (int u = 0; u < bodies.Length; u++)
+                {
+                    PhysicsBody under = bodies[u];
+                    if (u == b || under.Resting || under.Dormant)
+                    {
+                        continue;
+                    }
+
+                    long reach = under.Radius;
+                    if (LogicalPosition.DistanceSquared(top.Position, under.Position) <= reach * reach)
+                    {
+                        top.RestsOn = u;
+                        break;
+                    }
+                }
             }
         }
 
@@ -158,6 +225,9 @@ namespace Paniq.Simulation
         public LogicalPosition PositionOf(int index) => bodies[index].Position;
 
         public int RadiusOf(int index) => bodies[index].Radius;
+
+        /// <summary>Which way this thing faces, in whole degrees. A chair faces the way somebody sitting on it looks.</summary>
+        public int HeadingOf(int index) => bodies[index].Heading;
 
         public bool IsMoving(int index) => bodies[index].VelocityX != 0L || bodies[index].VelocityZ != 0L;
 
@@ -203,6 +273,7 @@ namespace Paniq.Simulation
         public void ShoveAside(int index, Agent shover, int heading, int speed, ulong causeEventId)
         {
             PhysicsBody thing = bodies[index];
+            FallOff(index, heading);
             LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
             thing.VelocityX = (long)velocity.X * SubMillimetre;
             thing.VelocityZ = (long)velocity.Z * SubMillimetre;
@@ -230,7 +301,121 @@ namespace Paniq.Simulation
         /// collisions, avoidance, movement and anything looking for something to
         /// pick up.
         /// </summary>
-        private bool IsOutOfPlay(int index) => bodies[index].HeldBy >= 0 || bodies[index].Dormant;
+        private bool IsOutOfPlay(int index) =>
+            bodies[index].HeldBy >= 0 || bodies[index].Dormant || bodies[index].Resting;
+
+        /// <summary>Whether this thing is resting on a table or on another object rather than on the floor.</summary>
+        public bool IsResting(int index) => bodies[index].Resting;
+
+        /// <summary>
+        /// It is lifted straight off whatever held it up: into somebody's arms,
+        /// where its floor position no longer matters.
+        /// </summary>
+        private static void LiftOff(PhysicsBody body)
+        {
+            body.Resting = false;
+            body.RestsOn = -1;
+        }
+
+        /// <summary>
+        /// It comes off whatever held it up and lands on clear floor beside it:
+        /// off the edge of the table it stood on, or off the side of the box it
+        /// was stacked on, never inside either. It looks outward from where it
+        /// was, trying the way it was being sent first, then turning further
+        /// and further from it; if nowhere within reach is clear it stays put.
+        /// Anything that sends a resting thing moving calls this first, so a
+        /// laptop is never shoved about while still on a desk. Whole numbers
+        /// and a fixed search order, so a replay lands it in the same place.
+        /// </summary>
+        private void FallOff(int index, int preferredHeading)
+        {
+            PhysicsBody body = bodies[index];
+            if (!body.Resting)
+            {
+                return;
+            }
+
+            LiftOff(body);
+            LogicalPosition from = body.Position;
+            if (IsClearForItem(index, from))
+            {
+                return;
+            }
+
+            for (int distance = FallSearchStepMillimetres; distance <= FallSearchReachMillimetres;
+                 distance += FallSearchStepMillimetres)
+            {
+                for (int turn = 0; turn <= 180; turn += 45)
+                {
+                    for (int side = 1; side >= -1; side -= 2)
+                    {
+                        if (side < 0 && (turn == 0 || turn == 180))
+                        {
+                            continue;
+                        }
+
+                        LogicalPosition spot = from + IntegerMath.Displacement(preferredHeading + side * turn, distance);
+                        if (IsClearForItem(index, spot))
+                        {
+                            body.X = (long)spot.X * SubMillimetre;
+                            body.Z = (long)spot.Z * SubMillimetre;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Phase 8, first: a box stacked on another topples off when the one
+        /// under it is kicked away, picked up or smashed, rather than being left
+        /// hanging in the air where the lower box used to be. It falls the
+        /// opposite way to where the lower box went.
+        /// </summary>
+        private void TopplePilesWhoseBaseMoved()
+        {
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                PhysicsBody top = bodies[b];
+                if (!top.Resting || top.RestsOn < 0)
+                {
+                    continue;
+                }
+
+                PhysicsBody under = bodies[top.RestsOn];
+                bool moving = under.VelocityX != 0L || under.VelocityZ != 0L;
+                if (!moving && under.HeldBy < 0 && !under.Wrecked && !under.Dormant)
+                {
+                    continue;
+                }
+
+                int away = moving
+                    ? IntegerMath.HeadingOf(-under.VelocityX, -under.VelocityZ, top.Heading)
+                    : top.Heading;
+                FallOff(b, away);
+
+                // Whatever knocked the lower box also knocked this one down, so
+                // anything it goes on to do (jam a doorway, trip somebody) can
+                // name that as its cause.
+                top.LastPushEventId = under.LastPushEventId;
+            }
+        }
+
+        /// <summary>
+        /// Everything resting inside these bounds drops where it is: what a
+        /// table was holding up when it collapsed. The table is rubble now, not
+        /// something solid, so there is floor for them right there.
+        /// </summary>
+        public void LooseEverythingRestingIn(LogicalBounds bounds)
+        {
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                if (bodies[b].Resting && bodies[b].RestsOn < 0 && bounds.ContainsCircle(bodies[b].Position, 0))
+                {
+                    LiftOff(bodies[b]);
+                }
+            }
+        }
 
         /// <summary>The person sitting on this chair, or -1.</summary>
         public int OccupantOf(int index) => bodies[index].OccupiedBy;
@@ -285,6 +470,7 @@ namespace Paniq.Simulation
         public void PickUp(int index, Agent carrier)
         {
             PhysicsBody item = bodies[index];
+            LiftOff(item);
             item.HeldBy = carrier.Index;
             item.VelocityX = 0L;
             item.VelocityZ = 0L;
@@ -397,6 +583,9 @@ namespace Paniq.Simulation
         /// <summary>Tests only: sets an object sliding at a velocity in millimetres per tick.</summary>
         public void Launch(int index, int velocityX, int velocityZ)
         {
+            // Sending a thing off a desk or a stack takes it off there first,
+            // like every other way of setting one moving.
+            FallOff(index, IntegerMath.HeadingOf(velocityX, velocityZ, bodies[index].Heading));
             bodies[index].VelocityX = (long)velocityX * SubMillimetre;
             bodies[index].VelocityZ = (long)velocityZ * SubMillimetre;
         }
@@ -495,9 +684,11 @@ namespace Paniq.Simulation
 
                 int away = IntegerMath.HeadingBetween(centre, thing.Position, thing.Heading);
                 LogicalPosition velocity = IntegerMath.Displacement(away, speed);
+                FallOff(b, away);
                 thing.VelocityX = (long)velocity.X * SubMillimetre;
                 thing.VelocityZ = (long)velocity.Z * SubMillimetre;
                 thing.Thrown = true;
+                thing.Spin = SpinFromImpact(thing, speed);
                 thing.LastPushEventId = causeEventId;
                 context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ItemThrown, thing.Position,
                     speed, 0, causeEventId, thing.Id);
@@ -525,6 +716,9 @@ namespace Paniq.Simulation
             }
 
             geometry.BreakTable(table);
+
+            // Whatever the table was holding up drops to the floor with it.
+            LooseEverythingRestingIn(geometry.TableBounds(table));
             context.Events.Append(context.Tick, geometry.TableId(table), FireReactionEventType.ObjectBroke,
                 geometry.TableBounds(table).Centre, (int)Math.Min(int.MaxValue, momentum), 0,
                 thrown.LastPushEventId, thrown.Id);
@@ -687,9 +881,17 @@ namespace Paniq.Simulation
                 physicsBody.VelocityZ += push * nz / length;
                 physicsBody.LastPushEventId = bumpEventId;
 
+                // A glancing kick turns it; a square-on one does not. The turn
+                // is set from this knock rather than added to whatever it was
+                // already doing, so brushing past a box tick after tick cannot
+                // wind it up into a spinning top.
                 LogicalPosition direction = IntegerMath.Direction(agent.Body.Heading);
                 long sideways = agent.Body.Speed * (direction.X * nz - direction.Z * nx) / (IntegerMath.TrigScale * length);
-                physicsBody.Spin = (int)Math.Max(-settings.SpinMaximum, Math.Min(settings.SpinMaximum, physicsBody.Spin + sideways / 3));
+                int turn = SpinFromImpact(physicsBody, (int)Math.Abs(sideways));
+                if (turn > Math.Abs(physicsBody.Spin))
+                {
+                    physicsBody.Spin = sideways < 0L ? -turn : turn;
+                }
 
                 agent.Body.Speed = (int)Math.Max(0L, agent.Body.Speed - restitution * physicsBody.MassGrams * closing / (100L * total));
 
@@ -743,13 +945,17 @@ namespace Paniq.Simulation
 
             int speed = ThrowSpeed(agent, index);
             LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
+            FallOff(index, heading);
             CausalEvent thrown = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemThrown, item.Position,
                 speed, 0, agent.Fear.ScaredEventId, item.Id);
             item.VelocityX = (long)velocity.X * SubMillimetre;
             item.VelocityZ = (long)velocity.Z * SubMillimetre;
             item.Thrown = true;
             item.LastPushEventId = thrown.EventId;
-            item.Spin = context.Random.NextIntInclusive(-settings.SpinMaximum, settings.SpinMaximum);
+
+            // Which way it turns is a coin toss, but how fast comes from the
+            // throw: a lobbed thing turns lazily, a hurled one whips round.
+            item.Spin = (context.Random.NextIntInclusive(0, 1) == 0 ? 1 : -1) * SpinFromImpact(item, speed);
             agent.Body.Speed /= 2;
         }
 
@@ -784,26 +990,30 @@ namespace Paniq.Simulation
         /// </summary>
         public void Advance()
         {
+            TopplePilesWhoseBaseMoved();
             for (int b = 0; b < bodies.Length; b++)
             {
                 PhysicsBody physicsBody = bodies[b];
 
                 // Carried in someone's arms, or with someone sitting on it:
                 // it goes nowhere by itself.
-                if (physicsBody.HeldBy >= 0 || physicsBody.OccupiedBy >= 0 || physicsBody.Dormant)
+                if (physicsBody.HeldBy >= 0 || physicsBody.OccupiedBy >= 0 || physicsBody.Dormant ||
+                    physicsBody.Resting)
                 {
+                    continue;
+                }
+
+                // A thing on the floor turns only while it is still sliding, so
+                // nothing is ever left spinning on the spot.
+                if (physicsBody.VelocityX == 0L && physicsBody.VelocityZ == 0L)
+                {
+                    physicsBody.Spin = 0;
                     continue;
                 }
 
                 if (physicsBody.Spin != 0)
                 {
                     physicsBody.Heading = IntegerMath.NormalizeDegrees(physicsBody.Heading + physicsBody.Spin);
-                    physicsBody.Spin -= Math.Sign(physicsBody.Spin);
-                }
-
-                if (physicsBody.VelocityX == 0L && physicsBody.VelocityZ == 0L)
-                {
-                    continue;
                 }
 
                 LimitSpeed(physicsBody, (long)context.Scenario.World.MaximumStepDistanceMillimetres * SubMillimetre);
@@ -1052,11 +1262,36 @@ namespace Paniq.Simulation
                 physicsBody.VelocityX = 0L;
                 physicsBody.VelocityZ = 0L;
                 physicsBody.Thrown = false;
+                physicsBody.Spin = 0;
                 return;
             }
 
             physicsBody.VelocityX = physicsBody.VelocityX * (speed - friction) / speed;
             physicsBody.VelocityZ = physicsBody.VelocityZ * (speed - friction) / speed;
+
+            // The same drag that slows it down slows its turn, so a thing
+            // coasting to a halt stops turning as it settles rather than
+            // snapping still.
+            physicsBody.Spin = (int)(physicsBody.Spin * (speed - friction) / speed);
+        }
+
+        /// <summary>
+        /// How fast a thing turns after being struck, in whole degrees per tick.
+        /// It comes from the speed it was given and its size: a light laptop
+        /// skimmed across a desk whips round, a heavy potted plant barely turns
+        /// at all. The result is never more than <c>SpinMaximum</c>.
+        /// </summary>
+        private int SpinFromImpact(PhysicsBody physicsBody, int speed)
+        {
+            if (speed <= 0)
+            {
+                return 0;
+            }
+
+            long step = context.Scenario.World.MaximumStepDistanceMillimetres;
+            long radius = Math.Max(1, physicsBody.Radius);
+            long spin = (long)settings.SpinMaximum * speed * SpinReferenceRadiusMillimetres / (step * radius);
+            return (int)Math.Max(0L, Math.Min(settings.SpinMaximum, spin));
         }
 
         private static void LimitSpeed(PhysicsBody physicsBody, long maximum)
@@ -1097,7 +1332,8 @@ namespace Paniq.Simulation
                 thrown: physicsBody.Thrown,
                 occupiedBy: physicsBody.OccupiedBy >= 0 ? crowd.All[physicsBody.OccupiedBy].Id : default,
                 dormant: physicsBody.Dormant,
-                wrecked: physicsBody.Wrecked);
+                wrecked: physicsBody.Wrecked,
+                resting: physicsBody.Resting);
         }
 
         public FireReactionPhysicsObjectSnapshot[] GetSnapshots()

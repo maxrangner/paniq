@@ -242,6 +242,13 @@
 
         /// <summary>True once they are actually on it.</summary>
         public bool OnIt;
+
+        /// <summary>
+        /// When they would get up of their own accord. Kept apart from the
+        /// activity timer, so turning in the seat to look at a noise does not
+        /// cut short how long they meant to sit.
+        /// </summary>
+        public int SitUntilTick;
     }
 
     internal sealed class AgentHelp
@@ -265,6 +272,15 @@
 
         /// <summary>Where they stood before this tick's move, so a blocked drag can undo it.</summary>
         public LogicalPosition PositionBeforeMove;
+
+        /// <summary>
+        /// How many ticks running they have hauled somebody and got nowhere.
+        /// Counted here rather than on the body, because a dragger takes a step
+        /// that is accepted and then undone when the person behind them will
+        /// not fit; the body's own blocked count is cleared by that accepted
+        /// step, so it never climbs and they would strain for ever.
+        /// </summary>
+        public int StuckTicks;
     }
 
     internal sealed class AgentCarry
@@ -281,6 +297,14 @@
         /// only let go of it when something frightens them.
         /// </summary>
         public bool OwnsIt;
+
+        /// <summary>
+        /// Until this tick, they have an extinguisher in mind: somebody put one
+        /// down in front of them and they have seen it. While it lasts they
+        /// need less nerve than usual to go and take it, which is what makes
+        /// the player's card feel like an offer rather than scenery.
+        /// </summary>
+        public int SawAnExtinguisherUntilTick;
     }
 
     internal sealed class AgentBurning

@@ -32,6 +32,7 @@ namespace Paniq.Simulation
         private InfluenceSystem influence;
         private SoundSystem sound;
         private BodySystem body;
+        private WorldGeometry geometry;
 
         public PlayerCommandSystem(SimulationContext context)
         {
@@ -40,7 +41,7 @@ namespace Paniq.Simulation
 
         /// <summary>Wired up after construction, because these are all built after this system.</summary>
         public void Use(DoorSystem doorSystem, FireSystem fireSystem, PhysicsObjectSystem physicsObjects, Crowd people,
-            InfluenceSystem influenceSystem, SoundSystem soundSystem, BodySystem bodySystem)
+            InfluenceSystem influenceSystem, SoundSystem soundSystem, BodySystem bodySystem, WorldGeometry world)
         {
             doors = doorSystem;
             fire = fireSystem;
@@ -49,6 +50,7 @@ namespace Paniq.Simulation
             influence = influenceSystem;
             sound = soundSystem;
             body = bodySystem;
+            geometry = world;
         }
 
         /// <summary>Every command queued so far, in sequence order.</summary>
@@ -245,9 +247,38 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            context.Events.Append(context.Tick, objects.IdOf(index), FireReactionEventType.PowerSpawnedExtinguisher,
-                command.Point, influence.CostOf(command.CommandType), 0, 0UL, objects.IdOf(index));
+            context.Events.Append(context.Tick, objects.IdOf(index),
+                FireReactionEventType.PowerSpawnedExtinguisher, command.Point,
+                influence.CostOf(command.CommandType), 0, 0UL, objects.IdOf(index));
+            OfferItToWhoeverCanSeeIt(command.Point);
             return true;
+        }
+
+        /// <summary>
+        /// Everybody in the same room, within sight of where the bottle was put
+        /// down, notices it. For a while afterwards they need less nerve than
+        /// usual to go and take it, so standing one in front of a frightened
+        /// office reads as handing it to them rather than as set dressing.
+        /// Ascending ID order, and no random draw, so a replay agrees.
+        /// </summary>
+        private void OfferItToWhoeverCanSeeIt(LogicalPosition spot)
+        {
+            ExtinguisherSettings settings = context.Scenario.Extinguishers;
+            int room = geometry.RoomAtPoint(spot);
+            long reach = settings.OfferedNoticeRangeMillimetres;
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                if (!agent.IsParticipating || agent.Burning.IsBurning ||
+                    geometry.RoomOf(agent) != room ||
+                    LogicalPosition.DistanceSquared(agent.Body.Position, spot) > reach * reach)
+                {
+                    continue;
+                }
+
+                agent.Carry.SawAnExtinguisherUntilTick = checked(context.Tick + settings.OfferedTicks);
+            }
         }
     }
 }

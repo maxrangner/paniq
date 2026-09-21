@@ -14,7 +14,14 @@ namespace Paniq.Simulation
     internal sealed class Locomotion
     {
         private const int SharpTurnDegrees = 75;
-        private static readonly int[] SideStepOffsets = { 30, -30, 60, -60 };
+        /// <summary>
+        /// The ways round something in the way, tried in turn. The last pair is a
+        /// step straight sideways: somebody pressed against a wall beside a
+        /// doorway, with the crowd in front of them, can only get out of it by
+        /// sliding along the wall, and without this they stand there until
+        /// whatever is in front of them happens to move.
+        /// </summary>
+        private static readonly int[] SideStepOffsets = { 30, -30, 60, -60, 90, -90 };
 
         private readonly SimulationContext context;
         private readonly Crowd crowd;

@@ -46,7 +46,7 @@ namespace Paniq.Tests.EditMode
             }
 
             Assert.That(chairs, Is.EqualTo(8), "Wooden chairs around the office tables.");
-            Assert.That(officeChairs, Is.EqualTo(8), "Office chairs on castors around the meeting table.");
+            Assert.That(officeChairs, Is.EqualTo(9), "Office chairs on castors: four down each side of the meeting table and one at its head.");
             Assert.That(data.Tables[0].Bounds.MaxX - data.Tables[0].Bounds.MinX, Is.EqualTo(1200));
         }
 
@@ -69,8 +69,8 @@ namespace Paniq.Tests.EditMode
             {
                 FireReactionScenarioData data = DefaultData();
                 var simulation = new FireReactionSimulation(data, seed);
-                simulation.QueueCommand(PlayerCommandType.ClickDoor, new SimulationId(2001UL), 600);
-                simulation.QueueCommand(PlayerCommandType.ClickDoor, new SimulationId(2001UL), 601);
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, FireReactionDoorsEditModeTests.TheWayOut, 600);
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, FireReactionDoorsEditModeTests.TheWayOut, 601);
                 int radius = data.World.OccupancyRadiusMillimetres;
                 for (int t = 0; t < 60 * FireReactionSimulation.TicksPerSecond; t++)
                 {
@@ -94,7 +94,7 @@ namespace Paniq.Tests.EditMode
 
                         foreach (FireReactionPhysicsObjectSnapshot item in snapshot.PhysicsObjects)
                         {
-                            Assert.That(!item.IsHeld && InsideTable(item.Position, item.SizeMillimetres / 2, table.Bounds), Is.False,
+                            Assert.That(!item.IsHeld && !item.Resting && InsideTable(item.Position, item.SizeMillimetres / 2, table.Bounds), Is.False,
                                 $"Seed {seed}: object {item.ObjectId} inside table {table.TableId} at tick {snapshot.Tick}.");
                         }
                     }

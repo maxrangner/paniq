@@ -9,12 +9,18 @@ hazard, and leave an explainable causal event trail.
 
 The `FireReactionPrototype` scene shows a small office floor plan: a 12 m by
 12 m open-plan office with a door in each wall, a 2 m storage closet and a 3 m
-corridor behind its east wall, and a second 12 m by 12 m meeting room beyond
+corridor behind its east wall, and a smaller 10 m by 9 m meeting room beyond
 that. Twenty people (capsules) share it, ten in each big room. The office holds
-three wooden tables with chairs pulled up to them, cardboard boxes, waste bins,
-potted plants, bags, laptops, office chairs on castors, a microwave, wall
-sockets, a fire extinguisher and a fire alarm; the meeting room is furnished the
-same way.
+three wooden desks with chairs pulled up to them and a laptop on each, cardboard
+boxes against the walls with some stacked in pairs, waste bins, potted plants,
+bags, a microwave, wall sockets, a fire extinguisher and a fire alarm.
+
+The meeting room is a meeting already under way: one long table with nine
+chairs pulled up to it, nine people sitting in them facing the table, six
+laptops open in front of them, and a tenth person standing at the near end of
+the table presenting. Its east wall holds the building's only way out, at the
+far end from the corridor. The office has no way out of its own, so everybody
+in it has to cross the corridor and the meeting room to escape.
 
 **Everyone has a personality.** Each person has seven traits from 0 to 10:
 strength, speed, bravery, compassion, evil, nervousness and leadership. 5 is an
@@ -147,12 +153,28 @@ two people jamming the doorway shoulder to shoulder.
 
 **The building is rooms joined by doors.** The 12 × 12 m open-plan office is
 where the fire starts. Behind its east wall are a 2 × 2 m storage closet and a
-3 m corridor; the corridor leads to a second 12 × 12 m room, the meeting room.
-Ten people start in the office and ten in the meeting room, where they cannot
-see the fire and only learn of it from the shouting. The five doors in the
-outside walls are the player's: they start locked. The three inside doors (the
-closet, and the corridor at each end) start shut but unlocked, so people open
-them themselves.
+3 m wide corridor; the corridor leads to a 10 × 9 m meeting room. Ten people
+start in the office and ten in the meeting room, where they cannot see the fire
+and only learn of it from the shouting. There is one door in an outside wall
+and it is the player's: it is in the meeting room, at the far end from the
+corridor, and it starts locked. The office has none of its own, so the whole
+building funnels through the corridor to reach it, and the queue at each
+doorway is the thing to watch. The three inside doors (the closet, and the
+corridor at each end) start shut but unlocked, so people open them themselves.
+
+**Getting round what is in the way.** Somebody whose way is blocked tries a
+step 30°, then 60°, then 90° to either side before giving up for the tick. The
+sideways step is what lets a person pressed against a wall beside a doorway
+slide along it instead of standing there until the crowd in front moves.
+
+**A meeting is under way.** Nine of the meeting room's ten begin sitting at its
+table, each in a chair that faces it; the tenth is on their feet at the end of
+it. Somebody sitting who hears something turns in the seat to look, and stays
+in the chair; if what they see frightens them, getting out of it costs them a
+moment, and the nervous are quicker out than the placid. Laptops stand on the
+desks and the meeting table, and boxes stand in stacked pairs: while a thing
+rests on another it is in nobody's way, and it drops to the floor beside its
+support the moment anything lifts, throws or smashes what holds it up.
 
 People try to save themselves wherever they can. They pick a way **out of the
 building** — scored by the whole walk there, including crossing the last room —
@@ -537,12 +559,24 @@ it back down.
   backwards; strength 0 is put on the floor by their own extinguisher. When
   the bottle runs dry they drop it and run.
 - **Sitting.** A calm person choosing what to do next may walk to the
-  nearest free chair in their room within 6 m and sit on it for 5–20 s. A
-  chair with someone on it does not slide, cannot be picked up and cannot be
-  tidied away. Anyone startled, knocked over or set alight in a chair has to
-  get out of it first: 0.8 s less 0.04 s per point of nervousness, and never
-  less than 0.2 s, so the nervous are out of it first. Standing up steps them
-  clear of the seat and shoves the chair the other way.
+  nearest free chair in their room within 6 m and sit on it for 5–20 s. Nine
+  people also start the run already seated, for 60 s. A chair faces a
+  direction, and whoever sits on it turns to face the same way at their usual
+  turning pace, so a chair pulled up to a table seats somebody looking at the
+  table. A chair with someone on it does not slide, cannot be picked up and
+  cannot be tidied away. Somebody sitting who hears a noise turns in the seat
+  to look and stays in it; if there is nothing to see they turn back to the
+  table. Anyone startled, knocked over or set alight in a chair has to get out
+  of it first: 0.8 s less 0.04 s per point of nervousness, and never less than
+  0.2 s, so the nervous are out of it first. Standing up steps them clear of
+  the seat and shoves the chair the other way.
+- **Resting on something.** An object may stand on a table or on another
+  object. While it does it is in nobody's way, does not slide, and is drawn at
+  the height of whatever holds it up, but it still heats, burns and can be
+  picked up. Lifting, throwing, shoving or blasting it, or smashing the table
+  under it, brings it loose, and it lands on the nearest clear floor rather
+  than inside the table or on top of the box below. A stacked box topples the
+  moment the one under it is kicked, lifted or smashed.
 - **Loose things.** Every kind of loose object has an entry in the
   scenario's table of kinds: friction as a percentage of the floor's, and how
   long it takes to catch fire and how long it burns. An ignite time of 0 means
@@ -820,12 +854,24 @@ a `MaterialPropertyBlock`. The camera is 45 degrees around the room and
 35.264 degrees above the ground, which gives a standard isometric view.
 
 **Seeing through walls.** People and the objects they knock about are drawn
-twice: normally, and again as a pale blue silhouette wherever a wall stands
-between them and the camera, so the crowd in the meeting room, the corridor
-and the closet can be watched without moving the camera. The second drawing
-uses `Content/Rendering/SeeThrough.shader`, added as an extra material on each
-renderer; it needs no project setup. This is rendering only; the simulation
-neither knows nor cares.
+twice: normally, and again as a pale blue silhouette wherever a wall or a door
+stands between them and the camera, so the crowd in the meeting room, the
+corridor and the closet can be watched without moving the camera. Fire gets the
+same treatment in orange, so a blaze in the next room is visible through the
+wall. The second drawing uses `Content/Rendering/SeeThrough.shader`, added as an
+extra material on each renderer. Walls and door leaves carry
+`Content/Rendering/WallMark.shader`, which paints nothing and only marks where
+they are the nearest thing to the camera; the silhouette draws on that mark
+alone, so nothing ghosts through a table, and nothing ghosts through itself.
+Neither needs project setup. This is rendering only; the simulation neither
+knows nor cares.
+
+**Bangs you can see.** A laptop battery, a wall socket, a microwave or a stick
+of TNT going off throws a flash that lights the room, sparks that arc out and
+fall to the floor, a puff of smoke that swells and thins, and a jolt of the
+camera — all sized to how big the blast is, so a laptop cracks and TNT booms.
+Display only: the scatter of the sparks comes from the event, never from the
+dice.
 
 **What the new things look like.** A fire alarm is a small red box on the wall;
 every box flashes twice a second once the alarms are ringing. A briefcase is a

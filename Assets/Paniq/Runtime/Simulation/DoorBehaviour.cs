@@ -74,9 +74,13 @@
                 // this room, otherwise the first door along the way.
                 int next = first < 0 ? d : first;
                 bool open = geometry.IsDoorOpen(next);
-                if (!open && (context.Tick < agent.Doors.AvoidUntilTick[next] || agent.Doors.FoundShut[d]))
+                if (!open && (context.Tick < agent.Doors.AvoidUntilTick[next] ||
+                              agent.Doors.FoundShut[next] || agent.Doors.FoundShut[d]))
                 {
-                    // A door they have already found shut is no longer a way out to them.
+                    // A door they have already found shut is no longer a way
+                    // out to them: either the door they would walk at now (a
+                    // shut door partway along blocks the route just as surely)
+                    // or the way out at the end of it.
                     continue;
                 }
 
@@ -608,9 +612,36 @@
             }
 
             ulong closed = doors.TryClose(door, agent.Id, causeEventId, agent);
-            if (closed != 0UL && traits.Evil >= settings.EvilLockMinimum)
+            if (closed == 0UL)
+            {
+                return;
+            }
+
+            if (traits.Evil >= settings.EvilLockMinimum)
             {
                 doors.Lock(door, agent, closed);
+            }
+
+            // They know perfectly well what they just did. Without this they
+            // forget at once, pick the same door on their next thought, walk
+            // back and hammer on a door they shut themselves.
+            RememberShutting(agent, door);
+        }
+
+        /// <summary>
+        /// Marks a door this person has shut or locked themselves as one they
+        /// will not head back to for a while. The same memory
+        /// <see cref="GiveUp"/> writes when a door beats them, because the
+        /// outcome is the same: to them, that door is not a way out.
+        /// </summary>
+        private void RememberShutting(Agent agent, int door)
+        {
+            agent.Doors.FoundShut[door] = true;
+            agent.Doors.AvoidUntilTick[door] = checked(context.Tick + context.Random.NextIntInclusive(
+                settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
+            if (agent.Doors.ExitDoorIndex == door)
+            {
+                agent.Doors.ExitDoorIndex = -1;
             }
         }
 

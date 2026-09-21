@@ -70,7 +70,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void Player_CannotCloseADoorSomeoneIsStandingIn()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data =
+                FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(scenario.ToRuntimeData());
 
             // Standing right in the north doorway, and staying put (no fire, very slow calm decisions).
             data.Agents = new[]
@@ -248,6 +249,41 @@ namespace Paniq.Tests.EditMode
             FireReactionSimulation simulation = EscapingWithSomeoneBehind(AgentTraitValues.AllOrdinary, FarOff);
             RunUntilEscaped(simulation);
             Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open));
+        }
+
+        /// <summary>
+        /// The owner watched somebody shut a door behind them, turn round and
+        /// hammer on it. Shutting a door now goes into that person's own memory
+        /// of doors, so it stops being a way out to them.
+        /// </summary>
+        [Test]
+        public void NobodyShouldersADoorTheyShutThemselves()
+        {
+            for (ulong seed = 40UL; seed <= 46UL; seed++)
+            {
+                var simulation = new FireReactionSimulation(scenario.ToRuntimeData(), seed);
+                for (int t = 0; t < 60 * FireReactionSimulation.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                }
+
+                var shutItThemselves = new HashSet<(ulong Person, ulong Door)>();
+                foreach (CausalEvent record in simulation.EventLog.Events)
+                {
+                    (ulong, ulong) who = (record.SourceId.Value, record.TargetId.Value);
+                    if (record.EventType == FireReactionEventType.DoorClosed ||
+                        record.EventType == FireReactionEventType.DoorLocked)
+                    {
+                        shutItThemselves.Add(who);
+                    }
+                    else if (record.EventType == FireReactionEventType.AgentForcedDoor)
+                    {
+                        Assert.That(shutItThemselves.Contains(who), Is.False,
+                            $"Seed {seed}: person {record.SourceId} shouldered door {record.TargetId} at tick " +
+                            $"{record.Tick}, having shut it themselves.");
+                    }
+                }
+            }
         }
 
         [Test]

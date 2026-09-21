@@ -210,8 +210,10 @@ namespace Paniq.Simulation
             bool thrown = false,
             SimulationId occupiedBy = default,
             bool dormant = false,
-            bool wrecked = false)
+            bool wrecked = false,
+            bool resting = false)
         {
+            Resting = resting;
             Wrecked = wrecked;
             Dormant = dormant;
             OccupiedBy = occupiedBy;
@@ -252,6 +254,13 @@ namespace Paniq.Simulation
         /// <summary>Smashed: wreckage on the floor rather than a thing in one piece.</summary>
         public bool Wrecked { get; }
 
+        /// <summary>
+        /// Standing on a table or on another object rather than on the floor: a
+        /// laptop on a desk, the upper box of a stacked pair. The display draws
+        /// it at the height of whatever holds it up.
+        /// </summary>
+        public bool Resting { get; }
+
         /// <summary>Who is carrying it (a zero ID when it is on the floor).</summary>
         public SimulationId HeldBy { get; }
 
@@ -269,7 +278,7 @@ namespace Paniq.Simulation
         internal FireReactionPhysicsObjectSnapshot WithBurn(ObjectBurnState burnState, int heatPercent)
         {
             return new FireReactionPhysicsObjectSnapshot(ObjectId, Kind, Position, SizeMillimetres, HeadingDegrees,
-                SpeedMillimetresPerTick, burnState, heatPercent, HeldBy, Thrown, OccupiedBy, Dormant, Wrecked);
+                SpeedMillimetresPerTick, burnState, heatPercent, HeldBy, Thrown, OccupiedBy, Dormant, Wrecked, Resting);
         }
     }
 

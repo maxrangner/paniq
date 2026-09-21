@@ -1,4 +1,4 @@
-﻿%YAML 1.1
+%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
@@ -11,4 +11,1602 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9e5f8e9be6b64528aa691500194ea499, type: 3}
   m_Name: FireReactionScenario
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
+  scenario:
+    ScenarioId: fire-reaction-prototype
+    ContentRevision: 32
+    DefaultSeed: 42
+    SimulationCompatibilityVersion: 24
+    World:
+      OccupancyRadiusMillimetres: 250
+      MaximumStepDistanceMillimetres: 120
+    Perception:
+      VisionRangeMillimetres: 3000
+      MaximumReactionDelayTicks: 20
+    Fire:
+      SpawnBounds:
+        minX: -2000
+        maxX: 2000
+        minZ: -2000
+        maxZ: 2000
+      ActivationTick: 250
+      CellSizeMillimetres: 500
+      SpreadMinimumTicks: 40
+      SpreadMaximumTicks: 120
+      BurnMinimumTicks: 150
+      BurnMaximumTicks: 300
+      BurningTurnMinimumTicks: 10
+      BurningTurnMaximumTicks: 25
+      BurningBlockedTurnTicks: 5
+      BurningScreamMinimumTicks: 25
+      BurningScreamMaximumTicks: 50
+      DousedWetTicks: 1000
+      DouseTicksPerCell: 30
+      BurningSpreadGapMillimetres: 100
+      BurningSpreadChancePercent: 20
+    Steering:
+      PersonalSpaceMillimetres: 800
+      WallAvoidDistanceMillimetres: 600
+      ObjectAvoidMarginMillimetres: 400
+    Calm:
+      SpeedMinimum: 20
+      SpeedMaximum: 32
+      TurnRateMinimum: 4
+      TurnRateMaximum: 7
+      Acceleration: 2
+      DecisionMinimumTicks: 60
+      DecisionMaximumTicks: 200
+      BlockedGiveUpTicks: 20
+      StrollWallMarginMillimetres: 1000
+      StrollMinimumDistanceMillimetres: 1500
+      StrollArrivalDistanceMillimetres: 300
+      StrollSlowdownDistanceMillimetres: 700
+      StrollTimeoutTicks: 600
+      WanderMaximumDegrees: 25
+      SocialStopDistanceMillimetres: 1100
+      SocialMinimumDistanceMillimetres: 1500
+      SocialMaximumDistanceMillimetres: 6000
+      SocialTimeoutTicks: 400
+      PeopleAvoidPercent: 100
+      WallAvoidPercent: 150
+      ObjectAvoidPercent: 100
+    Panic:
+      SpeedMinimum: 60
+      SpeedMaximum: 110
+      TurnRateMinimum: 10
+      TurnRateMaximum: 16
+      Acceleration: 8
+      DecisionMinimumTicks: 20
+      DecisionMaximumTicks: 60
+      SwerveChancePercent: 35
+      SwerveAngleMinimum: 30
+      SwerveAngleMaximum: 70
+      SwerveMinimumTicks: 10
+      SwerveMaximumTicks: 25
+      HesitateChancePercent: 12
+      HesitateMinimumTicks: 5
+      HesitateMaximumTicks: 15
+      DangerDistanceMillimetres: 1500
+      FollowRadiusMillimetres: 2500
+      FollowPercent: 35
+      ShoutMinimumTicks: 100
+      ShoutMaximumTicks: 250
+      BlockedGiveUpTicks: 12
+      ArrivalDistanceMillimetres: 700
+      EscapeSampleCount: 8
+      EscapeWallMarginMillimetres: 700
+      EscapeRouteClearanceMillimetres: 1000
+      EscapeRoutePenaltyMillimetres: 5000
+      EscapeShortHopDistanceMillimetres: 1500
+      EscapeShortHopPenaltyMillimetres: 2000
+      EscapeTurnPenaltyPerDegree: 10
+      EscapeNoiseMillimetres: 1500
+      TableRoutePenaltyMillimetres: 3000
+      PeopleAvoidPercent: 50
+      WallAvoidPercent: 200
+      ObjectAvoidPercent: 20
+    Temperament:
+      FreezeThenRunPercent: 30
+      FreezeForeverPercent: 15
+      FreezeMinimumTicks: 100
+      FreezeMaximumTicks: 300
+    Hearing:
+      YellAlarmRadiusMillimetres: 2500
+      YellHearingRadiusMillimetres: 6000
+      FireHearingRadiusMillimetres: 3500
+      BumpSoundRadiusMillimetres: 3000
+      InvestigateMinimumTicks: 50
+      InvestigateMaximumTicks: 125
+      InvestigateCreepDelayTicks: 25
+      InvestigateCreepDistanceMillimetres: 2000
+      InvestigateCreepMaximumTurn: 30
+    Falls:
+      BumpMinimumSpeed: 50
+      KnockdownClosingSpeed: 100
+      StaggerMinimumTicks: 10
+      StaggerMaximumTicks: 20
+      StaggerJoltMinimumDegrees: 25
+      StaggerJoltMaximumDegrees: 50
+      KnockdownMinimumTicks: 60
+      KnockdownMaximumTicks: 140
+      GetUpTicks: 25
+      TripChancePercent: 4
+      TripMinimumSpeed: 60
+      TripMinimumTicks: 40
+      TripMaximumTicks: 100
+      PassOutChancePercent: 10
+      PassOutPercentPerSpeed: 1
+      PassOutMomentumPerPercent: 100
+      PassOutMaximumPercent: 60
+      UnconsciousMinimumTicks: 300
+      UnconsciousMaximumTicks: 600
+      ComeToGetUpTicks: 50
+      ShoveMinimumEvil: 7
+      ShoveIntervalTicks: 40
+      ShovePushMillimetres: 350
+      ShoveKnockDownStrengthGap: 2
+    Exits:
+      DoorwayDepthMillimetres: 2000
+      DoorwayInsetMillimetres: 1000
+      EscapeDepthMillimetres: 800
+      DoorOpenTicks: 20
+      DoorTryTicks: 25
+      DoorForceChancePercent: 60
+      DoorForceMinimumTicks: 75
+      DoorForceMaximumTicks: 200
+      DoorShoveMinimumTicks: 20
+      DoorShoveMaximumTicks: 30
+      DoorAvoidMinimumTicks: 300
+      DoorAvoidMaximumTicks: 600
+      DoorCrowdedAvoidMinimumTicks: 100
+      DoorCrowdedAvoidMaximumTicks: 200
+      GiveUpGlanceMinimumTicks: 15
+      GiveUpGlanceMaximumTicks: 30
+      GiveWayMinimumTicks: 25
+      GiveWayMaximumTicks: 50
+      GiveWayAsideMillimetres: 100
+      GiveWayInsetMillimetres: 400
+      ApproachInsetMillimetres: 600
+      OutsideTargetMillimetres: 1500
+      ArrivalDistanceMillimetres: 400
+      CommitDistanceMillimetres: 2500
+      NoSwerveDistanceMillimetres: 2000
+      CurrentRoomBonusMillimetres: 2000
+      RefugeClearRoomMillimetres: 8000
+      RefugeNoFireMillimetres: 20000
+      RefugeSpacePerPersonMillimetres: 1000
+      OpenBonusMillimetres: 4000
+      CurrentChoiceBonusMillimetres: 1500
+      ChoiceNoiseMillimetres: 1500
+      InFirePenaltyMillimetres: 8000
+      DoorStrength: 40
+      CloseReachMillimetres: 2000
+      CloseApproachRadiusMillimetres: 3000
+      FireAtDoorRadiusMillimetres: 2000
+      EvilCloseMinimum: 7
+      EvilLockMinimum: 9
+      CompassionHoldMinimum: 7
+    ObjectPhysics:
+      AgentMassGrams: 70000
+      Friction: 157
+      AgentRestitutionPercent: 30
+      ObjectRestitutionPercent: 40
+      WallRestitutionPercent: 30
+      TripMinimumSpeed: 60
+      TripScale: 500
+      TripMaximumChancePercent: 75
+      StaggerMomentum: 800
+      KnockdownMomentum: 1600
+      LoggedBoxHitSpeed: 20
+      SpinMaximum: 8
+    Traits:
+      CalmSpeedJitter: 2
+      PanicSpeedJitter: 5
+      StrengthMassPercentPerPoint: 10
+      StrengthShrugOffGap: 4
+      BraveryReactionDelayPercentPerPoint: 10
+      BraveryDangerDistancePercentPerPoint: 5
+      NervousShoutIntervalPercentPerPoint: 10
+      NervousDecisionIntervalPercentPerPoint: 10
+      NervousSwerveChancePerPoint: 5
+      NervousHesitateChancePerPoint: 2
+      NervousTripPercentPerPoint: 10
+      CompassionAvoidPercentPerPoint: 15
+      EvilAvoidPercentPerPoint: 15
+      CompassionBumpSpeedPerPoint: 5
+      EvilBumpSpeedPerPoint: 5
+      MinimumBumpSpeed: 20
+      StrengthPassOutPercentPerPoint: 3
+      StrengthForceChancePerPoint: 5
+      DoorBreakMinimumStrength: 7
+      DoorDamagePerPoint: 1
+    Flammables:
+      HeatDistanceMillimetres: 500
+      Kinds:
+      - Kind: 0
+        FrictionPercent: 100
+        IgniteTicks: 75
+        BurnMinimumTicks: 400
+        BurnMaximumTicks: 750
+        BreakMomentum: 0
+        PopRadiusMillimetres: 0
+        PopSpeed: 0
+        PopIgniteCells: 0
+      - Kind: 1
+        FrictionPercent: 120
+        IgniteTicks: 150
+        BurnMinimumTicks: 600
+        BurnMaximumTicks: 900
+        BreakMomentum: 450
+        PopRadiusMillimetres: 0
+        PopSpeed: 0
+        PopIgniteCells: 0
+      - Kind: 2
+        FrictionPercent: 35
+        IgniteTicks: 175
+        BurnMinimumTicks: 600
+        BurnMaximumTicks: 900
+        BreakMomentum: 400
+        PopRadiusMillimetres: 0
+        PopSpeed: 0
+        PopIgniteCells: 0
+      - Kind: 3
+        FrictionPercent: 80
+        IgniteTicks: 50
+        BurnMinimumTicks: 250
+        BurnMaximumTicks: 450
+        BreakMomentum: 0
+        PopRadiusMillimetres: 0
+        PopSpeed: 0
+        PopIgniteCells: 0
+      - Kind: 4
+        FrictionPercent: 200
+        IgniteTicks: 0
+        BurnMinimumTicks: 0
+        BurnMaximumTicks: 0
+        BreakMomentum: 0
+        PopRadiusMillimetres: 0
+        PopSpeed: 0
+        PopIgniteCells: 0
+      - Kind: 5
+        FrictionPercent: 90
+        IgniteTicks: 100
+        BurnMinimumTicks: 300
+        BurnMaximumTicks: 500
+        BreakMomentum: 0
+        PopRadiusMillimetres: 0
+        PopSpeed: 0
+        PopIgniteCells: 0
+      - Kind: 6
+        FrictionPercent: 55
+        IgniteTicks: 200
+        BurnMinimumTicks: 200
+        BurnMaximumTicks: 400
+        BreakMomentum: 0
+        PopRadiusMillimetres: 900
+        PopSpeed: 45
+        PopIgniteCells: 1
+      - Kind: 7
+        FrictionPercent: 90
+        IgniteTicks: 0
+        BurnMinimumTicks: 0
+        BurnMaximumTicks: 0
+        BreakMomentum: 0
+        PopRadiusMillimetres: 0
+        PopSpeed: 0
+        PopIgniteCells: 0
+      - Kind: 8
+        FrictionPercent: 110
+        IgniteTicks: 175
+        BurnMinimumTicks: 350
+        BurnMaximumTicks: 600
+        BreakMomentum: 0
+        PopRadiusMillimetres: 0
+        PopSpeed: 0
+        PopIgniteCells: 0
+      - Kind: 9
+        FrictionPercent: 150
+        IgniteTicks: 120
+        BurnMinimumTicks: 60
+        BurnMaximumTicks: 90
+        BreakMomentum: 0
+        PopRadiusMillimetres: 2200
+        PopSpeed: 70
+        PopIgniteCells: 3
+      - Kind: 10
+        FrictionPercent: 1000
+        IgniteTicks: 90
+        BurnMinimumTicks: 40
+        BurnMaximumTicks: 60
+        BreakMomentum: 0
+        PopRadiusMillimetres: 1400
+        PopSpeed: 55
+        PopIgniteCells: 2
+      TableBreakMomentum: 600
+      BoxIgniteTicks: 75
+      ChairIgniteTicks: 150
+      TableIgniteTicks: 250
+      BoxBurnMinimumTicks: 400
+      BoxBurnMaximumTicks: 750
+      ChairBurnMinimumTicks: 600
+      ChairBurnMaximumTicks: 900
+      TableBurnMinimumTicks: 1000
+      TableBurnMaximumTicks: 1500
+      FloorIgniteRestTicks: 50
+      TouchGapMillimetres: 50
+    Extinguishers:
+      FuelTicks: 300
+      FightMinimumBravery: 7
+      SaveMinimumCompassion: 7
+      OfferedBraveryBonus: 3
+      OfferedTicks: 400
+      OfferedNoticeRangeMillimetres: 6000
+      FightMaximumFireCells: 24
+      FetchRangeMillimetres: 9000
+      PickUpDistanceMillimetres: 400
+      SaveRangeMillimetres: 8000
+      FetchTimeoutTicks: 500
+      FightTimeoutTicks: 1500
+      DangerTolerancePercent: 50
+      StandOffMillimetres: 2000
+      SprayRangeMillimetres: 3000
+      SprayConeDegrees: 30
+      CellsPerTick: 1
+      BlastPushMillimetres: 400
+      BlastRecoveryTicks: 100
+      RecoilPushMillimetres: 60
+      RecoilPushPerStrength: 12
+      RecoilFloorsMaximumStrength: 0
+    Leadership:
+      LeaderMinimum: 7
+      PlanMinimumTicks: 50
+      PlanMaximumTicks: 100
+      RallyRangeMillimetres: 5000
+      OrderRangeMillimetres: 6000
+      OrderLastsTicks: 750
+      FollowLastsTicks: 400
+      FollowGapMillimetres: 1500
+      OrderedFightMinimumBravery: 5
+      DefiantMinimumEvil: 7
+      ObeyBasePercent: 55
+      ObeyPercentPerNervousness: 4
+      ObeyPercentPerBravery: 3
+    Items:
+      CarryBaseGrams: 5000
+      CarryGramsPerStrength: 2500
+      CarrySlowdownPercent: 40
+      TidyChancePercent: 12
+      SitChancePercent: 14
+      SitSearchDistanceMillimetres: 6000
+      SitArrivalDistanceMillimetres: 600
+      SitMinimumTicks: 250
+      SitMaximumTicks: 1000
+      SeatedAtStartTicks: 3000
+      StandUpTicks: 40
+      StandUpTicksPerNervousness: 2
+      StandUpShoveSpeed: 8
+      FetchRangeMillimetres: 4000
+      CarryMinimumDistanceMillimetres: 1500
+      ReachMillimetres: 150
+      PickUpTicks: 25
+      SetDownTicks: 20
+      HoldGapMillimetres: 20
+      DropNervousness: 6
+      HurlMinimumStrength: 6
+      EvilAimMinimum: 7
+      AimRangeMillimetres: 4000
+      ThrowImpulse: 60
+      ThrowMinimumSpeed: 20
+      ThrowHitMultiplier: 3
+      PanicThrowSpreadDegrees: 60
+    Help:
+      HelpMaximumEvil: 4
+      ShakeMinimumCompassion: 6
+      ShakeMinimumBravery: 4
+      ShakeRangeMillimetres: 4000
+      ShakeMinimumTicks: 50
+      ShakeMaximumTicks: 75
+      ShakeFreezeForeverSuccessPercent: 50
+      DragMinimumStrength: 6
+      DragMinimumCompassion: 6
+      DragRangeMillimetres: 5000
+      GrabTicks: 50
+      DragSpeedBase: 10
+      DragSpeedPerStrength: 2
+      DragGapMillimetres: 50
+      DragAwayDistanceMillimetres: 3000
+      DragGiveUpBlockedTicks: 40
+      ReachMillimetres: 150
+      ReachTimeoutTicks: 250
+    Influence:
+      Starting: 100
+      PerPersonSaved: 15
+      Maximum: 300
+      BeefcakeCost: 20
+      SpawnFireCost: 10
+      SpawnExtinguisherCost: 25
+      BlastWallCost: 40
+    Alarm:
+      Enabled: 1
+      ReachMillimetres: 4000
+      ArrivalMillimetres: 500
+      PressTicks: 20
+      FetchTimeoutTicks: 400
+      BellHearingRadiusMillimetres: 14000
+      BellAlarmRadiusMillimetres: 14000
+      PullMinimumLeadership: 6
+      PullMinimumCompassion: 6
+      ComposureGap: 2
+    Blockades:
+      BlockGapMillimetres: 150
+      BarricadeSpotGapMillimetres: 80
+      ShoveMinimumStrength: 7
+      ShoveTicks: 40
+      ShoveSpeedBase: 30
+      ShoveSpeedPerStrength: 8
+      BarricadeNervousMinimum: 7
+      BarricadeEvilMinimum: 7
+      BarricadeFetchRangeMillimetres: 5000
+      BarricadeTimeoutTicks: 500
+      BarricadeSetDownTicks: 25
+      BarricadeBlockedGiveUpTicks: 60
+    Blast:
+      HoleWidthMillimetres: 1500
+      WallReachMillimetres: 900
+      ClearanceMillimetres: 500
+      KnockDownRadiusMillimetres: 1500
+      ShoveDistanceMillimetres: 600
+      ThrowRadiusMillimetres: 2500
+      ThrowSpeedMillimetresPerTick: 90
+      BangHearingRadiusMillimetres: 20000
+      BangAlarmRadiusMillimetres: 12000
+    Agents:
+    - agentId:
+        value: 1001
+      initialPosition:
+        x: -5000
+        z: -5000
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 5
+        bravery: 5
+        compassion: 5
+        evil: 2
+        nervousness: 5
+        leadership: 4
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+    - agentId:
+        value: 1002
+      initialPosition:
+        x: 0
+        z: -5000
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 9
+        speed: 6
+        bravery: 6
+        compassion: 3
+        evil: 6
+        nervousness: 3
+        leadership: 3
+      carriedObjectId:
+        value: 3251
+      seatedOnObjectId:
+        value: 0
+    - agentId:
+        value: 1003
+      initialPosition:
+        x: 5000
+        z: -5000
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 8
+        speed: 6
+        bravery: 8
+        compassion: 8
+        evil: 1
+        nervousness: 3
+        leadership: 8
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+    - agentId:
+        value: 1004
+      initialPosition:
+        x: -5000
+        z: 0
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 4
+        speed: 4
+        bravery: 7
+        compassion: 9
+        evil: 0
+        nervousness: 4
+        leadership: 5
+      carriedObjectId:
+        value: 3221
+      seatedOnObjectId:
+        value: 0
+    - agentId:
+        value: 1005
+      initialPosition:
+        x: 900
+        z: 0
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 6
+        speed: 6
+        bravery: 5
+        compassion: 1
+        evil: 8
+        nervousness: 4
+        leadership: 6
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+    - agentId:
+        value: 1006
+      initialPosition:
+        x: 5000
+        z: 0
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 3
+        speed: 5
+        bravery: 1
+        compassion: 5
+        evil: 2
+        nervousness: 10
+        leadership: 1
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+    - agentId:
+        value: 1007
+      initialPosition:
+        x: -5000
+        z: 5000
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 10
+        bravery: 5
+        compassion: 5
+        evil: 3
+        nervousness: 6
+        leadership: 4
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+    - agentId:
+        value: 1008
+      initialPosition:
+        x: 0
+        z: 5000
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 7
+        speed: 5
+        bravery: 4
+        compassion: 2
+        evil: 9
+        nervousness: 5
+        leadership: 5
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+    - agentId:
+        value: 1009
+      initialPosition:
+        x: 5000
+        z: 5000
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 3
+        speed: 4
+        bravery: 2
+        compassion: 4
+        evil: 3
+        nervousness: 8
+        leadership: 2
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+    - agentId:
+        value: 1010
+      initialPosition:
+        x: 0
+        z: -1800
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 5
+        bravery: 5
+        compassion: 6
+        evil: 3
+        nervousness: 5
+        leadership: 5
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+    - agentId:
+        value: 1011
+      initialPosition:
+        x: 12000
+        z: 900
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 5
+        bravery: 6
+        compassion: 5
+        evil: 3
+        nervousness: 4
+        leadership: 4
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3241
+    - agentId:
+        value: 1012
+      initialPosition:
+        x: 13350
+        z: 900
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 9
+        speed: 4
+        bravery: 7
+        compassion: 6
+        evil: 2
+        nervousness: 3
+        leadership: 5
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3242
+    - agentId:
+        value: 1013
+      initialPosition:
+        x: 14700
+        z: 900
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 4
+        speed: 7
+        bravery: 3
+        compassion: 7
+        evil: 1
+        nervousness: 7
+        leadership: 2
+      carriedObjectId:
+        value: 3223
+      seatedOnObjectId:
+        value: 3243
+    - agentId:
+        value: 1014
+      initialPosition:
+        x: 16050
+        z: 900
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 6
+        speed: 5
+        bravery: 5
+        compassion: 5
+        evil: 5
+        nervousness: 5
+        leadership: 5
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3244
+    - agentId:
+        value: 1015
+      initialPosition:
+        x: 12000
+        z: -900
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 3
+        speed: 6
+        bravery: 2
+        compassion: 8
+        evil: 0
+        nervousness: 9
+        leadership: 1
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3245
+    - agentId:
+        value: 1016
+      initialPosition:
+        x: 13350
+        z: -900
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 7
+        speed: 8
+        bravery: 8
+        compassion: 4
+        evil: 7
+        nervousness: 2
+        leadership: 6
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3246
+    - agentId:
+        value: 1017
+      initialPosition:
+        x: 14700
+        z: -900
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 5
+        bravery: 4
+        compassion: 5
+        evil: 4
+        nervousness: 6
+        leadership: 4
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3247
+    - agentId:
+        value: 1018
+      initialPosition:
+        x: 16050
+        z: -900
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 8
+        speed: 6
+        bravery: 6
+        compassion: 2
+        evil: 8
+        nervousness: 4
+        leadership: 6
+      carriedObjectId:
+        value: 3252
+      seatedOnObjectId:
+        value: 3248
+    - agentId:
+        value: 1019
+      initialPosition:
+        x: 17100
+        z: 0
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 4
+        speed: 9
+        bravery: 5
+        compassion: 6
+        evil: 2
+        nervousness: 6
+        leadership: 3
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3249
+    - agentId:
+        value: 1020
+      initialPosition:
+        x: 10700
+        z: 0
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 6
+        speed: 5
+        bravery: 7
+        compassion: 9
+        evil: 1
+        nervousness: 3
+        leadership: 9
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+    Doors:
+    - doorId:
+        value: 2002
+      roomId:
+        value: 5001
+      side: 1
+      centreAlongWallMillimetres: 2500
+      widthMillimetres: 1000
+      startsLocked: 0
+    - doorId:
+        value: 2005
+      roomId:
+        value: 5001
+      side: 1
+      centreAlongWallMillimetres: 0
+      widthMillimetres: 1000
+      startsLocked: 0
+    - doorId:
+        value: 2006
+      roomId:
+        value: 5003
+      side: 1
+      centreAlongWallMillimetres: 0
+      widthMillimetres: 1000
+      startsLocked: 0
+    - doorId:
+        value: 2008
+      roomId:
+        value: 5004
+      side: 1
+      centreAlongWallMillimetres: 2500
+      widthMillimetres: 1000
+      startsLocked: 1
+    PhysicsObjects:
+    - objectId:
+        value: 3001
+      kind: 0
+      initialPosition:
+        x: -5500
+        z: 3500
+      sizeMillimetres: 400
+      massGrams: 6000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3002
+      kind: 0
+      initialPosition:
+        x: -5500
+        z: 3500
+      sizeMillimetres: 300
+      massGrams: 3000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3003
+      kind: 0
+      initialPosition:
+        x: 2000
+        z: 5500
+      sizeMillimetres: 400
+      massGrams: 6000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3004
+      kind: 0
+      initialPosition:
+        x: 2000
+        z: 5500
+      sizeMillimetres: 250
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3005
+      kind: 0
+      initialPosition:
+        x: -2500
+        z: -5500
+      sizeMillimetres: 350
+      massGrams: 4000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3006
+      kind: 0
+      initialPosition:
+        x: -2500
+        z: -5500
+      sizeMillimetres: 250
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3007
+      kind: 0
+      initialPosition:
+        x: 3500
+        z: -2000
+      sizeMillimetres: 300
+      massGrams: 3000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3008
+      kind: 0
+      initialPosition:
+        x: -3800
+        z: 3500
+      sizeMillimetres: 250
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3101
+      kind: 1
+      initialPosition:
+        x: -2800
+        z: -2125
+      sizeMillimetres: 450
+      massGrams: 5000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3102
+      kind: 1
+      initialPosition:
+        x: -2200
+        z: -875
+      sizeMillimetres: 450
+      massGrams: 5000
+      startsDormant: 0
+      initialFacingDegrees: 180
+      startsResting: 0
+    - objectId:
+        value: 3103
+      kind: 1
+      initialPosition:
+        x: -3375
+        z: -1500
+      sizeMillimetres: 450
+      massGrams: 5000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+    - objectId:
+        value: 3104
+      kind: 1
+      initialPosition:
+        x: 2200
+        z: 2175
+      sizeMillimetres: 450
+      massGrams: 5000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3105
+      kind: 1
+      initialPosition:
+        x: 2800
+        z: 3425
+      sizeMillimetres: 450
+      massGrams: 5000
+      startsDormant: 0
+      initialFacingDegrees: 180
+      startsResting: 0
+    - objectId:
+        value: 3106
+      kind: 1
+      initialPosition:
+        x: -1800
+        z: 1375
+      sizeMillimetres: 450
+      massGrams: 5000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3107
+      kind: 1
+      initialPosition:
+        x: -1200
+        z: 2625
+      sizeMillimetres: 450
+      massGrams: 5000
+      startsDormant: 0
+      initialFacingDegrees: 180
+      startsResting: 0
+    - objectId:
+        value: 3108
+      kind: 1
+      initialPosition:
+        x: -625
+        z: 2000
+      sizeMillimetres: 450
+      massGrams: 5000
+      startsDormant: 0
+      initialFacingDegrees: 270
+      startsResting: 0
+    - objectId:
+        value: 3201
+      kind: 3
+      initialPosition:
+        x: -5400
+        z: 200
+      sizeMillimetres: 300
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3202
+      kind: 3
+      initialPosition:
+        x: 5400
+        z: -3200
+      sizeMillimetres: 300
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3203
+      kind: 3
+      initialPosition:
+        x: 10200
+        z: -1500
+      sizeMillimetres: 300
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3204
+      kind: 3
+      initialPosition:
+        x: 18500
+        z: 3800
+      sizeMillimetres: 300
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3211
+      kind: 4
+      initialPosition:
+        x: -5400
+        z: -3400
+      sizeMillimetres: 450
+      massGrams: 25000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3212
+      kind: 4
+      initialPosition:
+        x: 5400
+        z: 5400
+      sizeMillimetres: 450
+      massGrams: 25000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3213
+      kind: 4
+      initialPosition:
+        x: 9500
+        z: 3900
+      sizeMillimetres: 450
+      massGrams: 25000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3214
+      kind: 4
+      initialPosition:
+        x: 18600
+        z: -3900
+      sizeMillimetres: 450
+      massGrams: 25000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3221
+      kind: 5
+      initialPosition:
+        x: -5000
+        z: 0
+      sizeMillimetres: 350
+      massGrams: 4000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3222
+      kind: 5
+      initialPosition:
+        x: 1200
+        z: -2600
+      sizeMillimetres: 350
+      massGrams: 4000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3223
+      kind: 5
+      initialPosition:
+        x: 14700
+        z: 1600
+      sizeMillimetres: 350
+      massGrams: 4000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3224
+      kind: 5
+      initialPosition:
+        x: 17500
+        z: 3400
+      sizeMillimetres: 350
+      massGrams: 4000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3251
+      kind: 8
+      initialPosition:
+        x: 0
+        z: -5000
+      sizeMillimetres: 400
+      massGrams: 6000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3252
+      kind: 8
+      initialPosition:
+        x: 16050
+        z: -1600
+      sizeMillimetres: 400
+      massGrams: 6000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3231
+      kind: 6
+      initialPosition:
+        x: -2500
+        z: -1500
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3232
+      kind: 6
+      initialPosition:
+        x: 2500
+        z: 2800
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3233
+      kind: 6
+      initialPosition:
+        x: -1500
+        z: 2000
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3234
+      kind: 6
+      initialPosition:
+        x: 12000
+        z: 250
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3235
+      kind: 6
+      initialPosition:
+        x: 13350
+        z: 250
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3236
+      kind: 6
+      initialPosition:
+        x: 14700
+        z: 250
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3237
+      kind: 6
+      initialPosition:
+        x: 16050
+        z: 250
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3238
+      kind: 6
+      initialPosition:
+        x: 12000
+        z: -250
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3239
+      kind: 6
+      initialPosition:
+        x: 13350
+        z: -250
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+    - objectId:
+        value: 3241
+      kind: 2
+      initialPosition:
+        x: 12000
+        z: 900
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 180
+      startsResting: 0
+    - objectId:
+        value: 3242
+      kind: 2
+      initialPosition:
+        x: 13350
+        z: 900
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 180
+      startsResting: 0
+    - objectId:
+        value: 3243
+      kind: 2
+      initialPosition:
+        x: 14700
+        z: 900
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 180
+      startsResting: 0
+    - objectId:
+        value: 3244
+      kind: 2
+      initialPosition:
+        x: 16050
+        z: 900
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 180
+      startsResting: 0
+    - objectId:
+        value: 3245
+      kind: 2
+      initialPosition:
+        x: 12000
+        z: -900
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3246
+      kind: 2
+      initialPosition:
+        x: 13350
+        z: -900
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3247
+      kind: 2
+      initialPosition:
+        x: 14700
+        z: -900
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3248
+      kind: 2
+      initialPosition:
+        x: 16050
+        z: -900
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3249
+      kind: 2
+      initialPosition:
+        x: 17100
+        z: 0
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 270
+      startsResting: 0
+    - objectId:
+        value: 3301
+      kind: 7
+      initialPosition:
+        x: -1000
+        z: -5700
+      sizeMillimetres: 250
+      massGrams: 7000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3302
+      kind: 7
+      initialPosition:
+        x: 14000
+        z: -4300
+      sizeMillimetres: 250
+      massGrams: 7000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3261
+      kind: 9
+      initialPosition:
+        x: 5400
+        z: -1400
+      sizeMillimetres: 450
+      massGrams: 14000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3262
+      kind: 9
+      initialPosition:
+        x: 18600
+        z: -1800
+      sizeMillimetres: 450
+      massGrams: 14000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3271
+      kind: 10
+      initialPosition:
+        x: -5800
+        z: -4000
+      sizeMillimetres: 160
+      massGrams: 60000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3272
+      kind: 10
+      initialPosition:
+        x: 5800
+        z: 4000
+      sizeMillimetres: 160
+      massGrams: 60000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3273
+      kind: 10
+      initialPosition:
+        x: 18800
+        z: -1000
+      sizeMillimetres: 160
+      massGrams: 60000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3391
+      kind: 7
+      initialPosition:
+        x: 0
+        z: 0
+      sizeMillimetres: 220
+      massGrams: 9000
+      startsDormant: 1
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3392
+      kind: 7
+      initialPosition:
+        x: 0
+        z: 0
+      sizeMillimetres: 220
+      massGrams: 9000
+      startsDormant: 1
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3393
+      kind: 7
+      initialPosition:
+        x: 0
+        z: 0
+      sizeMillimetres: 220
+      massGrams: 9000
+      startsDormant: 1
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3394
+      kind: 7
+      initialPosition:
+        x: 0
+        z: 0
+      sizeMillimetres: 220
+      massGrams: 9000
+      startsDormant: 1
+      initialFacingDegrees: 0
+      startsResting: 0
+    Tables:
+    - tableId:
+        value: 4001
+      centre:
+        x: -2500
+        z: -1500
+      widthMillimetres: 1200
+      depthMillimetres: 700
+    - tableId:
+        value: 4002
+      centre:
+        x: 2500
+        z: 2800
+      widthMillimetres: 1200
+      depthMillimetres: 700
+    - tableId:
+        value: 4003
+      centre:
+        x: -1500
+        z: 2000
+      widthMillimetres: 1200
+      depthMillimetres: 700
+    - tableId:
+        value: 4004
+      centre:
+        x: 12650
+        z: 0
+      widthMillimetres: 2700
+      depthMillimetres: 1000
+    - tableId:
+        value: 4005
+      centre:
+        x: 15350
+        z: 0
+      widthMillimetres: 2700
+      depthMillimetres: 1000
+    Rooms:
+    - roomId:
+        value: 5001
+      bounds:
+        minX: -6000
+        maxX: 6000
+        minZ: -6000
+        maxZ: 6000
+    - roomId:
+        value: 5002
+      bounds:
+        minX: 6000
+        maxX: 8000
+        minZ: 1500
+        maxZ: 3500
+    - roomId:
+        value: 5003
+      bounds:
+        minX: 6000
+        maxX: 9000
+        minZ: -1500
+        maxZ: 1500
+    - roomId:
+        value: 5004
+      bounds:
+        minX: 9000
+        maxX: 19000
+        minZ: -4500
+        maxZ: 4500
+    Alarms:
+    - alarmId:
+        value: 6001
+      position:
+        x: -5700
+        z: 2000
+    - alarmId:
+        value: 6002
+      position:
+        x: 7500
+        z: 700
+    - alarmId:
+        value: 6003
+      position:
+        x: 11000
+        z: 4200
+    BlastHoles:
+    - value: 2901
+    - value: 2902
+    - value: 2903
+    - value: 2904

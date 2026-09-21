@@ -517,8 +517,13 @@ namespace Paniq.Simulation
         /// <summary>Box-on-box hits at least this fast (mm per tick) are logged.</summary>
         public int LoggedBoxHitSpeed = 20;
 
-        /// <summary>Fastest a kicked box spins, in degrees per tick.</summary>
-        public int SpinMaximum = 20;
+        /// <summary>
+        /// Fastest anything turns as it slides, in degrees per tick. 8 is 400
+        /// degrees a second, about one turn and a bit: enough to read as a
+        /// tumble, slow enough that a kicked box never looks like a top. Only
+        /// the smallest things reach it, and only at full speed.
+        /// </summary>
+        public int SpinMaximum = 8;
 
         public ObjectPhysicsSettings Clone() => (ObjectPhysicsSettings)MemberwiseClone();
 
@@ -674,6 +679,17 @@ namespace Paniq.Simulation
         public int FightMinimumBravery = 7;
         public int SaveMinimumCompassion = 7;
 
+        /// <summary>
+        /// Somebody stood an extinguisher down in front of them. For the next
+        /// stretch of ticks they need this much less nerve to pick it up: a
+        /// bottle at your feet is a far easier thing to reach for than one
+        /// across the room. How long they keep it in mind, and how far away
+        /// they notice one being put down, are below.
+        /// </summary>
+        public int OfferedBraveryBonus = 3;
+        public int OfferedTicks = 400;
+        public int OfferedNoticeRangeMillimetres = 6000;
+
         /// <summary>Nobody takes on a fire bigger than this many burning squares (saving someone is always worth it).</summary>
         public int FightMaximumFireCells = 24;
 
@@ -722,6 +738,8 @@ namespace Paniq.Simulation
         {
             Settings.Require(FuelTicks > 0 && FightMaximumFireCells >= 0, "extinguisher fuel");
             Settings.Require(FightMinimumBravery >= 0 && SaveMinimumCompassion >= 0, "who fights a fire");
+            Settings.Require(OfferedBraveryBonus >= 0 && OfferedTicks > 0 && OfferedNoticeRangeMillimetres >= 0,
+                "noticing an extinguisher somebody put down");
             Settings.Require(FetchRangeMillimetres >= 0 && PickUpDistanceMillimetres > 0 && SaveRangeMillimetres >= 0,
                 "extinguisher distances");
             Settings.Require(FetchTimeoutTicks > 0 && FightTimeoutTicks > 0, "extinguisher timeouts");
@@ -795,8 +813,11 @@ namespace Paniq.Simulation
                 Entry(PhysicsObjectKind.PottedPlant, 200, 0, 0, 0),
                 Entry(PhysicsObjectKind.Bag, 90, 100, 300, 500),
 
-                // Hard plastic on hard floor: it skitters.
-                Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400),
+                // Hard plastic on hard floor: it skitters. Its battery goes
+                // off when the flames reach it: a sharp crack rather than a
+                // proper bang, enough to make everybody nearby jump and to
+                // throw burning plastic onto the desk it was sitting on.
+                Popping(Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400), 900, 45, 1),
 
                 // Steel: it never catches.
                 Entry(PhysicsObjectKind.Extinguisher, 90, 0, 0, 0),
@@ -805,7 +826,8 @@ namespace Paniq.Simulation
                 Entry(PhysicsObjectKind.Briefcase, 110, 175, 350, 600),
 
                 // Electrical. Neither burns for long: the flames reach them and
-                // they go off, which is the point of them.
+                // they go off, which is the point of them. A microwave clears a
+                // 2.2 m circle, a socket 1.4 m, a laptop only 0.9 m.
                 Popping(Entry(PhysicsObjectKind.Microwave, 150, 120, 60, 90), 2200, 70, 3),
 
                 // Bolted to the wall, so it never slides anywhere.
@@ -947,6 +969,14 @@ namespace Paniq.Simulation
         public int SitMinimumTicks = 250;
         public int SitMaximumTicks = 1000;
 
+        /// <summary>
+        /// How long somebody who starts the run already seated stays put before
+        /// they would get up of their own accord. A minute of ticks: longer
+        /// than any recorded run, so a meeting that is under way when the fire
+        /// starts breaks up because of the fire and nothing else.
+        /// </summary>
+        public int SeatedAtStartTicks = 3000;
+
         /// <summary>Getting out of a chair: this long, less a little for the nervous.</summary>
         public int StandUpTicks = 40;
         public int StandUpTicksPerNervousness = 2;
@@ -998,6 +1028,7 @@ namespace Paniq.Simulation
             Settings.Require(DropNervousness >= 0 && HurlMinimumStrength >= 0 && EvilAimMinimum >= 0 && AimRangeMillimetres >= 0 &&
                              ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1 &&
                              PanicThrowSpreadDegrees >= 0 && PanicThrowSpreadDegrees <= 180, "throwing");
+            Settings.Require(SeatedAtStartTicks > 0, "how long people who start seated stay seated");
         }
     }
 
@@ -1223,10 +1254,13 @@ namespace Paniq.Simulation
         /// <summary>Stuck this long while dragging, they let go.</summary>
         /// <summary>
         /// How long a dragger strains against a blockage before letting go. Kept
-        /// under the second and a half that nothing in the run is allowed to
-        /// stand still for, so somebody hauling a body out never becomes a statue.
+        /// well under the second and a half that nothing in the run is allowed
+        /// to stand still for, so somebody hauling a body out never becomes a
+        /// statue. The margin has to cover letting go as well as holding on:
+        /// somebody wedged in a corner takes a moment more to steer out of it
+        /// once their hands are free.
         /// </summary>
-        public int DragGiveUpBlockedTicks = 60;
+        public int DragGiveUpBlockedTicks = 40;
 
         /// <summary>How far past touching they can reach someone, and how long they try to get there.</summary>
         public int ReachMillimetres = 150;

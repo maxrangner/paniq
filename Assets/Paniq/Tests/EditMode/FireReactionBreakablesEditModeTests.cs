@@ -19,6 +19,7 @@ namespace Paniq.Tests.EditMode
         private static readonly SimulationId TheBox = new SimulationId(4002UL);
         private static readonly SimulationId TheTable = new SimulationId(4100UL);
         private static readonly SimulationId TheMicrowave = new SimulationId(4200UL);
+        private static readonly SimulationId TheLaptop = new SimulationId(4300UL);
         private static readonly SimulationId Bystander = new SimulationId(1UL);
 
         private FireReactionScenario scenario;
@@ -217,6 +218,32 @@ namespace Paniq.Tests.EditMode
             data.Temperament.FreezeForeverPercent = 100;
             data.Temperament.FreezeThenRunPercent = 0;
             return data;
+        }
+
+        /// <summary>
+        /// A laptop battery going off: a smaller bang than a microwave, but a
+        /// bang, and the thing the owner watches for when a desk catches.
+        /// </summary>
+        [Test]
+        public void ALaptopTheFlamesReach_GoesOff()
+        {
+            FireReactionScenarioData data = MicrowaveBesideAFire();
+            data.PhysicsObjects = new[]
+            {
+                new FireReactionPhysicsObjectDefinition(TheLaptop, PhysicsObjectKind.Laptop, new LogicalPosition(0, 0), 300, 1500)
+            };
+
+            var simulation = new FireReactionSimulation(data);
+            for (int t = 0; t < 30 * FireReactionSimulation.TicksPerSecond &&
+                            EventsOfType(simulation, FireReactionEventType.ObjectExploded).Count == 0; t++)
+            {
+                simulation.Step();
+            }
+
+            List<CausalEvent> bang = EventsOfType(simulation, FireReactionEventType.ObjectExploded);
+            Assert.That(bang, Is.Not.Empty, "The laptop never went off.");
+            Assert.That(bang[0].SourceId, Is.EqualTo(TheLaptop));
+            Assert.That(bang[0].Strength, Is.GreaterThan(0), "The bang carries how big it is, which the display draws.");
         }
 
         [Test]

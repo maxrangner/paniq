@@ -78,11 +78,11 @@ namespace Paniq.Tests.EditMode
             for (int b = 0; b < snapshot.PhysicsObjects.Count; b++)
             {
                 FireReactionPhysicsObjectSnapshot box = snapshot.PhysicsObjects[b];
-                if (box.IsHeld || box.IsSatOn || box.Dormant)
+                if (box.IsHeld || box.IsSatOn || box.Dormant || box.Resting)
                 {
-                    // Carried in someone's arms, with someone sitting on it, or
-                    // a spare that is not in the world yet: not something to
-                    // walk around.
+                    // Carried in someone's arms, with someone sitting on it, a
+                    // spare that is not in the world yet, or standing on a desk
+                    // or on top of another box: not something to walk around.
                     continue;
                 }
 
@@ -105,7 +105,7 @@ namespace Paniq.Tests.EditMode
                 for (int o = 0; o < b; o++)
                 {
                     FireReactionPhysicsObjectSnapshot other = snapshot.PhysicsObjects[o];
-                    if (other.IsHeld || other.Dormant)
+                    if (other.IsHeld || other.Dormant || other.Resting)
                     {
                         continue;
                     }

@@ -106,6 +106,10 @@ namespace Paniq.Presentation
             for (int k = 0; k < cubeCount; k++)
             {
                 GameObject cube = CreatePrimitive($"Flame {k + 1}", PrimitiveType.Cube, root, Vector3.zero, Vector3.one, materials.Fire);
+
+                // A fire in the next room glows through the wall, so nobody has
+                // to guess why a person with an extinguisher is heading that way.
+                ShowFireThroughWalls(cube, materials);
                 cube.transform.localPosition = Vector3.zero;
                 view.Cubes[k] = cube.transform;
                 view.Renderers[k] = cube.GetComponent<Renderer>();

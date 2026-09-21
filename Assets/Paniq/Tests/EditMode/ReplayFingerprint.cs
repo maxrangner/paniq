@@ -14,10 +14,13 @@ namespace Paniq.Tests.EditMode
     {
         public const int Ticks = 3000;
 
-        /// <summary>Door clicks for the "doors opened" runs: north and south, each unlocked then opened.</summary>
+        /// <summary>
+        /// Door clicks for the "doors opened" runs: the building's one way out,
+        /// unlocked and then opened.
+        /// </summary>
         public static readonly (ulong DoorId, int Tick)[] OpeningClicks =
         {
-            (2001UL, 300), (2001UL, 301), (2003UL, 900), (2003UL, 901)
+            (2008UL, 300), (2008UL, 301)
         };
 
         /// <summary>

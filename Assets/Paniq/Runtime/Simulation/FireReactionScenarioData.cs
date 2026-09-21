@@ -15,6 +15,9 @@ namespace Paniq.Simulation
         /// <summary>The thing they walk in holding, or the default ID for empty-handed.</summary>
         [UnityEngine.SerializeField] private SimulationId carriedObjectId;
 
+        /// <summary>The chair they are already sitting on when the run starts, or the default ID for standing.</summary>
+        [UnityEngine.SerializeField] private SimulationId seatedOnObjectId;
+
         public FireReactionAgentDefinition(SimulationId agentId, LogicalPosition initialPosition)
             : this(agentId, initialPosition, CardinalDirection.North)
         {
@@ -32,6 +35,7 @@ namespace Paniq.Simulation
             hasAuthoredTraits = false;
             traits = default;
             carriedObjectId = default;
+            seatedOnObjectId = default;
         }
 
         /// <summary>A person with an authored personality.</summary>
@@ -47,15 +51,21 @@ namespace Paniq.Simulation
             hasAuthoredTraits = true;
             this.traits = traits;
             carriedObjectId = default;
+            seatedOnObjectId = default;
         }
 
-        /// <summary>A person with an authored personality who walks in carrying something.</summary>
+        /// <summary>
+        /// A person with an authored personality who may walk in carrying
+        /// something, and who may already be sitting on a named chair when the
+        /// run starts.
+        /// </summary>
         public FireReactionAgentDefinition(
             SimulationId agentId,
             LogicalPosition initialPosition,
             CardinalDirection initialFacingDirection,
             AgentTraitValues traits,
-            SimulationId carriedObjectId)
+            SimulationId carriedObjectId,
+            SimulationId seatedOnObjectId = default)
         {
             this.agentId = agentId;
             this.initialPosition = initialPosition;
@@ -63,6 +73,7 @@ namespace Paniq.Simulation
             hasAuthoredTraits = true;
             this.traits = traits;
             this.carriedObjectId = carriedObjectId;
+            this.seatedOnObjectId = seatedOnObjectId;
         }
 
         public SimulationId AgentId => agentId;
@@ -78,6 +89,11 @@ namespace Paniq.Simulation
         public SimulationId CarriedObjectId => carriedObjectId;
 
         public bool StartsCarryingSomething => carriedObjectId.Value != 0UL;
+
+        /// <summary>The chair they begin the run sitting on, if any.</summary>
+        public SimulationId SeatedOnObjectId => seatedOnObjectId;
+
+        public bool StartsSeated => seatedOnObjectId.Value != 0UL;
     }
 
     /// <summary>
@@ -161,13 +177,24 @@ namespace Paniq.Simulation
         /// <summary>A spare kept out of the world until the player puts it down.</summary>
         [UnityEngine.SerializeField] private bool startsDormant;
 
+        /// <summary>Which way it faces at the start, in whole degrees. Chairs use this to face their table.</summary>
+        [UnityEngine.SerializeField] private int initialFacingDegrees;
+
+        /// <summary>
+        /// It starts resting on a table or on another object rather than on the
+        /// floor: a laptop on a desk, the upper box of a stacked pair.
+        /// </summary>
+        [UnityEngine.SerializeField] private bool startsResting;
+
         public FireReactionPhysicsObjectDefinition(
             SimulationId objectId,
             PhysicsObjectKind kind,
             LogicalPosition initialPosition,
             int sizeMillimetres,
             int massGrams,
-            bool startsDormant = false)
+            bool startsDormant = false,
+            int initialFacingDegrees = 0,
+            bool startsResting = false)
         {
             this.objectId = objectId;
             this.kind = kind;
@@ -175,6 +202,8 @@ namespace Paniq.Simulation
             this.sizeMillimetres = sizeMillimetres;
             this.massGrams = massGrams;
             this.startsDormant = startsDormant;
+            this.initialFacingDegrees = initialFacingDegrees;
+            this.startsResting = startsResting;
         }
 
         public SimulationId ObjectId => objectId;
@@ -190,6 +219,16 @@ namespace Paniq.Simulation
         /// authored does not matter.
         /// </summary>
         public bool StartsDormant => startsDormant;
+
+        /// <summary>Which way it faces at the start, in whole degrees.</summary>
+        public int InitialFacingDegrees => initialFacingDegrees;
+
+        /// <summary>
+        /// True when it begins on top of something instead of on the floor. It
+        /// is not an obstacle while it rests there, and it comes loose the
+        /// moment anybody picks it up, throws it, or breaks what holds it.
+        /// </summary>
+        public bool StartsResting => startsResting;
     }
 
     /// <summary>
@@ -255,9 +294,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "30";
+        public string ContentRevision = "33";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 22;
+        public int SimulationCompatibilityVersion = 25;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -408,14 +447,20 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Agent {agent.AgentId} has a trait outside 0–10.");
                 }
 
-                if (RoomHolding(agent.InitialPosition, radius) < 0)
+                if (RoomHolding(StartPositionOf(agent), radius) < 0)
                 {
                     throw new InvalidOperationException($"Agent {agent.AgentId} starts outside every room.");
                 }
 
+                if (agent.StartsSeated)
+                {
+                    ValidateStartingSeat(agent);
+                }
+
                 for (int previous = 0; previous < i; previous++)
                 {
-                    long distanceSquared = LogicalPosition.DistanceSquared(agent.InitialPosition, Agents[previous].InitialPosition);
+                    long distanceSquared = LogicalPosition.DistanceSquared(
+                        StartPositionOf(agent), StartPositionOf(Agents[previous]));
                     if (distanceSquared < touchingDistance * touchingDistance)
                     {
                         throw new InvalidOperationException("Initial agents cannot overlap.");
@@ -567,7 +612,7 @@ namespace Paniq.Simulation
 
                 for (int a = 0; a < Agents.Length; a++)
                 {
-                    if (bounds.DistanceSquaredTo(Agents[a].InitialPosition) < (long)radius * radius)
+                    if (bounds.DistanceSquaredTo(StartPositionOf(Agents[a])) < (long)radius * radius)
                     {
                         throw new InvalidOperationException($"Agent {Agents[a].AgentId} starts inside table {table.TableId}.");
                     }
@@ -692,6 +737,11 @@ namespace Paniq.Simulation
                 // authored does not matter and it cannot be in anything's way.
                 bool inSomebodysHand = IsCarriedAtTheStart(body.ObjectId) || body.StartsDormant;
 
+                // Not on the floor, so it is in nothing's way and may sit
+                // inside a table's footprint or on top of another object: a
+                // laptop on a desk, the upper box of a stacked pair.
+                bool offTheFloor = inSomebodysHand || body.StartsResting;
+
                 if (body.SizeMillimetres < 100 || body.SizeMillimetres > 1000 ||
                     body.MassGrams <= 0 || body.MassGrams > 200000)
                 {
@@ -703,7 +753,13 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Object {body.ObjectId} starts outside every room.");
                 }
 
-                for (int t = 0; t < Tables.Length && !inSomebodysHand; t++)
+                if (body.StartsResting && !RestsOnSomething(body))
+                {
+                    throw new InvalidOperationException(
+                        $"Object {body.ObjectId} starts resting on nothing: put it on a table or on another object.");
+                }
+
+                for (int t = 0; t < Tables.Length && !offTheFloor; t++)
                 {
                     if (Tables[t].Bounds.DistanceSquaredTo(body.InitialPosition) < (long)body.RadiusMillimetres * body.RadiusMillimetres)
                     {
@@ -711,10 +767,13 @@ namespace Paniq.Simulation
                     }
                 }
 
+                // A chair somebody starts sitting on has that person standing
+                // exactly where it is, which is the point of it.
+                bool satOn = IsSatOnAtTheStart(body.ObjectId);
                 long agentReach = radius + (long)body.RadiusMillimetres;
-                for (int a = 0; a < Agents.Length && !inSomebodysHand; a++)
+                for (int a = 0; a < Agents.Length && !offTheFloor && !satOn; a++)
                 {
-                    if (LogicalPosition.DistanceSquared(body.InitialPosition, Agents[a].InitialPosition) < agentReach * agentReach)
+                    if (LogicalPosition.DistanceSquared(body.InitialPosition, StartPositionOf(Agents[a])) < agentReach * agentReach)
                     {
                         throw new InvalidOperationException($"Object {body.ObjectId} starts on top of a person.");
                     }
@@ -723,7 +782,7 @@ namespace Paniq.Simulation
                 for (int previous = 0; previous < i; previous++)
                 {
                     FireReactionPhysicsObjectDefinition other = PhysicsObjects[previous];
-                    if (inSomebodysHand || IsCarriedAtTheStart(other.ObjectId))
+                    if (offTheFloor || other.StartsResting || IsCarriedAtTheStart(other.ObjectId))
                     {
                         continue;
                     }
@@ -794,9 +853,116 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Twenty people, ten in the office and ten in the meeting room,
-        /// facing different ways, each with an authored personality so every
-        /// trait shows up in play: Str, Spd, Brv, Cmp, Evl, Nrv, Ldr.
+        /// Somebody who starts the run seated must name a real chair, and one
+        /// chair each. Where they stand is the chair's business, not theirs:
+        /// the run settles them onto it at tick zero and everything here
+        /// measures them from it, so an authored position that disagrees is
+        /// simply ignored rather than refused.
+        /// </summary>
+        private void ValidateStartingSeat(FireReactionAgentDefinition agent)
+        {
+            int seat = Array.FindIndex(PhysicsObjects ?? Array.Empty<FireReactionPhysicsObjectDefinition>(),
+                o => o.ObjectId == agent.SeatedOnObjectId);
+            if (seat < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Agent {agent.AgentId} starts seated on {agent.SeatedOnObjectId}, which is not in the scenario.");
+            }
+
+            FireReactionPhysicsObjectDefinition chair = PhysicsObjects[seat];
+            if (chair.Kind != PhysicsObjectKind.Chair && chair.Kind != PhysicsObjectKind.OfficeChair)
+            {
+                throw new InvalidOperationException(
+                    $"Agent {agent.AgentId} starts seated on {chair.ObjectId}, which is not a chair.");
+            }
+
+            for (int a = 0; a < Agents.Length; a++)
+            {
+                if (Agents[a].AgentId != agent.AgentId && Agents[a].SeatedOnObjectId == agent.SeatedOnObjectId)
+                {
+                    throw new InvalidOperationException(
+                        $"Agents {Agents[a].AgentId} and {agent.AgentId} both start on chair {chair.ObjectId}.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Where somebody actually begins the run: on their chair if they start
+        /// seated, otherwise where they are authored. Everything that checks a
+        /// person against the room, the furniture and each other asks this, so
+        /// it checks where they will really be standing.
+        /// </summary>
+        private LogicalPosition StartPositionOf(FireReactionAgentDefinition agent)
+        {
+            if (!agent.StartsSeated || PhysicsObjects == null)
+            {
+                return agent.InitialPosition;
+            }
+
+            for (int o = 0; o < PhysicsObjects.Length; o++)
+            {
+                if (PhysicsObjects[o].ObjectId == agent.SeatedOnObjectId)
+                {
+                    return PhysicsObjects[o].InitialPosition;
+                }
+            }
+
+            return agent.InitialPosition;
+        }
+
+        /// <summary>Whether somebody begins the run sitting on this chair.</summary>
+        private bool IsSatOnAtTheStart(SimulationId objectId)
+        {
+            for (int a = 0; a < Agents.Length; a++)
+            {
+                if (Agents[a].SeatedOnObjectId == objectId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Whether something authored as resting really has something under it:
+        /// a table whose top it sits within, or another object on the floor at
+        /// the same spot. Catches a laptop authored into mid-air.
+        /// </summary>
+        private bool RestsOnSomething(FireReactionPhysicsObjectDefinition body)
+        {
+            for (int t = 0; t < Tables.Length; t++)
+            {
+                if (Tables[t].Bounds.ContainsCircle(body.InitialPosition, body.RadiusMillimetres))
+                {
+                    return true;
+                }
+            }
+
+            for (int o = 0; o < PhysicsObjects.Length; o++)
+            {
+                FireReactionPhysicsObjectDefinition under = PhysicsObjects[o];
+                if (under.ObjectId == body.ObjectId || under.StartsResting || under.StartsDormant)
+                {
+                    continue;
+                }
+
+                long reach = under.RadiusMillimetres;
+                if (LogicalPosition.DistanceSquared(body.InitialPosition, under.InitialPosition) <= reach * reach)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Twenty people: ten on their feet around the open-plan office where
+        /// the fire starts, and ten in the meeting room, nine of them sitting
+        /// at the table and one standing at the end of it presenting. Each has
+        /// an authored personality so every trait shows up in play: Str, Spd,
+        /// Brv, Cmp, Evl, Nrv, Ldr.
         /// </summary>
         public static FireReactionAgentDefinition[] DefaultAgents()
         {
@@ -813,112 +979,147 @@ namespace Paniq.Simulation
                 Agent(1009UL, 5000, 5000, CardinalDirection.South, 3, 4, 2, 4, 3, 8, 2), // the coward
                 Agent(1010UL, 0, -1800, CardinalDirection.North, 5, 5, 5, 6, 3, 5, 5), // ordinary
 
-                // The meeting room: ten more people who cannot see the fire
-                // when it starts and only learn about it through the shouting.
-                Agent(1011UL, 10500, -4500, CardinalDirection.North, 5, 5, 6, 5, 3, 4, 4), // ordinary
-                Agent(1012UL, 13500, -4500, CardinalDirection.West, 9, 4, 7, 6, 2, 3, 5), // the strong one
-                Agent(1013UL, 16500, -4500, CardinalDirection.North, 4, 7, 3, 7, 1, 7, 2, 3223UL), // the worrier, bag in hand
-                Agent(1014UL, 19500, -4500, CardinalDirection.West, 6, 5, 5, 5, 5, 5, 5), // ordinary
-                Agent(1015UL, 10500, 0, CardinalDirection.East, 3, 6, 2, 8, 0, 9, 1), // the timid carer
-                Agent(1016UL, 13500, 1200, CardinalDirection.South, 7, 8, 8, 4, 7, 2, 6), // the chancer
-                Agent(1017UL, 17200, -1800, CardinalDirection.West, 5, 5, 4, 5, 4, 6, 4), // ordinary
-                Agent(1018UL, 19500, 1200, CardinalDirection.North, 8, 6, 6, 2, 8, 4, 6, 3252UL), // the other bully, briefcase in hand
-                Agent(1019UL, 12000, 4500, CardinalDirection.South, 4, 9, 5, 6, 2, 6, 3), // the runner
-                Agent(1020UL, 18000, 4500, CardinalDirection.South, 6, 5, 7, 9, 1, 3, 9) // the other hero
+                // The meeting room: a meeting already under way. Nine of them
+                // are sitting at the long table, each in a chair facing it,
+                // and the tenth is on their feet at the near end of it talking
+                // to the room. None of them can see the fire when it starts;
+                // they learn about it through the shouting and the alarm.
+                Seated(1011UL, 12000, 900, South, 5, 5, 6, 5, 3, 4, 4, 3241UL), // ordinary
+                Seated(1012UL, 13350, 900, South, 9, 4, 7, 6, 2, 3, 5, 3242UL), // the strong one
+                Seated(1013UL, 14700, 900, South, 4, 7, 3, 7, 1, 7, 2, 3243UL, 3223UL), // the worrier, bag on her lap
+                Seated(1014UL, 16050, 900, South, 6, 5, 5, 5, 5, 5, 5, 3244UL), // ordinary
+                Seated(1015UL, 12000, -900, North, 3, 6, 2, 8, 0, 9, 1, 3245UL), // the timid carer
+                Seated(1016UL, 13350, -900, North, 7, 8, 8, 4, 7, 2, 6, 3246UL), // the chancer
+                Seated(1017UL, 14700, -900, North, 5, 5, 4, 5, 4, 6, 4, 3247UL), // ordinary
+                Seated(1018UL, 16050, -900, North, 8, 6, 6, 2, 8, 4, 6, 3248UL, 3252UL), // the other bully, briefcase by his chair
+                Seated(1019UL, 17100, 0, West, 4, 9, 5, 6, 2, 6, 3, 3249UL), // the runner, at the head of the table
+
+                // On her feet at the near end of the table, presenting.
+                Agent(1020UL, 10700, 0, CardinalDirection.East, 6, 5, 7, 9, 1, 3, 9) // the other hero
             };
         }
 
         /// <summary>
-        /// The doors. The five in outside walls are the player's, set
-        /// off-centre so different corners have different nearest exits, and
-        /// they start locked. The three inside doors (the storage closet, and
-        /// the corridor at each end) start shut but not locked, so people can
-        /// open them themselves.
+        /// The doors. There is exactly one way out of the building, in the
+        /// meeting room at the far end, and it starts locked: it is the
+        /// player's to open. The office has no way out of its own, so everybody
+        /// in it has to cross the corridor and the meeting room to escape, and
+        /// the corridor is the one pinch point the whole building funnels
+        /// through. The three inside doors (the storage closet, and the
+        /// corridor at each end) start shut but not locked, so people can open
+        /// them themselves.
         /// </summary>
         public static FireReactionDoorDefinition[] DefaultDoors()
         {
             return new[]
             {
-                new FireReactionDoorDefinition(new SimulationId(2001UL), Office, WallSide.North, -2500, 1000),
                 new FireReactionDoorDefinition(new SimulationId(2002UL), Office, WallSide.East, 2500, 1000, false),
-                new FireReactionDoorDefinition(new SimulationId(2003UL), Office, WallSide.South, 2500, 1000),
-                new FireReactionDoorDefinition(new SimulationId(2004UL), Office, WallSide.West, -2500, 1000),
                 new FireReactionDoorDefinition(new SimulationId(2005UL), Office, WallSide.East, 0, 1000, false),
                 new FireReactionDoorDefinition(new SimulationId(2006UL), Corridor, WallSide.East, 0, 1000, false),
-                new FireReactionDoorDefinition(new SimulationId(2007UL), MeetingRoom, WallSide.North, 15000, 1000),
+
+                // The meeting room's one way out of the building, at the far
+                // end from the corridor: leaving it is a choice between the
+                // length of the room and going back toward the fire.
                 new FireReactionDoorDefinition(new SimulationId(2008UL), MeetingRoom, WallSide.East, 2500, 1000)
             };
         }
 
         /// <summary>
-        /// Eight cardboard boxes, 0.3–0.6 m wide and 3–20 kg, set between
-        /// where people stand; eight 5 kg wooden chairs pulled up to the
-        /// tables; and the rest of the office: waste bins, potted plants
-        /// (heavy, and they never catch), bags and laptops that skitter, and
-        /// eight office chairs on castors around the meeting room.
+        /// Everything loose in the building. Eight cardboard boxes, 0.25-0.4 m
+        /// and 2-6 kg, against the walls with three of them stacked in pairs;
+        /// eight 5 kg wooden chairs pulled up to the office desks; waste bins,
+        /// potted plants (heavy, and they never catch), bags and briefcases;
+        /// nine laptops, every one of them on a desk; and nine office chairs on
+        /// castors around the meeting table.
         /// </summary>
         public static FireReactionPhysicsObjectDefinition[] DefaultPhysicsObjects()
         {
             return new[]
             {
-                Box(3001UL, -2000, -3750, 400, 6000),
-                Box(3002UL, 2000, -3750, 300, 3000),
-                Box(3003UL, 4000, -1250, 500, 12000),
-                Box(3004UL, -4000, 1250, 600, 20000),
-                Box(3005UL, -2000, 3750, 350, 4000),
-                Box(3006UL, 2000, 1250, 450, 9000),
-                Box(3007UL, 4000, 3750, 300, 3000),
-                Box(3008UL, -4000, -1250, 400, 6000),
-                Chair(3101UL, -2800, -2125),
-                Chair(3102UL, -2200, -875),
-                Chair(3103UL, -3375, -1500),
-                Chair(3104UL, 2200, 2175),
-                Chair(3105UL, 2800, 3425),
-                Chair(3106UL, -1800, 1375),
-                Chair(3107UL, -1200, 2625),
-                Chair(3108UL, -625, 2000),
+                // Cardboard boxes: knee-high, out of the middle of the floor
+                // and against the walls, three of them stacked in pairs. The
+                // upper box of a pair rests on the lower one, so it is in
+                // nobody's way until something knocks the stack over.
+                // Every stack stands well clear of a door, so a pile that gets
+                // knocked over lands on open floor, not in somebody's way out.
+                Box(3001UL, -5500, 3500, 400, 6000),
+                Box(3002UL, -5500, 3500, 300, 3000, restsOnTheOneBelow: true),
+                Box(3003UL, 2000, 5500, 400, 6000),
+                Box(3004UL, 2000, 5500, 250, 2000, restsOnTheOneBelow: true),
+                Box(3005UL, -2500, -5500, 350, 4000),
+                Box(3006UL, -2500, -5500, 250, 2000, restsOnTheOneBelow: true),
+                Box(3007UL, 3500, -2000, 300, 3000),
+                Box(3008UL, -3800, 3500, 250, 2000),
 
-                // The office's clutter: bins, plants, bags and laptops, plus
-                // the meeting room's chairs on castors.
+                // The office's wooden chairs, each pulled up to a desk and
+                // facing it.
+                Chair(3101UL, -2800, -2125, North),
+                Chair(3102UL, -2200, -875, South),
+                Chair(3103UL, -3375, -1500, East),
+                Chair(3104UL, 2200, 2175, North),
+                Chair(3105UL, 2800, 3425, South),
+                Chair(3106UL, -1800, 1375, North),
+                Chair(3107UL, -1200, 2625, South),
+                Chair(3108UL, -625, 2000, West),
+
+                // The office's clutter: bins, plants and bags.
                 Bin(3201UL, -5400, 200),
                 Bin(3202UL, 5400, -3200),
                 Bin(3203UL, 10200, -1500),
-                Bin(3204UL, 20200, 3200),
+                Bin(3204UL, 18500, 3800),
                 Plant(3211UL, -5400, -3400),
                 Plant(3212UL, 5400, 5400),
-                Plant(3213UL, 9800, 5200),
-                Plant(3214UL, 20200, -5200),
+                Plant(3213UL, 9500, 3900),
+                Plant(3214UL, 18600, -3900),
                 Bag(3221UL, -5000, 0),
                 Bag(3222UL, 1200, -2600),
-                Bag(3223UL, 16500, -4500),
-                Bag(3224UL, 17500, 3400),
+
                 // Two briefcases and two of the bags start in somebody's hand,
-                // so they are parked where their owner stands.
+                // so they are parked where their owner stands, or on the floor
+                // just behind the chair of an owner who is sitting down. Where
+                // they are authored only matters if nobody is holding them.
+                Bag(3223UL, 14700, 1600),
+                Bag(3224UL, 17500, 3400),
                 Briefcase(3251UL, 0, -5000),
-                Briefcase(3252UL, 19500, 1200),
-                Laptop(3231UL, -1100, -700),
-                Laptop(3232UL, 3400, 1800),
-                Laptop(3233UL, 15800, 2400),
-                Laptop(3234UL, 12200, -3200),
-                OfficeChair(3241UL, 11500, 2400),
-                OfficeChair(3242UL, 13000, 3000),
-                OfficeChair(3243UL, 14500, 2400),
-                OfficeChair(3244UL, 16000, 3000),
-                OfficeChair(3245UL, 17500, 2400),
-                OfficeChair(3246UL, 19000, -2400),
-                OfficeChair(3247UL, 11500, -1200),
-                OfficeChair(3248UL, 16800, -3600),
+                Briefcase(3252UL, 16050, -1600),
+
+                // Laptops live on desks. One on each office desk, and six down
+                // the meeting table in front of the people sitting at it. They
+                // only reach the floor when somebody picks one up and drops or
+                // throws it, or a blast sweeps the table.
+                Laptop(3231UL, -2500, -1500),
+                Laptop(3232UL, 2500, 2800),
+                Laptop(3233UL, -1500, 2000),
+                Laptop(3234UL, 12000, 250),
+                Laptop(3235UL, 13350, 250),
+                Laptop(3236UL, 14700, 250),
+                Laptop(3237UL, 16050, 250),
+                Laptop(3238UL, 12000, -250),
+                Laptop(3239UL, 13350, -250),
+
+                // The meeting room's nine chairs on castors, pulled up to the
+                // long table: four down each side and one at the far head,
+                // every one of them facing the table.
+                OfficeChair(3241UL, 12000, 900, South),
+                OfficeChair(3242UL, 13350, 900, South),
+                OfficeChair(3243UL, 14700, 900, South),
+                OfficeChair(3244UL, 16050, 900, South),
+                OfficeChair(3245UL, 12000, -900, North),
+                OfficeChair(3246UL, 13350, -900, North),
+                OfficeChair(3247UL, 14700, -900, North),
+                OfficeChair(3248UL, 16050, -900, North),
+                OfficeChair(3249UL, 17100, 0, West),
 
                 // One extinguisher by each big room's wall.
                 Extinguisher(3301UL, -1000, -5700),
-                Extinguisher(3302UL, 14000, -5700),
+                Extinguisher(3302UL, 14000, -4300),
 
                 // Electrical things, which go off when the flames reach them.
                 Microwave(3261UL, 5400, -1400),
-                Microwave(3262UL, 20400, -3000),
+                Microwave(3262UL, 18600, -1800),
                 WallSocket(3271UL, -5800, -4000),
                 WallSocket(3272UL, 5800, 4000),
-                WallSocket(3273UL, 20800, -1000),
+                WallSocket(3273UL, 18800, -1000),
 
                 // Four spares the player can stand anywhere with a card. They
                 // are nowhere at all until then.
@@ -935,7 +1136,12 @@ namespace Paniq.Simulation
         /// <summary>The storage closet off the office's east wall.</summary>
         public static readonly SimulationId Closet = new SimulationId(5002UL);
 
-        /// <summary>The short corridor from the office to the meeting room.</summary>
+        /// <summary>
+        /// The short corridor from the office to the meeting room. Three metres
+        /// wide rather than two: the meeting room has only one other way out,
+        /// so most of the people in it come back down here, and two people
+        /// meeting head on beside a doorway in a narrow corridor wedge.
+        /// </summary>
         public static readonly SimulationId Corridor = new SimulationId(5003UL);
 
         /// <summary>The meeting room at the far end of the corridor.</summary>
@@ -944,8 +1150,9 @@ namespace Paniq.Simulation
         /// <summary>
         /// The building: a 12 × 12 m open-plan office where the fire starts, a
         /// 2 × 2 m storage closet against its east wall, a 3 m corridor east
-        /// out of the office, and a second 12 × 12 m room, the meeting room,
-        /// at the end of it. None of them is a refuge; they are simply rooms.
+        /// out of the office, and a 10 × 9 m meeting room at the end of it —
+        /// smaller than the office, so the two rooms read as different places.
+        /// None of them is a refuge; they are simply rooms.
         /// </summary>
         public static FireReactionRoomDefinition[] DefaultRooms()
         {
@@ -953,12 +1160,12 @@ namespace Paniq.Simulation
             {
                 new FireReactionRoomDefinition(Office, new LogicalBounds(-6000, 6000, -6000, 6000)),
                 new FireReactionRoomDefinition(Closet, new LogicalBounds(6000, 8000, 1500, 3500)),
-                new FireReactionRoomDefinition(Corridor, new LogicalBounds(6000, 9000, -1000, 1000)),
-                new FireReactionRoomDefinition(MeetingRoom, new LogicalBounds(9000, 21000, -6000, 6000))
+                new FireReactionRoomDefinition(Corridor, new LogicalBounds(6000, 9000, -1500, 1500)),
+                new FireReactionRoomDefinition(MeetingRoom, new LogicalBounds(9000, 19000, -4500, 4500))
             };
         }
 
-        /// <summary>Three 1.2 × 0.7 m tables around the office, and the meeting room's long table in two halves.</summary>
+        /// <summary>Three 1.2 × 0.7 m desks around the office, and the meeting room's 5.4 m table in two halves.</summary>
         public static FireReactionTableDefinition[] DefaultTables()
         {
             return new[]
@@ -967,23 +1174,34 @@ namespace Paniq.Simulation
                 new FireReactionTableDefinition(new SimulationId(4002UL), new LogicalPosition(2500, 2800), 1200, 700),
                 new FireReactionTableDefinition(new SimulationId(4003UL), new LogicalPosition(-1500, 2000), 1200, 700),
 
-                // The meeting room's long table, in two halves.
-                new FireReactionTableDefinition(new SimulationId(4004UL), new LogicalPosition(13500, 0), 2400, 900),
-                new FireReactionTableDefinition(new SimulationId(4005UL), new LogicalPosition(16500, 0), 2400, 900)
+                // The meeting room's long table, in two touching halves
+                // because the geometry only understands single rectangles.
+                // Together they are one 5.4 × 1 m table down the middle of the
+                // room, from x 11300 to x 16700.
+                new FireReactionTableDefinition(new SimulationId(4004UL), new LogicalPosition(12650, 0), 2700, 1000),
+                new FireReactionTableDefinition(new SimulationId(4005UL), new LogicalPosition(15350, 0), 2700, 1000)
             };
         }
 
-        private static FireReactionPhysicsObjectDefinition Chair(ulong id, int x, int z)
+        /// <summary>Which way a chair faces, which is the way whoever sits on it looks.</summary>
+        private const int North = 0;
+        private const int East = 90;
+        private const int South = 180;
+        private const int West = 270;
+
+        private static FireReactionPhysicsObjectDefinition Chair(ulong id, int x, int z, int facing = North)
         {
             return new FireReactionPhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.Chair, new LogicalPosition(x, z), 450, 5000);
+                new SimulationId(id), PhysicsObjectKind.Chair, new LogicalPosition(x, z), 450, 5000,
+                initialFacingDegrees: facing);
         }
 
         /// <summary>An office chair: the same size as a wooden one, but on castors (see the kind's friction).</summary>
-        private static FireReactionPhysicsObjectDefinition OfficeChair(ulong id, int x, int z)
+        private static FireReactionPhysicsObjectDefinition OfficeChair(ulong id, int x, int z, int facing = North)
         {
             return new FireReactionPhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.OfficeChair, new LogicalPosition(x, z), 500, 9000);
+                new SimulationId(id), PhysicsObjectKind.OfficeChair, new LogicalPosition(x, z), 500, 9000,
+                initialFacingDegrees: facing);
         }
 
         private static FireReactionPhysicsObjectDefinition Bin(ulong id, int x, int z)
@@ -1011,10 +1229,15 @@ namespace Paniq.Simulation
                 new SimulationId(id), PhysicsObjectKind.Extinguisher, new LogicalPosition(x, z), 250, 7000);
         }
 
+        /// <summary>
+        /// A laptop, open on a desk. It rests on the table it stands on, so it
+        /// is in nobody's way until somebody lifts it off.
+        /// </summary>
         private static FireReactionPhysicsObjectDefinition Laptop(ulong id, int x, int z)
         {
             return new FireReactionPhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.Laptop, new LogicalPosition(x, z), 300, 1500);
+                new SimulationId(id), PhysicsObjectKind.Laptop, new LogicalPosition(x, z), 300, 1500,
+                startsResting: true);
         }
 
         private static FireReactionAgentDefinition Agent(
@@ -1023,6 +1246,29 @@ namespace Paniq.Simulation
         {
             return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
                 new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, leadership));
+        }
+
+        /// <summary>
+        /// Somebody who begins the run already sitting on a named chair, and
+        /// who may have something with them. They are authored standing where
+        /// the chair is; the run settles them onto it at tick zero, facing the
+        /// way the chair faces.
+        /// </summary>
+        private static FireReactionAgentDefinition Seated(
+            ulong id, int x, int z, int facing,
+            int strength, int speed, int bravery, int compassion, int evil, int nervousness, int leadership,
+            ulong chair, ulong carrying = 0UL)
+        {
+            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z),
+                DirectionOf(facing),
+                new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, leadership),
+                new SimulationId(carrying), new SimulationId(chair));
+        }
+
+        /// <summary>The cardinal direction for one of the four chair facings above.</summary>
+        private static CardinalDirection DirectionOf(int facingDegrees)
+        {
+            return (CardinalDirection)(IntegerMath.NormalizeDegrees(facingDegrees) / 90);
         }
 
         /// <summary>The same person, but walking in with something in their hand.</summary>
@@ -1082,14 +1328,21 @@ namespace Paniq.Simulation
 
                 // The meeting room, on its north wall, well clear of both its
                 // doors: an alarm beside a doorway turns into a queue.
-                new FireReactionAlarmDefinition(new SimulationId(6003UL), new LogicalPosition(11000, 5700))
+                new FireReactionAlarmDefinition(new SimulationId(6003UL), new LogicalPosition(11000, 4200))
             };
         }
 
-        private static FireReactionPhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams)
+        /// <summary>
+        /// A cardboard box. With <paramref name="restsOnTheOneBelow"/> it is the
+        /// upper box of a stacked pair, authored at the same spot as the one it
+        /// stands on.
+        /// </summary>
+        private static FireReactionPhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams,
+            bool restsOnTheOneBelow = false)
         {
             return new FireReactionPhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.Box, new LogicalPosition(x, z), size, massGrams);
+                new SimulationId(id), PhysicsObjectKind.Box, new LogicalPosition(x, z), size, massGrams,
+                startsResting: restsOnTheOneBelow);
         }
     }
 }

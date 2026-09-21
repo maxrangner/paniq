@@ -53,7 +53,10 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         private FireReactionScenarioData BlockedOnTheWayOut(AgentTraitValues shover, AgentTraitValues inTheWay)
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            // A way out of the office's north wall, so north is where the
+            // shover bolts and the blockage is on their way to it.
+            FireReactionScenarioData data =
+                FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(scenario.ToRuntimeData());
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(Shover, new LogicalPosition(-2500, 1000), CardinalDirection.South, shover),

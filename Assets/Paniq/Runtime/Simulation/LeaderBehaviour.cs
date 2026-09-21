@@ -128,6 +128,11 @@
 
             ulong order = Rally(leader, FireReactionEventType.LeaderOrderedDoorBroken, doors.IdOf(door), breaker.Id);
 
+            // Sent at that door: they stop trailing after the leader, or the
+            // next thing they decide would be to follow them again and the
+            // door would never get touched.
+            StopFollowing(breaker);
+
             // Sent at that door, and they will not give up on it while it holds.
             breaker.Doors.ExitDoorIndex = door;
             breaker.Doors.ApproachRoom = geometry.RoomOf(breaker);
@@ -179,6 +184,10 @@
             }
 
             ulong order = Rally(leader, FireReactionEventType.LeaderOrderedFireFought, objects.IdOf(bottle), fighter.Id);
+
+            // Sent for the bottle: they stop following the leader first, or the
+            // next thing they decide would be to fall in behind them again.
+            StopFollowing(fighter);
 
             // Told to grab it: that is now their idea too.
             fighter.Carry.ItemIndex = bottle;

@@ -273,9 +273,12 @@ namespace Paniq.Presentation
         }
 
         /// <summary>A plain wooden table: a thin top on four legs.</summary>
+        /// <summary>How high a table top is, in metres: where a laptop on it is drawn.</summary>
+        public const float TableHeight = 0.74f;
+
         private void CreateTable(FireReactionTableDefinition table)
         {
-            const float height = 0.74f;
+            const float height = TableHeight;
             const float topThickness = 0.06f;
             const float leg = 0.06f;
             float width = Metres(table.WidthMillimetres);
@@ -328,6 +331,7 @@ namespace Paniq.Presentation
             Vector3 scale = alongX ? new Vector3(to - from, WallHeight, WallThickness) : new Vector3(WallThickness, WallHeight, to - from);
             GameObject built = CreatePrimitive($"{owner} Wall {side} {piece}", PrimitiveType.Cube, parent, position, scale,
                 materials.Wall);
+            MarkAsWall(built, materials);
             wallPieces.Add(new WallPieceView
             {
                 AlongX = alongX,
@@ -445,6 +449,9 @@ namespace Paniq.Presentation
             leaf.transform.localScale = new Vector3(width - 0.04f, DoorHeight, 0.08f);
             Renderer leafRenderer = leaf.GetComponent<Renderer>();
             leafRenderer.sharedMaterial = materials.Door;
+
+            // A shut door hides whoever is behind it just as a wall does.
+            MarkAsWall(leaf, materials);
 
             // A strip of ground outside, as far as the doorway reaches (an inside door opens into the next room's floor).
             float depth = Metres(scenario.Exits.DoorwayDepthMillimetres);

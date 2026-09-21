@@ -206,6 +206,7 @@ namespace Paniq.Simulation
                 target.Body.Position, 0, 0, agent.Fear.ScaredEventId, target.Id).EventId;
             agent.Intent.Activity = AgentActivityState.Dragging;
             agent.Body.BlockedTicks = 0;
+            agent.Help.StuckTicks = 0;
             ChooseDragTarget(agent);
             return Drag(agent);
         }
@@ -278,7 +279,7 @@ namespace Paniq.Simulation
         {
             Agent target = crowd.All[agent.Help.TargetIndex];
             if (!target.IsParticipating || target.Body.State != AgentBodyState.Unconscious ||
-                agent.Body.BlockedTicks > settings.DragGiveUpBlockedTicks)
+                agent.Help.StuckTicks > settings.DragGiveUpBlockedTicks)
             {
                 StopHelping(agent, true);
                 return null;
@@ -328,6 +329,7 @@ namespace Paniq.Simulation
 
             agent.Help.TargetIndex = -1;
             agent.Help.DragDoor = -1;
+            agent.Help.StuckTicks = 0;
             if (IsHelping(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;
@@ -379,6 +381,7 @@ namespace Paniq.Simulation
                     // the give-up rule below eventually lets them go instead of
                     // standing there for the rest of the run.
                     helper.Body.BlockedTicks++;
+                    helper.Help.StuckTicks++;
                     continue;
                 }
 
@@ -392,6 +395,7 @@ namespace Paniq.Simulation
                         helper.Body.Position = helper.Help.PositionBeforeMove;
                         helper.Body.Speed = 0;
                         helper.Body.BlockedTicks++;
+                        helper.Help.StuckTicks++;
                     }
                     else
                     {
@@ -402,6 +406,8 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                // They actually got somewhere this tick, with the person in tow.
+                helper.Help.StuckTicks = 0;
                 dragged.Body.Position = spot;
                 dragged.Body.Heading = helper.Body.Heading;
                 if (fire.Active)

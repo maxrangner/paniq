@@ -77,6 +77,7 @@ namespace Paniq.Simulation
             body.UseObjects(objects);
             doors.UseObjects(objects);
             GiveOutStartingPossessions();
+            SeatPeopleWhoStartSeated();
             locomotion = new Locomotion(context, crowd, geometry, fire, body, collisions, objects);
             flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body, sound);
             items = new ItemBehaviour(context, geometry, objects, flammables);
@@ -97,7 +98,7 @@ namespace Paniq.Simulation
             panic.UseAlarms(alarmBehaviour);
             var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, fire, objects, flammables, locomotion);
             panic.UseBarricades(barricades);
-            playerCommands.Use(doors, fire, objects, crowd, influence, sound, body);
+            playerCommands.Use(doors, fire, objects, crowd, influence, sound, body, geometry);
         }
 
         /// <summary>
@@ -131,6 +132,62 @@ namespace Paniq.Simulation
                 agent.Carry.Holding = true;
                 agent.Carry.OwnsIt = true;
                 objects.PickUp(item, agent);
+            }
+        }
+
+        /// <summary>
+        /// Sits down everyone the scenario says begins the run in a chair: a
+        /// meeting already under way when the fire starts. Like
+        /// <see cref="GiveOutStartingPossessions"/> this runs once the objects
+        /// exist and draws no random numbers, so the start-up draw order is
+        /// untouched. How long they stay seated is a fixed stretch rather than
+        /// a drawn one, long enough that the meeting is still going when the
+        /// first shout goes up.
+        /// </summary>
+        private void SeatPeopleWhoStartSeated()
+        {
+            FireReactionAgentDefinition[] definitions = context.Scenario.Agents;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                SimulationId chairId = default;
+                for (int d = 0; d < definitions.Length; d++)
+                {
+                    if (definitions[d].AgentId == agent.Id)
+                    {
+                        chairId = definitions[d].SeatedOnObjectId;
+                        break;
+                    }
+                }
+
+                if (chairId.Value == 0UL)
+                {
+                    continue;
+                }
+
+                int chair = objects.IndexOf(chairId);
+                if (chair < 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Agent {agent.Id} starts seated on {chairId}, which is not in the scenario.");
+                }
+
+                if (objects.OccupantOf(chair) >= 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Agent {agent.Id} starts seated on {chairId}, which somebody else already starts on.");
+                }
+
+                agent.Body.Position = objects.PositionOf(chair);
+                agent.Body.Heading = objects.HeadingOf(chair);
+                agent.Body.Speed = 0;
+                objects.SitOn(chair, agent);
+                agent.Sitting.ChairIndex = chair;
+                agent.Sitting.OnIt = true;
+                agent.Intent.Activity = AgentActivityState.Sitting;
+                agent.Intent.LookHeading = agent.Body.Heading;
+                agent.Intent.ActivityEndTick = context.Scenario.Items.SeatedAtStartTicks;
+                agent.Sitting.SitUntilTick = agent.Intent.ActivityEndTick;
             }
         }
 

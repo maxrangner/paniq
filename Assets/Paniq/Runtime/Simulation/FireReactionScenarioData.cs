@@ -294,9 +294,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "39";
+        public string ContentRevision = "40";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 31;
+        public int SimulationCompatibilityVersion = 32;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -309,6 +309,7 @@ namespace Paniq.Simulation
         public FallSettings Falls = new FallSettings();
         public ExitSettings Exits = new ExitSettings();
         public ObjectPhysicsSettings ObjectPhysics = new ObjectPhysicsSettings();
+        public PhysicsFeelSettings PhysicsFeel = new PhysicsFeelSettings();
         public TraitSettings Traits = new TraitSettings();
         public FlammableSettings Flammables = new FlammableSettings();
         public ExtinguisherSettings Extinguishers = new ExtinguisherSettings();
@@ -348,6 +349,7 @@ namespace Paniq.Simulation
             copy.Falls = Falls?.Clone();
             copy.Exits = Exits?.Clone();
             copy.ObjectPhysics = ObjectPhysics?.Clone();
+            copy.PhysicsFeel = PhysicsFeel?.Clone();
             copy.Traits = Traits?.Clone();
             copy.Flammables = Flammables?.Clone();
             copy.Extinguishers = Extinguishers?.Clone();
@@ -382,7 +384,7 @@ namespace Paniq.Simulation
 
             if (World == null || Perception == null || Fire == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
-                ObjectPhysics == null || Traits == null || Flammables == null || Items == null || Help == null ||
+                ObjectPhysics == null || PhysicsFeel == null || Traits == null || Flammables == null || Items == null || Help == null ||
                 Influence == null || Alarm == null || Blockades == null || Blast == null ||
                 Extinguishers == null || Leadership == null)
             {
@@ -400,6 +402,7 @@ namespace Paniq.Simulation
             Falls.Validate();
             Exits.Validate(World);
             ObjectPhysics.Validate();
+            PhysicsFeel.Validate();
             Traits.Validate();
             Flammables.Validate();
             Extinguishers.Validate();

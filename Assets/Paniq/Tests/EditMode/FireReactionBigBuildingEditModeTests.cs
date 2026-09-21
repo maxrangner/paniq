@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using NUnit.Framework;
+using Paniq.Diagnostics;
 using Paniq.Gameplay;
 using Paniq.Simulation;
 
@@ -222,6 +223,31 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(geometry.Routes.CanGetFromHereToThere(thisSide, farSide, radius), Is.True,
                 $"A hole was blown at {centre} and the route still says the wall is solid.");
+        }
+
+        [Test]
+        public void TheStressBuilding_HoldsFiveHundredPeopleAndAThousandBoxes()
+        {
+            FireReactionScenarioData data = StressBuilding.Build(scenario.ToRuntimeData(), 500, 1000);
+            using (var simulation = new FireReactionSimulation(data, 42UL))
+            {
+                for (int tick = 0; tick < 25; tick++)
+                {
+                    simulation.Step();
+                }
+
+                int inside = 0;
+                for (int i = 0; i < 500; i++)
+                {
+                    if (simulation.GetAgent(i).Participation == AgentParticipation.Participating)
+                    {
+                        inside++;
+                    }
+                }
+
+                Assert.That(inside, Is.EqualTo(500), "Nobody should have left, or been lost, in half a second.");
+                Assert.That(simulation.GetSnapshot().PhysicsObjects.Count, Is.EqualTo(1000));
+            }
         }
 
         [Test]

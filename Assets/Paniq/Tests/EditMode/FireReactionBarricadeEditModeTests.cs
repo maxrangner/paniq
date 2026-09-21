@@ -128,8 +128,11 @@ namespace Paniq.Tests.EditMode
             simulation.Step();
             Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open), "It should have opened.");
 
-            // Now slide the box into the gap and try to close it.
-            simulation.LaunchObjectForTests(0, 0, 90);
+            // Now slide the box into the gap and try to close it. Not too
+            // hard: an open doorway is a way through for things as well as
+            // people, and a harder shove sends it out into the street.
+            simulation.LaunchObjectForTests(0, 0, 76);
+
             for (int t = 0; t < 2 * FireReactionSimulation.TicksPerSecond; t++)
             {
                 simulation.Step();

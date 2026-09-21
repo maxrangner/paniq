@@ -284,7 +284,21 @@ namespace Paniq.Simulation
                 }
             }
 
-            return true;
+            // Nobody's middle is in the doorway, but a body is long: somebody
+            // lying across the threshold with only their legs in the gap stops
+            // the door as surely as somebody standing in it.
+            int ignoreHandle = ignore != null && people != null ? people.HandleOf(ignore) : -1;
+            return physics == null || !physics.IsAnyBodyInDoorway(door, ignoreHandle);
+        }
+
+        private PhysicsWorld physics;
+        private PeopleBodies people;
+
+        /// <summary>Wired up after construction, because the bodies are built after the doors.</summary>
+        public void UsePhysics(PhysicsWorld world, PeopleBodies bodies)
+        {
+            physics = world;
+            people = bodies;
         }
 
         /// <summary>

@@ -27,6 +27,9 @@ namespace Paniq.Simulation
         /// <summary>Per person: somebody is already on their way to them. Reused every search.</summary>
         private readonly bool[] alreadyBeingHelped;
 
+        /// <summary>Everybody's physical body: somebody being dragged is hauled along the floor as one.</summary>
+        private readonly PeopleBodies people;
+
         /// <summary>Set once the doors exist, so a dragger can tell a jammed doorway from a clear one.</summary>
         private DoorSystem doors;
 
@@ -38,7 +41,8 @@ namespace Paniq.Simulation
             FearSystem fear,
             BodySystem body,
             PhysicsObjectSystem objects,
-            Locomotion locomotion)
+            Locomotion locomotion,
+            PeopleBodies people)
         {
             this.context = context;
             this.crowd = crowd;
@@ -48,6 +52,7 @@ namespace Paniq.Simulation
             this.body = body;
             this.objects = objects;
             this.locomotion = locomotion;
+            this.people = people;
             alreadyBeingHelped = new bool[crowd.All.Length];
             settings = context.Scenario.Help;
             radius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -189,7 +194,11 @@ namespace Paniq.Simulation
 
             int toTarget = geometry.Routes.HeadingToward(
                 agent.Body.Position, target.Body.Position, radius, agent.Body.Heading);
-            long reach = radius * 2L + settings.ReachMillimetres;
+            // Somebody lying on the floor is a body's length long, and a helper
+            // takes hold of the nearest part of them, not their middle: coming
+            // at them end on, the middle is half a body further away.
+            long reach = radius * 2L + settings.ReachMillimetres +
+                         (target.IsDown ? PeopleBodies.HeightMillimetres / 2 - radius : 0);
             if (LogicalPosition.DistanceSquared(agent.Body.Position, target.Body.Position) > reach * reach)
             {
                 // Still on the way.
@@ -371,22 +380,21 @@ namespace Paniq.Simulation
 
         // ---------------------------------------------------------------- moving the dragged
 
-        /// <summary>Before movement: remember where every dragger stands, in case the person behind them cannot follow.</summary>
-        public void BeginTick(Agent[] agents)
-        {
-            for (int i = 0; i < agents.Length; i++)
-            {
-                agents[i].Help.PositionBeforeMove = agents[i].Body.Position;
-            }
-        }
-
         /// <summary>
-        /// After movement: each dragged person is pulled along behind their
-        /// helper. If there is no room for them there, the helper's step is
-        /// undone. Then a helper who is no longer able to drag lets go.
+        /// Before the engine steps: every helper hauls the person they are
+        /// dragging toward the spot just behind them. The one being dragged is
+        /// a loose body on the floor, so they snag on furniture, doorframes and
+        /// other people. Trailing too far behind, they hold the helper up; far
+        /// too far, the helper loses their grip. Getting nowhere counts as
+        /// stuck, so the give-up rule eventually lets them go instead of
+        /// leaving them standing there for the rest of the run.
         /// </summary>
-        public void MoveDragged(Agent[] agents)
+        public void PullDragged(Agent[] agents)
         {
+            // From the helper's middle to the dragged person's: the helper, a
+            // gap, then half a body lying in line behind them.
+            int behind = radius + settings.DragGapMillimetres + PeopleBodies.HeightMillimetres / 2;
+            long slack = behind + (long)context.Scenario.PhysicsFeel.DragSlackMillimetres;
             for (int i = 0; i < agents.Length; i++)
             {
                 Agent helper = agents[i];
@@ -402,82 +410,31 @@ namespace Paniq.Simulation
                 }
 
                 Agent dragged = agents[helper.Help.TargetIndex];
-                if (helper.Body.Position.Equals(helper.Help.PositionBeforeMove))
+                long apart = IntegerMath.Sqrt(LogicalPosition.DistanceSquared(helper.Body.Position, dragged.Body.Position));
+                if (apart > slack * 2L)
                 {
-                    // Dragging somebody and getting nowhere at all. Whatever the
-                    // reason — wedged in a corner, boxed in by the crowd, a
-                    // doorway with something in it — it counts as being stuck, so
-                    // the give-up rule below eventually lets them go instead of
-                    // standing there for the rest of the run.
+                    // Torn out of their hands.
+                    StopHelping(helper, true);
+                    continue;
+                }
+
+                if (apart > slack)
+                {
+                    // Snagged: they lean on the dead weight and get nowhere.
+                    helper.Body.Speed = 0;
                     helper.Body.BlockedTicks++;
-                    helper.Help.StuckTicks++;
-                    continue;
                 }
 
-                LogicalPosition spot = helper.Body.Position +
-                                       IntegerMath.Displacement(helper.Body.Heading + 180, radius * 2 + settings.DragGapMillimetres);
-                if (!CanLieAt(dragged, helper, spot))
-                {
-                    if (IsClearFor(helper, dragged, helper.Help.PositionBeforeMove))
-                    {
-                        // No room behind them: the step is undone and they try again.
-                        crowd.MoveTo(helper, helper.Help.PositionBeforeMove);
-                        helper.Body.Speed = 0;
-                        helper.Body.BlockedTicks++;
-                        helper.Help.StuckTicks++;
-                    }
-                    else
-                    {
-                        // Someone has already stepped where they stood: they lose their grip.
-                        StopHelping(helper, true);
-                    }
+                helper.Help.StuckTicks = helper.Body.BlockedTicks > 0 ? helper.Help.StuckTicks + 1 : 0;
 
-                    continue;
-                }
-
-                // They actually got somewhere this tick, with the person in tow.
-                helper.Help.StuckTicks = 0;
-                crowd.MoveTo(dragged, spot);
+                // The body trails an arm's length from the helper, on whichever
+                // side of them it already lies, like a weight on a rope: never
+                // hauled through the helper to a spot behind their back.
+                int trailing = IntegerMath.HeadingBetween(helper.Body.Position, dragged.Body.Position, helper.Body.Heading + 180);
+                LogicalPosition spot = helper.Body.Position + IntegerMath.Displacement(trailing, behind);
+                people.PullToward(dragged, spot, Math.Max(helper.Body.Speed, settings.DragSpeedBase));
                 dragged.Body.Heading = helper.Body.Heading;
-                if (fire.Active)
-                {
-                    ulong cell = fire.FindTouching(spot);
-                    if (cell != 0UL)
-                    {
-                        // Dragged into the flames.
-                        body.CatchFire(dragged, cell);
-                    }
-                }
             }
-        }
-
-        private bool CanLieAt(Agent dragged, Agent helper, LogicalPosition spot)
-        {
-            if (!geometry.IsWalkable(dragged.Body.Position, helper.Doors.ExitDoorIndex, spot) &&
-                !geometry.IsWalkable(helper.Body.Position, helper.Doors.ExitDoorIndex, spot))
-            {
-                return false;
-            }
-
-            return IsClearFor(dragged, helper, spot) && objects.FindBlocking(spot, spot, radius) < 0;
-        }
-
-        /// <summary>Nobody but <paramref name="self"/> and <paramref name="partner"/> within touching distance of the spot.</summary>
-        private bool IsClearFor(Agent self, Agent partner, LogicalPosition spot)
-        {
-            long touching = radius * 2L;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
-            {
-                Agent other = agents[i];
-                if (other != self && other != partner && other.IsParticipating &&
-                    LogicalPosition.DistanceSquared(other.Body.Position, spot) < touching * touching)
-                {
-                    return false;
-                }
-            }
-
-            return true;
         }
 
         /// <summary>After escapes: a helper who got out takes the person they were dragging out with them.</summary>

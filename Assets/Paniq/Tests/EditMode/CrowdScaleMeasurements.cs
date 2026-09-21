@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using NUnit.Framework;
+using Paniq.Diagnostics;
 using Paniq.Gameplay;
 using Paniq.Simulation;
 
@@ -84,6 +85,52 @@ namespace Paniq.Tests.EditMode
                 report.Append(millisecondsPerTick <= 20.0 ? " (keeps up)" : " (TOO SLOW)");
                 report.Append($"; {before} of them still inside at the start, {after} at the end");
                 TestContext.WriteLine(report.ToString());
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(scenario);
+            }
+        }
+
+        /// <summary>
+        /// The physics plan's budgets, measured in the editor: a tick of the
+        /// stress building with this many people and twice as many boxes, and
+        /// the physics engine's share of it. The editor is slower than a built
+        /// game; the numbers that count come from the stress profile player
+        /// (menu Paniq > Profiling > Build Stress Profile Player).
+        /// </summary>
+        [TestCase(100, 200)]
+        [TestCase(200, 400)]
+        [TestCase(500, 1000)]
+        public void HowLongAPackedBuildingTakes(int people, int things)
+        {
+            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            try
+            {
+                FireReactionScenarioData data = StressBuilding.Build(scenario.ToRuntimeData(), people, things);
+                using (var simulation = new FireReactionSimulation(data, 42UL))
+                {
+                    for (int tick = 0; tick < 100; tick++)
+                    {
+                        simulation.Step();
+                    }
+
+                    TimeSpan physicsBefore = simulation.PhysicsStepTime;
+                    const int measured = 250;
+                    Stopwatch stopwatch = Stopwatch.StartNew();
+                    for (int tick = 0; tick < measured; tick++)
+                    {
+                        simulation.Step();
+                    }
+
+                    stopwatch.Stop();
+                    double perTick = stopwatch.Elapsed.TotalMilliseconds / measured;
+                    double physics = (simulation.PhysicsStepTime - physicsBefore).TotalMilliseconds / measured;
+                    TestContext.WriteLine(
+                        $"{people} people, {things} boxes (editor): " +
+                        $"{perTick.ToString("0.00", CultureInfo.InvariantCulture)} ms a tick, of which physics " +
+                        $"{physics.ToString("0.00", CultureInfo.InvariantCulture)} ms");
+                }
             }
             finally
             {

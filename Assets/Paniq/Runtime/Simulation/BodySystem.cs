@@ -12,28 +12,23 @@ namespace Paniq.Simulation
         private readonly SimulationContext context;
         private readonly FireSystem fire;
         private readonly SoundSystem sound;
-        private readonly WorldGeometry geometry;
-        private readonly Crowd crowd;
         private readonly FearSystem fear;
         private readonly FallSettings settings;
 
-        /// <summary>Set once the objects exist, so a body pushed across the floor cannot slide through the furniture.</summary>
-        private PhysicsObjectSystem objects;
+        /// <summary>Everybody's physical body, which a shove or a blast pushes. Set once it exists.</summary>
+        private PeopleBodies people;
 
-        public BodySystem(SimulationContext context, Crowd crowd, WorldGeometry geometry, FireSystem fire, SoundSystem sound,
-            FearSystem fear)
+        public BodySystem(SimulationContext context, FireSystem fire, SoundSystem sound, FearSystem fear)
         {
             this.context = context;
-            this.crowd = crowd;
-            this.geometry = geometry;
             this.fire = fire;
             this.sound = sound;
             this.fear = fear;
             settings = context.Scenario.Falls;
         }
 
-        /// <summary>Wired up after construction, because the objects are built after this system.</summary>
-        public void UseObjects(PhysicsObjectSystem physicsObjects) => objects = physicsObjects;
+        /// <summary>Wired up after construction, because people's bodies are built after this system.</summary>
+        public void UsePeople(PeopleBodies bodies) => people = bodies;
 
         /// <summary>
         /// Advances staggering, lying down and getting up. Returns true while
@@ -126,20 +121,32 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Shoved bodily backwards and onto the floor: the jet from an
-        /// extinguisher. They slide as far as there is room for and land
-        /// facing the way they were pushed.
+        /// extinguisher, a heave from somebody much stronger. They are sent
+        /// sliding the way they were pushed, about as far as the push was
+        /// meant to carry them if nothing is in the way, and topple as they go.
         /// </summary>
         public void ShoveBack(Agent agent, int away, int distance, ulong causeEventId)
         {
+            BlowOver(agent, away, distance, 0, causeEventId);
+        }
+
+        /// <summary>
+        /// A blast: like <see cref="ShoveBack"/>, but also thrown up off the
+        /// floor by this percentage of the sideways push, so somebody close to
+        /// a bang goes flying.
+        /// </summary>
+        public void BlowOver(Agent agent, int away, int distance, int liftPercent, ulong causeEventId)
+        {
             if (agent.Body.State != AgentBodyState.Upright)
             {
-                // Already off their feet: there is nothing left to knock down,
-                // and a body that is not upright never moves.
+                // Already off their feet: there is nothing left to knock down.
                 return;
             }
 
             fear.BreakComposure(agent);
-            Slide(agent, away, distance);
+            int speed = people.SpeedToSlide(distance);
+            people.FallTowards(agent, away);
+            people.Push(agent, away, speed, speed * liftPercent / 100);
             int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
             CausalEvent down = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentKnockedDown,
                 agent.Body.Position, 0, duration, causeEventId);
@@ -147,22 +154,35 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Pushed across the floor without falling: as far as the walls, the
-        /// furniture and the other people allow.
+        /// Pushed across the floor without falling: about this far, if the
+        /// walls, the furniture and the other people let them.
         /// </summary>
         public void Slide(Agent agent, int heading, int distance)
         {
-            LogicalPosition step = agent.Body.Position + IntegerMath.Displacement(heading, distance);
-            LogicalPosition destination = geometry.ClampIntoWalkable(agent.Body.Position, agent.DoorwayInUse, step);
-            if (crowd.FindBlocking(agent, agent.Body.Position, destination) != null ||
-                geometry.ClipsDoorFrame(agent.Body.Position, destination) ||
-                objects.BlocksBody(agent, agent.Body.Position, destination))
+            people.Push(agent, heading, people.SpeedToSlide(distance), 0);
+        }
+
+        /// <summary>
+        /// Squeezed off their feet by the crowd: down on the floor, and a hard
+        /// enough squeeze may knock them out. Only somebody frightened is ever
+        /// in a crush; the cause is whatever frightened them.
+        /// </summary>
+        public void Crush(Agent agent, int squeeze)
+        {
+            ulong cause = agent.Fear.ScaredEventId != 0UL ? agent.Fear.ScaredEventId : agent.Fear.AlertEventId;
+            if (cause == 0UL || agent.Body.State != AgentBodyState.Upright)
             {
                 return;
             }
 
-            crowd.MoveTo(agent, destination);
-            agent.Body.Speed = 0;
+            fear.BreakComposure(agent);
+            int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
+            CausalEvent crushed = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentCrushed,
+                agent.Body.Position, squeeze, duration, cause);
+            people.FallTowards(agent, agent.Body.Heading);
+            PutDown(agent, AgentBodyState.Fallen, duration, crushed.EventId);
+            sound.Thud(agent.Id, agent.Body.Position, crushed.EventId);
+            MaybePassOut(agent, crushed.EventId, settings.PassOutChancePercent);
         }
 
         /// <summary>The flames on someone are put out by a jet of water.</summary>

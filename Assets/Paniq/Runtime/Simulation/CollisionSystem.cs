@@ -1,16 +1,16 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
     /// <summary>
-    /// People running into people. A panicking runner whose way is blocked
-    /// by a person and who is going too fast to dodge runs into them; a hard
-    /// enough hit puts both on the floor, a lighter one makes both stagger.
-    /// Running into someone lying on the floor trips you over them. Too slow
-    /// to run into them, a cruel person takes hold and heaves them aside
-    /// instead, which is the one deliberate shove in here. Nobody ever
-    /// overlaps: a collision is a move that did not happen, recorded during
-    /// decisions and resolved after movement in the order recorded.
+    /// People running into people. The bodies meet in the physics engine,
+    /// which does the pushing; this decides what each meeting means. A
+    /// panicking runner who hits somebody hard enough puts both on the floor,
+    /// a lighter hit makes both stagger. Running into someone lying on the
+    /// floor trips you over them. A cruel person held up by somebody in their
+    /// way takes hold and heaves them aside, which is the one deliberate shove
+    /// in here. Judged from the engine's list of contacts after each step, in
+    /// the sorted order it gives them.
     /// </summary>
     internal sealed class CollisionSystem
     {
@@ -19,196 +19,189 @@ namespace Paniq.Simulation
         private readonly BodySystem body;
         private readonly FearSystem fear;
         private readonly SoundSystem sound;
-        private readonly List<BumpIntent> bumps = new List<BumpIntent>();
+        private readonly PeopleBodies people;
 
-        public CollisionSystem(SimulationContext context, Crowd crowd, BodySystem body, FearSystem fear, SoundSystem sound)
+        public CollisionSystem(SimulationContext context, Crowd crowd, BodySystem body, FearSystem fear, SoundSystem sound,
+            PeopleBodies people)
         {
             this.context = context;
             this.crowd = crowd;
             this.body = body;
             this.fear = fear;
             this.sound = sound;
-        }
-
-        public void BeginTick()
-        {
-            bumps.Clear();
+            this.people = people;
         }
 
         /// <summary>
-        /// Records a collision when a fleeing, upright runner's straight step
-        /// is blocked by a person. Someone upright is hit before any dodge is
-        /// tried if the runner is too fast; someone on the floor is only
-        /// tripped over (<paramref name="overFallen"/>) once every side-step
-        /// has failed.
+        /// Phase 8, after the engine has stepped: every pair of people who
+        /// touched. A pair who have only just met are a collision, judged by how
+        /// fast they came together; a pair who were already pressed together are
+        /// where a cruel person may shove.
         /// </summary>
-        public bool TryRecordBump(Agent mover, LogicalPosition straight, bool overFallen)
+        public void Resolve(IReadOnlyList<PhysicsWorld.Contact> contacts)
+        {
+            for (int c = 0; c < contacts.Count; c++)
+            {
+                PhysicsWorld.Contact contact = contacts[c];
+                if (contact.BodyB < 0)
+                {
+                    continue;
+                }
+
+                Agent first = people.PersonAt(contact.BodyA);
+                Agent second = people.PersonAt(contact.BodyB);
+                if (first == null || second == null || !first.IsParticipating || !second.IsParticipating)
+                {
+                    continue;
+                }
+
+                // Who ran into whom: the one coming on faster along the line
+                // between them.
+                long alongFirst = Along(first, second);
+                long alongSecond = Along(second, first);
+                Agent mover = alongFirst >= alongSecond ? first : second;
+                Agent other = mover == first ? second : first;
+                int closing = (int)((alongFirst + alongSecond) / PhysicsWorld.SubMillimetre);
+                if (contact.Began && Collide(mover, other, closing))
+                {
+                    continue;
+                }
+
+                // Not fast enough to barge through them by accident: the cruel
+                // take hold and shove instead of going round.
+                if (!TryShove(mover, other))
+                {
+                    TryShove(other, mover);
+                }
+            }
+        }
+
+        /// <summary>
+        /// How fast <paramref name="self"/> was coming toward <paramref name="toward"/>
+        /// going into the step, in hundredths of a millimetre per tick.
+        /// </summary>
+        private long Along(Agent self, Agent toward)
+        {
+            long nx = (long)toward.Body.Position.X - self.Body.Position.X;
+            long nz = (long)toward.Body.Position.Z - self.Body.Position.Z;
+            long distance = IntegerMath.Sqrt(nx * nx + nz * nz);
+            if (distance == 0L)
+            {
+                return 0L;
+            }
+
+            (long x, long z) = people.VelocityOf(self);
+            return (x * nx + z * nz) / distance;
+        }
+
+        /// <summary>
+        /// Only a frightened runner fleeing (or burning) counts as running into
+        /// somebody; anybody else meeting a person is just the jostle of a crowd,
+        /// which the engine has already dealt with. True when it counted.
+        /// </summary>
+        private bool Collide(Agent mover, Agent other, int closing)
         {
             if (mover.Fear.State != AgentFearState.Scared ||
                 (mover.Intent.Activity != AgentActivityState.Fleeing && mover.Intent.Activity != AgentActivityState.Burning) ||
-                mover.Body.State != AgentBodyState.Upright)
-            {
-                return false;
-            }
-
-            Agent other = crowd.FindBlocking(mover, mover.Body.Position, mover.Body.Position + straight);
-            if (other == null || other.IsDown != overFallen)
+                mover.Body.State != AgentBodyState.Upright || closing <= 0)
             {
                 return false;
             }
 
             FallSettings settings = context.Scenario.Falls;
-            if (overFallen)
+            if (other.IsDown)
             {
-                if (mover.Body.Speed < settings.TripMinimumSpeed)
+                // Running into somebody on the floor: over they go.
+                if (closing < settings.TripMinimumSpeed)
                 {
                     return false;
                 }
 
-                bumps.Add(new BumpIntent(mover, other, 0, true));
+                people.FallTowards(mover, mover.Body.Heading);
+                body.Trip(mover, other.Body.EventId);
                 return true;
             }
 
-            int closing = ClosingSpeed(mover, other);
-            if (closing < TraitEffects.BumpMinimumSpeed(mover, context.Scenario))
-            {
-                // Not fast enough to barge through them by accident. The cruel
-                // take hold and shove instead of going round.
-                return TryRecordShove(mover, other);
-            }
-
-            bumps.Add(new BumpIntent(mover, other, closing, false));
-            return true;
-        }
-
-        /// <summary>
-        /// A cruel person, held up by somebody in their way, grabs them and
-        /// heaves them aside. It needs no speed at all, so it is what happens
-        /// in the queue at a doorway, and there is a pause before they do it
-        /// again.
-        /// </summary>
-        private bool TryRecordShove(Agent mover, Agent other)
-        {
-            FallSettings settings = context.Scenario.Falls;
-            if (mover.Traits.Evil < settings.ShoveMinimumEvil || context.Tick < mover.Intent.NextShoveTick)
+            if (other.Body.State != AgentBodyState.Upright || closing < TraitEffects.BumpMinimumSpeed(mover, context.Scenario))
             {
                 return false;
             }
 
-            mover.Intent.NextShoveTick = checked(context.Tick + settings.ShoveIntervalTicks);
-            bumps.Add(new BumpIntent(mover, other, 0, false, true));
+            var midpoint = new LogicalPosition(
+                (int)(((long)mover.Body.Position.X + other.Body.Position.X) / 2),
+                (int)(((long)mover.Body.Position.Z + other.Body.Position.Z) / 2));
+            CausalEvent collision = context.Events.Append(
+                context.Tick,
+                mover.Id,
+                FireReactionEventType.AgentsCollided,
+                midpoint,
+                closing,
+                0,
+                mover.Fear.ScaredEventId,
+                other.Id);
+
+            int moverFalls = IntegerMath.HeadingBetween(other.Body.Position, mover.Body.Position, mover.Body.Heading);
+            int otherFalls = IntegerMath.HeadingBetween(mover.Body.Position, other.Body.Position, other.Body.Heading);
+            if (closing >= settings.KnockdownClosingSpeed)
+            {
+                // A much stronger person only reels from a hit that floors the other.
+                KnockDownOrStagger(mover, other, collision.EventId, closing, moverFalls);
+                KnockDownOrStagger(other, mover, collision.EventId, closing, otherFalls);
+            }
+            else
+            {
+                body.Stagger(mover, collision.EventId);
+                body.Stagger(other, collision.EventId);
+            }
+
+            // Crashing into someone on fire, or while on fire, spreads the flames.
+            if (mover.Burning.IsBurning)
+            {
+                body.CatchFire(other, mover.Burning.EventId);
+            }
+            else if (other.Burning.IsBurning)
+            {
+                body.CatchFire(mover, other.Burning.EventId);
+            }
+
+            if (other.Fear.State == AgentFearState.Calm)
+            {
+                fear.Alarm(other, collision.EventId, AgentAlertSource.Bumped, mover.Body.Position);
+            }
+
+            sound.Thud(mover.Id, midpoint, collision.EventId);
             return true;
         }
 
         /// <summary>
-        /// How fast two people approach each other along the line between
-        /// them, in millimetres per tick. Head-on runners add their speeds;
-        /// one catching another from behind only counts the difference.
+        /// A cruel, frightened person who comes up against somebody in the way
+        /// of where they want to go takes hold and heaves them aside rather than
+        /// edging round them. It needs no speed at all, so it is what happens in
+        /// the queue at a doorway, and there is a pause before they do it again.
+        /// Frozen with fear or not, whoever is in front of them is fair game.
         /// </summary>
-        private static int ClosingSpeed(Agent mover, Agent other)
-        {
-            long nx = (long)other.Body.Position.X - mover.Body.Position.X;
-            long nz = (long)other.Body.Position.Z - mover.Body.Position.Z;
-            long distance = IntegerMath.Sqrt(nx * nx + nz * nz);
-            if (distance == 0L)
-            {
-                return mover.Body.Speed;
-            }
-
-            LogicalPosition moverDirection = IntegerMath.Direction(mover.Body.Heading);
-            LogicalPosition otherDirection = IntegerMath.Direction(other.Body.Heading);
-            long moverAlong = mover.Body.Speed * (moverDirection.X * nx + moverDirection.Z * nz);
-            long otherAlong = other.Body.Speed * (otherDirection.X * nx + otherDirection.Z * nz);
-            return (int)((moverAlong - otherAlong) / (IntegerMath.TrigScale * distance));
-        }
-
-        /// <summary>Phase 7, people into people, in the order the bumps were recorded (ascending mover ID).</summary>
-        public void Resolve()
+        private bool TryShove(Agent shover, Agent victim)
         {
             FallSettings settings = context.Scenario.Falls;
-            for (int b = 0; b < bumps.Count; b++)
+            if (shover.Fear.State != AgentFearState.Scared || shover.Body.State != AgentBodyState.Upright ||
+                victim.Body.State != AgentBodyState.Upright || shover.Traits.Evil < settings.ShoveMinimumEvil ||
+                context.Tick < shover.Intent.NextShoveTick || shover.Body.Speed <= 0)
             {
-                BumpIntent bump = bumps[b];
-                Agent mover = bump.Mover;
-                Agent other = bump.Other;
-                if (!mover.IsParticipating || !other.IsParticipating || mover.Body.State != AgentBodyState.Upright)
-                {
-                    continue;
-                }
-
-                if (bump.TripOver)
-                {
-                    if (other.IsDown)
-                    {
-                        body.Trip(mover, other.Body.EventId);
-                    }
-
-                    continue;
-                }
-
-                if (other.Body.State != AgentBodyState.Upright)
-                {
-                    continue;
-                }
-
-                if (bump.Shove)
-                {
-                    ResolveShove(mover, other);
-                    continue;
-                }
-
-                var midpoint = new LogicalPosition(
-                    (int)(((long)mover.Body.Position.X + other.Body.Position.X) / 2),
-                    (int)(((long)mover.Body.Position.Z + other.Body.Position.Z) / 2));
-                CausalEvent collision = context.Events.Append(
-                    context.Tick,
-                    mover.Id,
-                    FireReactionEventType.AgentsCollided,
-                    midpoint,
-                    bump.ClosingSpeed,
-                    0,
-                    mover.Fear.ScaredEventId,
-                    other.Id);
-
-                if (bump.ClosingSpeed >= settings.KnockdownClosingSpeed)
-                {
-                    // A much stronger person only reels from a hit that floors the other.
-                    KnockDownOrStagger(mover, other, collision.EventId, bump.ClosingSpeed);
-                    KnockDownOrStagger(other, mover, collision.EventId, bump.ClosingSpeed);
-                }
-                else
-                {
-                    body.Stagger(mover, collision.EventId);
-                    body.Stagger(other, collision.EventId);
-                }
-
-                // Crashing into someone on fire, or while on fire, spreads the flames.
-                if (mover.Burning.IsBurning)
-                {
-                    body.CatchFire(other, mover.Burning.EventId);
-                }
-                else if (other.Burning.IsBurning)
-                {
-                    body.CatchFire(mover, other.Burning.EventId);
-                }
-
-                if (other.Fear.State == AgentFearState.Calm)
-                {
-                    fear.Alarm(other, collision.EventId, AgentAlertSource.Bumped, mover.Body.Position);
-                }
-
-                sound.Thud(mover.Id, midpoint, collision.EventId);
+                return false;
             }
-        }
 
-        /// <summary>
-        /// The shove: they are sent as far as the room allows, and go down
-        /// rather than merely reeling if the shover is enough stronger. A calm
-        /// person shoved is alarmed, and it makes a thud people turn toward.
-        /// </summary>
-        private void ResolveShove(Agent shover, Agent victim)
-        {
-            FallSettings settings = context.Scenario.Falls;
+            // Only somebody ahead of them, within sixty degrees of the way they
+            // are trying to go.
+            LogicalPosition ahead = IntegerMath.Direction(shover.Body.Heading);
+            long dx = (long)victim.Body.Position.X - shover.Body.Position.X;
+            long dz = (long)victim.Body.Position.Z - shover.Body.Position.Z;
+            long distance = IntegerMath.Sqrt(dx * dx + dz * dz);
+            if ((ahead.X * dx + ahead.Z * dz) * 2L <= distance * IntegerMath.TrigScale)
+            {
+                return false;
+            }
+
+            shover.Intent.NextShoveTick = checked(context.Tick + settings.ShoveIntervalTicks);
             int away = IntegerMath.HeadingBetween(shover.Body.Position, victim.Body.Position, shover.Body.Heading);
             CausalEvent shoved = context.Events.Append(
                 context.Tick,
@@ -236,9 +229,10 @@ namespace Paniq.Simulation
             }
 
             sound.Thud(shover.Id, victim.Body.Position, shoved.EventId);
+            return true;
         }
 
-        private void KnockDownOrStagger(Agent agent, Agent hitBy, ulong collisionEventId, int closingSpeed)
+        private void KnockDownOrStagger(Agent agent, Agent hitBy, ulong collisionEventId, int closingSpeed, int fallHeading)
         {
             if (TraitEffects.ShrugsOff(agent, hitBy, context.Scenario))
             {
@@ -246,28 +240,9 @@ namespace Paniq.Simulation
             }
             else
             {
+                people.FallTowards(agent, fallHeading);
                 body.KnockDown(agent, collisionEventId, closingSpeed);
             }
-        }
-
-        private readonly struct BumpIntent
-        {
-            public BumpIntent(Agent mover, Agent other, int closingSpeed, bool tripOver, bool shove = false)
-            {
-                Mover = mover;
-                Other = other;
-                ClosingSpeed = closingSpeed;
-                TripOver = tripOver;
-                Shove = shove;
-            }
-
-            public Agent Mover { get; }
-            public Agent Other { get; }
-            public int ClosingSpeed { get; }
-            public bool TripOver { get; }
-
-            /// <summary>A deliberate heave rather than a collision.</summary>
-            public bool Shove { get; }
         }
     }
 }

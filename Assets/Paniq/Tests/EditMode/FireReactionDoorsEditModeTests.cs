@@ -267,25 +267,42 @@ namespace Paniq.Tests.EditMode
                 FireReactionScenarioData data = DefaultData();
                 var simulation = new FireReactionSimulation(data, seed);
                 OpenEveryDoor(simulation);
-                long touching = data.World.OccupancyRadiusMillimetres * 2L;
+                // Bodies give a little: in a packed, shoving crowd two people on
+                // their feet may press a few centimetres into each other, and
+                // no further. People knocked down can end up in a heap, one
+                // sprawled across another, which is a pile, not an overlap.
+                long touching = data.World.OccupancyRadiusMillimetres * 2L - 50L;
                 int endTick = data.Fire.ActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
+                List<NavigationGrid.Wall> walls = simulation.GeometryForTests.SolidWalls();
+                var before = new LogicalPosition[simulation.AgentCount];
+                for (int i = 0; i < before.Length; i++)
+                {
+                    before[i] = simulation.GetAgent(i).Position;
+                }
+
                 while (simulation.Tick < endTick)
                 {
                     simulation.Step();
                     for (int i = 0; i < simulation.AgentCount; i++)
                     {
                         FireReactionAgentSnapshot agent = simulation.GetAgent(i);
+                        LogicalPosition from = before[i];
+                        before[i] = agent.Position;
                         if (agent.Participation != AgentParticipation.Participating)
                         {
                             continue;
                         }
 
-                        Assert.That(IsInRoomOrDoorway(simulation, data, agent.Position), Is.True,
+                        // Nobody's middle ever crosses a solid stretch of wall
+                        // between one tick and the next. Doorways are gaps in
+                        // the walls, so going through one is fine, and once out
+                        // in the street people may wander where they like.
+                        Assert.That(CrossesAWall(walls, from, agent.Position), Is.False,
                             $"Seed {seed}: agent {agent.AgentId} walked through a wall at tick {simulation.Tick}.");
                         for (int j = 0; j < i; j++)
                         {
                             FireReactionAgentSnapshot other = simulation.GetAgent(j);
-                            if (other.Participation == AgentParticipation.Participating)
+                            if (other.Participation == AgentParticipation.Participating && !agent.IsDown && !other.IsDown)
                             {
                                 Assert.That(LogicalPosition.DistanceSquared(agent.Position, other.Position),
                                     Is.GreaterThanOrEqualTo(touching * touching));
@@ -327,6 +344,30 @@ namespace Paniq.Tests.EditMode
             return false;
         }
 
+        /// <summary>Whether a move from one point to another cuts across any of these stretches of wall.</summary>
+        private static bool CrossesAWall(List<NavigationGrid.Wall> walls, LogicalPosition from, LogicalPosition to)
+        {
+            foreach (NavigationGrid.Wall wall in walls)
+            {
+                if (Straddles(wall.From, wall.To, from, to) && Straddles(from, to, wall.From, wall.To))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether the two points lie strictly on opposite sides of the line through a and b.</summary>
+        private static bool Straddles(LogicalPosition a, LogicalPosition b, LogicalPosition p, LogicalPosition q)
+        {
+            long abx = (long)b.X - a.X;
+            long abz = (long)b.Z - a.Z;
+            long sideP = abx * ((long)p.Z - a.Z) - abz * ((long)p.X - a.X);
+            long sideQ = abx * ((long)q.Z - a.Z) - abz * ((long)q.X - a.X);
+            return (sideP > 0L && sideQ < 0L) || (sideP < 0L && sideQ > 0L);
+        }
+
         private static bool IsInRoomOrDoorway(FireReactionSimulation simulation, FireReactionScenarioData data, LogicalPosition position)
         {
             if (InAnyRoom(data, position))
@@ -334,14 +375,23 @@ namespace Paniq.Tests.EditMode
                 return true;
             }
 
+            // Anywhere in the gap of a doorway that is open (or broken down),
+            // including just through it on the way out of the building. People
+            // are bodies now: somebody rounding the doorframe is off the door's
+            // centre line, with their shoulder past the wall line, and that is
+            // not walking through the wall.
             int radius = data.World.OccupancyRadiusMillimetres;
-
             for (int d = 0; d < simulation.DoorCount; d++)
             {
                 FireReactionDoorSnapshot door = simulation.GetDoor(d);
                 bool alongX = door.Side == WallSide.North || door.Side == WallSide.South;
                 long along = alongX ? position.X - door.Centre.X : position.Z - door.Centre.Z;
-                if (door.State == DoorState.Open && Math.Abs(along) <= door.WidthMillimetres / 2 - radius)
+                long across = alongX ? position.Z - door.Centre.Z : position.X - door.Centre.X;
+                bool gap = door.State == DoorState.Open || door.State == DoorState.Broken;
+                // Once through, a step or two to one side of the door's own
+                // line is still just outside it.
+                if (gap && Math.Abs(along) <= door.WidthMillimetres / 2 + radius &&
+                    Math.Abs(across) <= data.Exits.EscapeDepthMillimetres + radius)
                 {
                     return true;
                 }

@@ -7,8 +7,9 @@ namespace Paniq.Presentation
 {
     /// <summary>
     /// Each burning cell as a dim glowing tile plus two or three small cubes
-    /// that bob, spin, flicker and fade to embers. Variation comes from a hash
-    /// of the cell's grid position, never from the simulation's generator.
+    /// that bob, spin, flicker and fade to embers, under a column of smoke
+    /// and a few sparks of ember. Variation comes from a hash of the cell's
+    /// grid position, never from the simulation's generator.
     /// </summary>
     internal sealed class FireView
     {
@@ -24,18 +25,25 @@ namespace Paniq.Presentation
             public float[] Sizes;
             public float[] Seeds;
             public float SpawnTime;
+            public Vector3 Centre;
+            public float HalfWidth;
+
+            /// <summary>The leftover fraction of a smoke particle, so the column is even at any frame rate.</summary>
+            public float SmokeCarry;
 
             /// <summary>When this square was hosed down, or -1 while it burns.</summary>
             public float OutSince = -1f;
         }
 
         private readonly PresentationMaterials materials;
+        private readonly ParticleEffects effects;
         private readonly Transform parent;
         private readonly List<CellView> cells = new List<CellView>();
 
-        public FireView(PresentationMaterials materials, Transform parent)
+        public FireView(PresentationMaterials materials, ParticleEffects effects, Transform parent)
         {
             this.materials = materials;
+            this.effects = effects;
             this.parent = parent;
         }
 
@@ -58,6 +66,7 @@ namespace Paniq.Presentation
                 }
 
                 Animate(cells[i], time);
+                effects.BurningFloor(cells[i].Centre, cells[i].HalfWidth, Time.deltaTime, ref cells[i].SmokeCarry);
             }
         }
 
@@ -99,7 +108,9 @@ namespace Paniq.Presentation
                 Offsets = new Vector3[cubeCount],
                 Sizes = new float[cubeCount],
                 Seeds = new float[cubeCount],
-                SpawnTime = time
+                SpawnTime = time,
+                Centre = root.position,
+                HalfWidth = cellSize * 0.4f
             };
 
             float spread = cellSize * 0.28f;

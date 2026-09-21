@@ -99,9 +99,17 @@ $excludedTestFiles = @(
     'SimulationContractEditModeTests.cs'     # reads Time.fixedDeltaTime (checked below instead)
 )
 
+# The physics engine only exists inside Unity: tools\Stubs holds a stand-in
+# that refuses to run, so tests that need it are reported as skipped.
+$excludedSimulationFiles = @(
+    'PhysicsWorld.cs'
+)
+
 $sources = @()
-$sources += Get-ChildItem (Join-Path $repository 'Assets\Paniq\Runtime\Simulation') -Filter '*.cs' | ForEach-Object FullName
+$sources += Get-ChildItem (Join-Path $repository 'Assets\Paniq\Runtime\Simulation') -Filter '*.cs' |
+    Where-Object { $excludedSimulationFiles -notcontains $_.Name } | ForEach-Object FullName
 $sources += Join-Path $repository 'Assets\Paniq\Runtime\Gameplay\FireReactionScenario.cs'
+$sources += Join-Path $repository 'Assets\Paniq\Runtime\Diagnostics\StressBuilding.cs'
 $sources += Get-ChildItem (Join-Path $repository 'Assets\Paniq\Tests\EditMode') -Filter '*.cs' |
     Where-Object { $excludedTestFiles -notcontains $_.Name } | ForEach-Object FullName
 $sources += Get-ChildItem (Join-Path $PSScriptRoot 'Stubs') -Filter '*.cs' | ForEach-Object FullName

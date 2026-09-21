@@ -143,7 +143,8 @@ namespace Paniq.Simulation
                 Traits,
                 Burning.IsBurning,
                 Leading.LedCount > 0,
-                Fear.Composed);
+                Fear.Composed,
+                Body.Pose);
         }
     }
 
@@ -167,6 +168,9 @@ namespace Paniq.Simulation
 
         /// <summary>Whole degrees clockwise from north.</summary>
         public int Heading;
+
+        /// <summary>How the physics engine last left the body: its height and its full 3D turn.</summary>
+        public BodyPose Pose;
 
         /// <summary>Millimetres per tick.</summary>
         public int Speed;
@@ -282,6 +286,7 @@ namespace Paniq.Simulation
         {
             AvoidUntilTick = new int[doorCount];
             FoundShut = new bool[doorCount];
+            ShutByThem = new bool[doorCount];
         }
 
         /// <summary>The door being run for, or -1.</summary>
@@ -313,6 +318,13 @@ namespace Paniq.Simulation
 
         /// <summary>Per door: they have stood at it and it would not open, so they stop counting on it.</summary>
         public readonly bool[] FoundShut;
+
+        /// <summary>
+        /// Per door: they shut or locked it themselves. However long ago, and
+        /// however trapped they are now, they never batter it: that door is
+        /// their own doing.
+        /// </summary>
+        public readonly bool[] ShutByThem;
 
         /// <summary>Until this tick they stand aside beside their open door, letting whoever is lined up with it through first.</summary>
         public int GiveWayUntilTick;
@@ -395,9 +407,6 @@ namespace Paniq.Simulation
 
         /// <summary>The door they are dragging someone toward, or -1.</summary>
         public int DragDoor = -1;
-
-        /// <summary>Where they stood before this tick's move, so a blocked drag can undo it.</summary>
-        public LogicalPosition PositionBeforeMove;
 
         /// <summary>
         /// How many ticks running they have hauled somebody and got nowhere.

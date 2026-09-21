@@ -25,11 +25,19 @@ namespace Paniq.Tests.EditMode
 
         private FireReactionScenarioData DefaultData() => scenario.ToRuntimeData();
 
-        /// <summary>True when a circle of this radius overlaps the table's rectangle grown by the radius (the rule the world uses).</summary>
+        /// <summary>How far one solid thing may press into another, in millimetres, as the physics engine settles contacts.</summary>
+        private const int PhysicsTolerance = 15;
+
+        /// <summary>
+        /// Whether a round footprint this size overlaps the table: nearer to
+        /// the table's rectangle than its radius. Measured to the rectangle
+        /// itself, so somebody standing off a corner is not counted as in it.
+        /// </summary>
         private static bool InsideTable(LogicalPosition position, int radius, LogicalBounds table)
         {
-            return position.X > table.MinX - radius && position.X < table.MaxX + radius &&
-                   position.Z > table.MinZ - radius && position.Z < table.MaxZ + radius;
+            long dx = Math.Max(0L, Math.Max((long)table.MinX - position.X, (long)position.X - table.MaxX));
+            long dz = Math.Max(0L, Math.Max((long)table.MinZ - position.Z, (long)position.Z - table.MaxZ));
+            return dx * dx + dz * dz < (long)radius * radius;
         }
 
         [Test]
@@ -69,6 +77,7 @@ namespace Paniq.Tests.EditMode
             {
                 FireReactionScenarioData data = DefaultData();
                 var simulation = new FireReactionSimulation(data, seed);
+                var presses = new PressWatch();
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, FireReactionDoorsEditModeTests.TheWayOut, 600);
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, FireReactionDoorsEditModeTests.TheWayOut, 601);
                 int radius = data.World.OccupancyRadiusMillimetres;
@@ -87,17 +96,18 @@ namespace Paniq.Tests.EditMode
 
                         foreach (FireReactionAgentSnapshot agent in snapshot.Agents)
                         {
-                            Assert.That(agent.Participation == AgentParticipation.Participating &&
-                                        InsideTable(agent.Position, radius, table.Bounds), Is.False,
+                            // Flung up onto a table top is not inside it.
+                            bool onTheFloor = agent.Pose.HeightMillimetres < 100;
+                            Assert.That(agent.Participation == AgentParticipation.Participating && onTheFloor &&
+                                        InsideTable(agent.Position, radius - PhysicsTolerance, table.Bounds), Is.False,
                                 $"Seed {seed}: agent {agent.AgentId} inside table {table.TableId} at tick {snapshot.Tick}.");
                         }
 
-                        foreach (FireReactionPhysicsObjectSnapshot item in snapshot.PhysicsObjects)
-                        {
-                            Assert.That(!item.IsHeld && !item.Resting && InsideTable(item.Position, item.SizeMillimetres / 2, table.Bounds), Is.False,
-                                $"Seed {seed}: object {item.ObjectId} inside table {table.TableId} at tick {snapshot.Tick}.");
-                        }
                     }
+
+                    // Loose things: nothing solid stays sunk into a table (or
+                    // anything else) further than a squeeze goes.
+                    presses.Check(simulation, $"Seed {seed}");
                 }
 
                 foreach (CausalEvent record in simulation.EventLog.Events)
@@ -132,16 +142,23 @@ namespace Paniq.Tests.EditMode
             };
             var simulation = new FireReactionSimulation(data);
             simulation.LaunchObjectForTests(0, 100, 0);
+            int legs = ObjectShapes.FootprintHalfWidth(PhysicsObjectKind.Chair, 450);
             int closest = int.MinValue;
             for (int t = 0; t < 60; t++)
             {
                 simulation.Step();
                 FireReactionPhysicsObjectSnapshot chair = simulation.GetPhysicsObject(0);
-                Assert.That(InsideTable(chair.Position, 225, table), Is.False, $"The chair went into the table at tick {t}.");
+
+                // The seat overhangs the legs, and it is the legs that reach
+                // the floor: the chair can tip until they meet the table's
+                // side, to within the few millimetres the engine allows.
+                Assert.That(InsideTable(chair.Position, legs - PhysicsTolerance, table), Is.False,
+                    $"The chair went into the table at tick {t}.");
                 closest = Math.Max(closest, chair.Position.X);
             }
 
-            Assert.That(closest, Is.EqualTo(table.MinX - 225), "The chair should reach the table's edge.");
+            Assert.That(closest, Is.InRange(table.MinX - 225 - 30, table.MinX - legs + PhysicsTolerance),
+                "The chair should reach the table's edge.");
             Assert.That(simulation.GetPhysicsObject(0).Position.X, Is.LessThan(closest), "The chair should bounce back off the table.");
         }
     }

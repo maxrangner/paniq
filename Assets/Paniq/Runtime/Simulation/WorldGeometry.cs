@@ -161,6 +161,40 @@ namespace Paniq.Simulation
         /// <summary>Every stretch of solid wall and table edge, for a test to measure against by hand.</summary>
         internal List<NavigationGrid.Wall> WallsForTests => AllSolidEdges();
 
+        /// <summary>
+        /// Every stretch of solid wall with the doorways in the world cut out
+        /// of it, for the physics to build walls from. A spare slot for a blast
+        /// hole is wall until the hole is made.
+        /// </summary>
+        internal List<NavigationGrid.Wall> SolidWalls() => BuildWalls();
+
+        /// <summary>
+        /// How many door slots there are in all, placed or spare. The physics
+        /// keeps a plug for each, there while that doorway is shut.
+        /// </summary>
+        internal int DoorSlotCount => doors.Length;
+
+        /// <summary>Where a door slot's gap is: its centre, which way the wall runs, and how wide it is.</summary>
+        internal void DescribeDoorway(int door, out LogicalPosition centre, out bool alongX, out int width)
+        {
+            centre = DoorCentre(door);
+            alongX = doors[door].Side == WallSide.North || doors[door].Side == WallSide.South;
+            width = doors[door].Width;
+        }
+
+        /// <summary>
+        /// Whether this slot's doorway is a gap anything can pass through right
+        /// now: placed in the world, and open or broken.
+        /// </summary>
+        internal bool IsDoorwayClear(int door) => doors[door].Placed && IsDoorOpen(door);
+
+        /// <summary>
+        /// Whether this slot's doorway needs plugging: placed in the world and
+        /// shut. A spare slot kept for a blast hole is plain wall until the hole
+        /// is made, and a hole is never shut, so neither is ever plugged.
+        /// </summary>
+        internal bool IsDoorwayPlugged(int door) => doors[door].Placed && !IsDoorOpen(door);
+
         /// <summary>The walls with their doorways removed, plus the four sides of every table.</summary>
         private List<NavigationGrid.Wall> AllSolidEdges()
         {

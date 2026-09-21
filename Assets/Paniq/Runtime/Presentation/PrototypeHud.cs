@@ -98,12 +98,15 @@ namespace Paniq.Presentation
             GUI.Label(new Rect(20f, bottom - cardHeight - gap - 44f, 900f, 22f), hint);
         }
 
-        /// <summary>One row per person, numbered like the labels over their heads.</summary>
-        public static void DrawStats(FireReactionSnapshot snapshot)
+        /// <summary>
+        /// One row per person, numbered like the labels over their heads, then
+        /// <paramref name="footer"/>: which physics feel is in use, and so on.
+        /// </summary>
+        public static void DrawStats(FireReactionSnapshot snapshot, string footer)
         {
             const float rowHeight = 20f;
             float width = 640f;
-            float height = rowHeight * (snapshot.Agents.Count + 2) + 12f;
+            float height = rowHeight * (snapshot.Agents.Count + 3) + 12f;
             var area = new Rect(Screen.width - width - 20f, 20f, width, height);
             GUI.color = new Color(0f, 0f, 0f, 0.75f);
             GUI.DrawTexture(area, Texture2D.whiteTexture);
@@ -127,6 +130,7 @@ namespace Paniq.Presentation
             }
 
             GUI.Label(new Rect(x, y, width, rowHeight), "Traits run 0-10; 5 is an ordinary person.");
+            GUI.Label(new Rect(x, y + rowHeight, width - 20f, rowHeight), footer);
         }
 
         private static readonly float[] ColumnX = { 0f, 40f, 80f, 120f, 160f, 200f, 240f, 280f, 330f, 440f };

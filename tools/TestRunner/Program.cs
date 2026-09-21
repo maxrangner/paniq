@@ -214,10 +214,19 @@ internal static class Program
         var suite = new TestSuite("Paniq.Tests.Headless");
         TestExecutionContext.CurrentContext.CurrentTest = suite;
 
+        var needPhysics = new List<string>();
         foreach (TestCaseToRun test in cases)
         {
             TestExecutionContext.CurrentContext.CurrentResult = suite.MakeTestResult();
             Exception failure = Execute(test);
+            if (failure is Paniq.Simulation.NeedsUnityPhysicsException ||
+                (failure?.Message ?? string.Empty).Contains(nameof(Paniq.Simulation.NeedsUnityPhysicsException)))
+            {
+                // Not a pass and not a failure: this one needs the engine.
+                needPhysics.Add(test.Name);
+                continue;
+            }
+
             string reported = TestExecutionContext.CurrentContext.CurrentResult.Output;
             if (!string.IsNullOrWhiteSpace(reported))
             {
@@ -273,8 +282,23 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine(string.Format(
             CultureInfo.InvariantCulture,
-            "{0} passed, {1} failed, {2} run in {3:0.0}s.",
-            passed, failures.Count, cases.Count, stopwatch.Elapsed.TotalSeconds));
+            "{0} passed, {1} failed, {2} skipped (need Unity's physics), {3} in all, in {4:0.0}s.",
+            passed, failures.Count, needPhysics.Count, cases.Count, stopwatch.Elapsed.TotalSeconds));
+        if (needPhysics.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Skipped -- these build a run, which needs Unity's physics engine, and were NOT checked here.");
+            Console.WriteLine("Run them in the open editor with tools\\RunUnityTests.ps1:");
+            foreach (string name in needPhysics.Take(10))
+            {
+                Console.WriteLine("  " + name);
+            }
+
+            if (needPhysics.Count > 10)
+            {
+                Console.WriteLine("  ...and " + (needPhysics.Count - 10) + " more.");
+            }
+        }
 
         // Stands in for ScenarioAsset_MatchesTheCodeDefaults: the saved copy of
         // the scenario must still match the code it was generated from.

@@ -454,7 +454,11 @@ namespace Paniq.Simulation
                         return true;
                     }
 
-                    if (context.Random.NextPercent(TraitEffects.DoorForceChancePercent(agent, context.Scenario)))
+                    // A door they shut themselves they never batter, however long
+                    // ago it was and however badly it has trapped them: they
+                    // give up on it as on any door that will not open.
+                    if (!agent.Doors.ShutByThem[door] &&
+                        context.Random.NextPercent(TraitEffects.DoorForceChancePercent(agent, context.Scenario)))
                     {
                         agent.Intent.Activity = AgentActivityState.ForcingDoor;
                         agent.Intent.ActivityEndTick = checked(tick + context.Random.NextIntInclusive(
@@ -648,6 +652,7 @@ namespace Paniq.Simulation
         private void RememberShutting(Agent agent, int door)
         {
             agent.Doors.FoundShut[door] = true;
+            agent.Doors.ShutByThem[door] = true;
             agent.Doors.AvoidUntilTick[door] = checked(context.Tick + context.Random.NextIntInclusive(
                 settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
             if (agent.Doors.ExitDoorIndex == door)
@@ -687,7 +692,12 @@ namespace Paniq.Simulation
                 return;
             }
 
-            doors.TryClose(door, agent.Id, causeEventId, agent);
+            if (doors.TryClose(door, agent.Id, causeEventId, agent) != 0UL)
+            {
+                // Shut against the fire beyond it: not a way out to them now,
+                // and never a door they would batter.
+                RememberShutting(agent, door);
+            }
         }
 
         /// <summary>Anyone else still in the run near the door, on the side the closer is not.</summary>

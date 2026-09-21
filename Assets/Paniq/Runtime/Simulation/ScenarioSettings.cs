@@ -505,6 +505,146 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
+    /// The dials for how physics feels, as opposed to how it is built. The
+    /// 3D physics engine does the sums; these decide whether the result
+    /// reads as cartoon or as heavy, and they are chosen for fun rather than
+    /// realism. 100 percent is the plain physical answer in every case.
+    /// </summary>
+    [Serializable]
+    public sealed class PhysicsFeelSettings
+    {
+        /// <summary>
+        /// Gravity as a percentage of Earth's. Higher makes flung things arc
+        /// fast and land with a snap, which reads well from a distant camera;
+        /// lower makes everything float.
+        /// </summary>
+        public int GravityPercent = 150;
+
+        /// <summary>How hard blasts (TNT, popping microwaves) throw things and people, as a percentage.</summary>
+        public int BlastStrengthPercent = 100;
+
+        /// <summary>
+        /// How much of a blast's push goes upward, as a percentage of its
+        /// sideways push. 0 slides things along the floor; 100 sends them up
+        /// as steeply as out.
+        /// </summary>
+        public int BlastLiftPercent = 60;
+
+        /// <summary>How hard people throw things, as a percentage.</summary>
+        public int ThrowStrengthPercent = 100;
+
+        /// <summary>How far above level a thrown thing leaves the hand, in degrees.</summary>
+        public int ThrowArcDegrees = 20;
+
+        /// <summary>
+        /// Extra spin given to anything knocked flying, as a percentage: at 0
+        /// flung things only turn as their collisions make them; above 100
+        /// they cartwheel for comedy.
+        /// </summary>
+        public int TumblePercent = 100;
+
+        /// <summary>How grippy the floor is under loose things, as a percentage of the object physics friction.</summary>
+        public int FloorGripPercent = 100;
+
+        /// <summary>
+        /// The fastest anything may travel, in millimetres per tick (1000 is
+        /// 50 metres a second). A safety net: the engine can fling things
+        /// absurdly fast when many pile together, and this keeps it funny
+        /// rather than broken.
+        /// </summary>
+        public int MaximumSpeedMillimetresPerTick = 400;
+
+        /// <summary>How tall the walls are for the physics, in millimetres. Taller than they are drawn, so nothing is lobbed over one.</summary>
+        public int WallHeightMillimetres = 3000;
+
+        /// <summary>How high the table tops are, in millimetres. Things resting on a table sit here.</summary>
+        public int TableHeightMillimetres = 740;
+
+        /// <summary>
+        /// How hard a person can push with their own feet: the most their speed
+        /// can change in one tick, in millimetres per tick. It is also how hard
+        /// they can hold their ground. 3 is a brisk shove: somebody can shoulder
+        /// through a loose crowd, but a crowd leaning the other way carries
+        /// them with it.
+        /// </summary>
+        public int PersonPushMillimetresPerTickPerTick = 3;
+
+        /// <summary>How grippy somebody is while they are sliding along the floor off their feet, as friction times 100.</summary>
+        public int PersonFloorGripPercent = 60;
+
+        /// <summary>
+        /// How hard the people and things pressing on somebody from every side
+        /// may squeeze before it hurts, in kilogram-millimetres per tick each
+        /// tick. One person leaning on another is about a tenth of this; four
+        /// or five pushing into a jammed doorway get there.
+        /// </summary>
+        public int CrushPressure = 700;
+
+        /// <summary>How long somebody can stand that squeeze before they go down, in ticks.</summary>
+        public int CrushTicks = 25;
+
+        /// <summary>
+        /// How far behind where they should be a person being dragged may trail
+        /// before the one dragging them is held up, in millimetres.
+        /// </summary>
+        public int DragSlackMillimetres = 600;
+
+        public PhysicsFeelSettings Clone() => (PhysicsFeelSettings)MemberwiseClone();
+
+        /// <summary>
+        /// Copies every dial that can change while a run is going, for live
+        /// tuning in the editor. The rest are built into the run's physics
+        /// world when it starts (floor grip, top speed, wall and table height)
+        /// and are left alone. A run tuned this way can no longer be replayed.
+        /// </summary>
+        public void TakeLiveValuesFrom(PhysicsFeelSettings other)
+        {
+            GravityPercent = other.GravityPercent;
+            BlastStrengthPercent = other.BlastStrengthPercent;
+            BlastLiftPercent = other.BlastLiftPercent;
+            ThrowStrengthPercent = other.ThrowStrengthPercent;
+            ThrowArcDegrees = other.ThrowArcDegrees;
+            TumblePercent = other.TumblePercent;
+            PersonPushMillimetresPerTickPerTick = other.PersonPushMillimetresPerTickPerTick;
+            PersonFloorGripPercent = other.PersonFloorGripPercent;
+            CrushPressure = other.CrushPressure;
+            CrushTicks = other.CrushTicks;
+            DragSlackMillimetres = other.DragSlackMillimetres;
+        }
+
+        /// <summary>Whether these values would be accepted, and if not, why.</summary>
+        public bool IsValid(out string error)
+        {
+            try
+            {
+                Validate();
+                error = null;
+                return true;
+            }
+            catch (InvalidOperationException invalid)
+            {
+                error = invalid.Message;
+                return false;
+            }
+        }
+
+        internal void Validate()
+        {
+            Settings.Require(GravityPercent > 0 && BlastStrengthPercent >= 0 && BlastLiftPercent >= 0 &&
+                             ThrowStrengthPercent >= 0 && TumblePercent >= 0 && FloorGripPercent >= 0,
+                "physics feel");
+            Settings.Require(ThrowArcDegrees >= 0 && ThrowArcDegrees < 90, "throw arc");
+            Settings.Require(MaximumSpeedMillimetresPerTick > 0 && WallHeightMillimetres > 0 &&
+                             TableHeightMillimetres > 0 && TableHeightMillimetres < WallHeightMillimetres,
+                "physics sizes");
+            Settings.Require(PersonPushMillimetresPerTickPerTick > 0 && PersonFloorGripPercent >= 0 &&
+                             CrushPressure > 0 && CrushTicks > 0 &&
+                             DragSlackMillimetres >= 0,
+                "people's physics");
+        }
+    }
+
+    /// <summary>
     /// Loose objects such as boxes. Object velocities inside the simulation
     /// are hundredths of a millimetre per tick, so friction is in those
     /// units; momentum is kilograms times millimetres per tick.

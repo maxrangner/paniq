@@ -67,6 +67,10 @@ scene.
 | Things that rest on things | System | A laptop stands on a desk and a box on another box, out of everybody's way, until somebody lifts, throws or smashes what holds it up — and then it drops to clear floor beside it |
 | Bangs you can see | Style | A laptop battery, a wall socket, a microwave or a stick of TNT goes off with a flash that lights the room, sparks that fall to the floor, a puff of smoke and a jolt of the camera, sized to the blast |
 | Solid furniture | Style | People are drawn their real height, so desks come to their hips; and the see-through silhouette only paints where a wall or a door hides something, so a chair no longer shows through itself |
+| Things are real 3D objects | System | Chairs tip over and lie on their sides, bags fly in real arcs over tables and land, boxes pile up, slide off desks and topple when bumped |
+| People are bodies | System | A crowd really pushes: a strong rush carries a person along, a knocked-down person lies where they fell and others stumble over them, a blast throws people and they land |
+| Crushes | Behaviour | Pack too many people into a doorway and the ones in the middle are squeezed off their feet, with nothing scripted about doors |
+| Effects you can see | Style | Bangs throw sparks, debris and smoke; burning things lick with flames and trail smoke; extinguishers fire a foam jet that settles on the floor; knocks kick up dust; smashed furniture splinters and appliances shatter |
 
 ## Foundations rebuilt (2026-09-21)
 
@@ -99,6 +103,23 @@ twenty people walking in straight lines used to.
 - **Burst and Jobs on the movement loops.** The simulation stays plain C# so
   this remains possible. Worth doing when a measurement passes about 5 ms a
   tick, a quarter of the budget, with drawing still to pay for.
+
+## Physics overhaul: what is left
+
+The four stones above replaced the prototype's flat, home-made physics with
+Unity's 3D physics engine and added particle effects. Alongside them came the
+"Cartoon" and "Heavy" feel presets with live tuning, blast strength scaling
+people as well as things, and a standalone stress profile. The profile
+meets the budgets at 200 people (1.9 ms a tick) and for particles (0.7 ms a
+frame), and misses the physics budget at 500 people by 0.4 ms (3.4 ms against 3).
+Still to come:
+
+- **Physics at 500 people.** Profile inside the step (the engine's own work,
+  against reading back 1,500 bodies and their contacts each tick) before
+  reaching for bigger tools. Worth doing when a level is planned with more than
+  about 300 people.
+- **Particles bouncing off walls.** Today they bounce off the floor only, and a
+  spark can fly through a wall. Worth doing if it is noticed in play.
 
 ## Choosing the next stone
 

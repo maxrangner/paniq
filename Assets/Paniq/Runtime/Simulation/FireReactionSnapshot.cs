@@ -56,8 +56,10 @@ namespace Paniq.Simulation
             AgentTraitValues traits,
             bool isBurning,
             bool isLeading = false,
-            bool isComposed = false)
+            bool isComposed = false,
+            BodyPose pose = default)
         {
+            Pose = pose;
             Traits = traits;
             IsBurning = isBurning;
             IsLeading = isLeading;
@@ -79,6 +81,13 @@ namespace Paniq.Simulation
         }
 
         public SimulationId AgentId { get; }
+
+        /// <summary>
+        /// How high their feet are off the floor and how their body is turned,
+        /// as the physics engine left it: standing, sprawled on their back,
+        /// flying through the air from a blast.
+        /// </summary>
+        public BodyPose Pose { get; }
         public LogicalPosition Position { get; }
         public AgentParticipation Participation { get; }
         public AgentFearState FearState { get; }
@@ -211,8 +220,10 @@ namespace Paniq.Simulation
             SimulationId occupiedBy = default,
             bool dormant = false,
             bool wrecked = false,
-            bool resting = false)
+            bool resting = false,
+            BodyPose pose = default)
         {
+            Pose = pose;
             Resting = resting;
             Wrecked = wrecked;
             Dormant = dormant;
@@ -274,12 +285,61 @@ namespace Paniq.Simulation
         /// <summary>Thrown and still flying.</summary>
         public bool Thrown { get; }
 
+        /// <summary>
+        /// How high it is and how it is turned in all three dimensions, as the
+        /// physics engine left it: lying on its side, upside down, in mid-air.
+        /// Empty for a thing being carried or not yet in the world.
+        /// </summary>
+        public BodyPose Pose { get; }
+
         /// <summary>The same object with its fire state filled in.</summary>
         internal FireReactionPhysicsObjectSnapshot WithBurn(ObjectBurnState burnState, int heatPercent)
         {
             return new FireReactionPhysicsObjectSnapshot(ObjectId, Kind, Position, SizeMillimetres, HeadingDegrees,
-                SpeedMillimetresPerTick, burnState, heatPercent, HeldBy, Thrown, OccupiedBy, Dormant, Wrecked, Resting);
+                SpeedMillimetresPerTick, burnState, heatPercent, HeldBy, Thrown, OccupiedBy, Dormant, Wrecked, Resting, Pose);
         }
+    }
+
+    /// <summary>
+    /// Where a body is in the air and how it is turned, in whole numbers: its
+    /// bottom's height above the floor in millimetres, and its rotation as a
+    /// quaternion (the usual four-number way of writing a 3D turn) with each
+    /// part scaled by 10000. The height and the base point are the body's own
+    /// origin: the spot on its underside it was built up from, which is where
+    /// its feet are for a person and the middle of its base for an object.
+    /// </summary>
+    public readonly struct BodyPose
+    {
+        public const int RotationScale = 10000;
+
+        public BodyPose(int heightMillimetres, int rotationX, int rotationY, int rotationZ, int rotationW,
+            LogicalPosition origin = default)
+        {
+            Origin = origin;
+            HeightMillimetres = heightMillimetres;
+            RotationX = rotationX;
+            RotationY = rotationY;
+            RotationZ = rotationZ;
+            RotationW = rotationW;
+        }
+
+        public int HeightMillimetres { get; }
+
+        /// <summary>
+        /// Where the body's origin is across the floor. Its position elsewhere
+        /// in the snapshot is its middle, which is not the same spot once it
+        /// tips: a person lying on the floor has their middle a metre from
+        /// their feet.
+        /// </summary>
+        public LogicalPosition Origin { get; }
+
+        public int RotationX { get; }
+        public int RotationY { get; }
+        public int RotationZ { get; }
+        public int RotationW { get; }
+
+        /// <summary>False for the empty pose: nothing was measured, so draw it the old way.</summary>
+        public bool IsKnown => RotationX != 0 || RotationY != 0 || RotationZ != 0 || RotationW != 0;
     }
 
     /// <summary>

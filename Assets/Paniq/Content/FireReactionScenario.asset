@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 39
+    ContentRevision: 40
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 31
+    SimulationCompatibilityVersion: 32
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -200,6 +200,22 @@ MonoBehaviour:
       KnockdownMomentum: 1600
       LoggedBoxHitSpeed: 20
       SpinMaximum: 8
+    PhysicsFeel:
+      GravityPercent: 150
+      BlastStrengthPercent: 100
+      BlastLiftPercent: 60
+      ThrowStrengthPercent: 100
+      ThrowArcDegrees: 20
+      TumblePercent: 100
+      FloorGripPercent: 100
+      MaximumSpeedMillimetresPerTick: 400
+      WallHeightMillimetres: 3000
+      TableHeightMillimetres: 740
+      PersonPushMillimetresPerTickPerTick: 3
+      PersonFloorGripPercent: 60
+      CrushPressure: 700
+      CrushTicks: 25
+      DragSlackMillimetres: 600
     Traits:
       CalmSpeedJitter: 2
       PanicSpeedJitter: 5

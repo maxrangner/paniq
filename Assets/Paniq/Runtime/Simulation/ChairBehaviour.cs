@@ -20,13 +20,18 @@ namespace Paniq.Simulation
         private readonly Crowd crowd;
         private readonly ItemSettings settings;
 
-        public ChairBehaviour(SimulationContext context, Crowd crowd, WorldGeometry geometry, PhysicsObjectSystem objects)
+        /// <summary>Everybody's physical body: sitting down holds it on the chair.</summary>
+        private readonly PeopleBodies people;
+
+        public ChairBehaviour(SimulationContext context, Crowd crowd, WorldGeometry geometry, PhysicsObjectSystem objects,
+            PeopleBodies people)
         {
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
             this.objects = objects;
+            this.people = people;
             settings = context.Scenario.Items;
         }
 
@@ -176,10 +181,10 @@ namespace Paniq.Simulation
         private void SitDown(Agent agent, int chair)
         {
             // Settling onto the chair puts them on it: the one place a body
-            // moves outside the movement phase, and only by a stride.
-            crowd.MoveTo(agent, objects.PositionOf(chair));
-            agent.Body.Speed = 0;
+            // moves outside the engine's step, and only by a stride.
             objects.SitOn(chair, agent);
+            people.SitIn(agent, chair, objects.PositionOf(chair), agent.Body.Heading);
+            agent.Body.Speed = 0;
             agent.Sitting.OnIt = true;
             agent.Intent.Activity = AgentActivityState.Sitting;
 
@@ -270,9 +275,19 @@ namespace Paniq.Simulation
             agent.Sitting.OnIt = false;
         }
 
-        /// <summary>One step clear of the seat, so they are not standing in the chair.</summary>
+        /// <summary>
+        /// One step clear of the seat, so they are not standing in the chair.
+        /// Somebody knocked off it takes no step: they lie where they fell, and
+        /// the chair, loose again, is shoved out from under them instead.
+        /// </summary>
         private void StepOutOfTheChair(Agent agent, int chair, int away)
         {
+            if (agent.IsDown)
+            {
+                people.LeaveChair(agent, null);
+                return;
+            }
+
             int clearance = context.Scenario.World.OccupancyRadiusMillimetres + objects.RadiusOf(chair) + 50;
             for (int turn = 0; turn <= 180; turn += 45)
             {
@@ -287,10 +302,14 @@ namespace Paniq.Simulation
                         continue;
                     }
 
-                    crowd.MoveTo(agent, step);
+                    people.LeaveChair(agent, step);
                     return;
                 }
             }
+
+            // Nowhere to step: they stand up where they are, and the chair
+            // they were in is eased out from under them.
+            people.LeaveChair(agent, null);
         }
     }
 }

@@ -7,48 +7,35 @@ namespace Paniq.Presentation
 {
     /// <summary>
     /// Loose objects: boxes are brown cubes 0.75 as tall as they are wide,
-    /// chairs a seat, a back and four legs. They slide smoothly and hop and
-    /// tip a little when hit. Near flames they darken as they heat up; then
-    /// they burn with a crown of flame cubes, and are left charcoal-black.
-    /// A carried item is held up at chest height; a thrown one flies in a
-    /// low arc (its height is display only; the simulation is flat).
+    /// chairs a seat, a back and four legs. Each is drawn exactly where the
+    /// physics engine has it, turned the way it is turned: a chair knocked
+    /// over lies on its side, a thrown bag flies in its real arc, a box
+    /// stacked on another sits on top of it. Near flames they darken as they
+    /// heat up; then they burn with a crown of flame cubes, and are left
+    /// charcoal-black. A carried item is held up at hand height.
     /// </summary>
     internal sealed class BoxViews
     {
         private sealed class BoxView
         {
             public Transform Transform;
+            public PhysicsObjectKind Kind;
             public Renderer[] Renderers;
             public Color Colour;
-            public FlameCubes Flames;
+            public FlameEmitter Flames;
             public float Size;
             public float Height;
-            public float HopStart = -10f;
-            public float HopStrength;
             public float Lift;
-            public float Arc;
 
             /// <summary>0 while it is in one piece, 1 once it has collapsed into wreckage.</summary>
             public float Wreck;
-
-            /// <summary>How high its own top is, in metres: what a box stacked on it stands on.</summary>
-            public float TopHeight;
-
-            /// <summary>
-            /// How high the thing under it holds it up while it rests there: a
-            /// desk top for a laptop, the lower box for a stacked one. Zero for
-            /// anything that starts on the floor.
-            /// </summary>
-            public float SupportHeight;
-
-            /// <summary>Where it is drawn now; it drops smoothly to the floor when it comes loose.</summary>
-            public float Rest;
         }
 
         private readonly Dictionary<SimulationId, BoxView> boxes = new Dictionary<SimulationId, BoxView>();
         private readonly PresentationMaterials materials;
 
-        public BoxViews(FireReactionScenarioData scenario, PresentationMaterials materials, Transform parent)
+        public BoxViews(FireReactionScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
+            Transform parent)
         {
             this.materials = materials;
             foreach (FireReactionPhysicsObjectDefinition definition in scenario.PhysicsObjects)
@@ -68,7 +55,15 @@ namespace Paniq.Presentation
                 boxes.Add(definition.ObjectId, CreateBox(definition, materials, parent));
             }
 
-            FindWhatHoldsUpEachRestingThing(scenario);
+            foreach (FireReactionPhysicsObjectDefinition definition in scenario.PhysicsObjects)
+            {
+                boxes[definition.ObjectId].Kind = definition.Kind;
+            }
+
+            foreach (BoxView view in boxes.Values)
+            {
+                view.Flames = new FlameEmitter(view.Transform, 4, effects, materials);
+            }
         }
 
         /// <summary>
@@ -98,61 +93,9 @@ namespace Paniq.Presentation
                 Transform = root,
                 Renderers = new[] { renderer },
                 Colour = shade,
-                Flames = new FlameCubes(root, 4, materials, definition.ObjectId.Value % 89UL),
                 Size = size,
-                Height = height,
-                TopHeight = height
+                Height = height
             };
-        }
-
-        /// <summary>
-        /// Works out, once, how high each thing that starts resting is held up:
-        /// on a desk, at the desk top; on another object, at that object's top.
-        /// A stacked box is authored at the same spot as the one under it, so
-        /// the nearest thing on the floor beneath it is its support.
-        /// </summary>
-        private void FindWhatHoldsUpEachRestingThing(FireReactionScenarioData scenario)
-        {
-            foreach (FireReactionPhysicsObjectDefinition definition in scenario.PhysicsObjects)
-            {
-                if (!definition.StartsResting || !boxes.TryGetValue(definition.ObjectId, out BoxView view))
-                {
-                    continue;
-                }
-
-                float support = 0f;
-                foreach (FireReactionTableDefinition table in scenario.Tables)
-                {
-                    if (table.Bounds.ContainsCircle(definition.InitialPosition, 0))
-                    {
-                        support = RoomView.TableHeight;
-                        break;
-                    }
-                }
-
-                if (support <= 0f)
-                {
-                    long best = long.MaxValue;
-                    foreach (FireReactionPhysicsObjectDefinition under in scenario.PhysicsObjects)
-                    {
-                        if (under.ObjectId == definition.ObjectId || under.StartsResting ||
-                            !boxes.TryGetValue(under.ObjectId, out BoxView underView))
-                        {
-                            continue;
-                        }
-
-                        long distance = LogicalPosition.DistanceSquared(definition.InitialPosition, under.InitialPosition);
-                        if (distance < best)
-                        {
-                            best = distance;
-                            support = underView.TopHeight;
-                        }
-                    }
-                }
-
-                view.SupportHeight = support;
-                view.Rest = support;
-            }
         }
 
         /// <summary>
@@ -250,10 +193,8 @@ namespace Paniq.Presentation
                 Transform = root,
                 Renderers = renderers.ToArray(),
                 Colour = colour,
-                Flames = new FlameCubes(root, 4, materials, definition.ObjectId.Value % 89UL),
                 Size = size,
-                Height = height,
-                TopHeight = height
+                Height = height
             };
         }
 
@@ -308,12 +249,10 @@ namespace Paniq.Presentation
                 Transform = root,
                 Renderers = renderers.ToArray(),
                 Colour = wood,
-                Flames = new FlameCubes(root, 4, materials, definition.ObjectId.Value % 89UL),
                 Size = size,
 
                 // Flames rise from the seat, which is 0.6 of the way up this.
-                Height = seatHeight / 0.6f,
-                TopHeight = seatHeight
+                Height = seatHeight / 0.6f
             };
         }
 
@@ -330,7 +269,7 @@ namespace Paniq.Presentation
             float top = view.Height > 0f ? view.Height : 0.45f;
             Vector3 bottom = new Vector3(0f, top * 0.6f, 0f);
             Vector3 spread = new Vector3(view.Size * 0.35f, Mathf.Max(0.3f, top * 1.3f), view.Size * 0.35f);
-            view.Flames.Update(state == ObjectBurnState.Burning, time, bottom, spread,
+            view.Flames.Update(state == ObjectBurnState.Burning, bottom, spread,
                 Mathf.Clamp(view.Size * 0.4f, 0.08f, 0.18f));
         }
 
@@ -356,19 +295,34 @@ namespace Paniq.Presentation
         public float BurstHeightOf(SimulationId objectId)
         {
             return boxes.TryGetValue(objectId, out BoxView view)
-                ? view.Rest + Mathf.Max(0.1f, view.Height * 0.5f)
+                ? view.Transform.position.y + Mathf.Max(0.1f, view.Height * 0.5f)
                 : 0.4f;
         }
 
-        /// <summary>A hop and tip; <paramref name="strength"/> 0..1 scales it.</summary>
-        public void Hop(SimulationId boxId, float strength, float time)
+        /// <summary>
+        /// Where the middle of a thing is drawn now, how wide it is, and
+        /// whether it breaks into bright shards (an appliance or an
+        /// extinguisher) rather than splinters, for the effect of it smashing.
+        /// </summary>
+        public bool TryDescribe(SimulationId objectId, out Vector3 middle, out float size, out bool shatters)
         {
-            if (boxes.TryGetValue(boxId, out BoxView view))
+            if (!boxes.TryGetValue(objectId, out BoxView view))
             {
-                view.HopStart = time;
-                view.HopStrength = strength;
+                middle = default;
+                size = 0f;
+                shatters = false;
+                return false;
             }
+
+            middle = view.Transform.TransformPoint(Vector3.up * (view.Height * 0.4f));
+            size = view.Size;
+            shatters = view.Kind == PhysicsObjectKind.Laptop || view.Kind == PhysicsObjectKind.Microwave ||
+                       view.Kind == PhysicsObjectKind.WallSocket || view.Kind == PhysicsObjectKind.Extinguisher;
+            return true;
         }
+
+        /// <summary>Where the simulation lets go of a carried thing, in metres; it is drawn there while held.</summary>
+        private const float HandHeight = 1f;
 
         public void Update(FireReactionSnapshot snapshot, FireReactionSnapshot previousSnapshot, float blend, float time)
         {
@@ -395,39 +349,49 @@ namespace Paniq.Presentation
                 FireReactionPhysicsObjectSnapshot previous = previousSnapshot != null && i < previousSnapshot.PhysicsObjects.Count
                     ? previousSnapshot.PhysicsObjects[i]
                     : box;
-                Vector3 planar = Vector3.Lerp(ToUnityPosition(previous.Position), ToUnityPosition(box.Position), blend);
-                float yaw = Mathf.LerpAngle(previous.HeadingDegrees, box.HeadingDegrees, blend);
 
-                float hopAge = (time - view.HopStart) / 0.3f;
-                float hop = hopAge < 1f ? Mathf.Sin(hopAge * Mathf.PI) * view.HopStrength : 0f;
-
-                // Lifted smoothly into someone's arms; a thrown item rides high and sinks as it slows.
+                // Smashed: it collapses into a flat heap, as small as the
+                // physics made it, and stays that way.
                 float delta = Time.deltaTime;
-                view.Lift = Mathf.MoveTowards(view.Lift, box.IsHeld ? 1f : 0f, delta * 4f);
-                float arcTarget = box.Thrown ? Mathf.Clamp01(box.SpeedMillimetresPerTick / 80f) : 0f;
-                view.Arc = Mathf.MoveTowards(view.Arc, arcTarget, delta * 3f);
-                float raised = view.Lift * 0.75f + view.Arc * 0.6f;
-
-                // In flight it tips nose-up and back as it arcs, never more than
-                // a quarter turn; the turning you see comes from the simulation's
-                // own heading, so the picture and the physics agree.
-                float tumble = view.Arc * 25f;
-
-                // Resting on a desk or on another box it sits on top of it; the
-                // moment it comes loose it drops to the floor rather than
-                // teleporting there.
-                view.Rest = Mathf.MoveTowards(view.Rest, box.Resting ? view.SupportHeight : 0f, delta * 6f);
-
-                // Smashed: it collapses to a flat heap and stays that way.
                 view.Wreck = Mathf.MoveTowards(view.Wreck, box.Wrecked ? 1f : 0f, delta * 6f);
-                float squash = Mathf.Lerp(1f, 0.3f, view.Wreck);
-                view.Transform.localScale = new Vector3(1f, squash, 1f);
-                view.Transform.SetPositionAndRotation(
-                    planar + Vector3.up * (view.Rest + hop * 0.12f + raised),
-                    Quaternion.Euler(hop * 18f + tumble, yaw, view.Wreck * 12f));
+                float shrink = Mathf.Lerp(1f, 0.75f, view.Wreck);
+                view.Transform.localScale = new Vector3(shrink, Mathf.Lerp(1f, 0.3f, view.Wreck), shrink);
+
+                // Lifted smoothly into someone's arms. The simulation keeps no
+                // pose for a carried thing (it rides with its carrier), so it
+                // is drawn in their hands, upright and facing their way.
+                view.Lift = Mathf.MoveTowards(view.Lift, box.IsHeld ? 1f : 0f, delta * 4f);
+                if (!box.Pose.IsKnown)
+                {
+                    Vector3 planar = Vector3.Lerp(ToUnityPosition(previous.Position), ToUnityPosition(box.Position), blend);
+                    float yaw = Mathf.LerpAngle(previous.HeadingDegrees, box.HeadingDegrees, blend);
+                    view.Transform.SetPositionAndRotation(planar + Vector3.up * (view.Lift * HandHeight),
+                        Quaternion.Euler(0f, yaw, 0f));
+                }
+                else
+                {
+                    BodyPose to = box.Pose;
+                    BodyPose from = previous.Pose.IsKnown ? previous.Pose : to;
+                    view.Transform.SetPositionAndRotation(
+                        Vector3.Lerp(PoseOrigin(from), PoseOrigin(to), blend),
+                        Quaternion.Slerp(PoseRotation(from), PoseRotation(to), blend));
+                }
 
                 ShowFire(view, box.BurnState, box.HeatPercent, time);
             }
+        }
+
+        /// <summary>Where a pose's origin is in the world, in metres.</summary>
+        internal static Vector3 PoseOrigin(BodyPose pose) =>
+            ToUnityPosition(pose.Origin) + Vector3.up * Metres(pose.HeightMillimetres);
+
+        /// <summary>A pose's turn as Unity's rotation.</summary>
+        internal static Quaternion PoseRotation(BodyPose pose)
+        {
+            const float scale = BodyPose.RotationScale;
+            var rotation = new Quaternion(pose.RotationX / scale, pose.RotationY / scale, pose.RotationZ / scale,
+                pose.RotationW / scale);
+            return rotation.normalized;
         }
     }
 }

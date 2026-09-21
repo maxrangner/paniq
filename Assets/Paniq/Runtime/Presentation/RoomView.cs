@@ -40,6 +40,7 @@ namespace Paniq.Presentation
         }
 
         private readonly PresentationMaterials materials;
+        private readonly ParticleEffects effects;
         private readonly Transform parent;
         private readonly FireReactionScenarioData scenario;
         private readonly Dictionary<SimulationId, DoorView> doors = new Dictionary<SimulationId, DoorView>();
@@ -48,7 +49,7 @@ namespace Paniq.Presentation
         private sealed class TableView
         {
             public Renderer[] Parts;
-            public FlameCubes Flames;
+            public FlameEmitter Flames;
             public float Width;
             public float Depth;
 
@@ -87,10 +88,12 @@ namespace Paniq.Presentation
 
         private static readonly Color AlarmRestingColor = new Color(0.75f, 0.12f, 0.12f);
 
-        public RoomView(FireReactionScenarioData scenario, PresentationMaterials materials, Transform parent)
+        public RoomView(FireReactionScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
+            Transform parent)
         {
             this.scenario = scenario;
             this.materials = materials;
+            this.effects = effects;
             this.parent = parent;
             Build();
         }
@@ -311,7 +314,7 @@ namespace Paniq.Presentation
             tables.Add(table.TableId, new TableView
             {
                 Parts = parts,
-                Flames = new FlameCubes(root, 10, materials, table.TableId.Value % 83UL),
+                Flames = new FlameEmitter(root, 10, effects, materials),
                 Width = width,
                 Depth = depth,
                 Root = root
@@ -531,7 +534,7 @@ namespace Paniq.Presentation
                     view.Root.localScale = new Vector3(1f, Mathf.Lerp(1f, 0.12f, view.Collapse), 1f);
                 }
 
-                view.Flames.Update(table.BurnState == ObjectBurnState.Burning, time, new Vector3(0f, 0.72f, 0f),
+                view.Flames.Update(table.BurnState == ObjectBurnState.Burning, new Vector3(0f, 0.72f, 0f),
                     new Vector3(view.Width * 0.4f, 0.8f, view.Depth * 0.4f), 0.2f);
             }
 

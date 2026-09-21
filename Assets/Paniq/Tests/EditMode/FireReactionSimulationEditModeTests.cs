@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("39"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(31));
+            Assert.That(data.ContentRevision, Is.EqualTo("40"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(32));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -502,7 +502,11 @@ namespace Paniq.Tests.EditMode
             // A sealed room: nobody may break a door down here.
             data.Traits.DoorDamagePerPoint = 0;
             var simulation = new FireReactionSimulation(data);
-            long touching = data.World.OccupancyRadiusMillimetres * 2L;
+            // Bodies give a little: in a packed, shoving crowd two people on
+                // their feet may press a few centimetres into each other, and
+                // no further. People knocked down can end up in a heap, one
+                // sprawled across another, which is a pile, not an overlap.
+                long touching = data.World.OccupancyRadiusMillimetres * 2L - 50L;
             for (int tick = 0; tick < 3000; tick++)
             {
                 simulation.Step();
@@ -520,7 +524,7 @@ namespace Paniq.Tests.EditMode
                     for (int j = 0; j < i; j++)
                     {
                         FireReactionAgentSnapshot other = snapshot.Agents[j];
-                        if (other.Participation == AgentParticipation.Participating)
+                        if (other.Participation == AgentParticipation.Participating && !agent.IsDown && !other.IsDown)
                         {
                             Assert.That(LogicalPosition.DistanceSquared(agent.Position, other.Position),
                                 Is.GreaterThanOrEqualTo(touching * touching),
@@ -1059,8 +1063,11 @@ namespace Paniq.Tests.EditMode
 
                     if (agent.ActivityState == AgentActivityState.Frozen)
                     {
+                        // Frozen to the spot, give or take being jostled by the
+                        // people running past.
                         frozenAt[i] ??= agent.Position;
-                        Assert.That(agent.Position, Is.EqualTo(frozenAt[i].Value),
+                        Assert.That(LogicalPosition.DistanceSquared(agent.Position, frozenAt[i].Value),
+                            Is.LessThanOrEqualTo(600L * 600L),
                             $"Permanently frozen agent {agent.AgentId} moved.");
                     }
                     else
@@ -1149,7 +1156,11 @@ namespace Paniq.Tests.EditMode
                 int longestDown = Math.Max(
                     Math.Max(data.Falls.KnockdownMaximumTicks, data.Falls.TripMaximumTicks) + data.Falls.GetUpTicks,
                     data.Falls.UnconsciousMaximumTicks + data.Falls.ComeToGetUpTicks) + 1;
-                long touching = data.World.OccupancyRadiusMillimetres * 2L;
+                // Bodies give a little: in a packed, shoving crowd two people on
+                // their feet may press a few centimetres into each other, and
+                // no further. People knocked down can end up in a heap, one
+                // sprawled across another, which is a pile, not an overlap.
+                long touching = data.World.OccupancyRadiusMillimetres * 2L - 50L;
                 int endTick = data.Fire.ActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
                 while (simulation.Tick < endTick)
                 {
@@ -1165,10 +1176,15 @@ namespace Paniq.Tests.EditMode
                         // Someone can finish staggering, take a step and be bumped again in one
                         // tick, but nobody gets from the floor to their feet and back that fast.
                         // (Someone knocked out can be dragged along by a helper.)
+                        // Somebody on the floor goes nowhere by themselves. They
+                        // can be shoved along by the crowd, or slide on from the
+                        // knock that floored them, but never at more than a
+                        // stumble's pace.
                         if (agent.IsDown && agent.BodyState == previous[i].BodyState && !SomeoneIsDragging(simulation))
                         {
-                            Assert.That(agent.Position, Is.EqualTo(previous[i].Position),
-                                $"Seed {seed}: agent {agent.AgentId} moved while not on its feet.");
+                            Assert.That(LogicalPosition.DistanceSquared(agent.Position, previous[i].Position),
+                                Is.LessThanOrEqualTo(150L * 150L),
+                                $"Seed {seed}: agent {agent.AgentId} moved too fast while not on its feet.");
                         }
 
                         // One spell on the floor at a time. Somebody hauled up
@@ -1185,7 +1201,7 @@ namespace Paniq.Tests.EditMode
                         for (int j = 0; j < i; j++)
                         {
                             FireReactionAgentSnapshot other = simulation.GetAgent(j);
-                            if (other.Participation == AgentParticipation.Participating)
+                            if (other.Participation == AgentParticipation.Participating && !agent.IsDown && !other.IsDown)
                             {
                                 Assert.That(LogicalPosition.DistanceSquared(agent.Position, other.Position),
                                     Is.GreaterThanOrEqualTo(touching * touching),
@@ -1227,6 +1243,7 @@ namespace Paniq.Tests.EditMode
                             FireReactionEventType cause = log.Get(record.CausalParentEventId).EventType;
                             Assert.That(cause == FireReactionEventType.AgentKnockedDown ||
                                         cause == FireReactionEventType.AgentTripped ||
+                                        cause == FireReactionEventType.AgentCrushed ||
                                         cause == FireReactionEventType.AgentCameTo, Is.True,
                                 $"Seed {seed}: got up after {cause}.");
                             break;

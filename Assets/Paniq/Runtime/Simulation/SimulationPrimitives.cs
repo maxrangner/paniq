@@ -416,7 +416,14 @@ namespace Paniq.Simulation
         PowerSpawnedExtinguisher,
 
         /// <summary>A wall blown open by the player (source and target: the hole itself).</summary>
-        PowerBlastedWall
+        PowerBlastedWall,
+
+        /// <summary>
+        /// Squeezed off their feet by the crowd pressing in from every side
+        /// (source: the person; strength: how hard the squeeze was; cause:
+        /// whatever frightened them into the crush).
+        /// </summary>
+        AgentCrushed
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>

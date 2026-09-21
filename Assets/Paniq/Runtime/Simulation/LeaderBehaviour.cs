@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// Taking charge. Someone with leadership who is not in immediate danger
@@ -20,6 +20,9 @@
     internal sealed class LeaderBehaviour
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly DoorSystem doors;
@@ -42,6 +45,7 @@
             Locomotion locomotion)
         {
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
             this.doors = doors;
@@ -94,8 +98,10 @@
             long bestDistance = long.MaxValue;
             for (int d = 0; d < doors.Count; d++)
             {
-                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) || !leader.Doors.FoundShut[d] ||
-                    !geometry.DoorTouchesRoom(d, room))
+                // Any way out they have found shut themselves, not only one in
+                // the room they happen to be standing in: the person they send
+                // can walk to it now.
+                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) || !leader.Doors.FoundShut[d])
                 {
                     continue;
                 }
@@ -157,8 +163,10 @@
             int bottle = -1;
             for (int i = 0; i < objects.Count; i++)
             {
+                // A bottle anywhere somebody could be sent to, rather than
+                // only one in the room the leader is standing in.
                 if (objects.KindOf(i) == PhysicsObjectKind.Extinguisher && objects.HolderOf(i) < 0 && objects.FuelOf(i) > 0 &&
-                    geometry.RoomAtPoint(objects.PositionOf(i)) == geometry.RoomOf(leader))
+                    geometry.Routes.CanGetFromHereToThere(leader.Body.Position, objects.PositionOf(i), bodyRadius))
                 {
                     bottle = i;
                     break;
@@ -220,7 +228,7 @@
                 // have to be shaken (see HelpBehaviour).
                 if (other == leader || !other.IsParticipating || other.Leading.FollowingIndex == leader.Index ||
                     other.Intent.Activity == AgentActivityState.Frozen || other.Burning.IsBurning ||
-                    geometry.RoomOf(other) != room ||
+                    !geometry.RoomsOpenToEachOther(room, geometry.RoomOf(other)) ||
                     LogicalPosition.DistanceSquared(other.Body.Position, leader.Body.Position) > range * range)
                 {
                     continue;

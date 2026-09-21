@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
@@ -6,9 +6,11 @@ namespace Paniq.Simulation
     /// People running into people. A panicking runner whose way is blocked
     /// by a person and who is going too fast to dodge runs into them; a hard
     /// enough hit puts both on the floor, a lighter one makes both stagger.
-    /// Running into someone lying on the floor trips you over them. Nobody
-    /// ever overlaps: a collision is a move that did not happen, recorded
-    /// during decisions and resolved after movement in the order recorded.
+    /// Running into someone lying on the floor trips you over them. Too slow
+    /// to run into them, a cruel person takes hold and heaves them aside
+    /// instead, which is the one deliberate shove in here. Nobody ever
+    /// overlaps: a collision is a move that did not happen, recorded during
+    /// decisions and resolved after movement in the order recorded.
     /// </summary>
     internal sealed class CollisionSystem
     {
@@ -70,10 +72,31 @@ namespace Paniq.Simulation
             int closing = ClosingSpeed(mover, other);
             if (closing < TraitEffects.BumpMinimumSpeed(mover, context.Scenario))
             {
-                return false;
+                // Not fast enough to barge through them by accident. The cruel
+                // take hold and shove instead of going round.
+                return TryRecordShove(mover, other);
             }
 
             bumps.Add(new BumpIntent(mover, other, closing, false));
+            return true;
+        }
+
+        /// <summary>
+        /// A cruel person, held up by somebody in their way, grabs them and
+        /// heaves them aside. It needs no speed at all, so it is what happens
+        /// in the queue at a doorway, and there is a pause before they do it
+        /// again.
+        /// </summary>
+        private bool TryRecordShove(Agent mover, Agent other)
+        {
+            FallSettings settings = context.Scenario.Falls;
+            if (mover.Traits.Evil < settings.ShoveMinimumEvil || context.Tick < mover.Intent.NextShoveTick)
+            {
+                return false;
+            }
+
+            mover.Intent.NextShoveTick = checked(context.Tick + settings.ShoveIntervalTicks);
+            bumps.Add(new BumpIntent(mover, other, 0, false, true));
             return true;
         }
 
@@ -128,6 +151,12 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                if (bump.Shove)
+                {
+                    ResolveShove(mover, other);
+                    continue;
+                }
+
                 var midpoint = new LogicalPosition(
                     (int)(((long)mover.Body.Position.X + other.Body.Position.X) / 2),
                     (int)(((long)mover.Body.Position.Z + other.Body.Position.Z) / 2));
@@ -172,6 +201,43 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// The shove: they are sent as far as the room allows, and go down
+        /// rather than merely reeling if the shover is enough stronger. A calm
+        /// person shoved is alarmed, and it makes a thud people turn toward.
+        /// </summary>
+        private void ResolveShove(Agent shover, Agent victim)
+        {
+            FallSettings settings = context.Scenario.Falls;
+            int away = IntegerMath.HeadingBetween(shover.Body.Position, victim.Body.Position, shover.Body.Heading);
+            CausalEvent shoved = context.Events.Append(
+                context.Tick,
+                shover.Id,
+                FireReactionEventType.AgentShoved,
+                victim.Body.Position,
+                settings.ShovePushMillimetres,
+                0,
+                shover.Fear.ScaredEventId,
+                victim.Id);
+
+            if (shover.Traits.Strength - victim.Traits.Strength >= settings.ShoveKnockDownStrengthGap)
+            {
+                body.ShoveBack(victim, away, settings.ShovePushMillimetres, shoved.EventId);
+            }
+            else
+            {
+                body.Slide(victim, away, settings.ShovePushMillimetres);
+                body.Stagger(victim, shoved.EventId);
+            }
+
+            if (victim.Fear.State == AgentFearState.Calm)
+            {
+                fear.Alarm(victim, shoved.EventId, AgentAlertSource.Bumped, shover.Body.Position);
+            }
+
+            sound.Thud(shover.Id, victim.Body.Position, shoved.EventId);
+        }
+
         private void KnockDownOrStagger(Agent agent, Agent hitBy, ulong collisionEventId, int closingSpeed)
         {
             if (TraitEffects.ShrugsOff(agent, hitBy, context.Scenario))
@@ -186,18 +252,22 @@ namespace Paniq.Simulation
 
         private readonly struct BumpIntent
         {
-            public BumpIntent(Agent mover, Agent other, int closingSpeed, bool tripOver)
+            public BumpIntent(Agent mover, Agent other, int closingSpeed, bool tripOver, bool shove = false)
             {
                 Mover = mover;
                 Other = other;
                 ClosingSpeed = closingSpeed;
                 TripOver = tripOver;
+                Shove = shove;
             }
 
             public Agent Mover { get; }
             public Agent Other { get; }
             public int ClosingSpeed { get; }
             public bool TripOver { get; }
+
+            /// <summary>A deliberate heave rather than a collision.</summary>
+            public bool Shove { get; }
         }
     }
 }

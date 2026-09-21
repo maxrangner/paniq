@@ -33,6 +33,7 @@ namespace Paniq.Presentation
                 flame.transform.SetParent(parent, false);
                 renderers[f] = flame.GetComponent<Renderer>();
                 renderers[f].sharedMaterial = materials.Fire;
+                ShowFireThroughWalls(flame, materials);
                 flame.SetActive(false);
                 flames[f] = flame.transform;
             }

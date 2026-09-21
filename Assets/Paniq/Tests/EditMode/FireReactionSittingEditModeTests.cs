@@ -34,7 +34,11 @@ namespace Paniq.Tests.EditMode
         /// <summary>One person and one chair alone in the office, with no fire yet.</summary>
         private FireReactionScenarioData OnePersonOneChair()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            // A way out of the office that is not locked, so getting up and
+            // running from the fire means running away from it and staying
+            // away, rather than trying a locked door and turning back.
+            FireReactionScenarioData data =
+                FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(scenario.ToRuntimeData(), startsLocked: false);
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-3000, 0), CardinalDirection.East,

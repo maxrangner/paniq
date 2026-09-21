@@ -52,6 +52,14 @@ namespace Paniq.Simulation
                     if (tick >= intent.ActivityEndTick || agent.Body.BlockedTicks > settings.BlockedGiveUpTicks)
                     {
                         agent.Hearing.HasSoundPoint = false;
+                        if (agent.Sitting.OnIt)
+                        {
+                            // Looked round from the chair and saw nothing: back to the table.
+                            chairs.ResumeSitting(agent);
+                            goalHeading = agent.Intent.LookHeading;
+                            break;
+                        }
+
                         ChooseActivity(agent, true);
                         break;
                     }
@@ -197,6 +205,14 @@ namespace Paniq.Simulation
             HearingSettings hearing = context.Scenario.Hearing;
             goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, agent.Hearing.SoundPoint, agent.Body.Heading);
             goalSpeed = 0;
+
+            // From a chair they only turn to look; nobody edges off across the
+            // room while still sitting in it.
+            if (agent.Sitting.OnIt)
+            {
+                return;
+            }
+
             int facingError = Math.Abs(IntegerMath.SignedAngleDifference(agent.Body.Heading, goalHeading));
             if (context.Tick - agent.Hearing.InvestigateStartTick >= hearing.InvestigateCreepDelayTicks &&
                 facingError <= hearing.InvestigateCreepMaximumTurn &&

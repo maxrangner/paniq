@@ -27,6 +27,12 @@ namespace Paniq.Simulation
 
         /// <summary>Set once the leaders exist, for the same reason.</summary>
         private LeaderBehaviour leaders;
+
+        /// <summary>Set once the alarms exist, for the same reason.</summary>
+        private AlarmBehaviour alarms;
+
+        /// <summary>Set once the barricades exist, for the same reason.</summary>
+        private BarricadeBehaviour barricades;
         private readonly Locomotion locomotion;
         private readonly PanicSettings settings;
 
@@ -63,6 +69,12 @@ namespace Paniq.Simulation
         /// <summary>Wired up after construction, for the same reason.</summary>
         public void UseLeaders(LeaderBehaviour behaviour) => leaders = behaviour;
 
+        /// <summary>Wired up after construction, for the same reason.</summary>
+        public void UseAlarms(AlarmBehaviour behaviour) => alarms = behaviour;
+
+        /// <summary>Wired up after construction, for the same reason.</summary>
+        public void UseBarricades(BarricadeBehaviour behaviour) => barricades = behaviour;
+
         /// <summary>
         /// This tick's panicked decision. Returns no intent when the person
         /// tripped while deciding and is already on the floor.
@@ -74,6 +86,12 @@ namespace Paniq.Simulation
             long fireDistanceSquared = fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition firePoint);
             long danger = TraitEffects.DangerDistance(agent, context.Scenario);
             bool inDanger = fireDistanceSquared < danger * danger;
+            if (inDanger)
+            {
+                // The fire is on them now: whatever composure the bell left them
+                // with is gone.
+                fear.BreakComposure(agent);
+            }
 
             if (intent.Activity == AgentActivityState.Frozen)
             {
@@ -123,6 +141,21 @@ namespace Paniq.Simulation
             if (helping.HasValue)
             {
                 return helping.Value;
+            }
+
+            // After helping, so that somebody with an unconscious person in front
+            // of them sees to them rather than walking off to the bell. Plenty of
+            // other people are free to raise the alarm.
+            MotorIntent? raisingTheAlarm = alarms.Decide(agent, inDanger);
+            if (raisingTheAlarm.HasValue)
+            {
+                return raisingTheAlarm.Value;
+            }
+
+            MotorIntent? barricading = barricades.Decide(agent, inDanger);
+            if (barricading.HasValue)
+            {
+                return barricading.Value;
             }
 
             int room = geometry.RoomAt(agent.Body.Position);
@@ -223,7 +256,7 @@ namespace Paniq.Simulation
 
             goalHeading = locomotion.Steer(agent, goalHeading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
                 settings.WallAvoidPercent, settings.ObjectAvoidPercent, followX, followZ);
-            return new MotorIntent(goalHeading, agent.Personality.PanicSpeed, agent.Personality.PanicTurnRate, settings.Acceleration);
+            return new MotorIntent(goalHeading, TraitEffects.FleeSpeed(agent), agent.Personality.PanicTurnRate, settings.Acceleration);
         }
 
         private MotorIntent LookIntent(Agent agent)

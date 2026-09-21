@@ -55,11 +55,13 @@ namespace Paniq.Simulation
             AgentBodyState bodyState,
             AgentTraitValues traits,
             bool isBurning,
-            bool isLeading = false)
+            bool isLeading = false,
+            bool isComposed = false)
         {
             Traits = traits;
             IsBurning = isBurning;
             IsLeading = isLeading;
+            IsComposed = isComposed;
             Temperament = temperament;
             BodyState = bodyState;
             AgentId = agentId;
@@ -113,6 +115,12 @@ namespace Paniq.Simulation
         /// <summary>Somebody is following this person right now.</summary>
         public bool IsLeading { get; }
 
+        /// <summary>
+        /// Told about the fire by a bell and keeping their head: heading for a
+        /// way out at a brisk walk instead of panicking.
+        /// </summary>
+        public bool IsComposed { get; }
+
         public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp ||
                               BodyState == AgentBodyState.Unconscious;
     }
@@ -121,8 +129,11 @@ namespace Paniq.Simulation
     public readonly struct FireReactionDoorSnapshot
     {
         public FireReactionDoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state,
-            int damagePercent)
+            int damagePercent, bool isHole = false, bool isBlocked = false, bool leadsOutside = false)
         {
+            IsHole = isHole;
+            IsBlocked = isBlocked;
+            LeadsOutside = leadsOutside;
             DamagePercent = damagePercent;
             DoorId = doorId;
             Side = side;
@@ -142,17 +153,31 @@ namespace Paniq.Simulation
 
         /// <summary>How close a battered door is to breaking, 0–100.</summary>
         public int DamagePercent { get; }
+
+        /// <summary>
+        /// A hole blasted through the wall rather than a door in a frame: drawn as
+        /// a ragged gap, with no leaf to swing and nothing to click.
+        /// </summary>
+        public bool IsHole { get; }
+
+        /// <summary>Something is wedged in the gap, so the door will not budge either way.</summary>
+        public bool IsBlocked { get; }
+
+        /// <summary>It leads out of the building rather than into the next room.</summary>
+        public bool LeadsOutside { get; }
     }
 
     /// <summary>A table: where it stands and whether it is heating up, burning or burnt out.</summary>
     public readonly struct FireReactionTableSnapshot
     {
-        public FireReactionTableSnapshot(SimulationId tableId, LogicalBounds bounds, ObjectBurnState burnState, int heatPercent)
+        public FireReactionTableSnapshot(SimulationId tableId, LogicalBounds bounds, ObjectBurnState burnState, int heatPercent,
+            bool broken = false)
         {
             TableId = tableId;
             Bounds = bounds;
             BurnState = burnState;
             HeatPercent = heatPercent;
+            Broken = broken;
         }
 
         public SimulationId TableId { get; }
@@ -161,6 +186,12 @@ namespace Paniq.Simulation
 
         /// <summary>How close to catching fire it is, 0–100.</summary>
         public int HeatPercent { get; }
+
+        /// <summary>
+        /// Collapsed. It is wreckage on the floor, so people walk straight over
+        /// where it stood and it is no longer drawn as a table.
+        /// </summary>
+        public bool Broken { get; }
     }
 
     /// <summary>A loose object on the floor, such as a box.</summary>
@@ -177,8 +208,14 @@ namespace Paniq.Simulation
             int heatPercent = 0,
             SimulationId heldBy = default,
             bool thrown = false,
-            SimulationId occupiedBy = default)
+            SimulationId occupiedBy = default,
+            bool dormant = false,
+            bool wrecked = false,
+            bool resting = false)
         {
+            Resting = resting;
+            Wrecked = wrecked;
+            Dormant = dormant;
             OccupiedBy = occupiedBy;
             HeldBy = heldBy;
             Thrown = thrown;
@@ -207,6 +244,23 @@ namespace Paniq.Simulation
         /// <summary>How close to catching fire it is, 0–100.</summary>
         public int HeatPercent { get; }
 
+        /// <summary>
+        /// Not in the world yet: a spare kept aside for the player to put down
+        /// with a card. It has no position anybody can reach, touches nothing,
+        /// and must not be drawn.
+        /// </summary>
+        public bool Dormant { get; }
+
+        /// <summary>Smashed: wreckage on the floor rather than a thing in one piece.</summary>
+        public bool Wrecked { get; }
+
+        /// <summary>
+        /// Standing on a table or on another object rather than on the floor: a
+        /// laptop on a desk, the upper box of a stacked pair. The display draws
+        /// it at the height of whatever holds it up.
+        /// </summary>
+        public bool Resting { get; }
+
         /// <summary>Who is carrying it (a zero ID when it is on the floor).</summary>
         public SimulationId HeldBy { get; }
 
@@ -224,7 +278,7 @@ namespace Paniq.Simulation
         internal FireReactionPhysicsObjectSnapshot WithBurn(ObjectBurnState burnState, int heatPercent)
         {
             return new FireReactionPhysicsObjectSnapshot(ObjectId, Kind, Position, SizeMillimetres, HeadingDegrees,
-                SpeedMillimetresPerTick, burnState, heatPercent, HeldBy, Thrown, OccupiedBy);
+                SpeedMillimetresPerTick, burnState, heatPercent, HeldBy, Thrown, OccupiedBy, Dormant, Wrecked, Resting);
         }
     }
 
@@ -243,6 +297,9 @@ namespace Paniq.Simulation
         private readonly FireReactionTableSnapshot[] tables;
         private readonly IReadOnlyList<CausalEvent> events;
 
+        /// <summary>What each card costs, indexed by <see cref="PlayerCommandType"/>.</summary>
+        private readonly int[] cardCosts;
+
         internal FireReactionSnapshot(
             int tick,
             bool fireActive,
@@ -254,8 +311,22 @@ namespace Paniq.Simulation
             FireReactionPhysicsObjectSnapshot[] physicsObjects,
             FireReactionTableSnapshot[] tables,
             IReadOnlyList<CausalEvent> events,
-            int clearOfFireCount)
+            int clearOfFireCount,
+            bool alarmsRinging,
+            int influence,
+            int influenceMaximum,
+            int influenceSpent,
+            int influenceEarned,
+            int[] cardCosts,
+            int blastChargesRemaining)
         {
+            BlastChargesRemaining = blastChargesRemaining;
+            AlarmsRinging = alarmsRinging;
+            Influence = influence;
+            InfluenceMaximum = influenceMaximum;
+            InfluenceSpent = influenceSpent;
+            InfluenceEarned = influenceEarned;
+            this.cardCosts = cardCosts;
             ClearOfFireCount = clearOfFireCount;
             this.tables = tables;
             this.doors = doors;
@@ -273,6 +344,25 @@ namespace Paniq.Simulation
 
         /// <summary>People still in the building, but in a room with nothing burning in it.</summary>
         public int ClearOfFireCount { get; }
+
+        /// <summary>Whether the fire alarms are ringing.</summary>
+        public bool AlarmsRinging { get; }
+
+        /// <summary>What the player has left to spend, and what they have spent and earned.</summary>
+        public int Influence { get; }
+        public int InfluenceMaximum { get; }
+        public int InfluenceSpent { get; }
+        public int InfluenceEarned { get; }
+
+        /// <summary>How many sticks of TNT the player has left.</summary>
+        public int BlastChargesRemaining { get; }
+
+        /// <summary>What a card costs, so the display can grey out what is out of reach.</summary>
+        public int CostOf(PlayerCommandType card)
+        {
+            int index = (int)card;
+            return cardCosts != null && index >= 0 && index < cardCosts.Length ? cardCosts[index] : 0;
+        }
 
         public bool FireActive { get; }
         public LogicalPosition FireOrigin { get; }

@@ -41,7 +41,8 @@ namespace Paniq.Tests.EditMode
 
         private FireReactionScenarioData EmptyRoom(params FireReactionAgentDefinition[] people)
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data =
+                FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(scenario.ToRuntimeData());
             data.Agents = people;
             data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
             data.Tables = new FireReactionTableDefinition[0];

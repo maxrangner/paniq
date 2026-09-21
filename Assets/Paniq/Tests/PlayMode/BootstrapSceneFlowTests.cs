@@ -58,13 +58,13 @@ namespace Paniq.Tests.PlayMode
 
             Paniq.Gameplay.FireReactionRunner runner = Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>();
             Assert.That(runner, Is.Not.Null);
-            GameObject leaf = GameObject.Find("Door 2001 (click target)");
-            Assert.That(leaf, Is.Not.Null, "Expected a clickable door leaf in the north wall.");
+            GameObject leaf = GameObject.Find("Door 2008 (click target)");
+            Assert.That(leaf, Is.Not.Null, "Expected a clickable door leaf on the meeting room's east wall.");
             Assert.That(leaf.GetComponent<Collider>(), Is.Not.Null, "The door leaf needs a collider to be clicked.");
             Assert.That(Object.FindObjectsByType<Transform>(FindObjectsSortMode.None),
                 Has.Some.Property("name").EqualTo("Box 3001 (presentation)"));
 
-            var door = new Paniq.Simulation.SimulationId(2001UL);
+            var door = new Paniq.Simulation.SimulationId(2008UL);
             runner.QueueDoorClick(door);
             runner.StepForTests();
             Assert.That(DoorState(runner, door), Is.EqualTo(Paniq.Simulation.DoorState.Unlocked));

@@ -51,10 +51,41 @@ namespace Paniq.Presentation
             public FlameCubes Flames;
             public float Width;
             public float Depth;
+
+            /// <summary>The whole table, so a collapsed one can be flattened.</summary>
+            public Transform Root;
+
+            /// <summary>0 while it stands, 1 once it has collapsed.</summary>
+            public float Collapse;
         }
 
         /// <summary>Every table's parts (top and legs), recoloured as it heats, burns and chars.</summary>
         private readonly Dictionary<SimulationId, TableView> tables = new Dictionary<SimulationId, TableView>();
+
+        /// <summary>The boxes on the walls, which all flash together.</summary>
+        private readonly List<Renderer> alarms = new List<Renderer>();
+
+        /// <summary>
+        /// One built piece of wall and the span it covers, so a hole blasted
+        /// through it later can cut it back.
+        /// </summary>
+        private sealed class WallPieceView
+        {
+            public bool AlongX;
+            public float Line;
+            public float From;
+            public float To;
+            public Transform Piece;
+        }
+
+        private readonly List<WallPieceView> wallPieces = new List<WallPieceView>();
+
+        /// <summary>Holes already built, so each one is built only once.</summary>
+        private readonly HashSet<SimulationId> holesDrawn = new HashSet<SimulationId>();
+
+        private static readonly Color RubbleColor = new Color(0.45f, 0.42f, 0.40f);
+
+        private static readonly Color AlarmRestingColor = new Color(0.75f, 0.12f, 0.12f);
 
         public RoomView(FireReactionScenarioData scenario, PresentationMaterials materials, Transform parent)
         {
@@ -74,6 +105,44 @@ namespace Paniq.Presentation
             foreach (FireReactionTableDefinition table in scenario.Tables)
             {
                 CreateTable(table);
+            }
+
+            foreach (FireReactionAlarmDefinition alarm in scenario.Alarms)
+            {
+                CreateAlarm(alarm);
+            }
+        }
+
+        /// <summary>
+        /// A small red box on the wall. It sits still until somebody hits it,
+        /// and then flashes for the rest of the run so the player can see at a
+        /// glance that the building has been told.
+        /// </summary>
+        private void CreateAlarm(FireReactionAlarmDefinition alarm)
+        {
+            const float height = 1.1f;
+            Vector3 at = ToUnityPosition(alarm.Position) + Vector3.up * height;
+            GameObject box = CreatePrimitive($"Fire alarm {alarm.AlarmId.Value} (presentation)", PrimitiveType.Cube,
+                parent, at, new Vector3(0.18f, 0.24f, 0.18f), materials.Box);
+            var view = box.GetComponent<Renderer>();
+            materials.SetColor(view, AlarmRestingColor);
+            alarms.Add(view);
+        }
+
+        /// <summary>Every bell flashes while the alarms are ringing.</summary>
+        public void UpdateAlarms(FireReactionSnapshot snapshot, float time)
+        {
+            for (int i = 0; i < alarms.Count; i++)
+            {
+                Color colour = AlarmRestingColor;
+                if (snapshot.AlarmsRinging)
+                {
+                    // Two flashes a second, bright enough to catch the eye.
+                    float pulse = Mathf.Repeat(time * 4f, 2f) < 1f ? 1f : 0.25f;
+                    colour = Color.Lerp(AlarmRestingColor, Color.white, pulse);
+                }
+
+                materials.SetColor(alarms[i], colour);
             }
         }
 
@@ -204,9 +273,12 @@ namespace Paniq.Presentation
         }
 
         /// <summary>A plain wooden table: a thin top on four legs.</summary>
+        /// <summary>How high a table top is, in metres: where a laptop on it is drawn.</summary>
+        public const float TableHeight = 0.74f;
+
         private void CreateTable(FireReactionTableDefinition table)
         {
-            const float height = 0.74f;
+            const float height = TableHeight;
             const float topThickness = 0.06f;
             const float leg = 0.06f;
             float width = Metres(table.WidthMillimetres);
@@ -241,7 +313,8 @@ namespace Paniq.Presentation
                 Parts = parts,
                 Flames = new FlameCubes(root, 10, materials, table.TableId.Value % 83UL),
                 Width = width,
-                Depth = depth
+                Depth = depth,
+                Root = root
             });
         }
 
@@ -256,7 +329,102 @@ namespace Paniq.Presentation
             float middle = (from + to) * 0.5f;
             Vector3 position = alongX ? new Vector3(middle, WallHeight * 0.5f, wallLine) : new Vector3(wallLine, WallHeight * 0.5f, middle);
             Vector3 scale = alongX ? new Vector3(to - from, WallHeight, WallThickness) : new Vector3(WallThickness, WallHeight, to - from);
-            CreatePrimitive($"{owner} Wall {side} {piece}", PrimitiveType.Cube, parent, position, scale, materials.Wall);
+            GameObject built = CreatePrimitive($"{owner} Wall {side} {piece}", PrimitiveType.Cube, parent, position, scale,
+                materials.Wall);
+            MarkAsWall(built, materials);
+            wallPieces.Add(new WallPieceView
+            {
+                AlongX = alongX,
+                Line = wallLine,
+                From = from,
+                To = to,
+                Piece = built.transform
+            });
+        }
+
+        /// <summary>
+        /// Holes the player has blasted since the last frame. A door this view has
+        /// never seen before is one of them.
+        /// </summary>
+        public void UpdateHoles(FireReactionSnapshot snapshot)
+        {
+            foreach (FireReactionDoorSnapshot door in snapshot.Doors)
+            {
+                if (door.IsHole && !holesDrawn.Contains(door.DoorId))
+                {
+                    CreateHole(door);
+                }
+            }
+        }
+
+        /// <summary>
+        /// A hole blasted through a wall: every wall piece it crosses is cut back
+        /// (and split in two where the hole is in the middle of one), and rubble is
+        /// left in the gap. A hole has no leaf, so nothing swings and nothing can
+        /// be clicked.
+        /// </summary>
+        private void CreateHole(FireReactionDoorSnapshot hole)
+        {
+            holesDrawn.Add(hole.DoorId);
+            bool alongX = hole.Side == WallSide.North || hole.Side == WallSide.South;
+            float line = alongX ? Metres(hole.Centre.Z) : Metres(hole.Centre.X);
+            float centre = alongX ? Metres(hole.Centre.X) : Metres(hole.Centre.Z);
+            float half = Metres(hole.WidthMillimetres) * 0.5f;
+            float gapFrom = centre - half;
+            float gapTo = centre + half;
+
+            // Both rooms either side of a shared wall drew it, so there can be
+            // more than one piece to cut.
+            for (int i = wallPieces.Count - 1; i >= 0; i--)
+            {
+                WallPieceView wall = wallPieces[i];
+                if (wall.AlongX != alongX || Mathf.Abs(wall.Line - line) > 0.01f ||
+                    wall.To <= gapFrom || wall.From >= gapTo)
+                {
+                    continue;
+                }
+
+                float leftTo = Mathf.Min(wall.To, gapFrom);
+                float rightFrom = Mathf.Max(wall.From, gapTo);
+                Object.Destroy(wall.Piece.gameObject);
+                wallPieces.RemoveAt(i);
+                CreateWallPiece(hole.Side, 90, alongX, wall.Line, wall.From, leftTo, "Blasted");
+                CreateWallPiece(hole.Side, 91, alongX, wall.Line, rightFrom, wall.To, "Blasted");
+            }
+
+            // Rubble in the gap, laid out from the hole's own ID so it looks the
+            // same every run without touching the simulation's randomness.
+            var root = new GameObject($"Blast hole {hole.DoorId.Value} (presentation)").transform;
+            root.SetParent(parent, false);
+            for (int i = 0; i < 5; i++)
+            {
+                float along = Mathf.Lerp(gapFrom + 0.15f, gapTo - 0.15f, Hash01((int)hole.DoorId.Value, i, 31));
+                float across = (Hash01((int)hole.DoorId.Value, i, 71) - 0.5f) * 0.7f;
+                float size = 0.12f + Hash01((int)hole.DoorId.Value, i, 17) * 0.16f;
+                Vector3 at = alongX
+                    ? new Vector3(along, size * 0.5f, line + across)
+                    : new Vector3(line + across, size * 0.5f, along);
+                GameObject lump = CreatePrimitive($"Rubble {i}", PrimitiveType.Cube, root, at,
+                    new Vector3(size, size, size), materials.Wall);
+                materials.SetColor(lump.GetComponent<Renderer>(), RubbleColor);
+                lump.transform.rotation = Quaternion.Euler(0f, Hash01((int)hole.DoorId.Value, i, 53) * 90f, 0f);
+            }
+
+            if (!hole.LeadsOutside)
+            {
+                return;
+            }
+
+            // The ground beyond it, so a way out reads as a way out.
+            float depth = Metres(scenario.Exits.DoorwayDepthMillimetres);
+            float outward = hole.Side == WallSide.North || hole.Side == WallSide.East ? 1f : -1f;
+            Vector3 stripAt = alongX
+                ? new Vector3(centre, 0.01f, line + outward * depth * 0.5f)
+                : new Vector3(line + outward * depth * 0.5f, 0.01f, centre);
+            Vector3 stripSize = alongX
+                ? new Vector3(half * 2f, 0.02f, depth)
+                : new Vector3(depth, 0.02f, half * 2f);
+            CreatePrimitive("Blasted ground", PrimitiveType.Cube, root, stripAt, stripSize, materials.Outside);
         }
 
         /// <summary>A door leaf hinged at one side of the gap, which swings outward when the door opens.</summary>
@@ -281,6 +449,9 @@ namespace Paniq.Presentation
             leaf.transform.localScale = new Vector3(width - 0.04f, DoorHeight, 0.08f);
             Renderer leafRenderer = leaf.GetComponent<Renderer>();
             leafRenderer.sharedMaterial = materials.Door;
+
+            // A shut door hides whoever is behind it just as a wall does.
+            MarkAsWall(leaf, materials);
 
             // A strip of ground outside, as far as the doorway reaches (an inside door opens into the next room's floor).
             float depth = Metres(scenario.Exits.DoorwayDepthMillimetres);
@@ -350,6 +521,14 @@ namespace Paniq.Presentation
                 foreach (Renderer part in view.Parts)
                 {
                     materials.SetColor(part, colour);
+                }
+
+                // A collapsed table drops into a flat heap of wreckage, so it is
+                // obvious the floor it stood on is walkable again.
+                view.Collapse = Mathf.MoveTowards(view.Collapse, table.Broken ? 1f : 0f, deltaTime * 5f);
+                if (view.Collapse > 0f)
+                {
+                    view.Root.localScale = new Vector3(1f, Mathf.Lerp(1f, 0.12f, view.Collapse), 1f);
                 }
 
                 view.Flames.Update(table.BurnState == ObjectBurnState.Burning, time, new Vector3(0f, 0.72f, 0f),

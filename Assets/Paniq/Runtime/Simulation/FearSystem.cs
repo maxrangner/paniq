@@ -1,4 +1,4 @@
-namespace Paniq.Simulation
+﻿namespace Paniq.Simulation
 {
     /// <summary>
     /// Fear state changes: calm to alert, alert to scared, freezing and
@@ -91,15 +91,45 @@ namespace Paniq.Simulation
         /// <summary>Startled by something they heard or felt at <paramref name="from"/>; they will turn toward it.</summary>
         public void Alarm(Agent agent, ulong causalParentEventId, AgentAlertSource alertSource, LogicalPosition from)
         {
+            if (alertSource == AgentAlertSource.Alarm)
+            {
+                // A bell tells you there is a fire without showing you one, so
+                // the level-headed simply leave.
+                agent.Fear.Composed = TraitEffects.StaysComposed(agent.Traits, context.Scenario);
+            }
+
             StartAlert(agent, causalParentEventId, alertSource);
             agent.Hearing.SoundPoint = from;
             agent.Hearing.HasSoundPoint = true;
+        }
+
+        /// <summary>
+        /// Composure goes the moment the fire stops being an abstraction: it
+        /// comes at them, somebody knocks them over, they catch light, or they
+        /// see the flames for themselves. From then on they panic like anybody
+        /// else.
+        /// </summary>
+        public void BreakComposure(Agent agent)
+        {
+            if (!agent.Fear.Composed)
+            {
+                return;
+            }
+
+            agent.Fear.Composed = false;
+
+            // Whatever they were doing calmly, they are now running.
+            if (agent.Fear.State == AgentFearState.Scared && agent.Intent.Activity != AgentActivityState.Frozen)
+            {
+                agent.Intent.NextPanicDecisionTick = context.Tick;
+            }
         }
 
         /// <summary>An alerted person now sees the fire for themselves.</summary>
         public void PromoteAlertToVisual(Agent agent)
         {
             agent.Fear.AlertSource = AgentAlertSource.Visual;
+            BreakComposure(agent);
             CausalEvent alert = context.Events.Append(
                 context.Tick,
                 agent.Id,
@@ -134,8 +164,9 @@ namespace Paniq.Simulation
                 agent.Fear.AlertEventId != 0UL ? agent.Fear.AlertEventId : fire.ActivationEventId);
             agent.Fear.ScaredEventId = scared.EventId;
 
-            if (agent.Personality.Temperament == AgentPanicTemperament.Runner)
+            if (agent.Personality.Temperament == AgentPanicTemperament.Runner || agent.Fear.Composed)
             {
+                // Nobody who is keeping their head freezes; they head for a way out.
                 StartFleeing(agent);
                 return;
             }

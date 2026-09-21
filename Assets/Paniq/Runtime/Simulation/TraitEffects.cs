@@ -142,20 +142,50 @@ namespace Paniq.Simulation
 
         public static int SwerveChancePercent(Agent agent, FireReactionScenarioData scenario)
         {
+            if (agent.Fear.Composed)
+            {
+                // Somebody walking out because a bell rang does not zig-zag.
+                return 0;
+            }
+
             return Percent(scenario.Panic.SwerveChancePercent +
                            scenario.Traits.NervousSwerveChancePerPoint * FromOrdinary(agent.Traits.Nervousness));
         }
 
         public static int HesitateChancePercent(Agent agent, FireReactionScenarioData scenario)
         {
+            if (agent.Fear.Composed)
+            {
+                // Nor do they stop and dither.
+                return 0;
+            }
+
             return Percent(scenario.Panic.HesitateChancePercent +
                            scenario.Traits.NervousHesitateChancePerPoint * FromOrdinary(agent.Traits.Nervousness));
+        }
+
+        /// <summary>
+        /// How fast somebody heads for the way out: a sprint, or a brisk walk
+        /// for whoever is keeping their head after an alarm.
+        /// </summary>
+        public static int FleeSpeed(Agent agent)
+        {
+            return agent.Fear.Composed ? agent.Personality.CalmSpeed : agent.Personality.PanicSpeed;
         }
 
         public static int TripChancePercent(Agent agent, FireReactionScenarioData scenario)
         {
             return Percent((int)Scale(scenario.Falls.TripChancePercent, scenario.Traits.NervousTripPercentPerPoint,
                 agent.Traits.Nervousness));
+        }
+
+        /// <summary>
+        /// Whether a bell is enough to make this person leave briskly rather
+        /// than panic: brave enough, and not too nervous.
+        /// </summary>
+        public static bool StaysComposed(AgentTraitValues traits, FireReactionScenarioData scenario)
+        {
+            return traits.Bravery - traits.Nervousness >= scenario.Alarm.ComposureGap;
         }
 
         // ---------------------------------------------------------------- compassion and evil

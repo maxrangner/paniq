@@ -5,11 +5,22 @@ namespace Paniq.Presentation
 {
     /// <summary>
     /// The text at the top left: tick, fire, the head count, and what a door
-    /// click will do. Tab toggles a plain table of everyone's traits and state.
+    /// click will do. Along the bottom, the influence the player has left and
+    /// the cards they can spend it on. Tab toggles a plain table of everyone's
+    /// traits and state.
     /// </summary>
     internal static class PrototypeHud
     {
-        public static void Draw(FireReactionSnapshot snapshot, FireReactionScenarioData scenario, SimulationId? hoveredDoor,
+        private static readonly Color BarBack = new Color(0f, 0f, 0f, 0.55f);
+        private static readonly Color BarFill = new Color(0.3f, 0.75f, 1f, 0.9f);
+        private static readonly Color CardPicked = new Color(0.25f, 0.55f, 0.85f, 0.95f);
+        private static readonly Color CardAffordable = new Color(0f, 0f, 0f, 0.7f);
+        private static readonly Color CardTooDear = new Color(0.25f, 0.1f, 0.1f, 0.7f);
+
+        public static void Draw(
+            FireReactionSnapshot snapshot,
+            FireReactionScenarioData scenario,
+            SimulationId? hoveredDoor,
             DoorState hoveredState)
         {
             GUI.color = Color.white;
@@ -17,7 +28,8 @@ namespace Paniq.Presentation
                 ? $"FIRE  {snapshot.FireCells.Count} squares burning"
                 : $"FIRE IN {Mathf.Max(0f, (scenario.Fire.ActivationTick - snapshot.Tick) / (float)FireReactionSimulation.TicksPerSecond):0.00} s";
             GUI.Label(new Rect(20f, 20f, 360f, 24f), $"Fire-reaction prototype  |  tick {snapshot.Tick}");
-            GUI.Label(new Rect(20f, 44f, 360f, 24f), fireText);
+            GUI.Label(new Rect(20f, 44f, 480f, 24f),
+                snapshot.AlarmsRinging ? $"{fireText}   |   ALARM RINGING" : fireText);
             GUI.Label(new Rect(20f, 68f, 900f, 24f),
                 $"Calm {snapshot.CalmCount}   Scared {snapshot.ScaredCount} (frozen {snapshot.FrozenCount}, on fire {snapshot.BurningCount})   " +
                 $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   " +
@@ -34,11 +46,62 @@ namespace Paniq.Presentation
             }
         }
 
+        /// <summary>
+        /// The player's purse and their cards, along the bottom. A card they
+        /// cannot afford is dimmed red and cannot be picked up; the one in their
+        /// hand is highlighted, and the line above says what a click will do.
+        /// </summary>
+        public static void DrawCards(FireReactionSnapshot snapshot, PlayerCommandType? selected, PlayerInput input)
+        {
+            const float cardWidth = 210f;
+            const float cardHeight = 34f;
+            const float gap = 8f;
+            float bottom = Screen.height - 20f;
+
+            // The purse.
+            var barArea = new Rect(20f, bottom - cardHeight - gap - 22f, cardWidth * 2f, 16f);
+            GUI.color = BarBack;
+            GUI.DrawTexture(barArea, Texture2D.whiteTexture);
+            GUI.color = BarFill;
+            float fraction = snapshot.InfluenceMaximum <= 0
+                ? 0f
+                : Mathf.Clamp01(snapshot.Influence / (float)snapshot.InfluenceMaximum);
+            GUI.DrawTexture(new Rect(barArea.x, barArea.y, barArea.width * fraction, barArea.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(barArea.x + barArea.width + 10f, barArea.y - 3f, 400f, 22f),
+                $"Influence {snapshot.Influence}   (spent {snapshot.InfluenceSpent}, earned back {snapshot.InfluenceEarned})");
+
+            // The cards.
+            for (int i = 0; i < PlayerInput.Cards.Length; i++)
+            {
+                PlayerCommandType card = PlayerInput.Cards[i];
+                int cost = snapshot.CostOf(card);
+                bool affordable = snapshot.Influence >= cost;
+                var area = new Rect(20f + i * (cardWidth + gap), bottom - cardHeight, cardWidth, cardHeight);
+                GUI.color = selected == card ? CardPicked : affordable ? CardAffordable : CardTooDear;
+                GUI.DrawTexture(area, Texture2D.whiteTexture);
+                GUI.color = affordable ? Color.white : new Color(1f, 0.7f, 0.7f, 0.8f);
+                GUI.Label(new Rect(area.x + 8f, area.y + 7f, area.width - 16f, 22f),
+                    $"{i + 1}. {PlayerInput.NameOf(card)}  ({cost})");
+            }
+
+            GUI.color = Color.white;
+            string hint = selected == null
+                ? "Press 1-4 to pick a card, then click. Escape or right click puts it down."
+                : PlayerInput.TargetsAPerson(selected.Value)
+                    ? $"{PlayerInput.NameOf(selected.Value)}: click a person" +
+                      (input.HoveredPerson.HasValue ? $"  ->  person {input.HoveredPerson.Value.Value}" : string.Empty)
+                    : selected.Value == PlayerCommandType.BlastWall
+                        ? $"TNT: click a wall  ({snapshot.BlastChargesRemaining} left)"
+                        : $"{PlayerInput.NameOf(selected.Value)}: click a spot on the floor";
+            GUI.Label(new Rect(20f, bottom - cardHeight - gap - 44f, 900f, 22f), hint);
+        }
+
         /// <summary>One row per person, numbered like the labels over their heads.</summary>
         public static void DrawStats(FireReactionSnapshot snapshot)
         {
             const float rowHeight = 20f;
-            float width = 600f;
+            float width = 640f;
             float height = rowHeight * (snapshot.Agents.Count + 2) + 12f;
             var area = new Rect(Screen.width - width - 20f, 20f, width, height);
             GUI.color = new Color(0f, 0f, 0f, 0.75f);
@@ -71,7 +134,7 @@ namespace Paniq.Presentation
         {
             for (int c = 0; c < cells.Length; c++)
             {
-                float right = c + 1 < ColumnX.Length ? ColumnX[c + 1] : ColumnX[c] + 140f;
+                float right = c + 1 < ColumnX.Length ? ColumnX[c + 1] : ColumnX[c] + 180f;
                 GUI.Label(new Rect(x + ColumnX[c], y, right - ColumnX[c], height), cells[c]);
             }
         }
@@ -141,6 +204,9 @@ namespace Paniq.Presentation
                 case AgentActivityState.GoingToSit: return "going to sit down";
                 case AgentActivityState.Sitting: return "sitting";
                 case AgentActivityState.StandingUp: return "getting up";
+                case AgentActivityState.GoingToAlarm: return "going for the alarm";
+                case AgentActivityState.PullingAlarm: return "hitting the alarm";
+                case AgentActivityState.Fleeing: return agent.IsComposed ? "walking out" : "running";
                 default: return agent.ActivityState.ToString().ToLowerInvariant();
             }
         }

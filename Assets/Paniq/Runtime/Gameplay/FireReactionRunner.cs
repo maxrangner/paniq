@@ -1,4 +1,4 @@
-using Paniq.Simulation;
+﻿using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Gameplay
@@ -59,6 +59,21 @@ namespace Paniq.Gameplay
         public void QueueDoorClick(SimulationId doorId)
         {
             Simulation.QueueCommand(PlayerCommandType.ClickDoor, doorId, Simulation.Tick + 1);
+        }
+
+        /// <summary>
+        /// A card played on somebody, queued for the next tick that has not
+        /// started.
+        /// </summary>
+        public void QueueCard(PlayerCommandType card, SimulationId personId)
+        {
+            Simulation.QueueCommand(card, personId, Simulation.Tick + 1);
+        }
+
+        /// <summary>A card played on a place, in whole millimetres.</summary>
+        public void QueueCard(PlayerCommandType card, LogicalPosition spot)
+        {
+            Simulation.QueueCommand(card, spot, Simulation.Tick + 1);
         }
 
         public void StepForTests()

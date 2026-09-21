@@ -54,6 +54,19 @@ scene.
 | Sitting down | Behaviour | Calm people walk over to a free chair and sit for a while; a fright costs them a moment getting out of it, and the chair is shoved back as they go |
 | Fire extinguishers | System | The brave fetch a bottle and fight the fire square by square, the kind hose down someone who is alight; six seconds of spray, and anyone caught in the jet is knocked over backwards |
 | Taking charge | Behaviour | A seventh trait, leadership: leaders send the strong at a door that will not open, send somebody for an extinguisher, and gather the people near them; the cruel never do as they are told |
+| Slammed doors are a villain's move | Behaviour | Only the cruel shut the door behind them as they leave, and only the very worst turn the key; everyone else leaves it for the people behind them |
+| Shoving people aside | Behaviour | The cruel take hold of whoever is in their way and heave them out of it, so a queue at a doorway becomes a scrum |
+| Bags and briefcases | Behaviour | Four people walk in carrying something, and fling it away from them the moment they are frightened |
+| Fire alarms | System | A red box on each room's wall: somebody who has seen the fire hits one and every bell in the building rings. The nervous stampede; the brave and steady walk briskly out until the fire actually reaches them |
+| Breaking and popping | System | Hurled things smash chairs into wreckage and collapse tables, so the floor plan changes mid-run; microwaves and wall sockets go off with a bang that flings debris, floors people and scatters fresh fire |
+| Wedged doorways | System | Anything resting in a doorway jams the door both ways. The strong heave it clear, everybody else looks elsewhere, and the frightened and the cruel wedge doors on purpose |
+| Influence and cards | System | A meter the player spends on four cards and earns back only by getting people out alive: Beefcake, start a fire, put down an extinguisher, and TNT |
+| TNT | System | A hole blown through a wall: wider than a door, permanently open, and impossible to lock — a way out nobody can take away |
+| One way out | Behaviour | The office has no way out of its own: the building has a single exit, in the meeting room, so everybody crosses the corridor to reach it and the queue at a doorway becomes the thing to watch |
+| A meeting in progress | Style | The second room is a smaller meeting room with one way out. Nine people start sitting at its long table, each in a chair that faces it and most with a laptop in front of them, while a tenth stands at the end of it presenting |
+| Things that rest on things | System | A laptop stands on a desk and a box on another box, out of everybody's way, until somebody lifts, throws or smashes what holds it up — and then it drops to clear floor beside it |
+| Bangs you can see | Style | A laptop battery, a wall socket, a microwave or a stick of TNT goes off with a flash that lights the room, sparks that fall to the floor, a puff of smoke and a jolt of the camera, sized to the blast |
+| Solid furniture | Style | People are drawn their real height, so desks come to their hips; and the see-through silhouette only paints where a wall or a door hides something, so a chair no longer shows through itself |
 
 ## Choosing the next stone
 

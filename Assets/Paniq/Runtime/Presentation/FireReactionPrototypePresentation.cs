@@ -27,8 +27,16 @@ namespace Paniq.Presentation
         private FireView fire;
         private SoundRipples ripples;
         private SprayView spray;
-        private DoorClickInput clicks;
+        private PopBursts pops;
+        private PlayerInput input;
+
+        /// <summary>Where the camera sits when nothing is shaking it.</summary>
+        private Vector3 cameraRest;
         private FireReactionSnapshot frameSnapshot;
+
+        /// <summary>Why the display could not be built, or null when all is well.</summary>
+        private string startupError;
+
         private SimulationId? hoveredDoor;
         private bool showStats;
         private int eventsSeen;
@@ -40,18 +48,60 @@ namespace Paniq.Presentation
                 runner = GetComponent<FireReactionRunner>();
             }
 
-            // The runner starts first, so its simulation and the data it runs on exist.
-            FireReactionScenarioData scenario = runner.Simulation.Scenario;
-            materials = new PresentationMaterials();
             root = new GameObject("Fire reaction presentation").transform;
-            prototypeCamera = CreateCameraAndLight(root, scenario);
-            room = new RoomView(scenario, materials, root);
-            agents = new AgentViews(scenario, materials, root);
-            boxes = new BoxViews(scenario, materials, root);
-            fire = new FireView(materials, root);
-            ripples = new SoundRipples(materials.Icon, root);
-            spray = new SprayView(materials, root);
-            clicks = new DoorClickInput(runner, room);
+            try
+            {
+                // The runner starts first, so its simulation and the data it runs on exist.
+                FireReactionScenarioData scenario = runner.Simulation.Scenario;
+                materials = new PresentationMaterials();
+                prototypeCamera = CreateCameraAndLight(root, scenario);
+                cameraRest = prototypeCamera.transform.position;
+                room = new RoomView(scenario, materials, root);
+                agents = new AgentViews(scenario, materials, root);
+                boxes = new BoxViews(scenario, materials, root);
+                fire = new FireView(materials, root);
+                ripples = new SoundRipples(materials.Icon, root);
+                spray = new SprayView(materials, root);
+                pops = new PopBursts(materials, root);
+                input = new PlayerInput(runner, room);
+            }
+            catch (System.Exception failure)
+            {
+                // A scenario the run will not accept, or anything else that
+                // goes wrong while building the display. Without this the scene
+                // ends up with no camera at all and Unity shows an empty window
+                // saying nothing useful, with the real reason buried in the
+                // console. Put a camera and the reason on the screen instead.
+                startupError = failure.Message;
+                Debug.LogException(failure, this);
+                MakeSureThereIsACamera();
+            }
+        }
+
+        /// <summary>
+        /// A bare camera looking at the floor, for when the display could not be
+        /// built. It exists only so the window shows the message below rather
+        /// than Unity's "no cameras rendering".
+        /// </summary>
+        private void MakeSureThereIsACamera()
+        {
+            if (prototypeCamera != null)
+            {
+                return;
+            }
+
+            prototypeCamera = Camera.main;
+            if (prototypeCamera == null)
+            {
+                var cameraObject = new GameObject("Fire Reaction Camera", typeof(Camera));
+                cameraObject.tag = "MainCamera";
+                cameraObject.transform.SetParent(root, false);
+                prototypeCamera = cameraObject.GetComponent<Camera>();
+            }
+
+            prototypeCamera.clearFlags = CameraClearFlags.SolidColor;
+            prototypeCamera.backgroundColor = new Color(0.10f, 0.11f, 0.14f);
+            cameraRest = prototypeCamera.transform.position;
         }
 
         private void OnDestroy()
@@ -66,6 +116,11 @@ namespace Paniq.Presentation
 
         private void Update()
         {
+            if (startupError != null)
+            {
+                return;
+            }
+
             frameSnapshot = runner == null ? null : runner.Snapshot;
             if (frameSnapshot == null)
             {
@@ -79,7 +134,8 @@ namespace Paniq.Presentation
             float blend = Mathf.Clamp01((Time.time - Time.fixedTime) / Time.fixedDeltaTime);
             FireReactionSnapshot previous = runner.PreviousSnapshot;
 
-            hoveredDoor = clicks.Update(prototypeCamera);
+            input.Update(prototypeCamera, frameSnapshot);
+            hoveredDoor = input.HoveredDoor;
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
             {
@@ -89,18 +145,41 @@ namespace Paniq.Presentation
             PlayNewEvents(frameSnapshot, time);
             agents.Update(frameSnapshot, previous, blend, time, prototypeCamera.transform);
             room.Update(frameSnapshot, hoveredDoor, time, Time.deltaTime);
+            room.UpdateAlarms(frameSnapshot, time);
+            room.UpdateHoles(frameSnapshot);
             boxes.Update(frameSnapshot, previous, blend, time);
             ripples.Update(time);
             fire.Update(frameSnapshot, time);
             spray.Update(frameSnapshot, time);
+            pops.Update(time);
+
+            // A bang shakes the view for a moment, always around the same rest.
+            prototypeCamera.transform.position = cameraRest + pops.Shake;
         }
 
         private void OnGUI()
         {
+            if (startupError != null)
+            {
+                var message = new System.Text.StringBuilder();
+                message.AppendLine("The fire-reaction run could not start, so there is nothing to show.");
+                message.AppendLine();
+                message.AppendLine(startupError);
+                message.AppendLine();
+                message.AppendLine("The saved scenario asset is probably out of step with the code.");
+                message.AppendLine("Fix it with the menu command:");
+                message.AppendLine("    Paniq > Rewrite Scenario Asset From Code Defaults");
+                message.AppendLine();
+                message.Append("The full details are in the Console.");
+                GUI.Label(new Rect(20f, 20f, Screen.width - 40f, 140f), message.ToString());
+                return;
+            }
+
             if (frameSnapshot != null)
             {
                 PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, hoveredDoor,
                     hoveredDoor.HasValue ? room.StateOf(hoveredDoor.Value) : DoorState.Locked);
+                PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input);
                 if (showStats)
                 {
                     PrototypeHud.DrawStats(frameSnapshot);
@@ -132,6 +211,40 @@ namespace Paniq.Presentation
                         break;
                     case FireReactionEventType.AgentsCollided:
                         ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        break;
+                    case FireReactionEventType.AgentShoved:
+                        // The shover lunges; the person shoved gets the thud.
+                        agents.Lunge(record.SourceId, time);
+                        ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        break;
+                    case FireReactionEventType.AlarmPulled:
+                        agents.Lunge(record.SourceId, time);
+                        break;
+                    case FireReactionEventType.AlarmRang:
+                        // One big ring from every bell, so the noise is visible.
+                        ripples.Start(record.Position, record.Strength, SoundRipples.YellColor, time);
+                        break;
+                    case FireReactionEventType.PowerBeefcake:
+                        agents.Notice(record.TargetId, time);
+                        break;
+                    case FireReactionEventType.PowerBlastedWall:
+                        // A very big ring: the bang carries across the building.
+                        // Under it, the biggest burst there is.
+                        ripples.Start(record.Position, scenario.Blast.BangHearingRadiusMillimetres,
+                            SoundRipples.ThudColor, time);
+                        pops.Start(record.Position, 0.8f, scenario.Blast.ThrowRadiusMillimetres, record.EventId, time);
+                        break;
+                    case FireReactionEventType.ObjectExploded:
+                        // A flash, sparks and smoke sized to the blast, a big ring
+                        // for the bang, and the thing itself hops.
+                        pops.Start(record.Position, boxes.BurstHeightOf(record.SourceId), record.Strength,
+                            record.EventId, time);
+                        ripples.Start(record.Position, record.Strength * 6, SoundRipples.ThudColor, time);
+                        boxes.Hop(record.SourceId, 1f, time);
+                        break;
+                    case FireReactionEventType.ObjectBroke:
+                        ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        boxes.Hop(record.SourceId, 0.8f, time);
                         break;
                     case FireReactionEventType.AgentTripped:
                         ripples.Start(record.Position, record.Strength, SoundRipples.ThudColor, time);

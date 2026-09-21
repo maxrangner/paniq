@@ -5,7 +5,11 @@ using Paniq.Simulation;
 
 namespace Paniq.Tests.EditMode
 {
-    /// <summary>Closing and locking doors: by the player, and by people according to their personality.</summary>
+    /// <summary>
+    /// Closing and locking doors: by the player, by the cruel as they leave a
+    /// room or the building, and by anyone shutting flames out of the room they
+    /// are standing in.
+    /// </summary>
     public sealed class FireReactionClosingDoorsEditModeTests
     {
         private static readonly SimulationId NorthDoor = new SimulationId(2001UL);
@@ -66,7 +70,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void Player_CannotCloseADoorSomeoneIsStandingIn()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data =
+                FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(scenario.ToRuntimeData());
 
             // Standing right in the north doorway, and staying put (no fire, very slow calm decisions).
             data.Agents = new[]
@@ -201,13 +206,41 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void NervousEscaper_ShutsTheDoorWhenNobodyIsNear()
+        public void NervousEscaper_LeavesTheDoorOpenBehindThem()
         {
-            // The other person is far away across the room this time.
+            // Nobody else near, so nothing but cruelty could make them shut it.
             FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 5, 3, 0, 9), FarOff);
             RunUntilEscaped(simulation);
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Unlocked), "Shut, but not locked.");
-            Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed)[0].SourceId, Is.EqualTo(new SimulationId(1UL)));
+            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open),
+                "Being frightened is not a reason to shut people in; only the cruel do that.");
+            Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed), Is.Empty);
+        }
+
+        [Test]
+        public void BraveAndKindEscaper_LeavesTheDoorOpenBehindThem()
+        {
+            FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 9, 9, 0, 3), FarOff);
+            RunUntilEscaped(simulation);
+            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open));
+            Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed), Is.Empty);
+        }
+
+        /// <summary>
+        /// The cruel shut the door behind them; only the very worst also turn
+        /// the key, so somebody merely nasty leaves it shut but openable.
+        /// </summary>
+        [TestCase(6, false, false)]
+        [TestCase(7, true, false)]
+        [TestCase(9, true, true)]
+        public void OnlyTheCruelShutTheDoorBehindThem_AndOnlyTheWorstLockIt(int evil, bool expectShut, bool expectLocked)
+        {
+            FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 5, 1, evil, 5), Nearby);
+            RunUntilEscaped(simulation);
+            DoorState expected = expectLocked ? DoorState.Locked : expectShut ? DoorState.Unlocked : DoorState.Open;
+            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(expected),
+                $"Evil {evil} should leave the north door {expected}.");
+            Assert.That(EventsOfType(simulation, FireReactionEventType.DoorLocked).Count,
+                Is.EqualTo(expectLocked ? 1 : 0), "Only the cruellest turn the key.");
         }
 
         [Test]
@@ -218,9 +251,45 @@ namespace Paniq.Tests.EditMode
             Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open));
         }
 
+        /// <summary>
+        /// The owner watched somebody shut a door behind them, turn round and
+        /// hammer on it. Shutting a door now goes into that person's own memory
+        /// of doors, so it stops being a way out to them.
+        /// </summary>
+        [Test]
+        public void NobodyShouldersADoorTheyShutThemselves()
+        {
+            for (ulong seed = 40UL; seed <= 46UL; seed++)
+            {
+                var simulation = new FireReactionSimulation(scenario.ToRuntimeData(), seed);
+                for (int t = 0; t < 60 * FireReactionSimulation.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                }
+
+                var shutItThemselves = new HashSet<(ulong Person, ulong Door)>();
+                foreach (CausalEvent record in simulation.EventLog.Events)
+                {
+                    (ulong, ulong) who = (record.SourceId.Value, record.TargetId.Value);
+                    if (record.EventType == FireReactionEventType.DoorClosed ||
+                        record.EventType == FireReactionEventType.DoorLocked)
+                    {
+                        shutItThemselves.Add(who);
+                    }
+                    else if (record.EventType == FireReactionEventType.AgentForcedDoor)
+                    {
+                        Assert.That(shutItThemselves.Contains(who), Is.False,
+                            $"Seed {seed}: person {record.SourceId} shouldered door {record.TargetId} at tick " +
+                            $"{record.Tick}, having shut it themselves.");
+                    }
+                }
+            }
+        }
+
         [Test]
         public void EvilEscaper_SlamsAndLocksTheDoorInTheFaceOfSomeoneComing()
         {
+            // Evil 9 is past both the shutting bar (7) and the locking bar (9).
             FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 5, 1, 9, 5), Nearby);
             RunUntilEscaped(simulation);
             Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Locked));

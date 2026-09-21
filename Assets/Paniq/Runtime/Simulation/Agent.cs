@@ -21,6 +21,8 @@
     /// <item><see cref="Help"/>: the person they are helping, if any.</item>
     /// <item><see cref="Sitting"/>: the chair they are on, if any.</item>
     /// <item><see cref="Leading"/>: who they are following, and what they were told to do.</item>
+    /// <item><see cref="Alarm"/>: the fire alarm they are going to hit, if any.</item>
+    /// <item><see cref="Barricade"/>: the door they are wedging something against, if any.</item>
     /// </list>
     /// </summary>
     internal sealed class Agent
@@ -52,6 +54,8 @@
         public readonly AgentHelp Help = new AgentHelp();
         public readonly AgentSitting Sitting = new AgentSitting();
         public readonly AgentLeading Leading = new AgentLeading();
+        public readonly AgentAlarm Alarm = new AgentAlarm();
+        public readonly AgentBarricade Barricade = new AgentBarricade();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -78,7 +82,8 @@
                 Body.State,
                 Traits,
                 Burning.IsBurning,
-                Leading.LedCount > 0);
+                Leading.LedCount > 0,
+                Fear.Composed);
         }
     }
 
@@ -125,6 +130,14 @@
         public int FreezeEndTick;
         public ulong FrozeEventId;
         public int NextShoutTick;
+
+        /// <summary>
+        /// Told about the fire by an alarm bell rather than by seeing it, and
+        /// level-headed enough to walk out instead of panicking: no sprinting,
+        /// no zig-zagging, no dithering and no freezing. It lasts until the fire
+        /// actually comes at them (<see cref="FearSystem.BreakComposure"/>).
+        /// </summary>
+        public bool Composed;
     }
 
     internal sealed class AgentIntent
@@ -140,6 +153,9 @@
         public int SwerveOffset;
         public int SwerveEndTick;
         public int NextPanicDecisionTick;
+
+        /// <summary>The soonest a cruel person will heave another person out of their way (not the door shoving in <see cref="AgentDoorMemory"/>).</summary>
+        public int NextShoveTick;
     }
 
     internal sealed class AgentHearing
@@ -204,6 +220,21 @@
         public int LedCount;
     }
 
+    internal sealed class AgentBarricade
+    {
+        /// <summary>The door they are wedging something against, or -1.</summary>
+        public int DoorIndex = -1;
+
+        /// <summary>If it is not done by then, they abandon it and run.</summary>
+        public int GiveUpTick;
+    }
+
+    internal sealed class AgentAlarm
+    {
+        /// <summary>The fire alarm they are walking over to hit, or -1.</summary>
+        public int AlarmIndex = -1;
+    }
+
     internal sealed class AgentSitting
     {
         /// <summary>The chair they are on, or walking to, or -1.</summary>
@@ -211,6 +242,13 @@
 
         /// <summary>True once they are actually on it.</summary>
         public bool OnIt;
+
+        /// <summary>
+        /// When they would get up of their own accord. Kept apart from the
+        /// activity timer, so turning in the seat to look at a noise does not
+        /// cut short how long they meant to sit.
+        /// </summary>
+        public int SitUntilTick;
     }
 
     internal sealed class AgentHelp
@@ -234,6 +272,15 @@
 
         /// <summary>Where they stood before this tick's move, so a blocked drag can undo it.</summary>
         public LogicalPosition PositionBeforeMove;
+
+        /// <summary>
+        /// How many ticks running they have hauled somebody and got nowhere.
+        /// Counted here rather than on the body, because a dragger takes a step
+        /// that is accepted and then undone when the person behind them will
+        /// not fit; the body's own blocked count is cleared by that accepted
+        /// step, so it never climbs and they would strain for ever.
+        /// </summary>
+        public int StuckTicks;
     }
 
     internal sealed class AgentCarry
@@ -243,6 +290,21 @@
 
         /// <summary>The item is in their arms, not just being walked to.</summary>
         public bool Holding;
+
+        /// <summary>
+        /// It is their own — a bag or a briefcase they walked in with, not
+        /// something they are tidying away. They keep hold of it while calm and
+        /// only let go of it when something frightens them.
+        /// </summary>
+        public bool OwnsIt;
+
+        /// <summary>
+        /// Until this tick, they have an extinguisher in mind: somebody put one
+        /// down in front of them and they have seen it. While it lasts they
+        /// need less nerve than usual to go and take it, which is what makes
+        /// the player's card feel like an offer rather than scenery.
+        /// </summary>
+        public int SawAnExtinguisherUntilTick;
     }
 
     internal sealed class AgentBurning

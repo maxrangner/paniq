@@ -11,7 +11,7 @@ namespace Paniq.Simulation
     /// this person is not raising any alarm.
     /// </para>
     /// </summary>
-    internal sealed class AlarmBehaviour
+    internal sealed class AlarmBehaviour : IPanicOption
     {
         private readonly SimulationContext context;
 
@@ -127,13 +127,13 @@ namespace Paniq.Simulation
             int heading = IntegerMath.HeadingBetween(agent.Body.Position, spot, agent.Body.Heading);
             heading = locomotion.Steer(agent, heading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
                 panic.WallAvoidPercent, panic.ObjectAvoidPercent, 0L, 0L);
-            return new MotorIntent(heading, TraitEffects.FleeSpeed(agent), agent.Personality.PanicTurnRate, panic.Acceleration);
+            return PanicIntent.WalkTowards(agent, heading, panic);
         }
 
         private MotorIntent FaceIt(Agent agent, LogicalPosition spot)
         {
             int heading = IntegerMath.HeadingBetween(agent.Body.Position, spot, agent.Body.Heading);
-            return new MotorIntent(heading, 0, agent.Personality.PanicTurnRate, panic.Acceleration);
+            return PanicIntent.StandAndFace(agent, heading, panic);
         }
 
         /// <summary>

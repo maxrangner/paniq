@@ -811,6 +811,24 @@ namespace Paniq.Simulation
         /// <summary>How many floor squares around it the blast can set alight.</summary>
         public int PopIgniteCells;
 
+        /// <summary>
+        /// What this kind of thing is for, rather than what it is made of.
+        ///
+        /// These used to be decided by naming the kind in the rules -- "is it a
+        /// chair or an office chair", "is it an extinguisher" -- in nine
+        /// different places. Written down here instead, a new kind of thing
+        /// that people can sit on, or a new piece of equipment, is a row in
+        /// this table rather than an edit to every rule that might care.
+        /// </summary>
+        public bool CanBeSatOn;
+
+        /// <summary>
+        /// Equipment: something kept where it is until somebody needs it, like
+        /// an extinguisher on its bracket. Nobody tidies it away, wedges a door
+        /// with it, or drops it the moment they are frightened.
+        /// </summary>
+        public bool IsEquipment;
+
         public ObjectKindSettings Clone() => (ObjectKindSettings)MemberwiseClone();
 
         /// <summary>The office's things, in enum order.</summary>
@@ -821,10 +839,10 @@ namespace Paniq.Simulation
                 Entry(PhysicsObjectKind.Box, 100, 75, 400, 750),
 
                 // Wooden: a hard enough knock breaks it up.
-                Breakable(Entry(PhysicsObjectKind.Chair, 120, 150, 600, 900), 450),
+                SatOn(Breakable(Entry(PhysicsObjectKind.Chair, 120, 150, 600, 900), 450)),
 
                 // Castors: it rolls away across the floor, and its frame bends.
-                Breakable(Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900), 400),
+                SatOn(Breakable(Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900), 400)),
                 Entry(PhysicsObjectKind.WasteBin, 80, 50, 250, 450),
 
                 // Earth and green leaves: it never catches.
@@ -837,8 +855,8 @@ namespace Paniq.Simulation
                 // throw burning plastic onto the desk it was sitting on.
                 Popping(Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400), 900, 45, 1),
 
-                // Steel: it never catches.
-                Entry(PhysicsObjectKind.Extinguisher, 90, 0, 0, 0),
+                // Steel: it never catches, and it is equipment rather than clutter.
+                Equipment(Entry(PhysicsObjectKind.Extinguisher, 90, 0, 0, 0)),
 
                 // Stiff leather: it slides less than a soft bag and burns slowly.
                 Entry(PhysicsObjectKind.Briefcase, 110, 175, 350, 600),
@@ -851,6 +869,20 @@ namespace Paniq.Simulation
                 // Bolted to the wall, so it never slides anywhere.
                 Popping(Entry(PhysicsObjectKind.WallSocket, 1000, 90, 40, 60), 1400, 55, 2)
             };
+        }
+
+        /// <summary>The same kind, but one somebody can sit on.</summary>
+        private static ObjectKindSettings SatOn(ObjectKindSettings kind)
+        {
+            kind.CanBeSatOn = true;
+            return kind;
+        }
+
+        /// <summary>The same kind, but equipment rather than clutter.</summary>
+        private static ObjectKindSettings Equipment(ObjectKindSettings kind)
+        {
+            kind.IsEquipment = true;
+            return kind;
         }
 
         /// <summary>The same kind, but one a hard enough blow smashes.</summary>

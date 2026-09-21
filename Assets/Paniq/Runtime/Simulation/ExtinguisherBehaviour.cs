@@ -12,7 +12,7 @@ namespace Paniq.Simulation
     /// in the bottle, and a weak person is shoved backwards by the recoil
     /// instead of holding their ground.
     /// </summary>
-    internal sealed class ExtinguisherBehaviour
+    internal sealed class ExtinguisherBehaviour : IPanicOption
     {
         private readonly SimulationContext context;
 
@@ -420,7 +420,7 @@ namespace Paniq.Simulation
             int best = -1;
             for (int i = 0; i < objects.Count; i++)
             {
-                if (objects.KindOf(i) != PhysicsObjectKind.Extinguisher || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                if (!objects.IsEquipment(i) || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
                 {
                     continue;
                 }

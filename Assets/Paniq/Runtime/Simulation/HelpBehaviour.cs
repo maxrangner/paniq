@@ -11,7 +11,7 @@ namespace Paniq.Simulation
     /// they are dragging. The cruel never help. Helping stops when the helper
     /// is in danger, loses their footing, catches fire or gives up.
     /// </summary>
-    internal sealed class HelpBehaviour
+    internal sealed class HelpBehaviour : IPanicOption
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;

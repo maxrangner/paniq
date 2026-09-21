@@ -91,14 +91,18 @@ namespace Paniq.Simulation
             panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, chairs, locomotion);
             burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
             extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
-            panic.UseExtinguishers(extinguishers);
             leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion);
-            panic.UseLeaders(leaders);
             alarms = new AlarmSystem(context, sound, geometry);
             alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion);
-            panic.UseAlarms(alarmBehaviour);
             var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, fire, objects, flammables, locomotion);
-            panic.UseBarricades(barricades);
+
+            // What a frightened person might do instead of running, in the
+            // order they consider it. The first that answers wins, so this list
+            // is the priority order, and it is the only place it is written
+            // down. Raising the alarm comes after helping so that somebody with
+            // an unconscious person in front of them sees to them rather than
+            // walking off to the bell; plenty of other people are free to hit it.
+            panic.Offer(leaders, extinguishers, help, alarmBehaviour, barricades);
             playerCommands.Use(doors, fire, objects, crowd, influence, sound, body, geometry);
         }
 

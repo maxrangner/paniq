@@ -197,6 +197,30 @@ namespace Paniq.Simulation
         public ulong EventId;
     }
 
+    /// <summary>
+    /// The two ways a frightened person is ever asked to move: at their
+    /// fleeing pace towards something, or standing still and turning to face
+    /// it. Six behaviours each wrote these out for themselves, with the same
+    /// turn rate and the same acceleration spelled out every time.
+    /// </summary>
+    internal static class PanicIntent
+    {
+        public static MotorIntent WalkTowards(Agent agent, int heading, PanicSettings panic)
+        {
+            return new MotorIntent(heading, TraitEffects.FleeSpeed(agent), agent.Personality.PanicTurnRate, panic.Acceleration);
+        }
+
+        public static MotorIntent MoveAt(Agent agent, int heading, int speed, PanicSettings panic)
+        {
+            return new MotorIntent(heading, speed, agent.Personality.PanicTurnRate, panic.Acceleration);
+        }
+
+        public static MotorIntent StandAndFace(Agent agent, int heading, PanicSettings panic)
+        {
+            return new MotorIntent(heading, 0, agent.Personality.PanicTurnRate, panic.Acceleration);
+        }
+    }
+
     internal sealed class AgentPersonality
     {
         public int CalmSpeed;

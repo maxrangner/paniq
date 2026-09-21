@@ -17,7 +17,7 @@ namespace Paniq.Simulation
     /// events naming the person ordered, never a hold on them: whoever is
     /// ordered may still decide otherwise.
     /// </summary>
-    internal sealed class LeaderBehaviour
+    internal sealed class LeaderBehaviour : IPanicOption
     {
         private readonly SimulationContext context;
 
@@ -165,7 +165,7 @@ namespace Paniq.Simulation
             {
                 // A bottle anywhere somebody could be sent to, rather than
                 // only one in the room the leader is standing in.
-                if (objects.KindOf(i) == PhysicsObjectKind.Extinguisher && objects.HolderOf(i) < 0 && objects.FuelOf(i) > 0 &&
+                if (objects.IsEquipment(i) && objects.HolderOf(i) < 0 && objects.FuelOf(i) > 0 &&
                     geometry.Routes.CanGetFromHereToThere(leader.Body.Position, objects.PositionOf(i), bodyRadius))
                 {
                     bottle = i;

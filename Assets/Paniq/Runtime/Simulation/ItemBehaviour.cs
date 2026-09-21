@@ -89,7 +89,7 @@ namespace Paniq.Simulation
         {
             // An extinguisher is not clutter: it is left on its wall until
             // somebody needs it (see ExtinguisherBehaviour).
-            return objects.KindOf(index) != PhysicsObjectKind.Extinguisher && !objects.IsDormant(index) &&
+            return !objects.IsEquipment(index) && !objects.IsDormant(index) &&
                    objects.HolderOf(index) < 0 && !objects.IsMoving(index) && objects.CanLift(agent, index) &&
                    flammables.ObjectState(index) == ObjectBurnState.Intact;
         }
@@ -286,7 +286,7 @@ namespace Paniq.Simulation
 
             // Somebody fighting the fire is holding that extinguisher on purpose.
             if (ExtinguisherBehaviour.IsFighting(agent) &&
-                objects.KindOf(agent.Carry.ItemIndex) == PhysicsObjectKind.Extinguisher &&
+                objects.IsEquipment(agent.Carry.ItemIndex) &&
                 agent.Body.State == AgentBodyState.Upright && !agent.Burning.IsBurning)
             {
                 return;

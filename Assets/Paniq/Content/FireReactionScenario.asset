@@ -233,6 +233,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 0
         PopSpeed: 0
         PopIgniteCells: 0
+        CanBeSatOn: 0
+        IsEquipment: 0
       - Kind: 1
         FrictionPercent: 120
         IgniteTicks: 150
@@ -242,6 +244,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 0
         PopSpeed: 0
         PopIgniteCells: 0
+        CanBeSatOn: 1
+        IsEquipment: 0
       - Kind: 2
         FrictionPercent: 35
         IgniteTicks: 175
@@ -251,6 +255,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 0
         PopSpeed: 0
         PopIgniteCells: 0
+        CanBeSatOn: 1
+        IsEquipment: 0
       - Kind: 3
         FrictionPercent: 80
         IgniteTicks: 50
@@ -260,6 +266,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 0
         PopSpeed: 0
         PopIgniteCells: 0
+        CanBeSatOn: 0
+        IsEquipment: 0
       - Kind: 4
         FrictionPercent: 200
         IgniteTicks: 0
@@ -269,6 +277,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 0
         PopSpeed: 0
         PopIgniteCells: 0
+        CanBeSatOn: 0
+        IsEquipment: 0
       - Kind: 5
         FrictionPercent: 90
         IgniteTicks: 100
@@ -278,6 +288,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 0
         PopSpeed: 0
         PopIgniteCells: 0
+        CanBeSatOn: 0
+        IsEquipment: 0
       - Kind: 6
         FrictionPercent: 55
         IgniteTicks: 200
@@ -287,6 +299,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 900
         PopSpeed: 45
         PopIgniteCells: 1
+        CanBeSatOn: 0
+        IsEquipment: 0
       - Kind: 7
         FrictionPercent: 90
         IgniteTicks: 0
@@ -296,6 +310,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 0
         PopSpeed: 0
         PopIgniteCells: 0
+        CanBeSatOn: 0
+        IsEquipment: 1
       - Kind: 8
         FrictionPercent: 110
         IgniteTicks: 175
@@ -305,6 +321,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 0
         PopSpeed: 0
         PopIgniteCells: 0
+        CanBeSatOn: 0
+        IsEquipment: 0
       - Kind: 9
         FrictionPercent: 150
         IgniteTicks: 120
@@ -314,6 +332,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 2200
         PopSpeed: 70
         PopIgniteCells: 3
+        CanBeSatOn: 0
+        IsEquipment: 0
       - Kind: 10
         FrictionPercent: 1000
         IgniteTicks: 90
@@ -323,6 +343,8 @@ MonoBehaviour:
         PopRadiusMillimetres: 1400
         PopSpeed: 55
         PopIgniteCells: 2
+        CanBeSatOn: 0
+        IsEquipment: 0
       TableBreakMomentum: 600
       BoxIgniteTicks: 75
       ChairIgniteTicks: 150

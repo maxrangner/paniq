@@ -13,7 +13,7 @@ namespace Paniq.Simulation
     /// barricading anything.
     /// </para>
     /// </summary>
-    internal sealed class BarricadeBehaviour
+    internal sealed class BarricadeBehaviour : IPanicOption
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
@@ -215,7 +215,7 @@ namespace Paniq.Simulation
             for (int i = 0; i < objects.Count; i++)
             {
                 if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0 ||
-                    objects.KindOf(i) == PhysicsObjectKind.Extinguisher || objects.IsMoving(i) ||
+                    objects.IsEquipment(i) || objects.IsMoving(i) ||
                     !objects.CanLift(agent, i) || flammables.ObjectState(i) != ObjectBurnState.Intact ||
                     geometry.RoomAtPoint(objects.PositionOf(i)) != room)
                 {
@@ -340,13 +340,13 @@ namespace Paniq.Simulation
         {
             agent.Intent.Target = target;
             int heading = IntegerMath.HeadingBetween(agent.Body.Position, target, agent.Body.Heading);
-            return new MotorIntent(heading, TraitEffects.FleeSpeed(agent), agent.Personality.PanicTurnRate, panic.Acceleration);
+            return PanicIntent.WalkTowards(agent, heading, panic);
         }
 
         private MotorIntent FaceTowards(Agent agent, LogicalPosition target, int speed)
         {
             int heading = IntegerMath.HeadingBetween(agent.Body.Position, target, agent.Body.Heading);
-            return new MotorIntent(heading, speed, agent.Personality.PanicTurnRate, panic.Acceleration);
+            return PanicIntent.MoveAt(agent, heading, speed, panic);
         }
 
         /// <summary>Done, or given up. Whatever they were holding stays in their arms for the usual rules to deal with.</summary>

@@ -139,6 +139,9 @@ namespace Paniq.Simulation
         private readonly FearSystem fear;
         private readonly SoundSystem sound;
         private readonly ObjectPhysicsSettings settings;
+
+        /// <summary>What each kind of thing is made of and what it is for.</summary>
+        private readonly FlammableSettings kinds;
         private readonly int personRadius;
         private readonly List<ObjectContact> contacts = new List<ObjectContact>();
         private readonly ItemSettings items;
@@ -169,6 +172,7 @@ namespace Paniq.Simulation
             this.fear = fear;
             this.sound = sound;
             settings = context.Scenario.ObjectPhysics;
+            kinds = context.Scenario.Flammables;
             items = context.Scenario.Items;
             personRadius = context.Scenario.World.OccupancyRadiusMillimetres;
 
@@ -191,7 +195,7 @@ namespace Paniq.Simulation
 
                     // A spare has no spray in it until a card puts it down, which
                     // is also why nobody ever goes to fetch one.
-                    Fuel = definition.Kind == PhysicsObjectKind.Extinguisher && !definition.StartsDormant
+                    Fuel = kinds.Of(definition.Kind).IsEquipment && !definition.StartsDormant
                         ? context.Scenario.Extinguishers.FuelTicks
                         : 0
                 };
@@ -281,6 +285,13 @@ namespace Paniq.Simulation
         public LogicalPosition PositionOf(int index) => bodies[index].Position;
 
         public int RadiusOf(int index) => bodies[index].Radius;
+
+        /// <summary>
+        /// Equipment rather than clutter: kept where it is until somebody needs
+        /// it. Nobody tidies it away, wedges a door with it, or drops it the
+        /// moment they are frightened.
+        /// </summary>
+        public bool IsEquipment(int index) => kinds.Of(bodies[index].Kind).IsEquipment;
 
         /// <summary>The largest thing in the building, for widening a question enough to catch it.</summary>
         public int WidestRadius => widestRadius;
@@ -619,7 +630,7 @@ namespace Paniq.Simulation
         public bool IsFreeChair(int index)
         {
             PhysicsBody body = bodies[index];
-            return (body.Kind == PhysicsObjectKind.Chair || body.Kind == PhysicsObjectKind.OfficeChair) &&
+            return kinds.Of(body.Kind).CanBeSatOn &&
                    body.OccupiedBy < 0 && body.HeldBy < 0 && !body.Dormant && !body.Wrecked && !IsMoving(index);
         }
 
@@ -830,7 +841,7 @@ namespace Paniq.Simulation
             index = -1;
             for (int b = 0; b < bodies.Length; b++)
             {
-                if (bodies[b].Dormant && bodies[b].Kind == PhysicsObjectKind.Extinguisher)
+                if (bodies[b].Dormant && kinds.Of(bodies[b].Kind).IsEquipment)
                 {
                     index = b;
                     break;

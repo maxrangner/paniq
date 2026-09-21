@@ -93,6 +93,30 @@ assets and project-settings changes. On a project that already has URP
 assigned the command does nothing, so nothing the game needs in order to draw
 itself may depend on it having been run.
 
+## Prototype decision: rounds, scoring and the design spine
+
+Settled in a design review with the owner. The creative decisions themselves
+live in [game vision](game-vision.md); recorded here are the ones with
+technical consequences, plus the defaults chosen on the owner's behalf so they
+can be found and overturned.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| End of a round | A round ends when every person has reached a final outcome: out, dead, or alive and settled somewhere they will not leave | "Nobody is moving" alone never ends, because a person safe in a room the hazard cannot reach stays unresolved forever | Hazards exist that make "settled" ambiguous, such as one that can reach anywhere given time |
+| Surviving inside | Counts as saved | Barricading is a legitimate way to live through a disaster, and levels are large enough that reaching an exit is not always the best plan | Playtests show hiding is dominant and exits stop mattering |
+| Score | Percentage of the crowd saved, shown during the round and on the end screen | It is the game's stated result, and it is one number a new player understands without explanation | A scenario makes "saved" mean something other than "alive at the end" |
+| End screen | The scene freezes and stays clickable; clicking a person gives plain facts about them | The causal event log already holds every fact needed, and a frozen scene is the cheapest way to make a missed event recoverable | The plain-language retelling replaces or absorbs it |
+| Damage model | A ladder of visible states (upright, staggered, knocked down, out cold, dead, on fire), not hit points | It stays readable with hundreds of people on screen, and the existing collision and knock-out code already implements most of the ladder | A scenario needs gradual injury that a state ladder cannot express |
+| Director layer | The Director is simulation, not presentation: seeded randomness, stable IDs, and it may read only simulation state | It decides outcomes, so the [simulation contract](simulation-contract.md) applies to it in full. Retrofitting this later would be painful | Never, while the simulation contract stands |
+| Director reactivity | The Director reacts to how the run is going, and runs are therefore not comparable between attempts | The owner accepts randomness as a core ingredient, as in a sport. The cost is that a score is a match result rather than a personal best | Playtests show players cannot tell whether they improved, and it matters to them |
+| Replayability under a reactive Director | Still satisfied: given the same seed **and** the same player inputs, a run reproduces exactly | This looks like a conflict with the simulation contract and is not. The Director consumes the seeded random source and simulation state only, so replay and debugging are unaffected | The Director is ever given access to input timing, frame rate, or anything the presentation layer knows |
+| Influence source | Unchanged: the player starts with a pot and earns back only by saving people | A well-tuned Director is expected to absorb the risk that a bad opening starves the player | Playtests show a bad opening reliably ends the run as a spectator. The alternative on the shelf is for panic itself to pay |
+| Modes | One mode. No separate sandbox | A large level supplies the calm, watchable half for free, so a second mode would add maintenance without adding play | Levels stay small enough that the disaster is always in view |
+| Attention aids | No helper markers, minimap, or alerts. Sound is the intended replacement | The owner wants following events to be the player's job. Sound keeps that intact because it belongs to the world rather than to an overlay | Playtests show players lose the thread even with sound in place |
+| Time control | The player can slow time down and still act | Paired with self-contained diorama levels, this makes a round a puzzle box rather than a reflex test, which is the intent | Runs become careful optimisation and stop feeling like panic |
+| Hazard modelling | Every disaster is built as a mix of four families: spreading, rising, contagious, hunting | It keeps scenarios as content rather than as code, and gives a clear signal when the threat system needs extending instead of special-casing | A wanted scenario cannot be expressed as a mix of the four |
+| Crowd between levels | Each level has its own cast; survivors do not carry forward | Levels are self-contained dioramas that tell a story together, so continuity comes from the story rather than from the roster | The owner wants losses to carry an ongoing personal cost |
+
 ## How decisions are made
 
 Paniq's owner is learning game development, so technical decisions must remain

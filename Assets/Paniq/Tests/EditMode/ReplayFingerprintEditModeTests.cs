@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0x3196F56E4051F076UL)]
-        [TestCase(42UL, true, 0xC14A0B0F001E059EUL)]
-        [TestCase(40UL, false, 0x145C6F14F10734D0UL)]
-        [TestCase(40UL, true, 0xE85035D1A87B5D16UL)]
-        [TestCase(46UL, false, 0xA317D3529D5DB866UL)]
-        [TestCase(46UL, true, 0x5D9D2EF0DC061E9FUL)]
+        [TestCase(42UL, false, 0x00C49182A8FACDCAUL)]
+        [TestCase(42UL, true, 0xEFB2371C9EB9DA50UL)]
+        [TestCase(40UL, false, 0x38E95EB5E94554CDUL)]
+        [TestCase(40UL, true, 0x3078B6B0113B2F52UL)]
+        [TestCase(46UL, false, 0x2A594C43FC775A16UL)]
+        [TestCase(46UL, true, 0x47FBFD68D3490CE4UL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -35,8 +35,31 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0x6B896D96F3620EF6UL)]
-        [TestCase(40UL, 0x4ACC5D65E58F853AUL)]
+        /// <summary>
+        /// The player's cards, which are the one thing that reaches the run from
+        /// outside it. Guarded here as well as by their own tests, so the whole
+        /// command path is covered by replay.
+        /// </summary>
+        [TestCase(42UL, 0xD8E8C803EF3AC8ABUL)]
+        [TestCase(40UL, 0x86EAD6729F26CE76UL)]
+        public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
+        {
+            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            try
+            {
+                ulong actual = ReplayFingerprint.Run(scenario.ToRuntimeData(), seed, false, false, true);
+                Assert.That(actual, Is.EqualTo(expected),
+                    $"Seed {seed}, cards played: fingerprint is 0x{actual:X16}UL. " +
+                    "If behaviour was meant to change, bump the compatibility version and re-record.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(scenario);
+            }
+        }
+
+        [TestCase(42UL, 0xBA380E9E218CA1BAUL)]
+        [TestCase(40UL, 0x4D300EC9A335A092UL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();

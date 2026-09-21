@@ -12,7 +12,6 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class FireReactionLeadershipEditModeTests
     {
-        private static readonly SimulationId NorthDoor = new SimulationId(2001UL);
 
         private FireReactionScenario scenario;
 
@@ -54,7 +53,9 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         private FireReactionScenarioData LeaderAnd(AgentTraitValues other, int leadership = 9)
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            // A way out of the office for the leader to send somebody at.
+            FireReactionScenarioData data =
+                FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(scenario.ToRuntimeData());
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-2500, 3200),
@@ -128,8 +129,11 @@ namespace Paniq.Tests.EditMode
                     "A cruel person should never be the one who obeys.");
             }
 
-            Assert.That(EventsOfType(simulation, FireReactionEventType.DoorBrokenDown), Is.Empty,
-                "Nobody was willing to break the door down.");
+            // The leader still shouts, but with nobody willing the order is never
+            // given. (A strong, cruel person may batter a locked exit down on
+            // their own account in a panic; that is not doing as they are told.)
+            Assert.That(EventsOfType(simulation, FireReactionEventType.LeaderOrderedDoorBroken), Is.Empty,
+                "Nobody was willing to be sent at the door.");
         }
 
         [Test]

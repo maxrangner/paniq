@@ -145,7 +145,7 @@ schedule phase above.
 | Target tick | The logical tick at whose start the command is consumed. |
 | Command sequence | The run-wide monotonic ordering value for commands sharing a tick. |
 | Command type | A named data-level action, such as placing a guidance marker. |
-| Logical payload | Fully quantized, validated simulation data needed by that command. |
+| Logical payload | Fully quantized, validated simulation data needed by that command: a thing's stable ID, a place in whole millimetres, or both. |
 
 Raw pointer positions, camera state, screen coordinates, Unity input objects,
 and scene-object references are not command data. They may help presentation
@@ -158,6 +158,21 @@ against a click-only collider on each door leaf, then hands the runner that
 door ID. The simulation keeps every queued command in order (`Commands`), and
 queuing the same commands on a fresh run with the same seed replays it exactly.
 A command for a tick that has already started is rejected.
+
+A command may name a **place** instead of a thing: a `LogicalPosition` in whole
+millimetres, which is fully quantized simulation data and so a valid payload.
+The display works one out by intersecting the pointer with the mathematical
+ground plane and rounding; the ray and the screen position never leave the
+presentation. The prototype's cards use both shapes — `PlayBeefcake` names a
+person, and `SpawnFire`, `SpawnExtinguisher` and `BlastWall` name a place.
+
+The queue belongs to `PlayerCommandSystem`, which holds it but decides nothing:
+each command is carried out by the system that owns those rules. Validation
+splits in two. Whether a command *names something the run has* is checked as it
+is queued, and an unknown ID is refused outright. Whether a command *can do
+anything where it points* is decided when it is consumed, because the world will
+have moved on by then; a command that cannot is a no-op that costs the player
+nothing and, because the causal log is append-only, leaves no trace in it.
 
 Unity's Input System supports dynamic and fixed update processing. Paniq uses
 dynamic capture and explicitly queues logical commands, so rendering cadence

@@ -1,7 +1,10 @@
-// A pale silhouette drawn only where something else is nearer the camera, so
+// A pale silhouette drawn only where a wall or a door is nearer the camera, so
 // people and objects behind a wall can still be seen. It is added as a second
-// material on a renderer, which draws the same mesh a second time; the depth
-// test does the rest. Presentation only.
+// material on a renderer, which draws the same mesh a second time. The depth
+// test finds the hidden parts; the stencil test (the mark "Paniq/Wall Mark"
+// leaves on walls and doors) keeps only the ones hidden by a wall. Without the
+// stencil test a chair would show its own back legs through its own seat, and
+// anything under a table would ghost across the table top. Presentation only.
 Shader "Paniq/See-Through"
 {
     Properties
@@ -31,6 +34,14 @@ Shader "Paniq/See-Through"
             ZWrite Off
             Blend SrcAlpha OneMinusSrcAlpha
             Cull Back
+
+            // ...and only where that something is a wall or a door.
+            Stencil
+            {
+                Ref 1
+                ReadMask 1
+                Comp Equal
+            }
 
             HLSLPROGRAM
             #pragma vertex Vertex

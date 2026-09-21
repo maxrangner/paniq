@@ -272,6 +272,26 @@ namespace Paniq.Simulation
         /// <summary>The grid cell under a point (clamped to the grid).</summary>
         public int CellIndexAt(LogicalPosition position) => CellAt(position);
 
+        /// <summary>
+        /// The square covering a point, or -1 when the point is off the grid
+        /// altogether. <see cref="CellIndexAt"/> clamps to the nearest edge
+        /// square, which is what the simulation's own callers want because they
+        /// only ever ask about places inside the building; a player can click
+        /// anywhere, so their clicks come through here instead.
+        /// </summary>
+        public int CellCovering(LogicalPosition position)
+        {
+            int cellSize = settings.CellSizeMillimetres;
+            int x = (position.X - floor.MinX) / cellSize;
+            int z = (position.Z - floor.MinZ) / cellSize;
+            if (position.X < floor.MinX || position.Z < floor.MinZ || x >= gridColumns || z >= gridRows)
+            {
+                return -1;
+            }
+
+            return z * gridColumns + x;
+        }
+
         /// <summary>The middle of a grid cell.</summary>
         public LogicalPosition CellCentre(int cell) => CellBounds(cell).Centre;
 
@@ -288,6 +308,79 @@ namespace Paniq.Simulation
             }
 
             Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+        }
+
+        /// <summary>
+        /// The player starts a fire where they point. Unlike
+        /// <see cref="IgniteCell"/> this works before the scenario's own fire is
+        /// due, because starting one is the whole purpose: the first square the
+        /// player lights becomes the run's fire. Refuses a square that is not
+        /// floor, already alight, or still wet from an extinguisher, and says
+        /// whether it caught.
+        /// </summary>
+        public bool TryIgniteForPlayer(int cell, ulong causeEventId, out ulong eventId)
+        {
+            eventId = 0UL;
+            if (!CanIgniteForPlayer(cell))
+            {
+                return false;
+            }
+
+            if (!active)
+            {
+                // The player has beaten the scenario to it, so their card is
+                // where this run's fire came from.
+                active = true;
+                activationEventId = Ignite(cell, FireReactionEventType.FireActivated, causeEventId);
+                eventId = activationEventId;
+                return true;
+            }
+
+            eventId = Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+            return true;
+        }
+
+        /// <summary>
+        /// Whether the player could start a fire on this square: it has to be
+        /// floor in some room, not already alight, and not still wet from an
+        /// extinguisher. Asked before the card is charged for.
+        /// </summary>
+        public bool CanIgniteForPlayer(int cell)
+        {
+            return cell >= 0 && cellEventIds[cell] == 0UL && cellRooms[cell] >= 0 && !IsWet(cell);
+        }
+
+        /// <summary>
+        /// Lights up to <paramref name="cells"/> floor squares within
+        /// <paramref name="radius"/> of a blast, row by row so a replay agrees.
+        /// Squares that are not floor, already alight or still wet are skipped
+        /// and do not count against the limit.
+        /// </summary>
+        public void IgniteAround(LogicalPosition centre, int radius, int cells, ulong causeEventId)
+        {
+            if (!active || cells <= 0)
+            {
+                // Before the run's fire has started, a bang is just a bang.
+                return;
+            }
+
+            int lit = 0;
+            CellRange range = CellsWithin(centre, radius);
+            for (int row = range.FirstRow; row <= range.LastRow && lit < cells; row++)
+            {
+                for (int column = range.FirstColumn; column <= range.LastColumn && lit < cells; column++)
+                {
+                    int cell = row * gridColumns + column;
+                    if (!CanIgniteForPlayer(cell) ||
+                        CellBounds(cell).DistanceSquaredTo(centre) > (long)radius * radius)
+                    {
+                        continue;
+                    }
+
+                    Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+                    lit++;
+                }
+            }
         }
 
         /// <summary>Burning cells in ignition order, as a view that later ignitions do not change. Nothing is copied.</summary>

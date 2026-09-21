@@ -100,7 +100,7 @@ namespace Paniq.Tests.EditMode
             FireReactionDoorDefinition door = Array.Find(data.Doors, d => d.DoorId == ClosetDoor);
             Assert.That(door.RoomId, Is.EqualTo(data.Rooms[0].RoomId), "The door sits in the office's east wall.");
             Assert.That(door.StartsLocked, Is.False);
-            Assert.That(Array.FindAll(data.Doors, d => d.StartsLocked), Has.Length.EqualTo(5), "The five ways out start locked.");
+            Assert.That(Array.FindAll(data.Doors, d => d.StartsLocked), Has.Length.EqualTo(1), "The one way out starts locked.");
         }
 
         [Test]
@@ -219,14 +219,22 @@ namespace Paniq.Tests.EditMode
         /// The doorway-jam guard. Two runners reaching a 1 m door together
         /// used to wedge against either side of the frame and block everyone
         /// behind them until the fire came (seed 5, owner report). People now
-        /// give way beside a door they are not lined up with, so nobody
-        /// stands still in front of an open door for long.
+        /// give way beside a door they are not lined up with, and can step
+        /// straight sideways along a wall, so a blockage always clears.
+        /// <para>
+        /// The whole building now leaves through one door, so a queue at a
+        /// doorway is expected and standing still in one for a moment is not a
+        /// fault. What this catches is the original bug: somebody who stops and
+        /// never gets going again. Measured over these twenty runs the longest
+        /// anybody stands still is 3.3 s, and nobody is still stuck when the
+        /// run ends.
+        /// </para>
         /// </summary>
         [TestCase(300)]
         [TestCase(600)]
         public void NobodyStandsStillInFrontOfAnOpenDoor(int unlockTick)
         {
-            const int stuckLimitTicks = 2 * FireReactionSimulation.TicksPerSecond;
+            const int stuckLimitTicks = 5 * FireReactionSimulation.TicksPerSecond;
             for (ulong seed = 1UL; seed <= 10UL; seed++)
             {
                 FireReactionScenarioData data = scenario.ToRuntimeData();
@@ -256,6 +264,15 @@ namespace Paniq.Tests.EditMode
                             $"Seed {seed}: person {person.AgentId} stood in a doorway at {person.Position} " +
                             $"for {stillFor[i]} ticks up to tick {simulation.Tick}.");
                     }
+                }
+
+                // And whatever happened along the way, the jam cleared: nobody
+                // is in a long stall when the run ends. A pause of a few ticks
+                // is just a queue shuffling forward.
+                for (int i = 0; i < simulation.AgentCount; i++)
+                {
+                    Assert.That(stillFor[i], Is.LessThan(2 * FireReactionSimulation.TicksPerSecond),
+                        $"Seed {seed}: person {simulation.GetAgent(i).AgentId} was still rooted to a doorway at the end.");
                 }
             }
         }

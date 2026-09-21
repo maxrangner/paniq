@@ -10,6 +10,9 @@ namespace Paniq.Tests.EditMode
     {
         private static readonly SimulationId NorthDoor = new SimulationId(2001UL);
 
+        /// <summary>The building's one way out, in the meeting room.</summary>
+        internal static readonly SimulationId TheWayOut = new SimulationId(2008UL);
+
         private FireReactionScenario scenario;
 
         [SetUp]
@@ -80,7 +83,7 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = DefaultData();
             var simulation = new FireReactionSimulation(data);
-            Assert.That(simulation.DoorCount, Is.EqualTo(8));
+            Assert.That(simulation.DoorCount, Is.EqualTo(4));
             var sides = new HashSet<WallSide>();
             int locked = 0;
             for (int i = 0; i < simulation.DoorCount; i++)
@@ -97,15 +100,14 @@ namespace Paniq.Tests.EditMode
                 }
             }
 
-            Assert.That(locked, Is.EqualTo(5), "Five ways out of the building.");
-            Assert.That(sides, Is.EquivalentTo(new[] { WallSide.North, WallSide.South, WallSide.West }),
-                "The office's three ways out; its east wall holds the closet and corridor doors instead.");
+            Assert.That(locked, Is.EqualTo(1), "One way out of the building, and it is the player's to open.");
+            Assert.That(sides, Is.Empty, "The office has no way out of its own: everybody leaves through the corridor.");
         }
 
         [Test]
         public void DoorClicks_UnlockThenOpenThenCloseThenOpenAgain()
         {
-            var simulation = new FireReactionSimulation(DefaultData());
+            var simulation = new FireReactionSimulation(WithAWayOutOfTheOffice(DefaultData()));
             Click(simulation, NorthDoor);
             simulation.Step();
             Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Unlocked));
@@ -160,8 +162,8 @@ namespace Paniq.Tests.EditMode
 
                 if (first.Tick == 400)
                 {
-                    Click(first, new SimulationId(2003UL));
-                    Click(first, new SimulationId(2003UL));
+                    Click(first, TheWayOut);
+                    Click(first, TheWayOut);
                 }
 
                 first.Step();
@@ -350,11 +352,28 @@ namespace Paniq.Tests.EditMode
 
         // ---------------------------------------------------------------- one runner at one door
 
-        /// <summary>One runner right by the north door, facing a fire that starts in front of them.</summary>
+        /// <summary>
+        /// The building plus a locked way out of the office's north wall. The
+        /// office has none of its own, and these tests are about how a door
+        /// behaves rather than about the floor plan, so they bring their own.
+        /// </summary>
+        internal static FireReactionScenarioData WithAWayOutOfTheOffice(
+            FireReactionScenarioData data, bool startsLocked = true)
+        {
+            var doors = new List<FireReactionDoorDefinition>(data.Doors)
+            {
+                new FireReactionDoorDefinition(NorthDoor, FireReactionScenarioData.Office, WallSide.North, -2500, 1000,
+                    startsLocked)
+            };
+            data.Doors = doors.ToArray();
+            return data;
+        }
+
         /// <summary>One runner (an ordinary person unless traits are given) who panics right beside the locked north door.</summary>
         internal static FireReactionScenarioData RunnerByTheNorthDoor(
             FireReactionScenarioData data, int forceChancePercent, AgentTraitValues traits)
         {
+            WithAWayOutOfTheOffice(data);
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-2500, 4700), CardinalDirection.South, traits)
@@ -475,6 +494,12 @@ namespace Paniq.Tests.EditMode
                 boxes.Add(simulation.GetPhysicsObject(i).ObjectId);
             }
 
+            var alarms = new HashSet<SimulationId>();
+            for (int i = 0; i < simulation.AlarmCount; i++)
+            {
+                alarms.Add(simulation.AlarmId(i));
+            }
+
             var doorCentres = new Dictionary<SimulationId, LogicalPosition>();
             for (int i = 0; i < simulation.DoorCount; i++)
             {
@@ -489,6 +514,30 @@ namespace Paniq.Tests.EditMode
                 {
                     case FireReactionEventType.AgentsCollided:
                         Assert.That(agents, Does.Contain(record.TargetId), "A collision names the person run into.");
+                        Assert.That(record.TargetId, Is.Not.EqualTo(record.SourceId));
+                        break;
+                    case FireReactionEventType.DoorBlocked:
+                    case FireReactionEventType.DoorUnblocked:
+                        Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True,
+                            "A jammed doorway names the door.");
+                        Assert.That(boxes, Does.Contain(record.SourceId), "And the thing wedged in it.");
+                        break;
+                    case FireReactionEventType.AgentBarricadedDoor:
+                        Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True,
+                            "Barricading names the door.");
+                        break;
+                    case FireReactionEventType.AgentShovedObstruction:
+                        Assert.That(boxes, Does.Contain(record.TargetId), "Heaving names the thing heaved.");
+                        break;
+                    case FireReactionEventType.ObjectBroke:
+                        Assert.That(record.TargetId, Is.Not.EqualTo(record.SourceId),
+                            "Breaking names both what broke and what hit it.");
+                        break;
+                    case FireReactionEventType.AlarmPulled:
+                        Assert.That(alarms, Does.Contain(record.TargetId), "Raising the alarm names the alarm.");
+                        break;
+                    case FireReactionEventType.AgentShoved:
+                        Assert.That(agents, Does.Contain(record.TargetId), "A shove names the person shoved aside.");
                         Assert.That(record.TargetId, Is.Not.EqualTo(record.SourceId));
                         break;
                     case FireReactionEventType.BoxBumped:
@@ -524,6 +573,10 @@ namespace Paniq.Tests.EditMode
                     case FireReactionEventType.ExtinguisherSprayed:
                     case FireReactionEventType.ExtinguisherEmptied:
                         Assert.That(boxes, Does.Contain(record.TargetId), $"{record.EventType} names the item.");
+                        break;
+                    case FireReactionEventType.LeaderOrderedDoorBroken:
+                    case FireReactionEventType.LeaderOrderedFireFought:
+                        Assert.That(agents, Does.Contain(record.TargetId), $"{record.EventType} names the person sent.");
                         break;
                     case FireReactionEventType.AgentBlasted:
                     case FireReactionEventType.AgentDoused:

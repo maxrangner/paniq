@@ -7,8 +7,10 @@ namespace Paniq.Simulation
     /// a box or chair they can lift, pick it up, carry it somewhere else and
     /// set it down. Carrying slows them down, the more the heavier the load.
     /// Anyone carrying something who is startled, knocked off their feet or
-    /// set alight lets go: the nervous drop it, the rest throw it. Calm tidying
-    /// is not logged (like a calm push); drops and throws are.
+    /// set alight lets go: the nervous fumble and drop it, the rest fling it
+    /// away from them in whatever direction they happen to be facing, which is
+    /// a reflex rather than a plan. Calm tidying is not logged (like a calm
+    /// push); drops and throws are.
     /// </summary>
     internal sealed class ItemBehaviour
     {
@@ -40,6 +42,13 @@ namespace Paniq.Simulation
         /// <summary>Maybe go and tidy something up: the nearest item within reach that this person can lift. False if there is none.</summary>
         public bool TryStartTidying(Agent agent)
         {
+            if (agent.Carry.ItemIndex >= 0)
+            {
+                // Their hands are already full: their own bag, or something they
+                // are already tidying away.
+                return false;
+            }
+
             int best = -1;
             long bestDistance = (long)settings.FetchRangeMillimetres * settings.FetchRangeMillimetres;
             for (int i = 0; i < objects.Count; i++)
@@ -73,7 +82,7 @@ namespace Paniq.Simulation
         {
             // An extinguisher is not clutter: it is left on its wall until
             // somebody needs it (see ExtinguisherBehaviour).
-            return objects.KindOf(index) != PhysicsObjectKind.Extinguisher &&
+            return objects.KindOf(index) != PhysicsObjectKind.Extinguisher && !objects.IsDormant(index) &&
                    objects.HolderOf(index) < 0 && !objects.IsMoving(index) && objects.CanLift(agent, index) &&
                    flammables.ObjectState(index) == ObjectBurnState.Intact;
         }
@@ -275,10 +284,20 @@ namespace Paniq.Simulation
                 return;
             }
 
+            // And somebody carrying something to wedge a door with means to keep
+            // hold of it, frightened as they are.
+            if (BarricadeBehaviour.IsBarricading(agent) &&
+                agent.Body.State == AgentBodyState.Upright && !agent.Burning.IsBurning)
+            {
+                return;
+            }
+
             bool calmAndUpright = agent.Fear.State == AgentFearState.Calm && agent.Body.State == AgentBodyState.Upright &&
                                   !agent.Burning.IsBurning;
-            if (calmAndUpright && IsTidying(agent))
+            if (calmAndUpright && (IsTidying(agent) || agent.Carry.OwnsIt))
             {
+                // Either mid-tidy, or it is their own bag and they simply carry
+                // it about with them.
                 return;
             }
 
@@ -294,6 +313,7 @@ namespace Paniq.Simulation
                 objects.Release(item, spot, 0, 0, 0UL);
                 agent.Carry.ItemIndex = -1;
                 agent.Carry.Holding = false;
+                agent.Carry.OwnsIt = false;
                 return;
             }
 
@@ -312,7 +332,7 @@ namespace Paniq.Simulation
             else
             {
                 int speed = objects.ThrowSpeed(agent, item);
-                int heading = IntegerMath.HeadingBetween(agent.Body.Position, spot, agent.Body.Heading);
+                int heading = objects.PanicThrowHeading(agent, spot);
                 LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
                 ulong thrown = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemThrown, spot, speed, 0,
                     cause, objects.IdOf(item)).EventId;
@@ -321,6 +341,7 @@ namespace Paniq.Simulation
 
             agent.Carry.ItemIndex = -1;
             agent.Carry.Holding = false;
+            agent.Carry.OwnsIt = false;
         }
     }
 }

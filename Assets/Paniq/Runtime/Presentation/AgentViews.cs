@@ -63,7 +63,7 @@ namespace Paniq.Presentation
                 agentObject.name = $"Agent {definition.AgentId.Value} (presentation)";
                 agentObject.transform.SetParent(parent, false);
                 RemoveCollider(agentObject);
-                agentObject.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
+                agentObject.transform.localScale = BodyScale;
                 Renderer agentRenderer = agentObject.GetComponent<Renderer>();
                 agentRenderer.sharedMaterial = materials.Agent;
                 ShowThroughWalls(agentObject, materials);
@@ -168,7 +168,7 @@ namespace Paniq.Presentation
                 if (lost)
                 {
                     // Knocked flat where the fire caught them.
-                    view.Transform.SetPositionAndRotation(planar + Vector3.up * 0.25f, Quaternion.Euler(90f, yaw, 0f));
+                    view.Transform.SetPositionAndRotation(planar + Vector3.up * BodyRadius, Quaternion.Euler(90f, yaw, 0f));
                 }
                 else if (tilt > 0f)
                 {
@@ -176,7 +176,8 @@ namespace Paniq.Presentation
                     float lying = tilt / 90f;
                     Vector3 forward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
                     view.Transform.SetPositionAndRotation(
-                        planar + forward * (0.25f * lying) + Vector3.up * Mathf.Lerp(0.5f, 0.25f, lying),
+                        planar + forward * (BodyHalfHeight * 0.5f * lying) +
+                        Vector3.up * Mathf.Lerp(BodyHalfHeight, BodyRadius, lying),
                         Quaternion.Euler(tilt, yaw, 0f));
                 }
                 else
@@ -243,8 +244,11 @@ namespace Paniq.Presentation
                         bounce = 0f;
                     }
 
+                    // Seated, the body drops by the height of the seat so the head
+                    // is where a sitting person's head would be, just above the
+                    // table rather than a full body-height above the chair.
                     view.Transform.SetPositionAndRotation(
-                        planar + shake + lunge + Vector3.up * (0.5f - 0.16f * seated + bounce + alertJump),
+                        planar + shake + lunge + Vector3.up * (BodyHalfHeight - SeatedDrop * seated + bounce + alertJump),
                         Quaternion.Euler(lean + 6f * seated, yaw, roll));
                 }
 
@@ -274,9 +278,9 @@ namespace Paniq.Presentation
                                           (float)FireReactionSimulation.MillimetresPerMetre);
             Vector3 forward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
             view.Transform.SetPositionAndRotation(
-                view.EscapePosition + forward * (speed * age * EscapeFadeSeconds) + Vector3.up * 0.5f,
+                view.EscapePosition + forward * (speed * age * EscapeFadeSeconds) + Vector3.up * BodyHalfHeight,
                 Quaternion.Euler(10f, yaw, 0f));
-            view.Transform.localScale = Vector3.one * (0.5f * (1f - age));
+            view.Transform.localScale = BodyScale * (1f - age);
         }
 
         /// <summary>Forward tilt in degrees: 0 upright, 90 lying on the floor. Timed locally per state.</summary>
@@ -340,7 +344,7 @@ namespace Paniq.Presentation
             }
             else
             {
-                Vector3 anchor = planar + Vector3.up * (down ? 0.75f : 1.4f + alertJump);
+                Vector3 anchor = planar + Vector3.up * (down ? 0.75f : BodyHalfHeight * 2f + 0.4f + alertJump);
                 Vector3 facing = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
                 float facingSide = Vector3.Dot(facing, cameraTransform.right) >= 0f ? 1f : -1f;
                 bool calm = agent.FearState == AgentFearState.Calm;
@@ -362,6 +366,19 @@ namespace Paniq.Presentation
         }
 
         private static readonly Color FlameRed = PresentationMaterials.FlameRed;
+
+        /// <summary>
+        /// A person is drawn as a capsule half a metre across and half a metre
+        /// from middle to end, which is how they have always looked. The width
+        /// matches the 250 mm radius the simulation uses for a body, so what
+        /// you see is exactly what bumps.
+        /// </summary>
+        private const float BodyRadius = 0.25f;
+        private const float BodyHalfHeight = 0.5f;
+        private static readonly Vector3 BodyScale = new Vector3(BodyRadius * 2f, BodyHalfHeight, BodyRadius * 2f);
+
+        /// <summary>How far a sitting body sinks onto the seat.</summary>
+        private const float SeatedDrop = 0.16f;
 
         private void UpdateVisionCone(FireReactionAgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw)
         {

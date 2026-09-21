@@ -50,15 +50,39 @@ namespace Paniq.Presentation
             {
                 SeeThrough = new Material(seeThrough);
                 SeeThrough.SetColor(GhostColorId, new Color(0.62f, 0.78f, 0.98f, 0.32f));
+
+                // Fire behind a wall shows as an orange glow rather than the
+                // pale blue of people and furniture, so a blaze in the next
+                // room is unmistakable.
+                FireSeeThrough = new Material(seeThrough);
+                FireSeeThrough.SetColor(GhostColorId, new Color(1f, 0.45f, 0.1f, 0.45f));
             }
             else
             {
                 Debug.LogWarning("Paniq: the See-Through shader is missing, so nothing will show through walls.");
             }
+
+            // The invisible mark walls and doors leave, which tells the
+            // silhouette where it may draw. Without it, nothing shows through.
+            Shader wallMark = Shader.Find("Paniq/Wall Mark");
+            if (wallMark != null)
+            {
+                WallMark = new Material(wallMark);
+            }
+            else
+            {
+                Debug.LogWarning("Paniq: the Wall Mark shader is missing, so nothing will show through walls.");
+            }
         }
 
         /// <summary>The silhouette material, or null when its shader is missing.</summary>
         public Material SeeThrough { get; }
+
+        /// <summary>The invisible mark on walls and doors that the silhouette draws through, or null when its shader is missing.</summary>
+        public Material WallMark { get; }
+
+        /// <summary>The orange silhouette of flames behind a wall, or null when its shader is missing.</summary>
+        public Material FireSeeThrough { get; }
 
         public Material Room { get; }
         public Material Wall { get; }
@@ -91,9 +115,12 @@ namespace Paniq.Presentation
 
         public void Destroy()
         {
-            foreach (Material material in new[] { Room, Wall, Vision, Agent, Icon, Door, Box, Outside, Fire })
+            foreach (Material material in new[] { Room, Wall, Vision, Agent, Icon, Door, Box, Outside, Fire, SeeThrough, WallMark, FireSeeThrough })
             {
-                Object.Destroy(material);
+                if (material != null)
+                {
+                    Object.Destroy(material);
+                }
             }
         }
 

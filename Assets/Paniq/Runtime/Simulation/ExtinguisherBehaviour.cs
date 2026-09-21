@@ -66,7 +66,13 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            return agent.Traits.Bravery >= settings.FightMinimumBravery ||
+            // Somebody has just put a bottle down in front of them: for a
+            // while they need less nerve than usual to be the one who takes it.
+            int nerveNeeded = context.Tick < agent.Carry.SawAnExtinguisherUntilTick
+                ? settings.FightMinimumBravery - settings.OfferedBraveryBonus
+                : settings.FightMinimumBravery;
+
+            return agent.Traits.Bravery >= nerveNeeded ||
                    (someoneAlight && agent.Traits.Compassion >= settings.SaveMinimumCompassion);
         }
 
@@ -93,9 +99,13 @@ namespace Paniq.Simulation
                 return null;
             }
 
-            // Nothing to put out, or far too much of it to try.
+            // Nothing to put out, or far too much of it to try. The fire has to
+            // be in the room they are standing in: they cannot yet walk to one
+            // that is not, so setting off for it only walks them into a wall.
+            int room = geometry.RoomOf(agent);
             if (burningPerson < 0 &&
-                (fire.BurningCount == 0 || fire.BurningCount > settings.FightMaximumFireCells))
+                (fire.BurningCount == 0 || fire.BurningCount > settings.FightMaximumFireCells ||
+                 room < 0 || !fire.IsBurningInRoom(room)))
             {
                 return null;
             }
@@ -171,13 +181,18 @@ namespace Paniq.Simulation
             {
                 target = crowd.All[burningPerson].Body.Position;
             }
-            else if (fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition flames) < long.MaxValue)
+            else if (fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition flames) < long.MaxValue &&
+                     geometry.RoomAtPoint(flames) == geometry.RoomOf(agent))
             {
                 target = flames;
             }
             else
             {
-                // Nothing left to put out.
+                // Nothing left to put out in this room. They only ever fight a
+                // fire they are in the room with: walking to one next door
+                // means walking at the wall between, because carrying a bottle
+                // somewhere is a straight line and nothing routes it through a
+                // doorway yet.
                 items.PutDownWhereTheyStand(agent, agent.Fear.ScaredEventId);
                 GiveUp(agent);
                 return null;

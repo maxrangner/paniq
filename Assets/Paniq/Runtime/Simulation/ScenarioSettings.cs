@@ -336,6 +336,22 @@ namespace Paniq.Simulation
         /// <summary>Getting up groggily after coming to takes longer than after a plain fall.</summary>
         public int ComeToGetUpTicks = 50;
 
+        // Shoving people out of the way. Running into somebody is an accident
+        // that needs speed; taking hold of them and heaving them aside is
+        // deliberate, works at a walk, and only the cruel do it.
+
+        /// <summary>This evil: shove whoever is in the way aside instead of going round them.</summary>
+        public int ShoveMinimumEvil = 7;
+
+        /// <summary>The soonest they will shove somebody again.</summary>
+        public int ShoveIntervalTicks = 40;
+
+        /// <summary>How far a shove sends somebody, as far as the room allows.</summary>
+        public int ShovePushMillimetres = 350;
+
+        /// <summary>This much stronger than the person shoved, and they go down rather than just reeling.</summary>
+        public int ShoveKnockDownStrengthGap = 2;
+
         public FallSettings Clone() => (FallSettings)MemberwiseClone();
 
         internal void Validate()
@@ -350,6 +366,8 @@ namespace Paniq.Simulation
                              PassOutMomentumPerPercent > 0 && Settings.Percent(PassOutMaximumPercent) &&
                              Settings.Range(UnconsciousMinimumTicks, UnconsciousMaximumTicks, 1) &&
                              ComeToGetUpTicks >= 1, "passing out");
+            Settings.Require(ShoveMinimumEvil >= 0 && ShoveIntervalTicks >= 1 && ShovePushMillimetres >= 0 &&
+                             ShoveKnockDownStrengthGap >= 0, "shoving people aside");
         }
     }
 
@@ -423,9 +441,10 @@ namespace Paniq.Simulation
         /// <summary>How much shoving damage a door takes before it breaks. Damage stays between attempts.</summary>
         public int DoorStrength = 40;
 
-        // Closing doors, by personality. People close the door of the side
-        // room they shelter in (if within reach of it), and the door they
-        // have just escaped through.
+        // Closing doors. Only the cruel shut the door behind them as they
+        // leave a room or the building, and only the cruellest lock it.
+        // Shutting a door with fire beyond it is a different act and open to
+        // anyone.
 
         /// <summary>How close to a door someone sheltering must be to pull it shut.</summary>
         public int CloseReachMillimetres = 2000;
@@ -433,23 +452,17 @@ namespace Paniq.Simulation
         /// <summary>Anyone else this close to the door counts as "someone coming".</summary>
         public int CloseApproachRadiusMillimetres = 3000;
 
-        /// <summary>Fire this close to the door makes brave, kind people shut it.</summary>
-        public int CloseFireRadiusMillimetres = 5000;
-
-        /// <summary>Fire this close to the door makes anyone sheltering shut it, compassionate or not.</summary>
+        /// <summary>Fire this close to a door makes anyone shut it, kind or not, and whoever is still coming.</summary>
         public int FireAtDoorRadiusMillimetres = 2000;
 
-        /// <summary>This evil: shut and lock the door behind them, even in the face of someone coming.</summary>
+        /// <summary>This evil: shut the door behind them, even in the face of someone coming.</summary>
         public int EvilCloseMinimum = 7;
 
-        /// <summary>This compassionate: never shut the door on someone coming.</summary>
+        /// <summary>This evil: turn the key as well, so nobody can follow.</summary>
+        public int EvilLockMinimum = 9;
+
+        /// <summary>This compassionate: hold a door open for someone coming, even with fire in the room beyond.</summary>
         public int CompassionHoldMinimum = 7;
-
-        /// <summary>This nervous: shut the door as soon as nobody is coming.</summary>
-        public int NervousCloseMinimum = 8;
-
-        /// <summary>Bravery plus compassion at least this: shut the door against approaching fire when nobody is coming.</summary>
-        public int BraveKindCloseSum = 12;
 
         public ExitSettings Clone() => (ExitSettings)MemberwiseClone();
 
@@ -476,9 +489,9 @@ namespace Paniq.Simulation
                              RefugeClearRoomMillimetres >= 0 && RefugeSpacePerPersonMillimetres > 0, "door scoring");
             Settings.Require(DoorStrength >= 1, "door strength");
             Settings.Require(CloseReachMillimetres >= 0 && CloseApproachRadiusMillimetres >= 0 &&
-                             CloseFireRadiusMillimetres >= 0 && FireAtDoorRadiusMillimetres >= 0 &&
-                             EvilCloseMinimum >= 0 && CompassionHoldMinimum >= 0 && NervousCloseMinimum >= 0 &&
-                             BraveKindCloseSum >= 0, "closing doors");
+                             FireAtDoorRadiusMillimetres >= 0 && EvilCloseMinimum >= 0 &&
+                             CompassionHoldMinimum >= 0 && EvilLockMinimum >= EvilCloseMinimum,
+                "closing doors");
         }
     }
 
@@ -504,8 +517,13 @@ namespace Paniq.Simulation
         /// <summary>Box-on-box hits at least this fast (mm per tick) are logged.</summary>
         public int LoggedBoxHitSpeed = 20;
 
-        /// <summary>Fastest a kicked box spins, in degrees per tick.</summary>
-        public int SpinMaximum = 20;
+        /// <summary>
+        /// Fastest anything turns as it slides, in degrees per tick. 8 is 400
+        /// degrees a second, about one turn and a bit: enough to read as a
+        /// tumble, slow enough that a kicked box never looks like a top. Only
+        /// the smallest things reach it, and only at full speed.
+        /// </summary>
+        public int SpinMaximum = 8;
 
         public ObjectPhysicsSettings Clone() => (ObjectPhysicsSettings)MemberwiseClone();
 
@@ -661,6 +679,17 @@ namespace Paniq.Simulation
         public int FightMinimumBravery = 7;
         public int SaveMinimumCompassion = 7;
 
+        /// <summary>
+        /// Somebody stood an extinguisher down in front of them. For the next
+        /// stretch of ticks they need this much less nerve to pick it up: a
+        /// bottle at your feet is a far easier thing to reach for than one
+        /// across the room. How long they keep it in mind, and how far away
+        /// they notice one being put down, are below.
+        /// </summary>
+        public int OfferedBraveryBonus = 3;
+        public int OfferedTicks = 400;
+        public int OfferedNoticeRangeMillimetres = 6000;
+
         /// <summary>Nobody takes on a fire bigger than this many burning squares (saving someone is always worth it).</summary>
         public int FightMaximumFireCells = 24;
 
@@ -709,6 +738,8 @@ namespace Paniq.Simulation
         {
             Settings.Require(FuelTicks > 0 && FightMaximumFireCells >= 0, "extinguisher fuel");
             Settings.Require(FightMinimumBravery >= 0 && SaveMinimumCompassion >= 0, "who fights a fire");
+            Settings.Require(OfferedBraveryBonus >= 0 && OfferedTicks > 0 && OfferedNoticeRangeMillimetres >= 0,
+                "noticing an extinguisher somebody put down");
             Settings.Require(FetchRangeMillimetres >= 0 && PickUpDistanceMillimetres > 0 && SaveRangeMillimetres >= 0,
                 "extinguisher distances");
             Settings.Require(FetchTimeoutTicks > 0 && FightTimeoutTicks > 0, "extinguisher timeouts");
@@ -735,13 +766,32 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ObjectKindSettings
     {
-        public const int KindCount = 8;
+        public const int KindCount = 11;
 
         public PhysicsObjectKind Kind;
         public int FrictionPercent = 100;
         public int IgniteTicks = 75;
         public int BurnMinimumTicks = 400;
         public int BurnMaximumTicks = 750;
+
+        /// <summary>
+        /// How hard a blow this thing survives, as momentum in kilograms times
+        /// millimetres per tick. A hit above it smashes the thing. Zero means it
+        /// never breaks, however hard it is hit.
+        /// </summary>
+        public int BreakMomentum;
+
+        /// <summary>
+        /// How far an electrical thing throws things about when it goes off.
+        /// Zero means it does not go off at all.
+        /// </summary>
+        public int PopRadiusMillimetres;
+
+        /// <summary>How fast the blast sends loose things, in millimetres per tick.</summary>
+        public int PopSpeed;
+
+        /// <summary>How many floor squares around it the blast can set alight.</summary>
+        public int PopIgniteCells;
 
         public ObjectKindSettings Clone() => (ObjectKindSettings)MemberwiseClone();
 
@@ -751,22 +801,54 @@ namespace Paniq.Simulation
             return new[]
             {
                 Entry(PhysicsObjectKind.Box, 100, 75, 400, 750),
-                Entry(PhysicsObjectKind.Chair, 120, 150, 600, 900),
 
-                // Castors: it rolls away across the floor.
-                Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900),
+                // Wooden: a hard enough knock breaks it up.
+                Breakable(Entry(PhysicsObjectKind.Chair, 120, 150, 600, 900), 450),
+
+                // Castors: it rolls away across the floor, and its frame bends.
+                Breakable(Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900), 400),
                 Entry(PhysicsObjectKind.WasteBin, 80, 50, 250, 450),
 
                 // Earth and green leaves: it never catches.
                 Entry(PhysicsObjectKind.PottedPlant, 200, 0, 0, 0),
                 Entry(PhysicsObjectKind.Bag, 90, 100, 300, 500),
 
-                // Hard plastic on hard floor: it skitters.
-                Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400),
+                // Hard plastic on hard floor: it skitters. Its battery goes
+                // off when the flames reach it: a sharp crack rather than a
+                // proper bang, enough to make everybody nearby jump and to
+                // throw burning plastic onto the desk it was sitting on.
+                Popping(Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400), 900, 45, 1),
 
                 // Steel: it never catches.
-                Entry(PhysicsObjectKind.Extinguisher, 90, 0, 0, 0)
+                Entry(PhysicsObjectKind.Extinguisher, 90, 0, 0, 0),
+
+                // Stiff leather: it slides less than a soft bag and burns slowly.
+                Entry(PhysicsObjectKind.Briefcase, 110, 175, 350, 600),
+
+                // Electrical. Neither burns for long: the flames reach them and
+                // they go off, which is the point of them. A microwave clears a
+                // 2.2 m circle, a socket 1.4 m, a laptop only 0.9 m.
+                Popping(Entry(PhysicsObjectKind.Microwave, 150, 120, 60, 90), 2200, 70, 3),
+
+                // Bolted to the wall, so it never slides anywhere.
+                Popping(Entry(PhysicsObjectKind.WallSocket, 1000, 90, 40, 60), 1400, 55, 2)
             };
+        }
+
+        /// <summary>The same kind, but one a hard enough blow smashes.</summary>
+        private static ObjectKindSettings Breakable(ObjectKindSettings kind, int breakMomentum)
+        {
+            kind.BreakMomentum = breakMomentum;
+            return kind;
+        }
+
+        /// <summary>The same kind, but one that goes off when the flames reach it.</summary>
+        private static ObjectKindSettings Popping(ObjectKindSettings kind, int radius, int speed, int igniteCells)
+        {
+            kind.PopRadiusMillimetres = radius;
+            kind.PopSpeed = speed;
+            kind.PopIgniteCells = igniteCells;
+            return kind;
         }
 
         private static ObjectKindSettings Entry(PhysicsObjectKind kind, int friction, int ignite, int burnMinimum, int burnMaximum)
@@ -785,6 +867,8 @@ namespace Paniq.Simulation
         {
             Settings.Require(FrictionPercent > 0 && FrictionPercent <= 1000, "object friction");
             Settings.Require(IgniteTicks >= 0, "object ignite time");
+            Settings.Require(BreakMomentum >= 0 && PopRadiusMillimetres >= 0 && PopSpeed >= 0 && PopIgniteCells >= 0,
+                "breaking and popping");
             Settings.Require(IgniteTicks == 0 || Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1), "object burn time");
         }
     }
@@ -797,6 +881,13 @@ namespace Paniq.Simulation
 
         /// <summary>How each kind of loose object slides and burns; one entry per kind.</summary>
         public ObjectKindSettings[] Kinds = ObjectKindSettings.Defaults();
+
+        /// <summary>
+        /// How hard a blow collapses a table, as momentum in kilograms times
+        /// millimetres per tick. Higher than a chair's, because a table is the
+        /// sturdiest thing in the room.
+        /// </summary>
+        public int TableBreakMomentum = 600;
 
         /// <summary>Ticks of heat before each kind catches fire.</summary>
         public int BoxIgniteTicks = 75;
@@ -843,6 +934,7 @@ namespace Paniq.Simulation
                              Settings.Range(ChairBurnMinimumTicks, ChairBurnMaximumTicks, 1) &&
                              Settings.Range(TableBurnMinimumTicks, TableBurnMaximumTicks, 1), "burn times");
             Settings.Require(FloorIgniteRestTicks >= 1 && TouchGapMillimetres >= 0, "burning things");
+            Settings.Require(TableBreakMomentum >= 0, "table strength");
             Settings.Require(Kinds != null && Kinds.Length == ObjectKindSettings.KindCount, "one entry per kind of object");
             for (int i = 0; i < Kinds.Length; i++)
             {
@@ -876,6 +968,14 @@ namespace Paniq.Simulation
         /// <summary>How long they stay in the chair.</summary>
         public int SitMinimumTicks = 250;
         public int SitMaximumTicks = 1000;
+
+        /// <summary>
+        /// How long somebody who starts the run already seated stays put before
+        /// they would get up of their own accord. A minute of ticks: longer
+        /// than any recorded run, so a meeting that is under way when the fire
+        /// starts breaks up because of the fire and nothing else.
+        /// </summary>
+        public int SeatedAtStartTicks = 3000;
 
         /// <summary>Getting out of a chair: this long, less a little for the nervous.</summary>
         public int StandUpTicks = 40;
@@ -914,6 +1014,9 @@ namespace Paniq.Simulation
         /// <summary>A thrown item's hit counts as this many times its sliding momentum (it strikes the body, not the feet).</summary>
         public int ThrowHitMultiplier = 3;
 
+        /// <summary>How far to either side of straight ahead a frightened person's throw can veer.</summary>
+        public int PanicThrowSpreadDegrees = 60;
+
         public ItemSettings Clone() => (ItemSettings)MemberwiseClone();
 
         internal void Validate()
@@ -923,7 +1026,195 @@ namespace Paniq.Simulation
                              CarryMinimumDistanceMillimetres >= 0 && ReachMillimetres >= 0 && PickUpTicks >= 1 &&
                              SetDownTicks >= 1 && HoldGapMillimetres >= 0, "tidying up");
             Settings.Require(DropNervousness >= 0 && HurlMinimumStrength >= 0 && EvilAimMinimum >= 0 && AimRangeMillimetres >= 0 &&
-                             ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1, "throwing");
+                             ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1 &&
+                             PanicThrowSpreadDegrees >= 0 && PanicThrowSpreadDegrees <= 180, "throwing");
+            Settings.Require(SeatedAtStartTicks > 0, "how long people who start seated stay seated");
+        }
+    }
+
+    /// <summary>
+    /// TNT. The player picks a wall and blows a hole through it: a ragged gap
+    /// wider than a door that nobody can lock, shut or open, because it is not a
+    /// door. The bang throws whatever is loose nearby away from it and knocks
+    /// anybody close off their feet.
+    /// </summary>
+    [Serializable]
+    public sealed class BlastSettings
+    {
+        /// <summary>How wide a hole is. Half again as wide as a door, so it reads as a breach.</summary>
+        public int HoleWidthMillimetres = 1500;
+
+        /// <summary>How far from a wall a click still counts as that wall.</summary>
+        public int WallReachMillimetres = 900;
+
+        /// <summary>How much solid wall must remain between a hole and any other opening.</summary>
+        public int ClearanceMillimetres = 500;
+
+        /// <summary>Anybody this close is blown off their feet, and slid this far.</summary>
+        public int KnockDownRadiusMillimetres = 1500;
+        public int ShoveDistanceMillimetres = 600;
+
+        /// <summary>Loose things this close are flung away from it, at this speed.</summary>
+        public int ThrowRadiusMillimetres = 2500;
+        public int ThrowSpeedMillimetresPerTick = 90;
+
+        /// <summary>How far the bang is heard, and how far it frightens people.</summary>
+        public int BangHearingRadiusMillimetres = 20000;
+        public int BangAlarmRadiusMillimetres = 12000;
+
+        public BlastSettings Clone() => (BlastSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(HoleWidthMillimetres > 0 && WallReachMillimetres > 0 && ClearanceMillimetres >= 0,
+                "blast holes");
+            Settings.Require(KnockDownRadiusMillimetres >= 0 && ShoveDistanceMillimetres >= 0 &&
+                             ThrowRadiusMillimetres >= 0 && ThrowSpeedMillimetresPerTick >= 0, "the blast");
+            Settings.Require(BangHearingRadiusMillimetres >= BangAlarmRadiusMillimetres, "the bang");
+        }
+    }
+
+    /// <summary>
+    /// Things wedged in doorways. Anything resting in a doorway jams the door:
+    /// it cannot be opened and it cannot be shut. Frightened people with nowhere
+    /// left to run do it on purpose to keep the fire out, and the cruel do it to
+    /// keep other people out. Somebody strong enough heaves the obstruction
+    /// clear; everybody else treats the door as shut and looks elsewhere.
+    /// </summary>
+    [Serializable]
+    public sealed class BlockadeSettings
+    {
+        /// <summary>How close to the wall line a thing has to rest to be in the leaf's way.</summary>
+        public int BlockGapMillimetres = 150;
+
+        /// <summary>How far short of the wall line a barricade is set down.</summary>
+        public int BarricadeSpotGapMillimetres = 80;
+
+        /// <summary>This strong, and they heave an obstruction out of the way instead of giving up.</summary>
+        public int ShoveMinimumStrength = 7;
+
+        /// <summary>How long the heaving takes, and how fast it sends the obstruction along the wall.</summary>
+        public int ShoveTicks = 40;
+        public int ShoveSpeedBase = 30;
+        public int ShoveSpeedPerStrength = 8;
+
+        /// <summary>This nervous, and somebody sheltering wedges the door of the room they are in.</summary>
+        public int BarricadeNervousMinimum = 7;
+
+        /// <summary>This cruel, and they wedge it to keep other people out.</summary>
+        public int BarricadeEvilMinimum = 7;
+
+        /// <summary>How far they will cross a room for something to wedge the door with.</summary>
+        public int BarricadeFetchRangeMillimetres = 5000;
+
+        /// <summary>
+        /// Fixed rather than drawn, so this feature adds no randomness of its
+        /// own and the change to the recorded runs stays easy to account for.
+        /// </summary>
+        public int BarricadeTimeoutTicks = 500;
+        public int BarricadeSetDownTicks = 25;
+
+        /// <summary>
+        /// How long they shuffle about getting nowhere before abandoning it. Long
+        /// enough to manoeuvre something bulky around a small room, and still
+        /// under the second and a half nothing may stand still for.
+        /// </summary>
+        public int BarricadeBlockedGiveUpTicks = 60;
+
+        public BlockadeSettings Clone() => (BlockadeSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(BlockGapMillimetres >= 0 && BarricadeSpotGapMillimetres >= 0, "wedging doorways");
+            Settings.Require(ShoveMinimumStrength >= 0 && ShoveTicks >= 1 && ShoveSpeedBase >= 0 &&
+                             ShoveSpeedPerStrength >= 0, "heaving an obstruction clear");
+            Settings.Require(BarricadeNervousMinimum >= 0 && BarricadeEvilMinimum >= 0 &&
+                             BarricadeFetchRangeMillimetres >= 0 && BarricadeTimeoutTicks >= 1 &&
+                             BarricadeSetDownTicks >= 1 && BarricadeBlockedGiveUpTicks >= 1, "barricading");
+        }
+    }
+
+    /// <summary>
+    /// Fire alarms. Somebody who has taken in that there is a fire and who
+    /// thinks of other people walks over to the nearest alarm and hits it; every
+    /// alarm in the building then rings, and everybody who hears one knows there
+    /// is a fire. What they do about it depends who they are: the brave and
+    /// level-headed walk briskly out, while the nervous stampede.
+    /// </summary>
+    [Serializable]
+    public sealed class AlarmSettings
+    {
+        /// <summary>Turn the alarms off altogether, to see the building without them.</summary>
+        public bool Enabled = true;
+
+        /// <summary>How far somebody will divert to hit an alarm.</summary>
+        public int ReachMillimetres = 4000;
+
+        /// <summary>How close they must get to hit it.</summary>
+        public int ArrivalMillimetres = 500;
+
+        /// <summary>How long hitting it takes.</summary>
+        public int PressTicks = 20;
+
+        /// <summary>If they cannot get to it in this long, they give up and run.</summary>
+        public int FetchTimeoutTicks = 400;
+
+        /// <summary>How far a ringing bell is heard, and how far it is alarming. A bell fills its own room.</summary>
+        public int BellHearingRadiusMillimetres = 14000;
+        public int BellAlarmRadiusMillimetres = 14000;
+
+        /// <summary>Who thinks to raise the alarm: a leader, or somebody who thinks of others.</summary>
+        public int PullMinimumLeadership = 6;
+        public int PullMinimumCompassion = 6;
+
+        /// <summary>
+        /// Bravery minus nervousness at least this much, and the bell makes them
+        /// leave briskly rather than panic. Everyone else stampedes.
+        /// </summary>
+        public int ComposureGap = 2;
+
+        public AlarmSettings Clone() => (AlarmSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(ReachMillimetres >= 0 && ArrivalMillimetres > 0 && PressTicks >= 1 &&
+                             FetchTimeoutTicks >= 1, "fire alarms");
+            Settings.Require(BellHearingRadiusMillimetres >= 0 &&
+                             BellAlarmRadiusMillimetres <= BellHearingRadiusMillimetres, "alarm bells");
+            Settings.Require(PullMinimumLeadership >= 0 && PullMinimumCompassion >= 0, "who raises the alarm");
+        }
+    }
+
+    /// <summary>
+    /// The player's influence, and what each card costs. Influence starts at
+    /// <see cref="Starting"/>, every card spends some, and every person who gets
+    /// out alive pays some back. Nothing else refills it, so a run where nobody
+    /// is saved runs the player dry.
+    /// </summary>
+    [Serializable]
+    public sealed class InfluenceSettings
+    {
+        /// <summary>What the player starts the run with.</summary>
+        public int Starting = 100;
+
+        /// <summary>Earned for each person who gets out alive, rescued or under their own steam.</summary>
+        public int PerPersonSaved = 15;
+
+        /// <summary>The most influence the player can bank, so saving everybody does not leave a meaningless pile.</summary>
+        public int Maximum = 300;
+
+        public int BeefcakeCost = 20;
+        public int SpawnFireCost = 10;
+        public int SpawnExtinguisherCost = 25;
+        public int BlastWallCost = 40;
+
+        public InfluenceSettings Clone() => (InfluenceSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(Starting >= 0 && PerPersonSaved >= 0 && Maximum >= Starting, "influence");
+            Settings.Require(BeefcakeCost >= 0 && SpawnFireCost >= 0 && SpawnExtinguisherCost >= 0 &&
+                             BlastWallCost >= 0, "card costs");
         }
     }
 
@@ -961,7 +1252,15 @@ namespace Paniq.Simulation
         public int DragAwayDistanceMillimetres = 3000;
 
         /// <summary>Stuck this long while dragging, they let go.</summary>
-        public int DragGiveUpBlockedTicks = 100;
+        /// <summary>
+        /// How long a dragger strains against a blockage before letting go. Kept
+        /// well under the second and a half that nothing in the run is allowed
+        /// to stand still for, so somebody hauling a body out never becomes a
+        /// statue. The margin has to cover letting go as well as holding on:
+        /// somebody wedged in a corner takes a moment more to steer out of it
+        /// once their hands are free.
+        /// </summary>
+        public int DragGiveUpBlockedTicks = 40;
 
         /// <summary>How far past touching they can reach someone, and how long they try to get there.</summary>
         public int ReachMillimetres = 150;

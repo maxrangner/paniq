@@ -24,6 +24,9 @@ namespace Paniq.Simulation
         private readonly HelpSettings settings;
         private readonly int radius;
 
+        /// <summary>Set once the doors exist, so a dragger can tell a jammed doorway from a clear one.</summary>
+        private DoorSystem doors;
+
         public HelpBehaviour(
             SimulationContext context,
             Crowd crowd,
@@ -203,6 +206,7 @@ namespace Paniq.Simulation
                 target.Body.Position, 0, 0, agent.Fear.ScaredEventId, target.Id).EventId;
             agent.Intent.Activity = AgentActivityState.Dragging;
             agent.Body.BlockedTicks = 0;
+            agent.Help.StuckTicks = 0;
             ChooseDragTarget(agent);
             return Drag(agent);
         }
@@ -225,6 +229,9 @@ namespace Paniq.Simulation
             StopHelping(agent, false);
         }
 
+        /// <summary>Wired up after construction, because the doors are built after this behaviour.</summary>
+        public void UseDoors(DoorSystem doorSystem) => doors = doorSystem;
+
         // ---------------------------------------------------------------- dragging
 
         /// <summary>Toward the nearest open door (they will take the person out with them), or else away from the fire.</summary>
@@ -234,8 +241,9 @@ namespace Paniq.Simulation
             long bestDistance = long.MaxValue;
             for (int d = 0; d < geometry.DoorCount; d++)
             {
-                if (!geometry.IsDoorOpen(d) || !geometry.DoorLeadsOutside(d))
+                if (!geometry.IsDoorOpen(d) || !geometry.DoorLeadsOutside(d) || doors.IsObstructed(d))
                 {
+                    // Something wedged in the gap: they would never get through.
                     continue;
                 }
 
@@ -271,15 +279,18 @@ namespace Paniq.Simulation
         {
             Agent target = crowd.All[agent.Help.TargetIndex];
             if (!target.IsParticipating || target.Body.State != AgentBodyState.Unconscious ||
-                agent.Body.BlockedTicks > settings.DragGiveUpBlockedTicks)
+                agent.Help.StuckTicks > settings.DragGiveUpBlockedTicks)
             {
                 StopHelping(agent, true);
                 return null;
             }
 
             // A door they were making for was shut: pick again.
-            if (agent.Help.DragDoor >= 0 && !geometry.IsDoorOpen(agent.Help.DragDoor))
+            if (agent.Help.DragDoor >= 0 &&
+                (!geometry.IsDoorOpen(agent.Help.DragDoor) || doors.IsObstructed(agent.Help.DragDoor)))
             {
+                // Shut in their face, or something wedged in the gap: they need
+                // somewhere else to drag them.
                 ChooseDragTarget(agent);
             }
 
@@ -309,12 +320,23 @@ namespace Paniq.Simulation
                     agent.Help.GrabEventId, target.Id);
             }
 
+            if (logDrop && agent.Help.TargetIndex >= 0)
+            {
+                // They tried and could not manage it, so they do not keep
+                // grabbing the same person and straining in the same corner.
+                agent.Help.GaveUpOnIndex = agent.Help.TargetIndex;
+            }
+
             agent.Help.TargetIndex = -1;
             agent.Help.DragDoor = -1;
+            agent.Help.StuckTicks = 0;
             if (IsHelping(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;
                 agent.Intent.NextPanicDecisionTick = context.Tick;
+
+                // Whatever had them stuck, they start counting again from here.
+                agent.Body.BlockedTicks = 0;
             }
         }
 
@@ -353,6 +375,13 @@ namespace Paniq.Simulation
                 Agent dragged = agents[helper.Help.TargetIndex];
                 if (helper.Body.Position.Equals(helper.Help.PositionBeforeMove))
                 {
+                    // Dragging somebody and getting nowhere at all. Whatever the
+                    // reason — wedged in a corner, boxed in by the crowd, a
+                    // doorway with something in it — it counts as being stuck, so
+                    // the give-up rule below eventually lets them go instead of
+                    // standing there for the rest of the run.
+                    helper.Body.BlockedTicks++;
+                    helper.Help.StuckTicks++;
                     continue;
                 }
 
@@ -366,6 +395,7 @@ namespace Paniq.Simulation
                         helper.Body.Position = helper.Help.PositionBeforeMove;
                         helper.Body.Speed = 0;
                         helper.Body.BlockedTicks++;
+                        helper.Help.StuckTicks++;
                     }
                     else
                     {
@@ -376,6 +406,8 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                // They actually got somewhere this tick, with the person in tow.
+                helper.Help.StuckTicks = 0;
                 dragged.Body.Position = spot;
                 dragged.Body.Heading = helper.Body.Heading;
                 if (fire.Active)

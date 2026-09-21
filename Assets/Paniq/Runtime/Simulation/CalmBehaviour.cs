@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -13,6 +13,9 @@ namespace Paniq.Simulation
     internal sealed class CalmBehaviour
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly Locomotion locomotion;
@@ -29,6 +32,7 @@ namespace Paniq.Simulation
             ChairBehaviour chairs)
         {
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
             this.locomotion = locomotion;
@@ -118,7 +122,8 @@ namespace Paniq.Simulation
                     // Wander less as the destination gets close, so arrival
                     // looks deliberate.
                     int wander = distance < 1200 ? intent.WanderOffset / 2 : intent.WanderOffset;
-                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, intent.Target, agent.Body.Heading) + wander;
+                    goalHeading = geometry.Routes.HeadingToward(
+                        agent.Body.Position, intent.Target, bodyRadius, agent.Body.Heading) + wander;
                     int calmSpeed = agent.Personality.CalmSpeed;
                     goalSpeed = distance < settings.StrollSlowdownDistanceMillimetres
                         ? Math.Max(calmSpeed / 3, (int)(calmSpeed * distance / settings.StrollSlowdownDistanceMillimetres))

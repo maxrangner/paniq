@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
@@ -15,6 +15,9 @@ namespace Paniq.Simulation
     internal sealed class ExtinguisherBehaviour
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly PhysicsObjectSystem objects;
@@ -38,6 +41,7 @@ namespace Paniq.Simulation
             ItemBehaviour items)
         {
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
             this.objects = objects;
@@ -199,7 +203,7 @@ namespace Paniq.Simulation
             }
 
             long distance = IntegerMath.Distance(agent.Body.Position, target);
-            int heading = IntegerMath.HeadingBetween(agent.Body.Position, target, agent.Body.Heading);
+            int heading = geometry.Routes.HeadingToward(agent.Body.Position, target, bodyRadius, agent.Body.Heading);
 
             // Once the trigger is down they keep it down while the jet still
             // reaches; otherwise they close to arm's length first, at a run

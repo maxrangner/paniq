@@ -12,6 +12,9 @@ namespace Paniq.Simulation
     internal sealed class PanicBehaviour
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly FireSystem fire;
@@ -52,6 +55,7 @@ namespace Paniq.Simulation
             this.help = help;
             this.chairs = chairs;
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
             this.fire = fire;
@@ -244,7 +248,9 @@ namespace Paniq.Simulation
             }
             else
             {
-                goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, intent.Target, agent.Body.Heading) + swerve;
+                // Round whatever is in the way rather than straight at it.
+                goalHeading = geometry.Routes.HeadingToward(
+                    agent.Body.Position, intent.Target, bodyRadius, agent.Body.Heading) + swerve;
             }
 
             long followX = 0L;

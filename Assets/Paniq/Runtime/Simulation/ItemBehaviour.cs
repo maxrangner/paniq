@@ -15,6 +15,9 @@ namespace Paniq.Simulation
     internal sealed class ItemBehaviour
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly WorldGeometry geometry;
         private readonly PhysicsObjectSystem objects;
         private readonly FlammablesSystem flammables;
@@ -25,6 +28,7 @@ namespace Paniq.Simulation
             FlammablesSystem flammables)
         {
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.geometry = geometry;
             this.objects = objects;
             this.flammables = flammables;
@@ -155,7 +159,8 @@ namespace Paniq.Simulation
                         return true;
                     }
 
-                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, intent.Target, agent.Body.Heading);
+                    goalHeading = geometry.Routes.HeadingToward(
+                        agent.Body.Position, intent.Target, bodyRadius, agent.Body.Heading);
                     goalSpeed = agent.Personality.CalmSpeed;
                     return true;
                 }

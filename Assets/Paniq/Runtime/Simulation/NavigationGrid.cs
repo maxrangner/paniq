@@ -40,6 +40,9 @@ namespace Paniq.Simulation
         /// <summary>How wide a square of the coarse grid used to find nearby wall segments is.</summary>
         private const int SegmentBucketMillimetres = 1000;
 
+        /// <summary>How far past a wall a doorway's floor reaches, on both sides.</summary>
+        public const int DoorwayReachMillimetres = 1500;
+
         /// <summary>A square no room covers.</summary>
         public const short Outside = -1;
 
@@ -55,7 +58,7 @@ namespace Paniq.Simulation
         private readonly ushort[] clearance;
 
         public NavigationGrid(LogicalBounds rooms, IReadOnlyList<LogicalBounds> roomBounds,
-            IReadOnlyList<LogicalBounds> tables, IReadOnlyList<Wall> walls)
+            IReadOnlyList<LogicalBounds> tables, IReadOnlyList<Wall> walls, IReadOnlyList<Doorway> doorways)
         {
             minX = FloorTo(rooms.MinX - OutsideMarginMillimetres, CellSizeMillimetres);
             minZ = FloorTo(rooms.MinZ - OutsideMarginMillimetres, CellSizeMillimetres);
@@ -69,6 +72,7 @@ namespace Paniq.Simulation
 
             MarkRooms(roomBounds, tables);
             MeasureClearance(walls, tables);
+            MarkDoorways(doorways, walls, tables);
         }
 
         public int Columns => columns;
@@ -138,6 +142,65 @@ namespace Paniq.Simulation
             }
 
             return widest;
+        }
+
+        /// <summary>
+        /// The squares in a doorway are floor too, including the ones past the
+        /// wall of a way out. Without this a route could reach a doorway and
+        /// stop dead at it, because the ground on the far side belongs to no
+        /// room -- and everyone would be trapped in the room they started in.
+        /// </summary>
+        private void MarkDoorways(IReadOnlyList<Doorway> doorways, IReadOnlyList<Wall> walls,
+            IReadOnlyList<LogicalBounds> tables)
+        {
+            var edges = new List<Wall>(walls);
+            foreach (LogicalBounds table in tables)
+            {
+                AddEdgesOf(edges, table);
+            }
+
+            foreach (Doorway doorway in doorways)
+            {
+                for (int along = -doorway.HalfWidth; along <= doorway.HalfWidth; along += CellSizeMillimetres / 2)
+                {
+                    for (int across = -DoorwayReachMillimetres; across <= DoorwayReachMillimetres;
+                         across += CellSizeMillimetres / 2)
+                    {
+                        LogicalPosition at = doorway.PointAt(along, across);
+                        int cell = CellAt(at);
+                        if (cell < 0 || cellRoom[cell] != Outside)
+                        {
+                            continue;
+                        }
+
+                        cellRoom[cell] = (short)doorway.Room;
+                        clearance[cell] = (ushort)NearestEdge(edges, CentreOfCell(cell));
+                    }
+                }
+            }
+        }
+
+        private static long NearestEdge(List<Wall> edges, LogicalPosition point)
+        {
+            long nearest = MaximumClearanceMillimetres;
+            for (int i = 0; i < edges.Count; i++)
+            {
+                long distance = edges[i].DistanceFrom(point);
+                if (distance < nearest)
+                {
+                    nearest = distance;
+                }
+            }
+
+            return nearest;
+        }
+
+        private static void AddEdgesOf(List<Wall> into, LogicalBounds b)
+        {
+            into.Add(new Wall(new LogicalPosition(b.MinX, b.MinZ), new LogicalPosition(b.MaxX, b.MinZ)));
+            into.Add(new Wall(new LogicalPosition(b.MaxX, b.MinZ), new LogicalPosition(b.MaxX, b.MaxZ)));
+            into.Add(new Wall(new LogicalPosition(b.MaxX, b.MaxZ), new LogicalPosition(b.MinX, b.MaxZ)));
+            into.Add(new Wall(new LogicalPosition(b.MinX, b.MaxZ), new LogicalPosition(b.MinX, b.MinZ)));
         }
 
         // ---------------------------------------------------------------- building
@@ -268,6 +331,40 @@ namespace Paniq.Simulation
         {
             int down = value / step;
             return (value % step != 0 && value < 0 ? down - 1 : down) * step;
+        }
+
+        /// <summary>
+        /// Where a doorway is, so the floor through it can be marked walkable:
+        /// the middle of the gap, which way is along the wall, which way is
+        /// through it, and how wide the gap is.
+        /// </summary>
+        internal readonly struct Doorway
+        {
+            public Doorway(LogicalPosition centre, bool alongX, int halfWidth, int room)
+            {
+                Centre = centre;
+                AlongX = alongX;
+                HalfWidth = halfWidth;
+                Room = room;
+            }
+
+            public LogicalPosition Centre { get; }
+
+            /// <summary>True when the wall runs east to west, so the gap is measured along X.</summary>
+            public bool AlongX { get; }
+
+            public int HalfWidth { get; }
+
+            /// <summary>The room whose wall holds the doorway; its floor is the one squares in it join.</summary>
+            public int Room { get; }
+
+            /// <summary>A point so far along the gap and so far through the wall.</summary>
+            public LogicalPosition PointAt(int along, int across)
+            {
+                return AlongX
+                    ? new LogicalPosition(Centre.X + along, Centre.Z + across)
+                    : new LogicalPosition(Centre.X + across, Centre.Z + along);
+            }
         }
 
         /// <summary>

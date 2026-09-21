@@ -56,7 +56,10 @@ namespace Paniq.Simulation
         /// much clear space is around it. Built once from the rooms, walls and
         /// tables as authored.
         /// </summary>
-        private readonly NavigationGrid navigation;
+        private readonly NavigationGrid navigationGrid;
+
+        /// <summary>Which way to go to get anywhere, going round what is in the way.</summary>
+        private readonly Navigation navigation;
 
         // Route-finding scratch space, reused every call so a run allocates nothing.
         private readonly long[] routeCost;
@@ -119,8 +122,9 @@ namespace Paniq.Simulation
             }
 
             FireArea = new LogicalBounds(minX, maxX, minZ, maxZ);
-            navigation = new NavigationGrid(FireArea, rooms, tables, BuildWalls());
+            navigationGrid = new NavigationGrid(FireArea, rooms, tables, BuildWalls(), BuildDoorways());
             RefuseDoorwaysNobodyCanFitThrough();
+            navigation = new Navigation(context, navigationGrid);
         }
 
         /// <summary>
@@ -149,7 +153,10 @@ namespace Paniq.Simulation
         }
 
         /// <summary>The floor drawn as small squares. See <see cref="NavigationGrid"/>.</summary>
-        public NavigationGrid Navigation => navigation;
+        public NavigationGrid Navigation => navigationGrid;
+
+        /// <summary>Which way to go to get anywhere. See <see cref="Simulation.Navigation"/>.</summary>
+        public Navigation Routes => navigation;
 
         /// <summary>Every stretch of solid wall and table edge, for a test to measure against by hand.</summary>
         internal List<NavigationGrid.Wall> WallsForTests => AllSolidEdges();
@@ -185,7 +192,7 @@ namespace Paniq.Simulation
             // that side is the street.
             int half = doors[door].Width / 2;
             int inset = -NavigationGrid.CellSizeMillimetres / 2;
-            return navigation.WidestBodyThroughGap(
+            return navigationGrid.WidestBodyThroughGap(
                 DoorPoint(door, -half + 1, inset),
                 DoorPoint(door, half - 1, inset));
         }
@@ -206,6 +213,25 @@ namespace Paniq.Simulation
                 {
                     AddWallWithItsDoorwaysRemoved(built, room, side);
                 }
+            }
+
+            return built;
+        }
+
+        /// <summary>Where every doorway is, so the grid can mark the floor through it walkable.</summary>
+        private List<NavigationGrid.Doorway> BuildDoorways()
+        {
+            var built = new List<NavigationGrid.Doorway>();
+            for (int door = 0; door < doors.Length; door++)
+            {
+                if (!doors[door].Placed)
+                {
+                    continue;
+                }
+
+                bool alongX = doors[door].Side == WallSide.North || doors[door].Side == WallSide.South;
+                built.Add(new NavigationGrid.Doorway(
+                    DoorCentre(door), alongX, doors[door].Width / 2, doors[door].Room));
             }
 
             return built;
@@ -371,7 +397,7 @@ namespace Paniq.Simulation
         /// </summary>
         internal int RoomStoodIn(LogicalPosition point)
         {
-            short onTheGrid = navigation.RoomOfCell(navigation.CellAt(point));
+            short onTheGrid = navigationGrid.RoomOfCell(navigationGrid.CellAt(point));
             if (onTheGrid != NavigationGrid.Outside)
             {
                 return onTheGrid;

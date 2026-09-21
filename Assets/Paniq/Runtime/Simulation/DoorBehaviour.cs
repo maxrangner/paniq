@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// Panicked people and doors. A runner works out a way out of the
@@ -74,8 +74,19 @@
                 // this room, otherwise the first door along the way.
                 int next = first < 0 ? d : first;
                 bool open = geometry.IsDoorOpen(next);
-                if (!open && (context.Tick < agent.Doors.AvoidUntilTick[next] ||
-                              agent.Doors.FoundShut[next] || agent.Doors.FoundShut[d]))
+                if (context.Tick < agent.Doors.AvoidUntilTick[next])
+                {
+                    // They have given up on this way for the moment. That
+                    // happens for two reasons -- the door would not open, or
+                    // the crush at it was not moving -- and only the first of
+                    // them is about the door being shut. Checking it only for a
+                    // shut door meant somebody wedged on the approach to an
+                    // open one gave up on it, immediately picked it again, and
+                    // stood there until the building burned down.
+                    continue;
+                }
+
+                if (!open && (agent.Doors.FoundShut[next] || agent.Doors.FoundShut[d]))
                 {
                     // A door they have already found shut is no longer a way
                     // out to them: either the door they would walk at now (a

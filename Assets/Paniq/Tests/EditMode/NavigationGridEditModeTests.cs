@@ -32,10 +32,27 @@ namespace Paniq.Tests.EditMode
         private WorldGeometry Geometry() =>
             new FireReactionSimulation(scenario.ToRuntimeData()).GeometryForTests;
 
+        /// <summary>Near enough to some doorway that its floor is expected to reach here.</summary>
+        private static bool IsInADoorway(WorldGeometry geometry, FireReactionScenarioData data, LogicalPosition at)
+        {
+            for (int door = 0; door < data.Doors.Length; door++)
+            {
+                LogicalPosition centre = geometry.DoorCentre(door);
+                int reach = data.Doors[door].WidthMillimetres + NavigationGrid.DoorwayReachMillimetres;
+                if (System.Math.Abs(at.X - centre.X) <= reach && System.Math.Abs(at.Z - centre.Z) <= reach)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         [Test]
         public void EverySquare_BelongsToTheRoomTheGeometrySaysItIsIn()
         {
-            WorldGeometry geometry = Geometry();
+            FireReactionScenarioData data = scenario.ToRuntimeData();
+            WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
             NavigationGrid grid = geometry.Navigation;
             int checkedSquares = 0;
 
@@ -48,11 +65,18 @@ namespace Paniq.Tests.EditMode
                     short saysGrid = grid.RoomOfCell(cell);
                     int saysGeometry = geometry.RoomAtPoint(centre);
 
-                    if (saysGrid != NavigationGrid.Outside)
+                    if (saysGrid != NavigationGrid.Outside && saysGeometry >= 0)
                     {
                         Assert.That(saysGeometry, Is.EqualTo((int)saysGrid),
                             $"The square at ({centre.X}, {centre.Z}) says room {saysGrid}, the geometry says {saysGeometry}.");
                         checkedSquares++;
+                    }
+                    else if (saysGrid != NavigationGrid.Outside)
+                    {
+                        // Floor the room rectangles do not cover: the squares in
+                        // a doorway, including the ground just outside a way out.
+                        Assert.That(IsInADoorway(geometry, data, centre), Is.True,
+                            $"The square at ({centre.X}, {centre.Z}) is called floor but is in no room and no doorway.");
                     }
                     else if (saysGeometry >= 0)
                     {
@@ -101,6 +125,25 @@ namespace Paniq.Tests.EditMode
                     Assert.That(grid.ClearanceOfCell(cell), Is.EqualTo((int)byHand),
                         $"Clearance at ({centre.X}, {centre.Z}).");
                 }
+            }
+        }
+
+        [Test]
+        public void TheFloorThroughEveryDoorway_IsSomewhereAPersonCanStand()
+        {
+            // A route that reached a doorway and stopped dead at it would leave
+            // everybody shut in the room they started in, so the ground through
+            // a doorway -- and just outside a way out -- has to be floor.
+            FireReactionScenarioData data = scenario.ToRuntimeData();
+            WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
+            NavigationGrid grid = geometry.Navigation;
+            int radius = data.World.OccupancyRadiusMillimetres;
+
+            for (int door = 0; door < data.Doors.Length; door++)
+            {
+                LogicalPosition centre = geometry.DoorCentre(door);
+                Assert.That(grid.Fits(grid.CellAt(centre), radius), Is.True,
+                    $"Nobody could stand in the middle of door {data.Doors[door].DoorId}.");
             }
         }
 

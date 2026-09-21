@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -294,9 +294,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "33";
+        public string ContentRevision = "34";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 25;
+        public int SimulationCompatibilityVersion = 26;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

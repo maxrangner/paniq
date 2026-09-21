@@ -312,6 +312,16 @@ namespace Paniq.Simulation
 
         internal WorldGeometry GeometryForTests => geometry;
 
+        /// <summary>How long this person has wanted to move and could not.</summary>
+        internal int BlockedTicksForTests(int index) => agents[index].Body.BlockedTicks;
+
+        /// <summary>Where this person is currently trying to get to.</summary>
+        internal LogicalPosition TargetForTests(int index) => agents[index].Intent.Target;
+
+        /// <summary>The way out this person is running for, or -1.</summary>
+        internal int ExitDoorForTests(int index) => agents[index].Doors.ExitDoorIndex;
+
+
         /// <summary>
         /// The floor drawn as squares, for the debugging overlay. The building
         /// does not change shape while a run is being watched, so one reading

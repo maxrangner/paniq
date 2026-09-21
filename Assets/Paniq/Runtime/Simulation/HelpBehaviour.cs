@@ -187,7 +187,8 @@ namespace Paniq.Simulation
                 return null;
             }
 
-            int toTarget = IntegerMath.HeadingBetween(agent.Body.Position, target.Body.Position, agent.Body.Heading);
+            int toTarget = geometry.Routes.HeadingToward(
+                agent.Body.Position, target.Body.Position, radius, agent.Body.Heading);
             long reach = radius * 2L + settings.ReachMillimetres;
             if (LogicalPosition.DistanceSquared(agent.Body.Position, target.Body.Position) > reach * reach)
             {
@@ -320,7 +321,8 @@ namespace Paniq.Simulation
                         context.Scenario.Exits.OutsideTargetMillimetres);
             }
 
-            int heading = IntegerMath.HeadingBetween(agent.Body.Position, agent.Intent.Target, agent.Body.Heading);
+            int heading = geometry.Routes.HeadingToward(
+                agent.Body.Position, agent.Intent.Target, radius, agent.Body.Heading);
             heading = locomotion.Steer(agent, heading, 0, context.Scenario.Panic.WallAvoidPercent, 0);
             int speed = settings.DragSpeedBase + settings.DragSpeedPerStrength * agent.Traits.Strength;
             return new MotorIntent(heading, speed, agent.Personality.CalmTurnRate, context.Scenario.Panic.Acceleration);

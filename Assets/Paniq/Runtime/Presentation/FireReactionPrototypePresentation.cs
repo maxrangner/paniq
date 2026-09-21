@@ -1,4 +1,4 @@
-﻿using Paniq.Gameplay;
+using Paniq.Gameplay;
 using Paniq.Simulation;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -27,6 +27,7 @@ namespace Paniq.Presentation
         private FireView fire;
         private SoundRipples ripples;
         private SprayView spray;
+        private NavigationGridView navigationGrid;
         private PopBursts pops;
         private PlayerInput input;
 
@@ -64,6 +65,11 @@ namespace Paniq.Presentation
                 spray = new SprayView(materials, root);
                 pops = new PopBursts(materials, root);
                 input = new PlayerInput(runner, room);
+
+                // Off until G is pressed: the floor painted square by square
+                // wherever somebody could stand.
+                navigationGrid = new NavigationGridView(
+                    runner.Simulation, root, scenario.World.OccupancyRadiusMillimetres);
             }
             catch (System.Exception failure)
             {
@@ -140,6 +146,11 @@ namespace Paniq.Presentation
             if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
             {
                 showStats = !showStats;
+            }
+
+            if (keyboard != null && keyboard.gKey.wasPressedThisFrame)
+            {
+                navigationGrid?.Toggle();
             }
 
             PlayNewEvents(frameSnapshot, time);

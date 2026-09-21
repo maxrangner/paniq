@@ -75,6 +75,15 @@ namespace Paniq.Simulation
 
         public int Rows => rows;
 
+        /// <summary>How many squares the floor is drawn as.</summary>
+        public int CellCount => cellRoom.Length;
+
+        /// <summary>The middle of a square, by its number.</summary>
+        public LogicalPosition CentreOfCell(int cell) => CentreOf(cell % columns, cell / columns);
+
+        /// <summary>A read-only look at the grid, for a debugging overlay to draw.</summary>
+        public NavigationGridReading Reading() => new NavigationGridReading(this);
+
         /// <summary>The middle of a square, which is the point it stands for.</summary>
         public LogicalPosition CentreOf(int column, int row)
         {
@@ -309,5 +318,26 @@ namespace Paniq.Simulation
                 return IntegerMath.Sqrt(cross * cross / lengthSquared);
             }
         }
+    }
+
+    /// <summary>
+    /// What a debugging overlay is allowed to see of the floor: how many
+    /// squares there are, where each one is, and whether a body of a given size
+    /// would fit. Read-only, and nothing here can change the run.
+    /// </summary>
+    public sealed class NavigationGridReading
+    {
+        private readonly NavigationGrid grid;
+
+        internal NavigationGridReading(NavigationGrid grid)
+        {
+            this.grid = grid;
+        }
+
+        public int Count => grid.CellCount;
+
+        public LogicalPosition CentreOf(int cell) => grid.CentreOfCell(cell);
+
+        public bool FitsABody(int cell, int radiusMillimetres) => grid.Fits(cell, radiusMillimetres);
     }
 }

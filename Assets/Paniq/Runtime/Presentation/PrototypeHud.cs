@@ -1,4 +1,4 @@
-﻿using Paniq.Simulation;
+using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Presentation
@@ -35,7 +35,8 @@ namespace Paniq.Presentation
                 $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   " +
                 $"Escaped {snapshot.EscapedCount}   In a room with no fire {snapshot.ClearOfFireCount}");
             GUI.Label(new Rect(20f, 92f, 900f, 24f),
-                "Click a door: red = locked. Click to unlock (green), again to open, again to close.   Tab: everyone's stats");
+                "Click a door: red = locked. Click to unlock (green), again to open, again to close.   " +
+                "Tab: everyone's stats   G: the floor people can walk on");
             if (hoveredDoor.HasValue)
             {
                 string action = hoveredState == DoorState.Locked ? "Click to unlock"

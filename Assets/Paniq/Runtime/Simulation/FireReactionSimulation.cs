@@ -313,6 +313,13 @@ namespace Paniq.Simulation
         internal WorldGeometry GeometryForTests => geometry;
 
         /// <summary>
+        /// The floor drawn as squares, for the debugging overlay. The building
+        /// does not change shape while a run is being watched, so one reading
+        /// at the start is enough.
+        /// </summary>
+        public NavigationGridReading ReadNavigationGrid() => geometry.Navigation.Reading();
+
+        /// <summary>
         /// Whether the indexes of who and what is standing where still agree
         /// with the actual positions. False means something moved without
         /// saying so, which would quietly wrong every "what is near here"

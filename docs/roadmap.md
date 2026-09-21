@@ -118,7 +118,8 @@ still picks each stone after playing the one before it.
   the rest up *and* down. Almost no new behaviour is required — the behaviours
   already read these traits.
 - **The Director.** The background system that adds and eases pressure.
-- **Slow motion the player can act in.**
+- **Pause to look.** Time stops and the camera moves, but nothing can be
+  spent or played while paused.
 - **A staged level**, big enough that calm people are always on screen
   somewhere and no single way out saves everybody.
 - **The written retelling** on the end screen.

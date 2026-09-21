@@ -176,9 +176,15 @@ screen knows. See [simulation contract](simulation-contract.md).
 
 ## Decided: time control
 
-The player can **slow time down and still act**. Paired with diorama levels
-this makes a run closer to a puzzle box than a test of reflexes, which is
-intended.
+The player can **pause to look, but not to act**. Time stops and the camera can
+move so the scene can be read, but no Influence is spent and no card is played
+while paused. The player gets to *understand* what is happening; they do not
+get to optimise it.
+
+This matters more in Paniq than in most games, because there are no helper
+markers and a large level can easily have two things going wrong at once.
+Pausing is how a player catches up — it is not a tactical layer, and the round
+stays a real-time panic rather than becoming turn-based.
 
 ## Design pillars
 

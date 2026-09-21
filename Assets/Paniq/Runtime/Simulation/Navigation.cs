@@ -81,6 +81,20 @@ namespace Paniq.Simulation
             this.grid = grid;
         }
 
+        /// <summary>
+        /// Throws away every route worked out so far, because the floor has
+        /// changed shape: a wall blown through, a table smashed to wreckage.
+        /// They are cheap to work out again, and a stale one sends people at a
+        /// wall that is no longer there.
+        /// </summary>
+        public void Forget()
+        {
+            for (int i = 0; i < fields.Length; i++)
+            {
+                fields[i] = null;
+            }
+        }
+
         /// <summary>How many fields have had to be worked out so far, for measuring.</summary>
         public int FieldsBuilt { get; private set; }
 

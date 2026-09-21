@@ -122,7 +122,7 @@ namespace Paniq.Simulation
             }
 
             FireArea = new LogicalBounds(minX, maxX, minZ, maxZ);
-            navigationGrid = new NavigationGrid(FireArea, rooms, tables, BuildWalls(), BuildDoorways());
+            navigationGrid = new NavigationGrid(FireArea, rooms, StandingTables(), BuildWalls(), BuildDoorways());
             RefuseDoorwaysNobodyCanFitThrough();
             navigation = new Navigation(context, navigationGrid);
         }
@@ -725,6 +725,13 @@ namespace Paniq.Simulation
             placedCount++;
             BuildRoomDoors();
             centre = DoorCentre(slot);
+
+            // A hole is a new way through a wall, so the floor either side of
+            // it is walkable now. Without telling the squares, routes would go
+            // on treating the wall as solid and nobody would ever use it.
+            int reach = blast.HoleWidthMillimetres + NavigationGrid.DoorwayReachMillimetres;
+            TheBuildingChangedShape(new LogicalBounds(
+                centre.X - reach, centre.X + reach, centre.Z - reach, centre.Z + reach));
             return true;
         }
 
@@ -887,10 +894,43 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Smashes a table. Nothing else about the world changes, because a
-        /// table is only ever a rectangle people and objects keep out of.
+        /// Smashes a table. It leaves wreckage rather than a solid rectangle,
+        /// so the floor it stood on becomes walkable and routes may now go
+        /// straight across where people used to have to walk round.
         /// </summary>
-        public void BreakTable(int table) => tableBroken[table] = true;
+        public void BreakTable(int table)
+        {
+            tableBroken[table] = true;
+            TheBuildingChangedShape(tables[table]);
+        }
+
+        /// <summary>
+        /// The walkable floor has changed, so the squares covering that patch
+        /// are worked out again and every route worked out so far is thrown
+        /// away. Routes are cheap to work out again and wrong ones send people
+        /// into walls that are no longer there, or round furniture that is now
+        /// wreckage.
+        /// </summary>
+        private void TheBuildingChangedShape(LogicalBounds where)
+        {
+            navigationGrid.Rebuild(where, rooms, StandingTables(), BuildWalls(), BuildDoorways());
+            navigation.Forget();
+        }
+
+        /// <summary>The tables still standing; smashed ones are wreckage people walk over.</summary>
+        private LogicalBounds[] StandingTables()
+        {
+            var standing = new List<LogicalBounds>(tables.Length);
+            for (int t = 0; t < tables.Length; t++)
+            {
+                if (!tableBroken[t])
+                {
+                    standing.Add(tables[t]);
+                }
+            }
+
+            return standing.ToArray();
+        }
 
         /// <summary>
         /// The openings that are actually in the world. Spare slots for blast

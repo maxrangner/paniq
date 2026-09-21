@@ -29,6 +29,24 @@ namespace Paniq.Tests.EditMode
             UnityEngine.Object.DestroyImmediate(scenario);
         }
 
+        /// <summary>The biggest table in the building, which is the meeting room's.</summary>
+        private static LogicalBounds LongestTable(FireReactionScenarioData data)
+        {
+            LogicalBounds longest = default;
+            long biggest = 0;
+            foreach (FireReactionTableDefinition table in data.Tables)
+            {
+                long area = (long)(table.Bounds.MaxX - table.Bounds.MinX) * (table.Bounds.MaxZ - table.Bounds.MinZ);
+                if (area > biggest)
+                {
+                    biggest = area;
+                    longest = table.Bounds;
+                }
+            }
+
+            return longest;
+        }
+
         private WorldGeometry Geometry() =>
             new FireReactionSimulation(scenario.ToRuntimeData()).GeometryForTests;
 
@@ -163,6 +181,40 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
+        public void APointInsideATable_FindsFloorBesideIt()
+        {
+            // Things worth walking to are not always places anybody can stand:
+            // flames burning on a desk sit on a square the grid calls solid.
+            // Asking whether that square can be walked to always answers no,
+            // which reads as "there is no way to the fire" and makes everybody
+            // give up on fighting it.
+            FireReactionScenarioData data = scenario.ToRuntimeData();
+            int radius = data.World.OccupancyRadiusMillimetres;
+            WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
+            NavigationGrid grid = geometry.Navigation;
+
+            LogicalBounds table = LongestTable(data);
+            var middleOfIt = new LogicalPosition((table.MinX + table.MaxX) / 2, (table.MinZ + table.MaxZ) / 2);
+            Assert.That(grid.Fits(grid.CellAt(middleOfIt), radius), Is.False, "The test needs a spot nobody can stand on.");
+
+            LogicalPosition beside = grid.NearestStandableTo(middleOfIt, radius, 2500);
+            Assert.That(beside, Is.Not.EqualTo(middleOfIt), "It gave back the spot inside the table unchanged.");
+            Assert.That(grid.Fits(grid.CellAt(beside), radius), Is.True, "The spot it gave back is not floor either.");
+        }
+
+        [Test]
+        public void APointAlreadyOnClearFloor_IsLeftAlone()
+        {
+            FireReactionScenarioData data = scenario.ToRuntimeData();
+            int radius = data.World.OccupancyRadiusMillimetres;
+            NavigationGrid grid = new FireReactionSimulation(data).GeometryForTests.Navigation;
+
+            var openFloor = new LogicalPosition(-4000, -4000);
+            Assert.That(grid.Fits(grid.CellAt(openFloor), radius), Is.True, "The test needs a spot somebody can stand on.");
+            Assert.That(grid.NearestStandableTo(openFloor, radius, 2500), Is.EqualTo(openFloor));
+        }
+
+        [Test]
         public void TheMeetingRoomTable_ReadsAsOneSolidBlockDespiteBeingAuthoredAsTwo()
         {
             // The long table is authored as two touching rectangles, because the
@@ -174,17 +226,7 @@ namespace Paniq.Tests.EditMode
             WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
             NavigationGrid grid = geometry.Navigation;
 
-            LogicalBounds longest = default;
-            long biggest = 0;
-            foreach (FireReactionTableDefinition table in data.Tables)
-            {
-                long area = (long)(table.Bounds.MaxX - table.Bounds.MinX) * (table.Bounds.MaxZ - table.Bounds.MinZ);
-                if (area > biggest)
-                {
-                    biggest = area;
-                    longest = table.Bounds;
-                }
-            }
+            LogicalBounds longest = LongestTable(data);
 
             int solid = 0;
             for (int x = longest.MinX + 125; x < longest.MaxX; x += NavigationGrid.CellSizeMillimetres)

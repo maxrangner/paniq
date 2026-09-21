@@ -129,7 +129,12 @@ namespace Paniq.Simulation
                     LogicalPosition seat = objects.PositionOf(chair);
                     agent.Intent.Target = seat;
                     long gap = IntegerMath.Distance(agent.Body.Position, seat);
-                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, seat, agent.Body.Heading);
+
+                    // Round what is in the way: a chair is chosen by how far it
+                    // is to walk to it, so it may be through a doorway or on
+                    // the other side of a desk.
+                    goalHeading = geometry.Routes.HeadingToward(
+                        agent.Body.Position, seat, bodyRadius, agent.Body.Heading);
                     if (gap > settings.SitArrivalDistanceMillimetres)
                     {
                         goalSpeed = agent.Personality.CalmSpeed;

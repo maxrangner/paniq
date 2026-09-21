@@ -143,15 +143,21 @@ namespace Paniq.Simulation
             return geometry.Routes.CanGetFromHereToThere(agent.Body.Position, NextToTheFlames(flames), bodyRadius);
         }
 
+        /// <summary>How far around a burning spot to look for floor somebody could fight it from.</summary>
+        private const int StandingRoomMillimetres = 2500;
+
         /// <summary>
-        /// Floor beside a burning spot: the flames sit on squares nobody can
-        /// stand on, so asking whether the burning square itself can be walked
-        /// to would always answer no.
+        /// Floor beside a burning spot. Flames on a desk sit on a square nobody
+        /// can stand on, so asking whether the burning square itself can be
+        /// walked to always answers no -- and everybody gives up on fighting a
+        /// fire that is perfectly easy to walk up to.
+        ///
+        /// This used to clamp the point into the bounds of the room it was
+        /// already inside, which does nothing at all.
         /// </summary>
         private LogicalPosition NextToTheFlames(LogicalPosition flames)
         {
-            int room = geometry.RoomAtPoint(flames);
-            return room < 0 ? flames : geometry.RoomBounds(room).ClosestPoint(flames);
+            return geometry.Navigation.NearestStandableTo(flames, bodyRadius, StandingRoomMillimetres);
         }
 
         /// <summary>Fetching it, carrying it to the flames, spraying, and dropping it when it runs dry.</summary>

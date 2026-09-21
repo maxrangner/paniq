@@ -113,6 +113,117 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
+        /// <summary>
+        /// Eight long rooms stacked up, joined at alternating ends, so getting
+        /// from the bottom to the top means walking the length of every one of
+        /// them: a route far longer than the building is wide plus tall.
+        /// </summary>
+        private FireReactionScenarioData SnakeOfRooms(int count, int width, int height)
+        {
+            FireReactionScenarioData data = scenario.ToRuntimeData();
+            data.Tables = new FireReactionTableDefinition[0];
+            data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
+            data.Alarms = new FireReactionAlarmDefinition[0];
+            data.BlastHoles = new SimulationId[0];
+
+            var rooms = new List<FireReactionRoomDefinition>();
+            for (int i = 0; i < count; i++)
+            {
+                rooms.Add(new FireReactionRoomDefinition(
+                    new SimulationId((ulong)(51000 + i)),
+                    new LogicalBounds(0, width, i * height, (i + 1) * height)));
+            }
+
+            var doors = new List<FireReactionDoorDefinition>();
+            for (int i = 0; i + 1 < count; i++)
+            {
+                // Alternating ends, so nobody can go straight up.
+                int along = i % 2 == 0 ? width - 1000 : 1000;
+                doors.Add(new FireReactionDoorDefinition(
+                    new SimulationId((ulong)(21000 + i)), rooms[i].RoomId, WallSide.North, along, 1000, false));
+            }
+
+            data.Rooms = rooms.ToArray();
+            data.Doors = doors.ToArray();
+            data.Fire.SpawnBounds = new LogicalBounds(1000, 1000, 1000, 1000);
+            data.Fire.ActivationTick = int.MaxValue;
+            data.Agents = new[]
+            {
+                new FireReactionAgentDefinition(
+                    new SimulationId(10002UL), new LogicalPosition(1500, height / 2), CardinalDirection.North,
+                    AgentTraitValues.AllOrdinary)
+            };
+
+            return data;
+        }
+
+        [Test]
+        public void ARouteThatWindsBackAndForth_IsStillFound()
+        {
+            // The cost of a route is held in buckets while it is worked out.
+            // Sizing those buckets for a route no longer than the building is
+            // wide plus tall quietly threw away everything past the end of
+            // them, so a floor plan that wound about reported whole wings as
+            // having no way to them -- and nothing was logged.
+            FireReactionScenarioData data = SnakeOfRooms(8, 12000, 3000);
+            var simulation = new FireReactionSimulation(data);
+            int radius = data.World.OccupancyRadiusMillimetres;
+
+            var bottom = new LogicalPosition(1500, 1500);
+            var top = new LogicalPosition(1500, 7 * 3000 + 1500);
+            long walking = simulation.GeometryForTests.Routes.WalkingDistance(bottom, top, radius);
+
+            Assert.That(walking, Is.Not.EqualTo(long.MaxValue),
+                "The far end of a winding building was reported as having no way to it.");
+            Assert.That(walking, Is.GreaterThan(80000L),
+                $"The route measured {walking} mm, which is too short to have gone the long way round every room.");
+        }
+
+        [Test]
+        public void AHoleBlownThroughAWall_BecomesAWayToWalk()
+        {
+            // The floor squares are worked out when the building loads, from
+            // the doorways it was authored with. A hole blown later is a new
+            // way through a wall, and if the squares are never told, every
+            // route goes on treating that wall as solid: somebody dragging an
+            // unconscious body would haul them around for ever rather than use
+            // the only way out there is.
+            FireReactionScenarioData data = scenario.ToRuntimeData();
+            data.Tables = new FireReactionTableDefinition[0];
+            data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
+            data.Alarms = new FireReactionAlarmDefinition[0];
+            data.Rooms = new[]
+            {
+                new FireReactionRoomDefinition(new SimulationId(52001UL), new LogicalBounds(-6000, 6000, -6000, 6000)),
+                new FireReactionRoomDefinition(new SimulationId(52002UL), new LogicalBounds(6000, 18000, -6000, 6000))
+            };
+
+            // No doorway at all between them: the only way through is one blown.
+            data.Doors = new FireReactionDoorDefinition[0];
+            data.Fire.ActivationTick = int.MaxValue;
+            data.Agents = new[]
+            {
+                new FireReactionAgentDefinition(
+                    new SimulationId(10003UL), new LogicalPosition(-3000, 0), CardinalDirection.East,
+                    AgentTraitValues.AllOrdinary)
+            };
+
+            var simulation = new FireReactionSimulation(data);
+            WorldGeometry geometry = simulation.GeometryForTests;
+            int radius = data.World.OccupancyRadiusMillimetres;
+            var thisSide = new LogicalPosition(-3000, 0);
+            var farSide = new LogicalPosition(12000, 0);
+
+            Assert.That(geometry.Routes.CanGetFromHereToThere(thisSide, farSide, radius), Is.False,
+                "The two rooms have no doorway between them, so there should be no way through.");
+
+            Assert.That(geometry.TryPlaceHole(0, new LogicalPosition(6000, 0), out LogicalPosition centre), Is.True,
+                "The wall between the rooms would not take a hole.");
+
+            Assert.That(geometry.Routes.CanGetFromHereToThere(thisSide, farSide, radius), Is.True,
+                $"A hole was blown at {centre} and the route still says the wall is solid.");
+        }
+
         [Test]
         public void ABuildingOfThirtyRooms_LoadsAtAll()
         {

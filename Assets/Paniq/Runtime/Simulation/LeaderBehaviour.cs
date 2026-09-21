@@ -160,13 +160,26 @@ namespace Paniq.Simulation
                 return false;
             }
 
+            // One look at how far everything is from the leader, rather than
+            // one for each bottle. Asking per bottle worked out a fresh route
+            // for every one of them, and a single leader could use up the whole
+            // tick's share of that work and drop the entire crowd back to
+            // walking in straight lines.
+            FlowField walking = geometry.Routes.ReachFrom(leader.Body.Position, bodyRadius);
             int bottle = -1;
             for (int i = 0; i < objects.Count; i++)
             {
                 // A bottle anywhere somebody could be sent to, rather than
                 // only one in the room the leader is standing in.
-                if (objects.IsEquipment(i) && objects.HolderOf(i) < 0 && objects.FuelOf(i) > 0 &&
-                    geometry.Routes.CanGetFromHereToThere(leader.Body.Position, objects.PositionOf(i), bodyRadius))
+                if (!objects.IsEquipment(i) || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                {
+                    continue;
+                }
+
+                bool worthSendingFor = walking == null
+                    ? geometry.RoomAtPoint(objects.PositionOf(i)) == geometry.RoomOf(leader)
+                    : geometry.Routes.DistanceIn(walking, objects.PositionOf(i)) != long.MaxValue;
+                if (worthSendingFor)
                 {
                     bottle = i;
                     break;

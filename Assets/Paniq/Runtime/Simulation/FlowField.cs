@@ -33,20 +33,53 @@ namespace Paniq.Simulation
         /// <summary>No way to the goal from here.</summary>
         public const int Unreachable = int.MaxValue;
 
+        /// <summary>
+        /// How many cost buckets the queue needs: one more than the dearest
+        /// single step.
+        ///
+        /// Squares are always taken cheapest-first, and a step only ever costs
+        /// five or seven, so everything still waiting is within seven of the
+        /// cost being dealt with. Eight buckets used round and round therefore
+        /// hold the whole queue, however long the route.
+        ///
+        /// This used to be one bucket per possible cost, sized for a route no
+        /// longer than the building is wide plus the building is tall. Any
+        /// route that wound about -- through a corridor and back, or around a
+        /// bank of desks -- cost more than that, and the squares past the end
+        /// were quietly dropped: whole wings of a building reported as having
+        /// no way to them, with nothing logged.
+        /// </summary>
+        private const int Buckets = DiagonalCost + 1;
+
         private readonly NavigationGrid grid;
         private readonly int[] cost;
 
         // Squares waiting to be looked at, held in buckets by their cost so the
         // cheapest is always found without sorting anything.
-        private readonly int[] bucketHead;
+        private readonly int[] bucketHead = new int[Buckets];
+
+        // Linked both ways, and each square remembers which bucket it is in.
+        //
+        // A square is queued again whenever a cheaper way to it turns up, and
+        // with a single link per square the second queueing overwrote the
+        // first: the bucket's chain was left pointing into another bucket's,
+        // which lost squares, double-counted others and could run forever.
+        // Being able to take a square out of the bucket it is in, in one step,
+        // is what makes queueing it again safe.
         private readonly int[] nextInBucket;
+        private readonly int[] previousInBucket;
+        private readonly int[] queuedIn;
+
+        /// <summary>How many squares are waiting to be looked at.</summary>
+        private int waiting;
 
         public FlowField(NavigationGrid grid)
         {
             this.grid = grid;
             cost = new int[grid.CellCount];
             nextInBucket = new int[grid.CellCount];
-            bucketHead = new int[(grid.Columns + grid.Rows) * DiagonalCost + DiagonalCost + 1];
+            previousInBucket = new int[grid.CellCount];
+            queuedIn = new int[grid.CellCount];
         }
 
         /// <summary>The square this field leads to, for recognising a field that is already built.</summary>
@@ -77,13 +110,16 @@ namespace Paniq.Simulation
             {
                 cost[i] = Unreachable;
                 nextInBucket[i] = -1;
+                previousInBucket[i] = -1;
+                queuedIn[i] = -1;
             }
 
-            for (int i = 0; i < bucketHead.Length; i++)
+            for (int i = 0; i < Buckets; i++)
             {
                 bucketHead[i] = -1;
             }
 
+            waiting = 0;
             if (goal < 0 || !grid.Fits(goal, radius))
             {
                 return;
@@ -92,22 +128,18 @@ namespace Paniq.Simulation
             cost[goal] = 0;
             Push(goal, 0);
 
-            for (int bucket = 0; bucket < bucketHead.Length; bucket++)
+            for (int reached = 0; waiting > 0; reached++)
             {
+                int bucket = reached % Buckets;
                 while (bucketHead[bucket] >= 0)
                 {
                     int cell = bucketHead[bucket];
-                    bucketHead[bucket] = nextInBucket[cell];
-                    nextInBucket[cell] = -1;
+                    Unqueue(cell);
 
-                    // A square can be queued more than once as cheaper ways to
-                    // it are found; the dearer entries are simply passed over.
-                    if (cost[cell] != bucket)
-                    {
-                        continue;
-                    }
-
-                    Spread(cell, bucket, radius);
+                    // Everything waiting costs between this and seven more, and
+                    // there are eight buckets, so nothing in this one belongs
+                    // to a later round.
+                    Spread(cell, reached, radius);
                 }
             }
         }
@@ -159,7 +191,7 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            if (reached < cost[cell] && reached < bucketHead.Length)
+            if (reached < cost[cell])
             {
                 cost[cell] = reached;
                 Push(cell, reached);
@@ -168,10 +200,50 @@ namespace Paniq.Simulation
             return true;
         }
 
+        /// <summary>Queues a square at a cost, taking it out of wherever it was queued before.</summary>
         private void Push(int cell, int at)
         {
-            nextInBucket[cell] = bucketHead[at];
-            bucketHead[at] = cell;
+            if (queuedIn[cell] >= 0)
+            {
+                Unqueue(cell);
+            }
+
+            int bucket = at % Buckets;
+            nextInBucket[cell] = bucketHead[bucket];
+            previousInBucket[cell] = -1;
+            if (bucketHead[bucket] >= 0)
+            {
+                previousInBucket[bucketHead[bucket]] = cell;
+            }
+
+            bucketHead[bucket] = cell;
+            queuedIn[cell] = bucket;
+            waiting++;
+        }
+
+        private void Unqueue(int cell)
+        {
+            int bucket = queuedIn[cell];
+            int before = previousInBucket[cell];
+            int after = nextInBucket[cell];
+            if (before >= 0)
+            {
+                nextInBucket[before] = after;
+            }
+            else
+            {
+                bucketHead[bucket] = after;
+            }
+
+            if (after >= 0)
+            {
+                previousInBucket[after] = before;
+            }
+
+            nextInBucket[cell] = -1;
+            previousInBucket[cell] = -1;
+            queuedIn[cell] = -1;
+            waiting--;
         }
 
         /// <summary>

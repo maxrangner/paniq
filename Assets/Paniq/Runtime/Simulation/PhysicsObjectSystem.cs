@@ -317,8 +317,13 @@ namespace Paniq.Simulation
         /// shoved a couple of millimetres over an edge by somebody's foot in a
         /// single tick. Those are rare and small, and they used to leave a
         /// laptop hanging in the middle of a desk with nothing to correct it.
-        /// Checked once a tick for anything actually on the floor, so the rule
-        /// "a loose thing is never inside a table" holds however it got there.
+        ///
+        /// Checked as a thing comes off whatever was holding it up, which is
+        /// the case that actually happened. A thing shoved a millimetre over an
+        /// edge in one tick is not caught, and is left for the next knock to
+        /// sort out: sweeping every loose thing every tick was tried and traded
+        /// one thing standing in furniture for two things standing in each
+        /// other, which is worse and looks worse.
         /// </summary>
         private void KeepOutOfFurniture(int index)
         {

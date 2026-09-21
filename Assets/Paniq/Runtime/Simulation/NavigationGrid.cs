@@ -22,9 +22,14 @@ namespace Paniq.Simulation
     /// narrow to pass, which would seal a room and burn everyone in it without
     /// a single error being raised.
     ///
-    /// Doors open and shut and tables are smashed, so the walkable part of the
-    /// building changes during a run. This holds the building as authored; what
-    /// changes with a door is handled where routes are worked out.
+    /// A doorway counts as floor whether its door is open, shut or locked.
+    /// That is deliberate and matches what route-finding has always assumed:
+    /// people expect to be able to open a door, walk up to it, and find out.
+    /// Whether they get through is the door rules' business, not the floor's.
+    ///
+    /// What does change the floor is the building changing shape -- a table
+    /// smashed to wreckage, a hole blown through a wall -- and those redo the
+    /// patch around them through <see cref="Rebuild"/>.
     /// </summary>
     internal sealed class NavigationGrid
     {
@@ -128,6 +133,83 @@ namespace Paniq.Simulation
         /// </summary>
         public bool Fits(int cell, int radius) => cell >= 0 && clearance[cell] >= radius;
 
+        /// <summary>
+        /// The nearest place a body of this size could stand, searched outward
+        /// from a point, or the point itself when nothing within reach fits.
+        ///
+        /// Some things are not places anybody can stand: flames burning on a
+        /// desk, a spot inside a table. Asking whether one of those can be
+        /// walked to always answers no, which reads as "there is no way to the
+        /// fire" and makes everybody give up on fighting it. The question is
+        /// really about the floor beside it.
+        /// </summary>
+        public LogicalPosition NearestStandableTo(LogicalPosition point, int radius, int reachMillimetres)
+        {
+            int from = CellAt(point);
+            if (from < 0)
+            {
+                return point;
+            }
+
+            if (Fits(from, radius))
+            {
+                return point;
+            }
+
+            int column = from % columns;
+            int row = from / columns;
+            int rings = Math.Max(1, reachMillimetres / CellSizeMillimetres);
+            for (int ring = 1; ring <= rings; ring++)
+            {
+                // The edge of a square of this many cells, walked in a fixed
+                // order so the same spot is always chosen.
+                for (int offset = -ring; offset <= ring; offset++)
+                {
+                    if (Standable(column + offset, row - ring, radius, out LogicalPosition below))
+                    {
+                        return below;
+                    }
+
+                    if (Standable(column + offset, row + ring, radius, out LogicalPosition above))
+                    {
+                        return above;
+                    }
+                }
+
+                for (int offset = -ring + 1; offset <= ring - 1; offset++)
+                {
+                    if (Standable(column - ring, row + offset, radius, out LogicalPosition left))
+                    {
+                        return left;
+                    }
+
+                    if (Standable(column + ring, row + offset, radius, out LogicalPosition right))
+                    {
+                        return right;
+                    }
+                }
+            }
+
+            return point;
+        }
+
+        private bool Standable(int column, int row, int radius, out LogicalPosition where)
+        {
+            where = default;
+            if (column < 0 || row < 0 || column >= columns || row >= rows)
+            {
+                return false;
+            }
+
+            if (!Fits(row * columns + column, radius))
+            {
+                return false;
+            }
+
+            where = CentreOf(column, row);
+            return true;
+        }
+
         /// <summary>The widest body that could pass anywhere along a door's gap.</summary>
         public int WidestBodyThroughGap(LogicalPosition from, LogicalPosition to)
         {
@@ -203,6 +285,56 @@ namespace Paniq.Simulation
             into.Add(new Wall(new LogicalPosition(b.MinX, b.MaxZ), new LogicalPosition(b.MinX, b.MinZ)));
         }
 
+        /// <summary>
+        /// Redoes one patch of floor after the building changes shape: a table
+        /// smashed into walkable wreckage, or a hole blown through a wall.
+        ///
+        /// Only the patch, grown by the furthest clearance is ever measured, so
+        /// this stays cheap in a big building where a full redo would be a
+        /// visible stutter. Everything outside it is untouched, which is right:
+        /// nothing further away than the clearance reach can have changed.
+        /// </summary>
+        public void Rebuild(LogicalBounds where, IReadOnlyList<LogicalBounds> roomBounds,
+            IReadOnlyList<LogicalBounds> tables, IReadOnlyList<Wall> walls, IReadOnlyList<Doorway> doorways)
+        {
+            int firstColumn = ColumnOf(where.MinX - MaximumClearanceMillimetres);
+            int lastColumn = ColumnOf(where.MaxX + MaximumClearanceMillimetres);
+            int firstRow = RowOf(where.MinZ - MaximumClearanceMillimetres);
+            int lastRow = RowOf(where.MaxZ + MaximumClearanceMillimetres);
+
+            var edges = new List<Wall>(walls);
+            foreach (LogicalBounds table in tables)
+            {
+                AddEdgesOf(edges, table);
+            }
+
+            for (int row = firstRow; row <= lastRow; row++)
+            {
+                for (int column = firstColumn; column <= lastColumn; column++)
+                {
+                    int cell = row * columns + column;
+                    MarkOneCell(cell, CentreOf(column, row), roomBounds, tables);
+                    clearance[cell] = cellRoom[cell] == Outside
+                        ? (ushort)0
+                        : (ushort)NearestEdge(edges, CentreOf(column, row));
+                }
+            }
+
+            MarkDoorways(doorways, walls, tables);
+        }
+
+        private int ColumnOf(int x)
+        {
+            int at = (x - minX) / CellSizeMillimetres;
+            return at < 0 ? 0 : (at >= columns ? columns - 1 : at);
+        }
+
+        private int RowOf(int z)
+        {
+            int at = (z - minZ) / CellSizeMillimetres;
+            return at < 0 ? 0 : (at >= rows ? rows - 1 : at);
+        }
+
         // ---------------------------------------------------------------- building
 
         /// <summary>
@@ -216,34 +348,39 @@ namespace Paniq.Simulation
             {
                 for (int column = 0; column < columns; column++)
                 {
-                    int cell = row * columns + column;
-                    LogicalPosition centre = CentreOf(column, row);
+                    MarkOneCell(row * columns + column, CentreOf(column, row), roomBounds, tables);
+                }
+            }
+        }
+
+        /// <summary>Which room a square's floor belongs to, or none when a table stands on it.</summary>
+        private void MarkOneCell(int cell, LogicalPosition centre, IReadOnlyList<LogicalBounds> roomBounds,
+            IReadOnlyList<LogicalBounds> tables)
+        {
+            cellRoom[cell] = Outside;
+            for (int r = 0; r < roomBounds.Count; r++)
+            {
+                LogicalBounds b = roomBounds[r];
+                if (centre.X > b.MinX && centre.X < b.MaxX && centre.Z > b.MinZ && centre.Z < b.MaxZ)
+                {
+                    cellRoom[cell] = (short)r;
+                    break;
+                }
+            }
+
+            // A square under a table is floor nobody can stand on.
+            if (cellRoom[cell] == Outside)
+            {
+                return;
+            }
+
+            for (int t = 0; t < tables.Count; t++)
+            {
+                LogicalBounds b = tables[t];
+                if (centre.X > b.MinX && centre.X < b.MaxX && centre.Z > b.MinZ && centre.Z < b.MaxZ)
+                {
                     cellRoom[cell] = Outside;
-                    for (int r = 0; r < roomBounds.Count; r++)
-                    {
-                        LogicalBounds b = roomBounds[r];
-                        if (centre.X > b.MinX && centre.X < b.MaxX && centre.Z > b.MinZ && centre.Z < b.MaxZ)
-                        {
-                            cellRoom[cell] = (short)r;
-                            break;
-                        }
-                    }
-
-                    // A square under a table is floor nobody can stand on.
-                    if (cellRoom[cell] == Outside)
-                    {
-                        continue;
-                    }
-
-                    for (int t = 0; t < tables.Count; t++)
-                    {
-                        LogicalBounds b = tables[t];
-                        if (centre.X > b.MinX && centre.X < b.MaxX && centre.Z > b.MinZ && centre.Z < b.MaxZ)
-                        {
-                            cellRoom[cell] = Outside;
-                            break;
-                        }
-                    }
+                    return;
                 }
             }
         }

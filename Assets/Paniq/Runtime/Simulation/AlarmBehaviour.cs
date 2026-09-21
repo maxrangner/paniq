@@ -124,7 +124,11 @@ namespace Paniq.Simulation
             }
 
             agent.Intent.Target = spot;
-            int heading = IntegerMath.HeadingBetween(agent.Body.Position, spot, agent.Body.Heading);
+
+            // Round what is in the way. The alarm is chosen by how far it is to
+            // walk to it, which may be through a doorway, so walking straight
+            // at it would pick one it then cannot reach.
+            int heading = geometry.Routes.HeadingToward(agent.Body.Position, spot, bodyRadius, agent.Body.Heading);
             heading = locomotion.Steer(agent, heading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
                 panic.WallAvoidPercent, panic.ObjectAvoidPercent, 0L, 0L);
             return PanicIntent.WalkTowards(agent, heading, panic);

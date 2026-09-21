@@ -87,7 +87,13 @@ namespace Paniq.EditorTools
                 return;
             }
 
-            data.ContentRevision = data.ContentRevision + "+scene";
+            // Marked as having come from a scene, once however many times it
+            // is baked, rather than growing a tail of "+scene+scene+scene".
+            const string FromAScene = "+scene";
+            if (!data.ContentRevision.EndsWith(FromAScene, StringComparison.Ordinal))
+            {
+                data.ContentRevision += FromAScene;
+            }
             scenario.OverwriteWith(data);
             EditorUtility.SetDirty(scenario);
             AssetDatabase.SaveAssets();
@@ -99,10 +105,16 @@ namespace Paniq.EditorTools
 
         private static T[] Find<T>() where T : MonoBehaviour
         {
-            // Sorted by name, so the same scene always bakes to the same order
-            // and therefore to the same run.
+            // Sorted by name and then by where it stands, so the same scene
+            // always bakes to the same order and therefore to the same run.
+            // Name alone is not enough: Unity hands these back in no
+            // particular order, and two cubes both called "Cube" would then
+            // swap places between bakes and change every room's number.
             return UnityEngine.Object.FindObjectsByType<T>(FindObjectsSortMode.None)
                 .OrderBy(found => found.name, StringComparer.Ordinal)
+                .ThenBy(found => PaniqAuthoring.Millimetres(found.transform.position).x)
+                .ThenBy(found => PaniqAuthoring.Millimetres(found.transform.position).y)
+                .ThenBy(found => found.GetInstanceID())
                 .ToArray();
         }
 
@@ -178,11 +190,23 @@ namespace Paniq.EditorTools
             return baked.ToArray();
         }
 
-        /// <summary>Keeps the nearest wall the door actually sits along, ignoring walls it is past the end of.</summary>
+        /// <summary>
+        /// How far from a wall a door may sit and still count as being in it.
+        ///
+        /// Without a limit, a door dragged just outside a room was still
+        /// matched to that room's nearest wall -- and since the far wall of a
+        /// small room can be nearer than the near wall of a big one, a way out
+        /// dropped slightly outside the building could silently become a second
+        /// hole in an inside wall, with the bake reporting success.
+        /// </summary>
+        private const int OnTheWallMillimetres = 600;
+
+        /// <summary>Keeps the nearest wall the door actually sits in, ignoring walls it is nowhere near.</summary>
         private static void Consider(int distance, WallSide side, int along, int from, int to, PaniqRoom room,
             ref int nearest, ref PaniqRoom inWallOf, ref WallSide chosen)
         {
-            if (distance < 0 || distance >= nearest || along < from || along > to)
+            if (distance < 0 || distance > OnTheWallMillimetres || distance >= nearest ||
+                along < from || along > to)
             {
                 return;
             }

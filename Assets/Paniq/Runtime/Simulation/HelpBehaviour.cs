@@ -251,11 +251,20 @@ namespace Paniq.Simulation
 
         // ---------------------------------------------------------------- dragging
 
-        /// <summary>Toward the nearest open door (they will take the person out with them), or else away from the fire.</summary>
+        /// <summary>
+        /// Toward the way out that is the shortest walk hauling somebody, or
+        /// else away from the fire.
+        ///
+        /// It used to be the nearest way out as the crow flies, walls and all.
+        /// In a building of four rooms that happened to be right; in any bigger
+        /// one it sends somebody dragging an unconscious body at a blank wall,
+        /// because the door on the other side of it was nearest.
+        /// </summary>
         private void ChooseDragTarget(Agent agent)
         {
             int best = -1;
             long bestDistance = long.MaxValue;
+            FlowField walking = geometry.Routes.ReachFrom(agent.Body.Position, radius);
             for (int d = 0; d < geometry.DoorCount; d++)
             {
                 if (!geometry.IsDoorOpen(d) || !geometry.DoorLeadsOutside(d) || doors.IsObstructed(d))
@@ -264,7 +273,9 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                long distance = LogicalPosition.DistanceSquared(agent.Body.Position, geometry.DoorCentre(d));
+                long distance = walking == null
+                    ? IntegerMath.Distance(agent.Body.Position, geometry.DoorCentre(d))
+                    : geometry.Routes.DistanceIn(walking, geometry.DoorCentre(d));
                 if (distance < bestDistance)
                 {
                     bestDistance = distance;

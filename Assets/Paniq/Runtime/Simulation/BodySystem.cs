@@ -153,7 +153,7 @@ namespace Paniq.Simulation
         public void Slide(Agent agent, int heading, int distance)
         {
             LogicalPosition step = agent.Body.Position + IntegerMath.Displacement(heading, distance);
-            LogicalPosition destination = geometry.ClampIntoWalkable(agent.Body.Position, agent.Doors.ExitDoorIndex, step);
+            LogicalPosition destination = geometry.ClampIntoWalkable(agent.Body.Position, agent.DoorwayInUse, step);
             if (crowd.FindBlocking(agent, agent.Body.Position, destination) != null ||
                 geometry.ClipsDoorFrame(agent.Body.Position, destination) ||
                 objects.BlocksBody(agent, agent.Body.Position, destination))

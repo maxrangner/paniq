@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -131,6 +131,14 @@ namespace Paniq.Simulation
         public int BlockedGiveUpTicks = 20;
 
         public int StrollWallMarginMillimetres = 1000;
+
+        /// <summary>
+        /// How often a calm person wandering off picks somewhere through an
+        /// open doorway rather than in the room they are in. Low, so rooms keep
+        /// the people in them and the movement reads as somebody popping next
+        /// door rather than the building shuffling itself.
+        /// </summary>
+        public int StrollNextDoorPercent = 15;
         public int StrollMinimumDistanceMillimetres = 1500;
         public int StrollArrivalDistanceMillimetres = 300;
         public int StrollSlowdownDistanceMillimetres = 700;
@@ -156,6 +164,7 @@ namespace Paniq.Simulation
             Settings.Require(Acceleration > 0, "calm acceleration");
             Settings.Require(Settings.Range(DecisionMinimumTicks, DecisionMaximumTicks, 1), "calm decision interval");
             Settings.Require(BlockedGiveUpTicks >= 1 && StrollTimeoutTicks >= 1 && SocialTimeoutTicks >= 1, "calm timeouts");
+            Settings.Require(StrollNextDoorPercent >= 0 && StrollNextDoorPercent <= 100, "stroll next door chance");
             Settings.Require(StrollWallMarginMillimetres >= 0 && StrollMinimumDistanceMillimetres >= 0 &&
                              StrollArrivalDistanceMillimetres >= 0 && StrollSlowdownDistanceMillimetres > 0 &&
                              WanderMaximumDegrees >= 0 && WanderMaximumDegrees <= 180, "strolling");
@@ -700,8 +709,17 @@ namespace Paniq.Simulation
         /// <summary>How far they will go to hose down someone who is alight.</summary>
         public int SaveRangeMillimetres = 8000;
 
-        /// <summary>Give up fetching after this long, and stop fighting after this long.</summary>
-        public int FetchTimeoutTicks = 500;
+        /// <summary>
+        /// Give up fetching after this long, and stop fighting after this long.
+        ///
+        /// Fetching was ten seconds while the bottle and the fire both had to
+        /// be in the room somebody was standing in. Now that they can walk to a
+        /// fire anywhere in the building, ten seconds is not enough to cross
+        /// it: they would set off with the bottle, get as far as the doorway,
+        /// and give up on the way. Somebody genuinely getting nowhere is still
+        /// caught, by the blocked counter rather than by the clock.
+        /// </summary>
+        public int FetchTimeoutTicks = 1500;
         public int FightTimeoutTicks = 1500;
 
         /// <summary>

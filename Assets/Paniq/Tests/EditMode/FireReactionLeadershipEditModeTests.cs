@@ -71,6 +71,10 @@ namespace Paniq.Tests.EditMode
             data.Fire.SpreadMaximumTicks = 600;
             data.Perception.MaximumReactionDelayTicks = 0;
             data.Temperament.FreezeThenRunPercent = 0;
+
+            // Nobody wandering off next door: this is about who gets sent at a
+            // door, and a stroll through a doorway is somebody else's test.
+            data.Calm.StrollNextDoorPercent = 0;
             data.Temperament.FreezeForeverPercent = 0;
             return data;
         }

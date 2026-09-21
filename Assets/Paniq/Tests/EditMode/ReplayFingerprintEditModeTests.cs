@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0xDD09FA8E6B3C4C3DUL)]
-        [TestCase(42UL, true, 0xB18BD0C496244187UL)]
-        [TestCase(40UL, false, 0xF47012D0FB2E0D2AUL)]
-        [TestCase(40UL, true, 0x166978B1383E2DBFUL)]
-        [TestCase(46UL, false, 0x0EEBEA53910CC8E5UL)]
-        [TestCase(46UL, true, 0x662C44072D85FB89UL)]
+        [TestCase(42UL, false, 0x511E5B50224FAEDBUL)]
+        [TestCase(42UL, true, 0xFFA13C2CDFEF4CEEUL)]
+        [TestCase(40UL, false, 0x79D7F6151A8E9194UL)]
+        [TestCase(40UL, true, 0xC341204CB9363EBBUL)]
+        [TestCase(46UL, false, 0x9DA14E260DAC6157UL)]
+        [TestCase(46UL, true, 0xD880E04D9BB860EDUL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -40,8 +40,8 @@ namespace Paniq.Tests.EditMode
         /// outside it. Guarded here as well as by their own tests, so the whole
         /// command path is covered by replay.
         /// </summary>
-        [TestCase(42UL, 0x2A076C0795DF1324UL)]
-        [TestCase(40UL, 0x98B6A959BB510697UL)]
+        [TestCase(42UL, 0xACB103C181299CFBUL)]
+        [TestCase(40UL, 0x0FB000813EC80F18UL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -58,8 +58,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0x6C4753817723A443UL)]
-        [TestCase(40UL, 0xD626E98CF3F9C634UL)]
+        [TestCase(42UL, 0x18FDFE71BD61A163UL)]
+        [TestCase(40UL, 0x2ADD8894F4EB1050UL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();

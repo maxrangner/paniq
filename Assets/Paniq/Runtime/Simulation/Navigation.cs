@@ -57,6 +57,14 @@ namespace Paniq.Simulation
         /// <summary>One in this many squares along the way is tested, to keep the cost down.</summary>
         private const int SmoothingCheckEvery = 4;
 
+        /// <summary>
+        /// How coarsely "where somebody is standing" is rounded when asking how
+        /// far away everything else is. Two metres: near enough to rank what is
+        /// nearest, coarse enough that a whole corner of a room shares one
+        /// answer instead of everybody paying for their own.
+        /// </summary>
+        private const int ReachQuantumMillimetres = 2000;
+
         private readonly SimulationContext context;
         private readonly NavigationGrid grid;
         private readonly FlowField[] fields = new FlowField[FieldsKept];
@@ -151,8 +159,30 @@ namespace Paniq.Simulation
         /// </summary>
         public FlowField ReachFrom(LogicalPosition from, int radius)
         {
-            int here = grid.CellAt(from);
+            // Measured from roughly where they stand rather than exactly.
+            //
+            // A field is worth working out because it is shared, and a field
+            // keyed on one person's exact position is shared with nobody --
+            // not even with themselves a moment later, because they have
+            // moved. Rounding to a couple of metres means everybody in the
+            // same corner of the room asks the same question, and the answer
+            // is still good enough to rank which chair is nearest.
+            int rounded = grid.CellAt(new LogicalPosition(
+                RoundTo(from.X, ReachQuantumMillimetres),
+                RoundTo(from.Z, ReachQuantumMillimetres)));
+            int here = rounded >= 0 && grid.Fits(rounded, radius) ? rounded : grid.CellAt(from);
             return here < 0 ? null : FieldTo(here, radius);
+        }
+
+        private static int RoundTo(int value, int step)
+        {
+            int down = value / step;
+            if (value % step != 0 && value < 0)
+            {
+                down--;
+            }
+
+            return down * step + step / 2;
         }
 
         /// <summary>
@@ -170,10 +200,27 @@ namespace Paniq.Simulation
             return (long)reach.CostAt(cell) * NavigationGrid.CellSizeMillimetres / FlowField.StraightCost;
         }
 
-        /// <summary>Whether there is any way at all from one place to another.</summary>
+        /// <summary>
+        /// Whether there is any way at all from one place to another.
+        ///
+        /// False only when a way was genuinely looked for and none was found.
+        /// When no field could be worked out this tick the honest answer is "no
+        /// opinion", and the answer given is yes: somebody setting off and
+        /// finding out on the way is what everybody did before there were
+        /// fields, whereas answering no would have them abandon a perfectly
+        /// good plan because the tick was busy.
+        /// </summary>
         public bool CanGetFromHereToThere(LogicalPosition from, LogicalPosition target, int radius)
         {
-            return WalkingDistance(from, target, radius) != long.MaxValue;
+            int here = grid.CellAt(from);
+            int goal = grid.CellAt(target);
+            if (here < 0 || goal < 0)
+            {
+                return true;
+            }
+
+            FlowField field = FieldTo(goal, radius);
+            return field == null || field.Reaches(here);
         }
 
         /// <summary>

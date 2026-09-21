@@ -131,7 +131,7 @@ namespace Paniq.Simulation
                 objects.AddAvoidance(position, objectAvoidPercent, ref steerX, ref steerZ);
             }
 
-            geometry.AddWallRepulsion(position, agent.Doors.ExitDoorIndex, settings.WallAvoidDistanceMillimetres,
+            geometry.AddWallRepulsion(position, agent.DoorwayInUse, settings.WallAvoidDistanceMillimetres,
                 wallAvoidPercent, ref steerX, ref steerZ);
 
             return IntegerMath.HeadingOf(steerX, steerZ, goalHeading);
@@ -214,7 +214,7 @@ namespace Paniq.Simulation
         private LogicalPosition StepAlong(Agent agent, int heading)
         {
             LogicalPosition position = agent.Body.Position;
-            LogicalPosition destination = geometry.ClampIntoWalkable(position, agent.Doors.ExitDoorIndex,
+            LogicalPosition destination = geometry.ClampIntoWalkable(position, agent.DoorwayInUse,
                 position + IntegerMath.Displacement(heading, agent.Body.Speed));
             return destination - position;
         }
@@ -266,7 +266,7 @@ namespace Paniq.Simulation
         {
             long maximumStep = context.Scenario.World.MaximumStepDistanceMillimetres;
             if (LogicalPosition.DistanceSquared(start, destination) > maximumStep * maximumStep ||
-                !geometry.IsWalkable(agent.Body.Position, agent.Doors.ExitDoorIndex, destination) ||
+                !geometry.IsWalkable(agent.Body.Position, agent.DoorwayInUse, destination) ||
                 geometry.ClipsDoorFrame(start, destination))
             {
                 return false;

@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("35"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(27));
+            Assert.That(data.ContentRevision, Is.EqualTo("37"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(29));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -1022,6 +1022,9 @@ namespace Paniq.Tests.EditMode
             data.Fire.SpreadMinimumTicks = 1000000;
             data.Fire.SpreadMaximumTicks = 1000000;
 
+            // And nobody wandering off next door, for the same reason.
+            data.Calm.StrollNextDoorPercent = 0;
+
             var simulation = new FireReactionSimulation(data);
             var temperaments = new HashSet<AgentPanicTemperament>();
             for (int i = 0; i < simulation.AgentCount; i++)
@@ -1038,7 +1041,9 @@ namespace Paniq.Tests.EditMode
 
             int count = simulation.AgentCount;
             var frozenAt = new LogicalPosition?[count];
-            int endTick = data.Fire.ActivationTick + 40 * FireReactionSimulation.TicksPerSecond;
+            // Long enough that a freeze which starts late still has time to end
+            // inside the run; otherwise there is nothing to count.
+            int endTick = data.Fire.ActivationTick + 90 * FireReactionSimulation.TicksPerSecond;
             while (simulation.Tick < endTick)
             {
                 simulation.Step();
@@ -1166,7 +1171,14 @@ namespace Paniq.Tests.EditMode
                                 $"Seed {seed}: agent {agent.AgentId} moved while not on its feet.");
                         }
 
-                        downTicks[i] = agent.IsDown ? downTicks[i] + 1 : 0;
+                        // One spell on the floor at a time. Somebody hauled up
+                        // and knocked straight down again in a crush is two
+                        // spells, not one that never ended, and in a real crush
+                        // that happens -- so the count starts again whenever the
+                        // body changes what it is doing.
+                        downTicks[i] = agent.IsDown && agent.BodyState == previous[i].BodyState
+                            ? downTicks[i] + 1
+                            : 0;
                         Assert.That(downTicks[i], Is.LessThanOrEqualTo(longestDown),
                             $"Seed {seed}: agent {agent.AgentId} never got back up.");
 

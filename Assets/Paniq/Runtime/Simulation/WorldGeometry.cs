@@ -1173,7 +1173,8 @@ namespace Paniq.Simulation
         /// </summary>
         private bool CanUseDoorway(int door, LogicalPosition current, int exitDoor)
         {
-            return IsDoorOpen(door) && (exitDoor == door || RoomAt(current) < 0);
+            return IsDoorOpen(door) &&
+                   (exitDoor == door || exitDoor == AgentDoorMemory.AnyDoorway || RoomAt(current) < 0);
         }
 
         // ---------------------------------------------------------------- people
@@ -1348,8 +1349,32 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// Standing in front of a doorway they may use, in this wall. The wall
+        /// then stops pushing them away from it, or they would slide along it
+        /// rather than walk through the gap in it.
+        ///
+        /// Somebody on an errand may use any open doorway, so for them the
+        /// question is whether any doorway in this wall is one they are lined
+        /// up with.
+        /// </summary>
         private bool IsLinedUpWithExit(int exitDoor, int room, WallSide side, LogicalPosition position)
         {
+            if (exitDoor == AgentDoorMemory.AnyDoorway)
+            {
+                int[] candidates = roomDoors[room];
+                for (int i = 0; i < candidates.Length; i++)
+                {
+                    int door = candidates[i];
+                    if (IsDoorOpen(door) && WallSideFrom(door, room) == side && IsInFrontOf(door, position))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
             return exitDoor >= 0 && DoorTouchesRoom(exitDoor, room) &&
                    WallSideFrom(exitDoor, room) == side && IsInFrontOf(exitDoor, position);
         }

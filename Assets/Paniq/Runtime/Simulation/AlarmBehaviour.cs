@@ -92,7 +92,7 @@ namespace Paniq.Simulation
             // Somebody else got there first, the fire arrived, or it is taking
             // too long: forget it and run.
             bool onTheWay = agent.Intent.Activity == AgentActivityState.GoingToAlarm;
-            if (alarm < 0 || inDanger || agent.Body.State != AgentBodyState.Upright ||
+            if (alarm < 0 || inDanger || !agent.Body.IsOnTheirFeet ||
                 (onTheWay && alarms.Ringing) ||
                 (onTheWay && context.Tick >= agent.Intent.ActivityEndTick) ||
                 (onTheWay && agent.Body.BlockedTicks >= panic.BlockedGiveUpTicks))

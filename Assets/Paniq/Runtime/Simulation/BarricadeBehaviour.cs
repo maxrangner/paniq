@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// Wedging a door shut on purpose. Somebody who has given up on getting out
@@ -239,7 +239,7 @@
             int door = agent.Barricade.DoorIndex;
             int item = agent.Carry.ItemIndex;
             int room = geometry.RoomOf(agent);
-            if (door < 0 || item < 0 || inDanger || agent.Body.State != AgentBodyState.Upright ||
+            if (door < 0 || item < 0 || inDanger || !agent.Body.IsOnTheirFeet ||
                 agent.Burning.IsBurning || context.Tick >= agent.Barricade.GiveUpTick ||
                 agent.Body.BlockedTicks >= settings.BarricadeBlockedGiveUpTicks ||
                 geometry.IsDoorOpen(door) || doors.IsObstructed(door) ||

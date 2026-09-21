@@ -63,6 +63,66 @@ namespace Paniq.Simulation
         public bool IsDown => Body.State == AgentBodyState.Fallen || Body.State == AgentBodyState.GettingUp ||
                               Body.State == AgentBodyState.Unconscious;
 
+        /// <summary>
+        /// The doorway this person may step into at the moment.
+        ///
+        /// A way out they are running for comes first, then a doorway they
+        /// picked to stroll through, and then -- for anybody on an errand --
+        /// any open doorway at all.
+        ///
+        /// That last case is the point. A doorway used to be walkable only for
+        /// somebody running for a way out, so anyone carrying an extinguisher
+        /// to a fire in the next room walked up to the doorway and slid along
+        /// the wall beside it. The rule was written when nothing could cross a
+        /// room and the only reason to be in a doorway was to escape; now
+        /// people have errands that take them through the building. Somebody
+        /// standing about, or wandering inside one room, is still walled in, so
+        /// nobody drifts through a door for no reason.
+        /// </summary>
+        public int DoorwayInUse
+        {
+            get
+            {
+                if (Doors.ExitDoorIndex >= 0)
+                {
+                    return Doors.ExitDoorIndex;
+                }
+
+                if (Doors.StrollDoorIndex >= 0)
+                {
+                    return Doors.StrollDoorIndex;
+                }
+
+                return IsOnAnErrand ? AgentDoorMemory.AnyDoorway : -1;
+            }
+        }
+
+        /// <summary>On their way to something in particular, rather than standing about or milling around.</summary>
+        public bool IsOnAnErrand
+        {
+            get
+            {
+                switch (Intent.Activity)
+                {
+                    case AgentActivityState.FetchingExtinguisher:
+                    case AgentActivityState.Spraying:
+                    case AgentActivityState.GoingToSit:
+                    case AgentActivityState.FetchingItem:
+                    case AgentActivityState.CarryingItem:
+                    case AgentActivityState.ShakingAwake:
+                    case AgentActivityState.Grabbing:
+                    case AgentActivityState.Dragging:
+                    case AgentActivityState.GoingToAlarm:
+                    case AgentActivityState.FetchingBarricade:
+                    case AgentActivityState.CarryingBarricade:
+                    case AgentActivityState.Following:
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+        }
+
         public FireReactionAgentSnapshot ToSnapshot()
         {
             return new FireReactionAgentSnapshot(
@@ -118,6 +178,19 @@ namespace Paniq.Simulation
         public int BlastedUntilTick;
 
         public AgentBodyState State;
+
+        /// <summary>
+        /// Still standing, even if they have just been jolted.
+        ///
+        /// Anything already under way -- carrying a bottle to a fire, going to
+        /// hit an alarm, wedging a door -- asks this rather than "perfectly
+        /// steady". A stagger is two tenths of a second after somebody clips
+        /// you in a doorway, and treating it as being off your feet meant a
+        /// single brush from a passer-by made somebody drop what they were
+        /// doing and run. Being knocked down is still being knocked down.
+        /// </summary>
+        public bool IsOnTheirFeet => State == AgentBodyState.Upright || State == AgentBodyState.Staggering;
+
         public int EndTick;
 
         /// <summary>The event that put the body in its current state, for the later AgentGotUp.</summary>
@@ -195,6 +268,21 @@ namespace Paniq.Simulation
 
         /// <summary>The room they were in last tick, or -1; a change is the moment to think about the door behind them.</summary>
         public int CurrentRoom = -1;
+
+        /// <summary>
+        /// A doorway this person may walk through that is not a way out they
+        /// are running for: a calm person strolling into the next room, say.
+        ///
+        /// These used to be the same field, and that is why a calm person could
+        /// never leave the room they started in. Only somebody heading for a
+        /// way out was allowed into a doorway, and a calm person is not heading
+        /// for one, so every door was a wall to them and the building read as
+        /// four sealed boxes rather than one place.
+        /// </summary>
+        public int StrollDoorIndex = -1;
+
+        /// <summary>Any open doorway will do, because they are on their way somewhere.</summary>
+        public const int AnyDoorway = -2;
 
         /// <summary>Per door: the tick until which this person will not try it again.</summary>
         public readonly int[] AvoidUntilTick;

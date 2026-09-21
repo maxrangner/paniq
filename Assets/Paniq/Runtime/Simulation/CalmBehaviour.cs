@@ -312,15 +312,78 @@ namespace Paniq.Simulation
             intent.WanderOffset = context.Random.NextIntInclusive(-settings.WanderMaximumDegrees, settings.WanderMaximumDegrees);
             intent.NextWanderTick = checked(tick + context.Random.NextIntInclusive(25, 60));
 
+            int here = geometry.RoomOf(agent);
+            int strollTo = ChooseRoomToStrollTo(agent, here);
             long minimumSquared = (long)settings.StrollMinimumDistanceMillimetres * settings.StrollMinimumDistanceMillimetres;
             for (int attempt = 0; attempt < 3; attempt++)
             {
-                intent.Target = geometry.RandomInteriorPoint(geometry.RoomOf(agent), settings.StrollWallMarginMillimetres);
-                if (LogicalPosition.DistanceSquared(agent.Body.Position, intent.Target) >= minimumSquared)
+                intent.Target = geometry.RandomInteriorPoint(strollTo, settings.StrollWallMarginMillimetres);
+                if (strollTo != here || LogicalPosition.DistanceSquared(agent.Body.Position, intent.Target) >= minimumSquared)
                 {
                     return;
                 }
             }
+        }
+
+        /// <summary>
+        /// Where to wander: this room, or through an open door into the next
+        /// one. Somewhere else only now and then, so a room does not empty
+        /// itself; and the door they would walk through is remembered, because
+        /// a doorway is a wall to anybody with no reason to be in it.
+        ///
+        /// Before this, calm people could not leave the room they started in
+        /// at all, and the building read as a set of sealed boxes rather than
+        /// one place people lived in.
+        /// </summary>
+        private int ChooseRoomToStrollTo(Agent agent, int here)
+        {
+            agent.Doors.StrollDoorIndex = -1;
+            if (here < 0)
+            {
+                return System.Math.Max(0, here);
+            }
+
+            int[] doorsHere = geometry.RoomDoors(here);
+            if (settings.StrollNextDoorPercent <= 0 || doorsHere.Length == 0)
+            {
+                // Checked before drawing, so that turning this off leaves the
+                // run's random numbers exactly as they were without it. A test
+                // about something else can then switch it off and be sure it
+                // has changed nothing but this.
+                return here;
+            }
+
+            int roll = context.Random.NextIntInclusive(0, 99);
+            if (roll >= settings.StrollNextDoorPercent)
+            {
+                return here;
+            }
+
+            // One of the open doorways out of this room, chosen by the same roll.
+            int chosen = -1;
+            int seen = 0;
+            for (int i = 0; i < doorsHere.Length; i++)
+            {
+                int door = doorsHere[i];
+                if (!geometry.IsDoorOpen(door) || geometry.RoomBeyond(door, here) < 0)
+                {
+                    continue;
+                }
+
+                seen++;
+                if (roll % seen == 0)
+                {
+                    chosen = door;
+                }
+            }
+
+            if (chosen < 0)
+            {
+                return here;
+            }
+
+            agent.Doors.StrollDoorIndex = chosen;
+            return geometry.RoomBeyond(chosen, here);
         }
 
         private bool TryStartSocialising(Agent agent)

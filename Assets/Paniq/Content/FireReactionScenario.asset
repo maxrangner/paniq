@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 35
+    ContentRevision: 37
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 27
+    SimulationCompatibilityVersion: 29
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -58,6 +58,7 @@ MonoBehaviour:
       DecisionMaximumTicks: 200
       BlockedGiveUpTicks: 20
       StrollWallMarginMillimetres: 1000
+      StrollNextDoorPercent: 15
       StrollMinimumDistanceMillimetres: 1500
       StrollArrivalDistanceMillimetres: 300
       StrollSlowdownDistanceMillimetres: 700
@@ -345,7 +346,7 @@ MonoBehaviour:
       FetchRangeMillimetres: 9000
       PickUpDistanceMillimetres: 400
       SaveRangeMillimetres: 8000
-      FetchTimeoutTicks: 500
+      FetchTimeoutTicks: 1500
       FightTimeoutTicks: 1500
       DangerTolerancePercent: 50
       StandOffMillimetres: 2000

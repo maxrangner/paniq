@@ -1,4 +1,6 @@
-﻿namespace Paniq.Simulation
+﻿using System;
+
+namespace Paniq.Simulation
 {
     /// <summary>
     /// Panicked people and doors. A runner works out a way out of the
@@ -348,7 +350,7 @@
             LogicalPosition position = agent.Body.Position;
             int from = agent.Doors.ApproachRoom;
             int room = geometry.RoomAt(position);
-            if (context.Tick < agent.Doors.GiveWayUntilTick && geometry.IsDoorOpen(door))
+            if (context.Tick < agent.Doors.GiveWayUntilTick && GivesWayAt(agent, door))
             {
                 // Standing aside, against the wall on their side of the gap.
                 int radius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -640,13 +642,41 @@
         /// instead of everyone leaning on each other in the doorway. Returns
         /// false when this does not apply.
         /// </summary>
+        /// <summary>
+        /// Whether standing aside makes sense at this door. Normally only at an
+        /// open one — there is no point queueing politely at a door nobody is
+        /// going through. But at the building's only way out, even a shut one,
+        /// the press behind it is real and somebody wedged in the middle of it
+        /// has to be able to ease out and come again, or the back of the queue
+        /// sets solid and never moves at all.
+        /// </summary>
+        private bool GivesWayAt(Agent agent, int door)
+        {
+            return geometry.IsDoorOpen(door) || !HasAnotherWayOut(agent, door);
+        }
+
         public bool TryGiveWay(Agent agent)
         {
             int door = agent.Doors.ExitDoorIndex;
+
             // About a metre of the door: close enough that they are part of
-            // the crush at it rather than still on their way.
-            if (door < 0 || !geometry.IsDoorOpen(door) ||
-                !IsNearExit(agent, settings.ApproachInsetMillimetres + context.Scenario.World.OccupancyRadiusMillimetres * 2))
+            // the crush at it rather than still on their way. When this is the
+            // only way out of the building the crush reaches further back, and
+            // so does this: there is no other door to be sent off to, so
+            // stepping aside and coming again is the only thing that keeps
+            // somebody wedged in the middle of it moving at all.
+            if (door < 0 || !GivesWayAt(agent, door))
+            {
+                return false;
+            }
+
+            // About a metre of the door: close enough to be part of the crush at
+            // it rather than still on their way. When it is the only way out the
+            // crush reaches further back, and so does this.
+            int reach = HasAnotherWayOut(agent, door)
+                ? settings.ApproachInsetMillimetres + context.Scenario.World.OccupancyRadiusMillimetres * 2
+                : settings.CommitDistanceMillimetres;
+            if (!IsNearExit(agent, reach))
             {
                 return false;
             }
@@ -682,13 +712,65 @@
         /// <summary>Stuck in the crowd on the way to a door: try another for a little while.</summary>
         public void AvoidCrowdedExit(Agent agent)
         {
-            if (agent.Doors.ExitDoorIndex < 0)
+            int door = agent.Doors.ExitDoorIndex;
+            if (door < 0)
             {
                 return;
             }
 
-            agent.Doors.AvoidUntilTick[agent.Doors.ExitDoorIndex] = checked(context.Tick + context.Random.NextIntInclusive(
+            // Drawn either way, so this costs no change in the number of random
+            // numbers a run uses.
+            int until = checked(context.Tick + context.Random.NextIntInclusive(
                 settings.DoorCrowdedAvoidMinimumTicks, settings.DoorCrowdedAvoidMaximumTicks));
+
+            // Backing out of a queue means "try the other door", and marking
+            // this one to avoid also hides it from the route search. When it is
+            // the only way out of the building there is no other door, so at
+            // full length that rule stops meaning "try elsewhere" and starts
+            // meaning "give up and wander off". Cut short instead: they ease out
+            // of the crush for about a second and come straight back, which
+            // keeps them pointed at the way out without letting the back of a
+            // queue set like concrete.
+            if (HasAnotherWayOut(agent, door))
+            {
+                agent.Doors.AvoidUntilTick[door] = until;
+            }
+        }
+
+        /// <summary>
+        /// Whether this person could still reach a way out of the building
+        /// without going through <paramref name="door"/>. Draws no random
+        /// numbers: it only asks the route search, which draws none either.
+        /// </summary>
+        private bool HasAnotherWayOut(Agent agent, int door)
+        {
+            int room = geometry.RoomAt(agent.Body.Position);
+            if (room < 0)
+            {
+                return false;
+            }
+
+            int was = agent.Doors.AvoidUntilTick[door];
+            agent.Doors.AvoidUntilTick[door] = int.MaxValue;
+            try
+            {
+                for (int d = 0; d < doors.Count; d++)
+                {
+                    if (d != door && geometry.DoorLeadsOutside(d) && !agent.Doors.FoundShut[d] &&
+                        geometry.TryFindRoute(room, agent.Body.Position, geometry.DoorRoom(d), agent,
+                            out int first, out _, out _) &&
+                        first != door)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            finally
+            {
+                agent.Doors.AvoidUntilTick[door] = was;
+            }
         }
 
         /// <summary>

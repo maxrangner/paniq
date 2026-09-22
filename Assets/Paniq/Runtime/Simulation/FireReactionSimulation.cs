@@ -273,6 +273,26 @@ namespace Paniq.Simulation
 
         public FireReactionAgentSnapshot GetAgent(int index) => agents[index].ToSnapshot();
 
+        /// <summary>
+        /// Whether this person is on their way to the given way out: it is the
+        /// one at the end of the route they picked, and they have a door to head
+        /// through next. Being stuck in a queue still counts — this asks what
+        /// they are trying to do, not whether they are managing it.
+        /// </summary>
+        public bool IsHeadingForWayOut(SimulationId id, int wayOutDoorIndex)
+        {
+            for (int i = 0; i < agents.Length; i++)
+            {
+                if (agents[i].Id == id)
+                {
+                    return agents[i].Doors.WayOutDoorIndex == wayOutDoorIndex &&
+                           agents[i].Doors.ExitDoorIndex >= 0;
+                }
+            }
+
+            return false;
+        }
+
         public FireReactionAgentSnapshot GetAgent(SimulationId id)
         {
             for (int i = 0; i < agents.Length; i++)

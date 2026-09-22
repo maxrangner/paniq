@@ -153,6 +153,12 @@ that door would not open. And a way out you can see standing open is never
 crossed off: having tried the handle five minutes ago is not a reason to walk
 past an open door to the street.
 
+**Backing out of a crush is not giving up.** Somebody wedged in the press at a
+doorway steps aside for a moment and comes again, keeping the way out as their
+plan. They are only sent off to try a *different* door when there is another
+one to try; with one way out of the building, being sent away would just mean
+wandering off, and the queue behind them would set solid.
+
 **People with a clear way out are in a hurry.** Anybody on their way to a way
 out they can see open stops dithering: no hesitating on the spot, no zig-zag,
 no drifting with whoever is running past, and a brisk walk becomes a run even

@@ -419,6 +419,14 @@ namespace Paniq.Simulation
         public int DoorAvoidMaximumTicks = 600;
         public int DoorCrowdedAvoidMinimumTicks = 100;
         public int DoorCrowdedAvoidMaximumTicks = 200;
+
+        /// <summary>
+        /// How long somebody eases out of the crush when the door they are
+        /// queueing at is the building's only way out. A second: long enough to
+        /// let the press shuffle forward without them, short enough that they
+        /// are plainly still trying to get out rather than wandering off.
+        /// </summary>
+        public int OnlyWayOutCrowdedAvoidTicks = 50;
         public int GiveUpGlanceMinimumTicks = 15;
         public int GiveUpGlanceMaximumTicks = 30;
 

@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("34"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(26));
+            Assert.That(data.ContentRevision, Is.EqualTo("35"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(27));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -708,7 +708,13 @@ namespace Paniq.Tests.EditMode
                             headingSamples++;
                         }
 
-                        stillTicks[i] = agent.Position.Equals(lastPosition[i]) ? stillTicks[i] + 1 : 0;
+                        // Waiting your turn in the queue at a doorway is not
+                        // being pinned, it is the whole point of one way out.
+                        // FireReactionRoomsEditModeTests owns that case and
+                        // holds it to its own, looser limit; what this guards
+                        // against is somebody stuck against a wall in open floor.
+                        bool queueing = FireReactionRoomsEditModeTests.NearAnOpenDoor(simulation, agent.Position);
+                        stillTicks[i] = agent.Position.Equals(lastPosition[i]) && !queueing ? stillTicks[i] + 1 : 0;
                         Assert.That(stillTicks[i], Is.LessThanOrEqualTo(75),
                             $"Panicked agent {agent.AgentId} stood pinned for 1.5 s at tick {tick}.");
                     }
@@ -1002,6 +1008,14 @@ namespace Paniq.Tests.EditMode
             data.Falls.ShoveMinimumEvil = AgentTraitValues.Maximum + 1;
             data.Tables = new FireReactionTableDefinition[0];
             data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
+
+            // A fire that frightens everybody but barely spreads. The rule under
+            // test is that somebody frozen for a while thaws and runs; without
+            // this the fire reaches them first and the test passes or fails on
+            // whether anybody happened to survive long enough, which is luck
+            // rather than the rule.
+            data.Fire.SpreadMinimumTicks = 2000;
+            data.Fire.SpreadMaximumTicks = 3000;
             var simulation = new FireReactionSimulation(data);
             var temperaments = new HashSet<AgentPanicTemperament>();
             for (int i = 0; i < simulation.AgentCount; i++)

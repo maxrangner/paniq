@@ -13,11 +13,11 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0x495CB92BD9A967EDUL)]
+        [TestCase(42UL, false, 0x5CF50483988E174FUL)]
         [TestCase(42UL, true, 0xEC99418DFBE91C2DUL)]
-        [TestCase(40UL, false, 0x5576C94610B2C243UL)]
-        [TestCase(40UL, true, 0x12EE17247FEABF71UL)]
-        [TestCase(46UL, false, 0xE2A85CD73290B00AUL)]
+        [TestCase(40UL, false, 0x08A38AB51C29C2C2UL)]
+        [TestCase(40UL, true, 0x52EDA38B80CC0ECBUL)]
+        [TestCase(46UL, false, 0x474CE096BCB2F65AUL)]
         [TestCase(46UL, true, 0xF916DD8D79AD51ABUL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
@@ -58,8 +58,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0xA4AD3500BBE0256EUL)]
-        [TestCase(40UL, 0x166583FD6E52C63EUL)]
+        [TestCase(42UL, 0x8DE587396621B370UL)]
+        [TestCase(40UL, 0x06F80DB60B03E3F2UL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();

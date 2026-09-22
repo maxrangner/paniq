@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -24,6 +24,7 @@ namespace Paniq.Simulation
         private readonly DoorSystem doors;
         private readonly PlayerCommandSystem playerCommands;
         private readonly InfluenceSystem influence;
+        private readonly RoundSystem round;
 
         /// <summary>How many people had got out as of the end of last tick, so this tick can pay for the new ones.</summary>
         private int escapedLastTick;
@@ -89,6 +90,7 @@ namespace Paniq.Simulation
                 doors.UseCrowd(crowd);
                 playerCommands = new PlayerCommandSystem(context);
                 influence = new InfluenceSystem(context);
+                round = new RoundSystem(context, agents, geometry, fire);
                 var sound = new SoundSystem(context, crowd, fire, fear, geometry);
                 perception = new PerceptionSystem(context, fire, fear, sound);
                 body = new BodySystem(context, fire, sound, fear);
@@ -127,7 +129,8 @@ namespace Paniq.Simulation
                 // an unconscious person in front of them sees to them rather than
                 // walking off to the bell; plenty of other people are free to hit it.
                 panic.Offer(leaders, extinguishers, help, alarmBehaviour, barricades);
-                playerCommands.Use(doors, fire, objects, crowd, influence, sound, body, geometry);
+                round.Use(flammables);
+                playerCommands.Use(doors, fire, objects, crowd, influence, sound, body, geometry, round);
             }
             catch
             {
@@ -650,7 +653,15 @@ namespace Paniq.Simulation
             // one that changes as the door swings.
             doorBehaviour.AnnounceWaysOut();
             CreditInfluenceForPeopleSaved();
+
+            // Very last, once everything about this tick has settled: is the
+            // round over? Judged on the tick as it ended rather than as it was
+            // half way through.
+            round.Update();
         }
+
+        /// <summary>Where the round has got to: before the event, during it, or finished.</summary>
+        public RoundPhase Phase => round.Phase;
 
         /// <summary>
         /// Everybody who got out this tick pays the player back. Counted rather
@@ -742,7 +753,9 @@ namespace Paniq.Simulation
                 influence.Spent,
                 influence.Earned,
                 CardCosts(),
-                doors.BlastChargesRemaining);
+                doors.BlastChargesRemaining,
+                round.Phase,
+                context.Scenario.Round.TargetSavedPercent);
         }
 
         /// <summary>What every command costs, by command type, for the display.</summary>

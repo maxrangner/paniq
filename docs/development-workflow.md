@@ -2,6 +2,15 @@
 
 ## Git
 
+**Branches and commit size are settled in [`AGENTS.md`](../AGENTS.md) under
+*Git workflow*, and that is the binding copy.** In short: ask the owner before
+making a branch, even for a one-line fix, and split work into one commit per
+layer — `-controls` for input and camera, `-game` for rules and scoring,
+`-visuals` for how it is drawn — with each commit carrying its own tests and
+documentation.
+
+What goes into a commit at all:
+
 - Commit Unity scenes, prefabs, ScriptableObjects, `.meta` files, package
   manifest, and generated package lockfile once Unity creates it.
 - Do not commit `Library`, build output, logs, IDE files, or user settings.

@@ -162,6 +162,30 @@ can be found and overturned.
 | Character animation | Procedural only: transforms moved and bounced in code, a bob rather than a stride. No character rigs, no Animator controllers, no animation package | Crude models and minimal animation are the intended style, and the existing fire cubes already animate this way. Recording it stops an animation system being adopted by habit | A behaviour needs a motion that cannot be expressed by moving a transform |
 
 
+## Prototype 2 decision: building the round
+
+Settled or chosen while building prototype 2's first five stones on
+2026-09-22. The three marked **owner** were the owner's own choice; the rest
+were chosen on their behalf and are recorded here so they can be overturned.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| How a round begins (**owner**) | The level opens calm and nothing happens until the player presses "Trigger event". No timer | The owner wanted a deliberate beginning and a chance to look around the office before setting it off. It also makes the button a part of play rather than a debug toy | A level wants a disaster already under way when the player arrives. It is one tick box on the level asset |
+| What clears a level (**owner**) | 75% saved: fifteen of the twenty people. The owner asked that it stay easy to tweak | Just above what a do-nothing run manages, so intervening is worth it, while leaving room for "60% saved was a triumph" | Playtests say it is reliably out of reach or reliably trivial. It is one number on the level asset |
+| What the high score remembers (**owner**) | One number per level: the best share of the crowd ever saved, in `PlayerPrefs` | The simplest thing to understand with one level, and the docs already accept that two runs are not strictly comparable | Runs become comparable, or the owner wants a per-seed record |
+| Where the round lives | `RoundSystem`, in the simulation | Ending a round decides an outcome -- it is what turns the last survivors into people who were saved -- so the [simulation contract](simulation-contract.md) applies to it in full | Never, while the contract stands |
+| "Settled somewhere safe" | Alive, not on fire, in a room with no fire in it, and no path from any burning room to theirs through a door that is open, broken or blasted -- held for five seconds | It is the case the design names and the only one that can end a round that would otherwise hang for ever. The five seconds stop a round ending in the lull before somebody shoulders a door open | A hazard exists that can reach anywhere given time, or that does not travel through doors |
+| A new outcome value | `Survived`, appended to `AgentTerminalOutcome` | The [agent state model](agent-state-model.md) anticipated this. Appended, never inserted: a value's number is part of the replay fingerprint | Never; the rule is append-only |
+| Trigger as a player command | `TriggerEvent`, appended to `PlayerCommandType`, costing nothing | Everything the player does has to reach the run as a recorded command or a replay cannot reproduce it. Free because it is not a card | Never, while replay matters |
+| What a level is | A small `LevelDefinition` asset: an id, a name, which scenario, which physics feel, whether the hazard waits, and the clear target | The beginnings of a level system without building a level system. A second level is a duplicate of this asset, not new code | A level needs anything a scenario cannot express, such as its own cast or its own cards |
+| Playing again | The scene is reloaded and the run rebuilt from scratch, with the chosen seed left in a static `LevelSession` that is not in the scene | The run owns a private physics world and a sceneful of built geometry. Throwing it all away is the only way to be certain nothing carries over, and it takes a fraction of a second | The reload becomes slow enough to notice, which would mean resetting in place instead |
+| Pause | `Time.timeScale = 0`, with the camera reading the clock that ignores it | Everything freezes -- people, fire, smoke, sparks -- which is what "the scene freezes" should look like. The run steps its own physics world by hand, so this changes nothing about the size of a tick; it only stops ticks happening | A system needs to keep running while paused |
+| Screens and buttons | Unity's immediate-mode GUI, the same drawing the existing counter and cards already use | No new package, and this prototype is explicitly "not art, menus, saving, or platform work". A real menu system is a vertical-slice job | The screens need layout, fonts or animation that immediate mode makes painful |
+| Compatibility version 38 | Bumped from 37, content revision 45 to 46, and all ten replay fingerprints re-recorded | Marking survivors at the end of a round genuinely changes what a run produces, so the recorded numbers had to change. Done in the same commit, as [the workflow](development-workflow.md) requires | Every behaviour change; the procedure is the point, not this instance |
+| The building's outside | Drawn as a slab, a window band and the top of the storey below, then dark | The doll's-house look wants a model of a place, and a floor plan on a black background reads as a diagram. Presentation only: no simulation change, so no fingerprint moved | The cutaway-walls stone, which will want the outside walls to behave differently as the view turns |
+| Camera numbers | Pan 14 m/s (slower when zoomed in), zoom in twelve notches from the full-building framing down to a sixth of it, tilt from 35.264 degrees out to 18 degrees in, and panning allowed 8 m past the building's edge | [Look and controls](look-and-controls.md) says these are presentation values to be chosen when the camera is built. Chosen to feel unhurried at full zoom-out and still readable up close | Playtests say the view is sluggish, or that the close view is hard to read |
+
+
 ## How decisions are made
 
 Paniq's owner is learning game development, so technical decisions must remain

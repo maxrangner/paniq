@@ -179,7 +179,10 @@ namespace Paniq.Tests.EditMode
 
             FireReactionAgentSnapshot person = simulation.GetAgent(0);
             Assert.That(insideFor, Is.GreaterThan(0), "The runner never got out of the burning office.");
-            Assert.That(person.Outcome, Is.EqualTo(AgentTerminalOutcome.Unresolved), "Another room is not a way out.");
+            Assert.That(person.Outcome, Is.Not.EqualTo(AgentTerminalOutcome.Escaped),
+                "Another room is not a way out of the building.");
+            Assert.That(person.Outcome, Is.EqualTo(AgentTerminalOutcome.Survived),
+                "Safe in the closet with the fire unable to follow, the round ends and they lived through it.");
             Assert.That(OutOfTheOffice(data, person.Position), Is.True,
                 $"They should have got out of the burning office, but are at {person.Position}.");
         }

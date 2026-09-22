@@ -19,8 +19,24 @@ namespace Paniq.Presentation
     /// </summary>
     internal sealed class PlayerInput
     {
-        /// <summary>How near the pointer must be to somebody to count as pointing at them.</summary>
-        private const float PickPersonMetres = 0.55f;
+        /// <summary>
+        /// How near the pointer must be to somebody, on the screen, to count as
+        /// pointing at them.
+        /// <para>
+        /// This used to be a distance across the floor, measured from where the
+        /// pointer met the ground. That is the wrong place to measure from: you
+        /// aim at a body drawn a metre in the air, and with the camera tilted
+        /// low the floor under somebody's chest is metres behind their feet, so
+        /// the click landed on empty carpet and the card was never played.
+        /// </para>
+        /// </summary>
+        private const float PickPersonPixels = 45f;
+
+        /// <summary>
+        /// How high up a body the pointer is taken to be aiming, in metres.
+        /// The middle of the capsule <see cref="AgentViews"/> draws.
+        /// </summary>
+        private const float TorsoHeight = 0.5f;
 
         private readonly FireReactionRunner runner;
         private readonly RoomView room;
@@ -69,12 +85,26 @@ namespace Paniq.Presentation
             }
         }
 
-        public void Update(Camera camera, FireReactionSnapshot snapshot)
+        /// <param name="lookOnly">
+        /// The world is stopped, or a card is covering the screen. The pointer
+        /// still tells the player what is under it, but nothing they press
+        /// reaches the run: pause is for looking, not for acting.
+        /// </param>
+        public void Update(Camera camera, FireReactionSnapshot snapshot, bool lookOnly = false)
         {
             HoveredDoor = null;
             HoveredPerson = null;
             HoveredSpot = null;
-            ReadKeys();
+            if (lookOnly)
+            {
+                // A card picked up before the freeze is put back down, so
+                // unpausing never plays something the player has forgotten about.
+                SelectedCard = null;
+            }
+            else
+            {
+                ReadKeys();
+            }
 
             Mouse mouse = Mouse.current;
             if (mouse == null || camera == null || snapshot == null)
@@ -83,7 +113,7 @@ namespace Paniq.Presentation
             }
 
             Vector2 pointer = mouse.position.ReadValue();
-            bool clicked = mouse.leftButton.wasPressedThisFrame;
+            bool clicked = mouse.leftButton.wasPressedThisFrame && !lookOnly;
             if (SelectedCard == null)
             {
                 UpdateDoors(camera, pointer, clicked);
@@ -91,20 +121,24 @@ namespace Paniq.Presentation
             }
 
             PlayerCommandType card = SelectedCard.Value;
-            if (!TryGroundPoint(camera, pointer, out LogicalPosition spot))
-            {
-                return;
-            }
-
             if (TargetsAPerson(card))
             {
-                HoveredPerson = NearestPerson(snapshot, spot);
+                // Aimed at a body on the screen, not at a place on the floor.
+                HoveredPerson = NearestPerson(camera, snapshot, pointer);
                 if (clicked && HoveredPerson.HasValue)
                 {
                     runner.QueueCard(card, HoveredPerson.Value);
                     SelectedCard = null;
                 }
 
+                return;
+            }
+
+            // Fire, an extinguisher and TNT are put somewhere rather than given
+            // to somebody, so for those the floor under the pointer is exactly
+            // the right place to read.
+            if (!TryGroundPoint(camera, pointer, out LogicalPosition spot))
+            {
                 return;
             }
 
@@ -194,11 +228,15 @@ namespace Paniq.Presentation
             return true;
         }
 
-        /// <summary>Whoever is standing nearest the pointer, if anybody is near enough.</summary>
-        private static SimulationId? NearestPerson(FireReactionSnapshot snapshot, LogicalPosition spot)
+        /// <summary>
+        /// Whoever is drawn nearest the pointer, if anybody is near enough.
+        /// Measured on the screen, where the player is actually aiming, rather
+        /// than across the floor: a body stands a metre up in the air, so the
+        /// two are nowhere near each other once the camera tilts.
+        /// </summary>
+        internal static SimulationId? NearestPerson(Camera camera, FireReactionSnapshot snapshot, Vector2 pointer)
         {
-            long reach = (long)(PickPersonMetres * FireReactionSimulation.MillimetresPerMetre);
-            long best = reach * reach;
+            float best = PickPersonPixels * PickPersonPixels;
             SimulationId? found = null;
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
@@ -208,7 +246,16 @@ namespace Paniq.Presentation
                     continue;
                 }
 
-                long distance = LogicalPosition.DistanceSquared(agent.Position, spot);
+                Vector3 torso = PresentationUtility.ToUnityPosition(agent.Position) + Vector3.up * TorsoHeight;
+                Vector3 onScreen = camera.WorldToScreenPoint(torso);
+                if (onScreen.z <= 0f)
+                {
+                    // Behind the camera: it comes back mirrored onto the screen,
+                    // so somebody stood behind you could be picked instead.
+                    continue;
+                }
+
+                float distance = (new Vector2(onScreen.x, onScreen.y) - pointer).sqrMagnitude;
                 if (distance <= best)
                 {
                     best = distance;

@@ -24,6 +24,13 @@ the table presenting. Its east wall holds the building's only way out, at the
 far end from the corridor. The office has no way out of its own, so everybody
 in it has to cross the corridor and the meeting room to escape.
 
+**It is one floor of a tower.** The floor plan is not a plan floating in the
+dark: it sits on a concrete slab that overhangs the outside walls by about half
+a metre, and below that the building carries on down into a band of dark
+windows with pale uprights between them, a spandrel, and the lip of the storey
+below, before it all goes dark. That is drawing only — nothing about it is in
+the simulation, and nobody can walk on it.
+
 **Everyone has a personality.** Each person has seven traits from 0 to 10:
 strength, speed, bravery, compassion, evil, nervousness and leadership. 5 is an
 ordinary person. A number floats beside each head; press **Tab** for a table of
@@ -303,8 +310,8 @@ hand's breadth (10 cm) of them has a 1-in-5 chance each tick. Someone on the
 floor when they catch fire burns where they lie, and people lying on the floor
 can be caught by the fire too. Nobody on fire can escape through a door. With
 every door locked, everyone who does not get out is eventually caught (about
-40 seconds after the fire starts with the default seed). There is no score,
-restart control, or end screen in this checkpoint.
+40 seconds after the fire starts with the default seed), and the round then
+ends and is scored.
 
 **Shoving people out of the way.** Running into somebody is an accident that
 needs speed. Taking hold of them and heaving them aside is deliberate, works at
@@ -381,6 +388,52 @@ do the same thing to keep other people out. The kind never seal a door with
 somebody still coming through it, and nobody seals the door they are counting
 on themselves — unless the room beyond it is already alight, at which point it
 has stopped being a way out.
+
+## The round
+
+**It starts when you say so.** A card covers the screen before anything moves:
+the level's name, how many of the twenty have to live to clear it, your best
+ever, and a box holding the seed with a **Random** button beside it. Press
+**Play** and the office comes to life — people walking about, the meeting under
+way — with nothing wrong at all. A strip along the top counts *saved*, *lost*
+and *still inside* against the target, and under it sits **Trigger event**.
+Press that and the fire starts, on the square the seed chose. Pressing it twice
+does not light two fires.
+
+**Pause looks, it does not act.** **Space** stops everything: people mid-stride,
+flames mid-flicker, smoke mid-drift. The camera still answers you so you can go
+and read what is happening in the far room. No card can be picked up, no door
+can be clicked, and a card already in your hand is put back down. Space again
+and it all carries on.
+
+**It ends when nobody is left to resolve.** That means every person is out of
+the building, dead, or alive somewhere the fire cannot get to — where "cannot
+get to" is worked out room by room, spreading from every burning room through
+every door that is open, broken or blasted, and held for five seconds so a
+round does not end in the lull before somebody shoulders a door open. Everyone
+still alive at that moment is written down as having **survived**, which counts
+as saved exactly as escaping does: barricading yourself into the storeroom is a
+way of living through a disaster, not an exploit.
+
+Then the scene freezes and a card gives the result — how many of the twenty
+were saved and what share that is, whether it cleared the 75% needed, how the
+saved split between those who got out and those who sat it out, and your best
+ever. Two buttons: the same seed again, or whatever is in the seed box.
+
+**What the round deliberately does not do yet.** You cannot click a person on
+the frozen scene for the facts about them, and there is no written retelling of
+what happened out of sight. Both are planned and both are what would make a run
+*understandable* rather than merely scored.
+
+## The camera
+
+**W A S D** slide the view across the building, and W always moves it up the
+screen whichever corner you are looking from. **Q** and **E** swing a quarter
+turn to the next corner, snapping rather than sweeping, so there are four
+views. The **mouse wheel** zooms, and tilts as it goes: pulled out you look
+down on the building at the isometric angle, pushed in you look along the floor.
+The camera keeps working while the game is paused. The full description is in
+[look and controls](look-and-controls.md).
 
 ## What the player can do
 
@@ -864,10 +917,14 @@ alarm, `ObjectBroke` what hit the thing that broke, `DoorBlocked` and
 strong, and `PowerSpawnedExtinguisher` and `PowerBlastedWall` the bottle and the
 hole. Every event except `FireActivated`, the player's `DoorUnlocked` and the
 four cards (the player is the cause of those) has a causal parent (a box set moving by a calm
-person's unlogged push is the one rare exception). The room, isometric camera, capsules, fire cubes, vision-cone
-outlines, icons, floor ripples and the counter are observational
-presentation. They map logical millimetres to Unity metres and never write
-simulation state.
+person's unlogged push is the one rare exception). The room, the building's
+outside, the camera the player drives, capsules, fire cubes, vision-cone
+outlines, icons, floor ripples, the counter and the round's own cards and
+buttons are observational presentation. They map logical millimetres to Unity
+metres and never write simulation state. The round itself is the exception
+that proves the rule: deciding that a round is over turns the last survivors
+into people who were saved, which is an outcome, so it lives in the simulation
+(`RoundSystem`) and the screens only read the result off the snapshot.
 
 A small panel at the bottom left **names every mark**, so the crowd can be read
 without being told what the symbols are.

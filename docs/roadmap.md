@@ -6,9 +6,8 @@ next one is chosen. It is not a schedule and not a feature list for the
 finished game.
 
 **Where things stand (2026-09-22).** Prototype 1 -- the fire-reaction office
--- is finished and merged into `main`. Prototype 2 is next and will be built
-in the same scene rather than a fresh one. What prototype 2 is *for* has not
-been decided yet; the owner will describe it in a later session.
+-- is finished and merged into `main`. Prototype 2 is under way in the same
+scene: it is the stone of *game*, and its first five stones are listed below.
 
 ## Foundation (complete)
 
@@ -150,10 +149,36 @@ owner chose this over starting a fresh scene so that a new layer is playable
 the day it is written, and so a run can be judged against how that building
 normally goes.
 
-**What prototype 2 is for is not decided yet.** The owner will describe it in
-a later session. Nothing should be built toward it until then. The standing
-direction below is the last thing settled with the owner; it is the starting
-point for that conversation, not a decision already taken.
+**What prototype 2 is for** was settled with the owner on 2026-09-22: it is
+the stone of *game*. Prototype 1 built a disaster worth watching; prototype 2
+turns watching it into playing it. A round now begins when the player sets it
+off, ends when nobody is left to resolve, is scored, and can be played again
+on the same seed or a different one -- which is exactly the loop
+[goals](goals.md) says the prototype exists to test.
+
+### Prototype 2: the stones laid
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| The round begins, ends and is scored | System | The office opens calm and stays calm until you press **Trigger event**. A strip counts saved, lost and still inside against the fifteen of twenty needed to clear it. When nobody is left to resolve, everything freezes and a card gives the score |
+| Start, seed, play again, high score | System | A card before the round with the level, the target, your best ever and a seed box; two buttons after it -- the same seed again, or a new one. The best percentage you have ever saved is remembered between sessions |
+| A camera you drive | Style | W A S D slide the view across the building, Q and E swing a quarter turn to the next corner, and the wheel zooms while tilting: further out looks down on the building, closer looks along the floor |
+| Pause to look | System | Space stops everything -- people, flames, smoke. The camera still answers you; nothing can be played. Press it again to carry on |
+| A floor of an office building | Style | The floor sits on a concrete slab, and below it the outside walls carry on down into a band of dark windows and the top of the next storey, so the level reads as one floor of a tower rather than a plan on a black background |
+
+**What these stones deliberately left out.** Clicking a person on the frozen
+end screen for the facts about them, and the plain-language retelling of what
+happened out of sight, are both still to come -- they are the part of the
+[game vision](game-vision.md) that makes a run *understandable* rather than
+merely scored, and they are the obvious next stone. Also left out: any level
+select, more than one level, and comparing one run against another beyond the
+single best-ever number.
+
+**One thing to know about the score.** Two runs are not strictly comparable,
+because the same building on a different seed is a different day. The best-ever
+number is a personal high-water mark the owner asked for, not a league table,
+and [game vision](game-vision.md) still holds that understanding a run is the
+real progression.
 
 ## Agreed direction for the next stones
 
@@ -161,7 +186,10 @@ Settled with the owner in a design review (see [game vision](game-vision.md)
 for the decisions themselves). This is a direction, not a schedule: the owner
 still picks each stone after playing the one before it.
 
-### Next: the round ends, and it has a score
+### Done: the round ends, and it has a score
+
+Built as prototype 2's first stone, except for clicking a person on the frozen
+scene, which is still to come.
 
 1. **What the player sees:** the round stops when nobody is left to resolve —
    everybody is out, dead, or settled somewhere they will not leave. The scene
@@ -205,12 +233,10 @@ still picks each stone after playing the one before it.
   the rest up *and* down. Almost no new behaviour is required — the behaviours
   already read these traits.
 - **The Director.** The background system that adds and eases pressure.
-- **A camera the player drives.** Moving, rotating a quarter turn at a time
-  and zooming, per [look and controls](look-and-controls.md). The camera is
-  fixed today, which stops being acceptable the moment a level is bigger
-  than one screen.
-- **Pause to look.** Time stops and the camera moves, but nothing can be
-  spent or played while paused.
+- ~~**A camera the player drives.**~~ Built: moving, rotating a quarter turn at
+  a time and zooming, per [look and controls](look-and-controls.md).
+- ~~**Pause to look.**~~ Built: time stops and the camera moves, but nothing
+  can be spent or played while paused.
 - **A staged level**, big enough that calm people are always on screen
   somewhere and no single way out saves everybody.
 - **The written retelling** on the end screen.

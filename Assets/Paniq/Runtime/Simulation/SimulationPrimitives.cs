@@ -299,11 +299,36 @@ namespace Paniq.Simulation
         Unconscious
     }
 
+    /// <summary>
+    /// How a person's run finished. Appended to only: each value's number is
+    /// part of the replay fingerprint.
+    /// </summary>
     public enum AgentTerminalOutcome
     {
         Unresolved,
         Lost,
-        Escaped
+        Escaped,
+
+        /// <summary>
+        /// Alive at the end of the round, still inside, somewhere the hazard
+        /// could not reach. The game vision counts barricading yourself into a
+        /// storeroom as living through the disaster, not as an exploit, so this
+        /// counts as saved exactly as <see cref="Escaped"/> does.
+        /// </summary>
+        Survived
+    }
+
+    /// <summary>Where a round has got to: before the event, during it, or finished.</summary>
+    public enum RoundPhase
+    {
+        /// <summary>The building is going about its day and nothing has gone wrong yet.</summary>
+        BeforeEvent,
+
+        /// <summary>The hazard has started and people are resolving one way or the other.</summary>
+        Running,
+
+        /// <summary>Nobody is left to resolve. Nothing moves and the score is final.</summary>
+        Over
     }
 
     public enum FireReactionEventType
@@ -426,7 +451,25 @@ namespace Paniq.Simulation
         AgentCrushed,
 
         /// <summary>Somebody alight throws themselves down and rolls (source: the person; strength: how long the roll lasts).</summary>
-        AgentRolled
+        AgentRolled,
+
+        /// <summary>
+        /// The player set the disaster going (strength: the tick they pressed
+        /// it on). The root cause of everything the hazard goes on to do.
+        /// </summary>
+        RoundEventTriggered,
+
+        /// <summary>
+        /// Somebody alive and out of the hazard's reach when the round
+        /// finished (source: the person). Counts as saved.
+        /// </summary>
+        AgentSurvived,
+
+        /// <summary>
+        /// Nobody is left to resolve and the round is over (strength: how many
+        /// were saved; cause: what triggered the round).
+        /// </summary>
+        RoundEnded
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>
@@ -523,7 +566,14 @@ namespace Paniq.Simulation
         SpawnExtinguisher,
 
         /// <summary>TNT: blow a hole through the wall nearest the named place.</summary>
-        BlastWall
+        BlastWall,
+
+        /// <summary>
+        /// Set the disaster going. Not a card and it costs nothing: it is the
+        /// one deliberate "start the trouble" the round waits for. The first
+        /// one starts the hazard; any later one does nothing.
+        /// </summary>
+        TriggerEvent
     }
 
     /// <summary>

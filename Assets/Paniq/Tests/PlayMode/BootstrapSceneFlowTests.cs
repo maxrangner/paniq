@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using NUnit.Framework;
 using Paniq.App;
 using UnityEngine;
@@ -31,13 +31,38 @@ namespace Paniq.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator FireReactionPrototype_ShowsTheFireAfterItsAuthoredDelay()
+        public IEnumerator FireReactionPrototype_OpensCalmAndWaitsBehindTheStartCard()
         {
             yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
 
             Paniq.Gameplay.FireReactionRunner runner = Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>();
             Assert.That(runner, Is.Not.Null);
-            for (int tick = 0; tick < runner.Simulation.Scenario.Fire.ActivationTick; tick++)
+            Assert.That(runner.IsWaitingToStart, Is.True, "A level opens behind its start card.");
+            Assert.That(runner.IsTicking, Is.False, "Nothing moves until the player presses Play.");
+
+            // A long minute of office life: still nothing alight, because the
+            // fire waits for the player rather than for a tick count.
+            for (int tick = 0; tick < 60 * Paniq.Simulation.FireReactionSimulation.TicksPerSecond; tick++)
+            {
+                runner.StepForTests();
+            }
+
+            yield return null;
+
+            Assert.That(runner.Snapshot.FireActive, Is.False, "Nobody triggered anything, so nothing should be alight.");
+            Assert.That(runner.Snapshot.RoundIsOver, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator FireReactionPrototype_ShowsTheFireOnceTheEventIsTriggered()
+        {
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+
+            Paniq.Gameplay.FireReactionRunner runner = Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>();
+            Assert.That(runner, Is.Not.Null);
+            runner.BeginPlaying();
+            runner.QueueTriggerEvent();
+            for (int tick = 0; tick < 5; tick++)
             {
                 runner.StepForTests();
             }
@@ -49,6 +74,25 @@ namespace Paniq.Tests.PlayMode
             Assert.That(fire, Is.Not.Null);
             Assert.That(fire.activeSelf, Is.True);
             Assert.That(fire.transform.childCount, Is.GreaterThanOrEqualTo(3), "Expected a scorch tile plus flame cubes.");
+        }
+
+        [UnityTest]
+        public IEnumerator PlayingAgainWithAChosenSeed_BuildsTheRunOnThatSeed()
+        {
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+
+            const ulong chosen = 4242UL;
+            Paniq.Gameplay.LevelSession.RequestSeed(chosen, true);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+
+            Paniq.Gameplay.FireReactionRunner runner = Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>();
+            Assert.That(runner, Is.Not.Null);
+            Assert.That(runner.Seed, Is.EqualTo(chosen), "A chosen seed has to survive the reload that restarts the level.");
+            Assert.That(runner.IsWaitingToStart, Is.False,
+                "Playing again means the player has already chosen, so the start card is not shown twice.");
+
+            // Leave nothing behind for the next test.
+            Paniq.Gameplay.LevelSession.ClearRequestedSeed();
         }
 
         [UnityTest]

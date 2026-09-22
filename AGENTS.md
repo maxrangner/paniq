@@ -94,6 +94,16 @@ Every completed task ends with a report in this shape:
 
 ## Git workflow
 
+### Branches
+
+- **Ask the owner before creating a branch, every time.** Name the branch you
+  would make and what would go on it, then wait. This applies to a large piece
+  of work and to a one-line fix alike: a small fix does not get a branch of its
+  own unless the owner says so. Default to working on the branch that is
+  already checked out.
+- The one exception is `main`: never commit to it directly. If `main` is
+  checked out and there is work to do, that is the moment to ask, not to branch
+  quietly.
 - **Branch names**: `type/short-description` only — `feat/`, `fix/`,
   `chore/`, `docs/`, `refactor/`, `test/` — in plain kebab-case words. Never
   prefix a branch with an assistant's name (`claude/`, `codex/`, or similar),
@@ -102,9 +112,39 @@ Every completed task ends with a report in this shape:
   from a correctly named branch) before it's pushed.
 - **Merges**: always use `--no-ff`, so every integration leaves a visible
   merge commit in the log, even when the merge could fast-forward.
-- Prefer one substantial, well-described commit per real unit of work over a
-  long trail of small "wip"-style commits. Squash before pushing if a branch
-  has accumulated more commits than it has distinct changes.
+
+### How much goes in one commit
+
+A commit is **one layer of change**: the smallest thing that can be described in
+one sentence, read on its own, and reverted on its own without dragging
+unrelated work out with it. Neither one commit per branch nor one per file save.
+
+The usual split, and the order it is usually made in:
+
+| Suffix | What belongs in it |
+| --- | --- |
+| `-controls` | Input and camera: what the player presses, and where they look |
+| `-game` | Rules, state, scoring, level and round structure: what the simulation decides |
+| `-visuals` | How any of it is drawn |
+
+Use the stone's name as the scope, with the layer as a suffix — for example
+`feat(prototype-2-controls)`, `feat(prototype-2-game)`,
+`feat(prototype-2-visuals)`. A layer that a piece of work does not touch simply
+has no commit.
+
+- **Tests and documentation travel with the change they describe**, never in a
+  commit of their own. A `-game` commit carries its own tests and its own
+  updates to the roadmap and the decision log.
+- **A fix found while reviewing your own work is its own commit**, in whichever
+  layer it belongs to, rather than being folded back into the commit that
+  introduced the problem.
+- Still avoid a trail of `wip`-style commits; squash those before pushing. The
+  test is never how many commits there are, it is whether each one is a change
+  somebody would want to read by itself.
+
+**Worked example.** Prototype 2 added a scored round that ends, seeds, replay
+and a high score, a camera the player drives, pause, and an office-tower look.
+That is three commits — controls, game, visuals — not one, and not five.
 
 ## Scope and structure
 

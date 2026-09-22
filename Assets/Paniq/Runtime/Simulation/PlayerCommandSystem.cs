@@ -33,6 +33,7 @@ namespace Paniq.Simulation
         private SoundSystem sound;
         private BodySystem body;
         private WorldGeometry geometry;
+        private RoundSystem round;
 
         public PlayerCommandSystem(SimulationContext context)
         {
@@ -41,8 +42,10 @@ namespace Paniq.Simulation
 
         /// <summary>Wired up after construction, because these are all built after this system.</summary>
         public void Use(DoorSystem doorSystem, FireSystem fireSystem, PhysicsObjectSystem physicsObjects, Crowd people,
-            InfluenceSystem influenceSystem, SoundSystem soundSystem, BodySystem bodySystem, WorldGeometry world)
+            InfluenceSystem influenceSystem, SoundSystem soundSystem, BodySystem bodySystem, WorldGeometry world,
+            RoundSystem theRound)
         {
+            round = theRound;
             doors = doorSystem;
             fire = fireSystem;
             objects = physicsObjects;
@@ -103,6 +106,7 @@ namespace Paniq.Simulation
                 case PlayerCommandType.SpawnFire:
                 case PlayerCommandType.SpawnExtinguisher:
                 case PlayerCommandType.BlastWall:
+                case PlayerCommandType.TriggerEvent:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(commandType), $"Unknown command type {commandType}.");
@@ -131,6 +135,14 @@ namespace Paniq.Simulation
             if (command.CommandType == PlayerCommandType.ClickDoor)
             {
                 doors.ClickDoor(doors.IndexOf(command.TargetId));
+                return;
+            }
+
+            // Setting the disaster going is not a card: it costs nothing, so
+            // it is dealt with before the purse is consulted at all.
+            if (command.CommandType == PlayerCommandType.TriggerEvent)
+            {
+                round.TriggerEvent();
                 return;
             }
 

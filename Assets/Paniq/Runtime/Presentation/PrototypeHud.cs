@@ -1,4 +1,4 @@
-using Paniq.Simulation;
+﻿using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Presentation
@@ -25,9 +25,21 @@ namespace Paniq.Presentation
             bool hoveredIsJammed = false)
         {
             GUI.color = Color.white;
-            string fireText = snapshot.FireActive
-                ? $"FIRE  {snapshot.FireCells.Count} squares burning"
-                : $"FIRE IN {Mathf.Max(0f, (scenario.Fire.ActivationTick - snapshot.Tick) / (float)FireReactionSimulation.TicksPerSecond):0.00} s";
+            string fireText;
+            if (snapshot.FireActive)
+            {
+                fireText = $"FIRE  {snapshot.FireCells.Count} squares burning";
+            }
+            else if (scenario.Round.HazardWaitsForTrigger)
+            {
+                // Nothing is counting down: it waits for the player.
+                fireText = snapshot.EventTriggered ? "FIRE STARTING" : "NO FIRE YET";
+            }
+            else
+            {
+                fireText = $"FIRE IN {Mathf.Max(0f, (scenario.Fire.ActivationTick - snapshot.Tick) / (float)FireReactionSimulation.TicksPerSecond):0.00} s";
+            }
+
             GUI.Label(new Rect(20f, 20f, 360f, 24f), $"Fire-reaction prototype  |  tick {snapshot.Tick}");
             GUI.Label(new Rect(20f, 44f, 480f, 24f),
                 snapshot.AlarmsRinging ? $"{fireText}   |   ALARM RINGING" : fireText);
@@ -38,6 +50,8 @@ namespace Paniq.Presentation
             GUI.Label(new Rect(20f, 92f, 900f, 24f),
                 "Click a door: red = locked. Click to unlock (green), again to open, again to close.   " +
                 "Tab: everyone's stats   G: the floor people can walk on");
+            GUI.Label(new Rect(20f, 116f, 900f, 24f),
+                "Camera: W A S D move   Q E turn a quarter   wheel zooms      Space pauses");
             if (hoveredDoor.HasValue)
             {
                 // A door with something wedged in it will not move however many
@@ -48,7 +62,7 @@ namespace Paniq.Presentation
                     : hoveredState == DoorState.Unlocked ? "Click to open"
                     : hoveredState == DoorState.Broken ? "Broken down"
                     : "Click to close (if nobody is in the doorway)";
-                GUI.Label(new Rect(20f, 116f, 600f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
+                GUI.Label(new Rect(420f, 92f, 600f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
             }
         }
 

@@ -1,4 +1,4 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
 
@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0x5D465A094E852262UL)]
-        [TestCase(42UL, true, 0x79AAFFB8ABF911D9UL)]
-        [TestCase(40UL, false, 0xD9C1BDA88A27C820UL)]
-        [TestCase(40UL, true, 0xEA9630DC699486E1UL)]
-        [TestCase(46UL, false, 0x11E3E4DB6C7B3AAAUL)]
-        [TestCase(46UL, true, 0xEA53A017C4F90085UL)]
+        [TestCase(42UL, false, 0xFF6074DBD4474E64UL)]
+        [TestCase(42UL, true, 0xD3AD58D3FA17AB37UL)]
+        [TestCase(40UL, false, 0x584612C07C142949UL)]
+        [TestCase(40UL, true, 0xBE8665F6EC137C16UL)]
+        [TestCase(46UL, false, 0x750F4437B672B4AAUL)]
+        [TestCase(46UL, true, 0xB85118312495D150UL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -36,12 +36,13 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The player's cards, which are the one thing that reaches the run from
-        /// outside it. Guarded here as well as by their own tests, so the whole
-        /// command path is covered by replay.
+        /// The player's cards and the trigger that sets the disaster going:
+        /// everything that reaches the run from outside it. Guarded here as
+        /// well as by their own tests, so the whole command path is covered by
+        /// replay. This run waits to be triggered, as a played level does.
         /// </summary>
-        [TestCase(42UL, 0xCD1DE0AEC564FBB4UL)]
-        [TestCase(40UL, 0x96AAEED9AA7D4EFEUL)]
+        [TestCase(42UL, 0xF9425A8F7255A570UL)]
+        [TestCase(40UL, 0x4235E1AA2AC0B6D5UL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -58,8 +59,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0xB71C6E542C3C489BUL)]
-        [TestCase(40UL, 0xEE1AEF7C920B8B0EUL)]
+        [TestCase(42UL, 0x7A19A03E2E1AC86BUL)]
+        [TestCase(40UL, 0xCA582A75E580E8E6UL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();

@@ -36,6 +36,13 @@ namespace Paniq.Tests.EditMode
             (PlayerCommandType.BlastWall, default, new LogicalPosition(0, -5900), 800)
         };
 
+        /// <summary>
+        /// The tick the "cards played" run triggers the event on. The same
+        /// tick the fire would have started itself on, so that run burns
+        /// exactly as the others do while still covering the trigger command.
+        /// </summary>
+        public const int TriggerTick = 250;
+
         /// <param name="kickBoxes">
         /// Start every box sliding, so box-on-box and box-on-person hits
         /// happen often enough to be covered; the default scenario only
@@ -44,9 +51,20 @@ namespace Paniq.Tests.EditMode
         public static ulong Run(FireReactionScenarioData data, ulong seed, bool openDoors, bool kickBoxes = false,
             bool playCards = false)
         {
+            if (playCards)
+            {
+                // A copy, so setting this does not leak into the caller's data.
+                data = data.Clone();
+                data.Round.HazardWaitsForTrigger = true;
+            }
+
             var simulation = new FireReactionSimulation(data, seed);
             if (playCards)
             {
+                // The hazard is the player's to set going in this run, as it
+                // is in the game.
+                simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), TriggerTick);
+
                 // Queued before the run starts, in card order, so a replay plays
                 // exactly the same hand at exactly the same ticks.
                 foreach ((PlayerCommandType card, SimulationId target, LogicalPosition point, int tick) in Cards)

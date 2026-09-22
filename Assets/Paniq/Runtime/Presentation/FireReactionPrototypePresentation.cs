@@ -1,4 +1,4 @@
-using Paniq.Gameplay;
+﻿using Paniq.Gameplay;
 using Paniq.Simulation;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -35,9 +35,10 @@ namespace Paniq.Presentation
         private PopBursts pops;
         private ParticleEffects effects;
         private PlayerInput input;
+        private CameraRig cameraRig;
+        private BuildingShellView shell;
+        private RoundScreens screens;
 
-        /// <summary>Where the camera sits when nothing is shaking it.</summary>
-        private Vector3 cameraRest;
         private FireReactionSnapshot frameSnapshot;
 
         /// <summary>Why the display could not be built, or null when all is well.</summary>
@@ -60,8 +61,11 @@ namespace Paniq.Presentation
                 // The runner starts first, so its simulation and the data it runs on exist.
                 FireReactionScenarioData scenario = runner.Simulation.Scenario;
                 materials = new PresentationMaterials();
-                prototypeCamera = CreateCameraAndLight(root, scenario);
-                cameraRest = prototypeCamera.transform.position;
+                prototypeCamera = CreateCameraAndLight(root);
+                Bounds floorPlan = FloorPlanBounds(scenario);
+                cameraRig = new CameraRig(prototypeCamera, floorPlan);
+                shell = new BuildingShellView(floorPlan, root);
+                screens = new RoundScreens(runner);
                 effects = new ParticleEffects(particleEffects, root);
                 room = new RoomView(scenario, materials, effects, root);
                 agents = new AgentViews(scenario, materials, effects, root);
@@ -113,7 +117,6 @@ namespace Paniq.Presentation
 
             prototypeCamera.clearFlags = CameraClearFlags.SolidColor;
             prototypeCamera.backgroundColor = new Color(0.10f, 0.11f, 0.14f);
-            cameraRest = prototypeCamera.transform.position;
         }
 
         private void OnDestroy()
@@ -124,6 +127,7 @@ namespace Paniq.Presentation
             }
 
             effects?.Dispose();
+            shell?.Destroy();
             materials?.Destroy();
         }
 
@@ -143,11 +147,17 @@ namespace Paniq.Presentation
             float time = Time.time;
 
             // Blend between the last two simulation ticks so movement is
-            // smooth at any frame rate.
-            float blend = Mathf.Clamp01((Time.time - Time.fixedTime) / Time.fixedDeltaTime);
+            // smooth at any frame rate. Standing still -- paused, waiting to
+            // start, or finished -- means no blending at all, or people would
+            // creep forward in a scene that is meant to be frozen.
+            float blend = runner.IsTicking
+                ? Mathf.Clamp01((Time.time - Time.fixedTime) / Time.fixedDeltaTime)
+                : 1f;
             FireReactionSnapshot previous = runner.PreviousSnapshot;
 
-            input.Update(prototypeCamera, frameSnapshot);
+            // Pause to look, not to act: while a card is up or the world is
+            // stopped, the pointer still hovers but no click reaches the run.
+            input.Update(prototypeCamera, frameSnapshot, runner.IsPaused || screens.CardIsUp);
             hoveredDoor = input.HoveredDoor;
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
@@ -158,6 +168,13 @@ namespace Paniq.Presentation
             if (keyboard != null && keyboard.gKey.wasPressedThisFrame)
             {
                 navigationGrid?.Toggle();
+            }
+
+            // Space pauses, but only once the round is actually going: there
+            // is nothing to pause behind the start card or after the end one.
+            if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame && !screens.CardIsUp)
+            {
+                runner.TogglePause();
             }
 
             effects.BeginFrame();
@@ -172,8 +189,26 @@ namespace Paniq.Presentation
             spray.Update(frameSnapshot);
             pops.Update(time);
 
-            // A bang shakes the view for a moment, always around the same rest.
-            prototypeCamera.transform.position = cameraRest + pops.Shake;
+            // The player's own camera, with a bang's shake added on top of
+            // wherever they have put it.
+            cameraRig.Update(pops.Shake);
+        }
+
+        /// <summary>Every room together, in metres: what the camera frames and the shell wraps.</summary>
+        private static Bounds FloorPlanBounds(FireReactionScenarioData scenario)
+        {
+            float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+            foreach (FireReactionRoomDefinition room in scenario.Rooms)
+            {
+                minX = Mathf.Min(minX, Metres(room.Bounds.MinX));
+                maxX = Mathf.Max(maxX, Metres(room.Bounds.MaxX));
+                minZ = Mathf.Min(minZ, Metres(room.Bounds.MinZ));
+                maxZ = Mathf.Max(maxZ, Metres(room.Bounds.MaxZ));
+            }
+
+            var bounds = new Bounds();
+            bounds.SetMinMax(new Vector3(minX, 0f, minZ), new Vector3(maxX, 0f, maxZ));
+            return bounds;
         }
 
         private void OnGUI()
@@ -199,6 +234,7 @@ namespace Paniq.Presentation
                 PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, hoveredDoor,
                     hoveredDoor.HasValue ? room.StateOf(hoveredDoor.Value) : DoorState.Locked,
                     hoveredDoor.HasValue && IsJammed(frameSnapshot, hoveredDoor.Value));
+                screens.DrawStrip(frameSnapshot);
                 PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input);
                 PrototypeHud.DrawLegend();
                 if (showStats)
@@ -211,6 +247,16 @@ namespace Paniq.Presentation
                     }
 
                     PrototypeHud.DrawStats(frameSnapshot, footer);
+                }
+
+                // Last, so a card sits over everything else.
+                if (runner.IsWaitingToStart)
+                {
+                    screens.DrawStartCard(frameSnapshot);
+                }
+                else if (frameSnapshot.RoundIsOver)
+                {
+                    screens.DrawEndCard(frameSnapshot);
                 }
             }
         }
@@ -340,11 +386,11 @@ namespace Paniq.Presentation
         }
 
         /// <summary>
-        /// A classic isometric view: equal horizontal depth on X and Z, with
-        /// the camera 35.264 degrees above the ground and 45 degrees around
-        /// the room.
+        /// The camera and the light. Where the camera goes and how it is
+        /// framed belongs to <see cref="CameraRig"/>, which the player drives;
+        /// this only makes sure the objects exist.
         /// </summary>
-        private static Camera CreateCameraAndLight(Transform parent, FireReactionScenarioData scenario)
+        private static Camera CreateCameraAndLight(Transform parent)
         {
             Camera camera = Camera.main;
             if (camera == null)
@@ -355,28 +401,7 @@ namespace Paniq.Presentation
                 camera = cameraObject.GetComponent<Camera>();
             }
 
-            // Framed around every room, so a bigger floor plan still fits on screen.
-            float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
-            foreach (FireReactionRoomDefinition room in scenario.Rooms)
-            {
-                minX = Mathf.Min(minX, PresentationUtility.Metres(room.Bounds.MinX));
-                maxX = Mathf.Max(maxX, PresentationUtility.Metres(room.Bounds.MaxX));
-                minZ = Mathf.Min(minZ, PresentationUtility.Metres(room.Bounds.MinZ));
-                maxZ = Mathf.Max(maxZ, PresentationUtility.Metres(room.Bounds.MaxZ));
-            }
-
-            var centre = new Vector3((minX + maxX) * 0.5f, 0f, (minZ + maxZ) * 0.5f);
-            Vector3 offset = new Vector3(10f, 10f, -10f).normalized * 40f;
-            camera.transform.SetPositionAndRotation(centre + offset, Quaternion.LookRotation(-offset.normalized));
             camera.orthographic = true;
-
-            // Seen from 35.264 degrees up, the floor's diagonal spans this much
-            // across the screen, and this much up it; 1.5 m of wall and a
-            // tenth of a margin are added on top.
-            float across = (maxX - minX + (maxZ - minZ)) * 0.70711f;
-            float up = across * 0.57735f + 1.5f;
-            float aspect = camera.aspect > 0.1f ? camera.aspect : 16f / 9f;
-            camera.orthographicSize = Mathf.Max(up * 0.5f, across * 0.5f / aspect) * 1.1f;
 
             var lightObject = new GameObject("Fire Reaction Light", typeof(Light));
             lightObject.transform.SetParent(parent, false);

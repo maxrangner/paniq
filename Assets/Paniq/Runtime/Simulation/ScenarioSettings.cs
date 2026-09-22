@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -39,6 +39,50 @@ namespace Paniq.Simulation
         internal void Validate()
         {
             Settings.Require(VisionRangeMillimetres > 0 && MaximumReactionDelayTicks >= 0, "perception");
+        }
+    }
+
+    /// <summary>
+    /// How a round begins, how it is judged to be finished, and what it takes
+    /// to clear it.
+    /// </summary>
+    [Serializable]
+    public sealed class RoundSettings
+    {
+        /// <summary>
+        /// The hazard waits for the player's "trigger event" rather than
+        /// starting itself on <see cref="FireSettings.ActivationTick"/>. The
+        /// level then opens calm and stays calm until the player sets it off.
+        /// <para>
+        /// Off by default, because a bare scenario on its own should behave the
+        /// way it always has: the fire starts on its own tick count. A playable
+        /// level turns it on (see the level asset), so the calm opening belongs
+        /// to the level rather than to the scenario data.
+        /// </para>
+        /// </summary>
+        public bool HazardWaitsForTrigger;
+
+        /// <summary>
+        /// The share of the crowd that has to be saved to clear the level, out
+        /// of a hundred. Saved means escaped or alive and out of the hazard's
+        /// reach at the end. Chosen with the owner at 75: fifteen of twenty.
+        /// </summary>
+        public int TargetSavedPercent = 75;
+
+        /// <summary>
+        /// How long everybody left has to be out of the hazard's reach before
+        /// the round is called finished. Without the wait a round would end in
+        /// the lull before somebody shoulders a door open and lets the fire
+        /// through.
+        /// </summary>
+        public int SettleTicks = 250;
+
+        public RoundSettings Clone() => (RoundSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(TargetSavedPercent >= 0 && TargetSavedPercent <= 100, "round clear target");
+            Settings.Require(SettleTicks >= 0, "round settle time");
         }
     }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -294,13 +294,19 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "45";
+        public string ContentRevision = "46";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 37;
+
+        // 38: rounds. A round now ends when nobody is left to resolve, and
+        // everybody still alive and out of the hazard's reach at that moment is
+        // written down as having survived. That changes what a run produces, so
+        // every recorded replay fingerprint was re-recorded with it.
+        public int SimulationCompatibilityVersion = 38;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
         public FireSettings Fire = new FireSettings();
+        public RoundSettings Round = new RoundSettings();
         public SteeringSettings Steering = new SteeringSettings();
         public CalmSettings Calm = new CalmSettings();
         public PanicSettings Panic = new PanicSettings();
@@ -341,6 +347,7 @@ namespace Paniq.Simulation
             copy.World = World?.Clone();
             copy.Perception = Perception?.Clone();
             copy.Fire = Fire?.Clone();
+            copy.Round = Round?.Clone();
             copy.Steering = Steering?.Clone();
             copy.Calm = Calm?.Clone();
             copy.Panic = Panic?.Clone();
@@ -382,7 +389,7 @@ namespace Paniq.Simulation
                 throw new InvalidOperationException("A fire-reaction scenario needs a compatibility version and explicit seed.");
             }
 
-            if (World == null || Perception == null || Fire == null || Steering == null || Calm == null ||
+            if (World == null || Perception == null || Fire == null || Round == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
                 ObjectPhysics == null || PhysicsFeel == null || Traits == null || Flammables == null || Items == null || Help == null ||
                 Influence == null || Alarm == null || Blockades == null || Blast == null ||
@@ -394,6 +401,7 @@ namespace Paniq.Simulation
             World.Validate();
             Perception.Validate();
             Fire.Validate();
+            Round.Validate();
             Steering.Validate();
             Calm.Validate();
             Panic.Validate();

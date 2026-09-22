@@ -398,8 +398,12 @@ namespace Paniq.Simulation
             int influenceSpent,
             int influenceEarned,
             int[] cardCosts,
-            int blastChargesRemaining)
+            int blastChargesRemaining,
+            RoundPhase roundPhase,
+            int targetSavedPercent)
         {
+            RoundPhase = roundPhase;
+            TargetSavedPercent = targetSavedPercent;
             BlastChargesRemaining = blastChargesRemaining;
             AlarmsRinging = alarmsRinging;
             Influence = influence;
@@ -529,6 +533,44 @@ namespace Paniq.Simulation
 
         public int LostCount => CountOutcome(AgentTerminalOutcome.Lost);
         public int EscapedCount => CountOutcome(AgentTerminalOutcome.Escaped);
+
+        /// <summary>Alive inside at the end, somewhere the hazard could not reach.</summary>
+        public int SurvivedCount => CountOutcome(AgentTerminalOutcome.Survived);
+
+        /// <summary>Where the round has got to: before the event, during it, or finished.</summary>
+        public RoundPhase RoundPhase { get; }
+
+        /// <summary>Whether the player has set the disaster going yet.</summary>
+        public bool EventTriggered => RoundPhase != RoundPhase.BeforeEvent;
+
+        /// <summary>Whether the round is finished and the score final.</summary>
+        public bool RoundIsOver => RoundPhase == RoundPhase.Over;
+
+        /// <summary>Everybody in the level, whatever became of them.</summary>
+        public int CrowdSize => agents.Length;
+
+        /// <summary>
+        /// Saved: out of the building alive, or alive inside at the end
+        /// somewhere the hazard could not reach. The game counts both, because
+        /// barricading yourself somewhere safe is a way of living through a
+        /// disaster rather than an exploit.
+        /// </summary>
+        public int SavedCount => EscapedCount + SurvivedCount;
+
+        /// <summary>Still in the building with their fate undecided.</summary>
+        public int RemainingCount => CrowdSize - SavedCount - LostCount;
+
+        /// <summary>The share of the crowd that has to be saved to clear the level.</summary>
+        public int TargetSavedPercent { get; }
+
+        /// <summary>How many people that target works out to, rounded up.</summary>
+        public int TargetSavedCount => (CrowdSize * TargetSavedPercent + 99) / 100;
+
+        /// <summary>The share of the crowd saved so far, rounded to the nearest whole percent.</summary>
+        public int SavedPercent => CrowdSize == 0 ? 0 : (SavedCount * 100 + CrowdSize / 2) / CrowdSize;
+
+        /// <summary>Whether enough people have been saved to clear the level.</summary>
+        public bool Cleared => SavedCount >= TargetSavedCount;
 
         private int CountOutcome(AgentTerminalOutcome outcome)
         {

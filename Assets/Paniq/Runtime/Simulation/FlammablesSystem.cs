@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -365,6 +365,24 @@ namespace Paniq.Simulation
             {
                 fire.IgniteCell(cell, thing.EventId);
             }
+        }
+
+        /// <summary>
+        /// Whether anything in this room is alight. A burning chair in a room
+        /// with no burning floor square is still the fire being in that room,
+        /// which is what the end of a round has to know.
+        /// </summary>
+        public bool AnythingBurningInRoom(int room)
+        {
+            for (int i = 0; i < alight.Count; i++)
+            {
+                if (geometry.RoomAtPoint(PositionOf(things[alight[i]])) == room)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private LogicalPosition PositionOf(Flammable thing)

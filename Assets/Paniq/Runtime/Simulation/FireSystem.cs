@@ -96,13 +96,33 @@ namespace Paniq.Simulation
         public bool IsBurningInRoom(int room) => room >= 0 && burningPerRoom[room] > 0;
         public ulong ActivationEventId => activationEventId;
 
-        /// <summary>Phase 2: the fire starts on its tick, then spreads.</summary>
+        /// <summary>Whether somebody has asked for the fire to start but it has not lit yet.</summary>
+        private bool startRequested;
+
+        /// <summary>
+        /// The player's "trigger event", asking for the fire to start. Nothing
+        /// lights here: phase 2 of this tick does the lighting, exactly as it
+        /// does when the fire starts itself on a tick count. Asking twice is
+        /// the same as asking once.
+        /// </summary>
+        public void RequestStart() => startRequested = true;
+
+        /// <summary>Whether the fire has been asked to start, whether or not it has lit yet.</summary>
+        public bool StartRequested => startRequested || active;
+
+        /// <summary>Phase 2: the fire starts when it is due, then spreads.</summary>
         public void Advance()
         {
             int tick = context.Tick;
             if (!active)
             {
-                if (tick >= settings.ActivationTick)
+                // Either the player sets it off, or it sets itself off on its
+                // own tick count -- never both, so a level cannot surprise a
+                // player who was told nothing would happen until they pressed.
+                bool due = context.Scenario.Round.HazardWaitsForTrigger
+                    ? startRequested
+                    : tick >= settings.ActivationTick;
+                if (due)
                 {
                     active = true;
                     activationEventId = Ignite(originCell, FireReactionEventType.FireActivated, 0UL);

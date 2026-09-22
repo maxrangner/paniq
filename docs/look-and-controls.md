@@ -1,9 +1,10 @@
 # Look and controls
 
-**Status:** decided direction, mostly unbuilt. This note records how Paniq is
-meant to look and how the player drives the camera. It does not describe what
-exists today — the prototype's camera is fixed, framed once around every room,
-and does not move.
+**Status:** the controls below are **built** as of prototype 2. The camera
+moves, turns a quarter at a time and zooms with a coupled tilt, exactly as
+this note describes. The look is partly built: the building now reads as one
+floor of an office tower, and the two *Future goals* at the bottom — a slight
+perspective with depth of field, and the cutaway walls — are still parked.
 
 The decisions themselves were settled with the owner; the ones with technical
 consequences are recorded in [technical decisions](technical-decisions.md).
@@ -46,11 +47,19 @@ Chosen on the owner's behalf:
   direction every time the player pressed Q, which is disorienting.
 - Rotation **snaps** rather than sweeping freely, so the view always returns to
   a corner and the look stays consistent.
-- The angles, zoom limits and how far the tilt travels are presentation values
-  and will be chosen when the camera is built.
+- The angles, zoom limits and how far the tilt travels are presentation values,
+  chosen when the camera was built and listed below.
 
-Keys the prototype already uses, which these must live alongside: **1–4** pick
-a card, and **Tab** shows the table of everyone's traits.
+Keys the prototype already uses, which these live alongside: **1–4** pick a
+card, **Tab** shows the table of everyone's traits, **G** paints the floor
+people can walk on, and **Space** pauses.
+
+The values chosen when the camera was built, recorded in
+[technical decisions](technical-decisions.md): the view pans at 14 metres a
+second and more slowly the closer it is zoomed, the wheel zooms in twelve
+notches from the whole building down to about a sixth of it, and the tilt
+travels from 35.264 degrees at full zoom-out to 18 degrees fully in. The view
+can be pushed about eight metres past the building's edge and no further.
 
 ## The look
 

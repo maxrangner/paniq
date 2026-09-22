@@ -120,6 +120,10 @@ Still to come:
   about 300 people.
 - **Particles bouncing off walls.** Today they bounce off the floor only, and a
   spark can fly through a wall. Worth doing if it is noticed in play.
+- **Bangs seen through walls.** Before physics, the sparks and smoke of a bang
+  in the next room showed through the wall the way flames do. The new particles
+  cannot yet, so a bang out of sight is heard but not seen. Worth doing if
+  playtesters miss it.
 
 ## Choosing the next stone
 

@@ -93,6 +93,44 @@ namespace Paniq.Tests.EditMode
             Assert.That(leaders, Is.EqualTo(2), "One natural leader in each big room.");
         }
 
+        /// <summary>
+        /// A chair left in a doorway seals that way out for everybody. Somebody
+        /// taking charge does not need to have tried the door themselves — the
+        /// obstruction is there to be seen — so they send whoever is strong
+        /// enough to heave it aside.
+        /// </summary>
+        [Test]
+        public void ALeader_SendsSomebodyStrongAtAWedgedDoor()
+        {
+            // Strong enough to shift a bin, and biddable. The door is unlocked,
+            // so the only thing wrong with it is the box sitting in the gap.
+            FireReactionScenarioData data = LeaderAnd(Person(8, 5, 0, 9, 2));
+            data.Doors = FireReactionDoorsEditModeTests
+                .WithAWayOutOfTheOffice(scenario.ToRuntimeData(), startsLocked: false).Doors;
+
+            // The north door's gap is centred on x = -2500 in the wall at z = 6000.
+            data.PhysicsObjects = new[]
+            {
+                new FireReactionPhysicsObjectDefinition(new SimulationId(3001UL), PhysicsObjectKind.Box,
+                    new LogicalPosition(-2500, 5800), 400, 12000)
+            };
+
+            var simulation = new FireReactionSimulation(data);
+            for (int t = 0; t < 60 * FireReactionSimulation.TicksPerSecond &&
+                            EventsOfType(simulation, FireReactionEventType.AgentShovedObstruction).Count == 0; t++)
+            {
+                simulation.Step();
+            }
+
+            List<CausalEvent> orders = EventsOfType(simulation, FireReactionEventType.LeaderOrderedDoorBroken);
+            Assert.That(orders, Is.Not.Empty, "The leader never sent anyone at the wedged door.");
+            Assert.That(orders[0].SourceId, Is.EqualTo(new SimulationId(1UL)), "The order comes from the leader.");
+            Assert.That(orders[0].TargetId, Is.EqualTo(new SimulationId(2UL)), "It names who was sent.");
+
+            Assert.That(EventsOfType(simulation, FireReactionEventType.AgentShovedObstruction), Is.Not.Empty,
+                "And they heaved the box out of the doorway.");
+        }
+
         [Test]
         public void ALeader_SendsAStrongPersonAtADoorThatWillNotOpen()
         {

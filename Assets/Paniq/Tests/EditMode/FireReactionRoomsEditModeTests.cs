@@ -278,7 +278,7 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>Within a metre of the middle of a door that is standing open.</summary>
-        private static bool NearAnOpenDoor(FireReactionSimulation simulation, LogicalPosition position)
+        internal static bool NearAnOpenDoor(FireReactionSimulation simulation, LogicalPosition position)
         {
             for (int d = 0; d < simulation.DoorCount; d++)
             {

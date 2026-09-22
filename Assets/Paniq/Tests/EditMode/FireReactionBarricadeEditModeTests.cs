@@ -61,10 +61,16 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The north door of the office, unlocked, with one box sitting squarely
-        /// in its doorway from the inside.
+        /// The north door of the office, unlocked, with one box in its doorway.
+        /// By default the box sits across the wall line itself, so it is in the
+        /// frame and stops the leaf swinging whichever way it would go.
         /// </summary>
-        private FireReactionScenarioData BoxInTheNorthDoorway()
+        /// <param name="millimetresInsideTheRoom">
+        /// How far in from the wall line the box sits. 0 puts it in the frame;
+        /// 200 puts it clear of the frame on the inside, where it stops the leaf
+        /// swinging inwards and leaves the outward swing free.
+        /// </param>
+        private FireReactionScenarioData BoxInTheNorthDoorway(int millimetresInsideTheRoom = 200)
         {
             FireReactionScenarioData data = scenario.ToRuntimeData();
             data.Tables = new FireReactionTableDefinition[0];
@@ -73,7 +79,8 @@ namespace Paniq.Tests.EditMode
             // The north door's gap is centred on x = -2500 in the wall at z = 6000.
             data.PhysicsObjects = new[]
             {
-                new FireReactionPhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box, new LogicalPosition(-2500, 5800), 400, 12000)
+                new FireReactionPhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box,
+                    new LogicalPosition(-2500, 6000 - millimetresInsideTheRoom), 400, 12000)
             };
             data.Doors = new[]
             {
@@ -95,6 +102,12 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
+        /// <summary>
+        /// A chair left in a doorway stops that door dead, whichever side it is
+        /// on and whichever way the leaf would swing: the thing is sitting in the
+        /// gap the leaf has to sweep. The player's clicks do nothing until
+        /// somebody shifts it, which is the point of it.
+        /// </summary>
         [Test]
         public void SomethingRestingInADoorway_JamsTheDoorShut()
         {

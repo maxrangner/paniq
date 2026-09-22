@@ -101,6 +101,14 @@ namespace Paniq.Simulation
                 fear.Unfreeze(agent);
             }
 
+            // Set on a way out they can see standing open, right now, and not
+            // otherwise occupied. While this is true they stop dithering.
+            // Worked out after the fire and the frozen have had their say, so
+            // neither is overruled by it.
+            bool eager = doorBehaviour.IsSetOnAWayOut(agent) && !inDanger && !agent.Burning.IsBurning &&
+                         agent.Body.State == AgentBodyState.Upright;
+            intent.SetOnAWayOut = eager;
+
             if (tick >= agent.Fear.NextShoutTick)
             {
                 sound.Yell(agent, agent.Fear.ScaredEventId);
@@ -118,12 +126,6 @@ namespace Paniq.Simulation
 
                 intent.Activity = AgentActivityState.Fleeing;
             }
-
-            // Set on a way out they can see standing open, right now, and not
-            // otherwise occupied. While this is true they stop dithering.
-            bool eager = doorBehaviour.IsSetOnAWayOut(agent) && !inDanger && !agent.Burning.IsBurning &&
-                         agent.Body.State == AgentBodyState.Upright;
-            intent.SetOnAWayOut = eager;
 
             // Anything they would rather be doing than running, in order.
             for (int i = 0; i < options.Length; i++)

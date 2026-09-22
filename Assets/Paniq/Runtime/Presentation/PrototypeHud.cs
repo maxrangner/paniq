@@ -21,7 +21,8 @@ namespace Paniq.Presentation
             FireReactionSnapshot snapshot,
             FireReactionScenarioData scenario,
             SimulationId? hoveredDoor,
-            DoorState hoveredState)
+            DoorState hoveredState,
+            bool hoveredIsJammed = false)
         {
             GUI.color = Color.white;
             string fireText = snapshot.FireActive
@@ -39,7 +40,11 @@ namespace Paniq.Presentation
                 "Tab: everyone's stats   G: the floor people can walk on");
             if (hoveredDoor.HasValue)
             {
-                string action = hoveredState == DoorState.Locked ? "Click to unlock"
+                // A door with something wedged in it will not move however many
+                // times you click, so say so rather than letting the click look
+                // as though it did nothing.
+                string action = hoveredIsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted"
+                    : hoveredState == DoorState.Locked ? "Click to unlock"
                     : hoveredState == DoorState.Unlocked ? "Click to open"
                     : hoveredState == DoorState.Broken ? "Broken down"
                     : "Click to close (if nobody is in the doorway)";
@@ -96,6 +101,45 @@ namespace Paniq.Presentation
                         ? $"TNT: click a wall  ({snapshot.BlastChargesRemaining} left)"
                         : $"{PlayerInput.NameOf(selected.Value)}: click a spot on the floor";
             GUI.Label(new Rect(20f, bottom - cardHeight - gap - 44f, 900f, 22f), hint);
+        }
+
+        /// <summary>
+        /// What the marks over people's heads mean, so the crowd can be read
+        /// without being told. Small, down the left, above the cards.
+        /// </summary>
+        public static void DrawLegend()
+        {
+            const float rowHeight = 18f;
+            const float width = 250f;
+            var rows = new[]
+            {
+                (Colour: new Color(1f, 0.25f, 0.2f), Mark: "!", Means: "just noticed something"),
+                (Colour: new Color(0.45f, 0.9f, 1f), Mark: ")))", Means: "shouting"),
+                (Colour: new Color(1f, 0.85f, 0.3f), Mark: "?", Means: "what was that noise?"),
+                (Colour: new Color(0.8f, 0.8f, 0.8f), Mark: "...", Means: "idling"),
+                (Colour: new Color(0.7f, 0.85f, 1f), Mark: "*", Means: "frozen with fear"),
+                (Colour: new Color(1f, 0.9f, 0.35f), Mark: "o o o", Means: "out cold"),
+                (Colour: new Color(0.4f, 0.95f, 0.5f), Mark: "^", Means: "leading, or following"),
+                (Colour: new Color(1f, 0.55f, 0.15f), Mark: "[]", Means: "on fire"),
+                (Colour: new Color(0.55f, 0.15f, 0.15f), Mark: "[]", Means: "lost")
+            };
+
+            float height = rowHeight * (rows.Length + 1) + 10f;
+            float bottom = Screen.height - 20f - 34f - 8f - 44f - 22f;
+            var area = new Rect(20f, bottom - height, width, height);
+            GUI.color = new Color(0f, 0f, 0f, 0.6f);
+            GUI.DrawTexture(area, Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(area.x + 8f, area.y + 4f, width - 16f, rowHeight), "What the marks mean");
+            float y = area.y + 4f + rowHeight;
+            foreach ((Color colour, string mark, string means) in rows)
+            {
+                GUI.color = colour;
+                GUI.Label(new Rect(area.x + 8f, y, 46f, rowHeight), mark);
+                GUI.color = Color.white;
+                GUI.Label(new Rect(area.x + 58f, y, width - 66f, rowHeight), means);
+                y += rowHeight;
+            }
         }
 
         /// <summary>

@@ -197,8 +197,10 @@ namespace Paniq.Presentation
             if (frameSnapshot != null)
             {
                 PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, hoveredDoor,
-                    hoveredDoor.HasValue ? room.StateOf(hoveredDoor.Value) : DoorState.Locked);
+                    hoveredDoor.HasValue ? room.StateOf(hoveredDoor.Value) : DoorState.Locked,
+                    hoveredDoor.HasValue && IsJammed(frameSnapshot, hoveredDoor.Value));
                 PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input);
+                PrototypeHud.DrawLegend();
                 if (showStats)
                 {
                     string feel = runner.PhysicsFeelName ?? "the scenario's own";
@@ -211,6 +213,20 @@ namespace Paniq.Presentation
                     PrototypeHud.DrawStats(frameSnapshot, footer);
                 }
             }
+        }
+
+        /// <summary>Whether this door is wedged so hard that no click will move it.</summary>
+        private static bool IsJammed(FireReactionSnapshot snapshot, SimulationId doorId)
+        {
+            foreach (FireReactionDoorSnapshot door in snapshot.Doors)
+            {
+                if (door.DoorId == doorId)
+                {
+                    return door.IsJammed;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>Starts icons, ripples, hops and judders for every event since the last frame.</summary>

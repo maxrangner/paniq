@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("40"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(32));
+            Assert.That(data.ContentRevision, Is.EqualTo("41"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(33));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -724,7 +724,13 @@ namespace Paniq.Tests.EditMode
                             headingSamples++;
                         }
 
-                        stillTicks[i] = agent.Position.Equals(lastPosition[i]) ? stillTicks[i] + 1 : 0;
+                        // Waiting your turn in the queue at a doorway is not
+                        // being pinned, it is the whole point of one way out.
+                        // FireReactionRoomsEditModeTests owns that case and
+                        // holds it to its own, looser limit; what this guards
+                        // against is somebody stuck against a wall in open floor.
+                        bool queueing = FireReactionRoomsEditModeTests.NearAnOpenDoor(simulation, agent.Position);
+                        stillTicks[i] = agent.Position.Equals(lastPosition[i]) && !queueing ? stillTicks[i] + 1 : 0;
                         Assert.That(stillTicks[i], Is.LessThanOrEqualTo(75),
                             $"Panicked agent {agent.AgentId} stood pinned for 1.5 s at tick {tick}.");
                     }
@@ -1057,7 +1063,10 @@ namespace Paniq.Tests.EditMode
                     if (agent.Temperament != AgentPanicTemperament.FreezeForever ||
                         agent.Participation != AgentParticipation.Participating || agent.IsBurning)
                     {
-                        // Even the frozen run once they are on fire.
+                        // Even the frozen run once they are on fire. Forget where
+                        // they were rooted, too: if the flames are put out they
+                        // freeze again, but somewhere else entirely.
+                        frozenAt[i] = null;
                         continue;
                     }
 
@@ -1154,7 +1163,11 @@ namespace Paniq.Tests.EditMode
                 var previous = new FireReactionAgentSnapshot[count];
                 var downTicks = new int[count];
                 int longestDown = Math.Max(
-                    Math.Max(data.Falls.KnockdownMaximumTicks, data.Falls.TripMaximumTicks) + data.Falls.GetUpTicks,
+                    Math.Max(
+                        Math.Max(data.Falls.KnockdownMaximumTicks, data.Falls.TripMaximumTicks),
+
+                        // Somebody alight can also put themselves on the floor.
+                        data.Fire.RollMaximumTicks) + data.Falls.GetUpTicks,
                     data.Falls.UnconsciousMaximumTicks + data.Falls.ComeToGetUpTicks) + 1;
                 // Bodies give a little: in a packed, shoving crowd two people on
                 // their feet may press a few centimetres into each other, and
@@ -1244,7 +1257,11 @@ namespace Paniq.Tests.EditMode
                             Assert.That(cause == FireReactionEventType.AgentKnockedDown ||
                                         cause == FireReactionEventType.AgentTripped ||
                                         cause == FireReactionEventType.AgentCrushed ||
-                                        cause == FireReactionEventType.AgentCameTo, Is.True,
+                                        cause == FireReactionEventType.AgentCameTo ||
+
+                                        // Somebody alight who threw themselves down
+                                        // to roll gets up the same way.
+                                        cause == FireReactionEventType.AgentRolled, Is.True,
                                 $"Seed {seed}: got up after {cause}.");
                             break;
                     }

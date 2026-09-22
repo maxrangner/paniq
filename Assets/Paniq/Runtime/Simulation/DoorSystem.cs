@@ -513,7 +513,7 @@ namespace Paniq.Simulation
             DoorRuntime d = doors[door];
             int damagePercent = Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength);
             return new FireReactionDoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent,
-                d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide);
+                d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door));
         }
 
         public FireReactionDoorSnapshot[] GetSnapshots()

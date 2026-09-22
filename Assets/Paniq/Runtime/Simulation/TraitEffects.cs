@@ -142,9 +142,10 @@ namespace Paniq.Simulation
 
         public static int SwerveChancePercent(Agent agent, FireReactionScenarioData scenario)
         {
-            if (agent.Fear.Composed)
+            if (agent.Fear.Composed || agent.Intent.SetOnAWayOut)
             {
-                // Somebody walking out because a bell rang does not zig-zag.
+                // Somebody walking out because a bell rang does not zig-zag, and
+                // nor does anybody with a way out in front of them standing open.
                 return 0;
             }
 
@@ -154,7 +155,7 @@ namespace Paniq.Simulation
 
         public static int HesitateChancePercent(Agent agent, FireReactionScenarioData scenario)
         {
-            if (agent.Fear.Composed)
+            if (agent.Fear.Composed || agent.Intent.SetOnAWayOut)
             {
                 // Nor do they stop and dither.
                 return 0;
@@ -170,7 +171,12 @@ namespace Paniq.Simulation
         /// </summary>
         public static int FleeSpeed(Agent agent)
         {
-            return agent.Fear.Composed ? agent.Personality.CalmSpeed : agent.Personality.PanicSpeed;
+            // A level head is a brisk walk while the fire is somebody else's
+            // problem, but a door to the street standing open is worth running
+            // for whoever you are.
+            return agent.Fear.Composed && !agent.Intent.SetOnAWayOut
+                ? agent.Personality.CalmSpeed
+                : agent.Personality.PanicSpeed;
         }
 
         public static int TripChancePercent(Agent agent, FireReactionScenarioData scenario)

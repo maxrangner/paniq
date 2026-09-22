@@ -38,23 +38,23 @@ namespace Paniq.Simulation
                     settings.BurningScreamMinimumTicks, settings.BurningScreamMaximumTicks));
             }
 
-            // Some of them remember what they were told as children: down,
-            // and roll. It is the one thing that can save them, and it is
-            // not a decision so much as a reflex that some people have.
-            // Only somebody on their feet can throw themselves down, so
-            // being knocked over while alight never turns into a roll (and
-            // never stretches out how long they are on the floor).
-            if (agent.Body.State == AgentBodyState.Upright &&
-                context.Random.NextPercent(settings.DropAndRollChancePercent))
-            {
-                body.DropAndRoll(agent, context.Random.NextIntInclusive(
-                    settings.RollMinimumTicks, settings.RollMaximumTicks), burning.EventId);
-                return new MotorIntent(agent.Body.Heading, 0, agent.Personality.PanicTurnRate,
-                    context.Scenario.Panic.Acceleration);
-            }
-
             if (tick >= burning.NextTurnTick || agent.Body.BlockedTicks >= settings.BurningBlockedTurnTicks)
             {
+                // Some of them remember what they were told as children: down,
+                // and roll. It is the one thing that can save them, and it is
+                // not a decision so much as a reflex that some people have.
+                // Only somebody on their feet can throw themselves down, so
+                // being knocked over while alight never turns into a roll (and
+                // never stretches out how long they are on the floor).
+                if (agent.Body.State == AgentBodyState.Upright &&
+                    context.Random.NextPercent(settings.DropAndRollChancePercent))
+                {
+                    body.DropAndRoll(agent, context.Random.NextIntInclusive(
+                        settings.RollMinimumTicks, settings.RollMaximumTicks), burning.EventId);
+                    return new MotorIntent(agent.Body.Heading, 0, agent.Personality.PanicTurnRate,
+                        context.Scenario.Panic.Acceleration);
+                }
+
                 agent.Intent.LookHeading = context.Random.NextIntInclusive(0, 359);
                 burning.NextTurnTick = checked(tick + context.Random.NextIntInclusive(
                     settings.BurningTurnMinimumTicks, settings.BurningTurnMaximumTicks));

@@ -71,8 +71,36 @@ namespace Paniq.Tests.EditMode
             return false;
         }
 
+        /// <summary>
+        /// Whether a thing just outside the building got there through a way out
+        /// standing open (or battered down, or blasted): its middle is in that
+        /// doorway's gap, within a metre of the wall line. Anything else outside
+        /// went through a wall.
+        /// </summary>
+        private static bool ThroughAnOpenWayOut(FireReactionSnapshot snapshot, LogicalPosition position)
+        {
+            foreach (FireReactionDoorSnapshot door in snapshot.Doors)
+            {
+                if (!door.LeadsOutside ||
+                    !(door.IsHole || door.State == DoorState.Open || door.State == DoorState.Broken))
+                {
+                    continue;
+                }
+
+                bool eastOrWest = door.Side == WallSide.East || door.Side == WallSide.West;
+                long along = eastOrWest ? position.Z - door.Centre.Z : position.X - door.Centre.X;
+                long across = eastOrWest ? position.X - door.Centre.X : position.Z - door.Centre.Z;
+                if (Math.Abs(along) <= door.WidthMillimetres / 2 && Math.Abs(across) <= 1000L)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static void AssertNothingOverlaps(FireReactionSimulation simulation, FireReactionScenarioData data, string context,
-            PressWatch presses)
+            PressWatch presses, HashSet<SimulationId> wentOutside = null)
         {
             FireReactionSnapshot snapshot = simulation.GetSnapshot();
             presses.Check(simulation, context);
@@ -86,7 +114,17 @@ namespace Paniq.Tests.EditMode
                 }
 
                 // Its middle is in a room, or in a doorway between two: things
-                // can slide through an open door now.
+                // can slide through an open door now. With real physics a thing
+                // kicked through a way out that stands open ends up outside,
+                // which is fine; the test is here to catch things going through
+                // walls.
+                if (wentOutside != null && !InAnyRoom(data, box.Position, 0) &&
+                    (wentOutside.Contains(box.ObjectId) || ThroughAnOpenWayOut(snapshot, box.Position)))
+                {
+                    wentOutside.Add(box.ObjectId);
+                    continue;
+                }
+
                 Assert.That(InAnyRoom(data, box.Position, 0), Is.True,
                     $"{context}: box {box.ObjectId} left the rooms at tick {snapshot.Tick}.");
             }
@@ -238,6 +276,7 @@ namespace Paniq.Tests.EditMode
                 FireReactionScenarioData data = DefaultData();
                 var simulation = new FireReactionSimulation(data, seed);
                 var presses = new PressWatch();
+                var wentOutside = new HashSet<SimulationId>();
                 var start = new LogicalPosition[simulation.PhysicsObjectCount];
                 for (int b = 0; b < start.Length; b++)
                 {
@@ -248,7 +287,7 @@ namespace Paniq.Tests.EditMode
                 while (simulation.Tick < endTick)
                 {
                     simulation.Step();
-                    AssertNothingOverlaps(simulation, data, $"seed {seed}", presses);
+                    AssertNothingOverlaps(simulation, data, $"seed {seed}", presses, wentOutside);
                 }
 
                 foreach (CausalEvent bump in EventsOfType(simulation, FireReactionEventType.BoxBumped))

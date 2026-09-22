@@ -172,6 +172,18 @@ namespace Paniq.Presentation
                 float age = time - view.BodyStateSince;
                 bool fallen = agent.BodyState == AgentBodyState.Fallen || agent.BodyState == AgentBodyState.Unconscious;
                 bool rising = agent.BodyState == AgentBodyState.GettingUp;
+
+                // Anybody not sitting stands at their full height. Set here as
+                // well as in the seated branch, because somebody knocked out of a
+                // chair goes from sitting to lying in one tick and would
+                // otherwise stay folded up on the floor.
+                bool seatedNow = agent.ActivityState == AgentActivityState.Sitting ||
+                                 agent.ActivityState == AgentActivityState.StandingUp;
+                if (!seatedNow)
+                {
+                    view.Transform.localScale = BodyScale;
+                }
+
                 if (lost)
                 {
                     // Knocked flat where the fire caught them.
@@ -266,11 +278,16 @@ namespace Paniq.Presentation
                         bounce = 0f;
                     }
 
-                    // Seated, the body drops by the height of the seat so the head
-                    // is where a sitting person's head would be, just above the
-                    // table rather than a full body-height above the chair.
+                    // Seated, they are on the seat rather than standing in the
+                    // chair: the body sits on top of the cushion and folds up, so
+                    // the head ends just above the table top instead of a whole
+                    // body-height above the floor.
+                    float bodyHeight = Mathf.Lerp(BodyHalfHeight, BodyHalfHeight * SeatedSquash, seated);
+                    float floor = SeatHeight * seated;
+                    view.Transform.localScale = new Vector3(
+                        BodyScale.x, Mathf.Lerp(BodyScale.y, BodyScale.y * SeatedSquash, seated), BodyScale.z);
                     view.Transform.SetPositionAndRotation(
-                        planar + shake + lunge + Vector3.up * (BodyHalfHeight - SeatedDrop * seated + bounce + alertJump),
+                        planar + shake + lunge + Vector3.up * (floor + bodyHeight + bounce + alertJump),
                         Quaternion.Euler(lean + 6f * seated, yaw, roll));
                 }
 
@@ -424,8 +441,18 @@ namespace Paniq.Presentation
         private const float SlumpDegrees = 40f;
         private static readonly Vector3 BodyScale = new Vector3(BodyRadius * 2f, BodyHalfHeight, BodyRadius * 2f);
 
-        /// <summary>How far a sitting body sinks onto the seat.</summary>
-        private const float SeatedDrop = 0.16f;
+        /// <summary>
+        /// The seat of a chair, matching the one BoxViews draws. A seated body
+        /// stands on this rather than on the floor.
+        /// </summary>
+        private const float SeatHeight = 0.45f;
+
+        /// <summary>
+        /// How much of their height somebody keeps once they are sitting: knees
+        /// and hips are folded away, so a seated head sits just above a 0.74 m
+        /// table rather than well over it.
+        /// </summary>
+        private const float SeatedSquash = 0.62f;
 
         private void UpdateVisionCone(FireReactionAgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw)
         {

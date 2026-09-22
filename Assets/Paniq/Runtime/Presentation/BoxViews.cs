@@ -158,6 +158,24 @@ namespace Paniq.Presentation
                         new Vector3(size * 0.8f, height * 0.6f, 0.03f));
                     break;
 
+                case PhysicsObjectKind.TableWreck:
+                    // What is left of a table that went over: three boards in a
+                    // heap, lying at angles to each other. Low enough to see
+                    // over, solid enough to have to go round.
+                    height = 0.18f;
+                    colour = PresentationMaterials.WoodColor * 0.75f;
+                    for (int board = 0; board < 3; board++)
+                    {
+                        GameObject plank = CreatePrimitive($"Board {board}", PrimitiveType.Cube, root,
+                            root.position + Vector3.up * (0.03f + board * 0.05f),
+                            new Vector3(size * 1.4f, 0.05f, size * 0.8f), materials.Box);
+                        plank.transform.localRotation = Quaternion.Euler(0f, board * 28f - 28f, board * 4f - 4f);
+                        ShowThroughWalls(plank, materials);
+                        renderers.Add(plank.GetComponent<Renderer>());
+                    }
+
+                    break;
+
                 case PhysicsObjectKind.WallSocket:
                     // A small flat plate; it never moves, so it is barely there.
                     height = size * 0.5f;

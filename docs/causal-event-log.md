@@ -23,8 +23,13 @@ Each run owns one append-only `CausalEventLog` as part of its mutable runtime
 state. The log records every immutable causal event that the simulation emits
 for that run, exactly once. It contains the contract envelope unchanged:
 Event ID, tick, source ID, event type, logical position, optional strength,
-optional duration, and causal parent. Each event type defines the meaning of
-its populated optional fields; absent values do not imply a magic numeric value.
+optional duration, causal parent, and optional target ID. Each event type
+defines the meaning of its populated optional fields; absent values do not imply
+a magic numeric value.
+
+Snapshots do not copy the log. Because entries are only ever added, a snapshot
+holds a read-only view of the entries that existed at its tick, and later
+entries stay invisible to it.
 
 Events are retained in ascending tick, then ascending Event ID order. The log
 retains the complete history while its run exists; it does not prune, reorder,

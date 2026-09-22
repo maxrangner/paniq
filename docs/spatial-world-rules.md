@@ -1,4 +1,4 @@
-# Movement and spatial-world rules
+﻿# Movement and spatial-world rules
 
 **Status:** decided foundation. This note defines the logical ground plane,
 authored world constraints, occupancy, and basic movement resolution. It does
@@ -63,7 +63,7 @@ initial positions violate the boundary, obstacle, or overlap rules.
 | --- | --- |
 | 20 ms logical tick | Matches the contract's 50 ticks per second while keeping a small, inspectable simulation step. |
 | Integer millimetres | Converts cleanly to Unity metres while avoiding floating-point state for this local-world foundation. |
-| 200 m coordinate span | Accommodates the compact slice while bounding integer collision calculations. |
+| 200 m coordinate span | Accommodates compact prototype rooms while bounding integer collision calculations. |
 | Shared footprint and authored step | Keeps early occupancy and movement rules understandable; varied sizes and speeds remain later work. |
 
 Spatial implementations must calculate coordinate differences and every
@@ -130,8 +130,34 @@ the intended experience.
 
 When spatial runtime code is introduced, its edit-mode tests must cover swept
 obstacle contact, boundary contact, circle touching semantics, agent occupancy,
-and numeric limits. The vertical slice remains obstacle-free; those focused
+and numeric limits. The current prototype is obstacle-free; those focused
 tests validate obstacle semantics without introducing navigation requirements.
+
+## Fire-reaction prototype notes
+
+The [fire-reaction prototype](fire-reaction-prototype.md) follows these rules
+with two documented extensions. First, each agent has its own seeded speed,
+always within the shared maximum step. Second, the agent's own steering picks
+a valid displacement before submitting it: it keeps the along-wall part of a
+step at the boundary, or tries a small side-step around a person. The resolver
+itself still never slides, reroutes, or retries. The swept-circle test uses the
+exact point-to-segment distance (`IntegerMath.SegmentPassesWithin`), which is
+correct for moves in any direction, not only along the axes.
+
+**Doorways.** Each wall may have doors. A closed door is wall. An open door adds
+a walkable strip as wide as the door, from 1 m inside the wall to 2 m outside
+it. Only a person heading for that door, or already outside the room, may use
+the strip, so calm people still treat every door as wall. A destination is
+valid when the whole footprint fits in the room or in a strip the person may
+use, and the sweep never passes within one body radius of either door-frame
+corner. A person 0.8 m or more outside the wall, lined up with an open door,
+has escaped and leaves occupancy at once.
+
+**Physical objects.** Boxes are round footprints (diameter = box width) that
+also occupy space: a person's sweep may not pass through one, and a box's sweep
+may not pass through a person or another box. Box positions keep hundredths of
+a millimetre so slow slides do not round away, but every overlap test uses
+whole millimetres. Objects stay inside the room and treat doorways as wall (they never pass through one), but an object may come to rest *in* a doorway, against the wall line, and one that does jams that door.
 
 ## Resolution examples
 
@@ -145,3 +171,58 @@ tests validate obstacle semantics without introducing navigation requirements.
 - When an agent becomes `NoLongerParticipating`, its logical position remains
   available as historical run state, but another participating agent may later
   occupy that released space.
+
+## Prototype extension: tables
+
+The fire-reaction prototype adds fixed tables to the room. A table is an
+axis-aligned rectangle in scenario data. A person's footprint may not overlap
+the rectangle grown by the person's radius; the movement rules above apply
+unchanged, with tables treated as extra walls when choosing and resolving a
+step. `WorldGeometry` is the only code that knows where tables are.
+
+## Prototype extension: several rooms
+
+A building is a set of axis-aligned rectangular rooms that never overlap. Two
+rooms that share a wall line are joined by a door set in it; a door with no
+room beyond it leads outside, and only such a door can be escaped through. A
+footprint wholly inside any room is walkable, and an open door's walkable
+strip joins the rooms on either side of it. `WorldGeometry` numbers the rooms
+so fire, sight and sound can respect walls, and answers "how do I walk from
+this room to that one" by searching the rooms as a graph, with each door
+costing the distance from the door walked in through to the door walked out
+of. The first room is where the fire starts.
+
+A scenario is refused if two rooms overlap, if a door names a room that does
+not exist, or if a door would open half into a room and half into its wall.
+
+## Prototype extensions
+
+These are rules the fire-reaction prototype added on top of the foundation
+above. They are recorded here because they change what the shape of the world
+means, not just what happens in it.
+
+**A thing resting in a doorway jams the door.** A loose object in front of a
+door's gap, within its own radius plus a small clearance of the wall line on
+either side, stops that door opening *and* stops it shutting. It is worked out
+once at the end of each tick, after every object has finished moving, so the
+decisions in the following tick read a settled answer. Fire, sound and sight are
+deliberately unaffected: a cardboard box does not stop flames or shouting, so the
+geometry never needs to know about objects.
+
+**A smashed table stops being an obstacle.** Tables are fixed rectangles that
+people, objects and route choices all keep out of. A table that has been broken
+is flagged, and from then on every one of those queries skips it: the floor it
+stood on becomes walkable, and routes may cross it. This is the one thing in the
+prototype that changes the shape of a room during a run.
+
+**An opening may appear during a run.** A blast hole is not a new kind of thing:
+it is one of a fixed number of spare door slots the scenario reserves, filled in
+at the moment a charge is spent and set permanently open. Walkability, route
+finding, fire spread, sound, sight and escaping all ask about doors, so they pick
+a hole up with no rules of their own. Two consequences are load-bearing. A spare
+slot that has not been placed must be skipped by *every* loop over doors,
+because an unplaced slot reads as a door leading outside and would be routed to.
+And placing one must rebuild exactly the two things the geometry caches per door —
+what lies beyond it, and which doors touch which room — through the same code the
+constructor uses, because the order doors appear in per room decides the order
+behaviours consider them.

@@ -68,6 +68,66 @@ scene.
 | Bangs you can see | Style | A laptop battery, a wall socket, a microwave or a stick of TNT goes off with a flash that lights the room, sparks that fall to the floor, a puff of smoke and a jolt of the camera, sized to the blast |
 | Solid furniture | Style | People are drawn their real height, so desks come to their hips; and the see-through silhouette only paints where a wall or a door hides something, so a chair no longer shows through itself |
 
+## Agreed direction for the next stones
+
+Settled with the owner in a design review (see [game vision](game-vision.md)
+for the decisions themselves). This is a direction, not a schedule: the owner
+still picks each stone after playing the one before it.
+
+### Next: the round ends, and it has a score
+
+1. **What the player sees:** the round stops when nobody is left to resolve —
+   everybody is out, dead, or settled somewhere they will not leave. The scene
+   freezes and a card reads "You saved 13 of 20 — 65%". Any person on the
+   frozen scene can be clicked for the facts about them: who they were, their
+   traits, and what happened to them and when. One key plays the level again.
+2. **Layer:** system.
+3. **Deliberately left out:** the plain-language retelling of what happened out
+   of sight (a later stone), comparing one run against another, and any menu
+   around the round.
+4. **How it is checked:** edit-mode tests for the end condition and the count,
+   including the case of somebody alive and settled in a room the hazard cannot
+   reach, who counts as saved. On screen: play to the end and see the freeze,
+   the percentage, and a click on a body producing their facts.
+
+### Then: one hunter
+
+1. **What the player sees:** something that walks toward people and turns
+   whoever it catches into another one of itself. Not a horde, not a mode —
+   one of them, in the existing building.
+2. **Layer:** system and behaviour.
+3. **Deliberately left out:** fiction, art, weapons, and any second hazard
+   family. This stone is not a zombie scenario; it is a test.
+4. **Why this one:** the crowd's fear currently points at a grid of burning
+   floor squares. A hunter is a threat that *moves and chooses*, which is the
+   hardest assumption in the current design. The real work of this stone is
+   generalising "afraid of the fire" into "afraid of a threat" — something at a
+   place, with a size, that can be noticed and that hurts on contact. Finding
+   that seam now, while the codebase is small, is worth more than a second
+   hazard that reuses everything.
+5. **How it is checked:** edit-mode tests that the existing fire behaviour is
+   unchanged by the generalisation, plus tests for chase and conversion. On
+   screen: the crowd flees a walking threat the same way it flees fire.
+
+### After that, in rough order
+
+- **Sound.** Yells, thuds, alarms and screams carried from where they happen.
+  The game deliberately has no helper markers, so sound is how a player knows
+  to turn the camera. The simulation already emits every one of these events.
+- **The trait dials as the toolkit.** Turning strength, bravery, compassion and
+  the rest up *and* down. Almost no new behaviour is required — the behaviours
+  already read these traits.
+- **The Director.** The background system that adds and eases pressure.
+- **A camera the player drives.** Moving, rotating a quarter turn at a time
+  and zooming, per [look and controls](look-and-controls.md). The camera is
+  fixed today, which stops being acceptable the moment a level is bigger
+  than one screen.
+- **Pause to look.** Time stops and the camera moves, but nothing can be
+  spent or played while paused.
+- **A staged level**, big enough that calm people are always on screen
+  somewhere and no single way out saves everybody.
+- **The written retelling** on the end screen.
+
 ## Choosing the next stone
 
 The owner picks the next stone after playing the current prototype. A stone

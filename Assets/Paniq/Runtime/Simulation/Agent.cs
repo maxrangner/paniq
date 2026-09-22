@@ -390,10 +390,39 @@ namespace Paniq.Simulation
         public int AlarmIndex = -1;
     }
 
+    /// <summary>
+    /// The parts of sitting down and getting up again, in order. Nobody snaps
+    /// onto a seat: they pull the chair out, then lower themselves onto it as
+    /// it slides back in under the table, and reverse that to leave.
+    /// </summary>
+    internal enum SitPhase
+    {
+        None,
+        PullingOut,
+        Lowering,
+        ScootingOut,
+        Rising
+    }
+
     internal sealed class AgentSitting
     {
         /// <summary>The chair they are on, or walking to, or -1.</summary>
         public int ChairIndex = -1;
+
+        /// <summary>Which part of sitting down or getting up they are in.</summary>
+        public SitPhase Phase;
+
+        /// <summary>How far the chair has been pulled out from where it stood, in millimetres.</summary>
+        public int PulledOutMillimetres;
+
+        /// <summary>Where they stood when they began lowering onto the seat, or began rising from it.</summary>
+        public LogicalPosition MoveFrom;
+
+        /// <summary>Where the chair stood before they started pulling it out.</summary>
+        public LogicalPosition ChairStart;
+
+        /// <summary>The tick the part they are in began, so the move can be spread evenly across it.</summary>
+        public int PhaseStartTick;
 
         /// <summary>True once they are actually on it.</summary>
         public bool OnIt;

@@ -242,11 +242,16 @@ if the person wakes up, or if they cannot reach them within 5 s. Nobody
 helps someone already close to the fire. In the default cast the saint, the
 hero and one ordinary person shake people awake; only the hero drags.
 
-**Tables and chairs.** Three 1.2 × 0.7 m tables stand in the room. Nobody
-and nothing can pass through a table: people slide along its edge as they
-would along a wall and steer away from it, loose objects bounce off it, and
-random spots people pick to stroll to or run for stay clear of tables.
-Runners also avoid spots and doors whose straight route runs into a table.
+**Tables and chairs.** Three 1.2 × 0.7 m tables stand in the room. A table is
+a thing like any other, not part of the building: it weighs 25 kg for each
+square metre of floor it covers (so a desk is 21 kg and the meeting table
+135 kg), and a crowd pressed against one shoves it, a blast turns it over, and
+a hard enough knock tips it up on its edge. Nobody and nothing passes through
+one: people slide along its edge as they would along a wall and steer away from
+it, loose objects bounce off it, and random spots people pick to stroll to or
+run for stay clear of tables. Runners also avoid spots and doors whose straight
+route runs into a table. When a table has shifted 15 cm the walkable floor
+around it is worked out again, so routes follow the furniture.
 Eight chairs (0.45 m, 5 kg) behave like light boxes: runners kick them
 skidding across the floor and trip over them.
 
@@ -337,11 +342,11 @@ stampede. The whole thing can be switched off in the scenario.
 
 **Furniture breaks.** A hurled box or chair that slams into a chair hard enough
 smashes it: it collapses into flatter, lighter wreckage that people still trip
-over but nobody can sit on. A hard enough hit **tips a table over**: it comes
-up on one edge and crashes down into a heap of boards about half its short side
-across, whatever stood on it slides off onto clear floor beside it, and the heap
-takes a share of whatever knocked it over, so it skids rather than simply
-appearing. From then on it is an ordinary thing on the floor — it blocks, it
+over but nobody can sit on. A hard enough hit **smashes a table**: it collapses into a heap
+of boards about half its short side across, whatever stood on it slides off onto
+clear floor beside it, and the heap takes a share of whatever knocked it over,
+so it skids rather than simply appearing. (A table merely shoved or turned over
+is still a table, lying where the physics put it.) From then on it is an ordinary thing on the floor — it blocks, it
 slides when somebody kicks it, somebody strong can heave it out of a doorway,
 and people trip over it — but the ground the table stood on is walkable again,
 so the shape of the room changes while you watch.
@@ -599,16 +604,20 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   the bottle runs dry they drop it and run.
 - **Sitting.** A calm person choosing what to do next may walk to the
   nearest free chair in their room within 6 m and sit on it for 5–20 s. Nine
-  people also start the run already seated, for 60 s. A chair faces a
-  direction, and whoever sits on it turns to face the same way at their usual
-  turning pace, so a chair pulled up to a table seats somebody looking at the
-  table. A chair with someone on it does not slide, cannot be picked up and
-  cannot be tidied away. Somebody sitting who hears a noise turns in the seat
-  to look and stays in it; if there is nothing to see they turn back to the
-  table. Anyone startled, knocked over or set alight in a chair has to get out
-  of it first: 0.8 s less 0.04 s per point of nervousness, and never less than
-  0.2 s, so the nervous are out of it first. Standing up steps them clear of
-  the seat and shoves the chair the other way.
+  people also start the run already seated, for 60 s. They do not appear on the
+  seat: they stand beside the chair, pull it 30 cm out (it stops against
+  whatever is behind it), and lower themselves onto it over a fifth of a second
+  while it slides back in under the table, stopping a person's width short of
+  it. A chair faces a direction, and whoever sits on it turns to face the same
+  way at their usual turning pace, so a chair pulled up to a table seats
+  somebody looking at the table. A chair with someone on it does not slide,
+  cannot be picked up and cannot be tidied away. Somebody sitting who hears a
+  noise turns in the seat to look and stays in it; if there is nothing to see
+  they turn back to the table. Getting up on purpose runs the same way round:
+  they let go of the chair, back out on it, and rise onto a clear spot. Anyone
+  startled, knocked over or set alight in a chair leaps out instead, which takes
+  0.8 s less 0.04 s per point of nervousness and never less than 0.2 s, so the
+  nervous are out first — and the chair goes over backwards behind them.
 - **Resting on something.** An object may stand on a table or on another
   object. While it does it is in nobody's way, does not slide, and is drawn at
   the height of whatever holds it up, but it still heats, burns and can be

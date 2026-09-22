@@ -294,9 +294,9 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "43";
+        public string ContentRevision = "44";
         public ulong DefaultSeed = 42UL;
-        public int SimulationCompatibilityVersion = 35;
+        public int SimulationCompatibilityVersion = 36;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

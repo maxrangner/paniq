@@ -56,6 +56,9 @@ namespace Paniq.Simulation
         /// <summary>Whether each door slot's plug is in, as the physics last had it.</summary>
         private readonly bool[] doorPlugged;
 
+        /// <summary>Which tables the engine was moving last tick, so a table coming to rest can be noticed.</summary>
+        private readonly bool[] tableWasMoving;
+
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
         {
             // A private copy: whoever handed us the data can change it later
@@ -78,6 +81,7 @@ namespace Paniq.Simulation
             crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres, geometry.FireArea);
             physics = new PhysicsWorld(scenario.PhysicsFeel, geometry.FireArea, scenario.ObjectPhysics.WallRestitutionPercent);
             doorPlugged = new bool[geometry.DoorSlotCount];
+            tableWasMoving = new bool[geometry.TableCount];
             try
             {
                 BuildTheBuildingInThePhysics();
@@ -157,9 +161,39 @@ namespace Paniq.Simulation
                 physics.AddDoor(centre, alongX, width, doorPlugged[door]);
             }
 
+            FlammableSettings flammables = context.Scenario.Flammables;
             for (int table = 0; table < geometry.TableCount; table++)
             {
-                physics.AddTable(geometry.TableBounds(table));
+                LogicalBounds bounds = geometry.TableBounds(table);
+                long squareMillimetres = (long)(bounds.MaxX - bounds.MinX) * (bounds.MaxZ - bounds.MinZ);
+                int massGrams = (int)Math.Max(1000L,
+                    squareMillimetres * flammables.TableMassGramsPerSquareMetre / 1000000L);
+                physics.AddTable(bounds, massGrams, flammables.TableFloorGripPercent);
+                geometry.MoveTable(table, physics.TableFootprint(table), physics.TablePose(table), true);
+            }
+        }
+
+        /// <summary>
+        /// After the engine steps: a table the engine moved covers different
+        /// floor now. Only tables it actually moved are read, so a room full of
+        /// tables standing still costs nothing. The walkable floor is worked out
+        /// again when a table comes to rest, not while it is still sliding:
+        /// people walk round where it was for the moment it takes to settle,
+        /// which nobody can see, and a crowd shoving a desk about does not cost
+        /// a new floor plan every tick.
+        /// </summary>
+        private void FollowTheTables()
+        {
+            for (int table = 0; table < geometry.TableCount; table++)
+            {
+                bool awake = physics.IsTableAwake(table);
+                if (!awake && !tableWasMoving[table])
+                {
+                    continue;
+                }
+
+                geometry.MoveTable(table, physics.TableFootprint(table), physics.TablePose(table), !awake);
+                tableWasMoving[table] = awake;
             }
         }
 
@@ -596,6 +630,7 @@ namespace Paniq.Simulation
             physics.Step();
             physicsStepTimestampTicks += System.Diagnostics.Stopwatch.GetTimestamp() - stepStarted;
             people.ReadBack();
+            FollowTheTables();
             objects.AfterStep();
             collisions.Resolve(physics.Contacts);
             people.FeelTheSqueeze(physics.Contacts);

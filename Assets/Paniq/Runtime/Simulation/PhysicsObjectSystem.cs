@@ -631,6 +631,93 @@ namespace Paniq.Simulation
             return chair.Position;
         }
 
+        /// <summary>
+        /// Sets a thing sliding gently along a heading, the way a hand pulls a
+        /// chair out: the engine carries it, so it stops against whatever is
+        /// behind it. Nothing is logged; a hand on a chair is not an event.
+        /// </summary>
+        public void PullAlong(int index, int heading, int speedMillimetresPerTick)
+        {
+            LogicalPosition velocity = IntegerMath.Displacement(heading, speedMillimetresPerTick);
+            SetMotion(index, (long)velocity.X * SubMillimetre, 0L, (long)velocity.Z * SubMillimetre);
+        }
+
+        /// <summary>Lets go of a thing that was being pulled: it stops where it is.</summary>
+        public void StopPulling(int index)
+        {
+            SetMotion(index, 0L, 0L, 0L);
+            bodies[index].Spin = 0;
+        }
+
+        /// <summary>
+        /// Slides a thing this far along a heading, if the floor there is clear
+        /// of everything but the person moving it. True when it went. Used for
+        /// tucking a chair in under somebody who is already sitting on it: the
+        /// chair is held, so it is moved rather than pushed.
+        /// </summary>
+        public bool TryNudge(int index, int heading, int distance, Agent mover)
+        {
+            PhysicsBody thing = bodies[index];
+            LogicalPosition spot = thing.Position + IntegerMath.Displacement(heading, distance);
+            if (!IsClearForItem(index, spot, mover.Index) ||
+                crowd.FindBlocking(mover, thing.Position, spot) != null)
+            {
+                return false;
+            }
+
+            MoveBody(index, (long)spot.X * SubMillimetre, (long)spot.Z * SubMillimetre);
+            if (thing.OccupiedBy >= 0)
+            {
+                // Held for somebody sitting on it: driven to the spot through
+                // the step, the way a person is, rather than put there behind
+                // the engine's back, which it would undo.
+                world.Drive(index, spot, thing.Heading);
+            }
+            else
+            {
+                world.Place(index, thing.X, 0L, thing.Z, thing.Heading);
+            }
+
+            thing.Reading = world.Read(index);
+            return true;
+        }
+
+        /// <summary>
+        /// Knocks a thing over backwards: shoved away along a heading and set
+        /// turning end over end, so a chair somebody leaps out of goes over
+        /// rather than sliding neatly back. The engine decides where it lands.
+        /// </summary>
+        public void KnockOver(int index, int heading, int speed, ulong causeEventId)
+        {
+            PhysicsBody thing = bodies[index];
+            LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
+
+            // Shoved backwards and lifted a little, so its legs come off the
+            // floor and it can go over instead of skating away upright.
+            SetMotion(index,
+                (long)velocity.X * SubMillimetre,
+                (long)speed * SubMillimetre * KnockOverLiftPercent / 100L,
+                (long)velocity.Z * SubMillimetre);
+
+            // Tipping backwards about the line across the way it is going: the
+            // seat goes up and over the back legs.
+            LogicalPosition direction = IntegerMath.Direction(heading);
+            long turn = (long)KnockOverSpinDegreesPerTick * feel.TumblePercent / 100L;
+            thing.Spin = (int)turn;
+            world.SetSpin(index,
+                (int)(direction.Z * turn / IntegerMath.TrigScale),
+                0,
+                (int)(-direction.X * turn / IntegerMath.TrigScale));
+            thing.Thrown = false;
+            thing.LastPushEventId = causeEventId;
+        }
+
+        /// <summary>How much of the shove goes into lifting a chair somebody leapt out of, as a percentage.</summary>
+        private const int KnockOverLiftPercent = 60;
+
+        /// <summary>How fast a chair somebody leapt out of turns end over end, in degrees a tick.</summary>
+        private const int KnockOverSpinDegreesPerTick = 25;
+
         /// <summary>Someone sits down on a chair: it stops dead and stays put until they get up.</summary>
         public void SitOn(int index, Agent sitter)
         {
@@ -729,7 +816,7 @@ namespace Paniq.Simulation
             return false;
         }
 
-        private bool IsClearForItem(int index, LogicalPosition spot)
+        private bool IsClearForItem(int index, LogicalPosition spot, int ignoreAgentIndex = -1)
         {
             PhysicsBody item = bodies[index];
             if (geometry.RoomAtPoint(spot) < 0 || !geometry.RoomBounds(geometry.RoomAtPoint(spot)).ContainsCircle(spot, item.Radius) ||
@@ -745,8 +832,10 @@ namespace Paniq.Simulation
                 {
                     // Whoever is holding it is never in its way: they are
                     // setting it down at arm's length.
+                    // Whoever is riding it -- sitting on the chair being
+                    // tucked in -- is not in its way either.
                     Agent other = crowd.All[people[c]];
-                    if (other.IsParticipating && other.Index != item.HeldBy &&
+                    if (other.IsParticipating && other.Index != item.HeldBy && other.Index != ignoreAgentIndex &&
                         LogicalPosition.DistanceSquared(other.Body.Position, spot) < agentReach * agentReach)
                     {
                         return false;
@@ -951,7 +1040,55 @@ namespace Paniq.Simulation
                 context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ItemThrown, thing.Position,
                     speed, 0, causeEventId, thing.Id);
             }
+
+            ShoveTablesFrom(centre, reach, strength, causeEventId);
         }
+
+        /// <summary>
+        /// The same blast against the tables. They are bodies like anything
+        /// else, but heavy ones: a blast that sends a bin flying shifts a desk
+        /// and barely rocks the meeting table, so what it gives each one is
+        /// shared out by weight against a <see cref="BlastReferenceMassGrams"/>
+        /// thing. Ascending table order, so a replay agrees.
+        /// </summary>
+        private void ShoveTablesFrom(LogicalPosition centre, long reach, long strength, ulong causeEventId)
+        {
+            for (int t = 0; t < geometry.TableCount; t++)
+            {
+                if (geometry.IsTableBroken(t))
+                {
+                    continue;
+                }
+
+                LogicalBounds bounds = geometry.TableBounds(t);
+                LogicalPosition middle = bounds.Centre;
+                if (LogicalPosition.DistanceSquared(middle, centre) > reach * reach)
+                {
+                    continue;
+                }
+
+                long massGrams = Math.Max(1000L,
+                    (long)(bounds.MaxX - bounds.MinX) * (bounds.MaxZ - bounds.MinZ) *
+                    context.Scenario.Flammables.TableMassGramsPerSquareMetre / 1000000L);
+                long share = Math.Min(strength, strength * BlastReferenceMassGrams / massGrams);
+                int away = IntegerMath.HeadingBetween(centre, middle, 0);
+                LogicalPosition velocity = IntegerMath.Displacement(away, (int)share);
+                // No event: the log is about loose things and people, and a
+                // shoved table hurts nobody by itself (what a table does to
+                // whatever it meets is the building's business, as before).
+                world.ShoveTable(t,
+                    (long)velocity.X * SubMillimetre,
+                    share * SubMillimetre * feel.BlastLiftPercent / 100L,
+                    (long)velocity.Z * SubMillimetre);
+            }
+        }
+
+        /// <summary>
+        /// What a blast is measured against when it shoves a table: a thing of
+        /// this weight is thrown at the blast's full speed, and a table twice
+        /// as heavy gets half of it.
+        /// </summary>
+        private const long BlastReferenceMassGrams = 20000L;
 
         /// <summary>
         /// Sets a flung thing turning end over end, away from where it was

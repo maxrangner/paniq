@@ -427,7 +427,7 @@ namespace Paniq.Simulation
             {
                 Flammable thing = things[objects.Count + t];
                 tables[t] = new FireReactionTableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
-                    geometry.IsTableBroken(t));
+                    geometry.TablePose(t), geometry.IsTableBroken(t));
             }
 
             return tables;

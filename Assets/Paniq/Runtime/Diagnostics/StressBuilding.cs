@@ -6,8 +6,8 @@ namespace Paniq.Diagnostics
 {
     /// <summary>
     /// A building made only for measuring: thirty 6 × 6 m rooms in a grid,
-    /// joined by doorways, with one way out, filled with as many people and
-    /// cardboard boxes as asked for. Nobody is frightened and nothing burns;
+    /// joined by doorways, with one way out, a desk in every room, and as many
+    /// people and cardboard boxes as asked for. Nobody is frightened and nothing burns;
     /// everybody picks something new to do every few ticks, so most of them
     /// are walking, bumping into each other and kicking boxes at any moment.
     /// That busy, crowded office is what a tick costs at its worst. Nothing in
@@ -25,7 +25,6 @@ namespace Paniq.Diagnostics
         public static FireReactionScenarioData Build(FireReactionScenarioData template, int people, int things)
         {
             FireReactionScenarioData data = template.Clone();
-            data.Tables = new FireReactionTableDefinition[0];
             data.Alarms = new FireReactionAlarmDefinition[0];
             data.BlastHoles = new SimulationId[0];
             data.Fire.ActivationTick = int.MaxValue;
@@ -43,6 +42,19 @@ namespace Paniq.Diagnostics
                         new LogicalBounds(column * RoomSize, (column + 1) * RoomSize, row * RoomSize, (row + 1) * RoomSize)));
                 }
             }
+
+            // One desk in the middle of each room. Tables are bodies like
+            // everything else now, so a building being measured needs some.
+            var tables = new List<FireReactionTableDefinition>();
+            for (int room = 0; room < rooms.Count; room++)
+            {
+                LogicalBounds bounds = rooms[room].Bounds;
+                tables.Add(new FireReactionTableDefinition(
+                    new SimulationId((ulong)(51000 + room)),
+                    new LogicalPosition((bounds.MinX + bounds.MaxX) / 2, (bounds.MinZ + bounds.MaxZ) / 2), 1200, 700));
+            }
+
+            data.Tables = tables.ToArray();
 
             var doors = new List<FireReactionDoorDefinition>();
             ulong doorId = 20000UL;
@@ -80,9 +92,20 @@ namespace Paniq.Diagnostics
                 {
                     for (int spot = 0; spot < perSide * perSide; spot++)
                     {
-                        spots.Add(new LogicalPosition(
+                        var where = new LogicalPosition(
                             column * RoomSize + Margin + spot % perSide * Spacing,
-                            row * RoomSize + Margin + spot / perSide * Spacing));
+                            row * RoomSize + Margin + spot / perSide * Spacing);
+
+                        // Not on the desk in the middle of the room.
+                        LogicalBounds desk = data.Tables[row * Columns + column].Bounds;
+                        int clear = data.World.OccupancyRadiusMillimetres + 50;
+                        if (where.X > desk.MinX - clear && where.X < desk.MaxX + clear &&
+                            where.Z > desk.MinZ - clear && where.Z < desk.MaxZ + clear)
+                        {
+                            continue;
+                        }
+
+                        spots.Add(where);
                     }
                 }
             }

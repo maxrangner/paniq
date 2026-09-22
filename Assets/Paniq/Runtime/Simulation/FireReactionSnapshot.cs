@@ -195,17 +195,22 @@ namespace Paniq.Simulation
     public readonly struct FireReactionTableSnapshot
     {
         public FireReactionTableSnapshot(SimulationId tableId, LogicalBounds bounds, ObjectBurnState burnState, int heatPercent,
+            BodyPose pose,
             bool broken = false)
         {
             TableId = tableId;
             Bounds = bounds;
             BurnState = burnState;
             HeatPercent = heatPercent;
+            Pose = pose;
             Broken = broken;
         }
 
         public SimulationId TableId { get; }
         public LogicalBounds Bounds { get; }
+
+        /// <summary>Where it stands and how it is turned: a table is shoved, tipped and flipped like anything else.</summary>
+        public BodyPose Pose { get; }
         public ObjectBurnState BurnState { get; }
 
         /// <summary>How close to catching fire it is, 0–100.</summary>

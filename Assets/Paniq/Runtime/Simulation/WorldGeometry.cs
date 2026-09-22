@@ -31,6 +31,12 @@ namespace Paniq.Simulation
         private readonly int radius;
         private readonly ExitSettings exits;
         private readonly LogicalBounds[] tables;
+
+        /// <summary>Where each table stands and how it is turned, as the engine last had it.</summary>
+        private readonly BodyPose[] tablePoses;
+
+        /// <summary>The floor each table covered when the walkable squares were last worked out.</summary>
+        private readonly LogicalBounds[] tablesAsBaked;
         private readonly SimulationId[] tableIds;
 
         /// <summary>How many of the door slots are really there; the rest are spare.</summary>
@@ -79,9 +85,12 @@ namespace Paniq.Simulation
             tables = new LogicalBounds[definitions.Length];
             tableIds = new SimulationId[definitions.Length];
             tableBroken = new bool[definitions.Length];
+            tablePoses = new BodyPose[definitions.Length];
+            tablesAsBaked = new LogicalBounds[definitions.Length];
             for (int i = 0; i < tables.Length; i++)
             {
                 tables[i] = definitions[i].Bounds;
+                tablesAsBaked[i] = definitions[i].Bounds;
                 tableIds[i] = definitions[i].TableId;
             }
 
@@ -912,6 +921,52 @@ namespace Paniq.Simulation
 
         /// <summary>Smashed: it is wreckage on the floor and no longer in anybody's way.</summary>
         public bool IsTableBroken(int table) => tableBroken[table];
+
+        /// <summary>Where the table stands and how it is turned, for the display.</summary>
+        public BodyPose TablePose(int table) => tablePoses[table];
+
+        /// <summary>
+        /// How far a table has to have shifted before the walkable floor is
+        /// worked out again around it. A table nudged a centimetre by a passing
+        /// crowd changes nobody's route; one heaved a stride across the room, or
+        /// tipped onto its side, changes the shape of the room.
+        /// </summary>
+        private const int TableMovedMillimetres = 150;
+
+        /// <summary>
+        /// The engine moved this table: it covers a different patch of floor
+        /// now, and stands or lies differently. Once it has shifted far enough
+        /// to matter, the squares people walk on are worked out again over both
+        /// the floor it left and the floor it now covers.
+        /// </summary>
+        public void MoveTable(int table, LogicalBounds footprint, BodyPose pose, bool settled)
+        {
+            tables[table] = footprint;
+            tablePoses[table] = pose;
+
+            // Only once it has come to rest. A crowd leaning on a desk shoves it
+            // a millimetre at a time for seconds on end, and working the floor
+            // out again on every one of those ticks costs more than everything
+            // else in the tick put together.
+            if (tableBroken[table] || !settled)
+            {
+                return;
+            }
+
+            LogicalBounds baked = tablesAsBaked[table];
+            if (Math.Abs(footprint.MinX - baked.MinX) < TableMovedMillimetres &&
+                Math.Abs(footprint.MaxX - baked.MaxX) < TableMovedMillimetres &&
+                Math.Abs(footprint.MinZ - baked.MinZ) < TableMovedMillimetres &&
+                Math.Abs(footprint.MaxZ - baked.MaxZ) < TableMovedMillimetres)
+            {
+                return;
+            }
+
+            tablesAsBaked[table] = footprint;
+            TheBuildingChangedShape(new LogicalBounds(
+                Math.Min(baked.MinX, footprint.MinX), Math.Max(baked.MaxX, footprint.MaxX),
+                Math.Min(baked.MinZ, footprint.MinZ), Math.Max(baked.MaxZ, footprint.MaxZ)));
+        }
 
         /// <summary>
         /// Which unbroken table a moving thing of this size would run into on

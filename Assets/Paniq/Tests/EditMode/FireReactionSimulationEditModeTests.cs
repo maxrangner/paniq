@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("43"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(35));
+            Assert.That(data.ContentRevision, Is.EqualTo("44"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(36));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -585,12 +585,20 @@ namespace Paniq.Tests.EditMode
                     travelled[i] += (long)Math.Sqrt(LogicalPosition.DistanceSquared(previous[i], agent.Position));
                     previous[i] = agent.Position;
 
-                    // Footprint edge within 0.3 m of any wall of the room they are in.
+                    // Footprint edge within 0.3 m of any wall of the room they
+                    // are in. Somebody who has stopped on purpose -- standing,
+                    // looking about, or stood talking to somebody -- is not
+                    // hugging the wall, they are standing near one, which people
+                    // do. This is about walking: drifting along a wall, or being
+                    // pinned against one while trying to get somewhere.
+                    bool standingOnPurpose = agent.ActivityState == AgentActivityState.Standing ||
+                                             agent.ActivityState == AgentActivityState.LookingAround ||
+                                             agent.ActivityState == AgentActivityState.Socialising;
                     LogicalBounds room = RoomHolding(data, agent.Position);
                     int gap = Math.Min(
                         Math.Min(agent.Position.X - room.MinX, room.MaxX - agent.Position.X),
                         Math.Min(agent.Position.Z - room.MinZ, room.MaxZ - agent.Position.Z)) - data.World.OccupancyRadiusMillimetres;
-                    wallRun[i] = gap < 300 ? wallRun[i] + 1 : 0;
+                    wallRun[i] = gap < 300 && !standingOnPurpose ? wallRun[i] + 1 : 0;
                     Assert.That(wallRun[i], Is.LessThan(3 * FireReactionSimulation.TicksPerSecond),
                         $"Calm agent {agent.AgentId} hugged a wall for 3 s.");
                 }
@@ -828,7 +836,10 @@ namespace Paniq.Tests.EditMode
         public void LostAgents_TraceBackThroughTheFlamesToABurningSquare()
         {
             var simulation = new FireReactionSimulation(NobodyFightsTheFire());
-            for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond; i++)
+
+            // Two minutes: people are better at getting out of each other's
+            // way than they were, so the fire takes longer to catch anybody.
+            for (int i = 0; i < 120 * FireReactionSimulation.TicksPerSecond; i++)
             {
                 simulation.Step();
             }

@@ -170,6 +170,12 @@ namespace Paniq.Simulation
         private readonly Dictionary<(int, int), PhysicsMaterial> materials = new Dictionary<(int, int), PhysicsMaterial>();
         private readonly List<GameObject> walls = new List<GameObject>();
         private readonly List<GameObject> tables = new List<GameObject>();
+
+        /// <summary>Each table's own body, in table order: tables move, tip and are shoved like anything else.</summary>
+        private readonly List<Rigidbody> tableBodies = new List<Rigidbody>();
+
+        /// <summary>Each table's width, height and depth in metres, for working out the floor it covers.</summary>
+        private readonly List<Vector3> tableSizes = new List<Vector3>();
         private readonly List<GameObject> doors = new List<GameObject>();
         private readonly List<Contact> contacts = new List<Contact>();
         private readonly List<Contact> incoming = new List<Contact>();
@@ -384,19 +390,40 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>A table: solid from the floor to its top, so things stand on it and nothing goes under.</summary>
-        public int AddTable(LogicalBounds bounds)
+        /// <summary>
+        /// A table: a solid block from the floor to its top, so things stand on
+        /// it and nothing goes under, but a real body like any loose thing. It
+        /// is shoved, tipped and flipped by whatever hits it, as heavy as its
+        /// weight makes it. To everything else it still reports as a table (a
+        /// thing that meets it meets <see cref="StaticKind.Table"/>), so the
+        /// rules about tables -- what smashes one, what bounces off -- are the
+        /// same whether it stands still or not. Its origin is the middle of its
+        /// underside.
+        /// </summary>
+        public int AddTable(LogicalBounds bounds, int massGrams, int frictionPercent)
         {
             int index = tables.Count;
             float height = MetresFromMillimetres(feel.TableHeightMillimetres);
-            var centre = new Vector3(
-                MetresFromMillimetres(bounds.MinX + bounds.MaxX) * 0.5f,
-                height * 0.5f,
-                MetresFromMillimetres(bounds.MinZ + bounds.MaxZ) * 0.5f);
             var size = new Vector3(
                 MetresFromMillimetres(bounds.MaxX - bounds.MinX), height,
                 MetresFromMillimetres(bounds.MaxZ - bounds.MinZ));
-            tables.Add(Solid("Table", StaticKind.Table, index, centre, size));
+            var table = new GameObject($"Table {index}");
+            table.transform.SetParent(root, false);
+            table.transform.SetPositionAndRotation(
+                new Vector3(MetresFromMillimetres(bounds.MinX + bounds.MaxX) * 0.5f, 0f,
+                    MetresFromMillimetres(bounds.MinZ + bounds.MaxZ) * 0.5f),
+                Quaternion.identity);
+            var box = table.AddComponent<BoxCollider>();
+            box.center = new Vector3(0f, height * 0.5f, 0f);
+            box.size = size;
+            box.sharedMaterial = Material(frictionPercent, 0);
+            box.providesContacts = true;
+            staticByCollider[box.GetInstanceID()] = (StaticKind.Table, index);
+            var rigidbody = table.AddComponent<Rigidbody>();
+            Configure(rigidbody, massGrams);
+            tables.Add(table);
+            tableBodies.Add(rigidbody);
+            tableSizes.Add(size);
             return index;
         }
 
@@ -404,6 +431,76 @@ namespace Paniq.Simulation
         public void RemoveTable(int index)
         {
             SetSolid(tables[index], false);
+            tableBodies[index].isKinematic = true;
+        }
+
+        /// <summary>Whether the engine moved this table in the last step (a table at rest sleeps).</summary>
+        public bool IsTableAwake(int index)
+        {
+            Rigidbody rigidbody = tableBodies[index];
+            return !rigidbody.isKinematic && !rigidbody.IsSleeping();
+        }
+
+        /// <summary>
+        /// Where the table is and which way it is turned, in the snapshot's
+        /// terms: its origin (the middle of its underside, which is the top of
+        /// a table flipped onto its back) and its rotation.
+        /// </summary>
+        public BodyPose TablePose(int index)
+        {
+            Rigidbody rigidbody = tableBodies[index];
+            Vector3 position = rigidbody.position;
+            Quaternion rotation = rigidbody.rotation;
+            return new BodyPose((int)Math.Round(position.y * 1000f),
+                (int)Math.Round(rotation.x * RotationScale), (int)Math.Round(rotation.y * RotationScale),
+                (int)Math.Round(rotation.z * RotationScale), (int)Math.Round(rotation.w * RotationScale),
+                new LogicalPosition((int)Math.Round(position.x * 1000f), (int)Math.Round(position.z * 1000f)));
+        }
+
+        /// <summary>
+        /// The rectangle of floor the table covers now, however it is turned:
+        /// every corner of its block, dropped straight down onto the floor. A
+        /// table on its side covers a strip as long as it is and as wide as it
+        /// is tall.
+        /// </summary>
+        public LogicalBounds TableFootprint(int index)
+        {
+            Rigidbody rigidbody = tableBodies[index];
+            Vector3 size = tableSizes[index];
+            Vector3 position = rigidbody.position;
+            Quaternion rotation = rigidbody.rotation;
+            float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+            for (int corner = 0; corner < 8; corner++)
+            {
+                var local = new Vector3(
+                    (corner & 1) == 0 ? -size.x * 0.5f : size.x * 0.5f,
+                    (corner & 2) == 0 ? 0f : size.y,
+                    (corner & 4) == 0 ? -size.z * 0.5f : size.z * 0.5f);
+                Vector3 world = position + rotation * local;
+                minX = Mathf.Min(minX, world.x);
+                maxX = Mathf.Max(maxX, world.x);
+                minZ = Mathf.Min(minZ, world.z);
+                maxZ = Mathf.Max(maxZ, world.z);
+            }
+
+            return new LogicalBounds((int)Math.Round(minX * 1000f), (int)Math.Round(maxX * 1000f),
+                (int)Math.Round(minZ * 1000f), (int)Math.Round(maxZ * 1000f));
+        }
+
+        /// <summary>
+        /// Gives a table a sudden change of speed (hundredths of a millimetre
+        /// per tick), the way a blast does. Heavy tables are given less by the
+        /// caller; the engine takes the change as it is.
+        /// </summary>
+        public void ShoveTable(int index, long vx, long vy, long vz)
+        {
+            Rigidbody rigidbody = tableBodies[index];
+            if (rigidbody.isKinematic)
+            {
+                return;
+            }
+
+            rigidbody.AddForce(VelocityInMetres(vx, vy, vz), ForceMode.VelocityChange);
         }
 
         /// <summary>
@@ -967,6 +1064,11 @@ namespace Paniq.Simulation
         public void Drive(int handle, LogicalPosition position, int heading)
         {
             Body body = bodies[handle];
+
+            // A body that has settled is asleep, and a sleeping body ignores
+            // being driven: a chair somebody is tucking in under themselves
+            // has been still for a while, so it has to be woken first.
+            body.Rigidbody.WakeUp();
             body.Rigidbody.MovePosition(new Vector3(
                 MetresFromMillimetres(position.X), body.Rigidbody.position.y, MetresFromMillimetres(position.Z)));
             body.Rigidbody.MoveRotation(Quaternion.Euler(0f, heading, 0f));
@@ -1089,6 +1191,14 @@ namespace Paniq.Simulation
                 if (!rigidbody.isKinematic && !rigidbody.IsSleeping())
                 {
                     rigidbody.AddForce(gravity, ForceMode.Acceleration);
+                }
+            }
+
+            for (int table = 0; table < tableBodies.Count; table++)
+            {
+                if (IsTableAwake(table))
+                {
+                    tableBodies[table].AddForce(gravity, ForceMode.Acceleration);
                 }
             }
 

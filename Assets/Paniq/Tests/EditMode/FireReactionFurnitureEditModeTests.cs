@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
+using UnityEngine;
 
 namespace Paniq.Tests.EditMode
 {
@@ -29,6 +30,14 @@ namespace Paniq.Tests.EditMode
         private const int PhysicsTolerance = 15;
 
         /// <summary>
+        /// How far a person may press into a table, in millimetres. More than
+        /// the engine's own slack: tables are bodies now, so somebody walking
+        /// into one leans on it and shoves it along, and while they are pushing
+        /// they are up against it. Still far less than standing in it.
+        /// </summary>
+        private const int LeaningOnATableTolerance = 40;
+
+        /// <summary>
         /// Whether a round footprint this size overlaps the table: nearer to
         /// the table's rectangle than its radius. Measured to the rectangle
         /// itself, so somebody standing off a corner is not counted as in it.
@@ -38,6 +47,49 @@ namespace Paniq.Tests.EditMode
             long dx = Math.Max(0L, Math.Max((long)table.MinX - position.X, (long)position.X - table.MaxX));
             long dz = Math.Max(0L, Math.Max((long)table.MinZ - position.Z, (long)position.Z - table.MaxZ));
             return dx * dx + dz * dz < (long)radius * radius;
+        }
+
+        /// <summary>
+        /// The same question for a table that has been shoved round: tables are
+        /// bodies now, so one turned even a little covers a rectangle at an
+        /// angle, and the box drawn round it takes in floor it does not cover.
+        /// The point is turned back into the table's own frame and measured
+        /// against the rectangle it was authored as. A table tipped over is
+        /// skipped: on its side it is no longer the thing this asks about.
+        /// </summary>
+        private static bool InsideTable(LogicalPosition position, int radius, FireReactionTableSnapshot table,
+            FireReactionScenarioData data)
+        {
+            if (!table.Pose.IsKnown)
+            {
+                return InsideTable(position, radius, table.Bounds);
+            }
+
+            var turn = new Quaternion(
+                table.Pose.RotationX / (float)BodyPose.RotationScale, table.Pose.RotationY / (float)BodyPose.RotationScale,
+                table.Pose.RotationZ / (float)BodyPose.RotationScale, table.Pose.RotationW / (float)BodyPose.RotationScale);
+            if ((turn * Vector3.up).y < 0.7f)
+            {
+                // On its side or its back: not a table top any more.
+                return false;
+            }
+
+            int width = 0;
+            int depth = 0;
+            foreach (FireReactionTableDefinition authored in data.Tables)
+            {
+                if (authored.TableId == table.TableId)
+                {
+                    width = authored.WidthMillimetres;
+                    depth = authored.DepthMillimetres;
+                }
+            }
+
+            Vector3 local = Quaternion.Inverse(turn) * new Vector3(
+                position.X - table.Pose.Origin.X, 0f, position.Z - table.Pose.Origin.Z);
+            float dx = Math.Max(0f, Math.Abs(local.x) - width * 0.5f);
+            float dz = Math.Max(0f, Math.Abs(local.z) - depth * 0.5f);
+            return dx * dx + dz * dz < (float)radius * radius;
         }
 
         [Test]
@@ -99,7 +151,7 @@ namespace Paniq.Tests.EditMode
                             // Flung up onto a table top is not inside it.
                             bool onTheFloor = agent.Pose.HeightMillimetres < 100;
                             Assert.That(agent.Participation == AgentParticipation.Participating && onTheFloor &&
-                                        InsideTable(agent.Position, radius - PhysicsTolerance, table.Bounds), Is.False,
+                                        InsideTable(agent.Position, radius - LeaningOnATableTolerance, table, data), Is.False,
                                 $"Seed {seed}: agent {agent.AgentId} inside table {table.TableId} at tick {snapshot.Tick}.");
                         }
 
@@ -124,7 +176,7 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void KickedChair_BouncesOffATable()
+        public void KickedChair_ShovesATableRatherThanGoingThroughIt()
         {
             FireReactionScenarioData data = DefaultData();
             data.Agents = new[]
@@ -143,23 +195,23 @@ namespace Paniq.Tests.EditMode
             var simulation = new FireReactionSimulation(data);
             simulation.LaunchObjectForTests(0, 100, 0);
             int legs = ObjectShapes.FootprintHalfWidth(PhysicsObjectKind.Chair, 450);
-            int closest = int.MinValue;
             for (int t = 0; t < 60; t++)
             {
                 simulation.Step();
                 FireReactionPhysicsObjectSnapshot chair = simulation.GetPhysicsObject(0);
+                FireReactionTableSnapshot hit = simulation.GetSnapshot().Tables[0];
 
                 // The seat overhangs the legs, and it is the legs that reach
                 // the floor: the chair can tip until they meet the table's
-                // side, to within the few millimetres the engine allows.
-                Assert.That(InsideTable(chair.Position, legs - PhysicsTolerance, table), Is.False,
+                // side, to within the few millimetres the engine allows. The
+                // table itself gives, because it is a body like any other.
+                Assert.That(InsideTable(chair.Position, legs - PhysicsTolerance, hit, data), Is.False,
                     $"The chair went into the table at tick {t}.");
-                closest = Math.Max(closest, chair.Position.X);
             }
 
-            Assert.That(closest, Is.InRange(table.MinX - 225 - 30, table.MinX - legs + PhysicsTolerance),
-                "The chair should reach the table's edge.");
-            Assert.That(simulation.GetPhysicsObject(0).Position.X, Is.LessThan(closest), "The chair should bounce back off the table.");
+            Assert.That(simulation.GetSnapshot().Tables[0].Bounds.MinX, Is.GreaterThan(table.MinX),
+                "A kicked chair should shove the table along, not bounce off a table nailed to the floor.");
+
         }
     }
 }

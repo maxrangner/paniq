@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 43
+    ContentRevision: 44
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 35
+    SimulationCompatibilityVersion: 36
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -391,6 +391,8 @@ MonoBehaviour:
       TableBurnMaximumTicks: 1500
       FloorIgniteRestTicks: 50
       TouchGapMillimetres: 50
+      TableMassGramsPerSquareMetre: 25000
+      TableFloorGripPercent: 80
       TableWreckMassGrams: 40000
       TableWreckMinimumSizeMillimetres: 350
       TableWreckMaximumSizeMillimetres: 500
@@ -448,6 +450,10 @@ MonoBehaviour:
       StandUpTicksPerNervousness: 2
       StandUpShoveSpeed: 8
       SitScootMillimetres: 120
+      SitPullOutMillimetres: 300
+      SitPullTicks: 12
+      SitLowerTicks: 10
+      JumpUpKnockOverSpeed: 60
       FetchRangeMillimetres: 4000
       CarryMinimumDistanceMillimetres: 1500
       ReachMillimetres: 150

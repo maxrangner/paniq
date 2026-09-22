@@ -1133,6 +1133,17 @@ namespace Paniq.Simulation
         public int TouchGapMillimetres = 50;
 
         /// <summary>The heap a smashed table tips into: its weight, and its size clamped between these two.</summary>
+        /// <summary>
+        /// A table's weight, by the floor it covers: a 1.2 by 0.7 m desk comes
+        /// out at 21 kg, the 5.4 by 1 m meeting table at 135 kg. Tables are
+        /// bodies like anything else, so this is what decides how far a crowd
+        /// shoves one and how hard it is to tip over.
+        /// </summary>
+        public int TableMassGramsPerSquareMetre = 25000;
+
+        /// <summary>How well a table grips the floor, as the engine's friction times 100.</summary>
+        public int TableFloorGripPercent = 80;
+
         public int TableWreckMassGrams = 40000;
         public int TableWreckMinimumSizeMillimetres = 350;
         public int TableWreckMaximumSizeMillimetres = 500;
@@ -1164,6 +1175,7 @@ namespace Paniq.Simulation
                              Settings.Range(TableBurnMinimumTicks, TableBurnMaximumTicks, 1), "burn times");
             Settings.Require(FloorIgniteRestTicks >= 1 && TouchGapMillimetres >= 0, "burning things");
             Settings.Require(TableBreakMomentum >= 0, "table strength");
+            Settings.Require(TableMassGramsPerSquareMetre > 0 && TableFloorGripPercent >= 0, "table weight");
             Settings.Require(TableWreckMassGrams > 0 &&
                              Settings.Range(TableWreckMinimumSizeMillimetres, TableWreckMaximumSizeMillimetres, 1),
                              "table wreck");
@@ -1219,6 +1231,20 @@ namespace Paniq.Simulation
         /// <summary>How far a chair scoots in to seat someone settling onto it.</summary>
         public int SitScootMillimetres = 120;
 
+        /// <summary>
+        /// Sitting down is done in parts rather than in one jump: the chair is
+        /// pulled this far out from the table over <see cref="SitPullTicks"/>,
+        /// the person lowers onto the seat over <see cref="SitLowerTicks"/>,
+        /// and then they ride it back in. Getting up runs the same the other
+        /// way round. Somebody startled skips all of it and leaps clear.
+        /// </summary>
+        public int SitPullOutMillimetres = 300;
+        public int SitPullTicks = 12;
+        public int SitLowerTicks = 10;
+
+        /// <summary>How hard a chair somebody leapt out of is sent over backwards, in millimetres a tick.</summary>
+        public int JumpUpKnockOverSpeed = 60;
+
         public int FetchRangeMillimetres = 4000;
 
         /// <summary>They carry it at least this far before setting it down.</summary>
@@ -1265,7 +1291,8 @@ namespace Paniq.Simulation
                              ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1 &&
                              PanicThrowSpreadDegrees >= 0 && PanicThrowSpreadDegrees <= 180, "throwing");
             Settings.Require(SeatedAtStartTicks > 0, "how long people who start seated stay seated");
-            Settings.Require(SitScootMillimetres >= 0, "sitting down");
+            Settings.Require(SitScootMillimetres >= 0 && SitPullOutMillimetres >= 0 && SitPullTicks >= 1 &&
+                             SitLowerTicks >= 1 && JumpUpKnockOverSpeed >= 0, "sitting down");
         }
     }
 

@@ -551,20 +551,26 @@ namespace Paniq.Presentation
                     materials.SetColor(part, colour);
                 }
 
-                // A table that has been hit hard enough tips up on one edge and
-                // goes over, rather than simply squashing flat where it stood.
-                // Which way it goes comes from its own ID, so it looks the same
-                // every run without touching the simulation's dice.
-                view.Collapse = Mathf.MoveTowards(view.Collapse, table.Broken ? 1f : 0f, deltaTime * 3f);
+                // Drawn where the physics has it: shoved, tipped up on one
+                // edge or flat on its back, whatever happened to it. Eased
+                // towards the latest reading rather than snapped to it, so it
+                // moves smoothly between ticks.
+                if (table.Pose.IsKnown)
+                {
+                    Vector3 origin = BoxViews.PoseOrigin(table.Pose);
+                    Quaternion turned = BoxViews.PoseRotation(table.Pose);
+                    float follow = 1f - Mathf.Exp(-deltaTime * 20f);
+                    view.Root.SetPositionAndRotation(
+                        Vector3.Lerp(view.Root.position, origin, follow),
+                        Quaternion.Slerp(view.Root.rotation, turned, follow));
+                }
+
+                // Smashed: what is left is a heap of boards, drawn as a thing
+                // of its own, so the table itself shrinks away.
+                view.Collapse = Mathf.MoveTowards(view.Collapse, table.Broken ? 1f : 0f, deltaTime * 4f);
                 if (view.Collapse > 0f)
                 {
-                    float fallen = Mathf.SmoothStep(0f, 1f, view.Collapse);
-                    float lean = Hash01((int)view.TableId.Value, 13, 7) < 0.5f ? -1f : 1f;
-                    view.Root.localScale = new Vector3(1f, Mathf.Lerp(1f, 0.25f, fallen), 1f);
-                    view.Root.localRotation = Quaternion.Euler(
-                        lean * 82f * fallen, view.Root.localRotation.eulerAngles.y, 0f);
-                    view.Root.localPosition = view.RestingPosition +
-                                              Vector3.down * (TableHeight * 0.5f * fallen);
+                    view.Root.localScale = Vector3.one * Mathf.Max(0.001f, 1f - view.Collapse);
                 }
 
                 view.Flames.Update(table.BurnState == ObjectBurnState.Burning, new Vector3(0f, 0.72f, 0f),

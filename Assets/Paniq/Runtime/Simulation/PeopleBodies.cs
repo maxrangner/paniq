@@ -220,6 +220,20 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Moves somebody who is on a chair: lowering onto the seat, riding the
+        /// chair in under the table, or backing out on it. They are held by the
+        /// chair throughout, so nothing else pushes them about while they move.
+        /// </summary>
+        public void MoveSeated(Agent agent, LogicalPosition position, int heading)
+        {
+            int handle = HandleOf(agent);
+            crowd.MoveTo(agent, position);
+            world.SetUpright(handle, true, heading);
+            world.Place(handle, (long)position.X * PhysicsWorld.SubMillimetre, 0L,
+                (long)position.Z * PhysicsWorld.SubMillimetre, heading);
+        }
+
+        /// <summary>
         /// Out of the chair. If they were given a spot to step to they stand
         /// there; knocked off it, they go down where they are and are free of
         /// it from then on.
@@ -397,6 +411,9 @@ namespace Paniq.Simulation
         /// Off their feet: the body may tip now, and is set toppling the way
         /// they are falling, keeping whatever speed they had.
         /// </summary>
+        /// <summary>How much of their speed somebody knocked flat keeps, as a percentage: the rest goes into the floor.</summary>
+        private const long SkidPercent = 40L;
+
         private void Topple(Agent agent, int handle)
         {
             pose[agent.Index] = Pose.Lying;
@@ -423,6 +440,13 @@ namespace Paniq.Simulation
                     {
                         world.SetUpright(handle, false, agent.Body.Heading);
                         world.LayDown(handle, along, radius);
+
+                        // Most of a running person's speed goes into the floor
+                        // when they hit it: they skid, they do not keep running
+                        // along on their side and plough into whoever is there.
+                        velocityX[agent.Index] = velocityX[agent.Index] * SkidPercent / 100L;
+                        velocityZ[agent.Index] = velocityZ[agent.Index] * SkidPercent / 100L;
+                        world.SetVelocity(handle, velocityX[agent.Index], 0L, velocityZ[agent.Index]);
                         return;
                     }
                 }

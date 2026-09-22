@@ -1,4 +1,5 @@
-﻿using NUnit.Framework;
+﻿using System;
+using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
 
@@ -74,6 +75,70 @@ namespace Paniq.Tests.EditMode
             Assert.That(simulation.GetAgent(0).ActivityState, Is.EqualTo(AgentActivityState.Sitting));
             Assert.That(LogicalPosition.DistanceSquared(simulation.GetAgent(0).Position, new LogicalPosition(-1500, 0)),
                 Is.LessThan(400L * 400L), "They are on the chair, not beside it.");
+        }
+
+        /// <summary>How upright a thing stands: 1 on its feet, 0 on its side, -1 upside down.</summary>
+        private static float Uprightness(FireReactionPhysicsObjectSnapshot thing)
+        {
+            var turn = new UnityEngine.Quaternion(
+                thing.Pose.RotationX / (float)BodyPose.RotationScale, thing.Pose.RotationY / (float)BodyPose.RotationScale,
+                thing.Pose.RotationZ / (float)BodyPose.RotationScale, thing.Pose.RotationW / (float)BodyPose.RotationScale);
+            return (turn * UnityEngine.Vector3.up).y;
+        }
+
+        /// <summary>
+        /// Nobody drops onto a seat out of thin air: they stand beside the
+        /// chair, pull it out, and lower themselves onto it as it goes back in.
+        /// </summary>
+        [Test]
+        public void SittingDown_PullsTheChairOutAndRidesItBackIn()
+        {
+            var simulation = new FireReactionSimulation(OnePersonOneChair());
+            LogicalPosition stood = simulation.GetPhysicsObject(0).Position;
+            long furthest = 0L;
+            for (int t = 0; t < 20 * FireReactionSimulation.TicksPerSecond && !OnTheChair(simulation); t++)
+            {
+                simulation.Step();
+                furthest = Math.Max(furthest,
+                    LogicalPosition.DistanceSquared(stood, simulation.GetPhysicsObject(0).Position));
+            }
+
+            Assert.That(OnTheChair(simulation), Is.True, "Nobody ever sat down.");
+            Assert.That(furthest, Is.GreaterThan(200L * 200L), "The chair was never pulled out.");
+            Assert.That(LogicalPosition.DistanceSquared(stood, simulation.GetPhysicsObject(0).Position),
+                Is.LessThan(150L * 150L), "The chair should end up back where it stood.");
+        }
+
+        /// <summary>
+        /// Somebody who leaps out of a chair because the fire is on them sends
+        /// it over backwards behind them, rather than tucking it in.
+        /// </summary>
+        [Test]
+        public void LeapingOutOfAChair_SendsItOverBackwards()
+        {
+            FireReactionScenarioData data = OnePersonOneChair();
+            data.Fire.ActivationTick = 400;
+            data.Fire.SpawnBounds = new LogicalBounds(0, 0, 0, 0);
+            data.Perception.MaximumReactionDelayTicks = 0;
+            var simulation = new FireReactionSimulation(data);
+            for (int t = 0; t < 8 * FireReactionSimulation.TicksPerSecond &&
+                            simulation.GetAgent(0).ActivityState != AgentActivityState.Sitting; t++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(simulation.GetAgent(0).ActivityState, Is.EqualTo(AgentActivityState.Sitting), "Nobody sat down.");
+            Assert.That(Uprightness(simulation.GetPhysicsObject(0)), Is.GreaterThan(0.9f), "The chair starts on its feet.");
+            for (int t = 0; t < 12 * FireReactionSimulation.TicksPerSecond &&
+                            Uprightness(simulation.GetPhysicsObject(0)) > 0.5f; t++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(simulation.GetAgent(0).ActivityState, Is.Not.EqualTo(AgentActivityState.Sitting),
+                "They should be out of the chair by now.");
+            Assert.That(Uprightness(simulation.GetPhysicsObject(0)), Is.LessThan(0.5f),
+                "The chair they leapt out of should have gone over.");
         }
 
         [Test]

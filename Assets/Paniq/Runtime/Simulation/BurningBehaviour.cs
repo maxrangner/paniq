@@ -38,6 +38,21 @@ namespace Paniq.Simulation
                     settings.BurningScreamMinimumTicks, settings.BurningScreamMaximumTicks));
             }
 
+            // Some of them remember what they were told as children: down,
+            // and roll. It is the one thing that can save them, and it is
+            // not a decision so much as a reflex that some people have.
+            // Only somebody on their feet can throw themselves down, so
+            // being knocked over while alight never turns into a roll (and
+            // never stretches out how long they are on the floor).
+            if (agent.Body.State == AgentBodyState.Upright &&
+                context.Random.NextPercent(settings.DropAndRollChancePercent))
+            {
+                body.DropAndRoll(agent, context.Random.NextIntInclusive(
+                    settings.RollMinimumTicks, settings.RollMaximumTicks), burning.EventId);
+                return new MotorIntent(agent.Body.Heading, 0, agent.Personality.PanicTurnRate,
+                    context.Scenario.Panic.Acceleration);
+            }
+
             if (tick >= burning.NextTurnTick || agent.Body.BlockedTicks >= settings.BurningBlockedTurnTicks)
             {
                 agent.Intent.LookHeading = context.Random.NextIntInclusive(0, 359);
@@ -104,6 +119,36 @@ namespace Paniq.Simulation
                     {
                         body.CatchFire(other, burner.Burning.EventId);
                     }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Phase 6, with the flames spreading: a roll that has run its course
+        /// either worked or it did not. One draw at the end of the roll rather
+        /// than one a tick, so the odds are the number in the scenario and you
+        /// can read them: a third of rolls save the person. Ascending ID order,
+        /// and only for people who went down on purpose -- somebody knocked over
+        /// while alight goes on burning.
+        /// </summary>
+        public void RollToPutItOut()
+        {
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                AgentBurning burning = agent.Burning;
+                if (!agent.IsParticipating || !burning.IsBurning ||
+                    burning.RollingUntilTick == 0 || context.Tick != burning.RollingUntilTick - 1 ||
+                    agent.Body.State != AgentBodyState.Fallen)
+                {
+                    continue;
+                }
+
+                burning.RollingUntilTick = 0;
+                if (context.Random.NextPercent(settings.RollPutsOutChancePercent))
+                {
+                    body.PutOutPerson(agent, burning.RollEventId);
                 }
             }
         }

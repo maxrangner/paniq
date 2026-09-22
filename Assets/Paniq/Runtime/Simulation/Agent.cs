@@ -271,6 +271,14 @@ namespace Paniq.Simulation
 
         /// <summary>The soonest a cruel person will heave another person out of their way (not the door shoving in <see cref="AgentDoorMemory"/>).</summary>
         public int NextShoveTick;
+
+        /// <summary>
+        /// Set on a way out they can see standing open, right now, and not
+        /// otherwise occupied (not in danger, not alight, on their feet).
+        /// While this is true they stop dithering: no swerve, no drifting with
+        /// the crowd, no starting to wedge themselves in.
+        /// </summary>
+        public bool SetOnAWayOut;
     }
 
     internal sealed class AgentHearing
@@ -291,6 +299,15 @@ namespace Paniq.Simulation
 
         /// <summary>The door being run for, or -1.</summary>
         public int ExitDoorIndex = -1;
+
+        /// <summary>
+        /// The way out at the far end of the current route -- not necessarily
+        /// <see cref="ExitDoorIndex"/>, which is only the next door along it.
+        /// A way out that is currently open is never written off by a stale
+        /// "found shut" memory the way an ordinary door along the route still
+        /// can be.
+        /// </summary>
+        public int WayOutDoorIndex = -1;
 
         /// <summary>The room they are heading at that door from, so approach and target points work from either side.</summary>
         public int ApproachRoom = -1;
@@ -440,6 +457,12 @@ namespace Paniq.Simulation
         /// the player's card feel like an offer rather than scenery.
         /// </summary>
         public int SawAnExtinguisherUntilTick;
+
+        /// <summary>
+        /// A random phase, drawn once when spraying starts, so the jet's sweep
+        /// does not line up with everybody else's.
+        /// </summary>
+        public int SprayPhase;
     }
 
     internal sealed class AgentBurning
@@ -454,6 +477,12 @@ namespace Paniq.Simulation
 
         public int NextTurnTick;
         public int NextScreamTick;
+
+        /// <summary>Until this tick they are dropped and rolling, or 0.</summary>
+        public int RollingUntilTick;
+
+        /// <summary>The AgentDroppedAndRolled event, for the AgentDoused that may follow it.</summary>
+        public ulong RollEventId;
     }
 
     /// <summary>

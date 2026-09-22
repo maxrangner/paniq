@@ -56,7 +56,7 @@ namespace Paniq.Simulation
         /// Considered in the panic decision. Returns no intent when this person
         /// is not going for an alarm.
         /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger)
+        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
         {
             if (IsRaisingTheAlarm(agent))
             {

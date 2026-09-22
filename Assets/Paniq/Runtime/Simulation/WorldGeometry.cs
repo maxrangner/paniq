@@ -485,6 +485,9 @@ namespace Paniq.Simulation
             return room >= 0 && (doors[door].Room == room || doorNeighbour[door] == room);
         }
 
+        /// <summary>Which side of a door's wall line a point is on: 1 or -1. Used to work out which way a pushed-open leaf swings.</summary>
+        public int SideOf(int door, LogicalPosition position) => BeyondDistance(door, position) > 0 ? 1 : -1;
+
         /// <summary>
         /// Two rooms can see and hear each other freely: the same room, or
         /// joined by an open door. Anything not in a room counts as connected.

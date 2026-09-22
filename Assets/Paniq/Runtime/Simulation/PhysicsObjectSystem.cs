@@ -606,6 +606,31 @@ namespace Paniq.Simulation
                    chair.Reading.UprightPercent >= 90 && !chair.OffTheFloor;
         }
 
+        /// <summary>
+        /// Scoots the chair in a little as someone settles onto it, so sitting
+        /// down reads as riding the chair to its resting spot rather than
+        /// snapping onto it wherever it happened to stop. Halves the distance
+        /// and tries again until a clear spot is found, or gives up and leaves
+        /// it where it stands.
+        /// </summary>
+        public LogicalPosition ScootIn(int index, int distance, Agent sitter)
+        {
+            PhysicsBody chair = bodies[index];
+            for (int part = distance; part > 0; part /= 2)
+            {
+                LogicalPosition spot = chair.Position + IntegerMath.Displacement(chair.Heading, part);
+                if (IsClearForItem(index, spot))
+                {
+                    MoveBody(index, (long)spot.X * SubMillimetre, (long)spot.Z * SubMillimetre);
+                    world.Place(index, chair.X, 0L, chair.Z, chair.Heading);
+                    chair.Reading = world.Read(index);
+                    return spot;
+                }
+            }
+
+            return chair.Position;
+        }
+
         /// <summary>Someone sits down on a chair: it stops dead and stays put until they get up.</summary>
         public void SitOn(int index, Agent sitter)
         {
@@ -1241,12 +1266,63 @@ namespace Paniq.Simulation
                 return;
             }
 
+            LogicalBounds bounds = geometry.TableBounds(table);
             geometry.BreakTable(table);
             world.RemoveTable(table);
-            context.Events.Append(context.Tick, geometry.TableId(table), FireReactionEventType.ObjectBroke,
-                geometry.TableBounds(table).Centre, (int)Math.Min(int.MaxValue, momentum), 0,
+            CausalEvent broke = context.Events.Append(context.Tick, geometry.TableId(table), FireReactionEventType.ObjectBroke,
+                bounds.Centre, (int)Math.Min(int.MaxValue, momentum), 0,
                 thrown.LastPushEventId, thrown.Id);
-            sound.Thud(geometry.TableId(table), geometry.TableBounds(table).Centre, thrown.LastPushEventId);
+            TipTableOver(table, bounds, thrown, broke.EventId);
+            sound.Thud(geometry.TableId(table), bounds.Centre, thrown.LastPushEventId);
+        }
+
+        /// <summary>
+        /// A smashed table tips into a real heap: claims a pre-authored dormant
+        /// wreck body (the reserved dormant-slot pattern, so nothing is created
+        /// mid-run), sizes and places it where the table stood, and carries
+        /// across a share of whatever hit it. Best-effort: if every spare wreck
+        /// is already in play the table still breaks, it just leaves nothing
+        /// behind to trip over.
+        /// </summary>
+        private void TipTableOver(int table, LogicalBounds bounds, PhysicsBody thrown, ulong causeEventId)
+        {
+            int slot = -1;
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                if (bodies[b].Dormant && bodies[b].Kind == PhysicsObjectKind.TableWreck)
+                {
+                    slot = b;
+                    break;
+                }
+            }
+
+            if (slot < 0)
+            {
+                return;
+            }
+
+            PhysicsBody heap = bodies[slot];
+            int across = Math.Min(bounds.MaxX - bounds.MinX, bounds.MaxZ - bounds.MinZ) / 2;
+            across = Math.Max(kinds.TableWreckMinimumSizeMillimetres, Math.Min(kinds.TableWreckMaximumSizeMillimetres, across));
+            heap.Size = across;
+            heap.Radius = across / 2;
+            heap.MassGrams = kinds.TableWreckMassGrams;
+            heap.Dormant = false;
+            heap.Wrecked = true;
+            heap.Thrown = false;
+            heap.Heading = 0;
+            heap.LastPushEventId = causeEventId;
+
+            MoveBody(slot, (long)bounds.Centre.X * SubMillimetre, (long)bounds.Centre.Z * SubMillimetre);
+            world.SetSolid(slot, true);
+            world.Place(slot, heap.X, 0L, heap.Z, heap.Heading);
+            heap.Reading = world.Read(slot);
+
+            long share = thrown.MassGrams + heap.MassGrams;
+            long vx = share > 0 ? thrown.VelocityX * thrown.MassGrams / share : 0L;
+            long vz = share > 0 ? thrown.VelocityZ * thrown.MassGrams / share : 0L;
+            SetMotion(slot, vx, 0L, vz);
+            heap.Spin = SpinFromImpact(heap, (int)(IntegerMath.Sqrt(vx * vx + vz * vz) / SubMillimetre));
         }
 
         /// <summary>

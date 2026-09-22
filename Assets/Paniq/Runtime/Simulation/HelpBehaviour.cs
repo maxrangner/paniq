@@ -72,7 +72,7 @@ namespace Paniq.Simulation
         /// maybe start. Returns no intent when they are not helping, and the
         /// panic behaviour decides instead.
         /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger)
+        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
         {
             if (!IsHelping(agent))
             {

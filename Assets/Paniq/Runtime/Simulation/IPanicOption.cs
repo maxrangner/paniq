@@ -17,6 +17,12 @@ namespace Paniq.Simulation
         /// What this person would rather be doing than running, or null to
         /// leave the decision to whatever comes next.
         /// </summary>
-        MotorIntent? Decide(Agent agent, bool inDanger);
+        /// <param name="eager">
+        /// Set on a way out they can see standing open, right now. Only
+        /// <see cref="BarricadeBehaviour"/> reads this today, to stop somebody
+        /// starting to wedge themselves in while a clear escape stands open
+        /// (though they still finish one already under way).
+        /// </param>
+        MotorIntent? Decide(Agent agent, bool inDanger, bool eager);
     }
 }

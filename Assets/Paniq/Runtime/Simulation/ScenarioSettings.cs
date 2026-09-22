@@ -79,6 +79,16 @@ namespace Paniq.Simulation
         /// <summary>Chance per tick that the flames jump to someone that close. Running into someone always does it.</summary>
         public int BurningSpreadChancePercent = 20;
 
+        /// <summary>Chance per tick that someone alight drops and rolls instead of running blind.</summary>
+        public int DropAndRollChancePercent = 4;
+
+        /// <summary>How long a drop-and-roll lasts.</summary>
+        public int RollMinimumTicks = 60;
+        public int RollMaximumTicks = 120;
+
+        /// <summary>Chance a roll puts the flames out for good.</summary>
+        public int RollPutsOutChancePercent = 35;
+
         public FireSettings Clone() => (FireSettings)MemberwiseClone();
 
         internal void Validate()
@@ -92,6 +102,9 @@ namespace Paniq.Simulation
                              Settings.Range(BurningScreamMinimumTicks, BurningScreamMaximumTicks, 1) &&
                              BurningSpreadGapMillimetres >= 0 && Settings.Percent(BurningSpreadChancePercent) &&
                              DousedWetTicks >= 0 && DouseTicksPerCell >= 1, "burning people");
+            Settings.Require(Settings.Percent(DropAndRollChancePercent) &&
+                             Settings.Range(RollMinimumTicks, RollMaximumTicks, 1) &&
+                             Settings.Percent(RollPutsOutChancePercent), "drop and roll");
         }
     }
 
@@ -877,6 +890,10 @@ namespace Paniq.Simulation
         public int SprayConeDegrees = 30;
         public int CellsPerTick = 1;
 
+        /// <summary>How wide the jet sweeps side to side: this much, less this much per strength point.</summary>
+        public int SweepDegrees = 24;
+        public int SweepDegreesPerStrengthPoint = 3;
+
         /// <summary>How far the jet shoves someone, and how long before it can knock them over again.</summary>
         public int BlastPushMillimetres = 400;
         public int BlastRecoveryTicks = 100;
@@ -903,6 +920,7 @@ namespace Paniq.Simulation
             Settings.Require(FetchTimeoutTicks > 0 && FightTimeoutTicks > 0, "extinguisher timeouts");
             Settings.Require(SprayRangeMillimetres > 0 && SprayConeDegrees > 0 && SprayConeDegrees <= 180 && CellsPerTick > 0 &&
                 StandOffMillimetres > 0 && StandOffMillimetres <= SprayRangeMillimetres, "the spray");
+            Settings.Require(SweepDegrees >= 0 && SweepDegreesPerStrengthPoint >= 0, "the sweep");
             Settings.Require(BlastPushMillimetres >= 0 && BlastRecoveryTicks >= 0, "the blast");
             Settings.Require(Settings.Percent(DangerTolerancePercent), "extinguisher nerve");
             Settings.Require(RecoilPushMillimetres >= 0 && RecoilPushPerStrength >= 0 && RecoilFloorsMaximumStrength >= 0,
@@ -924,7 +942,7 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ObjectKindSettings
     {
-        public const int KindCount = 11;
+        public const int KindCount = 12;
 
         public PhysicsObjectKind Kind;
         public int FrictionPercent = 100;
@@ -1007,7 +1025,11 @@ namespace Paniq.Simulation
                 Popping(Entry(PhysicsObjectKind.Microwave, 150, 120, 60, 90), 2200, 70, 3),
 
                 // Bolted to the wall, so it never slides anywhere.
-                Popping(Entry(PhysicsObjectKind.WallSocket, 1000, 90, 40, 60), 1400, 55, 2)
+                Popping(Entry(PhysicsObjectKind.WallSocket, 1000, 90, 40, 60), 1400, 55, 2),
+
+                // A pre-authored dormant heap, claimed and placed when a table
+                // is smashed: already wreckage, so it never catches again.
+                Entry(PhysicsObjectKind.TableWreck, 250, 0, 0, 0)
             };
         }
 
@@ -1098,6 +1120,11 @@ namespace Paniq.Simulation
         /// <summary>A person this close to a burning thing's edge touches it (and catches fire).</summary>
         public int TouchGapMillimetres = 50;
 
+        /// <summary>The heap a smashed table tips into: its weight, and its size clamped between these two.</summary>
+        public int TableWreckMassGrams = 40000;
+        public int TableWreckMinimumSizeMillimetres = 350;
+        public int TableWreckMaximumSizeMillimetres = 500;
+
         public FlammableSettings Clone()
         {
             var copy = (FlammableSettings)MemberwiseClone();
@@ -1125,6 +1152,9 @@ namespace Paniq.Simulation
                              Settings.Range(TableBurnMinimumTicks, TableBurnMaximumTicks, 1), "burn times");
             Settings.Require(FloorIgniteRestTicks >= 1 && TouchGapMillimetres >= 0, "burning things");
             Settings.Require(TableBreakMomentum >= 0, "table strength");
+            Settings.Require(TableWreckMassGrams > 0 &&
+                             Settings.Range(TableWreckMinimumSizeMillimetres, TableWreckMaximumSizeMillimetres, 1),
+                             "table wreck");
             Settings.Require(Kinds != null && Kinds.Length == ObjectKindSettings.KindCount, "one entry per kind of object");
             for (int i = 0; i < Kinds.Length; i++)
             {
@@ -1173,6 +1203,10 @@ namespace Paniq.Simulation
 
         /// <summary>How hard the chair is shoved back as they stand, in millimetres per tick.</summary>
         public int StandUpShoveSpeed = 8;
+
+        /// <summary>How far a chair scoots in to seat someone settling onto it.</summary>
+        public int SitScootMillimetres = 120;
+
         public int FetchRangeMillimetres = 4000;
 
         /// <summary>They carry it at least this far before setting it down.</summary>
@@ -1219,6 +1253,7 @@ namespace Paniq.Simulation
                              ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1 &&
                              PanicThrowSpreadDegrees >= 0 && PanicThrowSpreadDegrees <= 180, "throwing");
             Settings.Require(SeatedAtStartTicks > 0, "how long people who start seated stay seated");
+            Settings.Require(SitScootMillimetres >= 0, "sitting down");
         }
     }
 

@@ -138,7 +138,7 @@ namespace Paniq.Simulation
     public readonly struct FireReactionDoorSnapshot
     {
         public FireReactionDoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state,
-            int damagePercent, bool isHole = false, bool isBlocked = false, bool leadsOutside = false)
+            int damagePercent, bool isHole = false, bool isBlocked = false, bool leadsOutside = false, int openSide = 0)
         {
             IsHole = isHole;
             IsBlocked = isBlocked;
@@ -149,6 +149,7 @@ namespace Paniq.Simulation
             Centre = centre;
             WidthMillimetres = widthMillimetres;
             State = state;
+            OpenSide = openSide;
         }
 
         public SimulationId DoorId { get; }
@@ -174,6 +175,9 @@ namespace Paniq.Simulation
 
         /// <summary>It leads out of the building rather than into the next room.</summary>
         public bool LeadsOutside { get; }
+
+        /// <summary>Which way the leaf stands open: +1 out of its room, -1 into it, 0 while shut.</summary>
+        public int OpenSide { get; }
     }
 
     /// <summary>A table: where it stands and whether it is heating up, burning or burnt out.</summary>

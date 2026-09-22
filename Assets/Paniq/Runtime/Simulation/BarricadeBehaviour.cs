@@ -60,11 +60,20 @@ namespace Paniq.Simulation
         /// Considered in the panic decision. Returns no intent when this person
         /// is not wedging a door.
         /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger)
+        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
         {
             if (IsBarricading(agent))
             {
+                // Already under way: they finish it even if a clear exit
+                // opens up in the meantime.
                 return Update(agent, inDanger);
+            }
+
+            if (eager)
+            {
+                // A way out stands open in front of them: nobody starts
+                // wedging themselves into a room while that is true.
+                return null;
             }
 
             if (inDanger || agent.Body.State != AgentBodyState.Upright || agent.Carry.ItemIndex >= 0 ||

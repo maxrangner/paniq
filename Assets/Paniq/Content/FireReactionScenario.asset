@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9e5f8e9be6b64528aa691500194ea499, type: 3}
-  m_Name: FireReactionScenario
+  m_Name: 
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
   scenario:
     ScenarioId: fire-reaction-prototype
@@ -44,6 +44,10 @@ MonoBehaviour:
       DouseTicksPerCell: 30
       BurningSpreadGapMillimetres: 100
       BurningSpreadChancePercent: 20
+      DropAndRollChancePercent: 4
+      RollMinimumTicks: 60
+      RollMaximumTicks: 120
+      RollPutsOutChancePercent: 35
     Steering:
       PersonalSpaceMillimetres: 800
       WallAvoidDistanceMillimetres: 600
@@ -361,6 +365,17 @@ MonoBehaviour:
         PopIgniteCells: 2
         CanBeSatOn: 0
         IsEquipment: 0
+      - Kind: 11
+        FrictionPercent: 250
+        IgniteTicks: 0
+        BurnMinimumTicks: 0
+        BurnMaximumTicks: 0
+        BreakMomentum: 0
+        PopRadiusMillimetres: 0
+        PopSpeed: 0
+        PopIgniteCells: 0
+        CanBeSatOn: 0
+        IsEquipment: 0
       TableBreakMomentum: 600
       BoxIgniteTicks: 75
       ChairIgniteTicks: 150
@@ -373,6 +388,9 @@ MonoBehaviour:
       TableBurnMaximumTicks: 1500
       FloorIgniteRestTicks: 50
       TouchGapMillimetres: 50
+      TableWreckMassGrams: 40000
+      TableWreckMinimumSizeMillimetres: 350
+      TableWreckMaximumSizeMillimetres: 500
     Extinguishers:
       FuelTicks: 300
       FightMinimumBravery: 7
@@ -391,6 +409,8 @@ MonoBehaviour:
       SprayRangeMillimetres: 3000
       SprayConeDegrees: 30
       CellsPerTick: 1
+      SweepDegrees: 24
+      SweepDegreesPerStrengthPoint: 3
       BlastPushMillimetres: 400
       BlastRecoveryTicks: 100
       RecoilPushMillimetres: 60
@@ -424,6 +444,7 @@ MonoBehaviour:
       StandUpTicks: 40
       StandUpTicksPerNervousness: 2
       StandUpShoveSpeed: 8
+      SitScootMillimetres: 120
       FetchRangeMillimetres: 4000
       CarryMinimumDistanceMillimetres: 1500
       ReachMillimetres: 150
@@ -1560,6 +1581,61 @@ MonoBehaviour:
         z: 0
       sizeMillimetres: 220
       massGrams: 9000
+      startsDormant: 1
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3401
+      kind: 11
+      initialPosition:
+        x: 0
+        z: 0
+      sizeMillimetres: 700
+      massGrams: 40000
+      startsDormant: 1
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3402
+      kind: 11
+      initialPosition:
+        x: 0
+        z: 0
+      sizeMillimetres: 700
+      massGrams: 40000
+      startsDormant: 1
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3403
+      kind: 11
+      initialPosition:
+        x: 0
+        z: 0
+      sizeMillimetres: 700
+      massGrams: 40000
+      startsDormant: 1
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3404
+      kind: 11
+      initialPosition:
+        x: 0
+        z: 0
+      sizeMillimetres: 700
+      massGrams: 40000
+      startsDormant: 1
+      initialFacingDegrees: 0
+      startsResting: 0
+    - objectId:
+        value: 3405
+      kind: 11
+      initialPosition:
+        x: 0
+        z: 0
+      sizeMillimetres: 700
+      massGrams: 40000
       startsDormant: 1
       initialFacingDegrees: 0
       startsResting: 0

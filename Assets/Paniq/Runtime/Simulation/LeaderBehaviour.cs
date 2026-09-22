@@ -62,7 +62,7 @@ namespace Paniq.Simulation
         /// keeps running themselves); a follower goes where their leader
         /// goes. Returns no intent for anyone doing neither.
         /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger)
+        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
         {
             if (agent.Leading.FollowingIndex >= 0)
             {
@@ -98,10 +98,11 @@ namespace Paniq.Simulation
             long bestDistance = long.MaxValue;
             for (int d = 0; d < doors.Count; d++)
             {
-                // Any way out they have found shut themselves, not only one in
-                // the room they happen to be standing in: the person they send
-                // can walk to it now.
-                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) || !leader.Doors.FoundShut[d])
+                // Any way out they have found shut themselves, or that is
+                // wedged, not only one in the room they happen to be standing
+                // in: the person they send can walk to it now.
+                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) ||
+                    (!leader.Doors.FoundShut[d] && !doors.IsObstructed(d)))
                 {
                     continue;
                 }
@@ -119,7 +120,11 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            Agent breaker = NearbyBest(leader, settings.OrderRangeMillimetres, out _, IsStrongEnoughToBreakDoors);
+            // A wedged door just needs shifting -- a much lower bar than
+            // breaking a locked one down.
+            bool wedged = doors.IsObstructed(door);
+            Agent breaker = NearbyBest(leader, settings.OrderRangeMillimetres, out _,
+                wedged ? (System.Func<Agent, bool>)IsStrongEnoughToShiftAnObstruction : IsStrongEnoughToBreakDoors);
             if (breaker == null)
             {
                 return false;
@@ -353,6 +358,11 @@ namespace Paniq.Simulation
         private bool IsStrongEnoughToBreakDoors(Agent agent)
         {
             return agent.Traits.Strength >= context.Scenario.Traits.DoorBreakMinimumStrength;
+        }
+
+        private bool IsStrongEnoughToShiftAnObstruction(Agent agent)
+        {
+            return agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength;
         }
 
         /// <summary>

@@ -179,6 +179,13 @@ namespace Paniq.Simulation
                 agent.Traits.Nervousness));
         }
 
+        /// <summary>How wide the extinguisher jet sweeps: a strong pair of hands keeps a narrow, steady arc.</summary>
+        public static int SpraySweepDegrees(Agent agent, FireReactionScenarioData scenario)
+        {
+            ExtinguisherSettings settings = scenario.Extinguishers;
+            return Math.Max(0, settings.SweepDegrees - settings.SweepDegreesPerStrengthPoint * agent.Traits.Strength);
+        }
+
         /// <summary>
         /// Whether a bell is enough to make this person leave briskly rather
         /// than panic: brave enough, and not too nervous.

@@ -180,10 +180,11 @@ namespace Paniq.Simulation
         /// <summary>They settle onto the chair and face the way it faces.</summary>
         private void SitDown(Agent agent, int chair)
         {
-            // Settling onto the chair puts them on it: the one place a body
-            // moves outside the engine's step, and only by a stride.
+            // The chair scoots in a little as they settle onto it, so sitting
+            // down reads as riding it to its resting spot.
+            LogicalPosition seat = objects.ScootIn(chair, settings.SitScootMillimetres, agent);
             objects.SitOn(chair, agent);
-            people.SitIn(agent, chair, objects.PositionOf(chair), agent.Body.Heading);
+            people.SitIn(agent, chair, seat, agent.Body.Heading);
             agent.Body.Speed = 0;
             agent.Sitting.OnIt = true;
             agent.Intent.Activity = AgentActivityState.Sitting;

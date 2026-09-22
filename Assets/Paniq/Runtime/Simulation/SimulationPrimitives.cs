@@ -423,7 +423,10 @@ namespace Paniq.Simulation
         /// (source: the person; strength: how hard the squeeze was; cause:
         /// whatever frightened them into the crush).
         /// </summary>
-        AgentCrushed
+        AgentCrushed,
+
+        /// <summary>Somebody alight throws themselves down and rolls (source: the person; strength: how long the roll lasts).</summary>
+        AgentRolled
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>
@@ -492,7 +495,10 @@ namespace Paniq.Simulation
         Microwave,
 
         /// <summary>A wall socket: it never moves and never burns, but it spits sparks and pops.</summary>
-        WallSocket
+        WallSocket,
+
+        /// <summary>The heap a smashed table collapses into: still something to trip over, but nobody sits on it.</summary>
+        TableWreck
     }
 
     /// <summary>

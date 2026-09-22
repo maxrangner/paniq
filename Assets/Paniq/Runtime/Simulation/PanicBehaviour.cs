@@ -119,10 +119,16 @@ namespace Paniq.Simulation
                 intent.Activity = AgentActivityState.Fleeing;
             }
 
+            // Set on a way out they can see standing open, right now, and not
+            // otherwise occupied. While this is true they stop dithering.
+            bool eager = doorBehaviour.IsSetOnAWayOut(agent) && !inDanger && !agent.Burning.IsBurning &&
+                         agent.Body.State == AgentBodyState.Upright;
+            intent.SetOnAWayOut = eager;
+
             // Anything they would rather be doing than running, in order.
             for (int i = 0; i < options.Length; i++)
             {
-                MotorIntent? instead = options[i].Decide(agent, inDanger);
+                MotorIntent? instead = options[i].Decide(agent, inDanger, eager);
                 if (instead.HasValue)
                 {
                     return instead.Value;
@@ -147,7 +153,7 @@ namespace Paniq.Simulation
             }
 
             bool leaving = doorBehaviour.IsLeaving(agent);
-            if (leaving && intent.Activity == AgentActivityState.Hesitating)
+            if ((leaving || eager) && intent.Activity == AgentActivityState.Hesitating)
             {
                 intent.Activity = AgentActivityState.Fleeing;
             }
@@ -207,7 +213,7 @@ namespace Paniq.Simulation
 
             int goalHeading;
             bool nearExit = doorBehaviour.IsNearExit(agent, context.Scenario.Exits.NoSwerveDistanceMillimetres);
-            int swerve = tick < intent.SwerveEndTick && !nearExit ? intent.SwerveOffset : 0;
+            int swerve = tick < intent.SwerveEndTick && !nearExit && !eager ? intent.SwerveOffset : 0;
             if (inDanger && fireDistanceSquared > 0L && !leaving)
             {
                 // Too close: run directly away from the nearest flames.
@@ -222,7 +228,7 @@ namespace Paniq.Simulation
 
             long followX = 0L;
             long followZ = 0L;
-            if (!nearExit)
+            if (!nearExit && !eager)
             {
                 FollowNearbyRunners(agent, out followX, out followZ);
             }

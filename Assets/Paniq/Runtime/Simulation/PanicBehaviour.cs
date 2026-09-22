@@ -154,6 +154,13 @@ namespace Paniq.Simulation
                 }
             }
 
+            if (doorBehaviour.HasPassedThrough(agent))
+            {
+                // Through the door they were running for: the next leg of the
+                // way out is worked out from the room they are standing in now.
+                intent.NextPanicDecisionTick = tick;
+            }
+
             bool leaving = doorBehaviour.IsLeaving(agent);
             if ((leaving || eager) && intent.Activity == AgentActivityState.Hesitating)
             {

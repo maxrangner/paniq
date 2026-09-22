@@ -474,6 +474,10 @@ namespace Paniq.Simulation
 
         /// <summary>The way out this person is running for, or -1.</summary>
         internal int ExitDoorForTests(int index) => agents[index].Doors.ExitDoorIndex;
+        internal Agent AgentForTests(int index) => agents[index];
+
+        /// <summary>Frightens somebody at once, as if they had seen the fire: for tests of what the frightened do.</summary>
+        internal void FrightenForTests(int index) => fear.MakeScared(agents[index]);
 
 
         /// <summary>

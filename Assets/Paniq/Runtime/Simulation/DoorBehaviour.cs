@@ -357,7 +357,8 @@ namespace Paniq.Simulation
             LogicalPosition position = agent.Body.Position;
             int from = agent.Doors.ApproachRoom;
             int room = geometry.RoomAt(position);
-            if (context.Tick < agent.Doors.GiveWayUntilTick && GivesWayAt(agent, door))
+            if (context.Tick < agent.Doors.GiveWayUntilTick && GivesWayAt(agent, door) &&
+                SomebodyElseLinedUpAt(agent, door))
             {
                 // Standing aside, against the wall on their side of the gap.
                 int radius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -393,9 +394,29 @@ namespace Paniq.Simulation
         /// </summary>
         public bool IsLeaving(Agent agent)
         {
-            return agent.Doors.ExitDoorIndex >= 0 &&
+            return agent.Doors.ExitDoorIndex >= 0 && !HasPassedThrough(agent) &&
                    geometry.IsDoorOpen(agent.Doors.ExitDoorIndex) &&
                    (IsNearExit(agent, settings.CommitDistanceMillimetres) || geometry.RoomAt(agent.Body.Position) < 0);
+        }
+
+        /// <summary>
+        /// Already standing in the room on the far side of the door they were
+        /// heading for: that door is done with. Without this, somebody knocked
+        /// off their line just after stepping through goes back to the near side
+        /// to walk through it again -- and, being close to the door, is too
+        /// committed to it to think again, so they shuttle back and forth.
+        /// </summary>
+        public bool HasPassedThrough(Agent agent)
+        {
+            int door = agent.Doors.ExitDoorIndex;
+            int from = agent.Doors.ApproachRoom;
+            if (door < 0 || from < 0)
+            {
+                return false;
+            }
+
+            int room = geometry.RoomAt(agent.Body.Position);
+            return room >= 0 && room != from && room == geometry.RoomBeyond(door, from);
         }
 
         /// <summary>Reached a shut door: time to try the handle.</summary>
@@ -680,7 +701,7 @@ namespace Paniq.Simulation
             int reach = HasAnotherWayOut(agent, door)
                 ? settings.ApproachInsetMillimetres + context.Scenario.World.OccupancyRadiusMillimetres * 2
                 : settings.CommitDistanceMillimetres;
-            if (!IsNearExit(agent, reach))
+            if (!IsNearExit(agent, reach) || !SomebodyElseLinedUpAt(agent, door))
             {
                 return false;
             }
@@ -689,6 +710,37 @@ namespace Paniq.Simulation
             agent.Doors.GiveWayUntilTick = checked(context.Tick + context.Random.NextIntInclusive(
                 settings.GiveWayMinimumTicks, settings.GiveWayMaximumTicks));
             return true;
+        }
+
+        /// <summary>
+        /// Whether somebody else, on their feet, is lined up with this door's
+        /// gap and close to it: somebody actually going through, and so worth
+        /// standing aside for. With nobody there, standing aside helps no one.
+        /// Everybody pressed round the gap would step aside at once, the gap
+        /// would stand empty, and the whole knot would wait politely beside an
+        /// open door for good.
+        /// </summary>
+        private bool SomebodyElseLinedUpAt(Agent agent, int door)
+        {
+            long reach = settings.ApproachInsetMillimetres + context.Scenario.World.OccupancyRadiusMillimetres * 2L;
+            LogicalPosition centre = geometry.DoorCentre(door);
+            Agent[] people = crowd.All;
+            for (int i = 0; i < people.Length; i++)
+            {
+                Agent other = people[i];
+                if (other == agent || !other.IsParticipating || other.Body.State != AgentBodyState.Upright)
+                {
+                    continue;
+                }
+
+                if (LogicalPosition.DistanceSquared(other.Body.Position, centre) < reach * reach &&
+                    geometry.IsLinedUpToPassThrough(door, other.Body.Position))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

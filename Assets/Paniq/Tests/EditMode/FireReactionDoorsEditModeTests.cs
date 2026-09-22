@@ -504,6 +504,145 @@ namespace Paniq.Tests.EditMode
                 $"Only {heading} of {frightened} frightened people were heading for the open way out.");
         }
 
+        /// <summary>
+        /// A meeting room with the way out standing open, a slow fire back in
+        /// the office, and none of the excuses (no freezing, no tripping, no
+        /// dithering) that would make a test of where they walk pass or fail on
+        /// luck. The people are frightened by hand once the fire has started;
+        /// see <see cref="Frighten"/>.
+        /// </summary>
+        private FireReactionScenarioData FleeingTheMeetingRoom(params FireReactionAgentDefinition[] people)
+        {
+            FireReactionScenarioData data = DefaultData();
+            data.Agents = people;
+            data.PhysicsObjects = Array.Empty<FireReactionPhysicsObjectDefinition>();
+            data.Tables = Array.Empty<FireReactionTableDefinition>();
+            data.Alarms = Array.Empty<FireReactionAlarmDefinition>();
+            data.Fire.ActivationTick = 1;
+            data.Fire.SpreadMinimumTicks = 100000;
+            data.Fire.SpreadMaximumTicks = 100000;
+            data.Temperament.FreezeThenRunPercent = 0;
+            data.Temperament.FreezeForeverPercent = 0;
+            data.Falls.TripChancePercent = 0;
+            data.Panic.HesitateChancePercent = 0;
+            data.Panic.SwerveChancePercent = 0;
+            data.Help.ShakeMinimumCompassion = AgentTraitValues.Maximum + 1;
+            data.Help.DragMinimumCompassion = AgentTraitValues.Maximum + 1;
+            data.Extinguishers.FightMinimumBravery = AgentTraitValues.Maximum + 1;
+            return data;
+        }
+
+        /// <summary>Runs until the fire has started, then frightens everybody at once.</summary>
+        private static void Frighten(FireReactionSimulation simulation)
+        {
+            simulation.Step();
+            simulation.Step();
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                simulation.FrightenForTests(i);
+            }
+        }
+
+        private static int DoorIndex(FireReactionSimulation simulation, SimulationId id)
+        {
+            for (int i = 0; i < simulation.DoorCount; i++)
+            {
+                if (simulation.GetDoor(i).DoorId == id)
+                {
+                    return i;
+                }
+            }
+
+            throw new KeyNotFoundException(id.ToString());
+        }
+
+        /// <summary>
+        /// The owner's report (seed 42): somebody let out of the corridor steps
+        /// through into the meeting room, is knocked off their line a moment
+        /// later, and walks back into the corridor to go through the same door
+        /// again -- and, being close to it, never thinks again. Once through,
+        /// the next leg starts from the room they are standing in.
+        /// </summary>
+        [Test]
+        public void SomebodyKnockedAsideJustThroughADoor_CarriesOnRatherThanGoingBack()
+        {
+            FireReactionScenarioData data = FleeingTheMeetingRoom(
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(9800, 900),
+                    CardinalDirection.South, AgentTraitValues.AllOrdinary));
+            var simulation = new FireReactionSimulation(data);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, new SimulationId(2006UL), 1);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, TheWayOut, 1);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, TheWayOut, 2);
+            Frighten(simulation);
+            while (simulation.GetAgent(0).ActivityState != AgentActivityState.Fleeing)
+            {
+                Assert.That(simulation.Tick, Is.LessThan(200), "They never ran.");
+                simulation.Step();
+            }
+
+            // Exactly where the owner saw it: still set on the corridor door,
+            // from the corridor side, but standing in the meeting room beside it.
+            WorldGeometry geometry = simulation.GeometryForTests;
+            int corridor = geometry.RoomAt(new LogicalPosition(7500, 0));
+            Agent person = simulation.AgentForTests(0);
+            person.Doors.ExitDoorIndex = DoorIndex(simulation, new SimulationId(2006UL));
+            person.Doors.ApproachRoom = corridor;
+            person.Intent.NextPanicDecisionTick = simulation.Tick + 10000;
+
+            for (int t = 0; t < 5 * FireReactionSimulation.TicksPerSecond; t++)
+            {
+                simulation.Step();
+                FireReactionAgentSnapshot now = simulation.GetAgent(0);
+                if (now.Outcome == AgentTerminalOutcome.Escaped)
+                {
+                    break;
+                }
+
+                Assert.That(geometry.RoomAt(now.Position), Is.Not.EqualTo(corridor),
+                    $"They walked back into the corridor at tick {simulation.Tick}.");
+            }
+
+            if (simulation.GetAgent(0).Outcome != AgentTerminalOutcome.Escaped)
+            {
+                Assert.That(simulation.AgentForTests(0).Doors.ExitDoorIndex, Is.EqualTo(DoorIndex(simulation, TheWayOut)),
+                    "They should be making for the way out of the meeting room.");
+            }
+        }
+
+        /// <summary>
+        /// The owner's report (seed 42): a knot of people pressed beside the open
+        /// way out, every one of them standing aside for somebody lined up with
+        /// the gap -- except nobody was, so the gap stood empty and they waited
+        /// there politely until the end. Standing aside is only for somebody
+        /// actually going through.
+        /// </summary>
+        [Test]
+        public void AKnotBesideAnOpenWayOut_DoesNotWaitForNobody()
+        {
+            FireReactionAgentDefinition Person(ulong id, int x, int z) =>
+                new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z),
+                    CardinalDirection.South, AgentTraitValues.AllOrdinary);
+            FireReactionScenarioData data = FleeingTheMeetingRoom(
+                Person(1UL, 18750, 3000), Person(2UL, 18750, 3550), Person(3UL, 18200, 3300),
+                Person(4UL, 18200, 3850), Person(5UL, 17650, 3550));
+            var simulation = new FireReactionSimulation(data);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, TheWayOut, 1);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, TheWayOut, 2);
+            Frighten(simulation);
+            for (int t = 0; t < 20 * FireReactionSimulation.TicksPerSecond; t++)
+            {
+                simulation.Step();
+            }
+
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                FireReactionAgentSnapshot person = simulation.GetAgent(i);
+                Assert.That(person.Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped),
+                    $"Person {person.AgentId} was still at ({person.Position.X}, {person.Position.Z}) after 20 s " +
+                    "beside an open way out.");
+            }
+        }
+
         internal static FireReactionScenarioData WithAWayOutOfTheOffice(
             FireReactionScenarioData data, bool startsLocked = true)
         {

@@ -97,14 +97,54 @@ One simulation runner owns tick advancement. Simulation systems must not each
 advance themselves from separate `MonoBehaviour.FixedUpdate` callbacks; Unity
 component execution order is not simulation order.
 
-The initial vertical-slice schedule is, in order:
+Within phase 4, a person's behaviour only states what it wants the body to do
+this tick (a goal heading, a goal speed, a turn rate and an acceleration).
+Other systems may stop, knock down, push or jolt a body as the direct result of
+a logged event, but no behaviour moves a body itself.
+
+The tick schedule is, in order:
 
 1. Consume commands assigned to this tick.
 2. Advance hazard state.
 3. Resolve hazard contact at current positions.
-4. Make agent decisions.
-5. Resolve movement requests.
-6. Resolve danger contact along accepted movement and then exit outcomes.
+4. Make agent decisions, in ascending Agent ID order, then resolve what those
+   decisions set in motion: standing up from chairs, following leaders,
+   spraying, and helpers pulling the people they drag.
+5. Step the physics world once (see below).
+6. Judge what the step did, in the sorted contact order: loose things meeting
+   people and other things (hits, breakages, smashed tables), then people
+   running into people, then crush pressure on each person.
+7. Carried things follow their carriers; fire spreads to and from people;
+   room changes, escapes and rescues are recorded; things heat up and catch;
+   doorways are checked for wedges.
+
+**The physics step (phase 5).** Unity's 3D physics engine (PhysX) moves every
+person and loose thing, in a physics world private to this run that nothing
+else can reach. The simulation owns its clock: the world advances only here,
+by exactly one fixed step (`PhysicsScene.Simulate(0.02)`), never on Unity's own
+timer. In order:
+
+1. The building is brought up to date in the physics world: walls, door leaves
+   that are shut, tables that still stand.
+2. Each person's motor pushes toward the speed and heading their behaviour
+   chose, in ascending Agent ID order; gravity is applied to each awake body in
+   the order bodies were created (ascending ID).
+3. The world is stepped.
+4. Every body is read back in creation order and rounded to whole units
+   (1/100 mm, ticks, whole degrees), and every contact is read, merged per pair
+   and sorted, so the rest of the tick sees plain whole numbers in a fixed
+   order.
+
+The engine runs with Enhanced Determinism, fixed solver passes and the settings
+in `Editor/ProjectPhysicsSettings.cs`, so the same seed on the same build and
+kind of machine plays out identically. Whether two things *started* touching
+this tick is worked out from the simulation's own record of last tick's
+touching pairs, never from the engine's flag. A thing with no causing event
+(nobody pushed, threw or blasted it) cannot hurt a person or break anything,
+however the engine has it moving.
+
+Sounds are delivered synchronously when they are emitted, to listeners in
+ascending Agent ID order, like any other event-driven transition.
 
 Each system emits and appends its events synchronously with the transition that
 caused them. A later system must document where it belongs in this schedule
@@ -123,13 +163,35 @@ schedule phase above.
 | --- | --- |
 | Target tick | The logical tick at whose start the command is consumed. |
 | Command sequence | The run-wide monotonic ordering value for commands sharing a tick. |
-| Command type | A named data-level action, such as the slice's guidance placement. |
-| Logical payload | Fully quantized, validated simulation data needed by that command. |
+| Command type | A named data-level action, such as placing a guidance marker. |
+| Logical payload | Fully quantized, validated simulation data needed by that command: a thing's stable ID, a place in whole millimetres, or both. |
 
 Raw pointer positions, camera state, screen coordinates, Unity input objects,
 and scene-object references are not command data. They may help presentation
 derive the logical payload for a live action, but replay consumes only the
 recorded `PlayerCommand`.
+
+The first command type is `ClickDoor`, whose payload is one door's stable ID.
+The display finds which door was under the mouse pointer with a ray-cast
+against a click-only collider on each door leaf, then hands the runner that
+door ID. The simulation keeps every queued command in order (`Commands`), and
+queuing the same commands on a fresh run with the same seed replays it exactly.
+A command for a tick that has already started is rejected.
+
+A command may name a **place** instead of a thing: a `LogicalPosition` in whole
+millimetres, which is fully quantized simulation data and so a valid payload.
+The display works one out by intersecting the pointer with the mathematical
+ground plane and rounding; the ray and the screen position never leave the
+presentation. The prototype's cards use both shapes — `PlayBeefcake` names a
+person, and `SpawnFire`, `SpawnExtinguisher` and `BlastWall` name a place.
+
+The queue belongs to `PlayerCommandSystem`, which holds it but decides nothing:
+each command is carried out by the system that owns those rules. Validation
+splits in two. Whether a command *names something the run has* is checked as it
+is queued, and an unknown ID is refused outright. Whether a command *can do
+anything where it points* is decided when it is consumed, because the world will
+have moved on by then; a command that cannot is a no-op that costs the player
+nothing and, because the causal log is append-only, leaves no trace in it.
 
 Unity's Input System supports dynamic and fixed update processing. Paniq uses
 dynamic capture and explicitly queues logical commands, so rendering cadence
@@ -151,6 +213,7 @@ contains:
 | Strength | An optional numeric magnitude. An event type defines when it is present and what it means. |
 | Duration | An optional logical-time duration. An event type defines when it is present and what it means. |
 | Causal parent | The Event ID that directly caused it, or no parent for a root event. |
+| Target ID | The stable ID of the entity it affected (the person run into, the box kicked, the door tried), or none. An event type defines when it is present. |
 
 Receivers use these fields and their own simulation state to process the event.
 The causal-parent chain is retained so a later event log and debugging view can
@@ -175,7 +238,9 @@ Paniq guarantees a reproducible run only when all of the following match:
 
 - scenario data and its explicit seed;
 - Paniq build and platform;
-- fixed-step configuration; and
+- fixed-step configuration;
+- the project's physics settings (Enhanced Determinism, solver type and
+  friction model; see `Editor/ProjectPhysicsSettings.cs`); and
 - the ordered player-input data supplied to each logical tick.
 
 Bit-identical replays across different builds or platforms are not promised by
@@ -191,6 +256,11 @@ or initialization, tick schedule, event-envelope meaning, numeric spatial
 rule, or documented system-specific replay field requires a compatibility
 review and a new version unless a documented migration preserves old runs.
 
+Version 32 (2026-09-21) is the move to Unity's 3D physics: every movement and
+contact changed, so all recorded replay fingerprints were re-recorded once. A
+change to the physics settings, solver passes, body shapes or the order bodies
+are created in is a compatibility change like any other.
+
 At save, checkpoint, or replay load, the game compares the provenance record
 with the available scenario and runtime environment. A mismatch is
 **incompatible**: the game reports it and never silently converts,
@@ -199,9 +269,9 @@ their relevant fields; this section owns the policy.
 
 ## Next layers
 
-The [foundation-to-slice roadmap](roadmap.md) defines the required order:
+The foundation notes built on this contract are
 [scenario data versus runtime state](scenario-runtime-state.md), the [agent
 state model](agent-state-model.md), [causal event logging and debugging](causal-event-log.md),
-then [movement and spatial-world rules](spatial-world-rules.md). Gameplay
-systems can then add their own mechanics without weakening the replay and
-separation guarantees above.
+and [movement and spatial-world rules](spatial-world-rules.md). Prototype
+stones, recorded in the [prototype roadmap](roadmap.md), add their own
+mechanics without weakening the replay and separation guarantees above.

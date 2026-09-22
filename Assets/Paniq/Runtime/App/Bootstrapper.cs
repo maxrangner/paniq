@@ -5,20 +5,21 @@ namespace Paniq.App
 {
     /// <summary>
     /// Keeps startup separate from playable scenes. Future app-level setup belongs
-    /// here; the foundation currently advances straight to the development scene.
+    /// here; the prototype currently advances straight to the fire-reaction scene.
     /// </summary>
     public sealed class Bootstrapper : MonoBehaviour
     {
+        public const string FireReactionPrototypeSceneName = "FireReactionPrototype";
         public const string DevelopmentSceneName = "Development";
 
         private void Start()
         {
-            if (SceneManager.GetActiveScene().name == DevelopmentSceneName)
+            if (SceneManager.GetActiveScene().name == FireReactionPrototypeSceneName)
             {
                 return;
             }
 
-            SceneManager.LoadSceneAsync(DevelopmentSceneName, LoadSceneMode.Single);
+            SceneManager.LoadSceneAsync(FireReactionPrototypeSceneName, LoadSceneMode.Single);
         }
     }
 }

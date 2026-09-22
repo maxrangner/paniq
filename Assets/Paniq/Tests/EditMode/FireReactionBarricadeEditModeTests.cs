@@ -201,16 +201,16 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void AStrongRunner_HeavesTheObstructionOutOfTheWay()
+        public void AStrongRunner_ClearsTheObstructionOutOfTheWay()
         {
             var simulation = new FireReactionSimulation(RunnerAtAJammedDoor(9));
-            for (int t = 0; t < 20 * FireReactionSimulation.TicksPerSecond &&
-                            EventsOfType(simulation, FireReactionEventType.AgentShovedObstruction).Count == 0; t++)
+            for (int t = 0; t < 20 * FireReactionSimulation.TicksPerSecond && Cleared(simulation).Count == 0; t++)
             {
                 simulation.Step();
             }
 
-            List<CausalEvent> heaved = EventsOfType(simulation, FireReactionEventType.AgentShovedObstruction);
+            // Thrown clear if they can lift it, heaved along the wall if not.
+            List<CausalEvent> heaved = Cleared(simulation);
             Assert.That(heaved, Is.Not.Empty, "A strong person should shift whatever is wedged in the doorway.");
             Assert.That(heaved[0].SourceId, Is.EqualTo(Somebody));
             Assert.That(heaved[0].TargetId, Is.EqualTo(TheBox));
@@ -223,6 +223,13 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorUnblocked), Is.Not.Empty,
                 "Once heaved aside, the doorway is clear again.");
+        }
+
+        private static List<CausalEvent> Cleared(FireReactionSimulation simulation)
+        {
+            var cleared = EventsOfType(simulation, FireReactionEventType.AgentShovedObstruction);
+            cleared.AddRange(EventsOfType(simulation, FireReactionEventType.ItemThrown));
+            return cleared;
         }
 
         [Test]

@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 42
+    ContentRevision: 43
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 34
+    SimulationCompatibilityVersion: 35
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -176,6 +176,9 @@ MonoBehaviour:
       ArrivalDistanceMillimetres: 400
       CommitDistanceMillimetres: 2500
       NoSwerveDistanceMillimetres: 2000
+      ClearTheWayReachMillimetres: 400
+      ClearTheWayMinimumAngleDegrees: 30
+      ClearTheWayMaximumAngleDegrees: 70
       CurrentRoomBonusMillimetres: 2000
       RefugeClearRoomMillimetres: 8000
       RefugeNoFireMillimetres: 20000

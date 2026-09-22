@@ -1100,9 +1100,42 @@ namespace Paniq.Simulation
                 }
             }
 
+            Fling(agent, index, heading, agent.Fear.ScaredEventId);
+        }
+
+        /// <summary>
+        /// Whether somebody can grab this thing and throw it clear of their way
+        /// out: loose on the floor, not fixed to the wall, not held, nobody
+        /// sitting on it, and light enough for them.
+        /// </summary>
+        public bool CanThrowClear(Agent agent, int index)
+        {
+            PhysicsBody thing = bodies[index];
+            return !IsOutOfPlay(index) && !IsFixedInPlace(index) && thing.HeldBy < 0 && CanLift(agent, index);
+        }
+
+        /// <summary>
+        /// Self-preservation: somebody whose way out is blocked by a thing grabs
+        /// it and throws it clear, towards <paramref name="heading"/>. Anybody
+        /// who can lift it does this, not only the strong, and nobody has to be
+        /// told to. <paramref name="causeEventId"/> is what drove them to it.
+        /// </summary>
+        public void ThrowClear(Agent agent, int index, int heading, ulong causeEventId)
+        {
+            Fling(agent, index, heading, causeEventId);
+        }
+
+        /// <summary>
+        /// Snatches a thing off the floor and throws it from the hip, towards
+        /// <paramref name="heading"/>: up and over rather than skimming along
+        /// the ground. They lose half their speed doing it.
+        /// </summary>
+        private void Fling(Agent agent, int index, int heading, ulong causeEventId)
+        {
+            PhysicsBody item = bodies[index];
             int speed = ThrowSpeed(agent, index);
             CausalEvent thrown = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemThrown, item.Position,
-                speed, 0, agent.Fear.ScaredEventId, item.Id);
+                speed, 0, causeEventId, item.Id);
 
             // Snatched off the floor and flung from the hip: it goes up and
             // over rather than skimming along the ground.

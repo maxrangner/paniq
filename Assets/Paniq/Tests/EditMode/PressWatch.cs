@@ -16,8 +16,13 @@ namespace Paniq.Tests.EditMode
         /// <summary>Deeper than this, in millimetres, is more than a squeeze.</summary>
         public const int DeepestSqueezeMillimetres = 75;
 
-        /// <summary>A knock may sink deeper than a squeeze for this many ticks in a row, and no more.</summary>
-        public const int LongestKnockTicks = 2;
+        /// <summary>
+        /// A knock may sink deeper than a squeeze for this many ticks in a row,
+        /// and no more. Three, not two: somebody knocked flat while running can
+        /// skid a light chair a step or two along the floor before the two come
+        /// apart, a little over the squeeze depth for three ticks (seed 47, 81 mm).
+        /// </summary>
+        public const int LongestKnockTicks = 3;
 
         private int deepTicks;
 

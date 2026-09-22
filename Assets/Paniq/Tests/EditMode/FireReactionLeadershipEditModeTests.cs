@@ -109,15 +109,25 @@ namespace Paniq.Tests.EditMode
                 .WithAWayOutOfTheOffice(scenario.ToRuntimeData(), startsLocked: false).Doors;
 
             // The north door's gap is centred on x = -2500 in the wall at z = 6000.
+            // 20 kg: more than the leader (strength 4) can lift, so they cannot
+            // just throw it clear themselves, but not too much for somebody
+            // strong -- which is what a leader is for.
             data.PhysicsObjects = new[]
             {
                 new FireReactionPhysicsObjectDefinition(new SimulationId(3001UL), PhysicsObjectKind.Box,
-                    new LogicalPosition(-2500, 5800), 400, 12000)
+                    new LogicalPosition(-2500, 5800), 400, 20000)
             };
 
             var simulation = new FireReactionSimulation(data);
-            for (int t = 0; t < 60 * FireReactionSimulation.TicksPerSecond &&
-                            EventsOfType(simulation, FireReactionEventType.AgentShovedObstruction).Count == 0; t++)
+            // Shifted either way: thrown clear, or heaved along the wall.
+            List<CausalEvent> Shifted()
+            {
+                var shifted = EventsOfType(simulation, FireReactionEventType.AgentShovedObstruction);
+                shifted.AddRange(EventsOfType(simulation, FireReactionEventType.ItemThrown));
+                return shifted;
+            }
+
+            for (int t = 0; t < 60 * FireReactionSimulation.TicksPerSecond && Shifted().Count == 0; t++)
             {
                 simulation.Step();
             }
@@ -127,8 +137,7 @@ namespace Paniq.Tests.EditMode
             Assert.That(orders[0].SourceId, Is.EqualTo(new SimulationId(1UL)), "The order comes from the leader.");
             Assert.That(orders[0].TargetId, Is.EqualTo(new SimulationId(2UL)), "It names who was sent.");
 
-            Assert.That(EventsOfType(simulation, FireReactionEventType.AgentShovedObstruction), Is.Not.Empty,
-                "And they heaved the box out of the doorway.");
+            Assert.That(Shifted(), Is.Not.Empty, "And they shifted the box out of the doorway.");
         }
 
         [Test]

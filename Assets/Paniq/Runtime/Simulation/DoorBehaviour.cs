@@ -556,9 +556,19 @@ namespace Paniq.Simulation
 
                     if (doors.IsObstructed(door))
                     {
-                        // Something is wedged against it. Somebody strong heaves
-                        // it clear; anybody else gives up as they would on a
-                        // locked door.
+                        // Something is wedged against it. Anybody who can lift
+                        // it grabs it and throws it clear -- nobody needs to be
+                        // told to save their own life. Too heavy for them:
+                        // somebody strong heaves it along the wall instead, and
+                        // anybody else gives up as they would on a locked door.
+                        int thing = doors.ObstructionIn(door);
+                        if (thing >= 0 && CanReachToThrowClear(agent, thing))
+                        {
+                            objects.ThrowClear(agent, thing, ClearAwayHeading(agent, doorCentre), agent.Doors.AttemptEventId);
+                            agent.Intent.ActivityEndTick = checked(tick + settings.DoorTryTicks);
+                            return true;
+                        }
+
                         if (agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength)
                         {
                             agent.Intent.Activity = AgentActivityState.ShovingObstruction;
@@ -741,6 +751,63 @@ namespace Paniq.Simulation
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Stuck in a crush on the way out with a thing right in front of them,
+        /// between them and where they are going: they grab it and throw it
+        /// clear, if they can lift it. Self-preservation, so anybody does it,
+        /// not only the strong and not only when told. True when they did.
+        /// </summary>
+        public bool TryClearTheWay(Agent agent)
+        {
+            LogicalPosition position = agent.Body.Position;
+            LogicalPosition target = agent.Intent.Target;
+            if (objects == null || agent.Body.State != AgentBodyState.Upright || agent.Carry.ItemIndex >= 0 ||
+                position.Equals(target))
+            {
+                return false;
+            }
+
+            int radius = context.Scenario.World.OccupancyRadiusMillimetres;
+            int heading = IntegerMath.HeadingBetween(position, target, agent.Body.Heading);
+            LogicalPosition ahead = position + IntegerMath.Displacement(heading, radius + settings.ClearTheWayReachMillimetres);
+            int thing = objects.FindBlocking(position, ahead, radius);
+            if (thing < 0 || !CanReachToThrowClear(agent, thing))
+            {
+                return false;
+            }
+
+            objects.ThrowClear(agent, thing, ClearAwayHeading(agent, target), agent.Fear.ScaredEventId);
+            agent.Body.BlockedTicks = 0;
+            return true;
+        }
+
+        /// <summary>Whether this thing is within arm's reach and light enough for them to throw clear.</summary>
+        private bool CanReachToThrowClear(Agent agent, int thing)
+        {
+            if (!objects.CanThrowClear(agent, thing))
+            {
+                return false;
+            }
+
+            long reach = (long)context.Scenario.World.OccupancyRadiusMillimetres + objects.RadiusOf(thing) +
+                         settings.ClearTheWayReachMillimetres;
+            return LogicalPosition.DistanceSquared(agent.Body.Position, objects.PositionOf(thing)) <= reach * reach;
+        }
+
+        /// <summary>
+        /// Which way to throw a thing clear of the way out: back past themselves,
+        /// away from <paramref name="wayOut"/>, and off to one side, the way
+        /// somebody flings a chair over their shoulder. It may well land on the
+        /// people behind them.
+        /// </summary>
+        private int ClearAwayHeading(Agent agent, LogicalPosition wayOut)
+        {
+            int back = IntegerMath.HeadingBetween(wayOut, agent.Body.Position, agent.Body.Heading + 180);
+            int side = context.Random.NextIntInclusive(0, 1) == 0 ? -1 : 1;
+            return IntegerMath.NormalizeDegrees(back + side * context.Random.NextIntInclusive(
+                settings.ClearTheWayMinimumAngleDegrees, settings.ClearTheWayMaximumAngleDegrees));
         }
 
         /// <summary>

@@ -187,9 +187,10 @@ namespace Paniq.Simulation
                      !(leaving && geometry.RoomAt(agent.Body.Position) < 0 &&
                        agent.Body.BlockedTicks < settings.BlockedGiveUpTicks * 2))
             {
+                // A thing in the way: grab it and throw it clear.
                 // Wedged beside an open door: stand aside for whoever is lined up with it.
                 // Otherwise stuck in the crowd: if it was on the way to a door, try another one for a while.
-                if (!doorBehaviour.TryGiveWay(agent))
+                if (!doorBehaviour.TryClearTheWay(agent) && !doorBehaviour.TryGiveWay(agent))
                 {
                     doorBehaviour.AvoidCrowdedExit(agent);
                     DecideMove(agent, false);

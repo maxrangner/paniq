@@ -314,8 +314,10 @@ namespace Paniq.Tests.EditMode
                 FireReactionSnapshot snapshot = simulation.GetSnapshot();
                 foreach (CausalEvent record in EventsOfType(simulation, FireReactionEventType.AgentEscaped))
                 {
+                    // Out through a door somebody opened, or one battered off
+                    // its hinges after somebody shut it again.
                     Assert.That(simulation.EventLog.Get(record.CausalParentEventId).EventType,
-                        Is.EqualTo(FireReactionEventType.DoorOpened));
+                        Is.EqualTo(FireReactionEventType.DoorOpened).Or.EqualTo(FireReactionEventType.DoorBrokenDown));
                     Assert.That(simulation.GetAgent(record.SourceId).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped));
                 }
 
@@ -641,6 +643,47 @@ namespace Paniq.Tests.EditMode
                     $"Person {person.AgentId} was still at ({person.Position.X}, {person.Position.Z}) after 20 s " +
                     "beside an open way out.");
             }
+        }
+
+        /// <summary>
+        /// The owner's report (seed 42): an office chair ends up wedged in the
+        /// way out and the whole meeting room waits behind it while the fire
+        /// comes. Grabbing it and throwing it clear is self-preservation, so an
+        /// ordinary person does it -- nobody strong, and no leader, needed.
+        /// </summary>
+        [Test]
+        public void AChairWedgedInTheWayOut_IsThrownClearByAnOrdinaryPerson()
+        {
+            var ordinary = new AgentTraitValues(5, 5, 5, 5, 2, 5, 4);
+            FireReactionScenarioData data = FleeingTheMeetingRoom(
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(17600, 2500),
+                    CardinalDirection.East, ordinary));
+            Assert.That(ordinary.Strength, Is.LessThan(data.Blockades.ShoveMinimumStrength),
+                "The point is somebody too weak to heave it along the wall.");
+            data.PhysicsObjects = new[]
+            {
+                new FireReactionPhysicsObjectDefinition(new SimulationId(3900UL), PhysicsObjectKind.OfficeChair,
+                    new LogicalPosition(18740, 2500), 500, 9000)
+            };
+
+            var simulation = new FireReactionSimulation(data);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, TheWayOut, 1);
+            Frighten(simulation);
+            for (int t = 0; t < 20 * FireReactionSimulation.TicksPerSecond; t++)
+            {
+                simulation.Step();
+                if (simulation.GetAgent(0).Outcome == AgentTerminalOutcome.Escaped)
+                {
+                    break;
+                }
+            }
+
+            Assert.That(EventsOfType(simulation, FireReactionEventType.DoorBlocked), Is.Not.Empty,
+                "The chair should have jammed the way out to begin with.");
+            Assert.That(EventsOfType(simulation, FireReactionEventType.ItemThrown), Is.Not.Empty,
+                "Nobody threw the chair clear.");
+            Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped),
+                "They should have thrown the chair clear and got out.");
         }
 
         internal static FireReactionScenarioData WithAWayOutOfTheOffice(

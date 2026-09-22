@@ -442,6 +442,15 @@ namespace Paniq.Simulation
         /// <summary>Within this distance of their exit, runners stop swerving and following.</summary>
         public int NoSwerveDistanceMillimetres = 2000;
 
+        /// <summary>
+        /// Clearing the way: somebody stuck can grab a thing this far beyond the
+        /// edge of their own body (and the thing's), and throws it back past
+        /// themselves, off to one side by between these two angles.
+        /// </summary>
+        public int ClearTheWayReachMillimetres = 400;
+        public int ClearTheWayMinimumAngleDegrees = 30;
+        public int ClearTheWayMaximumAngleDegrees = 70;
+
         /// <summary>With every way out given up on, how much better the room they already stand in has to look.</summary>
         public int CurrentRoomBonusMillimetres = 2000;
 
@@ -503,6 +512,9 @@ namespace Paniq.Simulation
                              Settings.Range(GiveUpGlanceMinimumTicks, GiveUpGlanceMaximumTicks, 1) &&
                              Settings.Range(GiveWayMinimumTicks, GiveWayMaximumTicks, 1), "door timings");
             Settings.Require(GiveWayAsideMillimetres >= 0 && GiveWayInsetMillimetres >= 0, "giving way");
+            Settings.Require(ClearTheWayReachMillimetres >= 0 &&
+                             Settings.Range(ClearTheWayMinimumAngleDegrees, ClearTheWayMaximumAngleDegrees, 0) &&
+                             ClearTheWayMaximumAngleDegrees <= 180, "clearing the way");
             Settings.Require(ApproachInsetMillimetres >= 0 && OutsideTargetMillimetres >= 0 && ArrivalDistanceMillimetres > 0 &&
                              CommitDistanceMillimetres >= 0 && NoSwerveDistanceMillimetres >= 0, "door approach");
             Settings.Require(OpenBonusMillimetres >= 0 && CurrentChoiceBonusMillimetres >= 0 &&

@@ -1,7 +1,9 @@
 ﻿# Fire-reaction prototype
 
-**Status:** current prototype. This scene is where prototype stones are laid
-one at a time (see the [prototype roadmap](roadmap.md)). So far it shows that
+**Status:** the project's prototype scene, and the only one. Prototype 1 was
+built here; it is finished and merged into `main` (2026-09-22). Prototype 2
+will be built in this same scene rather than a new one. Stones are laid one at
+a time (see the [prototype roadmap](roadmap.md)). So far it shows that
 agents can move deterministically in a life-like way, react to a spreading
 hazard, and leave an explainable causal event trail.
 

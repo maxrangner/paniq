@@ -5,6 +5,11 @@ The prototype is built stone by stone (see [goals](goals.md) for what
 next one is chosen. It is not a schedule and not a feature list for the
 finished game.
 
+**Where things stand (2026-09-22).** Prototype 1 -- the fire-reaction office
+-- is finished and merged into `main`. Prototype 2 is next and will be built
+in the same scene rather than a fresh one. What prototype 2 is *for* has not
+been decided yet; the owner will describe it in a later session.
+
 ## Foundation (complete)
 
 | Note | What it settles |
@@ -15,10 +20,11 @@ finished game.
 | [Causal event log](causal-event-log.md) | How cause-and-effect events are kept and inspected |
 | [Movement and spatial-world rules](spatial-world-rules.md) | Positions, room bounds, occupancy, and movement resolution |
 
-## Prototype stones laid
+## Prototype 1: the stones laid (finished)
 
-All stones so far live in the [fire-reaction prototype](fire-reaction-prototype.md)
-scene.
+Every stone below lives in the [fire-reaction prototype](fire-reaction-prototype.md)
+scene, and together they are prototype 1. Prototype 2 keeps all of them and
+adds to the same scene.
 
 | Stone | Kind | What the player sees |
 | --- | --- | --- |
@@ -134,6 +140,20 @@ Still to come:
   in the next room showed through the wall the way flames do. The new particles
   cannot yet, so a bang out of sight is heard but not seen. Worth doing if
   playtesters miss it.
+
+## Prototype 2: next, in the same building
+
+Prototype 1 is closed. Prototype 2 continues in the **same fire-reaction
+office**: the building, the twenty people, the physics, the doors and the
+influence cards all stay, and prototype 2 is more layers on top of them. The
+owner chose this over starting a fresh scene so that a new layer is playable
+the day it is written, and so a run can be judged against how that building
+normally goes.
+
+**What prototype 2 is for is not decided yet.** The owner will describe it in
+a later session. Nothing should be built toward it until then. The standing
+direction below is the last thing settled with the owner; it is the starting
+point for that conversation, not a decision already taken.
 
 ## Agreed direction for the next stones
 

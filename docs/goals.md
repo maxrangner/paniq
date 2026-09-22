@@ -20,6 +20,12 @@ fire that spreads), a behaviour (for example people who panic), or a style (for
 example how the fire looks). After every stone the prototype still runs, and
 the owner plays it and decides what the next stone is.
 
+**How prototypes are numbered.** A prototype here is a run of stones that is
+worked on and then closed, not a separate game. Prototype 1 is the
+fire-reaction office: finished on 2026-09-22 and merged into `main`.
+Prototype 2 is next and is being built in that same scene, so nothing from
+prototype 1 is thrown away by starting it.
+
 A prototype is **not** a small version of the finished game. It has no fixed
 end state, no required feature list, and no promise that any layer survives.
 A layer that does not feel right is reworked or thrown away. Its job is to

@@ -882,10 +882,10 @@ opens, away from whoever pushed it — outward for the player, who is not standi
 anywhere. Each door also carries a setting for which ways its leaf may swing,
 both ways for now, so a later scene can author a one-way fire door; a strip of darker ground outside shows the doorway. A person
 shoving a door lunges at it on each shove. Boxes are brown cubes, 0.75 as tall
-as they are wide, that hop and tip a little when hit. Anything drawn square is
-drawn to fit *inside* the round footprint the simulation keeps clear — a cube
-as wide as its footprint would stick its corners out by two fifths of a radius,
-which is what people passing through the corner of a box were seeing. The door leaves are the
+as they are wide, that hop and tip a little when hit. With physics, everything
+is drawn at the size of its real physical shape. (Before physics, square things
+were drawn smaller to fit inside the round footprint the simulation kept clear,
+because their corners stuck out past it.) The door leaves are the
 only objects with colliders, used only to work out which door was clicked.
 
 The runner keeps the latest and previous snapshots. The display blends between

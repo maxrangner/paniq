@@ -150,6 +150,8 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   scenario: {fileID: 11400000, guid: 736b4ed08f67491fa82cb1cf9dd533e2, type: 2}
+  physicsFeel: {fileID: 11400000, guid: 112481c59fe94050b51d79088580e1a4, type: 2}
+  livePhysicsTuning: 0
 --- !u!114 &1003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -163,3 +165,4 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   runner: {fileID: 1002}
+  particleEffects: {fileID: 11400000, guid: 1393c498638649e4ad0313a917b178c2, type: 2}

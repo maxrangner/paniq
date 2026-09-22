@@ -179,23 +179,17 @@ namespace Paniq.Simulation
                 : agent.Personality.PanicSpeed;
         }
 
-        /// <summary>
-        /// How far either side of the target somebody's jet wanders while they
-        /// hold the trigger down. Strong hands hold it nearly straight; the weak
-        /// are wrestled about by the hose, the same way the recoil walks them
-        /// backwards. Never negative.
-        /// </summary>
-        public static int SpraySweepDegrees(Agent agent, FireReactionScenarioData scenario)
-        {
-            ExtinguisherSettings settings = scenario.Extinguishers;
-            return Math.Max(0,
-                settings.SweepDegrees - settings.SweepDegreesPerStrengthPoint * agent.Traits.Strength);
-        }
-
         public static int TripChancePercent(Agent agent, FireReactionScenarioData scenario)
         {
             return Percent((int)Scale(scenario.Falls.TripChancePercent, scenario.Traits.NervousTripPercentPerPoint,
                 agent.Traits.Nervousness));
+        }
+
+        /// <summary>How wide the extinguisher jet sweeps: a strong pair of hands keeps a narrow, steady arc.</summary>
+        public static int SpraySweepDegrees(Agent agent, FireReactionScenarioData scenario)
+        {
+            ExtinguisherSettings settings = scenario.Extinguishers;
+            return Math.Max(0, settings.SweepDegrees - settings.SweepDegreesPerStrengthPoint * agent.Traits.Strength);
         }
 
         /// <summary>

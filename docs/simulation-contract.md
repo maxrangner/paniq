@@ -99,30 +99,49 @@ component execution order is not simulation order.
 
 Within phase 4, a person's behaviour only states what it wants the body to do
 this tick (a goal heading, a goal speed, a turn rate and an acceleration).
-Locomotion carries that out once per person per tick. Other systems may stop,
-knock down or jolt a body as the direct result of a logged event, but no
-behaviour turns or accelerates a body itself.
+Other systems may stop, knock down, push or jolt a body as the direct result of
+a logged event, but no behaviour moves a body itself.
 
 The tick schedule is, in order:
 
 1. Consume commands assigned to this tick.
 2. Advance hazard state.
 3. Resolve hazard contact at current positions.
-4. Make agent decisions.
-5. Resolve movement requests.
-6. Resolve danger contact along accepted movement and then exit outcomes.
-7. Resolve collisions, in the order they were recorded during phase 4: people
-   into people first, then people into physical objects.
-8. Advance physical objects (such as boxes), in ascending object ID order.
+4. Make agent decisions, in ascending Agent ID order, then resolve what those
+   decisions set in motion: standing up from chairs, following leaders,
+   spraying, and helpers pulling the people they drag.
+5. Step the physics world once (see below).
+6. Judge what the step did, in the sorted contact order: loose things meeting
+   people and other things (hits, breakages, smashed tables), then people
+   running into people, then crush pressure on each person.
+7. Carried things follow their carriers; fire spreads to and from people;
+   room changes, escapes and rescues are recorded; things heat up and catch;
+   doorways are checked for wedges.
 
-A phase that no prototype stone uses yet is simply empty. In the fire-reaction
-prototype, phase 1 consumes door clicks and phase 6 marks people who have
-walked out through an open door as escaped. Collisions (phase 7) never move
-anyone: a collision is a move that was refused in phase 4, so they cannot
-change the contact results of phase 6. A collision with an object only changes
-that object's velocity, which phase 8 then applies. Phase 8 moves objects but
-never people; an object that runs into a person stops against them and may
-stagger or trip them.
+**The physics step (phase 5).** Unity's 3D physics engine (PhysX) moves every
+person and loose thing, in a physics world private to this run that nothing
+else can reach. The simulation owns its clock: the world advances only here,
+by exactly one fixed step (`PhysicsScene.Simulate(0.02)`), never on Unity's own
+timer. In order:
+
+1. The building is brought up to date in the physics world: walls, door leaves
+   that are shut, tables that still stand.
+2. Each person's motor pushes toward the speed and heading their behaviour
+   chose, in ascending Agent ID order; gravity is applied to each awake body in
+   the order bodies were created (ascending ID).
+3. The world is stepped.
+4. Every body is read back in creation order and rounded to whole units
+   (1/100 mm, ticks, whole degrees), and every contact is read, merged per pair
+   and sorted, so the rest of the tick sees plain whole numbers in a fixed
+   order.
+
+The engine runs with Enhanced Determinism, fixed solver passes and the settings
+in `Editor/ProjectPhysicsSettings.cs`, so the same seed on the same build and
+kind of machine plays out identically. Whether two things *started* touching
+this tick is worked out from the simulation's own record of last tick's
+touching pairs, never from the engine's flag. A thing with no causing event
+(nobody pushed, threw or blasted it) cannot hurt a person or break anything,
+however the engine has it moving.
 
 Sounds are delivered synchronously when they are emitted, to listeners in
 ascending Agent ID order, like any other event-driven transition.
@@ -219,7 +238,9 @@ Paniq guarantees a reproducible run only when all of the following match:
 
 - scenario data and its explicit seed;
 - Paniq build and platform;
-- fixed-step configuration; and
+- fixed-step configuration;
+- the project's physics settings (Enhanced Determinism, solver type and
+  friction model; see `Editor/ProjectPhysicsSettings.cs`); and
 - the ordered player-input data supplied to each logical tick.
 
 Bit-identical replays across different builds or platforms are not promised by
@@ -234,6 +255,11 @@ replay-relevant rule. Changing the fixed step, command envelope, PCG algorithm
 or initialization, tick schedule, event-envelope meaning, numeric spatial
 rule, or documented system-specific replay field requires a compatibility
 review and a new version unless a documented migration preserves old runs.
+
+Version 32 (2026-09-21) is the move to Unity's 3D physics: every movement and
+contact changed, so all recorded replay fingerprints were re-recorded once. A
+change to the physics settings, solver passes, body shapes or the order bodies
+are created in is a compatibility change like any other.
 
 At save, checkpoint, or replay load, the game compares the provenance record
 with the available scenario and runtime environment. A mismatch is

@@ -1,7 +1,8 @@
-﻿using Paniq.Gameplay;
+using Paniq.Gameplay;
 using Paniq.Simulation;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using static Paniq.Presentation.PresentationUtility;
 
 namespace Paniq.Presentation
 {
@@ -18,6 +19,9 @@ namespace Paniq.Presentation
     {
         [SerializeField] private FireReactionRunner runner;
 
+        [Tooltip("How the particle effects look. Leave empty for the built-in look.")]
+        [SerializeField] private ParticleEffectSettings particleEffects;
+
         private PresentationMaterials materials;
         private Transform root;
         private Camera prototypeCamera;
@@ -27,7 +31,9 @@ namespace Paniq.Presentation
         private FireView fire;
         private SoundRipples ripples;
         private SprayView spray;
+        private NavigationGridView navigationGrid;
         private PopBursts pops;
+        private ParticleEffects effects;
         private PlayerInput input;
 
         /// <summary>Where the camera sits when nothing is shaking it.</summary>
@@ -56,14 +62,20 @@ namespace Paniq.Presentation
                 materials = new PresentationMaterials();
                 prototypeCamera = CreateCameraAndLight(root, scenario);
                 cameraRest = prototypeCamera.transform.position;
-                room = new RoomView(scenario, materials, root);
-                agents = new AgentViews(scenario, materials, root);
-                boxes = new BoxViews(scenario, materials, root);
-                fire = new FireView(materials, root);
+                effects = new ParticleEffects(particleEffects, root);
+                room = new RoomView(scenario, materials, effects, root);
+                agents = new AgentViews(scenario, materials, effects, root);
+                boxes = new BoxViews(scenario, materials, effects, root);
+                fire = new FireView(materials, effects, root);
                 ripples = new SoundRipples(materials.Icon, root);
-                spray = new SprayView(materials, root);
-                pops = new PopBursts(materials, root);
+                spray = new SprayView(effects);
+                pops = new PopBursts(materials, effects, root);
                 input = new PlayerInput(runner, room);
+
+                // Off until G is pressed: the floor painted square by square
+                // wherever somebody could stand.
+                navigationGrid = new NavigationGridView(
+                    runner.Simulation, root, scenario.World.OccupancyRadiusMillimetres);
             }
             catch (System.Exception failure)
             {
@@ -111,6 +123,7 @@ namespace Paniq.Presentation
                 Destroy(root.gameObject);
             }
 
+            effects?.Dispose();
             materials?.Destroy();
         }
 
@@ -142,6 +155,12 @@ namespace Paniq.Presentation
                 showStats = !showStats;
             }
 
+            if (keyboard != null && keyboard.gKey.wasPressedThisFrame)
+            {
+                navigationGrid?.Toggle();
+            }
+
+            effects.BeginFrame();
             PlayNewEvents(frameSnapshot, time);
             agents.Update(frameSnapshot, previous, blend, time, prototypeCamera.transform);
             room.Update(frameSnapshot, hoveredDoor, time, Time.deltaTime);
@@ -150,7 +169,7 @@ namespace Paniq.Presentation
             boxes.Update(frameSnapshot, previous, blend, time);
             ripples.Update(time);
             fire.Update(frameSnapshot, time);
-            spray.Update(frameSnapshot, time);
+            spray.Update(frameSnapshot);
             pops.Update(time);
 
             // A bang shakes the view for a moment, always around the same rest.
@@ -184,7 +203,14 @@ namespace Paniq.Presentation
                 PrototypeHud.DrawLegend();
                 if (showStats)
                 {
-                    PrototypeHud.DrawStats(frameSnapshot);
+                    string feel = runner.PhysicsFeelName ?? "the scenario's own";
+                    string footer = $"Physics feel: {feel}.  Particles: {effects.LiveParticles} of {effects.Settings.LiveParticleBudget}.";
+                    if (runner.IsLiveTuned)
+                    {
+                        footer += "  Tuned live: this run cannot be replayed.";
+                    }
+
+                    PrototypeHud.DrawStats(frameSnapshot, footer);
                 }
             }
         }
@@ -251,19 +277,39 @@ namespace Paniq.Presentation
                         pops.Start(record.Position, 0.8f, scenario.Blast.ThrowRadiusMillimetres, record.EventId, time);
                         break;
                     case FireReactionEventType.ObjectExploded:
-                        // A flash, sparks and smoke sized to the blast, a big ring
-                        // for the bang, and the thing itself hops.
+                        // A flash, sparks and smoke sized to the blast, and a big
+                        // ring for the bang; the blast itself throws the thing.
                         pops.Start(record.Position, boxes.BurstHeightOf(record.SourceId), record.Strength,
                             record.EventId, time);
                         ripples.Start(record.Position, record.Strength * 6, SoundRipples.ThudColor, time);
-                        boxes.Hop(record.SourceId, 1f, time);
                         break;
                     case FireReactionEventType.ObjectBroke:
+                        // Splinters or shards where it smashed; a table that is
+                        // not one of the loose things is a big wooden one.
                         ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
-                        boxes.Hop(record.SourceId, 0.8f, time);
+                        if (boxes.TryDescribe(record.SourceId, out Vector3 middle, out float size, out bool shatters))
+                        {
+                            effects.Break(middle, size, shatters, record.EventId);
+                        }
+                        else
+                        {
+                            effects.Break(ToUnityPosition(record.Position) + Vector3.up * 0.6f, 1.2f, false,
+                                record.EventId);
+                        }
+
                         break;
                     case FireReactionEventType.AgentTripped:
                         ripples.Start(record.Position, record.Strength, SoundRipples.ThudColor, time);
+                        effects.Knock(ToUnityPosition(record.Position), 0.6f, record.EventId);
+                        break;
+                    case FireReactionEventType.AgentKnockedDown:
+                    case FireReactionEventType.AgentCrushed:
+                        // Hitting the floor kicks up a little dust.
+                        effects.Knock(ToUnityPosition(record.Position), 0.6f, record.EventId);
+                        break;
+                    case FireReactionEventType.BoxesCollided:
+                        effects.Knock(ToUnityPosition(record.Position) + Vector3.up * 0.3f,
+                            Mathf.Clamp01(record.Strength / 80f), record.EventId);
                         break;
                     case FireReactionEventType.DoorBrokenDown:
                     case FireReactionEventType.DoorClosed:
@@ -275,16 +321,17 @@ namespace Paniq.Presentation
                         ripples.Start(record.Position, record.Strength, SoundRipples.ThudColor, time);
                         break;
                     case FireReactionEventType.BoxBumped:
-                        boxes.Hop(record.TargetId, Mathf.Max(0.25f, Mathf.Clamp01(record.Strength / 80f)), time);
                         if (record.Strength >= scenario.Falls.BumpMinimumSpeed)
                         {
                             ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                            effects.Knock(ToUnityPosition(record.Position), 0.3f, record.EventId);
                         }
 
                         break;
                     case FireReactionEventType.BoxHitAgent:
-                        boxes.Hop(record.SourceId, 0.6f, time);
                         ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        effects.Knock(ToUnityPosition(record.Position) + Vector3.up * 0.8f,
+                            Mathf.Clamp01(record.Strength / 80f), record.EventId);
                         break;
                 }
             }

@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// One person's runtime state, split by concern so it is clear which
@@ -63,6 +63,66 @@
         public bool IsDown => Body.State == AgentBodyState.Fallen || Body.State == AgentBodyState.GettingUp ||
                               Body.State == AgentBodyState.Unconscious;
 
+        /// <summary>
+        /// The doorway this person may step into at the moment.
+        ///
+        /// A way out they are running for comes first, then a doorway they
+        /// picked to stroll through, and then -- for anybody on an errand --
+        /// any open doorway at all.
+        ///
+        /// That last case is the point. A doorway used to be walkable only for
+        /// somebody running for a way out, so anyone carrying an extinguisher
+        /// to a fire in the next room walked up to the doorway and slid along
+        /// the wall beside it. The rule was written when nothing could cross a
+        /// room and the only reason to be in a doorway was to escape; now
+        /// people have errands that take them through the building. Somebody
+        /// standing about, or wandering inside one room, is still walled in, so
+        /// nobody drifts through a door for no reason.
+        /// </summary>
+        public int DoorwayInUse
+        {
+            get
+            {
+                if (Doors.ExitDoorIndex >= 0)
+                {
+                    return Doors.ExitDoorIndex;
+                }
+
+                if (Doors.StrollDoorIndex >= 0)
+                {
+                    return Doors.StrollDoorIndex;
+                }
+
+                return IsOnAnErrand ? AgentDoorMemory.AnyDoorway : -1;
+            }
+        }
+
+        /// <summary>On their way to something in particular, rather than standing about or milling around.</summary>
+        public bool IsOnAnErrand
+        {
+            get
+            {
+                switch (Intent.Activity)
+                {
+                    case AgentActivityState.FetchingExtinguisher:
+                    case AgentActivityState.Spraying:
+                    case AgentActivityState.GoingToSit:
+                    case AgentActivityState.FetchingItem:
+                    case AgentActivityState.CarryingItem:
+                    case AgentActivityState.ShakingAwake:
+                    case AgentActivityState.Grabbing:
+                    case AgentActivityState.Dragging:
+                    case AgentActivityState.GoingToAlarm:
+                    case AgentActivityState.FetchingBarricade:
+                    case AgentActivityState.CarryingBarricade:
+                    case AgentActivityState.Following:
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+        }
+
         public FireReactionAgentSnapshot ToSnapshot()
         {
             return new FireReactionAgentSnapshot(
@@ -83,16 +143,34 @@
                 Traits,
                 Burning.IsBurning,
                 Leading.LedCount > 0,
-                Fear.Composed);
+                Fear.Composed,
+                Body.Pose);
         }
     }
 
     internal sealed class AgentBody
     {
-        public LogicalPosition Position;
+        /// <summary>
+        /// Where the body stands. Read freely; to move it, call
+        /// <see cref="Crowd.MoveTo"/> rather than assigning here. The crowd
+        /// keeps an index of who is standing where, and a move that did not go
+        /// through it would leave that index describing the last tick. The
+        /// setter is private so that a new way of moving somebody cannot be
+        /// written without noticing this.
+        /// </summary>
+        public LogicalPosition Position { get; private set; }
+
+        /// <summary>Moves the body. Call <see cref="Crowd.MoveTo"/>, which is what keeps the index true.</summary>
+        internal void MoveWithoutTellingTheCrowd(LogicalPosition position)
+        {
+            Position = position;
+        }
 
         /// <summary>Whole degrees clockwise from north.</summary>
         public int Heading;
+
+        /// <summary>How the physics engine last left the body: its height and its full 3D turn.</summary>
+        public BodyPose Pose;
 
         /// <summary>Millimetres per tick.</summary>
         public int Speed;
@@ -104,10 +182,47 @@
         public int BlastedUntilTick;
 
         public AgentBodyState State;
+
+        /// <summary>
+        /// Still standing, even if they have just been jolted.
+        ///
+        /// Anything already under way -- carrying a bottle to a fire, going to
+        /// hit an alarm, wedging a door -- asks this rather than "perfectly
+        /// steady". A stagger is two tenths of a second after somebody clips
+        /// you in a doorway, and treating it as being off your feet meant a
+        /// single brush from a passer-by made somebody drop what they were
+        /// doing and run. Being knocked down is still being knocked down.
+        /// </summary>
+        public bool IsOnTheirFeet => State == AgentBodyState.Upright || State == AgentBodyState.Staggering;
+
         public int EndTick;
 
         /// <summary>The event that put the body in its current state, for the later AgentGotUp.</summary>
         public ulong EventId;
+    }
+
+    /// <summary>
+    /// The two ways a frightened person is ever asked to move: at their
+    /// fleeing pace towards something, or standing still and turning to face
+    /// it. Six behaviours each wrote these out for themselves, with the same
+    /// turn rate and the same acceleration spelled out every time.
+    /// </summary>
+    internal static class PanicIntent
+    {
+        public static MotorIntent WalkTowards(Agent agent, int heading, PanicSettings panic)
+        {
+            return new MotorIntent(heading, TraitEffects.FleeSpeed(agent), agent.Personality.PanicTurnRate, panic.Acceleration);
+        }
+
+        public static MotorIntent MoveAt(Agent agent, int heading, int speed, PanicSettings panic)
+        {
+            return new MotorIntent(heading, speed, agent.Personality.PanicTurnRate, panic.Acceleration);
+        }
+
+        public static MotorIntent StandAndFace(Agent agent, int heading, PanicSettings panic)
+        {
+            return new MotorIntent(heading, 0, agent.Personality.PanicTurnRate, panic.Acceleration);
+        }
     }
 
     internal sealed class AgentPersonality
@@ -154,16 +269,16 @@
         public int SwerveEndTick;
         public int NextPanicDecisionTick;
 
-        /// <summary>
-        /// They are on their way to a way out of the building they have seen
-        /// standing open. Written once per decision by the panic behaviour, and
-        /// read wherever dithering is decided: somebody with a clear way out in
-        /// front of them does not hesitate, zig-zag or drift with the crowd.
-        /// </summary>
-        public bool SetOnAWayOut;
-
         /// <summary>The soonest a cruel person will heave another person out of their way (not the door shoving in <see cref="AgentDoorMemory"/>).</summary>
         public int NextShoveTick;
+
+        /// <summary>
+        /// Set on a way out they can see standing open, right now, and not
+        /// otherwise occupied (not in danger, not alight, on their feet).
+        /// While this is true they stop dithering: no swerve, no drifting with
+        /// the crowd, no starting to wedge themselves in.
+        /// </summary>
+        public bool SetOnAWayOut;
     }
 
     internal sealed class AgentHearing
@@ -179,17 +294,18 @@
         {
             AvoidUntilTick = new int[doorCount];
             FoundShut = new bool[doorCount];
-            ShutItThemselves = new bool[doorCount];
+            ShutByThem = new bool[doorCount];
         }
 
         /// <summary>The door being run for, or -1.</summary>
         public int ExitDoorIndex = -1;
 
         /// <summary>
-        /// The way out of the building at the far end of the route they are on,
-        /// or -1. <see cref="ExitDoorIndex"/> is the next door on the walk; this
-        /// is the one that actually leads outside, so "is their way out open?"
-        /// can be answered without working the route out again.
+        /// The way out at the far end of the current route -- not necessarily
+        /// <see cref="ExitDoorIndex"/>, which is only the next door along it.
+        /// A way out that is currently open is never written off by a stale
+        /// "found shut" memory the way an ordinary door along the route still
+        /// can be.
         /// </summary>
         public int WayOutDoorIndex = -1;
 
@@ -199,6 +315,21 @@
         /// <summary>The room they were in last tick, or -1; a change is the moment to think about the door behind them.</summary>
         public int CurrentRoom = -1;
 
+        /// <summary>
+        /// A doorway this person may walk through that is not a way out they
+        /// are running for: a calm person strolling into the next room, say.
+        ///
+        /// These used to be the same field, and that is why a calm person could
+        /// never leave the room they started in. Only somebody heading for a
+        /// way out was allowed into a doorway, and a calm person is not heading
+        /// for one, so every door was a wall to them and the building read as
+        /// four sealed boxes rather than one place.
+        /// </summary>
+        public int StrollDoorIndex = -1;
+
+        /// <summary>Any open doorway will do, because they are on their way somewhere.</summary>
+        public const int AnyDoorway = -2;
+
         /// <summary>Per door: the tick until which this person will not try it again.</summary>
         public readonly int[] AvoidUntilTick;
 
@@ -206,11 +337,11 @@
         public readonly bool[] FoundShut;
 
         /// <summary>
-        /// Per door: they pulled this one shut themselves. Knowing a door opened
-        /// again does not change that — they shut it on purpose, and they are not
-        /// going to walk back and shoulder their own handiwork.
+        /// Per door: they shut or locked it themselves. However long ago, and
+        /// however trapped they are now, they never batter it: that door is
+        /// their own doing.
         /// </summary>
-        public readonly bool[] ShutItThemselves;
+        public readonly bool[] ShutByThem;
 
         /// <summary>Until this tick they stand aside beside their open door, letting whoever is lined up with it through first.</summary>
         public int GiveWayUntilTick;
@@ -294,9 +425,6 @@
         /// <summary>The door they are dragging someone toward, or -1.</summary>
         public int DragDoor = -1;
 
-        /// <summary>Where they stood before this tick's move, so a blocked drag can undo it.</summary>
-        public LogicalPosition PositionBeforeMove;
-
         /// <summary>
         /// How many ticks running they have hauled somebody and got nowhere.
         /// Counted here rather than on the body, because a dragger takes a step
@@ -309,13 +437,6 @@
 
     internal sealed class AgentCarry
     {
-        /// <summary>
-        /// Where in its back-and-forth swing this person's jet is, drawn once as
-        /// the trigger goes down so two people fighting the same fire do not
-        /// wave in unison.
-        /// </summary>
-        public int SprayPhase;
-
         /// <summary>The item (physical-object index) being fetched or carried, or -1.</summary>
         public int ItemIndex = -1;
 
@@ -336,6 +457,12 @@
         /// the player's card feel like an offer rather than scenery.
         /// </summary>
         public int SawAnExtinguisherUntilTick;
+
+        /// <summary>
+        /// A random phase, drawn once when spraying starts, so the jet's sweep
+        /// does not line up with everybody else's.
+        /// </summary>
+        public int SprayPhase;
     }
 
     internal sealed class AgentBurning
@@ -351,14 +478,10 @@
         public int NextTurnTick;
         public int NextScreamTick;
 
-        /// <summary>
-        /// While this tick has not passed, they are on the floor rolling on
-        /// purpose to smother the flames, rather than simply knocked over. Only
-        /// deliberate rolling can put a person out.
-        /// </summary>
+        /// <summary>Until this tick they are dropped and rolling, or 0.</summary>
         public int RollingUntilTick;
 
-        /// <summary>The AgentRolled event, so a fire that goes out can name the roll that did it.</summary>
+        /// <summary>The AgentDroppedAndRolled event, for the AgentDoused that may follow it.</summary>
         public ulong RollEventId;
     }
 

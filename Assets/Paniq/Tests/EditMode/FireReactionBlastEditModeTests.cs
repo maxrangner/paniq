@@ -200,6 +200,36 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
+        public void BlastStrength_ScalesHowFarPeopleAreThrown()
+        {
+            long ThrownMillimetres(int strengthPercent)
+            {
+                FireReactionScenarioData data = QuietOffice();
+                data.Agents = new[]
+                {
+                    new FireReactionAgentDefinition(Somebody, new LogicalPosition(0, -4900), CardinalDirection.North,
+                        AgentTraitValues.AllOrdinary)
+                };
+                data.PhysicsFeel.BlastStrengthPercent = strengthPercent;
+                var simulation = new FireReactionSimulation(data);
+                LogicalPosition before = simulation.GetAgent(0).Position;
+                Blast(simulation, SouthWall);
+                for (int t = 0; t < FireReactionSimulation.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                }
+
+                return IntegerMath.Sqrt(LogicalPosition.DistanceSquared(before, simulation.GetAgent(0).Position));
+            }
+
+            long full = ThrownMillimetres(100);
+            long weak = ThrownMillimetres(40);
+            Assert.That(full, Is.GreaterThan(300), "A full blast a metre away should throw somebody.");
+            Assert.That(weak, Is.LessThan(full * 4 / 5),
+                $"A blast at 40% should throw them less far ({weak} mm against {full} mm).");
+        }
+
+        [Test]
         public void TheBang_FrightensPeopleWhoCouldNotHaveSeenAnything()
         {
             FireReactionScenarioData data = QuietOffice();

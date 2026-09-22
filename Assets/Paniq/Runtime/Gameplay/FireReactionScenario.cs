@@ -43,6 +43,17 @@ namespace Paniq.Gameplay
             }
         }
 
+        /// <summary>
+        /// Replaces everything this asset holds. For the scene baker, which is
+        /// an editor command somebody runs on purpose -- nothing in a running
+        /// game ever calls this, because a run must never quietly rewrite the
+        /// content it was handed.
+        /// </summary>
+        public void OverwriteWith(FireReactionScenarioData baked)
+        {
+            scenario = baked ?? throw new ArgumentNullException(nameof(baked));
+        }
+
         /// <summary>An in-memory asset holding the code defaults, for tests and for a runner with no asset assigned.</summary>
         public static FireReactionScenario CreateDefault()
         {

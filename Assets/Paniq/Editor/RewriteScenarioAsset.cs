@@ -26,7 +26,7 @@ namespace Paniq.EditorTools
         private const string AssetPath = "Assets/Paniq/Content/FireReactionScenario.asset";
 
         [MenuItem("Paniq/Rewrite Scenario Asset From Code Defaults")]
-        private static void Rewrite()
+        public static void Rewrite()
         {
             var asset = AssetDatabase.LoadAssetAtPath<FireReactionScenario>(AssetPath);
             if (asset == null)
@@ -35,7 +35,10 @@ namespace Paniq.EditorTools
                 return;
             }
 
-            if (!EditorUtility.DisplayDialog(
+            // A batch-mode run (tools/RunEditModeTests.ps1, CI) has nobody to
+            // click a dialog: asking would just hang. Only the interactive
+            // editor menu confirms first.
+            if (!Application.isBatchMode && !EditorUtility.DisplayDialog(
                     "Rewrite scenario asset?",
                     "This replaces every value in the scenario asset with the defaults written in the code. " +
                     "Anything changed by hand in the Inspector will be lost.",

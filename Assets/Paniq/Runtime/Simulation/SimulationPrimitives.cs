@@ -419,10 +419,13 @@ namespace Paniq.Simulation
         PowerBlastedWall,
 
         /// <summary>
-        /// Somebody alight threw themselves down and rolled to smother the
-        /// flames (source: the person). Whether it worked is a separate
-        /// <c>AgentDoused</c> naming this as its cause.
+        /// Squeezed off their feet by the crowd pressing in from every side
+        /// (source: the person; strength: how hard the squeeze was; cause:
+        /// whatever frightened them into the crush).
         /// </summary>
+        AgentCrushed,
+
+        /// <summary>Somebody alight throws themselves down and rolls (source: the person; strength: how long the roll lasts).</summary>
         AgentRolled
     }
 
@@ -494,11 +497,7 @@ namespace Paniq.Simulation
         /// <summary>A wall socket: it never moves and never burns, but it spits sparks and pops.</summary>
         WallSocket,
 
-        /// <summary>
-        /// The heap of boards a table collapses into. Not authored anywhere in
-        /// the world: a spare slot stands ready for each table and only comes
-        /// into it when that table goes over.
-        /// </summary>
+        /// <summary>The heap a smashed table collapses into: still something to trip over, but nobody sits on it.</summary>
         TableWreck
     }
 

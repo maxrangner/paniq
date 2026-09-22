@@ -713,10 +713,15 @@ namespace Paniq.Simulation
         }
 
         /// <summary>How much of the shove goes into lifting a chair somebody leapt out of, as a percentage.</summary>
-        private const int KnockOverLiftPercent = 60;
+        private const int KnockOverLiftPercent = 40;
 
-        /// <summary>How fast a chair somebody leapt out of turns end over end, in degrees a tick.</summary>
-        private const int KnockOverSpinDegreesPerTick = 25;
+        /// <summary>
+        /// How fast a chair somebody leapt out of turns end over end, in degrees
+        /// a tick: enough to go over in about half a second. Faster than this
+        /// and it whirls through whoever is standing behind it before the engine
+        /// can push the two apart.
+        /// </summary>
+        private const int KnockOverSpinDegreesPerTick = 12;
 
         /// <summary>Someone sits down on a chair: it stops dead and stays put until they get up.</summary>
         public void SitOn(int index, Agent sitter)

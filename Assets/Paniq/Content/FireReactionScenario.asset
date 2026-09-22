@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 44
+    ContentRevision: 45
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 36
+    SimulationCompatibilityVersion: 37
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -453,7 +453,7 @@ MonoBehaviour:
       SitPullOutMillimetres: 300
       SitPullTicks: 12
       SitLowerTicks: 10
-      JumpUpKnockOverSpeed: 60
+      JumpUpKnockOverSpeed: 30
       FetchRangeMillimetres: 4000
       CarryMinimumDistanceMillimetres: 1500
       ReachMillimetres: 150

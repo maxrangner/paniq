@@ -1242,8 +1242,14 @@ namespace Paniq.Simulation
         public int SitPullTicks = 12;
         public int SitLowerTicks = 10;
 
-        /// <summary>How hard a chair somebody leapt out of is sent over backwards, in millimetres a tick.</summary>
-        public int JumpUpKnockOverSpeed = 60;
+        /// <summary>
+        /// How hard a chair somebody leapt out of is sent over backwards, in
+        /// millimetres a tick. A shove, not a throw: at twice this it clatters
+        /// into the meeting table hard enough to smash it, which is not what
+        /// standing up quickly should do. What tips it over is the lift and
+        /// the spin, not the speed.
+        /// </summary>
+        public int JumpUpKnockOverSpeed = 30;
 
         public int FetchRangeMillimetres = 4000;
 

@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("44"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(36));
+            Assert.That(data.ContentRevision, Is.EqualTo("45"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(37));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -835,11 +835,20 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void LostAgents_TraceBackThroughTheFlamesToABurningSquare()
         {
-            var simulation = new FireReactionSimulation(NobodyFightsTheFire());
+            FireReactionScenarioData data = NobodyFightsTheFire();
 
-            // Two minutes: people are better at getting out of each other's
-            // way than they were, so the fire takes longer to catch anybody.
-            for (int i = 0; i < 120 * FireReactionSimulation.TicksPerSecond; i++)
+            // Somebody standing exactly where the fire starts, so there is
+            // always a death to trace back however well the rest get out. This
+            // test is about the trail of causes behind a death, not about how
+            // deadly the building is.
+            var people = new List<FireReactionAgentDefinition>(data.Agents)
+            {
+                new FireReactionAgentDefinition(new SimulationId(1999UL), data.Fire.SpawnBounds.Centre,
+                    CardinalDirection.North, AgentTraitValues.AllOrdinary)
+            };
+            data.Agents = people.ToArray();
+            var simulation = new FireReactionSimulation(data);
+            for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond; i++)
             {
                 simulation.Step();
             }

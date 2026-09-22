@@ -185,15 +185,7 @@ namespace Paniq.Simulation
                 SpareExtinguisher(3391UL),
                 SpareExtinguisher(3392UL),
                 SpareExtinguisher(3393UL),
-                SpareExtinguisher(3394UL),
-
-                // One reserved heap per table, claimed and placed when that
-                // table is smashed. Never created mid-run.
-                SpareTableWreck(3401UL),
-                SpareTableWreck(3402UL),
-                SpareTableWreck(3403UL),
-                SpareTableWreck(3404UL),
-                SpareTableWreck(3405UL)
+                SpareExtinguisher(3394UL)
             };
         }
 
@@ -362,16 +354,6 @@ namespace Paniq.Simulation
         {
             return new FireReactionPhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Extinguisher, new LogicalPosition(0, 0), 220, 9000, true);
-        }
-
-        /// <summary>
-        /// One of the reserved wreck heaps a smashed table tips into. Not in
-        /// the world until a table breaks and claims it.
-        /// </summary>
-        private static FireReactionPhysicsObjectDefinition SpareTableWreck(ulong id)
-        {
-            return new FireReactionPhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.TableWreck, new LogicalPosition(0, 0), 700, 40000, true);
         }
 
         /// <summary>A microwave on a counter: heavy, and it goes off with a bang.</summary>

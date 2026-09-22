@@ -415,6 +415,9 @@ namespace Paniq.Simulation
         /// </summary>
         public bool IsEquipment(int index) => kinds.Of(bodies[index].Kind).IsEquipment;
 
+        /// <summary>Furniture somebody sits on, whichever way up it happens to be right now.</summary>
+        public bool CanBeSatOn(int index) => kinds.Of(bodies[index].Kind).CanBeSatOn;
+
         /// <summary>The largest thing in the building, for widening a question enough to catch it.</summary>
         public int WidestRadius => widestRadius;
 
@@ -1060,11 +1063,6 @@ namespace Paniq.Simulation
         {
             for (int t = 0; t < geometry.TableCount; t++)
             {
-                if (geometry.IsTableBroken(t))
-                {
-                    continue;
-                }
-
                 LogicalBounds bounds = geometry.TableBounds(t);
                 LogicalPosition middle = bounds.Centre;
                 if (LogicalPosition.DistanceSquared(middle, centre) > reach * reach)
@@ -1388,10 +1386,6 @@ namespace Paniq.Simulation
                 {
                     HitObject(contact.BodyA, before[contact.BodyA], contact.BodyB, before[contact.BodyB], contact);
                 }
-                else if (contact.Static == PhysicsWorld.StaticKind.Table)
-                {
-                    TrySmashTable(contact.BodyA, before[contact.BodyA], contact.StaticIndex);
-                }
             }
         }
 
@@ -1420,85 +1414,6 @@ namespace Paniq.Simulation
         /// <summary>How fast a velocity is, in hundredths of a millimetre per tick.</summary>
         private static long SpeedOf((long X, long Y, long Z) velocity) =>
             IntegerMath.Sqrt(velocity.X * velocity.X + velocity.Y * velocity.Y + velocity.Z * velocity.Z);
-
-        /// <summary>
-        /// A table takes the momentum of whatever just slammed into it, and
-        /// collapses if that was hard enough. A smashed table stops being
-        /// something people walk around, so the room opens up, and whatever it
-        /// was holding up falls to the floor.
-        /// </summary>
-        private void TrySmashTable(int index, (long X, long Y, long Z) velocity, int table)
-        {
-            if (geometry.IsTableBroken(table))
-            {
-                return;
-            }
-
-            PhysicsBody thrown = bodies[index];
-            long momentum = thrown.MassGrams * SpeedOf(velocity) / (1000L * SubMillimetre);
-            if (thrown.LastPushEventId == 0UL || momentum < context.Scenario.Flammables.TableBreakMomentum)
-            {
-                return;
-            }
-
-            LogicalBounds bounds = geometry.TableBounds(table);
-            geometry.BreakTable(table);
-            world.RemoveTable(table);
-            CausalEvent broke = context.Events.Append(context.Tick, geometry.TableId(table), FireReactionEventType.ObjectBroke,
-                bounds.Centre, (int)Math.Min(int.MaxValue, momentum), 0,
-                thrown.LastPushEventId, thrown.Id);
-            TipTableOver(table, bounds, thrown, broke.EventId);
-            sound.Thud(geometry.TableId(table), bounds.Centre, thrown.LastPushEventId);
-        }
-
-        /// <summary>
-        /// A smashed table tips into a real heap: claims a pre-authored dormant
-        /// wreck body (the reserved dormant-slot pattern, so nothing is created
-        /// mid-run), sizes and places it where the table stood, and carries
-        /// across a share of whatever hit it. Best-effort: if every spare wreck
-        /// is already in play the table still breaks, it just leaves nothing
-        /// behind to trip over.
-        /// </summary>
-        private void TipTableOver(int table, LogicalBounds bounds, PhysicsBody thrown, ulong causeEventId)
-        {
-            int slot = -1;
-            for (int b = 0; b < bodies.Length; b++)
-            {
-                if (bodies[b].Dormant && bodies[b].Kind == PhysicsObjectKind.TableWreck)
-                {
-                    slot = b;
-                    break;
-                }
-            }
-
-            if (slot < 0)
-            {
-                return;
-            }
-
-            PhysicsBody heap = bodies[slot];
-            int across = Math.Min(bounds.MaxX - bounds.MinX, bounds.MaxZ - bounds.MinZ) / 2;
-            across = Math.Max(kinds.TableWreckMinimumSizeMillimetres, Math.Min(kinds.TableWreckMaximumSizeMillimetres, across));
-            heap.Size = across;
-            heap.Radius = across / 2;
-            heap.MassGrams = kinds.TableWreckMassGrams;
-            heap.Dormant = false;
-            heap.Wrecked = true;
-            heap.Thrown = false;
-            heap.Heading = 0;
-            heap.LastPushEventId = causeEventId;
-
-            MoveBody(slot, (long)bounds.Centre.X * SubMillimetre, (long)bounds.Centre.Z * SubMillimetre);
-            world.SetSolid(slot, true);
-            world.Place(slot, heap.X, 0L, heap.Z, heap.Heading);
-            heap.Reading = world.Read(slot);
-
-            long share = thrown.MassGrams + heap.MassGrams;
-            long vx = share > 0 ? thrown.VelocityX * thrown.MassGrams / share : 0L;
-            long vz = share > 0 ? thrown.VelocityZ * thrown.MassGrams / share : 0L;
-            SetMotion(slot, vx, 0L, vz);
-            heap.Spin = SpinFromImpact(heap, (int)(IntegerMath.Sqrt(vx * vx + vz * vz) / SubMillimetre));
-        }
 
         /// <summary>
         /// A thing and a person met. Whichever was coming on faster along the

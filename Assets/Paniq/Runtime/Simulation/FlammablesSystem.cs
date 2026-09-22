@@ -367,6 +367,9 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>How many things are burning right now, for telling a settled building from a busy one.</summary>
+        public int BurningCount => alight.Count;
+
         /// <summary>
         /// Whether anything in this room is alight. A burning chair in a room
         /// with no burning floor square is still the fire being in that room,
@@ -445,7 +448,7 @@ namespace Paniq.Simulation
             {
                 Flammable thing = things[objects.Count + t];
                 tables[t] = new FireReactionTableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
-                    geometry.TablePose(t), geometry.IsTableBroken(t));
+                    geometry.TablePose(t));
             }
 
             return tables;

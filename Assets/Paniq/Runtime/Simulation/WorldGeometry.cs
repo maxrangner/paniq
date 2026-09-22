@@ -47,7 +47,6 @@ namespace Paniq.Simulation
         /// stops being something people have to walk around, so the shape of the
         /// room changes mid-run.
         /// </summary>
-        private readonly bool[] tableBroken;
         private readonly LogicalBounds[] rooms;
         private readonly SimulationId[] roomIds;
 
@@ -84,7 +83,6 @@ namespace Paniq.Simulation
             Array.Sort(definitions, (left, right) => left.TableId.CompareTo(right.TableId));
             tables = new LogicalBounds[definitions.Length];
             tableIds = new SimulationId[definitions.Length];
-            tableBroken = new bool[definitions.Length];
             tablePoses = new BodyPose[definitions.Length];
             tablesAsBaked = new LogicalBounds[definitions.Length];
             for (int i = 0; i < tables.Length; i++)
@@ -668,6 +666,50 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Whether the route this person would walk from where they stand to
+        /// <paramref name="toRoom"/> goes through this door.
+        /// <para>
+        /// Asked so that somebody running for a way out does not stop and shut
+        /// the door they are about to need. The route search only reports the
+        /// first and last door it used, which is all anybody needed until now,
+        /// so this runs the same search and then walks back along the chain of
+        /// doors it settled on.
+        /// </para>
+        /// </summary>
+        public bool RouteUsesDoor(int fromRoom, LogicalPosition from, int toRoom, Agent traveller, int door)
+        {
+            if (fromRoom < 0 || toRoom < 0 || fromRoom == toRoom ||
+                !TryFindRoute(fromRoom, from, toRoom, traveller, out _, out _, out _))
+            {
+                // Already in the room they are making for: no door between here
+                // and there, so no door they could shut on themselves.
+                return false;
+            }
+
+            // Back from the far room to the near one, one entry door at a time.
+            // Bounded by the number of rooms, because a shortest route never
+            // visits one twice.
+            int room = toRoom;
+            for (int step = 0; step < rooms.Length && room >= 0 && room != fromRoom; step++)
+            {
+                int entry = routeEntryDoor[room];
+                if (entry < 0)
+                {
+                    break;
+                }
+
+                if (entry == door)
+                {
+                    return true;
+                }
+
+                room = RoomBeyond(entry, room);
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// A door someone may plan a route through: open, or shut but not one
         /// they have just given up on. A broken door counts as open.
         /// </summary>
@@ -919,9 +961,6 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>Smashed: it is wreckage on the floor and no longer in anybody's way.</summary>
-        public bool IsTableBroken(int table) => tableBroken[table];
-
         /// <summary>Where the table stands and how it is turned, for the display.</summary>
         public BodyPose TablePose(int table) => tablePoses[table];
 
@@ -948,7 +987,7 @@ namespace Paniq.Simulation
             // a millimetre at a time for seconds on end, and working the floor
             // out again on every one of those ticks costs more than everything
             // else in the tick put together.
-            if (tableBroken[table] || !settled)
+            if (!settled)
             {
                 return;
             }
@@ -976,24 +1015,13 @@ namespace Paniq.Simulation
         {
             for (int t = 0; t < tables.Length; t++)
             {
-                if (!tableBroken[t] && IntegerMath.SweptCircleOverlapsBounds(from, to, radius, tables[t]))
+                if (IntegerMath.SweptCircleOverlapsBounds(from, to, radius, tables[t]))
                 {
                     return t;
                 }
             }
 
             return -1;
-        }
-
-        /// <summary>
-        /// Smashes a table. It leaves wreckage rather than a solid rectangle,
-        /// so the floor it stood on becomes walkable and routes may now go
-        /// straight across where people used to have to walk round.
-        /// </summary>
-        public void BreakTable(int table)
-        {
-            tableBroken[table] = true;
-            TheBuildingChangedShape(tables[table]);
         }
 
         /// <summary>
@@ -1015,10 +1043,7 @@ namespace Paniq.Simulation
             var standing = new List<LogicalBounds>(tables.Length);
             for (int t = 0; t < tables.Length; t++)
             {
-                if (!tableBroken[t])
-                {
-                    standing.Add(tables[t]);
-                }
+                standing.Add(tables[t]);
             }
 
             return standing.ToArray();
@@ -1044,11 +1069,6 @@ namespace Paniq.Simulation
         {
             for (int t = 0; t < tables.Length; t++)
             {
-                if (tableBroken[t])
-                {
-                    continue;
-                }
-
                 LogicalBounds b = tables[t];
                 if (position.X > b.MinX - bodyRadius && position.X < b.MaxX + bodyRadius &&
                     position.Z > b.MinZ - bodyRadius && position.Z < b.MaxZ + bodyRadius)
@@ -1065,7 +1085,7 @@ namespace Paniq.Simulation
         {
             for (int t = 0; t < tables.Length; t++)
             {
-                if (!tableBroken[t] && IntegerMath.SweptCircleOverlapsBounds(from, to, radius, tables[t]))
+                if (IntegerMath.SweptCircleOverlapsBounds(from, to, radius, tables[t]))
                 {
                     return true;
                 }
@@ -1087,11 +1107,6 @@ namespace Paniq.Simulation
             hitZ = false;
             for (int t = 0; t < tables.Length; t++)
             {
-                if (tableBroken[t])
-                {
-                    continue;
-                }
-
                 LogicalBounds b = tables[t];
                 int minX = b.MinX - bodyRadius;
                 int maxX = b.MaxX + bodyRadius;
@@ -1418,11 +1433,6 @@ namespace Paniq.Simulation
             // Away from the nearest point of each nearby table, like a wall.
             for (int t = 0; t < tables.Length; t++)
             {
-                if (tableBroken[t])
-                {
-                    continue;
-                }
-
                 LogicalPosition closest = tables[t].ClosestPoint(position);
                 long dx = (long)position.X - closest.X;
                 long dz = (long)position.Z - closest.Z;

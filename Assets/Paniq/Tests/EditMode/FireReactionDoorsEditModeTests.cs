@@ -107,7 +107,14 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void DoorClicks_UnlockThenOpenThenCloseThenOpenAgain()
         {
-            var simulation = new FireReactionSimulation(WithAWayOutOfTheOffice(DefaultData()));
+            FireReactionScenarioData data = WithAWayOutOfTheOffice(DefaultData());
+
+            // Working one door four times over costs more than a round's purse
+            // holds, and this test is about what the clicks do rather than what
+            // they cost: FireReactionPowersEditModeTests owns the prices.
+            data.Influence.Starting = 1000;
+            data.Influence.Maximum = 1000;
+            var simulation = new FireReactionSimulation(data);
             Click(simulation, NorthDoor);
             simulation.Step();
             Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Unlocked));
@@ -882,6 +889,7 @@ namespace Paniq.Tests.EditMode
                     case FireReactionEventType.AgentForcedDoor:
                     case FireReactionEventType.AgentGaveUpOnDoor:
                     case FireReactionEventType.DoorBrokenDown:
+                    case FireReactionEventType.DoorBurntThrough:
                     case FireReactionEventType.DoorClosed:
                     case FireReactionEventType.DoorLocked:
                         Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, $"{record.EventType} names the door.");

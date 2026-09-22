@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0xFF6074DBD4474E64UL)]
-        [TestCase(42UL, true, 0xD3AD58D3FA17AB37UL)]
-        [TestCase(40UL, false, 0x584612C07C142949UL)]
-        [TestCase(40UL, true, 0xBE8665F6EC137C16UL)]
-        [TestCase(46UL, false, 0x750F4437B672B4AAUL)]
-        [TestCase(46UL, true, 0xB85118312495D150UL)]
+        [TestCase(42UL, false, 0xB357CFCDFFD68D9FUL)]
+        [TestCase(42UL, true, 0x4089DD81AD69BB7CUL)]
+        [TestCase(40UL, false, 0x54B5F7E57C5660D4UL)]
+        [TestCase(40UL, true, 0x52D9FA7F5A41ACC0UL)]
+        [TestCase(46UL, false, 0xD140D15C7EEB9C41UL)]
+        [TestCase(46UL, true, 0xD76EE6D640FD9866UL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
         /// well as by their own tests, so the whole command path is covered by
         /// replay. This run waits to be triggered, as a played level does.
         /// </summary>
-        [TestCase(42UL, 0xF9425A8F7255A570UL)]
-        [TestCase(40UL, 0x4235E1AA2AC0B6D5UL)]
+        [TestCase(42UL, 0xF94625542435657FUL)]
+        [TestCase(40UL, 0x3FA2A253F5D6088AUL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -59,8 +59,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0x7A19A03E2E1AC86BUL)]
-        [TestCase(40UL, 0xCA582A75E580E8E6UL)]
+        [TestCase(42UL, 0x278271D0AE35253EUL)]
+        [TestCase(40UL, 0x121A068A1CFD1F36UL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();

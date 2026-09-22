@@ -19,6 +19,16 @@ namespace Paniq.Simulation
         public int Damage;
 
         /// <summary>
+        /// Ticks this door has stood with flames against it. A shut door used
+        /// to stop fire for ever, which turned every closed room into a
+        /// permanent safe room; now it holds the fire off for a while and then
+        /// burns through. Kept separately from shoving damage because the two
+        /// are different kinds of harm, and a door half battered is not half
+        /// burnt.
+        /// </summary>
+        public int Scorch;
+
+        /// <summary>
         /// A ragged hole blasted through a wall rather than a door in a frame. It
         /// is permanently open: nobody opens, shuts, locks or batters it.
         /// </summary>
@@ -254,6 +264,26 @@ namespace Paniq.Simulation
         public DoorState StateOf(int door) => doors[door].State;
 
         /// <summary>
+        /// One number that changes whenever any door does: state, damage or
+        /// scorch. The end of a round reads it to tell a building where
+        /// something is still happening from one that has settled.
+        /// </summary>
+        public long DoorSignature
+        {
+            get
+            {
+                long signature = 0L;
+                for (int door = 0; door < Count; door++)
+                {
+                    DoorRuntime d = doors[door];
+                    signature = signature * 31L + (int)d.State + d.Damage + d.Scorch;
+                }
+
+                return signature;
+            }
+        }
+
+        /// <summary>
         /// Phase 8's tail, once every object has finished moving: which doorway
         /// each thing is wedged in. Doors in ascending index and, within a door,
         /// the lowest-numbered thing wins, so a replay always names the same one.
@@ -323,9 +353,11 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// The player's click, carried out by
-        /// <see cref="PlayerCommandSystem"/> at the start of its tick.
+        /// <see cref="PlayerCommandSystem"/> at the start of its tick. Returns
+        /// whether the door actually did anything, because a click now costs
+        /// influence and a door that will not budge must not be charged for.
         /// </summary>
-        public void ClickDoor(int door)
+        public bool ClickDoor(int door)
         {
             DoorRuntime d = doors[door];
             switch (d.State)
@@ -335,14 +367,15 @@ namespace Paniq.Simulation
                     d.State = DoorState.Unlocked;
                     d.UnlockedEventId = context.Events.Append(
                         context.Tick, d.Id, FireReactionEventType.DoorUnlocked, geometry.DoorCentre(door)).EventId;
-                    break;
+                    return true;
                 case DoorState.Unlocked:
-                    Open(door, d.UnlockedEventId);
-                    break;
+                    return Open(door, d.UnlockedEventId);
                 case DoorState.Open:
                     // The player is the cause, so this is a root event.
-                    TryClose(door, d.Id, 0UL);
-                    break;
+                    return TryClose(door, d.Id, 0UL) != 0UL;
+                default:
+                    // Broken down: there is nothing left to work.
+                    return false;
             }
         }
 
@@ -432,12 +465,13 @@ namespace Paniq.Simulation
         /// anywhere. The leaf swings away from them if it can, the way a real
         /// door gives when you push it.
         /// </param>
-        public void Open(int door, ulong causalParentEventId, int pushedFrom = 0)
+        /// <returns>Whether it opened; something wedged in the doorway stops it.</returns>
+        public bool Open(int door, ulong causalParentEventId, int pushedFrom = 0)
         {
             if (IsObstructed(door))
             {
                 // Something is wedged against it: it will not budge.
-                return;
+                return false;
             }
 
             int swing = ChooseSwing(door, pushedFrom);
@@ -454,6 +488,7 @@ namespace Paniq.Simulation
                 d.Width,
                 0,
                 causalParentEventId).EventId;
+            return true;
         }
 
         /// <summary>
@@ -484,23 +519,82 @@ namespace Paniq.Simulation
         /// </summary>
         private void Break(int door, Agent breaker, ulong shoveEventId)
         {
-            DoorRuntime d = doors[door];
-            d.State = DoorState.Broken;
-
             // It comes off its hinges away from whoever was shouldering it,
             // whatever is lying on the far side: it is not swinging any more.
-            d.OpenSide = -geometry.SideOf(door, breaker.Body.Position);
+            Break(door, breaker.Id, -geometry.SideOf(door, breaker.Body.Position), shoveEventId,
+                FireReactionEventType.DoorBrokenDown);
+        }
+
+        /// <summary>
+        /// A door that is not a door any more, however it got that way. It
+        /// stays open for good, and whatever comes through it -- people
+        /// escaping, fire spreading -- names this event as its cause.
+        /// </summary>
+        private void Break(int door, SimulationId source, int fallsToward, ulong causalParentEventId,
+            FireReactionEventType how)
+        {
+            DoorRuntime d = doors[door];
+            d.State = DoorState.Broken;
+            d.OpenSide = fallsToward;
             RecordOpening(door);
             d.OpenedEventId = context.Events.Append(
                 context.Tick,
-                breaker.Id,
-                FireReactionEventType.DoorBrokenDown,
+                source,
+                how,
                 geometry.DoorCentre(door),
                 d.Width,
                 0,
-                shoveEventId,
+                causalParentEventId,
                 d.Id).EventId;
         }
+
+        /// <summary>
+        /// Phase 9's tail: doors standing in the fire. A shut door holds the
+        /// flames off, but only for a while -- once it has stood in them for
+        /// the scenario's burn-through time it goes, and the fire comes on.
+        /// <para>
+        /// This is what stops a shut door being a permanent firebreak. It used
+        /// to be one, so a building with its doors closed had rooms the fire
+        /// could never reach, and shutting yourself in was a way to win rather
+        /// than a way to buy time.
+        /// </para>
+        /// Ascending door index and no random draw, so a replay agrees.
+        /// </summary>
+        public void ScorchInTheFire(FireSystem fire)
+        {
+            int reach = context.Scenario.Exits.FireAtDoorRadiusMillimetres;
+            int through = context.Scenario.Exits.DoorBurnThroughTicks;
+            for (int door = 0; door < Count; door++)
+            {
+                DoorRuntime d = doors[door];
+                if (d.IsHole || d.State == DoorState.Open || d.State == DoorState.Broken)
+                {
+                    // Nothing standing in the way for the flames to eat.
+                    continue;
+                }
+
+                LogicalPosition centre = geometry.DoorCentre(door);
+                long gap = fire.NearestDistanceSquared(centre, out LogicalPosition flames, out int cell);
+                if (cell < 0 || gap > (long)reach * reach)
+                {
+                    continue;
+                }
+
+                d.Scorch++;
+                if (d.Scorch < through)
+                {
+                    continue;
+                }
+
+                // What is left of it falls away from the flames.
+                Break(door, d.Id, -geometry.SideOf(door, flames), fire.CellEventId(cell),
+                    FireReactionEventType.DoorBurntThrough);
+            }
+        }
+
+        /// <summary>How far through burning this door is, nought to a hundred, for the display.</summary>
+        private int ScorchPercent(DoorRuntime d) =>
+            Math.Min(100, d.Scorch * 100 / context.Scenario.Exits.DoorBurnThroughTicks);
 
         public SimulationId IdOf(int door) => doors[door].Id;
 
@@ -513,6 +607,7 @@ namespace Paniq.Simulation
             DoorRuntime d = doors[door];
             int damagePercent = Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength);
             return new FireReactionDoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent,
+                ScorchPercent(d),
                 d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door));
         }
 

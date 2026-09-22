@@ -6,9 +6,15 @@ namespace Paniq.Tests.EditMode
 {
     /// <summary>
     /// A round that begins, ends and is scored: nothing happens until the
-    /// player sets the disaster going, the round is finished when nobody is
-    /// left to resolve, somebody safe in a room the fire cannot reach counts
-    /// as saved, and the clear target is measured against the whole crowd.
+    /// player sets the disaster going, the round runs until everybody is out
+    /// or dead, and the clear target is measured against the whole crowd.
+    /// <para>
+    /// The round no longer stops as soon as everybody left is somewhere the
+    /// fire cannot reach -- it waits for them to walk out. The only other way
+    /// it can end is the stall clock, and the thing that clock must never
+    /// mistake for a settled building is a queue, which is what
+    /// <see cref="AQueueAtADoor_NeverEndsTheRound"/> is here to hold down.
+    /// </para>
     /// </summary>
     public sealed class FireReactionRoundEditModeTests
     {
@@ -17,6 +23,9 @@ namespace Paniq.Tests.EditMode
 
         /// <summary>The office's east door, into the storage closet.</summary>
         private static readonly SimulationId ClosetDoor = new SimulationId(2002UL);
+
+        /// <summary>The open-plan office, whose east wall holds the closet door.</summary>
+        private static readonly SimulationId OfficeRoom = new SimulationId(5001UL);
 
         private FireReactionScenario scenario;
 
@@ -98,10 +107,11 @@ namespace Paniq.Tests.EditMode
         public void ARoundEnds_AndEverybodyIsAccountedFor()
         {
             FireReactionScenarioData data = LevelData();
-            data.Round.SettleTicks = 50;
             using (var simulation = new FireReactionSimulation(data))
             {
-                // Open the one way out, then set the fire going.
+                // Open the one way out, then set the fire going. Two clicks --
+                // the key, then the door -- and the purse has to stretch to
+                // both, which at the authored prices it just does.
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, WayOut, 10);
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, WayOut, 11);
                 simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), 20);
@@ -124,25 +134,22 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void SomebodySafeBehindAShutDoor_CountsAsSaved()
+        public void SomebodyFrozenWithNothingElseHappening_EndsTheRoundAndCountsAsSaved()
         {
-            // One person in the office, a fire they cannot put out, and the
-            // closet next door as the only way away from it. The closet door
-            // shuts behind them, so the fire can never follow.
-            FireReactionScenarioData data = LevelData();
+            // One person who freezes for good, alone in the storage closet
+            // with the door shut, and a fire on the far side of the office
+            // that never spreads and never reaches the closet door. Nothing
+            // in this building is ever going to change again, and the stall
+            // clock is the only thing that can call it.
+            FireReactionScenarioData data = SealedCloset();
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-3000, -3000),
-                    CardinalDirection.East)
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(7000, 2500),
+                    CardinalDirection.West)
             };
-            data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
-            data.Tables = new FireReactionTableDefinition[0];
-            data.Temperament.FreezeForeverPercent = 0;
+            data.Temperament.FreezeForeverPercent = 100;
             data.Temperament.FreezeThenRunPercent = 0;
-            data.Fire.SpawnBounds = new LogicalBounds(2750, 2750, 2250, 2250);
-            data.Fire.SpreadMinimumTicks = 5000;
-            data.Fire.SpreadMaximumTicks = 5000;
-            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Round.StallTicks = 100;
 
             using (var simulation = new FireReactionSimulation(data))
             {
@@ -157,9 +164,10 @@ namespace Paniq.Tests.EditMode
                 }
 
                 FireReactionSnapshot snapshot = simulation.GetSnapshot();
-                Assert.That(snapshot.RoundIsOver, Is.True, "Safe next door, there is nothing left to resolve.");
+                Assert.That(snapshot.RoundIsOver, Is.True,
+                    "Nothing can happen any more, so the stall clock should have called it.");
                 Assert.That(snapshot.SurvivedCount, Is.EqualTo(1),
-                    "Alive in a room the fire cannot reach is a way of living through it.");
+                    "Alive inside when the round stops is a way of living through it.");
                 Assert.That(snapshot.SavedCount, Is.EqualTo(1));
                 Assert.That(snapshot.EscapedCount, Is.Zero, "They never left the building.");
                 Assert.That(snapshot.SavedPercent, Is.EqualTo(100));
@@ -167,41 +175,140 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void WhileADoorStillLetsTheFireThrough_TheRoundKeepsGoing()
+        public void SomebodyStillWalkingOut_KeepsTheRoundGoing()
         {
-            // The same closet, but the door between it and the fire is held
-            // open. The person is one who freezes for good, so they stay put
-            // and the only thing being judged is whether the fire could get to
-            // them, not what they decide to do about it.
+            // The whole office, with the way out opened for them. Nobody is
+            // out of the fire's reach for most of this, but the point is that
+            // while people are walking the round is never called over on top
+            // of them.
             FireReactionScenarioData data = LevelData();
-            data.Agents = new[]
+            using (var simulation = new FireReactionSimulation(data))
             {
-                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(7000, 2500),
-                    CardinalDirection.West)
-            };
-            data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
-            data.Tables = new FireReactionTableDefinition[0];
-            data.Temperament.FreezeForeverPercent = 100;
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, WayOut, 10);
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, WayOut, 11);
+                simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), 20);
+
+                const int limit = 600 * FireReactionSimulation.TicksPerSecond;
+                for (int t = 0; t < limit && simulation.Phase != RoundPhase.Over; t++)
+                {
+                    simulation.Step();
+                    Assert.That(AnybodyIsMoving(simulation) && simulation.Phase == RoundPhase.Over, Is.False,
+                        $"Tick {simulation.Tick}: the round was called over while somebody was still moving.");
+                }
+
+                Assert.That(simulation.Phase, Is.EqualTo(RoundPhase.Over), "The round should finish eventually.");
+            }
+        }
+
+        /// <summary>
+        /// The one the owner asked for by name. A crowd wedged in a doorway
+        /// covers almost no ground for a long time, and if the stall clock
+        /// measured distance alone it would call that a settled building and
+        /// end the round on top of them.
+        /// </summary>
+        [Test]
+        public void AQueueAtADoor_NeverEndsTheRound()
+        {
+            // Six people shut in the two-metre storage closet with a fire in
+            // the office, and a door they can never get through: locked, and
+            // strong enough that nobody will ever shoulder it down. They pile
+            // into the doorway and stay there.
+            FireReactionScenarioData data = SealedCloset();
+            var crowd = new FireReactionAgentDefinition[6];
+            for (int i = 0; i < crowd.Length; i++)
+            {
+                crowd[i] = new FireReactionAgentDefinition(new SimulationId((ulong)(1 + i)),
+                    new LogicalPosition(6600 + i % 3 * 500, 1900 + i / 3 * 700), CardinalDirection.West);
+            }
+
+            data.Agents = crowd;
+            data.Temperament.FreezeForeverPercent = 0;
             data.Temperament.FreezeThenRunPercent = 0;
-            data.Fire.SpawnBounds = new LogicalBounds(2750, 2750, 2250, 2250);
-            data.Fire.SpreadMinimumTicks = 5000;
-            data.Fire.SpreadMaximumTicks = 5000;
-            data.Round.SettleTicks = 25;
+            data.Perception.MaximumReactionDelayTicks = 0;
+
+            // A second of quiet is enough to end the round, so if a jam ever
+            // reads as quiet this test will notice within a second of it.
+            data.Round.StallTicks = 50;
 
             using (var simulation = new FireReactionSimulation(data))
             {
                 simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), 1);
 
-                // One click opens the closet door: it starts shut but unlocked.
-                simulation.QueueCommand(PlayerCommandType.ClickDoor, ClosetDoor, 2);
-                Step(simulation, 20 * FireReactionSimulation.TicksPerSecond);
+                int pressingTicks = 0;
+                const int limit = 60 * FireReactionSimulation.TicksPerSecond;
+                for (int t = 0; t < limit; t++)
+                {
+                    simulation.Step();
+                    if (!AnybodyIsPressing(simulation))
+                    {
+                        continue;
+                    }
 
-                FireReactionSnapshot snapshot = simulation.GetSnapshot();
-                Assert.That(snapshot.RemainingCount, Is.EqualTo(1),
-                    "The frozen person should still be alive and still inside.");
-                Assert.That(snapshot.RoundIsOver, Is.False,
-                    "With the door open the fire can still reach them, so nothing is settled.");
+                    pressingTicks++;
+                    Assert.That(simulation.Phase, Is.Not.EqualTo(RoundPhase.Over),
+                        $"Tick {simulation.Tick}: somebody was pushing to get out and the round was called over.");
+                }
+
+                Assert.That(pressingTicks, Is.GreaterThan(FireReactionSimulation.TicksPerSecond),
+                    "This test proves nothing unless a real jam formed: nobody ever pushed and got nowhere.");
             }
+        }
+
+        /// <summary>
+        /// The storage closet with its door locked and unbreakable, and a fire
+        /// in the far corner of the office that never spreads and is too far
+        /// from the closet door to burn through it.
+        /// </summary>
+        private FireReactionScenarioData SealedCloset()
+        {
+            FireReactionScenarioData data = LevelData();
+            data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
+            data.Tables = new FireReactionTableDefinition[0];
+            data.Doors = new[]
+            {
+                new FireReactionDoorDefinition(ClosetDoor, OfficeRoom, WallSide.East, 2500, 1000, true)
+            };
+
+            // Nobody is ever getting through it, so the jam cannot resolve
+            // itself by somebody breaking the door down.
+            data.Exits.DoorStrength = int.MaxValue;
+            data.Fire.SpawnBounds = new LogicalBounds(-4000, -4000, -4000, -4000);
+            data.Fire.SpreadMinimumTicks = 100000;
+            data.Fire.SpreadMaximumTicks = 100000;
+            return data;
+        }
+
+        /// <summary>Anybody still in the run who is under way on their own feet.</summary>
+        private static bool AnybodyIsMoving(FireReactionSimulation simulation)
+        {
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                FireReactionAgentSnapshot agent = simulation.GetAgent(i);
+                if (agent.Participation == AgentParticipation.Participating && agent.SpeedMillimetresPerTick > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Anybody wanting to move and getting nowhere: the shape a queue has
+        /// from the inside, and the thing the stall clock has to see.
+        /// </summary>
+        private static bool AnybodyIsPressing(FireReactionSimulation simulation)
+        {
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (simulation.GetAgent(i).Participation == AgentParticipation.Participating &&
+                    simulation.BlockedTicksForTests(i) > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         [Test]

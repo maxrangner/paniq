@@ -103,17 +103,24 @@ namespace Paniq.Tests.EditMode
             Assert.That(Array.FindAll(data.Doors, d => d.StartsLocked), Has.Length.EqualTo(1), "The one way out starts locked.");
         }
 
+        /// <summary>
+        /// A shut door keeps fire out of the room beyond it for as long as it
+        /// is still a door. It is not a firebreak for ever any more -- flames
+        /// against it eat through eventually, which is
+        /// FireReactionDoorBurnEditModeTests' business; this is about the door
+        /// holding while it holds.
+        /// </summary>
         [Test]
-        public void Fire_NeverGetsThroughAClosedDoor()
+        public void Fire_DoesNotGetThroughAClosedDoorWhileItHolds()
         {
             FireReactionScenarioData data = FireAtTheEastDoor();
             var simulation = new FireReactionSimulation(data);
-            for (int t = 0; t < 60 * FireReactionSimulation.TicksPerSecond; t++)
+            for (int t = 0; t < data.Exits.DoorBurnThroughTicks - 50; t++)
             {
                 simulation.Step();
             }
 
-            Assert.That(simulation.FireCellCount, Is.EqualTo(24 * 24), "The main room should be full of fire.");
+            Assert.That(simulation.FireCellCount, Is.GreaterThan(50), "The main room should be well alight by now.");
             Assert.That(BurningInCloset(simulation, data), Is.EqualTo(0), "Fire got through the shut door.");
         }
 
@@ -181,8 +188,8 @@ namespace Paniq.Tests.EditMode
             Assert.That(insideFor, Is.GreaterThan(0), "The runner never got out of the burning office.");
             Assert.That(person.Outcome, Is.Not.EqualTo(AgentTerminalOutcome.Escaped),
                 "Another room is not a way out of the building.");
-            Assert.That(person.Outcome, Is.EqualTo(AgentTerminalOutcome.Survived),
-                "Safe in the closet with the fire unable to follow, the round ends and they lived through it.");
+            Assert.That(person.Outcome, Is.EqualTo(AgentTerminalOutcome.Unresolved),
+                "Getting out of the way is not an ending: the round waits for them.");
             Assert.That(OutOfTheOffice(data, person.Position), Is.True,
                 $"They should have got out of the burning office, but are at {person.Position}.");
         }

@@ -294,14 +294,17 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "46";
+        public string ContentRevision = "47";
         public ulong DefaultSeed = 42UL;
 
-        // 38: rounds. A round now ends when nobody is left to resolve, and
-        // everybody still alive and out of the hazard's reach at that moment is
-        // written down as having survived. That changes what a run produces, so
-        // every recorded replay fingerprint was re-recorded with it.
-        public int SimulationCompatibilityVersion = 38;
+        // 39: doors cost influence to work, a shut door standing in the flames
+        // burns through instead of holding them off for ever, the round runs
+        // until everybody is out or dead rather than until they are merely out
+        // of reach, nobody shuts a door they are about to run through, chairs
+        // are furniture rather than clutter to be carried about, and nothing
+        // made of furniture smashes any more. All of it changes what a run
+        // produces, so every recorded replay fingerprint was re-recorded.
+        public int SimulationCompatibilityVersion = 39;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

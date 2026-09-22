@@ -139,13 +139,6 @@ namespace Paniq.Tests.EditMode
                     FireReactionSnapshot snapshot = simulation.GetSnapshot();
                     foreach (FireReactionTableSnapshot table in snapshot.Tables)
                     {
-                        if (table.Broken)
-                        {
-                            // Collapsed: it is wreckage, and the floor it stood
-                            // on is walkable again.
-                            continue;
-                        }
-
                         foreach (FireReactionAgentSnapshot agent in snapshot.Agents)
                         {
                             // Flung up onto a table top is not inside it.

@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 46
+    ContentRevision: 47
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 38
+    SimulationCompatibilityVersion: 39
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -51,7 +51,8 @@ MonoBehaviour:
     Round:
       HazardWaitsForTrigger: 0
       TargetSavedPercent: 75
-      SettleTicks: 250
+      StallTicks: 1500
+      StallMoveMillimetres: 400
     Steering:
       PersonalSpaceMillimetres: 800
       WallAvoidDistanceMillimetres: 600
@@ -192,10 +193,11 @@ MonoBehaviour:
       ChoiceNoiseMillimetres: 1500
       InFirePenaltyMillimetres: 8000
       DoorStrength: 40
+      DoorBurnThroughTicks: 900
       CloseReachMillimetres: 2000
       CloseApproachRadiusMillimetres: 3000
       FireAtDoorRadiusMillimetres: 2000
-      EvilCloseMinimum: 7
+      EvilCloseMinimum: 8
       EvilLockMinimum: 9
       CompassionHoldMinimum: 7
     ObjectPhysics:
@@ -267,7 +269,7 @@ MonoBehaviour:
         IgniteTicks: 150
         BurnMinimumTicks: 600
         BurnMaximumTicks: 900
-        BreakMomentum: 450
+        BreakMomentum: 0
         PopRadiusMillimetres: 0
         PopSpeed: 0
         PopIgniteCells: 0
@@ -278,7 +280,7 @@ MonoBehaviour:
         IgniteTicks: 175
         BurnMinimumTicks: 600
         BurnMaximumTicks: 900
-        BreakMomentum: 400
+        BreakMomentum: 0
         PopRadiusMillimetres: 0
         PopSpeed: 0
         PopIgniteCells: 0
@@ -383,7 +385,6 @@ MonoBehaviour:
         PopIgniteCells: 0
         CanBeSatOn: 0
         IsEquipment: 0
-      TableBreakMomentum: 600
       BoxIgniteTicks: 75
       ChairIgniteTicks: 150
       TableIgniteTicks: 250
@@ -397,9 +398,6 @@ MonoBehaviour:
       TouchGapMillimetres: 50
       TableMassGramsPerSquareMetre: 25000
       TableFloorGripPercent: 80
-      TableWreckMassGrams: 40000
-      TableWreckMinimumSizeMillimetres: 350
-      TableWreckMaximumSizeMillimetres: 500
     Extinguishers:
       FuelTicks: 300
       FightMinimumBravery: 7
@@ -499,6 +497,9 @@ MonoBehaviour:
       SpawnFireCost: 10
       SpawnExtinguisherCost: 25
       BlastWallCost: 40
+      UnlockDoorCost: 50
+      OpenDoorCost: 30
+      CloseDoorCost: 10
     Alarm:
       Enabled: 1
       ReachMillimetres: 4000
@@ -1594,61 +1595,6 @@ MonoBehaviour:
         z: 0
       sizeMillimetres: 220
       massGrams: 9000
-      startsDormant: 1
-      initialFacingDegrees: 0
-      startsResting: 0
-    - objectId:
-        value: 3401
-      kind: 11
-      initialPosition:
-        x: 0
-        z: 0
-      sizeMillimetres: 700
-      massGrams: 40000
-      startsDormant: 1
-      initialFacingDegrees: 0
-      startsResting: 0
-    - objectId:
-        value: 3402
-      kind: 11
-      initialPosition:
-        x: 0
-        z: 0
-      sizeMillimetres: 700
-      massGrams: 40000
-      startsDormant: 1
-      initialFacingDegrees: 0
-      startsResting: 0
-    - objectId:
-        value: 3403
-      kind: 11
-      initialPosition:
-        x: 0
-        z: 0
-      sizeMillimetres: 700
-      massGrams: 40000
-      startsDormant: 1
-      initialFacingDegrees: 0
-      startsResting: 0
-    - objectId:
-        value: 3404
-      kind: 11
-      initialPosition:
-        x: 0
-        z: 0
-      sizeMillimetres: 700
-      massGrams: 40000
-      startsDormant: 1
-      initialFacingDegrees: 0
-      startsResting: 0
-    - objectId:
-        value: 3405
-      kind: 11
-      initialPosition:
-        x: 0
-        z: 0
-      sizeMillimetres: 700
-      massGrams: 40000
       startsDormant: 1
       initialFacingDegrees: 0
       startsResting: 0

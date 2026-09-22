@@ -1,13 +1,21 @@
-﻿using Paniq.Simulation;
+﻿using System;
+using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Presentation
 {
     /// <summary>
     /// The text at the top left: tick, fire, the head count, and what a door
-    /// click will do. Along the bottom, the influence the player has left and
-    /// the cards they can spend it on. Tab toggles a plain table of everyone's
-    /// traits and state.
+    /// click will do and cost. Along the bottom, the influence the player has
+    /// left and the cards they can spend it on. Tab toggles a plain table of
+    /// everyone's traits and state.
+    /// <para>
+    /// What is on screen while the round runs is what the player is reading:
+    /// the numbers, the buttons and the purse. Everything that only explains
+    /// how to play -- which keys do what, what the marks over people's heads
+    /// mean -- lives in <see cref="DrawPauseHelp"/> and appears only when the
+    /// world is stopped, which is when somebody actually wants to read it.
+    /// </para>
     /// </summary>
     internal static class PrototypeHud
     {
@@ -47,22 +55,23 @@ namespace Paniq.Presentation
                 $"Calm {snapshot.CalmCount}   Scared {snapshot.ScaredCount} (frozen {snapshot.FrozenCount}, on fire {snapshot.BurningCount})   " +
                 $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   " +
                 $"Escaped {snapshot.EscapedCount}   In a room with no fire {snapshot.ClearOfFireCount}");
-            GUI.Label(new Rect(20f, 92f, 900f, 24f),
-                "Click a door: red = locked. Click to unlock (green), again to open, again to close.   " +
-                "Tab: everyone's stats   G: the floor people can walk on");
-            GUI.Label(new Rect(20f, 116f, 900f, 24f),
-                "Camera: W A S D move   Q E turn a quarter   wheel zooms      Space pauses");
             if (hoveredDoor.HasValue)
             {
                 // A door with something wedged in it will not move however many
                 // times you click, so say so rather than letting the click look
-                // as though it did nothing.
+                // as though it did nothing. Same for a door they cannot pay for:
+                // without this the click simply vanishes.
+                int price = snapshot.CostOfDoorClick(hoveredState);
+                bool affordable = snapshot.Influence >= price;
                 string action = hoveredIsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted"
-                    : hoveredState == DoorState.Locked ? "Click to unlock"
-                    : hoveredState == DoorState.Unlocked ? "Click to open"
                     : hoveredState == DoorState.Broken ? "Broken down"
-                    : "Click to close (if nobody is in the doorway)";
-                GUI.Label(new Rect(420f, 92f, 600f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
+                    : !affordable ? $"NOT ENOUGH INFLUENCE - it costs {price}, and you have {snapshot.Influence}"
+                    : hoveredState == DoorState.Locked ? $"Click to unlock ({price})"
+                    : hoveredState == DoorState.Unlocked ? $"Click to open ({price})"
+                    : $"Click to close ({price}, if nobody is in the doorway)";
+                GUI.color = hoveredIsJammed || !affordable ? new Color(1f, 0.7f, 0.6f) : Color.white;
+                GUI.Label(new Rect(20f, 92f, 700f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
+                GUI.color = Color.white;
             }
         }
 
@@ -105,27 +114,42 @@ namespace Paniq.Presentation
                     $"{i + 1}. {PlayerInput.NameOf(card)}  ({cost})");
             }
 
+            // Only while a card is actually in hand: what it is waiting to be
+            // aimed at, and what it is pointing at right now. With nothing
+            // picked up there is nothing to say, and the line that used to sit
+            // here explaining the number keys has moved to the pause screen.
             GUI.color = Color.white;
-            string hint = selected == null
-                ? "Press 1-4 to pick a card, then click. Escape or right click puts it down."
-                : PlayerInput.TargetsAPerson(selected.Value)
-                    ? $"{PlayerInput.NameOf(selected.Value)}: click a person" +
-                      (input.HoveredPerson.HasValue ? $"  ->  person {input.HoveredPerson.Value.Value}" : string.Empty)
-                    : selected.Value == PlayerCommandType.BlastWall
-                        ? $"TNT: click a wall  ({snapshot.BlastChargesRemaining} left)"
-                        : $"{PlayerInput.NameOf(selected.Value)}: click a spot on the floor";
+            if (selected == null)
+            {
+                return;
+            }
+
+            string hint = PlayerInput.TargetsAPerson(selected.Value)
+                ? $"{PlayerInput.NameOf(selected.Value)}: click a person" +
+                  (input.HoveredPerson.HasValue ? $"  ->  person {input.HoveredPerson.Value.Value}" : string.Empty)
+                : selected.Value == PlayerCommandType.BlastWall
+                    ? $"TNT: click a wall  ({snapshot.BlastChargesRemaining} left)"
+                    : $"{PlayerInput.NameOf(selected.Value)}: click a spot on the floor";
             GUI.Label(new Rect(20f, bottom - cardHeight - gap - 44f, 900f, 22f), hint);
         }
 
         /// <summary>
-        /// What the marks over people's heads mean, so the crowd can be read
-        /// without being told. Small, down the left, above the cards.
+        /// Everything that explains how to play, shown only while the world is
+        /// stopped: what the marks over people's heads mean, and what every key
+        /// and click does.
+        /// <para>
+        /// All of this used to be on screen the whole time -- two rows of key
+        /// reminders across the top, a line under the cards, and the marks
+        /// panel down the left -- which left very little of the office to look
+        /// at. Pause is the moment somebody is reading rather than playing, so
+        /// this is where it belongs.
+        /// </para>
         /// </summary>
-        public static void DrawLegend()
+        public static void DrawPauseHelp(FireReactionSnapshot snapshot)
         {
             const float rowHeight = 18f;
-            const float width = 250f;
-            var rows = new[]
+            const float width = 620f;
+            var marks = new[]
             {
                 (Colour: new Color(1f, 0.25f, 0.2f), Mark: "!", Means: "just noticed something"),
                 (Colour: new Color(0.45f, 0.9f, 1f), Mark: ")))", Means: "shouting"),
@@ -133,25 +157,56 @@ namespace Paniq.Presentation
                 (Colour: new Color(0.8f, 0.8f, 0.8f), Mark: "...", Means: "idling"),
                 (Colour: new Color(0.7f, 0.85f, 1f), Mark: "*", Means: "frozen with fear"),
                 (Colour: new Color(1f, 0.9f, 0.35f), Mark: "o o o", Means: "out cold"),
-                (Colour: new Color(0.4f, 0.95f, 0.5f), Mark: "^", Means: "leading, or following"),
+                (Colour: new Color(0.4f, 0.95f, 0.5f), Mark: "star", Means: "somebody is following them"),
                 (Colour: new Color(1f, 0.55f, 0.15f), Mark: "[]", Means: "on fire"),
                 (Colour: new Color(0.55f, 0.15f, 0.15f), Mark: "[]", Means: "lost")
             };
 
-            float height = rowHeight * (rows.Length + 1) + 10f;
-            float bottom = Screen.height - 20f - 34f - 8f - 44f - 22f;
-            var area = new Rect(20f, bottom - height, width, height);
-            GUI.color = new Color(0f, 0f, 0f, 0.6f);
+            var keys = new[]
+            {
+                ("1 - 4", "pick a card up, then click to play it"),
+                ("Escape", "put the card back down (or right click)"),
+                ("Click a door", $"red is locked. Unlock {snapshot.CostOfDoorClick(DoorState.Locked)}, " +
+                                 $"open {snapshot.CostOfDoorClick(DoorState.Unlocked)}, " +
+                                 $"close {snapshot.CostOfDoorClick(DoorState.Open)}"),
+                ("W A S D", "move the camera"),
+                ("Q E", "turn a quarter"),
+                ("Wheel", "zoom"),
+                ("Tab", "everyone's stats"),
+                ("G", "the floor people can walk on"),
+                ("Space", "start and stop the world")
+            };
+
+            int rows = Math.Max(marks.Length, keys.Length);
+            float height = rowHeight * (rows + 2) + 16f;
+            var area = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
+            GUI.color = new Color(0f, 0f, 0f, 0.82f);
             GUI.DrawTexture(area, Texture2D.whiteTexture);
             GUI.color = Color.white;
-            GUI.Label(new Rect(area.x + 8f, area.y + 4f, width - 16f, rowHeight), "What the marks mean");
-            float y = area.y + 4f + rowHeight;
-            foreach ((Color colour, string mark, string means) in rows)
+
+            float left = area.x + 12f;
+            float right = area.x + 270f;
+            float top = area.y + 8f;
+            GUI.Label(new Rect(left, top, 240f, rowHeight), "WHAT THE MARKS MEAN");
+            GUI.Label(new Rect(right, top, 340f, rowHeight), "WHAT THE KEYS DO");
+
+            float y = top + rowHeight * 1.5f;
+            for (int i = 0; i < rows; i++)
             {
-                GUI.color = colour;
-                GUI.Label(new Rect(area.x + 8f, y, 46f, rowHeight), mark);
-                GUI.color = Color.white;
-                GUI.Label(new Rect(area.x + 58f, y, width - 66f, rowHeight), means);
+                if (i < marks.Length)
+                {
+                    GUI.color = marks[i].Colour;
+                    GUI.Label(new Rect(left, y, 46f, rowHeight), marks[i].Mark);
+                    GUI.color = Color.white;
+                    GUI.Label(new Rect(left + 50f, y, 200f, rowHeight), marks[i].Means);
+                }
+
+                if (i < keys.Length)
+                {
+                    GUI.Label(new Rect(right, y, 90f, rowHeight), keys[i].Item1);
+                    GUI.Label(new Rect(right + 96f, y, width - 108f - 270f + 260f, rowHeight), keys[i].Item2);
+                }
+
                 y += rowHeight;
             }
         }

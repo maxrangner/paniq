@@ -134,7 +134,23 @@ namespace Paniq.Simulation
         {
             if (command.CommandType == PlayerCommandType.ClickDoor)
             {
-                doors.ClickDoor(doors.IndexOf(command.TargetId));
+                // A door is priced by what the click would do to it -- turning
+                // the key, walking it open, pulling it shut -- rather than by
+                // the command, so its cost is asked for here and not from the
+                // card table. Same rule as a card: a click they cannot pay for,
+                // or one the door refuses, does nothing and costs nothing.
+                int door = doors.IndexOf(command.TargetId);
+                int price = influence.CostOfDoorClick(doors.StateOf(door));
+                if (!influence.CanAfford(price))
+                {
+                    return;
+                }
+
+                if (doors.ClickDoor(door))
+                {
+                    influence.Spend(price);
+                }
+
                 return;
             }
 

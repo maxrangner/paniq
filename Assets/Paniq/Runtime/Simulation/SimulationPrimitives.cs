@@ -469,7 +469,15 @@ namespace Paniq.Simulation
         /// Nobody is left to resolve and the round is over (strength: how many
         /// were saved; cause: what triggered the round).
         /// </summary>
-        RoundEnded
+        RoundEnded,
+
+        /// <summary>
+        /// A shut door that stood in the flames long enough to burn through
+        /// (source and target: the door; strength: its width; cause: the
+        /// burning square that ate it). It is open for good, like any other
+        /// broken door.
+        /// </summary>
+        DoorBurntThrough
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>

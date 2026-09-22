@@ -9,6 +9,13 @@ namespace Paniq.Tests.EditMode
     /// Sitting on chairs: a calm person walks over and sits down, the chair
     /// stays put while they are on it, and a fright gets them out of it
     /// before they can run.
+    /// <para>
+    /// A chair is furniture, not clutter. Tidying used to be offered first and
+    /// would take anything liftable, and in an office the nearest liftable
+    /// thing is almost always a chair, so the room spent its day carrying its
+    /// own chairs around and nobody ever sat on one. See
+    /// <see cref="ACalmPersonBesideAChair_SitsOnItRatherThanCarryingItOff"/>.
+    /// </para>
     /// </summary>
     public sealed class FireReactionSittingEditModeTests
     {
@@ -59,6 +66,53 @@ namespace Paniq.Tests.EditMode
             data.Calm.DecisionMinimumTicks = 10;
             data.Calm.DecisionMaximumTicks = 20;
             return data;
+        }
+
+        /// <summary>
+        /// The whole office as it is really authored -- desks, chairs, boxes,
+        /// bags and all -- left alone to get on with its day. Somebody has to
+        /// end up in a chair, and nobody should be carting one about.
+        /// </summary>
+        [Test]
+        public void ACalmPersonBesideAChair_SitsOnItRatherThanCarryingItOff()
+        {
+            FireReactionScenarioData data = scenario.ToRuntimeData();
+            data.Fire.ActivationTick = int.MaxValue;
+            data.Round.HazardWaitsForTrigger = true;
+
+            using (var simulation = new FireReactionSimulation(data))
+            {
+                bool anybodySat = false;
+                for (int t = 0; t < 120 * FireReactionSimulation.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                    for (int i = 0; i < simulation.AgentCount; i++)
+                    {
+                        FireReactionAgentSnapshot person = simulation.GetAgent(i);
+                        anybodySat |= person.ActivityState == AgentActivityState.Sitting;
+                        Assert.That(IsCarryingAChair(simulation, person), Is.False,
+                            $"Tick {simulation.Tick}: person {i + 1} picked a chair up and walked off with it.");
+                    }
+                }
+
+                Assert.That(anybodySat, Is.True, "Two minutes in an office and nobody sat down.");
+            }
+        }
+
+        /// <summary>Whether this person has a chair in their hands.</summary>
+        private static bool IsCarryingAChair(FireReactionSimulation simulation, FireReactionAgentSnapshot person)
+        {
+            for (int i = 0; i < simulation.PhysicsObjectCount; i++)
+            {
+                FireReactionPhysicsObjectSnapshot thing = simulation.GetPhysicsObject(i);
+                bool isAChair = thing.Kind == PhysicsObjectKind.Chair || thing.Kind == PhysicsObjectKind.OfficeChair;
+                if (isAChair && thing.HeldBy == person.AgentId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         [Test]

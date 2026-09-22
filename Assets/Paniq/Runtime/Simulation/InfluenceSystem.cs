@@ -40,20 +40,46 @@
                 case PlayerCommandType.SpawnExtinguisher: return settings.SpawnExtinguisherCost;
                 case PlayerCommandType.BlastWall: return settings.BlastWallCost;
 
-                // Clicking a door is not a card and costs nothing.
+                // A door click is priced by what the door is doing, not by the
+                // command, so it is asked for separately; setting the disaster
+                // going is the start button and is not spent on at all.
+                default: return 0;
+            }
+        }
+
+        /// <summary>
+        /// What one click on a door in this state would cost. Turning the key
+        /// costs most, walking it open costs less, pulling it shut costs least,
+        /// and a door somebody has already broken down is past charging for.
+        /// </summary>
+        public int CostOfDoorClick(DoorState state)
+        {
+            switch (state)
+            {
+                case DoorState.Locked: return settings.UnlockDoorCost;
+                case DoorState.Unlocked: return settings.OpenDoorCost;
+                case DoorState.Open: return settings.CloseDoorCost;
                 default: return 0;
             }
         }
 
         public bool CanAfford(PlayerCommandType card) => Influence >= CostOf(card);
 
+        public bool CanAfford(int cost) => Influence >= cost;
+
         /// <summary>
         /// Takes the price of a card. Call it only once the card has actually
         /// done something, so a refused card is free.
         /// </summary>
-        public void Spend(PlayerCommandType card)
+        public void Spend(PlayerCommandType card) => Spend(CostOf(card));
+
+        /// <summary>
+        /// Takes a price worked out elsewhere, for the things whose cost
+        /// depends on what they found rather than on which button was pressed.
+        /// Same rule: only once it has actually done something.
+        /// </summary>
+        public void Spend(int cost)
         {
-            int cost = CostOf(card);
             Influence -= cost;
             Spent += cost;
         }

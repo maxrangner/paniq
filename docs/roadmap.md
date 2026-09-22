@@ -165,14 +165,29 @@ on the same seed or a different one -- which is exactly the loop
 | A camera you drive | Style | W A S D slide the view across the building, Q and E swing a quarter turn to the next corner, and the wheel zooms while tilting: further out looks down on the building, closer looks along the floor |
 | Pause to look | System | Space stops everything -- people, flames, smoke. The camera still answers you; nothing can be played. Press it again to carry on |
 | A floor of an office building | Style | The floor sits on a concrete slab, and below it the outside walls carry on down into a band of dark windows and the top of the next storey, so the level reads as one floor of a tower rather than a plan on a black background |
+| Doors cost something | System | Working a door is no longer free: 50 to turn the key, 30 to walk it open, 10 to pull it shut. The building's one way out starts locked, so opening it is 80 of the 100 you begin with, before you have saved anybody |
+| A shut door only buys time | System | Fire at a shut door eats it. The leaf darkens for about eighteen seconds and then goes, and the fire comes through. Shutting yourself in is a delay, never a win, and the building no longer has corners nothing can reach |
+| The round waits for everybody | System | It runs until everybody is out of the building or dead. It used to stop the moment the people left were merely out of the fire's reach, which ended rounds on top of people still walking to the door. A queue never ends it; only a building where nothing at all has happened for half a minute does |
+| Running out beats shutting doors | System | Nobody stops on the way out to pull shut a door they are about to run through. Once the flames have actually reached a door that route is gone anyway, and then anybody will shut it -- which is still the best move somebody cornered has |
+| Furniture is knocked about, not destroyed | Style | Chairs and tables are shoved, tipped, rolled and flipped, and are still chairs and tables when they stop. They used to shatter into heaps, which read as a demolition rather than a fire |
+| Chairs are for sitting on | Style | People in the office sit down in them. They used to pick the nearest one up and carry it across the room instead, because tidying was offered before sitting and a chair is the nearest liftable thing in an office |
+| A quieter screen | Style | While the round runs the screen carries the numbers, the buttons and the purse and nothing else. Every key reminder and the guide to the marks over people's heads moved to the pause screen, which is when somebody is reading rather than playing |
+| You can click the person you meant | System | Cards are aimed at bodies on the screen rather than at a spot on the floor under them. Aiming at the floor meant that with the camera tilted low, clicking somebody's chest picked a patch of carpet two or three metres behind them, and the card was never played |
+| A star for a leader | Style | Somebody other people are following wears a green star. The people trailing after them wear nothing. Both used to wear the same arrow at different sizes |
+| Read the round back | System | **What happened** on the end card opens the whole round as a list: the fire taking hold, every shout, every door forced, shut or burnt through, everybody who caught fire and everybody who got out. The background chatter is folded into a line apiece, and one button unfolds the lot |
 
 **What these stones deliberately left out.** Clicking a person on the frozen
-end screen for the facts about them, and the plain-language retelling of what
-happened out of sight, are both still to come -- they are the part of the
-[game vision](game-vision.md) that makes a run *understandable* rather than
-merely scored, and they are the obvious next stone. Also left out: any level
-select, more than one level, and comparing one run against another beyond the
-single best-ever number.
+end screen for the facts about them, and the plain-language *retelling* -- the
+log says what happened, not yet what it meant -- are both still to come. They
+are the part of the [game vision](game-vision.md) that makes a run
+*understandable* rather than merely scored. Also left out: any level select,
+more than one level, and comparing one run against another beyond the single
+best-ever number.
+
+**One number to watch at the next playtest.** The way out costs 80 of the 100
+influence the player starts with. That may be exactly the tension the owner
+wants, or it may read as unfair; it is one number (`InfluenceSettings.Starting`)
+either way.
 
 **One thing to know about the score.** Two runs are not strictly comparable,
 because the same building on a different seed is a different day. The best-ever
@@ -189,13 +204,16 @@ still picks each stone after playing the one before it.
 ### Done: the round ends, and it has a score
 
 Built as prototype 2's first stone, except for clicking a person on the frozen
-scene, which is still to come.
+scene, which is still to come. The rule for when it ends was rewritten
+afterwards: it now waits for everybody to be out of the building or dead,
+rather than stopping as soon as the people left were out of the fire's reach.
 
-1. **What the player sees:** the round stops when nobody is left to resolve —
-   everybody is out, dead, or settled somewhere they will not leave. The scene
-   freezes and a card reads "You saved 13 of 20 — 65%". Any person on the
-   frozen scene can be clicked for the facts about them: who they were, their
-   traits, and what happened to them and when. One key plays the level again.
+1. **What the player sees:** the round runs until everybody is out or dead, or
+   until nothing at all has happened in the building for half a minute. The
+   scene freezes and a card reads "You saved 13 of 20 — 65%", with a button to
+   read the whole round back. Any person on the frozen scene can be clicked for
+   the facts about them: who they were, their traits, and what happened to them
+   and when — still to come. One key plays the level again.
 2. **Layer:** system.
 3. **Deliberately left out:** the plain-language retelling of what happened out
    of sight (a later stone), comparing one run against another, and any menu

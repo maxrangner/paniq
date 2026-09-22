@@ -138,7 +138,8 @@ namespace Paniq.Simulation
     public readonly struct FireReactionDoorSnapshot
     {
         public FireReactionDoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state,
-            int damagePercent, bool isHole = false, bool isBlocked = false, bool leadsOutside = false,
+            int damagePercent, int scorchPercent = 0, bool isHole = false, bool isBlocked = false,
+            bool leadsOutside = false,
             int openSide = 0, bool isJammed = false)
         {
             IsHole = isHole;
@@ -147,6 +148,7 @@ namespace Paniq.Simulation
             IsJammed = isJammed;
             LeadsOutside = leadsOutside;
             DamagePercent = damagePercent;
+            ScorchPercent = scorchPercent;
             DoorId = doorId;
             Side = side;
             Centre = centre;
@@ -164,7 +166,14 @@ namespace Paniq.Simulation
         public DoorState State { get; }
 
         /// <summary>How close a battered door is to breaking, 0–100.</summary>
+        /// <summary>How far shoving has got toward breaking it, 0-100.</summary>
         public int DamagePercent { get; }
+
+        /// <summary>How far standing in the flames has got toward burning it through, 0-100.</summary>
+        public int ScorchPercent { get; }
+
+        /// <summary>Whichever is further along, for drawing a failing door.</summary>
+        public int FailingPercent => DamagePercent > ScorchPercent ? DamagePercent : ScorchPercent;
 
         /// <summary>
         /// A hole blasted through the wall rather than a door in a frame: drawn as
@@ -194,16 +203,14 @@ namespace Paniq.Simulation
     /// <summary>A table: where it stands and whether it is heating up, burning or burnt out.</summary>
     public readonly struct FireReactionTableSnapshot
     {
-        public FireReactionTableSnapshot(SimulationId tableId, LogicalBounds bounds, ObjectBurnState burnState, int heatPercent,
-            BodyPose pose,
-            bool broken = false)
+        public FireReactionTableSnapshot(SimulationId tableId, LogicalBounds bounds, ObjectBurnState burnState,
+            int heatPercent, BodyPose pose)
         {
             TableId = tableId;
             Bounds = bounds;
             BurnState = burnState;
             HeatPercent = heatPercent;
             Pose = pose;
-            Broken = broken;
         }
 
         public SimulationId TableId { get; }
@@ -215,12 +222,6 @@ namespace Paniq.Simulation
 
         /// <summary>How close to catching fire it is, 0–100.</summary>
         public int HeatPercent { get; }
-
-        /// <summary>
-        /// Collapsed. It is wreckage on the floor, so people walk straight over
-        /// where it stood and it is no longer drawn as a table.
-        /// </summary>
-        public bool Broken { get; }
     }
 
     /// <summary>A loose object on the floor, such as a box.</summary>
@@ -380,6 +381,9 @@ namespace Paniq.Simulation
         /// <summary>What each card costs, indexed by <see cref="PlayerCommandType"/>.</summary>
         private readonly int[] cardCosts;
 
+        /// <summary>What a door click costs, indexed by <see cref="DoorState"/>.</summary>
+        private readonly int[] doorClickCosts;
+
         internal FireReactionSnapshot(
             int tick,
             bool fireActive,
@@ -398,6 +402,7 @@ namespace Paniq.Simulation
             int influenceSpent,
             int influenceEarned,
             int[] cardCosts,
+            int[] doorClickCosts,
             int blastChargesRemaining,
             RoundPhase roundPhase,
             int targetSavedPercent)
@@ -411,6 +416,7 @@ namespace Paniq.Simulation
             InfluenceSpent = influenceSpent;
             InfluenceEarned = influenceEarned;
             this.cardCosts = cardCosts;
+            this.doorClickCosts = doorClickCosts;
             ClearOfFireCount = clearOfFireCount;
             this.tables = tables;
             this.doors = doors;
@@ -446,6 +452,16 @@ namespace Paniq.Simulation
         {
             int index = (int)card;
             return cardCosts != null && index >= 0 && index < cardCosts.Length ? cardCosts[index] : 0;
+        }
+
+        /// <summary>
+        /// What one click on a door in this state would cost, so the hover
+        /// hint can put a price on it before the player commits to it.
+        /// </summary>
+        public int CostOfDoorClick(DoorState state)
+        {
+            int index = (int)state;
+            return doorClickCosts != null && index >= 0 && index < doorClickCosts.Length ? doorClickCosts[index] : 0;
         }
 
         public bool FireActive { get; }

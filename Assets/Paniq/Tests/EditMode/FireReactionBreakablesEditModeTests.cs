@@ -83,8 +83,13 @@ namespace Paniq.Tests.EditMode
 
         // ------------------------------------------------------------ breaking
 
+        /// <summary>
+        /// Furniture is knocked about, not destroyed. A chair hit as hard as
+        /// anything in this building can hit one goes flying, tips and rolls,
+        /// and is still a chair when it stops.
+        /// </summary>
         [Test]
-        public void AHardEnoughHit_SmashesAChairIntoWreckage()
+        public void AHardEnoughHit_SendsAChairFlyingWithoutBreakingIt()
         {
             FireReactionScenarioData data = BareRoom();
             data.PhysicsObjects = new[]
@@ -95,7 +100,7 @@ namespace Paniq.Tests.EditMode
             var simulation = new FireReactionSimulation(data);
             int box = IndexOf(simulation, TheBox);
             int chair = IndexOf(simulation, TheChair);
-            Assert.That(simulation.GetPhysicsObject(chair).Wrecked, Is.False);
+            LogicalPosition before = simulation.GetPhysicsObject(chair).Position;
 
             // A heavy box hurled east, straight into the chair.
             simulation.LaunchObjectForTests(box, 110, 0);
@@ -104,11 +109,12 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
             }
 
-            Assert.That(simulation.GetPhysicsObject(chair).Wrecked, Is.True, "The chair should have been smashed.");
-            List<CausalEvent> broke = EventsOfType(simulation, FireReactionEventType.ObjectBroke);
-            Assert.That(broke, Is.Not.Empty);
-            Assert.That(broke[0].SourceId, Is.EqualTo(TheChair), "The event names what broke.");
-            Assert.That(broke[0].TargetId, Is.EqualTo(TheBox), "And what hit it.");
+            FireReactionPhysicsObjectSnapshot hit = simulation.GetPhysicsObject(chair);
+            Assert.That(hit.Wrecked, Is.False, "A chair is shoved about, never smashed.");
+            Assert.That(EventsOfType(simulation, FireReactionEventType.ObjectBroke), Is.Empty,
+                "Nothing in this room is breakable any more.");
+            Assert.That(hit.Position.X, Is.GreaterThan(before.X + 200),
+                "It should have been driven well across the floor.");
         }
 
         [Test]
@@ -131,39 +137,13 @@ namespace Paniq.Tests.EditMode
                 "A light knock should not smash anything.");
         }
 
+        /// <summary>
+        /// A table takes the same blow and is shoved across the floor. It is
+        /// still solid where it ends up, so people still walk round it -- they
+        /// just have to walk round it somewhere else.
+        /// </summary>
         [Test]
-        public void ASmashedChair_CannotBeSatOn()
-        {
-            FireReactionScenarioData data = BareRoom();
-            data.PhysicsObjects = new[]
-            {
-                new FireReactionPhysicsObjectDefinition(TheChair, PhysicsObjectKind.Chair, new LogicalPosition(2000, 0), 450, 5000),
-                new FireReactionPhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box, new LogicalPosition(-1000, 0), 500, 20000)
-            };
-
-            // One person who would sit down at the first opportunity.
-            data.Agents = new[]
-            {
-                new FireReactionAgentDefinition(Bystander, new LogicalPosition(2000, 2000), CardinalDirection.South,
-                    AgentTraitValues.AllOrdinary)
-            };
-            data.Calm.DecisionMinimumTicks = 25;
-            data.Calm.DecisionMaximumTicks = 25;
-            data.Items.SitChancePercent = 100;
-            var simulation = new FireReactionSimulation(data);
-            simulation.LaunchObjectForTests(IndexOf(simulation, TheBox), 110, 0);
-            for (int t = 0; t < 20 * FireReactionSimulation.TicksPerSecond; t++)
-            {
-                simulation.Step();
-            }
-
-            Assert.That(simulation.GetPhysicsObject(IndexOf(simulation, TheChair)).Wrecked, Is.True);
-            Assert.That(simulation.GetAgent(0).ActivityState, Is.Not.EqualTo(AgentActivityState.Sitting),
-                "Nobody sits on wreckage.");
-        }
-
-        [Test]
-        public void ASmashedTable_StopsBeingSomethingToWalkAround()
+        public void ATableHitHard_IsShovedAcrossTheFloorRatherThanSmashed()
         {
             FireReactionScenarioData data = BareRoom();
             data.Tables = new[]
@@ -175,10 +155,7 @@ namespace Paniq.Tests.EditMode
                 new FireReactionPhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box, new LogicalPosition(-1000, 0), 500, 20000)
             };
             var simulation = new FireReactionSimulation(data);
-
-            // Before: a straight walk east from the west wall runs into the table.
-            Assert.That(simulation.RouteCrossesTableForTests(new LogicalPosition(-4000, 0), new LogicalPosition(5000, 0)),
-                Is.True, "The table should be in the way to begin with.");
+            LogicalPosition before = simulation.GetTable(0).Bounds.Centre;
 
             simulation.LaunchObjectForTests(IndexOf(simulation, TheBox), 110, 0);
             for (int t = 0; t < 4 * FireReactionSimulation.TicksPerSecond; t++)
@@ -186,10 +163,10 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
             }
 
-            Assert.That(EventsOfType(simulation, FireReactionEventType.ObjectBroke), Is.Not.Empty,
-                "The table should have collapsed.");
-            Assert.That(simulation.RouteCrossesTableForTests(new LogicalPosition(-4000, 0), new LogicalPosition(5000, 0)),
-                Is.False, "Once it has collapsed, people can walk straight across where it stood.");
+            Assert.That(EventsOfType(simulation, FireReactionEventType.ObjectBroke), Is.Empty,
+                "A table is furniture being knocked about, not something that shatters.");
+            Assert.That(simulation.GetTable(0).Bounds.Centre.X, Is.Not.EqualTo(before.X),
+                "The blow should have moved it.");
         }
 
         // ------------------------------------------------------------ popping

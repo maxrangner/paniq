@@ -923,6 +923,14 @@ namespace Paniq.Simulation
                 return;
             }
 
+            if (WouldCutOffTheirOwnWayOut(agent, geometry.RoomAt(agent.Body.Position), door))
+            {
+                // Spiteful, not stupid: they do not shut themselves in. Anybody
+                // already out of the building has no room and no route left to
+                // cut off, so the slam at the front door still happens.
+                return;
+            }
+
             ulong closed = doors.TryClose(door, agent.Id, causeEventId, agent);
             if (closed == 0UL)
             {
@@ -981,6 +989,19 @@ namespace Paniq.Simulation
 
             LogicalPosition doorCentre = geometry.DoorCentre(door);
             bool flamesAtTheDoor = fire.AnyCloserThan(doorCentre, settings.FireAtDoorRadiusMillimetres);
+            if (!flamesAtTheDoor && WouldCutOffTheirOwnWayOut(agent, room, door))
+            {
+                // Getting out beats shutting the fire in. Nobody slams a door
+                // they are about to run through: they used to stop on the way
+                // to a door they could still reach, pull it shut, cross it off
+                // as a way out, and then wander.
+                //
+                // Once the flames are actually at the door that route is gone
+                // anyway, so shutting it costs them nothing and may save them:
+                // that is the case this deliberately lets through.
+                return;
+            }
+
             if (!flamesAtTheDoor &&
                 agent.Traits.Compassion >= settings.CompassionHoldMinimum &&
                 SomeoneComing(agent, door, room))
@@ -995,6 +1016,34 @@ namespace Paniq.Simulation
                 // and never a door they would batter.
                 RememberShutting(agent, door);
             }
+        }
+
+        /// <summary>
+        /// Whether this door stands on the way to the way out this person has
+        /// settled on, so shutting it would be shutting themselves in.
+        /// <para>
+        /// Somebody with no way out left (see <see cref="ChooseRefugeDoor"/>)
+        /// has nothing to cut off, and shutting a door is the best thing left
+        /// to them.
+        /// </para>
+        /// </summary>
+        private bool WouldCutOffTheirOwnWayOut(Agent agent, int room, int door)
+        {
+            int wayOut = agent.Doors.WayOutDoorIndex;
+            if (wayOut < 0 || room < 0)
+            {
+                // No way out left to cut off, or they are already out of the
+                // building (or standing in the doorway, where the door will not
+                // shut on them anyway). Either way there is nothing to protect,
+                // which is what keeps the slam at the front door working.
+                return false;
+            }
+
+            // The door they are walking at right now always counts, even when
+            // the route search disagrees with the choice they already made.
+            return door == agent.Doors.ExitDoorIndex ||
+                   door == wayOut ||
+                   geometry.RouteUsesDoor(room, agent.Body.Position, geometry.DoorRoom(wayOut), agent, door);
         }
 
         /// <summary>Anyone else still in the run near the door, on the side the closer is not.</summary>
@@ -1038,8 +1087,9 @@ namespace Paniq.Simulation
                 int door = candidates[i];
                 int beyond = geometry.RoomBeyond(door, room);
 
-                // Never the door they are about to walk through themselves.
-                if (door == agent.Doors.ExitDoorIndex || !geometry.IsDoorOpen(door) || beyond < 0 ||
+                // ConsiderShuttingAgainstFire refuses any door on their own way
+                // out, this one included, so it is not checked twice here.
+                if (!geometry.IsDoorOpen(door) || beyond < 0 ||
                     !fire.IsBurningInRoom(beyond) ||
                     LogicalPosition.DistanceSquared(agent.Body.Position, geometry.DoorCentre(door)) > reach * reach)
                 {

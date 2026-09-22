@@ -39,6 +39,13 @@ namespace Paniq.Presentation
         private BuildingShellView shell;
         private RoundScreens screens;
 
+        /// <summary>
+        /// The round read back as a list, opened from the end card. The end
+        /// card only asks for it; somebody has to own it and draw it, and that
+        /// is here, because this is the one place that draws anything.
+        /// </summary>
+        private readonly EventLogScreen log = new EventLogScreen();
+
         private FireReactionSnapshot frameSnapshot;
 
         /// <summary>Why the display could not be built, or null when all is well.</summary>
@@ -157,9 +164,18 @@ namespace Paniq.Presentation
 
             // Pause to look, not to act: while a card is up or the world is
             // stopped, the pointer still hovers but no click reaches the run.
-            input.Update(prototypeCamera, frameSnapshot, runner.IsPaused || screens.CardIsUp);
+            input.Update(prototypeCamera, frameSnapshot,
+                runner.IsPaused || screens.CardIsUp || log.IsOpen);
             hoveredDoor = input.HoveredDoor;
             Keyboard keyboard = Keyboard.current;
+
+            // Escape closes the log. Taken before anything else reads the key,
+            // so backing out of the story never also cancels something else.
+            if (log.IsOpen && keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+            {
+                log.Close();
+            }
+
             if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
             {
                 showStats = !showStats;
@@ -236,7 +252,11 @@ namespace Paniq.Presentation
                     hoveredDoor.HasValue && IsJammed(frameSnapshot, hoveredDoor.Value));
                 screens.DrawStrip(frameSnapshot);
                 PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input);
-                PrototypeHud.DrawLegend();
+                if (runner.IsPaused)
+                {
+                    PrototypeHud.DrawPauseHelp(frameSnapshot);
+                }
+
                 if (showStats)
                 {
                     string feel = runner.PhysicsFeelName ?? "the scenario's own";
@@ -258,6 +278,18 @@ namespace Paniq.Presentation
                 {
                     screens.DrawEndCard(frameSnapshot);
                 }
+
+                // The end card only asks; taking the request here is what
+                // clears it, so the button opens the log once rather than
+                // holding it open.
+                if (screens.WantsTheLog)
+                {
+                    screens.WantsTheLog = false;
+                    log.Open();
+                }
+
+                // Very last, so the story covers the end card behind it.
+                log.Draw(frameSnapshot);
             }
         }
 

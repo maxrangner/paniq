@@ -176,6 +176,39 @@ namespace Paniq.Simulation
             return ignition.EventId;
         }
 
+        /// <summary>
+        /// A door into this room became a way through, so fire that had run out
+        /// of places to go may have somewhere new after all.
+        /// <para>
+        /// A burning square is retired for good once every square around it is
+        /// alight or walled off -- see <c>cellNextSpreadTicks[cell] =
+        /// int.MaxValue</c> above. That was safe while a shut door stopped fire
+        /// for ever: a fire pressed against one was genuinely finished. It is
+        /// not safe now. A door can be opened by the player, walked open or
+        /// shouldered down by somebody, blown off by TNT, or burnt through, and
+        /// any of those hands the fire on the other side of it somewhere to go.
+        /// Without this, a fire that filled a closed room stayed in it for the
+        /// rest of the run however wide the door was afterwards thrown.
+        /// </para>
+        /// Ascending cell order, so a replay agrees.
+        /// </summary>
+        public void WakeRoom(int room)
+        {
+            if (room < 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < burningCells.Count; i++)
+            {
+                int cell = burningCells[i];
+                if (cellRooms[cell] == room && cellNextSpreadTicks[cell] == int.MaxValue)
+                {
+                    cellNextSpreadTicks[cell] = checked(context.Tick + NextSpreadDelay());
+                }
+            }
+        }
+
         private int NextSpreadDelay()
         {
             return context.Random.NextIntInclusive(settings.SpreadMinimumTicks, settings.SpreadMaximumTicks);

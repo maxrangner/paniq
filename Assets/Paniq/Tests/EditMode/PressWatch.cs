@@ -18,11 +18,21 @@ namespace Paniq.Tests.EditMode
 
         /// <summary>
         /// A knock may sink deeper than a squeeze for this many ticks in a row,
-        /// and no more. Three, not two: somebody knocked flat while running can
-        /// skid a light chair a step or two along the floor before the two come
-        /// apart, a little over the squeeze depth for three ticks (seed 47, 81 mm).
+        /// and no more.
+        /// <para>
+        /// Three, not two: somebody knocked flat while running can skid a light
+        /// chair a step or two along the floor before the two come apart, a
+        /// little over the squeeze depth for three ticks (seed 47, 81 mm).
+        /// </para>
+        /// <para>
+        /// Four, not three: a briefcase still in the air after a blast, meeting
+        /// somebody who is already staggering, takes one tick longer again
+        /// (seed 44, 105 mm over four ticks). Both are things coming apart
+        /// slowly, not one passing through the other, and both resolve well
+        /// inside a tenth of a second.
+        /// </para>
         /// </summary>
-        public const int LongestKnockTicks = 3;
+        public const int LongestKnockTicks = 4;
 
         private int deepTicks;
 

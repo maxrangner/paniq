@@ -9,6 +9,12 @@ namespace Paniq.Tests.EditMode
     /// Closing and locking doors: by the player, by the cruel as they leave a
     /// room or the building, and by anyone shutting flames out of the room they
     /// are standing in.
+    /// <para>
+    /// Above all of it sits one rule: getting out beats shutting the fire in.
+    /// Nobody slams a door they are about to run through, unless the flames
+    /// have already reached it, in which case that way out was never going to
+    /// be one. See <see cref="NobodyShutsADoorTheyAreAboutToRunThrough"/>.
+    /// </para>
     /// </summary>
     public sealed class FireReactionClosingDoorsEditModeTests
     {
@@ -229,9 +235,15 @@ namespace Paniq.Tests.EditMode
         /// <summary>
         /// The cruel shut the door behind them; only the very worst also turn
         /// the key, so somebody merely nasty leaves it shut but openable.
+        /// <para>
+        /// The bar went from 7 to 8 because four people in the authored
+        /// building of twenty cleared it, and a building where a fifth of the
+        /// office slams doors reads as a building of door-slammers rather than
+        /// as one that happens to contain one.
+        /// </para>
         /// </summary>
-        [TestCase(6, false, false)]
-        [TestCase(7, true, false)]
+        [TestCase(7, false, false)]
+        [TestCase(8, true, false)]
         [TestCase(9, true, true)]
         public void OnlyTheCruelShutTheDoorBehindThem_AndOnlyTheWorstLockIt(int evil, bool expectShut, bool expectLocked)
         {
@@ -299,10 +311,72 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// The owner watched people stop on their way out to pull doors shut
+        /// and then dither, because shutting a door crosses it off their own
+        /// list of ways out. Somebody with a route they can still take now runs
+        /// it instead.
+        /// </summary>
+        [Test]
+        public void NobodyShutsADoorTheyAreAboutToRunThrough()
+        {
+            // One person in the storage closet with the door open and a fire
+            // away across the office: far enough that the flames are nowhere
+            // near the doorway, so the closet door is still their way out.
+            FireReactionScenarioData data = scenario.ToRuntimeData();
+            data.Agents = new[]
+            {
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(7000, 2500),
+                    CardinalDirection.West, AgentTraitValues.AllOrdinary)
+            };
+            data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
+            data.Tables = new FireReactionTableDefinition[0];
+            data.Fire.ActivationTick = 3;
+            data.Fire.SpawnBounds = new LogicalBounds(-4000, -4000, -4000, -4000);
+            data.Fire.SpreadMinimumTicks = 100000;
+            data.Fire.SpreadMaximumTicks = 100000;
+            data.Temperament.FreezeForeverPercent = 0;
+            data.Temperament.FreezeThenRunPercent = 0;
+            data.Perception.MaximumReactionDelayTicks = 0;
+
+            using (var simulation = new FireReactionSimulation(data))
+            {
+                Click(simulation, ClosetDoor, 1);
+                for (int t = 0; t < 15 * FireReactionSimulation.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                }
+
+                Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed), Is.Empty,
+                    "The one door out of the closet is the door they need: they should have run, not shut it.");
+                Assert.That(simulation.GetAgent(0).Position.X, Is.LessThan(6000),
+                    "They should be out of the closet and away.");
+            }
+        }
+
+        /// <summary>
+        /// The other side of the same rule, and the mechanic the owner liked:
+        /// with the flames already at the only door, that route is gone, and
+        /// pulling it shut is the best thing left to do.
+        /// </summary>
+        [Test]
+        public void WithTheFlamesAtTheOnlyDoor_TheyShutItAnyway()
+        {
+            FireReactionSimulation simulation = InTheClosetWithSomeoneOutside(AgentTraitValues.AllOrdinary);
+            for (int t = 0; t < 10 * FireReactionSimulation.TicksPerSecond &&
+                            EventsOfType(simulation, FireReactionEventType.DoorClosed).Count == 0; t++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Unlocked),
+                "Shut against the flames that had already reached it.");
+        }
+
         [Test]
         public void EvilEscaper_SlamsAndLocksTheDoorInTheFaceOfSomeoneComing()
         {
-            // Evil 9 is past both the shutting bar (7) and the locking bar (9).
+            // Evil 9 is past both the shutting bar (8) and the locking bar (9).
             FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 5, 1, 9, 5), Nearby);
             RunUntilEscaped(simulation);
             Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Locked));

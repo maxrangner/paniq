@@ -6,10 +6,10 @@ using Paniq.Simulation;
 namespace Paniq.Tests.EditMode
 {
     /// <summary>
-    /// The player's influence and the cards they spend it on. Influence starts
-    /// at a set amount, every card that actually does something takes its price,
-    /// a card nobody can pay for does nothing at all, and the only thing that
-    /// pays any back is somebody getting out of the building alive.
+    /// The player's influence and what they spend it on. Influence starts at a
+    /// set amount, every card and every door click that actually does something
+    /// takes its price, anything nobody can pay for does nothing at all, and the
+    /// only thing that pays any back is somebody getting out alive.
     /// </summary>
     public sealed class FireReactionPowersEditModeTests
     {
@@ -70,6 +70,134 @@ namespace Paniq.Tests.EditMode
             data.PhysicsObjects = bottles.ToArray();
             data.Tables = new FireReactionTableDefinition[0];
             return data;
+        }
+
+        // ------------------------------------------------------------ doors
+        //
+        // Reaching into the building and working a door is the player's
+        // commonest move and it used to be free, so there was never a reason
+        // not to fling every door in the place open. Each click pays for what
+        // that click does.
+
+        /// <summary>The storage closet's door, which starts shut but unlocked.</summary>
+        private static readonly SimulationId ClosetDoor = new SimulationId(2002UL);
+
+        /// <summary>The way out of the building, which starts locked.</summary>
+        private static readonly SimulationId WayOut = new SimulationId(2008UL);
+
+        private static DoorState StateOf(FireReactionSimulation simulation, SimulationId door)
+        {
+            for (int i = 0; i < simulation.DoorCount; i++)
+            {
+                if (simulation.GetDoor(i).DoorId == door)
+                {
+                    return simulation.GetDoor(i).State;
+                }
+            }
+
+            throw new KeyNotFoundException($"No door {door}.");
+        }
+
+        [Test]
+        public void OpeningAShutDoor_CostsWhatTheScenarioSays()
+        {
+            FireReactionScenarioData data = QuietRoom();
+            using (var simulation = new FireReactionSimulation(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, ClosetDoor, 1);
+                simulation.Step();
+
+                Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Open));
+                Assert.That(simulation.Influence,
+                    Is.EqualTo(data.Influence.Starting - data.Influence.OpenDoorCost));
+                Assert.That(simulation.InfluenceSpent, Is.EqualTo(data.Influence.OpenDoorCost));
+            }
+        }
+
+        [Test]
+        public void ALockedDoor_CostsTheKeyAndThenTheDoor()
+        {
+            FireReactionScenarioData data = QuietRoom();
+            using (var simulation = new FireReactionSimulation(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, WayOut, 1);
+                simulation.Step();
+                Assert.That(StateOf(simulation, WayOut), Is.EqualTo(DoorState.Unlocked),
+                    "One click turns the key and leaves it shut, so the people inside can open it themselves.");
+                Assert.That(simulation.Influence,
+                    Is.EqualTo(data.Influence.Starting - data.Influence.UnlockDoorCost));
+
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, WayOut, 2);
+                simulation.Step();
+                Assert.That(StateOf(simulation, WayOut), Is.EqualTo(DoorState.Open));
+                Assert.That(simulation.Influence, Is.EqualTo(
+                    data.Influence.Starting - data.Influence.UnlockDoorCost - data.Influence.OpenDoorCost));
+            }
+        }
+
+        [Test]
+        public void ClosingADoor_CostsSomethingToo()
+        {
+            FireReactionScenarioData data = QuietRoom();
+            using (var simulation = new FireReactionSimulation(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, ClosetDoor, 1);
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, ClosetDoor, 2);
+                simulation.Step();
+                simulation.Step();
+
+                Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Unlocked), "Shut again.");
+                Assert.That(simulation.Influence, Is.EqualTo(
+                    data.Influence.Starting - data.Influence.OpenDoorCost - data.Influence.CloseDoorCost));
+            }
+        }
+
+        [Test]
+        public void ADoorTheyCannotPayFor_StaysExactlyAsItWas()
+        {
+            FireReactionScenarioData data = QuietRoom();
+            data.Influence.Starting = data.Influence.OpenDoorCost - 1;
+            using (var simulation = new FireReactionSimulation(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, ClosetDoor, 1);
+                simulation.Step();
+
+                Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Unlocked),
+                    "Shut, as it started: they could not afford to open it.");
+                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting),
+                    "And it cost them nothing to find that out.");
+            }
+        }
+
+        [Test]
+        public void ADoorAlreadyBrokenDown_CostsNothingToClickAt()
+        {
+            FireReactionScenarioData data = QuietRoom();
+            using (var simulation = new FireReactionSimulation(data))
+            {
+                // Blow the wall open: a hole is a way through with no door in
+                // it, and there is nothing left to charge for working.
+                simulation.QueueCommand(PlayerCommandType.BlastWall, new LogicalPosition(-5900, 0), 1);
+                simulation.Step();
+                int after = simulation.Influence;
+
+                for (int i = 0; i < simulation.DoorCount; i++)
+                {
+                    FireReactionDoorSnapshot door = simulation.GetDoor(i);
+                    if (door.State != DoorState.Broken)
+                    {
+                        continue;
+                    }
+
+                    simulation.QueueCommand(PlayerCommandType.ClickDoor, door.DoorId, simulation.Tick + 1);
+                    simulation.Step();
+                    Assert.That(simulation.Influence, Is.EqualTo(after),
+                        "There is nothing left of it to open, shut or unlock.");
+                    return;
+                }
+
+                Assert.Fail("The wall should have been blown open.");
+            }
         }
 
         [Test]
@@ -315,8 +443,11 @@ namespace Paniq.Tests.EditMode
             }
 
             Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped), "Nobody got out.");
-            Assert.That(simulation.Influence, Is.EqualTo(starting + data.Influence.PerPersonSaved),
-                "Getting somebody out should pay influence back. Clicking a door is free.");
+            // Two clicks to get the door open -- the key, then the door -- and
+            // then somebody walks out through it and pays some of it back.
+            int doorCost = data.Influence.UnlockDoorCost + data.Influence.OpenDoorCost;
+            Assert.That(simulation.Influence, Is.EqualTo(starting - doorCost + data.Influence.PerPersonSaved),
+                "Getting somebody out should pay influence back, on top of what the door cost.");
             Assert.That(simulation.InfluenceEarned, Is.EqualTo(data.Influence.PerPersonSaved));
         }
 

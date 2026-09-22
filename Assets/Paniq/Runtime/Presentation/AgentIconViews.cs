@@ -27,7 +27,7 @@ namespace Paniq.Presentation
         private static readonly Color IceBlue = new Color(0.7f, 0.93f, 1f);
         private static readonly Color QuestionYellow = new Color(1f, 0.88f, 0.25f);
 
-        /// <summary>The leader's arrow, and the smaller one over whoever is following them.</summary>
+        /// <summary>The star over somebody other people are following.</summary>
         private static readonly Color LeaderGreen = new Color(0.45f, 0.95f, 0.5f);
         private static readonly Color IdleGrey = new Color(0.72f, 0.82f, 0.95f);
         private static readonly Color StarYellow = new Color(1f, 0.9f, 0.2f);
@@ -108,8 +108,14 @@ namespace Paniq.Presentation
             question = CreateText("Investigating ?", "?", 0.2f, 64, QuestionYellow, new Vector3(0f, 0.2f, 0f));
             idle = CreateText("Idle ...", "...", 0.13f, 48, IdleGrey, new Vector3(0f, -0.05f, 0f));
             number = CreateText("Number", numberLabel, 0.07f, 64, NumberWhite, new Vector3(0.32f, -0.28f, 0f));
-            leading = CreateText("Leading", "^", 0.2f, 64, LeaderGreen, new Vector3(0f, 0.3f, 0f));
-            followingLeader = CreateText("Following", "^", 0.1f, 48, LeaderGreen, new Vector3(-0.2f, 0.22f, 0f));
+            // A green star over whoever is being followed. It used to be an
+            // arrow, and the people following them wore the same arrow a size
+            // smaller, so at a glance a leader and their followers looked
+            // exactly alike. Only the leader is marked now.
+            leading = CreateGroup("Leading", new Vector3(0f, 0.32f, 0f));
+            leadingStroke = CreateStroke(leading, lineMaterial, 0.03f, 0.03f, 0, StarPoints(0.11f, 0.046f));
+            leadingStroke.loop = true;
+            SetColor(new[] { leadingStroke }, LeaderGreen);
 
             SetColor(noticeStrokes, NoticeRed);
             SetColor(snowflakeStrokes, IceBlue);
@@ -130,7 +136,6 @@ namespace Paniq.Presentation
             SetActive(stars, false);
             question.gameObject.SetActive(false);
             leading.gameObject.SetActive(false);
-            followingLeader.gameObject.SetActive(false);
             idle.gameObject.SetActive(false);
             number.gameObject.SetActive(false);
         }
@@ -145,7 +150,6 @@ namespace Paniq.Presentation
             bool investigating,
             bool idling,
             bool leadingOthers,
-            bool followingSomeone,
             float time)
         {
             root.SetPositionAndRotation(anchor, cameraRotation);
@@ -215,14 +219,16 @@ namespace Paniq.Presentation
 
             question.gameObject.SetActive(investigating && !showNotice);
 
-            // A leader's call: an arrow over the head, bobbing as they shout.
+            // A leader's call: a star over the head, bobbing as they shout.
+            // Whoever is trailing after them wears nothing at all, so the one
+            // mark in a knot of people is the one worth looking at.
             leading.gameObject.SetActive(leadingOthers);
             if (leadingOthers)
             {
-                leading.transform.localPosition = new Vector3(0f, 0.3f + 0.03f * Mathf.Sin(time * 7f), 0f);
+                leading.localPosition = new Vector3(0f, 0.32f + 0.03f * Mathf.Sin(time * 7f), 0f);
+                leading.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(time * 2.2f + spinOffset) * 8f);
             }
 
-            followingLeader.gameObject.SetActive(followingSomeone && !leadingOthers);
             idle.gameObject.SetActive(idling && !showNotice && !showYell);
         }
 
@@ -265,8 +271,8 @@ namespace Paniq.Presentation
             return line;
         }
 
-        private readonly TextMesh leading;
-        private readonly TextMesh followingLeader;
+        private readonly Transform leading;
+        private readonly LineRenderer leadingStroke;
 
         private TextMesh CreateText(string objectName, string text, float characterSize, int fontSize, Color color,
             Vector3 localPosition)

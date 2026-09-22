@@ -1,4 +1,4 @@
-// A stand-in for the simulation's PhysicsWorld, so the simulation still
+﻿// A stand-in for the simulation's PhysicsWorld, so the simulation still
 // compiles outside Unity. The real one is Unity's physics engine, which only
 // exists inside the editor or a built game, so this one refuses to be built:
 // every test that creates a run stops at once with NeedsUnityPhysicsException,
@@ -82,8 +82,14 @@ namespace Paniq.Simulation
         }
 
         public void SetWalls(IReadOnlyList<NavigationGrid.Wall> stretches) => throw new NeedsUnityPhysicsException();
-        public int AddTable(LogicalBounds bounds) => throw new NeedsUnityPhysicsException();
+        public int AddTable(LogicalBounds bounds, int massGrams, int frictionPercent) =>
+            throw new NeedsUnityPhysicsException();
+
         public void RemoveTable(int index) => throw new NeedsUnityPhysicsException();
+        public bool IsTableAwake(int index) => throw new NeedsUnityPhysicsException();
+        public BodyPose TablePose(int index) => throw new NeedsUnityPhysicsException();
+        public LogicalBounds TableFootprint(int index) => throw new NeedsUnityPhysicsException();
+        public void ShoveTable(int index, long vx, long vy, long vz) => throw new NeedsUnityPhysicsException();
         public int AddDoor(LogicalPosition centre, bool alongX, int width, bool shut) => throw new NeedsUnityPhysicsException();
         public void SetDoorShut(int index, bool shut) => throw new NeedsUnityPhysicsException();
         public bool IsAnyBodyInDoorway(int door, int ignoreHandle) => throw new NeedsUnityPhysicsException();

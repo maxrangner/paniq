@@ -61,11 +61,8 @@ namespace Paniq.Presentation
             public float Width;
             public float Depth;
 
-            /// <summary>The whole table, so a collapsed one can be flattened.</summary>
+            /// <summary>The whole table, so one going over can be turned bodily.</summary>
             public Transform Root;
-
-            /// <summary>0 while it stands, 1 once it has collapsed.</summary>
-            public float Collapse;
 
             /// <summary>Where it stands, so a table going over can drop from it.</summary>
             public Vector3 RestingPosition;
@@ -530,7 +527,8 @@ namespace Paniq.Presentation
                 if (doors.TryGetValue(door.DoorId, out DoorView known))
                 {
                     known.State = door.State;
-                    known.DamagePercent = door.DamagePercent;
+                    // Battered or burnt: either way the leaf darkens as it goes.
+                    known.DamagePercent = door.FailingPercent;
                     if (door.OpenSide != 0)
                     {
                         known.OpenSide = door.OpenSide;
@@ -563,14 +561,6 @@ namespace Paniq.Presentation
                     view.Root.SetPositionAndRotation(
                         Vector3.Lerp(view.Root.position, origin, follow),
                         Quaternion.Slerp(view.Root.rotation, turned, follow));
-                }
-
-                // Smashed: what is left is a heap of boards, drawn as a thing
-                // of its own, so the table itself shrinks away.
-                view.Collapse = Mathf.MoveTowards(view.Collapse, table.Broken ? 1f : 0f, deltaTime * 4f);
-                if (view.Collapse > 0f)
-                {
-                    view.Root.localScale = Vector3.one * Mathf.Max(0.001f, 1f - view.Collapse);
                 }
 
                 view.Flames.Update(table.BurnState == ObjectBurnState.Burning, new Vector3(0f, 0.72f, 0f),

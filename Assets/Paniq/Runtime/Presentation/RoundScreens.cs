@@ -67,7 +67,6 @@ namespace Paniq.Presentation
                 }
 
                 GUI.backgroundColor = Color.white;
-                GUI.Label(new Rect(228f, y + 5f, 460f, 22f), "Nothing is wrong yet. This is what sets it off.");
             }
             else
             {
@@ -90,8 +89,7 @@ namespace Paniq.Presentation
             if (runner.IsPaused)
             {
                 GUI.color = new Color(1f, 0.95f, 0.5f);
-                GUI.Label(new Rect(20f, y + 36f, 720f, 22f),
-                    "PAUSED — look around all you like. Nothing can be played while the world is stopped.");
+                GUI.Label(new Rect(20f, y + 36f, 720f, 22f), "PAUSED");
                 GUI.color = Color.white;
             }
         }
@@ -128,12 +126,15 @@ namespace Paniq.Presentation
             GUI.color = Color.white;
         }
 
-        /// <summary>The card at the end: what the round came to, and two ways to play it again.</summary>
+        /// <summary>
+        /// The card at the end: what the round came to, a way to read it back,
+        /// and two ways to play it again.
+        /// </summary>
         public void DrawEndCard(FireReactionSnapshot snapshot)
         {
             RecordResultOnce(snapshot);
 
-            const float height = 268f;
+            const float height = 316f;
             Rect card = CentredCard(height);
             float x = card.x + 24f;
             float y = card.y + 20f;
@@ -170,6 +171,12 @@ namespace Paniq.Presentation
             y = DrawSeedRow(x, y, width);
             y += 12f;
 
+            if (GUI.Button(new Rect(x, y, width, 32f), "What happened"))
+            {
+                WantsTheLog = true;
+            }
+
+            y += 40f;
             float half = (width - 10f) * 0.5f;
             if (GUI.Button(new Rect(x, y, half, 36f), "Play again (same seed)"))
             {
@@ -181,6 +188,13 @@ namespace Paniq.Presentation
                 Play();
             }
         }
+
+        /// <summary>
+        /// Set when the player asks to read the round back. Whoever is drawing
+        /// takes it and clears it, so the button is a request rather than the
+        /// screens owning a second screen.
+        /// </summary>
+        public bool WantsTheLog { get; set; }
 
         private void DrawBestSoFar(float x, float y, float width)
         {

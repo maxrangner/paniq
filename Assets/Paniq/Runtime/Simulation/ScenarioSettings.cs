@@ -64,25 +64,36 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// The share of the crowd that has to be saved to clear the level, out
-        /// of a hundred. Saved means escaped or alive and out of the hazard's
-        /// reach at the end. Chosen with the owner at 75: fifteen of twenty.
+        /// of a hundred. Saved means escaped or alive inside at the end.
+        /// Chosen with the owner at 75: fifteen of twenty.
         /// </summary>
         public int TargetSavedPercent = 75;
 
         /// <summary>
-        /// How long everybody left has to be out of the hazard's reach before
-        /// the round is called finished. Without the wait a round would end in
-        /// the lull before somebody shoulders a door open and lets the fire
-        /// through.
+        /// How long the whole building has to be doing nothing at all before
+        /// the round is called finished.
+        /// <para>
+        /// The round used to end as soon as everybody left was in a room the
+        /// fire could not reach, which stopped it while people were still
+        /// walking towards the door. It waits for them now, and this is the
+        /// only thing that stops a run going on for ever when the last person
+        /// left is frozen in a corner.
+        /// </para>
         /// </summary>
-        public int SettleTicks = 250;
+        public int StallTicks = 1500;
+
+        /// <summary>
+        /// How far somebody has to get from where they were standing when the
+        /// stall clock started for the building to count as still moving.
+        /// </summary>
+        public int StallMoveMillimetres = 400;
 
         public RoundSettings Clone() => (RoundSettings)MemberwiseClone();
 
         internal void Validate()
         {
             Settings.Require(TargetSavedPercent >= 0 && TargetSavedPercent <= 100, "round clear target");
-            Settings.Require(SettleTicks >= 0, "round settle time");
+            Settings.Require(StallTicks >= 1 && StallMoveMillimetres >= 0, "round stall time");
         }
     }
 
@@ -516,6 +527,16 @@ namespace Paniq.Simulation
         /// <summary>How much shoving damage a door takes before it breaks. Damage stays between attempts.</summary>
         public int DoorStrength = 40;
 
+        /// <summary>
+        /// How long a shut door stands with flames against it before it burns
+        /// through and the fire comes on. Eighteen seconds: longer than a chair
+        /// (three) or a table (five), because a door is a slab in a frame, and
+        /// long enough that shutting one buys real time without ever being a
+        /// way to win. Flames within <see cref="FireAtDoorRadiusMillimetres"/>
+        /// of the doorway count, from either side.
+        /// </summary>
+        public int DoorBurnThroughTicks = 900;
+
         // Closing doors. Only the cruel shut the door behind them as they
         // leave a room or the building, and only the cruellest lock it.
         // Shutting a door with fire beyond it is a different act and open to
@@ -530,8 +551,12 @@ namespace Paniq.Simulation
         /// <summary>Fire this close to a door makes anyone shut it, kind or not, and whoever is still coming.</summary>
         public int FireAtDoorRadiusMillimetres = 2000;
 
-        /// <summary>This evil: shut the door behind them, even in the face of someone coming.</summary>
-        public int EvilCloseMinimum = 7;
+        /// <summary>
+        /// This evil: shut the door behind them, even in the face of someone
+        /// coming. Raised from 7, which let four people in twenty do it, so the
+        /// building read as full of door-slammers rather than as having one.
+        /// </summary>
+        public int EvilCloseMinimum = 8;
 
         /// <summary>This evil: turn the key as well, so nobody can follow.</summary>
         public int EvilLockMinimum = 9;
@@ -565,7 +590,7 @@ namespace Paniq.Simulation
                              ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0 &&
                              CurrentRoomBonusMillimetres >= 0 && RefugeNoFireMillimetres >= 0 &&
                              RefugeClearRoomMillimetres >= 0 && RefugeSpacePerPersonMillimetres > 0, "door scoring");
-            Settings.Require(DoorStrength >= 1, "door strength");
+            Settings.Require(DoorStrength >= 1 && DoorBurnThroughTicks >= 1, "door strength");
             Settings.Require(CloseReachMillimetres >= 0 && CloseApproachRadiusMillimetres >= 0 &&
                              FireAtDoorRadiusMillimetres >= 0 && EvilCloseMinimum >= 0 &&
                              CompassionHoldMinimum >= 0 && EvilLockMinimum >= EvilCloseMinimum,
@@ -1052,11 +1077,13 @@ namespace Paniq.Simulation
             {
                 Entry(PhysicsObjectKind.Box, 100, 75, 400, 750),
 
-                // Wooden: a hard enough knock breaks it up.
-                SatOn(Breakable(Entry(PhysicsObjectKind.Chair, 120, 150, 600, 900), 450)),
+                // Wooden. It is shoved, tipped and rolled like anything else,
+                // but it never smashes: a room left full of broken stumps read
+                // as a demolition rather than as a fire.
+                SatOn(Entry(PhysicsObjectKind.Chair, 120, 150, 600, 900)),
 
-                // Castors: it rolls away across the floor, and its frame bends.
-                SatOn(Breakable(Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900), 400)),
+                // Castors: it rolls away across the floor.
+                SatOn(Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900)),
                 Entry(PhysicsObjectKind.WasteBin, 80, 50, 250, 450),
 
                 // Earth and green leaves: it never catches.
@@ -1150,13 +1177,6 @@ namespace Paniq.Simulation
         /// <summary>How each kind of loose object slides and burns; one entry per kind.</summary>
         public ObjectKindSettings[] Kinds = ObjectKindSettings.Defaults();
 
-        /// <summary>
-        /// How hard a blow collapses a table, as momentum in kilograms times
-        /// millimetres per tick. Higher than a chair's, because a table is the
-        /// sturdiest thing in the room.
-        /// </summary>
-        public int TableBreakMomentum = 600;
-
         /// <summary>Ticks of heat before each kind catches fire.</summary>
         public int BoxIgniteTicks = 75;
         public int ChairIgniteTicks = 150;
@@ -1176,7 +1196,6 @@ namespace Paniq.Simulation
         /// <summary>A person this close to a burning thing's edge touches it (and catches fire).</summary>
         public int TouchGapMillimetres = 50;
 
-        /// <summary>The heap a smashed table tips into: its weight, and its size clamped between these two.</summary>
         /// <summary>
         /// A table's weight, by the floor it covers: a 1.2 by 0.7 m desk comes
         /// out at 21 kg, the 5.4 by 1 m meeting table at 135 kg. Tables are
@@ -1187,10 +1206,6 @@ namespace Paniq.Simulation
 
         /// <summary>How well a table grips the floor, as the engine's friction times 100.</summary>
         public int TableFloorGripPercent = 80;
-
-        public int TableWreckMassGrams = 40000;
-        public int TableWreckMinimumSizeMillimetres = 350;
-        public int TableWreckMaximumSizeMillimetres = 500;
 
         public FlammableSettings Clone()
         {
@@ -1218,11 +1233,7 @@ namespace Paniq.Simulation
                              Settings.Range(ChairBurnMinimumTicks, ChairBurnMaximumTicks, 1) &&
                              Settings.Range(TableBurnMinimumTicks, TableBurnMaximumTicks, 1), "burn times");
             Settings.Require(FloorIgniteRestTicks >= 1 && TouchGapMillimetres >= 0, "burning things");
-            Settings.Require(TableBreakMomentum >= 0, "table strength");
             Settings.Require(TableMassGramsPerSquareMetre > 0 && TableFloorGripPercent >= 0, "table weight");
-            Settings.Require(TableWreckMassGrams > 0 &&
-                             Settings.Range(TableWreckMinimumSizeMillimetres, TableWreckMaximumSizeMillimetres, 1),
-                             "table wreck");
             Settings.Require(Kinds != null && Kinds.Length == ObjectKindSettings.KindCount, "one entry per kind of object");
             for (int i = 0; i < Kinds.Length; i++)
             {
@@ -1522,6 +1533,18 @@ namespace Paniq.Simulation
         public int SpawnExtinguisherCost = 25;
         public int BlastWallCost = 40;
 
+        /// <summary>
+        /// What a door click costs. Reaching into the building and working a
+        /// door is the player's commonest move, and it used to be free, so
+        /// there was never a reason not to fling every door in the place open.
+        /// Each click pays for what that click does, so unlocking a far-off
+        /// door and leaving the people inside to open it themselves is cheaper
+        /// than walking it open yourself.
+        /// </summary>
+        public int UnlockDoorCost = 50;
+        public int OpenDoorCost = 30;
+        public int CloseDoorCost = 10;
+
         public InfluenceSettings Clone() => (InfluenceSettings)MemberwiseClone();
 
         internal void Validate()
@@ -1529,6 +1552,7 @@ namespace Paniq.Simulation
             Settings.Require(Starting >= 0 && PerPersonSaved >= 0 && Maximum >= Starting, "influence");
             Settings.Require(BeefcakeCost >= 0 && SpawnFireCost >= 0 && SpawnExtinguisherCost >= 0 &&
                              BlastWallCost >= 0, "card costs");
+            Settings.Require(UnlockDoorCost >= 0 && OpenDoorCost >= 0 && CloseDoorCost >= 0, "door costs");
         }
     }
 

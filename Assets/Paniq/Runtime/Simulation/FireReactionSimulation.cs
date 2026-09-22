@@ -129,7 +129,7 @@ namespace Paniq.Simulation
                 // an unconscious person in front of them sees to them rather than
                 // walking off to the bell; plenty of other people are free to hit it.
                 panic.Offer(leaders, extinguishers, help, alarmBehaviour, barricades);
-                round.Use(flammables);
+                round.Use(flammables, doors);
                 playerCommands.Use(doors, fire, objects, crowd, influence, sound, body, geometry, round);
             }
             catch
@@ -644,7 +644,12 @@ namespace Paniq.Simulation
             doorBehaviour.ResolveRoomChangesAndEscapes();
             help.ResolveRescues(agents);
             flammables.Update();
+            doors.ScorchInTheFire(fire);
             doors.ResolveBlockages();
+
+            // Before the list of doors that opened is cleared: fire that had
+            // nowhere left to go may have somewhere now.
+            WakeFireBesideDoorsThatOpened();
 
             // Last of all, once the tick has settled: anybody who could have
             // seen or heard a door open this tick thinks again on the next
@@ -708,6 +713,21 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// Every door that became a way through this tick, told to the fire on
+        /// both sides of it. Ascending door order, so a replay agrees.
+        /// </summary>
+        private void WakeFireBesideDoorsThatOpened()
+        {
+            for (int i = 0; i < doors.OpeningsThisTick; i++)
+            {
+                int door = doors.OpeningAt(i);
+                int room = geometry.DoorRoom(door);
+                fire.WakeRoom(room);
+                fire.WakeRoom(geometry.RoomBeyond(door, room));
+            }
+        }
+
         /// <summary>People still in the run who are in a room with nothing burning in it.</summary>
         private int CountClearOfFire()
         {
@@ -753,6 +773,7 @@ namespace Paniq.Simulation
                 influence.Spent,
                 influence.Earned,
                 CardCosts(),
+                DoorClickCosts(),
                 doors.BlastChargesRemaining,
                 round.Phase,
                 context.Scenario.Round.TargetSavedPercent);
@@ -765,6 +786,18 @@ namespace Paniq.Simulation
             for (int i = 0; i < costs.Length; i++)
             {
                 costs[i] = influence.CostOf((PlayerCommandType)i);
+            }
+
+            return costs;
+        }
+
+        /// <summary>What a click costs on a door in each state, for the display.</summary>
+        private int[] DoorClickCosts()
+        {
+            var costs = new int[System.Enum.GetValues(typeof(DoorState)).Length];
+            for (int i = 0; i < costs.Length; i++)
+            {
+                costs[i] = influence.CostOfDoorClick((DoorState)i);
             }
 
             return costs;

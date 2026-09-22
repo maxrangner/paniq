@@ -88,8 +88,13 @@ namespace Paniq.Simulation
         private bool IsFreeToTake(Agent agent, int index)
         {
             // An extinguisher is not clutter: it is left on its wall until
-            // somebody needs it (see ExtinguisherBehaviour).
-            return !objects.IsEquipment(index) && !objects.IsDormant(index) &&
+            // somebody needs it (see ExtinguisherBehaviour). Neither is a
+            // chair. An office full of chairs is an office full of the nearest
+            // liftable thing, so nobody ever sat down in one -- they spent the
+            // day carrying the furniture about instead. A frightened person
+            // still wedges a chair against a door, which is a different act
+            // and lives in BarricadeBehaviour.
+            return !objects.IsEquipment(index) && !objects.CanBeSatOn(index) && !objects.IsDormant(index) &&
                    objects.HolderOf(index) < 0 && !objects.IsMoving(index) && objects.CanLift(agent, index) &&
                    flammables.ObjectState(index) == ObjectBurnState.Intact;
         }

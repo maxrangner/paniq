@@ -1,5 +1,3 @@
-﻿using System.Collections.Generic;
-
 namespace Paniq.Simulation
 {
     /// <summary>
@@ -7,10 +5,22 @@ namespace Paniq.Simulation
     /// <para>
     /// A round begins calm. Nothing is wrong until the player triggers the
     /// event, and until they do the round can never end. Once it has started,
-    /// the round is finished when nobody is left to resolve: everybody is out,
-    /// dead, or alive somewhere the hazard cannot reach. That last case is why
-    /// "nobody is moving" is not the rule -- somebody safe in a far room would
-    /// leave the round hanging for ever.
+    /// it runs until everybody is out of the building or dead -- or until the
+    /// whole building has been doing nothing at all for long enough that there
+    /// is plainly nothing left to wait for.
+    /// </para>
+    /// <para>
+    /// It used to end the moment everybody left was in a room the fire could
+    /// not reach. That stopped rounds while people were still walking towards
+    /// the door, and a shut door no longer makes a room permanently safe
+    /// anyway, so the rule has gone.
+    /// </para>
+    /// <para>
+    /// The one thing the stall clock must never mistake for a settled building
+    /// is a queue. Twelve people wedged in a doorway can cover almost no ground
+    /// for a minute, so distance alone is not enough: see
+    /// <see cref="SomethingIsStillHappening"/>, which also asks who is trying
+    /// to move and cannot.
     /// </para>
     /// <para>
     /// This lives in the simulation, not the display, because it decides an
@@ -26,15 +36,24 @@ namespace Paniq.Simulation
         private readonly FireSystem fire;
         private readonly RoundSettings settings;
 
-        /// <summary>Wired up after construction: it is built after this system is.</summary>
+        /// <summary>Wired up after construction: both are built after this system is.</summary>
         private FlammablesSystem flammables;
+        private DoorSystem doors;
 
-        /// <summary>Scratch for the room flood fill, kept so a tick allocates nothing.</summary>
-        private readonly bool[] hazardCanReachRoom;
-        private readonly List<int> roomsToVisit = new List<int>();
+        /// <summary>
+        /// Where everybody was standing when the stall clock last started, so
+        /// "has anybody got anywhere" can be asked without keeping a history.
+        /// </summary>
+        private readonly LogicalPosition[] stallAnchor;
 
-        /// <summary>The first tick on which everybody left was out of reach, or -1 while somebody is not.</summary>
-        private int settledSinceTick = -1;
+        /// <summary>What the rest of the world looked like at that same moment.</summary>
+        private int anchoredResolved = -1;
+        private int anchoredFireCells = -1;
+        private int anchoredBurningThings = -1;
+        private long anchoredDoors;
+
+        /// <summary>The first tick on which nothing at all was happening, or -1 while something is.</summary>
+        private int stalledSinceTick = -1;
 
         public RoundSystem(SimulationContext context, Agent[] agents, WorldGeometry geometry, FireSystem fire)
         {
@@ -43,11 +62,15 @@ namespace Paniq.Simulation
             this.geometry = geometry;
             this.fire = fire;
             settings = context.Scenario.Round;
-            hazardCanReachRoom = new bool[geometry.RoomCount];
+            stallAnchor = new LogicalPosition[agents.Length];
         }
 
-        /// <summary>Wired up after construction, because the flammables are built later.</summary>
-        public void Use(FlammablesSystem burningThings) => flammables = burningThings;
+        /// <summary>Wired up after construction, because both are built later.</summary>
+        public void Use(FlammablesSystem burningThings, DoorSystem doorSystem)
+        {
+            flammables = burningThings;
+            doors = doorSystem;
+        }
 
         /// <summary>Where the round has got to.</summary>
         public RoundPhase Phase { get; private set; } = RoundPhase.BeforeEvent;
@@ -113,23 +136,112 @@ namespace Paniq.Simulation
                 return;
             }
 
-            if (!EverybodyLeftIsOutOfReach())
+            if (SomethingIsStillHappening())
             {
-                settledSinceTick = -1;
+                DropAnchor();
+                stalledSinceTick = -1;
                 return;
             }
 
-            if (settledSinceTick < 0)
+            if (stalledSinceTick < 0)
             {
-                settledSinceTick = context.Tick;
+                stalledSinceTick = context.Tick;
             }
 
-            if (context.Tick - settledSinceTick < settings.SettleTicks)
+            if (context.Tick - stalledSinceTick < settings.StallTicks)
             {
                 return;
             }
 
             Finish();
+        }
+
+        /// <summary>
+        /// Whether anybody is getting anywhere, trying to, or being done to.
+        /// Any one of these restarts the clock, so the round only ends on a
+        /// building that is genuinely still.
+        /// <para>
+        /// The blocked-ticks question is the one that matters most. A crowd
+        /// jammed in a doorway barely moves, but every one of them is pressing
+        /// forward and getting nowhere, which is exactly what that counter
+        /// measures. Without it, a queue at the one way out of the building
+        /// would read as a settled room and the round would be called over on
+        /// top of them.
+        /// </para>
+        /// </summary>
+        private bool SomethingIsStillHappening()
+        {
+            long moved = settings.StallMoveMillimetres;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                if (!agent.IsParticipating)
+                {
+                    continue;
+                }
+
+                if (agent.Burning.IsBurning || agent.Body.Speed > 0 || agent.Body.BlockedTicks > 0 ||
+                    agent.Body.State != AgentBodyState.Upright ||
+                    IsBusy(agent.Intent.Activity) ||
+                    LogicalPosition.DistanceSquared(agent.Body.Position, stallAnchor[i]) > moved * moved)
+                {
+                    return true;
+                }
+            }
+
+            return anchoredResolved != ResolvedCount() ||
+                   anchoredFireCells != fire.BurningCount ||
+                   anchoredBurningThings != (flammables == null ? 0 : flammables.BurningCount) ||
+                   anchoredDoors != (doors == null ? 0L : doors.DoorSignature);
+        }
+
+        /// <summary>
+        /// Someone standing still on purpose, in the middle of doing something
+        /// that will end: rattling a door, hauling somebody along the floor,
+        /// emptying an extinguisher at the fire.
+        /// </summary>
+        private static bool IsBusy(AgentActivityState activity)
+        {
+            switch (activity)
+            {
+                case AgentActivityState.TryingDoor:
+                case AgentActivityState.ForcingDoor:
+                case AgentActivityState.OpeningDoor:
+                case AgentActivityState.Grabbing:
+                case AgentActivityState.Dragging:
+                case AgentActivityState.ShakingAwake:
+                case AgentActivityState.Spraying:
+                case AgentActivityState.PullingAlarm:
+                case AgentActivityState.StandingUp:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>Remembers the building as it stands, to measure the next stretch of quiet against.</summary>
+        private void DropAnchor()
+        {
+            for (int i = 0; i < agents.Length; i++)
+            {
+                stallAnchor[i] = agents[i].Body.Position;
+            }
+
+            anchoredResolved = ResolvedCount();
+            anchoredFireCells = fire.BurningCount;
+            anchoredBurningThings = flammables == null ? 0 : flammables.BurningCount;
+            anchoredDoors = doors == null ? 0L : doors.DoorSignature;
+        }
+
+        private int ResolvedCount()
+        {
+            int resolved = 0;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                resolved += agents[i].IsParticipating ? 0 : 1;
+            }
+
+            return resolved;
         }
 
         /// <summary>Whether every person has already reached a final outcome.</summary>
@@ -144,80 +256,6 @@ namespace Paniq.Simulation
             }
 
             return true;
-        }
-
-        /// <summary>
-        /// Whether every person still unresolved is somewhere the fire cannot
-        /// get to. Somebody on fire is never out of reach -- they are carrying
-        /// it with them.
-        /// </summary>
-        private bool EverybodyLeftIsOutOfReach()
-        {
-            MarkRoomsTheHazardCanReach();
-            for (int i = 0; i < agents.Length; i++)
-            {
-                Agent agent = agents[i];
-                if (!agent.IsParticipating)
-                {
-                    continue;
-                }
-
-                if (agent.Burning.IsBurning)
-                {
-                    return false;
-                }
-
-                int room = geometry.RoomAt(agent.Body.Position);
-                if (room < 0 || hazardCanReachRoom[room])
-                {
-                    // Out of any room means in a doorway or mid-escape: still
-                    // going somewhere, so the round is not over.
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Every room the fire is in, plus every room reachable from one of
-        /// those through a door that is open, broken or blasted. A shut door
-        /// stops it, which is the whole point of shutting one.
-        /// </summary>
-        private void MarkRoomsTheHazardCanReach()
-        {
-            roomsToVisit.Clear();
-            for (int room = 0; room < hazardCanReachRoom.Length; room++)
-            {
-                bool burning = fire.IsBurningInRoom(room) ||
-                               (flammables != null && flammables.AnythingBurningInRoom(room));
-                hazardCanReachRoom[room] = burning;
-                if (burning)
-                {
-                    roomsToVisit.Add(room);
-                }
-            }
-
-            for (int i = 0; i < roomsToVisit.Count; i++)
-            {
-                int room = roomsToVisit[i];
-                int[] doors = geometry.RoomDoors(room);
-                for (int d = 0; d < doors.Length; d++)
-                {
-                    int door = doors[d];
-                    if (!geometry.IsDoorOpen(door))
-                    {
-                        continue;
-                    }
-
-                    int beyond = geometry.RoomBeyond(door, room);
-                    if (beyond >= 0 && !hazardCanReachRoom[beyond])
-                    {
-                        hazardCanReachRoom[beyond] = true;
-                        roomsToVisit.Add(beyond);
-                    }
-                }
-            }
         }
 
         /// <summary>

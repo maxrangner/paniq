@@ -69,11 +69,21 @@ initial positions violate the boundary, obstacle, or overlap rules.
 Spatial implementations must calculate coordinate differences and every
 collision or sweep intermediate in checked `long` arithmetic. They must use
 integer comparisons throughout: floats, Unity physics, and `Transform` values
-cannot decide a logical collision. The authored limits above make the required
+cannot decide a logical collision. **Amended 2026-09-21 (compatibility version
+32):** Unity's 3D physics engine now decides how bodies move and touch, inside
+the run's own physics world and stepped by the simulation. See "Bodies in 3D"
+at the end of this note. Positions are still read back as integer millimetres,
+and every rule below that reads positions (rooms, doors, fire, sight, sound)
+still works in whole numbers. The authored limits above make the required
 squared-distance and sweep comparisons representable in `long`; invalid input
 fails scenario validation rather than wrapping.
 
 ## Movement requests and resolution
+
+**Superseded 2026-09-21.** The sweep-and-refuse resolution below was the
+foundation's movement rule. People and things are now physical bodies that push
+each other (see "Bodies in 3D"). It is kept here because the reasoning behind a
+fixed resolution order still applies to the physics step.
 
 A future autonomous system may submit at most one `MovementRequest` for each
 participating agent in a logical tick. A request contains only the stable Agent
@@ -226,3 +236,35 @@ And placing one must rebuild exactly the two things the geometry caches per door
 what lies beyond it, and which doors touch which room — through the same code the
 constructor uses, because the order doors appear in per room decides the order
 behaviours consider them.
+
+## Bodies in 3D (2026-09-21)
+
+Since compatibility version 32, people and loose things are solid 3D bodies in
+Unity's physics engine (PhysX), in a physics world that belongs to one run and
+that nothing in the displayed scene can reach. The simulation steps it once per
+tick. The [simulation contract](simulation-contract.md) gives the order.
+
+What that changes about space:
+
+- **Bodies can overlap a little, for a moment.** Two people squeezed in a
+  doorway may be pressed a few centimetres into each other. The engine eases
+  them apart at no more than 2 m/s. The tests allow up to 75 mm for up to two
+  ticks and fail anything deeper or longer.
+- **Height is real.** Things rest on tables and on each other, fall off, fly in
+  arcs and land. A person knocked down lies flat along the floor. Where there is
+  no room to lie, they stay on their feet in the physics ("crumpled") until they
+  get up.
+- **A person's position is the middle of their body.** For someone lying down,
+  that is about a metre from their feet. Rooms, doors, fire, sight and sound all
+  read that middle.
+- **Walls are solid slabs 40 mm thick and 3 m high.** A shut door fills its
+  gap; an open door, a blast hole or a spare slot not yet placed does not.
+  Tables are fixed blocks until smashed, when they are taken out of the world.
+  The world has a floor, a ceiling and a fence well outside the building, so
+  nothing can fall out of it.
+- **What was in the way is measured, not assumed.** A door will not close on
+  any body in its doorway, standing or lying. Somebody getting up looks for a
+  clear spot the engine confirms is empty, and never one through a wall.
+- **Everything else still works in whole numbers.** After each step, positions,
+  headings and speeds are rounded back to 1/100 mm, whole degrees and ticks, so
+  navigation, perception and decisions are unchanged.

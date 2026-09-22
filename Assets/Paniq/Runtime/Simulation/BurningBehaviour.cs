@@ -68,36 +68,6 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Phase 6, with the flames spreading: a roll that has run its course
-        /// either worked or it did not. One draw at the end of the roll rather
-        /// than one a tick, so the odds are the number in the scenario and you
-        /// can read them: a third of rolls save the person. Ascending ID order,
-        /// and only for people who went down on purpose — somebody knocked over
-        /// while alight goes on burning.
-        /// </summary>
-        public void RollToPutItOut()
-        {
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
-            {
-                Agent agent = agents[i];
-                AgentBurning burning = agent.Burning;
-                if (!agent.IsParticipating || !burning.IsBurning ||
-                    burning.RollingUntilTick == 0 || context.Tick != burning.RollingUntilTick - 1 ||
-                    agent.Body.State != AgentBodyState.Fallen)
-                {
-                    continue;
-                }
-
-                burning.RollingUntilTick = 0;
-                if (context.Random.NextPercent(settings.RollPutsOutChancePercent))
-                {
-                    body.PutOutPerson(agent, burning.RollEventId);
-                }
-            }
-        }
-
-        /// <summary>
         /// Phase 6, after movement: each person who was already burning (in
         /// ascending ID order) may set alight anyone whose body is within a
         /// hand's breadth of theirs.
@@ -149,6 +119,36 @@ namespace Paniq.Simulation
                     {
                         body.CatchFire(other, burner.Burning.EventId);
                     }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Phase 6, with the flames spreading: a roll that has run its course
+        /// either worked or it did not. One draw at the end of the roll rather
+        /// than one a tick, so the odds are the number in the scenario and you
+        /// can read them: a third of rolls save the person. Ascending ID order,
+        /// and only for people who went down on purpose -- somebody knocked over
+        /// while alight goes on burning.
+        /// </summary>
+        public void RollToPutItOut()
+        {
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                AgentBurning burning = agent.Burning;
+                if (!agent.IsParticipating || !burning.IsBurning ||
+                    burning.RollingUntilTick == 0 || context.Tick != burning.RollingUntilTick - 1 ||
+                    agent.Body.State != AgentBodyState.Fallen)
+                {
+                    continue;
+                }
+
+                burning.RollingUntilTick = 0;
+                if (context.Random.NextPercent(settings.RollPutsOutChancePercent))
+                {
+                    body.PutOutPerson(agent, burning.RollEventId);
                 }
             }
         }

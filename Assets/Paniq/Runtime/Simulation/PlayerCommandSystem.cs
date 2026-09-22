@@ -233,7 +233,9 @@ namespace Paniq.Simulation
                 }
 
                 int away = IntegerMath.HeadingBetween(command.Point, agent.Body.Position, agent.Body.Heading);
-                body.ShoveBack(agent, away, blast.ShoveDistanceMillimetres, blasted);
+                body.BlowOver(agent, away,
+                    blast.ShoveDistanceMillimetres * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
+                    context.Scenario.PhysicsFeel.BlastLiftPercent, blasted);
             }
 
             return true;

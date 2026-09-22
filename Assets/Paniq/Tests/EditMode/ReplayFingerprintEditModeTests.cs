@@ -1,4 +1,4 @@
-﻿using NUnit.Framework;
+using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
 
@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0x5CF50483988E174FUL)]
-        [TestCase(42UL, true, 0xEC99418DFBE91C2DUL)]
-        [TestCase(40UL, false, 0x08A38AB51C29C2C2UL)]
-        [TestCase(40UL, true, 0x52EDA38B80CC0ECBUL)]
-        [TestCase(46UL, false, 0x474CE096BCB2F65AUL)]
-        [TestCase(46UL, true, 0xF916DD8D79AD51ABUL)]
+        [TestCase(42UL, false, 0xB702AA393EEC0823UL)]
+        [TestCase(42UL, true, 0x96D371AE2C8BBDCEUL)]
+        [TestCase(40UL, false, 0xA65AD0136673E38DUL)]
+        [TestCase(40UL, true, 0x0C1125EF31CE7EADUL)]
+        [TestCase(46UL, false, 0x7B12B7AFCE4C18EBUL)]
+        [TestCase(46UL, true, 0x8EBC9B61E96F6BDEUL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -40,8 +40,8 @@ namespace Paniq.Tests.EditMode
         /// outside it. Guarded here as well as by their own tests, so the whole
         /// command path is covered by replay.
         /// </summary>
-        [TestCase(42UL, 0xFB1587BC31F34C1DUL)]
-        [TestCase(40UL, 0xB72466647F7EA0F9UL)]
+        [TestCase(42UL, 0x04C4CE8C7B68EBA7UL)]
+        [TestCase(40UL, 0x0012C5D9E0FED26AUL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -58,8 +58,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0x8DE587396621B370UL)]
-        [TestCase(40UL, 0x06F80DB60B03E3F2UL)]
+        [TestCase(42UL, 0x6E7149BD18D356D7UL)]
+        [TestCase(40UL, 0xBFA7BFDD317BFE1AUL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();

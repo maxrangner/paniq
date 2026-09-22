@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -103,6 +103,50 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// The doors that became a way through this tick, in the order it
+        /// happened, so the crowd can be told once at the end of the tick rather
+        /// than mid-decision. Fixed size, filled and emptied in place.
+        /// </summary>
+        private readonly int[] openedThisTick;
+        private int openedCount;
+
+        /// <summary>How many doors opened this tick, and which.</summary>
+        public int OpeningsThisTick => openedCount;
+
+        public int OpeningAt(int index) => openedThisTick[index];
+
+        /// <summary>Everybody has been told; start the next tick's list empty.</summary>
+        public void ClearOpenings() => openedCount = 0;
+
+        /// <summary>A door became a way through: note it for the end of the tick.</summary>
+        private void RecordOpening(int door)
+        {
+            for (int i = 0; i < openedCount; i++)
+            {
+                if (openedThisTick[i] == door)
+                {
+                    return;
+                }
+            }
+
+            openedThisTick[openedCount++] = door;
+        }
+
+        /// <summary>
+        /// Whether the leaf is allowed to swing this way at all. Ordinary doors
+        /// go both ways; the one-way rules are here for a fire door a later
+        /// scenario may author. +1 is out of the door's own room.
+        /// </summary>
+        public bool CanSwing(int door, int side)
+        {
+            DoorRuntime d = doors[door];
+            return side > 0 ? d.Swing != DoorSwingRule.IntoItsRoom : d.Swing != DoorSwingRule.AwayFromItsRoom;
+        }
+
+        /// <summary>A ragged gap blasted through a wall: there is no leaf to swing, pull at or shoulder.</summary>
+        public bool IsHole(int door) => doors[door].IsHole;
+
+        /// <summary>
         /// Doors in ascending ID order. The ones leading out of the building
         /// start locked (they are the player's to unlock); inside doors start
         /// shut but unlocked, so people can open them themselves.
@@ -201,62 +245,13 @@ namespace Paniq.Simulation
         /// <summary>The loose things, needed to tell whether a doorway is wedged. Set once, when they exist.</summary>
         public void UseObjects(PhysicsObjectSystem physicsObjects) => objects = physicsObjects;
 
-        /// <summary>
-        /// The doors that became a way through this tick, in the order it
-        /// happened, so the crowd can be told once at the end of the tick rather
-        /// than mid-decision. Fixed size, filled and emptied in place.
-        /// </summary>
-        private readonly int[] openedThisTick;
-        private int openedCount;
-
-        /// <summary>How many doors opened this tick, and which.</summary>
-        public int OpeningsThisTick => openedCount;
-
-        public int OpeningAt(int index) => openedThisTick[index];
-
-        /// <summary>Everybody has been told; start the next tick's list empty.</summary>
-        public void ClearOpenings() => openedCount = 0;
-
-        /// <summary>A door became a way through: note it for the end of the tick.</summary>
-        private void RecordOpening(int door)
-        {
-            for (int i = 0; i < openedCount; i++)
-            {
-                if (openedThisTick[i] == door)
-                {
-                    return;
-                }
-            }
-
-            openedThisTick[openedCount++] = door;
-        }
-
         /// <summary>The thing wedged in this doorway, or -1.</summary>
         public int ObstructionIn(int door) => blockedBy[door];
 
-        /// <summary>
-        /// Whether something is wedged in this doorway. A thing lying in the gap
-        /// stops the leaf whichever way it would swing — it is sitting in the
-        /// hole the leaf has to sweep — so this is the whole answer to "will
-        /// this door move?".
-        /// </summary>
+        /// <summary>Whether something is wedged in this doorway, so the door will not budge either way.</summary>
         public bool IsObstructed(int door) => blockedBy[door] >= 0;
 
-        /// <summary>
-        /// Whether the leaf is allowed to swing this way at all. Ordinary doors
-        /// go both ways; the one-way rules are here for a fire door a later
-        /// scenario may author. +1 is out of the door's own room.
-        /// </summary>
-        public bool CanSwing(int door, int side)
-        {
-            DoorRuntime d = doors[door];
-            return side > 0 ? d.Swing != DoorSwingRule.IntoItsRoom : d.Swing != DoorSwingRule.AwayFromItsRoom;
-        }
-
         public DoorState StateOf(int door) => doors[door].State;
-
-        /// <summary>A ragged gap blasted through a wall: there is no leaf to swing, pull at or shoulder.</summary>
-        public bool IsHole(int door) => doors[door].IsHole;
 
         /// <summary>
         /// Phase 8's tail, once every object has finished moving: which doorway
@@ -271,17 +266,23 @@ namespace Paniq.Simulation
             for (int door = 0; door < Count; door++)
             {
                 int found = -1;
-                for (int i = 0; i < objects.Count; i++)
+                using (PhysicsObjectSystem.Nearby candidates =
+                    objects.Gather(geometry.DoorwaySearchArea(door, objects.WidestRadius, gap)))
                 {
-                    if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0)
+                    for (int c = 0; c < candidates.Count; c++)
                     {
-                        continue;
-                    }
+                        int i = candidates[c];
+                        if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0)
+                        {
+                            continue;
+                        }
 
-                    if (geometry.IsObjectInDoorway(door, objects.PositionOf(i), objects.RadiusOf(i), gap))
-                    {
-                        found = i;
-                        break;
+                        if (geometry.IsObjectInDoorway(door, objects.PositionOf(i), objects.RadiusOf(i), gap))
+                        {
+                            // Ascending order, so this is still the lowest-numbered one.
+                            found = i;
+                            break;
+                        }
                     }
                 }
 
@@ -345,19 +346,6 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>
-        /// Which way the leaf swings when somebody standing on
-        /// <paramref name="pushedFrom"/> opens it: away from them, which is what
-        /// happens when you push a door, unless the scenario says this one only
-        /// goes one way. The player (0) gets the door's usual way out of its
-        /// room, so a door nobody is touching swings the way it always has.
-        /// </summary>
-        private int ChooseSwing(int door, int pushedFrom)
-        {
-            int first = pushedFrom == 0 ? 1 : -pushedFrom;
-            return CanSwing(door, first) ? first : -first;
-        }
-
         /// <summary>True when nobody (other than <paramref name="ignore"/>) is in the way of the door swinging shut.</summary>
         public bool IsDoorwayClear(int door, Agent ignore = null)
         {
@@ -375,7 +363,21 @@ namespace Paniq.Simulation
                 }
             }
 
-            return true;
+            // Nobody's middle is in the doorway, but a body is long: somebody
+            // lying across the threshold with only their legs in the gap stops
+            // the door as surely as somebody standing in it.
+            int ignoreHandle = ignore != null && people != null ? people.HandleOf(ignore) : -1;
+            return physics == null || !physics.IsAnyBodyInDoorway(door, ignoreHandle);
+        }
+
+        private PhysicsWorld physics;
+        private PeopleBodies people;
+
+        /// <summary>Wired up after construction, because the bodies are built after the doors.</summary>
+        public void UsePhysics(PhysicsWorld world, PeopleBodies bodies)
+        {
+            physics = world;
+            people = bodies;
         }
 
         /// <summary>
@@ -410,6 +412,19 @@ namespace Paniq.Simulation
                 0, 0, causalParentEventId, d.Id);
         }
 
+        /// <summary>
+        /// Which way the leaf swings when somebody standing on
+        /// <paramref name="pushedFrom"/> opens it: away from them, which is what
+        /// happens when you push a door, unless the scenario says this one only
+        /// goes one way. The player (0) gets the door's usual way out of its
+        /// room, so a door nobody is touching swings the way it always has.
+        /// </summary>
+        private int ChooseSwing(int door, int pushedFrom)
+        {
+            int first = pushedFrom == 0 ? 1 : -pushedFrom;
+            return CanSwing(door, first) ? first : -first;
+        }
+
         /// <summary>Opens a door, caused by the player's unlock or by a person's attempt.</summary>
         /// <param name="pushedFrom">
         /// Which side the person opening it is standing on: +1 beyond the door's
@@ -421,8 +436,7 @@ namespace Paniq.Simulation
         {
             if (IsObstructed(door))
             {
-                // Something is wedged in the gap: it will not budge, however
-                // many times anybody tries it.
+                // Something is wedged against it: it will not budge.
                 return;
             }
 

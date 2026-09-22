@@ -55,11 +55,16 @@ namespace Paniq.Simulation
         public bool Enabled => settings.Enabled;
 
         /// <summary>
-        /// The nearest alarm in this person's own room that nobody has hit yet,
-        /// or -1. Their own room only, because walking to another room to raise
-        /// the alarm is a plan, and this is a reflex.
+        /// The nearest alarm nobody has hit yet that this person could walk to,
+        /// or -1.
+        ///
+        /// It is still a short walk rather than a journey -- hitting the bell
+        /// is close to a reflex -- but the limit is now how far they would have
+        /// to walk rather than which room they happen to be standing in. A bell
+        /// three metres away through a doorway was previously invisible to them
+        /// while one right across a large room was not.
         /// </summary>
-        public int NearestUnpulledInRoom(LogicalPosition from, int room)
+        public int NearestUnpulledWithin(LogicalPosition from, int room, FlowField walking, Navigation routes)
         {
             if (!settings.Enabled || Ringing || room < 0)
             {
@@ -67,15 +72,22 @@ namespace Paniq.Simulation
             }
 
             int best = -1;
-            long bestDistance = (long)settings.ReachMillimetres * settings.ReachMillimetres;
+            long bestDistance = settings.ReachMillimetres;
             for (int i = 0; i < ids.Length; i++)
             {
-                if (rooms[i] != room)
+                if (walking == null)
                 {
-                    continue;
+                    // No routing to spare this tick: their own room, which is
+                    // all anybody could manage before.
+                    if (rooms[i] != room)
+                    {
+                        continue;
+                    }
                 }
 
-                long distance = LogicalPosition.DistanceSquared(from, positions[i]);
+                long distance = walking == null
+                    ? IntegerMath.Distance(from, positions[i])
+                    : routes.DistanceIn(walking, positions[i]);
                 if (distance <= bestDistance)
                 {
                     bestDistance = distance;

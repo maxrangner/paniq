@@ -1,4 +1,6 @@
-﻿namespace Paniq.Simulation
+using System;
+
+namespace Paniq.Simulation
 {
     /// <summary>
     /// Sound is a simulation idea, not audio: a noise has a position and a
@@ -84,10 +86,15 @@
             AgentAlertSource alertSource = AgentAlertSource.Yell)
         {
             int sourceRoom = geometry.RoomAtPoint(position);
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+
+            // The furthest a noise could possibly carry. A closed door halves
+            // it per listener, so asking for the undivided reach can only
+            // gather people the tests below then discard.
+            long furthest = Math.Max(hearingRadius, alarmRadius);
+            using Crowd.Nearby listeners = crowd.Within(position, furthest);
+            for (int i = 0; i < listeners.Count; i++)
             {
-                Agent listener = agents[i];
+                Agent listener = crowd.All[listeners[i]];
                 if (listener.Id == sourceId ||
                     !listener.IsParticipating ||
                     listener.Fear.State != AgentFearState.Calm)

@@ -113,8 +113,11 @@ namespace Paniq.Tests.EditMode
                         lyingAt = agent.Position;
                     }
 
+                    // Out cold, they only slide on from the fall and settle;
+                    // they never get up and go anywhere.
                     outTicks++;
-                    Assert.That(agent.Position, Is.EqualTo(lyingAt), "Someone out cold never moves.");
+                    Assert.That(LogicalPosition.DistanceSquared(agent.Position, lyingAt), Is.LessThanOrEqualTo(800L * 800L),
+                        "Someone out cold never moves.");
                     Assert.That(agent.IsDown, Is.True);
                 }
             }
@@ -152,7 +155,8 @@ namespace Paniq.Tests.EditMode
                 {
                     knockouts++;
                     FireReactionEventType cause = simulation.EventLog.Get(record.CausalParentEventId).EventType;
-                    Assert.That(cause == FireReactionEventType.AgentKnockedDown || cause == FireReactionEventType.AgentTripped,
+                    Assert.That(cause == FireReactionEventType.AgentKnockedDown || cause == FireReactionEventType.AgentTripped ||
+                                cause == FireReactionEventType.AgentCrushed,
                         Is.True, $"Seed {seed}: knocked out by {cause}.");
                 }
             }

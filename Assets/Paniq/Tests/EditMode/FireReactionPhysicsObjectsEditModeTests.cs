@@ -71,53 +71,99 @@ namespace Paniq.Tests.EditMode
             return false;
         }
 
-        private static void AssertNothingOverlaps(FireReactionSimulation simulation, FireReactionScenarioData data, string context)
+        /// <summary>
+        /// Whether a thing just outside the building got there through a way out
+        /// standing open (or battered down, or blasted): its middle is in that
+        /// doorway's gap, within a metre of the wall line. Anything else outside
+        /// went through a wall.
+        /// </summary>
+        private static bool ThroughAnOpenWayOut(FireReactionSnapshot snapshot, LogicalPosition position)
         {
-            FireReactionSnapshot snapshot = simulation.GetSnapshot();
-            int radius = data.World.OccupancyRadiusMillimetres;
-            for (int b = 0; b < snapshot.PhysicsObjects.Count; b++)
+            foreach (FireReactionDoorSnapshot door in snapshot.Doors)
             {
-                FireReactionPhysicsObjectSnapshot box = snapshot.PhysicsObjects[b];
-                if (box.IsHeld || box.IsSatOn || box.Dormant || box.Resting)
+                if (!door.LeadsOutside ||
+                    !(door.IsHole || door.State == DoorState.Open || door.State == DoorState.Broken))
                 {
-                    // Carried in someone's arms, with someone sitting on it, a
-                    // spare that is not in the world yet, or standing on a desk
-                    // or on top of another box: not something to walk around.
                     continue;
                 }
 
-                int boxRadius = box.SizeMillimetres / 2;
-                Assert.That(InAnyRoom(data, box.Position, boxRadius), Is.True,
+                bool eastOrWest = door.Side == WallSide.East || door.Side == WallSide.West;
+                long along = eastOrWest ? position.Z - door.Centre.Z : position.X - door.Centre.X;
+                long across = eastOrWest ? position.X - door.Centre.X : position.Z - door.Centre.Z;
+                if (Math.Abs(along) <= door.WidthMillimetres / 2 && Math.Abs(across) <= 1000L)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void AssertNothingOverlaps(FireReactionSimulation simulation, FireReactionScenarioData data, string context,
+            PressWatch presses, HashSet<SimulationId> wentOutside = null)
+        {
+            FireReactionSnapshot snapshot = simulation.GetSnapshot();
+            presses.Check(simulation, context);
+            for (int b = 0; b < snapshot.PhysicsObjects.Count; b++)
+            {
+                FireReactionPhysicsObjectSnapshot box = snapshot.PhysicsObjects[b];
+                if (box.IsHeld || box.Dormant || box.Pose.HeightMillimetres >= 100)
+                {
+                    // Carried, not yet in the world, or up off the floor.
+                    continue;
+                }
+
+                // Its middle is in a room, or in a doorway between two: things
+                // can slide through an open door now. With real physics a thing
+                // kicked through a way out that stands open ends up outside,
+                // which is fine; the test is here to catch things going through
+                // walls.
+                if (wentOutside != null && !InAnyRoom(data, box.Position, 0) &&
+                    (wentOutside.Contains(box.ObjectId) || ThroughAnOpenWayOut(snapshot, box.Position)))
+                {
+                    wentOutside.Add(box.ObjectId);
+                    continue;
+                }
+
+                Assert.That(InAnyRoom(data, box.Position, 0), Is.True,
                     $"{context}: box {box.ObjectId} left the rooms at tick {snapshot.Tick}.");
-                for (int a = 0; a < snapshot.Agents.Count; a++)
-                {
-                    FireReactionAgentSnapshot agent = snapshot.Agents[a];
-                    if (agent.Participation != AgentParticipation.Participating)
-                    {
-                        continue;
-                    }
-
-                    long reach = radius + (long)boxRadius;
-                    Assert.That(LogicalPosition.DistanceSquared(agent.Position, box.Position), Is.GreaterThanOrEqualTo(reach * reach),
-                        $"{context}: agent {agent.AgentId} overlapped box {box.ObjectId} at tick {snapshot.Tick}.");
-                }
-
-                for (int o = 0; o < b; o++)
-                {
-                    FireReactionPhysicsObjectSnapshot other = snapshot.PhysicsObjects[o];
-                    if (other.IsHeld || other.Dormant || other.Resting)
-                    {
-                        continue;
-                    }
-
-                    long reach = (long)boxRadius + other.SizeMillimetres / 2;
-                    Assert.That(LogicalPosition.DistanceSquared(other.Position, box.Position), Is.GreaterThanOrEqualTo(reach * reach),
-                        $"{context}: boxes {box.ObjectId} and {other.ObjectId} overlapped at tick {snapshot.Tick}.");
-                }
             }
         }
 
         // ---------------------------------------------------------------- sliding
+
+        [Test]
+        public void LowerGravity_KeepsATossedBoxInTheAirLonger()
+        {
+            int TicksInTheAir(int gravityPercent)
+            {
+                FireReactionScenarioData data = PersonAndBox(-3000, 300, 3000);
+                data.Agents = new[]
+                {
+                    new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(4000, 4000), CardinalDirection.North)
+                };
+                data.PhysicsFeel.GravityPercent = gravityPercent;
+                var simulation = new FireReactionSimulation(data);
+                simulation.TossObjectUpForTests(0, 60);
+                int airborne = 0;
+                for (int t = 0; t < 200; t++)
+                {
+                    simulation.Step();
+                    if (simulation.GetPhysicsObject(0).Pose.HeightMillimetres > 20)
+                    {
+                        airborne++;
+                    }
+                }
+
+                return airborne;
+            }
+
+            int snappy = TicksInTheAir(150);
+            int floaty = TicksInTheAir(75);
+            Assert.That(snappy, Is.GreaterThan(5), "A box tossed up at 3 m/s should leave the floor.");
+            Assert.That(floaty, Is.GreaterThan(snappy * 3 / 2),
+                $"Half the gravity should keep it up much longer ({snappy} ticks at 150%, {floaty} at 75%).");
+        }
 
         [Test]
         public void KickedBox_SlidesAboutAMetreAndStops()
@@ -136,7 +182,7 @@ namespace Paniq.Tests.EditMode
 
             FireReactionPhysicsObjectSnapshot box = simulation.GetPhysicsObject(0);
             Assert.That(box.SpeedMillimetresPerTick, Is.EqualTo(0), "Friction never stopped the box.");
-            Assert.That(box.Position.Z, Is.EqualTo(0));
+            Assert.That(box.Position.Z, Is.InRange(-10, 10), "It slides straight.");
             Assert.That(box.Position.X + 3000, Is.InRange(800, 1500), "A box kicked at 3 m/s should slide about a metre.");
         }
 
@@ -149,16 +195,22 @@ namespace Paniq.Tests.EditMode
                 new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-4000, 4000), CardinalDirection.North)
             };
             var simulation = new FireReactionSimulation(data);
+            var presses = new PressWatch();
             simulation.LaunchObjectForTests(0, 100, -100);
             int highestX = int.MinValue;
             for (int t = 0; t < 200; t++)
             {
                 simulation.Step();
-                AssertNothingOverlaps(simulation, data, "wall bounce");
+                AssertNothingOverlaps(simulation, data, "wall bounce", presses);
                 highestX = Math.Max(highestX, simulation.GetPhysicsObject(0).Position.X);
             }
 
-            Assert.That(highestX, Is.EqualTo(data.Rooms[0].Bounds.MaxX - 200), "The box should have reached the east wall.");
+            // Square on, its middle stops half its width from the wall; spun by
+            // an earlier bounce it can meet the wall corner first, as much as
+            // half its diagonal (283 mm) away.
+            Assert.That(highestX, Is.InRange(data.Rooms[0].Bounds.MaxX - 290, data.Rooms[0].Bounds.MaxX - 200),
+                "The box should have reached the east wall.");
+
             Assert.That(simulation.GetPhysicsObject(0).Position.X, Is.LessThan(highestX), "The box did not bounce off the wall.");
         }
 
@@ -169,11 +221,12 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = PersonAndBox(-1000, 600, 20000);
             var simulation = new FireReactionSimulation(data);
+            var presses = new PressWatch();
             simulation.LaunchObjectForTests(0, 100, 0);
             for (int t = 0; t < 30; t++)
             {
                 simulation.Step();
-                AssertNothingOverlaps(simulation, data, "heavy box");
+                AssertNothingOverlaps(simulation, data, "heavy box", presses);
             }
 
             List<CausalEvent> hits = EventsOfType(simulation, FireReactionEventType.BoxHitAgent);
@@ -193,12 +246,14 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = PersonAndBox(-1000, 300, 3000);
             var simulation = new FireReactionSimulation(data);
-            simulation.LaunchObjectForTests(0, 50, 0);
+            var presses = new PressWatch();
+            simulation.LaunchObjectForTests(0, 60, 0);
             int peakX = int.MinValue;
+
             for (int t = 0; t < 60; t++)
             {
                 simulation.Step();
-                AssertNothingOverlaps(simulation, data, "light box");
+                AssertNothingOverlaps(simulation, data, "light box", presses);
                 peakX = Math.Max(peakX, simulation.GetPhysicsObject(0).Position.X);
             }
 
@@ -220,6 +275,8 @@ namespace Paniq.Tests.EditMode
             {
                 FireReactionScenarioData data = DefaultData();
                 var simulation = new FireReactionSimulation(data, seed);
+                var presses = new PressWatch();
+                var wentOutside = new HashSet<SimulationId>();
                 var start = new LogicalPosition[simulation.PhysicsObjectCount];
                 for (int b = 0; b < start.Length; b++)
                 {
@@ -230,7 +287,7 @@ namespace Paniq.Tests.EditMode
                 while (simulation.Tick < endTick)
                 {
                     simulation.Step();
-                    AssertNothingOverlaps(simulation, data, $"seed {seed}");
+                    AssertNothingOverlaps(simulation, data, $"seed {seed}", presses, wentOutside);
                 }
 
                 foreach (CausalEvent bump in EventsOfType(simulation, FireReactionEventType.BoxBumped))

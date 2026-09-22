@@ -1,4 +1,4 @@
-﻿# Prototype roadmap
+# Prototype roadmap
 
 The prototype is built stone by stone (see [goals](goals.md) for what
 "prototype" means here). This page records the stones laid so far and how the
@@ -67,6 +67,10 @@ scene.
 | Things that rest on things | System | A laptop stands on a desk and a box on another box, out of everybody's way, until somebody lifts, throws or smashes what holds it up — and then it drops to clear floor beside it |
 | Bangs you can see | Style | A laptop battery, a wall socket, a microwave or a stick of TNT goes off with a flash that lights the room, sparks that fall to the floor, a puff of smoke and a jolt of the camera, sized to the blast |
 | Solid furniture | Style | People are drawn their real height, so desks come to their hips; and the see-through silhouette only paints where a wall or a door hides something, so a chair no longer shows through itself |
+| Things are real 3D objects | System | Chairs tip over and lie on their sides, bags fly in real arcs over tables and land, boxes pile up, slide off desks and topple when bumped |
+| People are bodies | System | A crowd really pushes: a strong rush carries a person along, a knocked-down person lies where they fell and others stumble over them, a blast throws people and they land |
+| Crushes | Behaviour | Pack too many people into a doorway and the ones in the middle are squeezed off their feet, with nothing scripted about doors |
+| Effects you can see | Style | Bangs throw sparks, debris and smoke; burning things lick with flames and trail smoke; extinguishers fire a foam jet that settles on the floor; knocks kick up dust; smashed furniture splinters and appliances shatter |
 | A way out that has just opened | Behaviour | Opening the one door is news: the people who could see or hear it go turn and head for it on the spot, and nobody is still trudging toward the fire on the strength of a door that used to be locked |
 | Eager to get out | Behaviour | People with a clear way out in front of them stop dithering, stop zig-zagging, stop drifting with the crowd and run for it — even the ones an alarm had left walking out calmly. The frozen, the burning, the cruel and the ones who turn back to help are still themselves |
 | Nobody is sent away from the only door | Behaviour | Backing out of a crush used to mean "go and try the other door", which with one way out meant giving up and wandering. Now they step aside for a moment and come again, and the way out never leaves their plan |
@@ -76,7 +80,60 @@ scene.
 | Sitting properly | Style | People at the meeting table sit on their chairs rather than standing in them, folded down so their heads clear the table, and they scoot the chair in as they settle and shove it back as they rise |
 | Stop, drop and roll | Behaviour | Somebody alight may throw themselves down and roll instead of running blind, and about a third of the time the flames go out and they get back up |
 | A jet you can watch | Style | An extinguisher is not a laser: the jet works back and forth across the fire, a narrow steady arc in strong hands and a wild wobble in weak ones |
-| Reading the crowd | Style | A small panel names what every mark over a head means, and boxes and chairs are drawn to fit inside the space the simulation actually keeps clear, so nobody clips through a corner any more |
+| Reading the crowd | Style | A small panel names what every mark over a head means |
+
+## Foundations rebuilt (2026-09-21)
+
+Not a stone: the ground the stones stand on. The owner asked whether bugs were
+being hidden by moving props around the prototype level. They were, and worse
+-- whole behaviours had been switched off because nothing could work out how to
+cross a room.
+
+| What changed | What it means |
+| --- | --- |
+| Edit-mode tests run without closing Unity (`tools/RunEditModeTests.ps1`) | The whole suite in about twenty seconds, so a large change can be checked as it is made |
+| An index of who and what is standing where | "Who is near me" stops meaning "look at everyone"; the costs that grew with the square of the crowd are gone |
+| The floor drawn as 250 mm squares, with real clearance | A doorway too narrow to walk through is refused when the floor plan loads, instead of sealing a room in silence |
+| Flow fields | People find their way round furniture and across the building; a crowd of two hundred costs no more to steer than twenty |
+| Errands that cross the building | Fetching an extinguisher, hitting an alarm, finding a chair, hauling somebody out and wandering next door all work anywhere they can walk to |
+| No more "room zero" | Three places guessed the first room when they could not tell; in a bigger building that threw things across the floor plan |
+| What a thing is for, written down once | Sitting and equipment are a row in a table rather than nine rules naming kinds |
+| Lay a building out by dragging it | **Paniq > Bake Scenario From Scene** reads rooms, doors, props and people from the scene |
+
+Two hundred people finding their way round furniture now cost about half what
+twenty people walking in straight lines used to.
+
+### Deliberately left for later
+
+- **Rooms that are not rectangles**, and TNT cutting a real hole rather than
+  installing a permanently-open door. The floor squares already handle any
+  shape, so this is a change to how rooms are described rather than to how
+  anybody moves. Worth doing when a floor plan actually needs an L-shaped room,
+  a room inside a room, or stairs.
+- **Burst and Jobs on the movement loops.** The simulation stays plain C# so
+  this remains possible. Worth doing when a measurement passes about 5 ms a
+  tick, a quarter of the budget, with drawing still to pay for.
+
+## Physics overhaul: what is left
+
+The four stones above replaced the prototype's flat, home-made physics with
+Unity's 3D physics engine and added particle effects. Alongside them came the
+"Cartoon" and "Heavy" feel presets with live tuning, blast strength scaling
+people as well as things, and a standalone stress profile. The profile
+meets the budgets at 200 people (1.9 ms a tick) and for particles (0.7 ms a
+frame), and misses the physics budget at 500 people by 0.4 ms (3.4 ms against 3).
+Still to come:
+
+- **Physics at 500 people.** Profile inside the step (the engine's own work,
+  against reading back 1,500 bodies and their contacts each tick) before
+  reaching for bigger tools. Worth doing when a level is planned with more than
+  about 300 people.
+- **Particles bouncing off walls.** Today they bounce off the floor only, and a
+  spark can fly through a wall. Worth doing if it is noticed in play.
+- **Bangs seen through walls.** Before physics, the sparks and smoke of a bang
+  in the next room showed through the wall the way flames do. The new particles
+  cannot yet, so a bang out of sight is heard but not seen. Worth doing if
+  playtesters miss it.
 
 ## Agreed direction for the next stones
 

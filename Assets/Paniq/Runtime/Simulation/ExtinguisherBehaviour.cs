@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
@@ -12,9 +12,12 @@ namespace Paniq.Simulation
     /// in the bottle, and a weak person is shoved backwards by the recoil
     /// instead of holding their ground.
     /// </summary>
-    internal sealed class ExtinguisherBehaviour
+    internal sealed class ExtinguisherBehaviour : IPanicOption
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly PhysicsObjectSystem objects;
@@ -38,6 +41,7 @@ namespace Paniq.Simulation
             ItemBehaviour items)
         {
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
             this.objects = objects;
@@ -80,7 +84,7 @@ namespace Paniq.Simulation
         /// Considered in the panic decision: pick up an extinguisher and go
         /// for the fire. Returns no intent when this person is not doing that.
         /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger)
+        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
         {
             if (IsFighting(agent))
             {
@@ -99,13 +103,14 @@ namespace Paniq.Simulation
                 return null;
             }
 
-            // Nothing to put out, or far too much of it to try. The fire has to
-            // be in the room they are standing in: they cannot yet walk to one
-            // that is not, so setting off for it only walks them into a wall.
+            // Nothing to put out, or far too much of it to try. The flames used
+            // to have to be in the room they were standing in, because setting
+            // off for a fire anywhere else only walked them into a wall. Now
+            // they can be anywhere they could walk to.
             int room = geometry.RoomOf(agent);
             if (burningPerson < 0 &&
                 (fire.BurningCount == 0 || fire.BurningCount > settings.FightMaximumFireCells ||
-                 room < 0 || !fire.IsBurningInRoom(room)))
+                 room < 0 || !CanReachTheFlames(agent)))
             {
                 return null;
             }
@@ -123,6 +128,38 @@ namespace Paniq.Simulation
             return Update(agent, inDanger);
         }
 
+        /// <summary>
+        /// Whether there is fire they could walk to. Flames themselves are not
+        /// somewhere anybody can stand, so the question is really about the
+        /// floor beside them, which is where somebody fighting a fire stands.
+        /// </summary>
+        private bool CanReachTheFlames(Agent agent)
+        {
+            if (fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition flames) == long.MaxValue)
+            {
+                return false;
+            }
+
+            return geometry.Routes.CanGetFromHereToThere(agent.Body.Position, NextToTheFlames(flames), bodyRadius);
+        }
+
+        /// <summary>How far around a burning spot to look for floor somebody could fight it from.</summary>
+        private const int StandingRoomMillimetres = 2500;
+
+        /// <summary>
+        /// Floor beside a burning spot. Flames on a desk sit on a square nobody
+        /// can stand on, so asking whether the burning square itself can be
+        /// walked to always answers no -- and everybody gives up on fighting a
+        /// fire that is perfectly easy to walk up to.
+        ///
+        /// This used to clamp the point into the bounds of the room it was
+        /// already inside, which does nothing at all.
+        /// </summary>
+        private LogicalPosition NextToTheFlames(LogicalPosition flames)
+        {
+            return geometry.Navigation.NearestStandableTo(flames, bodyRadius, StandingRoomMillimetres);
+        }
+
         /// <summary>Fetching it, carrying it to the flames, spraying, and dropping it when it runs dry.</summary>
         private MotorIntent? Update(Agent agent, bool inDanger)
         {
@@ -133,7 +170,7 @@ namespace Paniq.Simulation
             // flames than they otherwise would, but not in them.
             long nerve = TraitEffects.DangerDistance(agent, context.Scenario) * settings.DangerTolerancePercent / 100L;
             bool tooClose = agent.Carry.Holding ? fire.AnyCloserThan(agent.Body.Position, (int)nerve) : inDanger;
-            if (item < 0 || tooClose || agent.Body.State != AgentBodyState.Upright || agent.Burning.IsBurning ||
+            if (item < 0 || tooClose || !agent.Body.IsOnTheirFeet || agent.Burning.IsBurning ||
                 tick >= agent.Intent.ActivityEndTick)
             {
                 GiveUp(agent);
@@ -182,24 +219,22 @@ namespace Paniq.Simulation
                 target = crowd.All[burningPerson].Body.Position;
             }
             else if (fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition flames) < long.MaxValue &&
-                     geometry.RoomAtPoint(flames) == geometry.RoomOf(agent))
+                     geometry.Routes.CanGetFromHereToThere(agent.Body.Position, NextToTheFlames(flames), bodyRadius))
             {
                 target = flames;
             }
             else
             {
-                // Nothing left to put out in this room. They only ever fight a
-                // fire they are in the room with: walking to one next door
-                // means walking at the wall between, because carrying a bottle
-                // somewhere is a straight line and nothing routes it through a
-                // doorway yet.
+                // Nothing left they can get to. They used to give up on
+                // anything outside the room they stood in; now it is anything
+                // there is no way to at all.
                 items.PutDownWhereTheyStand(agent, agent.Fear.ScaredEventId);
                 GiveUp(agent);
                 return null;
             }
 
             long distance = IntegerMath.Distance(agent.Body.Position, target);
-            int heading = IntegerMath.HeadingBetween(agent.Body.Position, target, agent.Body.Heading);
+            int heading = geometry.Routes.HeadingToward(agent.Body.Position, target, bodyRadius, agent.Body.Heading);
 
             // Once the trigger is down they keep it down while the jet still
             // reaches; otherwise they close to arm's length first, at a run
@@ -239,7 +274,7 @@ namespace Paniq.Simulation
         /// The jet is not a laser. Somebody holding the trigger down works it
         /// back and forth across what they are fighting: a triangle wave, so the
         /// arc is even and turns at the ends rather than snapping round. How wide
-        /// it swings is strength — a strong pair of hands keeps a narrow, steady
+        /// it swings is strength -- a strong pair of hands keeps a narrow, steady
         /// arc while the weak are wrestled about by the hose, which is the same
         /// rule the recoil already follows. Arithmetic on the tick and one draw
         /// per trigger-pull, so it adds no randomness of its own.
@@ -385,28 +420,40 @@ namespace Paniq.Simulation
             return System.Math.Abs(IntegerMath.SignedAngleDifference(agent.Body.Heading, heading)) <= Cone(agent);
         }
 
-        /// <summary>The nearest person who is alight and in the same room, or -1.</summary>
+        /// <summary>The nearest person who is alight and close enough to reach, or -1.</summary>
         private int NearestBurningPerson(Agent agent)
         {
             int room = geometry.RoomOf(agent);
             long reach = settings.SaveRangeMillimetres;
-            long bestDistance = reach * reach;
+            long bestDistance = reach;
             int best = -1;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            FlowField walking = geometry.Routes.ReachFrom(agent.Body.Position, bodyRadius);
+            using Crowd.Nearby candidates = crowd.Within(agent.Body.Position, reach);
+            for (int c = 0; c < candidates.Count; c++)
             {
-                Agent other = agents[i];
-                if (other == agent || !other.IsParticipating || !other.Burning.IsBurning ||
-                    geometry.RoomOf(other) != room)
+                Agent other = crowd.All[candidates[c]];
+                if (other == agent || !other.IsParticipating || !other.Burning.IsBurning)
                 {
                     continue;
                 }
 
-                long distance = LogicalPosition.DistanceSquared(agent.Body.Position, other.Body.Position);
+                if (walking == null)
+                {
+                    // No routing to spare this tick: the room they stand in,
+                    // which is as far as anybody could see before.
+                    if (geometry.RoomOf(other) != room)
+                    {
+                        continue;
+                    }
+                }
+
+                long distance = walking == null
+                    ? IntegerMath.Distance(agent.Body.Position, other.Body.Position)
+                    : geometry.Routes.DistanceIn(walking, other.Body.Position);
                 if (distance < bestDistance)
                 {
                     bestDistance = distance;
-                    best = i;
+                    best = candidates[c];
                 }
             }
 
@@ -421,7 +468,7 @@ namespace Paniq.Simulation
             int best = -1;
             for (int i = 0; i < objects.Count; i++)
             {
-                if (objects.KindOf(i) != PhysicsObjectKind.Extinguisher || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                if (!objects.IsEquipment(i) || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
                 {
                     continue;
                 }

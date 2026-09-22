@@ -92,6 +92,20 @@ Every completed task ends with a report in this shape:
   passed.
 - **Anything now possible or blocked** as a result of the change.
 
+## Git workflow
+
+- **Branch names**: `type/short-description` only — `feat/`, `fix/`,
+  `chore/`, `docs/`, `refactor/`, `test/` — in plain kebab-case words. Never
+  prefix a branch with an assistant's name (`claude/`, `codex/`, or similar),
+  and never add a random-looking letters/numbers suffix. If a tool
+  auto-generates a branch name that violates this, rename it (or open the PR
+  from a correctly named branch) before it's pushed.
+- **Merges**: always use `--no-ff`, so every integration leaves a visible
+  merge commit in the log, even when the merge could fast-forward.
+- Prefer one substantial, well-described commit per real unit of work over a
+  long trail of small "wip"-style commits. Squash before pushing if a branch
+  has accumulated more commits than it has distinct changes.
+
 ## Scope and structure
 
 - Inspect existing code and documents before changing them.

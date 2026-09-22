@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// Wedging a door shut on purpose. Somebody who has given up on getting out
@@ -13,7 +13,7 @@
     /// barricading anything.
     /// </para>
     /// </summary>
-    internal sealed class BarricadeBehaviour
+    internal sealed class BarricadeBehaviour : IPanicOption
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
@@ -60,11 +60,20 @@
         /// Considered in the panic decision. Returns no intent when this person
         /// is not wedging a door.
         /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger)
+        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
         {
             if (IsBarricading(agent))
             {
+                // Already under way: they finish it even if a clear exit
+                // opens up in the meantime.
                 return Update(agent, inDanger);
+            }
+
+            if (eager)
+            {
+                // A way out stands open in front of them: nobody starts
+                // wedging themselves into a room while that is true.
+                return null;
             }
 
             if (inDanger || agent.Body.State != AgentBodyState.Upright || agent.Carry.ItemIndex >= 0 ||
@@ -215,7 +224,7 @@
             for (int i = 0; i < objects.Count; i++)
             {
                 if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0 ||
-                    objects.KindOf(i) == PhysicsObjectKind.Extinguisher || objects.IsMoving(i) ||
+                    objects.IsEquipment(i) || objects.IsMoving(i) ||
                     !objects.CanLift(agent, i) || flammables.ObjectState(i) != ObjectBurnState.Intact ||
                     geometry.RoomAtPoint(objects.PositionOf(i)) != room)
                 {
@@ -239,7 +248,7 @@
             int door = agent.Barricade.DoorIndex;
             int item = agent.Carry.ItemIndex;
             int room = geometry.RoomOf(agent);
-            if (door < 0 || item < 0 || inDanger || agent.Body.State != AgentBodyState.Upright ||
+            if (door < 0 || item < 0 || inDanger || !agent.Body.IsOnTheirFeet ||
                 agent.Burning.IsBurning || context.Tick >= agent.Barricade.GiveUpTick ||
                 agent.Body.BlockedTicks >= settings.BarricadeBlockedGiveUpTicks ||
                 geometry.IsDoorOpen(door) || doors.IsObstructed(door) ||
@@ -340,13 +349,13 @@
         {
             agent.Intent.Target = target;
             int heading = IntegerMath.HeadingBetween(agent.Body.Position, target, agent.Body.Heading);
-            return new MotorIntent(heading, TraitEffects.FleeSpeed(agent), agent.Personality.PanicTurnRate, panic.Acceleration);
+            return PanicIntent.WalkTowards(agent, heading, panic);
         }
 
         private MotorIntent FaceTowards(Agent agent, LogicalPosition target, int speed)
         {
             int heading = IntegerMath.HeadingBetween(agent.Body.Position, target, agent.Body.Heading);
-            return new MotorIntent(heading, speed, agent.Personality.PanicTurnRate, panic.Acceleration);
+            return PanicIntent.MoveAt(agent, heading, speed, panic);
         }
 
         /// <summary>Done, or given up. Whatever they were holding stays in their arms for the usual rules to deal with.</summary>

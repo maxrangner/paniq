@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4241562c33ca4c54863209e9918adb41, type: 3}
+  m_Name: PhysicsFeel-Heavy
+  m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.PhysicsFeelPreset
+  Feel:
+    GravityPercent: 100
+    BlastStrengthPercent: 65
+    BlastLiftPercent: 30
+    ThrowStrengthPercent: 75
+    ThrowArcDegrees: 12
+    TumblePercent: 40
+    FloorGripPercent: 140
+    MaximumSpeedMillimetresPerTick: 300
+    WallHeightMillimetres: 3000
+    TableHeightMillimetres: 740
+    PersonPushMillimetresPerTickPerTick: 2
+    PersonFloorGripPercent: 90
+    CrushPressure: 700
+    CrushTicks: 25
+    DragSlackMillimetres: 600

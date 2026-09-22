@@ -147,15 +147,25 @@ namespace Paniq.Tests.EditMode
             Assert.That(laptop, Is.GreaterThanOrEqualTo(0));
             FireReactionPhysicsObjectSnapshot before = simulation.GetPhysicsObject(laptop);
             Assert.That(before.Resting, Is.True, "It starts on a desk.");
+            Assert.That(before.Pose.HeightMillimetres, Is.GreaterThan(700), "Up at desk height.");
 
-            // Knocked off: it comes loose and lands clear of the table it stood on.
+            // Knocked hard across the desk: it skids off the edge, drops and
+            // lands on the floor clear of the table it stood on.
             simulation.LaunchObjectForTests(laptop, 0, 60);
             simulation.Step();
+            Assert.That(simulation.GetPhysicsObject(laptop).Resting, Is.False, "Sent sliding, it is no longer at rest on the desk.");
+            for (int t = 0; t < 2 * FireReactionSimulation.TicksPerSecond; t++)
+            {
+                simulation.Step();
+            }
 
             FireReactionPhysicsObjectSnapshot after = simulation.GetPhysicsObject(laptop);
-            Assert.That(after.Resting, Is.False, "Once it is sent flying it is on the floor, not on the desk.");
-            Assert.That(OnATable(simulation.GetSnapshot(), after.Position, after.SizeMillimetres / 2), Is.False,
+            // Down on the floor, perhaps on its side with the screen propping it
+            // up a little, but nowhere near desk height.
+            Assert.That(after.Pose.HeightMillimetres, Is.LessThan(300), "It fell to the floor.");
+            Assert.That(OnATable(simulation.GetSnapshot(), after.Position, after.SizeMillimetres / 2 - 20), Is.False,
                 "A laptop on the floor is never left inside the table it fell off.");
+
         }
     }
 }

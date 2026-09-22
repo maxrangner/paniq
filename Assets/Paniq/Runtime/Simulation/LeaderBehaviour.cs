@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// Taking charge. Someone with leadership who is not in immediate danger
@@ -17,9 +17,12 @@
     /// events naming the person ordered, never a hold on them: whoever is
     /// ordered may still decide otherwise.
     /// </summary>
-    internal sealed class LeaderBehaviour
+    internal sealed class LeaderBehaviour : IPanicOption
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly DoorSystem doors;
@@ -42,6 +45,7 @@
             Locomotion locomotion)
         {
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
             this.doors = doors;
@@ -58,7 +62,7 @@
         /// keeps running themselves); a follower goes where their leader
         /// goes. Returns no intent for anyone doing neither.
         /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger)
+        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
         {
             if (agent.Leading.FollowingIndex >= 0)
             {
@@ -94,16 +98,11 @@
             long bestDistance = long.MaxValue;
             for (int d = 0; d < doors.Count; d++)
             {
-                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) || !geometry.DoorTouchesRoom(d, room))
-                {
-                    continue;
-                }
-
-                // A way out they have tried themselves and found shut, or one
-                // with something plainly wedged in it. A jam needs no personal
-                // memory: anybody in the room can see the chair in the doorway,
-                // and it is exactly the sort of thing somebody takes charge of.
-                if (!leader.Doors.FoundShut[d] && !doors.IsObstructed(d))
+                // Any way out they have found shut themselves, or that is
+                // wedged, not only one in the room they happen to be standing
+                // in: the person they send can walk to it now.
+                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) ||
+                    (!leader.Doors.FoundShut[d] && !doors.IsObstructed(d)))
                 {
                     continue;
                 }
@@ -121,9 +120,8 @@
                 return false;
             }
 
-            // Heaving a bin out of a doorway asks less of somebody than taking a
-            // locked door off its hinges, so a wedged door takes whoever can
-            // shift it rather than only the very strongest.
+            // A wedged door just needs shifting -- a much lower bar than
+            // breaking a locked one down.
             bool wedged = doors.IsObstructed(door);
             Agent breaker = NearbyBest(leader, settings.OrderRangeMillimetres, out _,
                 wedged ? (System.Func<Agent, bool>)IsStrongEnoughToShiftAnObstruction : IsStrongEnoughToBreakDoors);
@@ -167,11 +165,26 @@
                 return false;
             }
 
+            // One look at how far everything is from the leader, rather than
+            // one for each bottle. Asking per bottle worked out a fresh route
+            // for every one of them, and a single leader could use up the whole
+            // tick's share of that work and drop the entire crowd back to
+            // walking in straight lines.
+            FlowField walking = geometry.Routes.ReachFrom(leader.Body.Position, bodyRadius);
             int bottle = -1;
             for (int i = 0; i < objects.Count; i++)
             {
-                if (objects.KindOf(i) == PhysicsObjectKind.Extinguisher && objects.HolderOf(i) < 0 && objects.FuelOf(i) > 0 &&
-                    geometry.RoomAtPoint(objects.PositionOf(i)) == geometry.RoomOf(leader))
+                // A bottle anywhere somebody could be sent to, rather than
+                // only one in the room the leader is standing in.
+                if (!objects.IsEquipment(i) || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                {
+                    continue;
+                }
+
+                bool worthSendingFor = walking == null
+                    ? geometry.RoomAtPoint(objects.PositionOf(i)) == geometry.RoomOf(leader)
+                    : geometry.Routes.DistanceIn(walking, objects.PositionOf(i)) != long.MaxValue;
+                if (worthSendingFor)
                 {
                     bottle = i;
                     break;
@@ -233,7 +246,7 @@
                 // have to be shaken (see HelpBehaviour).
                 if (other == leader || !other.IsParticipating || other.Leading.FollowingIndex == leader.Index ||
                     other.Intent.Activity == AgentActivityState.Frozen || other.Burning.IsBurning ||
-                    geometry.RoomOf(other) != room ||
+                    !geometry.RoomsOpenToEachOther(room, geometry.RoomOf(other)) ||
                     LogicalPosition.DistanceSquared(other.Body.Position, leader.Body.Position) > range * range)
                 {
                     continue;
@@ -342,14 +355,14 @@
             return agent.Leading.OrderedDoor == door && tick < agent.Leading.OrderedUntilTick;
         }
 
-        private bool IsStrongEnoughToShiftAnObstruction(Agent agent)
-        {
-            return agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength;
-        }
-
         private bool IsStrongEnoughToBreakDoors(Agent agent)
         {
             return agent.Traits.Strength >= context.Scenario.Traits.DoorBreakMinimumStrength;
+        }
+
+        private bool IsStrongEnoughToShiftAnObstruction(Agent agent)
+        {
+            return agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength;
         }
 
         /// <summary>

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -15,6 +15,9 @@ namespace Paniq.Simulation
     internal sealed class ItemBehaviour
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly WorldGeometry geometry;
         private readonly PhysicsObjectSystem objects;
         private readonly FlammablesSystem flammables;
@@ -25,6 +28,7 @@ namespace Paniq.Simulation
             FlammablesSystem flammables)
         {
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.geometry = geometry;
             this.objects = objects;
             this.flammables = flammables;
@@ -51,8 +55,11 @@ namespace Paniq.Simulation
 
             int best = -1;
             long bestDistance = (long)settings.FetchRangeMillimetres * settings.FetchRangeMillimetres;
-            for (int i = 0; i < objects.Count; i++)
+            using PhysicsObjectSystem.Nearby candidates =
+                objects.Gather(UniformGridIndex.Around(agent.Body.Position, settings.FetchRangeMillimetres));
+            for (int c = 0; c < candidates.Count; c++)
             {
+                int i = candidates[c];
                 if (!IsFreeToTake(agent, i))
                 {
                     continue;
@@ -82,7 +89,7 @@ namespace Paniq.Simulation
         {
             // An extinguisher is not clutter: it is left on its wall until
             // somebody needs it (see ExtinguisherBehaviour).
-            return objects.KindOf(index) != PhysicsObjectKind.Extinguisher && !objects.IsDormant(index) &&
+            return !objects.IsEquipment(index) && !objects.IsDormant(index) &&
                    objects.HolderOf(index) < 0 && !objects.IsMoving(index) && objects.CanLift(agent, index) &&
                    flammables.ObjectState(index) == ObjectBurnState.Intact;
         }
@@ -152,7 +159,8 @@ namespace Paniq.Simulation
                         return true;
                     }
 
-                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, intent.Target, agent.Body.Heading);
+                    goalHeading = geometry.Routes.HeadingToward(
+                        agent.Body.Position, intent.Target, bodyRadius, agent.Body.Heading);
                     goalSpeed = agent.Personality.CalmSpeed;
                     return true;
                 }
@@ -278,7 +286,7 @@ namespace Paniq.Simulation
 
             // Somebody fighting the fire is holding that extinguisher on purpose.
             if (ExtinguisherBehaviour.IsFighting(agent) &&
-                objects.KindOf(agent.Carry.ItemIndex) == PhysicsObjectKind.Extinguisher &&
+                objects.IsEquipment(agent.Carry.ItemIndex) &&
                 agent.Body.State == AgentBodyState.Upright && !agent.Burning.IsBurning)
             {
                 return;

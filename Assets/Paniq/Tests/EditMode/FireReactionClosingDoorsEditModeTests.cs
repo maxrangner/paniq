@@ -90,7 +90,8 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
             }
 
-            Assert.That(simulation.GetAgent(0).Position, Is.EqualTo(new LogicalPosition(-2500, 5750)));
+            Assert.That(LogicalPosition.DistanceSquared(simulation.GetAgent(0).Position, new LogicalPosition(-2500, 5750)),
+                Is.LessThanOrEqualTo(50L * 50L), "They are still standing in the doorway.");
             Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open), "Nobody can close a door on someone in it.");
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed), Is.Empty);
         }

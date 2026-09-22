@@ -8,7 +8,8 @@ namespace Paniq.Presentation
     /// <summary>
     /// People as capsules. They blend between the last two ticks so movement
     /// is smooth at any frame rate, bob with each stride, lean with speed,
-    /// tip over when they fall, wobble when staggering, tremble when frozen,
+    /// fall and lie where the physics engine laid them (and fly with it when a
+    /// blast throws them), slump where there is no room to fall, wobble when staggering, tremble when frozen,
     /// flail with little flames licking up them when on fire, lunge at doors
     /// they shove, shake whoever they are shaking awake, lean back when
     /// dragging someone, and shrink away when they escape. Each has
@@ -37,21 +38,25 @@ namespace Paniq.Presentation
             public float ShakePhase;
             public AgentBodyState LastBodyState;
             public float BodyStateSince;
-            public float TiltAtStateChange;
             public float RiseSeconds;
-            public float Tilt;
+
+            /// <summary>Where the body was drawn when it last began to fall or get up: the animation starts there.</summary>
+            public Vector3 FromPosition;
+
+            public Quaternion FromRotation = Quaternion.identity;
             public bool Initialized;
             public float LungeStart = -10f;
             public float EscapedSince = -1f;
             public Vector3 EscapePosition;
-            public FlameCubes Flames;
+            public FlameEmitter Flames;
         }
 
         private readonly FireReactionScenarioData scenario;
         private readonly PresentationMaterials materials;
         private readonly Dictionary<SimulationId, AgentView> agents = new Dictionary<SimulationId, AgentView>();
 
-        public AgentViews(FireReactionScenarioData scenario, PresentationMaterials materials, Transform parent)
+        public AgentViews(FireReactionScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
+            Transform parent)
         {
             this.scenario = scenario;
             this.materials = materials;
@@ -81,7 +86,7 @@ namespace Paniq.Presentation
                 agents.Add(definition.AgentId, new AgentView
                 {
                     // Children of the capsule so they follow it when it runs or falls.
-                    Flames = new FlameCubes(agentObject.transform, FlamesPerPerson, materials, definition.AgentId.Value % 97UL),
+                    Flames = new FlameEmitter(agentObject.transform, FlamesPerPerson, effects, materials),
                     Transform = agentObject.transform,
                     Renderer = agentRenderer,
                     Icons = new AgentIconViews($"Agent {definition.AgentId.Value}", number.ToString(), materials.Icon,
@@ -163,8 +168,10 @@ namespace Paniq.Presentation
                     ? 0.18f + Mathf.Abs(Mathf.Sin(time * 18f + agent.AgentId.Value % 997UL)) * 0.18f
                     : 0f;
 
-                float tilt = UpdateTilt(agent, view, time);
-                bool down = lost || tilt > 45f;
+                NoteBodyStateChange(agent, view, time);
+                float age = time - view.BodyStateSince;
+                bool fallen = agent.BodyState == AgentBodyState.Fallen || agent.BodyState == AgentBodyState.Unconscious;
+                bool rising = agent.BodyState == AgentBodyState.GettingUp;
 
                 // Anybody not sitting stands at their full height. Set here as
                 // well as in the seated branch, because somebody knocked out of a
@@ -182,15 +189,30 @@ namespace Paniq.Presentation
                     // Knocked flat where the fire caught them.
                     view.Transform.SetPositionAndRotation(planar + Vector3.up * BodyRadius, Quaternion.Euler(90f, yaw, 0f));
                 }
-                else if (tilt > 0f)
+                else if (fallen || rising)
                 {
-                    // Falling forward from the feet, or pushing back up.
-                    float lying = tilt / 90f;
-                    Vector3 forward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+                    // Going down: from where they stood to where the physics
+                    // laid them, quickly, then following the body wherever it
+                    // is thrown or dragged. Getting up: from the floor back to
+                    // standing, taking as long as the simulation gives them.
+                    Vector3 position;
+                    Quaternion rotation;
+                    float progress;
+                    if (rising)
+                    {
+                        position = planar + Vector3.up * BodyHalfHeight;
+                        rotation = Quaternion.Euler(0f, yaw, 0f);
+                        progress = Mathf.SmoothStep(0f, 1f, age / view.RiseSeconds);
+                    }
+                    else
+                    {
+                        DownPose(agent, previous, blend, planar, yaw, out position, out rotation);
+                        progress = EaseInQuad(age / FallSeconds);
+                    }
+
                     view.Transform.SetPositionAndRotation(
-                        planar + forward * (BodyHalfHeight * 0.5f * lying) +
-                        Vector3.up * Mathf.Lerp(BodyHalfHeight, BodyRadius, lying),
-                        Quaternion.Euler(tilt, yaw, 0f));
+                        Vector3.Lerp(view.FromPosition, position, progress),
+                        Quaternion.Slerp(view.FromRotation, rotation, progress));
                 }
                 else
                 {
@@ -269,6 +291,7 @@ namespace Paniq.Presentation
                         Quaternion.Euler(lean + 6f * seated, yaw, roll));
                 }
 
+                bool down = lost || view.Transform.up.y < 0.7f;
                 UpdateAppearance(agent, view, planar, yaw, down, alertJump, time, cameraTransform);
             }
         }
@@ -300,37 +323,55 @@ namespace Paniq.Presentation
             view.Transform.localScale = BodyScale * (1f - age);
         }
 
-        /// <summary>Forward tilt in degrees: 0 upright, 90 lying on the floor. Timed locally per state.</summary>
-        private float UpdateTilt(FireReactionAgentSnapshot agent, AgentView view, float time)
+        /// <summary>
+        /// Notices a fall, a get-up or a recovery, remembering when it began
+        /// and where the body was drawn at that moment.
+        /// </summary>
+        private void NoteBodyStateChange(FireReactionAgentSnapshot agent, AgentView view, float time)
         {
-            if (agent.BodyState != view.LastBodyState)
+            if (agent.BodyState == view.LastBodyState)
             {
-                // Coming round from being knocked out, people get up more slowly.
-                int riseTicks = view.LastBodyState == AgentBodyState.Unconscious
-                    ? scenario.Falls.ComeToGetUpTicks
-                    : scenario.Falls.GetUpTicks;
-                view.RiseSeconds = (float)riseTicks / FireReactionSimulation.TicksPerSecond;
-                view.LastBodyState = agent.BodyState;
-                view.BodyStateSince = time;
-                view.TiltAtStateChange = view.Tilt;
+                return;
             }
 
-            float age = time - view.BodyStateSince;
-            switch (agent.BodyState)
+            // Coming round from being knocked out, people get up more slowly.
+            int riseTicks = view.LastBodyState == AgentBodyState.Unconscious
+                ? scenario.Falls.ComeToGetUpTicks
+                : scenario.Falls.GetUpTicks;
+            view.RiseSeconds = Mathf.Max(0.05f, (float)riseTicks / FireReactionSimulation.TicksPerSecond);
+            view.LastBodyState = agent.BodyState;
+            view.BodyStateSince = time;
+            view.FromPosition = view.Transform.position;
+            view.FromRotation = view.Transform.rotation;
+        }
+
+        /// <summary>
+        /// How somebody on the floor is drawn: turned exactly as the physics
+        /// has their body, with the middle of the drawn figure on the middle
+        /// of the physical one. Where there was no room to fall they stay on
+        /// their feet in the physics, and are drawn slumped to their knees.
+        /// </summary>
+        private static void DownPose(FireReactionAgentSnapshot agent, FireReactionAgentSnapshot previous, float blend,
+            Vector3 planar, float yaw, out Vector3 position, out Quaternion rotation)
+        {
+            if (!agent.Pose.IsKnown)
             {
-                case AgentBodyState.Fallen:
-                case AgentBodyState.Unconscious:
-                    view.Tilt = Mathf.Lerp(view.TiltAtStateChange, 90f, EaseInQuad(age / FallSeconds));
-                    break;
-                case AgentBodyState.GettingUp:
-                    view.Tilt = Mathf.Lerp(view.TiltAtStateChange, 0f, Mathf.SmoothStep(0f, 1f, age / view.RiseSeconds));
-                    break;
-                default:
-                    view.Tilt = 0f;
-                    break;
+                position = planar + Vector3.up * BodyRadius;
+                rotation = Quaternion.Euler(90f, yaw, 0f);
+                return;
             }
 
-            return view.Tilt;
+            BodyPose from = previous.Pose.IsKnown ? previous.Pose : agent.Pose;
+            rotation = Quaternion.Slerp(BoxViews.PoseRotation(from), BoxViews.PoseRotation(agent.Pose), blend);
+            if ((rotation * Vector3.up).y > 0.7f)
+            {
+                position = planar + Vector3.up * (BodyHalfHeight * Mathf.Cos(SlumpDegrees * Mathf.Deg2Rad));
+                rotation = Quaternion.Euler(SlumpDegrees, yaw, 0f);
+                return;
+            }
+
+            Vector3 origin = Vector3.Lerp(BoxViews.PoseOrigin(from), BoxViews.PoseOrigin(agent.Pose), blend);
+            position = origin + rotation * Vector3.up * PhysicalHalfHeight;
         }
 
         private void UpdateAppearance(
@@ -353,7 +394,7 @@ namespace Paniq.Presentation
                 : frozen ? FrozenColor : ScaredColor;
             materials.SetColor(view.Renderer, bodyColor);
             // Capsule space: the body runs from -1 to 1 along Y, radius 0.5.
-            view.Flames.Update(burning, time, new Vector3(0f, -0.7f, 0f), new Vector3(0.45f, 2f, 0.45f), 0.42f);
+            view.Flames.Update(burning, new Vector3(0f, -0.7f, 0f), new Vector3(0.45f, 2f, 0.45f), 0.42f);
 
             if (!participating)
             {
@@ -392,6 +433,12 @@ namespace Paniq.Presentation
         /// </summary>
         private const float BodyRadius = 0.25f;
         private const float BodyHalfHeight = 0.5f;
+
+        /// <summary>Half the height of the physical body, feet to middle, in metres.</summary>
+        private const float PhysicalHalfHeight = PeopleBodies.HeightMillimetres / 2000f;
+
+        /// <summary>How far forward somebody slumps where there is no room to fall flat.</summary>
+        private const float SlumpDegrees = 40f;
         private static readonly Vector3 BodyScale = new Vector3(BodyRadius * 2f, BodyHalfHeight, BodyRadius * 2f);
 
         /// <summary>

@@ -1,4 +1,4 @@
-﻿using Paniq.Simulation;
+using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Presentation
@@ -36,7 +36,8 @@ namespace Paniq.Presentation
                 $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   " +
                 $"Escaped {snapshot.EscapedCount}   In a room with no fire {snapshot.ClearOfFireCount}");
             GUI.Label(new Rect(20f, 92f, 900f, 24f),
-                "Click a door: red = locked. Click to unlock (green), again to open, again to close.   Tab: everyone's stats");
+                "Click a door: red = locked. Click to unlock (green), again to open, again to close.   " +
+                "Tab: everyone's stats   G: the floor people can walk on");
             if (hoveredDoor.HasValue)
             {
                 // A door with something wedged in it will not move however many
@@ -141,12 +142,15 @@ namespace Paniq.Presentation
             }
         }
 
-        /// <summary>One row per person, numbered like the labels over their heads.</summary>
-        public static void DrawStats(FireReactionSnapshot snapshot)
+        /// <summary>
+        /// One row per person, numbered like the labels over their heads, then
+        /// <paramref name="footer"/>: which physics feel is in use, and so on.
+        /// </summary>
+        public static void DrawStats(FireReactionSnapshot snapshot, string footer)
         {
             const float rowHeight = 20f;
             float width = 640f;
-            float height = rowHeight * (snapshot.Agents.Count + 2) + 12f;
+            float height = rowHeight * (snapshot.Agents.Count + 3) + 12f;
             var area = new Rect(Screen.width - width - 20f, 20f, width, height);
             GUI.color = new Color(0f, 0f, 0f, 0.75f);
             GUI.DrawTexture(area, Texture2D.whiteTexture);
@@ -170,6 +174,7 @@ namespace Paniq.Presentation
             }
 
             GUI.Label(new Rect(x, y, width, rowHeight), "Traits run 0-10; 5 is an ordinary person.");
+            GUI.Label(new Rect(x, y + rowHeight, width - 20f, rowHeight), footer);
         }
 
         private static readonly float[] ColumnX = { 0f, 40f, 80f, 120f, 160f, 200f, 240f, 280f, 330f, 440f };

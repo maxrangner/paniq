@@ -1,16 +1,18 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
     /// <summary>
-    /// The complete deterministic fire-reaction run. It has no Unity object or
-    /// presentation dependency; FireReactionRunner is the only Unity tick
-    /// owner. This class builds the systems, runs the simulation contract's
-    /// tick schedule in order, and hands out read-only views. The rules
-    /// themselves live in the systems it owns.
+    /// The complete deterministic fire-reaction run. It has no presentation
+    /// dependency; FireReactionRunner is the only Unity tick owner. Its one
+    /// use of Unity is the physics engine, kept in a physics scene of the
+    /// run's own (see <see cref="PhysicsWorld"/>), which is why a finished
+    /// run should be disposed. This class builds the systems, runs the
+    /// simulation contract's tick schedule in order, and hands out read-only
+    /// views. The rules themselves live in the systems it owns.
     /// </summary>
-    public sealed class FireReactionSimulation
+    public sealed class FireReactionSimulation : IDisposable
     {
         public const int MillimetresPerMetre = 1000;
         public const int TicksPerSecond = 50;
@@ -44,6 +46,15 @@ namespace Paniq.Simulation
         private readonly AlarmSystem alarms;
         private readonly AlarmBehaviour alarmBehaviour;
         private readonly WorldGeometry geometry;
+        private readonly Crowd crowd;
+        private readonly PhysicsWorld physics;
+        private readonly PeopleBodies people;
+
+        /// <summary>How many doorways the physics' walls were last built with, so a new blast hole rebuilds them.</summary>
+        private int wallsBuiltForDoorways;
+
+        /// <summary>Whether each door slot's plug is in, as the physics last had it.</summary>
+        private readonly bool[] doorPlugged;
 
         public FireReactionSimulation(FireReactionScenarioData scenarioData, ulong? seedOverride = null)
         {
@@ -64,41 +75,115 @@ namespace Paniq.Simulation
             fear = new FearSystem(context, fire);
             fear.DealTemperaments(agents);
 
-            var crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres);
-            doors = new DoorSystem(context, doorStates, geometry);
-            doors.UseCrowd(crowd);
-            playerCommands = new PlayerCommandSystem(context);
-            influence = new InfluenceSystem(context);
-            var sound = new SoundSystem(context, crowd, fire, fear, geometry);
-            perception = new PerceptionSystem(context, fire, fear, sound);
-            body = new BodySystem(context, crowd, geometry, fire, sound, fear);
-            collisions = new CollisionSystem(context, crowd, body, fear, sound);
-            objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound);
-            body.UseObjects(objects);
-            doors.UseObjects(objects);
-            GiveOutStartingPossessions();
-            SeatPeopleWhoStartSeated();
-            locomotion = new Locomotion(context, crowd, geometry, fire, body, collisions, objects);
-            flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body, sound);
-            items = new ItemBehaviour(context, geometry, objects, flammables);
-            chairs = new ChairBehaviour(context, crowd, geometry, objects);
-            calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs);
-            doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
-            doorBehaviour.UseObjects(objects);
-            help = new HelpBehaviour(context, crowd, geometry, fire, fear, body, objects, locomotion);
-            help.UseDoors(doors);
-            panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, chairs, locomotion);
-            burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
-            extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
-            panic.UseExtinguishers(extinguishers);
-            leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion);
-            panic.UseLeaders(leaders);
-            alarms = new AlarmSystem(context, sound, geometry);
-            alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion);
-            panic.UseAlarms(alarmBehaviour);
-            var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, fire, objects, flammables, locomotion);
-            panic.UseBarricades(barricades);
-            playerCommands.Use(doors, fire, objects, crowd, influence, sound, body, geometry);
+            crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres, geometry.FireArea);
+            physics = new PhysicsWorld(scenario.PhysicsFeel, geometry.FireArea, scenario.ObjectPhysics.WallRestitutionPercent);
+            doorPlugged = new bool[geometry.DoorSlotCount];
+            try
+            {
+                BuildTheBuildingInThePhysics();
+                doors = new DoorSystem(context, doorStates, geometry);
+                doors.UseCrowd(crowd);
+                playerCommands = new PlayerCommandSystem(context);
+                influence = new InfluenceSystem(context);
+                var sound = new SoundSystem(context, crowd, fire, fear, geometry);
+                perception = new PerceptionSystem(context, fire, fear, sound);
+                body = new BodySystem(context, fire, sound, fear);
+                objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound, physics);
+                people = new PeopleBodies(context, crowd, physics, fire, objects.Count);
+                people.UseBody(body);
+                body.UsePeople(people);
+                objects.UsePeople(people);
+                collisions = new CollisionSystem(context, crowd, body, fear, sound, people);
+                doors.UseObjects(objects);
+                doors.UsePhysics(physics, people);
+                GiveOutStartingPossessions();
+                people.AddEveryone();
+                SeatPeopleWhoStartSeated();
+                locomotion = new Locomotion(context, crowd, geometry, objects);
+                flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body, sound);
+                items = new ItemBehaviour(context, geometry, objects, flammables);
+                chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
+                calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs);
+                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
+                doorBehaviour.UseObjects(objects);
+                help = new HelpBehaviour(context, crowd, geometry, fire, fear, body, objects, locomotion, people);
+                help.UseDoors(doors);
+                panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, chairs, locomotion);
+                burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
+                extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
+                leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion);
+                alarms = new AlarmSystem(context, sound, geometry);
+                alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion);
+                var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, fire, objects, flammables, locomotion);
+
+                // What a frightened person might do instead of running, in the
+                // order they consider it. The first that answers wins, so this list
+                // is the priority order, and it is the only place it is written
+                // down. Raising the alarm comes after helping so that somebody with
+                // an unconscious person in front of them sees to them rather than
+                // walking off to the bell; plenty of other people are free to hit it.
+                panic.Offer(leaders, extinguishers, help, alarmBehaviour, barricades);
+                playerCommands.Use(doors, fire, objects, crowd, influence, sound, body, geometry);
+            }
+            catch
+            {
+                physics.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Lets go of the run's physics scene. The run cannot be stepped after
+        /// this. Safe to call more than once.
+        /// </summary>
+        public void Dispose()
+        {
+            physics.Dispose();
+        }
+
+        /// <summary>
+        /// The walls, the doorway plugs and the tables, in the physics world.
+        /// Tables go in in index order so each one's number there is its number
+        /// here.
+        /// </summary>
+        private void BuildTheBuildingInThePhysics()
+        {
+            physics.SetWalls(geometry.SolidWalls());
+            wallsBuiltForDoorways = geometry.DoorCount;
+            for (int door = 0; door < doorPlugged.Length; door++)
+            {
+                geometry.DescribeDoorway(door, out LogicalPosition centre, out bool alongX, out int width);
+                doorPlugged[door] = geometry.IsDoorwayPlugged(door);
+                physics.AddDoor(centre, alongX, width, doorPlugged[door]);
+            }
+
+            for (int table = 0; table < geometry.TableCount; table++)
+            {
+                physics.AddTable(geometry.TableBounds(table));
+            }
+        }
+
+        /// <summary>
+        /// Before the engine steps: every doorway that has opened or shut
+        /// since, and a new wall shape if a blast has opened a hole.
+        /// </summary>
+        private void BringThePhysicsUpToDate()
+        {
+            if (geometry.DoorCount != wallsBuiltForDoorways)
+            {
+                physics.SetWalls(geometry.SolidWalls());
+                wallsBuiltForDoorways = geometry.DoorCount;
+            }
+
+            for (int door = 0; door < doorPlugged.Length; door++)
+            {
+                bool plugged = geometry.IsDoorwayPlugged(door);
+                if (plugged != doorPlugged[door])
+                {
+                    doorPlugged[door] = plugged;
+                    physics.SetDoorShut(door, plugged);
+                }
+            }
         }
 
         /// <summary>
@@ -178,10 +263,10 @@ namespace Paniq.Simulation
                         $"Agent {agent.Id} starts seated on {chairId}, which somebody else already starts on.");
                 }
 
-                agent.Body.Position = objects.PositionOf(chair);
                 agent.Body.Heading = objects.HeadingOf(chair);
                 agent.Body.Speed = 0;
                 objects.SitOn(chair, agent);
+                people.SitIn(agent, chair, objects.PositionOf(chair), agent.Body.Heading);
                 agent.Sitting.ChairIndex = chair;
                 agent.Sitting.OnIt = true;
                 agent.Intent.Activity = AgentActivityState.Sitting;
@@ -206,7 +291,9 @@ namespace Paniq.Simulation
                     Participation = AgentParticipation.Participating,
                     Outcome = AgentTerminalOutcome.Unresolved
                 };
-                agent.Body.Position = definition.InitialPosition;
+                // Before the crowd exists, so there is no index to tell yet;
+                // the crowd indexes everybody as it is built.
+                agent.Body.MoveWithoutTellingTheCrowd(definition.InitialPosition);
                 agent.Body.Heading = heading;
                 agent.Fear.State = AgentFearState.Calm;
                 agent.Fear.AlertSource = AgentAlertSource.None;
@@ -230,6 +317,16 @@ namespace Paniq.Simulation
         public CausalEventLog EventLog => context.Events;
         public Pcg32 Random => context.Random;
         public FireReactionScenarioData Scenario => context.Scenario;
+
+        /// <summary>
+        /// How long the physics engine's own step has taken over this whole
+        /// run, measured on the clock, for profiling. It never feeds back into
+        /// the run.
+        /// </summary>
+        public TimeSpan PhysicsStepTime =>
+            TimeSpan.FromSeconds(physicsStepTimestampTicks / (double)System.Diagnostics.Stopwatch.Frequency);
+
+        private long physicsStepTimestampTicks;
 
         public bool FireActive => fire.Active;
         public int FireCellCount => fire.BurningCount;
@@ -321,11 +418,79 @@ namespace Paniq.Simulation
         /// <summary>Tests only: sets an object sliding at a velocity in millimetres per tick.</summary>
         internal void LaunchObjectForTests(int index, int velocityX, int velocityZ) => objects.Launch(index, velocityX, velocityZ);
 
+        /// <summary>Throws a thing straight up at this many millimetres per tick.</summary>
+        internal void TossObjectUpForTests(int index, int velocityY) => objects.Launch(index, 0, 0, velocityY);
+
         /// <summary>Tests only: whether a straight walk between two points runs into a table that is still standing.</summary>
         internal bool RouteCrossesTableForTests(LogicalPosition from, LogicalPosition to) => geometry.RouteCrossesTable(from, to);
 
         /// <summary>Tests only: the fire system, to check its queries against a brute-force answer.</summary>
         internal FireSystem FireForTests => fire;
+
+        internal WorldGeometry GeometryForTests => geometry;
+
+        /// <summary>Tests only: what touched what in the last physics step.</summary>
+        internal IReadOnlyList<PhysicsWorld.Contact> ContactsForTests => physics.Contacts;
+
+        /// <summary>How far any two solid things were pressed into each other during the last tick, in millimetres.</summary>
+        public int DeepestPressMillimetres => physics.DeepestPressMillimetres;
+
+        /// <summary>
+        /// Tests only: the two things pressed deepest during the last tick, as
+        /// words: a person, a thing, or part of the building.
+        /// </summary>
+        internal string DeepestPressForTests
+        {
+            get
+            {
+                (int a, int b, PhysicsWorld.StaticKind building) = physics.DeepestPressPair;
+                return Describe(a) + " and " + (b < 0 ? building.ToString() : Describe(b));
+            }
+        }
+
+        private string Describe(int handle)
+        {
+            Agent person = people.PersonAt(handle);
+            if (person != null)
+            {
+                return $"person {person.Id} ({person.Body.State}, {person.Intent.Activity}, sitting {person.Sitting.OnIt})";
+            }
+
+            FireReactionPhysicsObjectSnapshot thing = GetPhysicsObject(handle);
+            return $"{thing.Kind} {thing.ObjectId} (held {thing.IsHeld}, sat on {thing.IsSatOn}, height {thing.Pose.HeightMillimetres})";
+        }
+
+        /// <summary>Tests only: a person's handle in the physics world, to find them among the contacts.</summary>
+        internal int PhysicsHandleForTests(int agentIndex) => people.HandleOf(agents[agentIndex]);
+
+        /// <summary>Tests only: how hard everything pressed on this person during the last step.</summary>
+        internal long SqueezeForTests(int agentIndex) => people.SqueezeOn(agents[agentIndex]);
+
+        /// <summary>How long this person has wanted to move and could not.</summary>
+        internal int BlockedTicksForTests(int index) => agents[index].Body.BlockedTicks;
+
+        /// <summary>Where this person is currently trying to get to.</summary>
+        internal LogicalPosition TargetForTests(int index) => agents[index].Intent.Target;
+
+        /// <summary>The way out this person is running for, or -1.</summary>
+        internal int ExitDoorForTests(int index) => agents[index].Doors.ExitDoorIndex;
+
+
+        /// <summary>
+        /// The floor drawn as squares, for the debugging overlay. The building
+        /// does not change shape while a run is being watched, so one reading
+        /// at the start is enough.
+        /// </summary>
+        public NavigationGridReading ReadNavigationGrid() => geometry.Navigation.Reading();
+
+        /// <summary>
+        /// Whether the indexes of who and what is standing where still agree
+        /// with the actual positions. False means something moved without
+        /// saying so, which would quietly wrong every "what is near here"
+        /// answer from that moment on.
+        /// </summary>
+        internal bool SpatialIndexesAreConsistentForTests =>
+            crowd.IndexMatchesPositions() && objects.IndexMatchesPositions();
 
         /// <summary>
         /// Queues a player action for a tick that has not started yet. Commands
@@ -350,8 +515,8 @@ namespace Paniq.Simulation
         /// 1 player commands, 2 hazard, 3 hazard contact, 4 decisions
         /// (ascending ID), 5 movement, 6 danger contact along accepted moves,
         /// flames jumping between people, and exits, 7 collisions (people,
-        /// then objects), 8 physical objects, 9 things heating, catching,
-        /// burning out and passing flames on.
+        /// then objects), 8 the physics engine's step and every hit it reports,
+        /// 9 things heating, catching, burning out and passing flames on.
         /// </summary>
         public void Step()
         {
@@ -360,10 +525,6 @@ namespace Paniq.Simulation
             fire.Advance();
             ResolveCurrentFireContact();
 
-            locomotion.BeginTick();
-            collisions.BeginTick();
-            objects.BeginTick();
-            help.BeginTick(agents);
             for (int i = 0; i < agents.Length; i++)
             {
                 Agent agent = agents[i];
@@ -415,33 +576,39 @@ namespace Paniq.Simulation
                 {
                     // Tripped during this decision.
                     agent.Body.Speed = 0;
-                    continue;
                 }
-
-                locomotion.RequestMove(agent);
             }
 
             chairs.ResolveStanding();
             leaders.CountFollowers();
             extinguishers.Spray();
-            locomotion.ResolveMovement();
-            help.MoveDragged(agents);
+            help.PullDragged(agents);
+
+            // The engine's step: everybody's feet push, everything moves,
+            // bounces and topples, then what happened is read back and judged.
+            BringThePhysicsUpToDate();
+            people.Drive();
+            long stepStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+            physics.Step();
+            physicsStepTimestampTicks += System.Diagnostics.Stopwatch.GetTimestamp() - stepStarted;
+            people.ReadBack();
+            objects.AfterStep();
+            collisions.Resolve(physics.Contacts);
+            people.FeelTheSqueeze(physics.Contacts);
+
             items.FollowCarriers(agents);
             burning.RollToPutItOut();
             burning.SpreadFlames();
             doorBehaviour.ResolveRoomChangesAndEscapes();
             help.ResolveRescues(agents);
-            collisions.Resolve();
-            objects.ResolveContacts();
-            objects.Advance();
             flammables.Update();
             doors.ResolveBlockages();
 
             // Last of all, once the tick has settled: anybody who could have
-            // seen or heard a door open this tick thinks again on the next one.
-            // Here for the same reason the blockages are worked out here — the
-            // next tick's decisions read one settled answer instead of one that
-            // changes as the door swings.
+            // seen or heard a door open this tick thinks again on the next
+            // one. Here for the same reason the blockages are worked out here
+            // -- the next tick's decisions read one settled answer instead of
+            // one that changes as the door swings.
             doorBehaviour.AnnounceWaysOut();
             CreditInfluenceForPeopleSaved();
         }

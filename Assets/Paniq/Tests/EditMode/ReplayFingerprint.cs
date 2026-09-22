@@ -100,15 +100,22 @@ namespace Paniq.Tests.EditMode
                     hash.Add((int)agent.BodyState);
                     hash.Add((int)agent.Outcome);
                 }
+
+                // Every loose thing, in three dimensions, twice a second: the
+                // physics engine's work is part of the run, so a replay that
+                // drifts there has to show here too.
+                if (tick % 25 == 0)
+                {
+                    for (int i = 0; i < simulation.PhysicsObjectCount; i++)
+                    {
+                        AddObject(ref hash, simulation.GetPhysicsObject(i));
+                    }
+                }
             }
 
             for (int i = 0; i < simulation.PhysicsObjectCount; i++)
             {
-                FireReactionPhysicsObjectSnapshot box = simulation.GetPhysicsObject(i);
-                hash.Add(box.Position.X);
-                hash.Add(box.Position.Z);
-                hash.Add(box.HeadingDegrees);
-                hash.Add(box.SpeedMillimetresPerTick);
+                AddObject(ref hash, simulation.GetPhysicsObject(i));
             }
 
             foreach (CausalEvent record in simulation.EventLog.Events)
@@ -126,7 +133,21 @@ namespace Paniq.Tests.EditMode
             }
 
             hash.Add(simulation.Random.State);
+            simulation.Dispose();
             return hash.Value;
+        }
+
+        private static void AddObject(ref Fnv1a hash, FireReactionPhysicsObjectSnapshot thing)
+        {
+            hash.Add(thing.Position.X);
+            hash.Add(thing.Position.Z);
+            hash.Add(thing.HeadingDegrees);
+            hash.Add(thing.SpeedMillimetresPerTick);
+            hash.Add(thing.Pose.HeightMillimetres);
+            hash.Add(thing.Pose.RotationX);
+            hash.Add(thing.Pose.RotationY);
+            hash.Add(thing.Pose.RotationZ);
+            hash.Add(thing.Pose.RotationW);
         }
 
         /// <summary>64-bit FNV-1a over little-endian bytes; fixed and platform-independent.</summary>

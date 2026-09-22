@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -12,6 +12,9 @@ namespace Paniq.Simulation
     internal sealed class PanicBehaviour
     {
         private readonly SimulationContext context;
+
+        /// <summary>How wide a person is, for asking which way round something to go.</summary>
+        private readonly int bodyRadius;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly FireSystem fire;
@@ -22,17 +25,12 @@ namespace Paniq.Simulation
         private readonly HelpBehaviour help;
         private readonly ChairBehaviour chairs;
 
-        /// <summary>Set once the extinguishers exist, which need the behaviours around them first.</summary>
-        private ExtinguisherBehaviour extinguishers;
-
-        /// <summary>Set once the leaders exist, for the same reason.</summary>
-        private LeaderBehaviour leaders;
-
-        /// <summary>Set once the alarms exist, for the same reason.</summary>
-        private AlarmBehaviour alarms;
-
-        /// <summary>Set once the barricades exist, for the same reason.</summary>
-        private BarricadeBehaviour barricades;
+        /// <summary>
+        /// The things somebody might do instead of running, in the order they
+        /// are offered: the first that answers wins. Set once the whole cast of
+        /// behaviours exists, because each needs the others around it.
+        /// </summary>
+        private IPanicOption[] options = new IPanicOption[0];
         private readonly Locomotion locomotion;
         private readonly PanicSettings settings;
 
@@ -52,6 +50,7 @@ namespace Paniq.Simulation
             this.help = help;
             this.chairs = chairs;
             this.context = context;
+            bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
             this.fire = fire;
@@ -63,17 +62,12 @@ namespace Paniq.Simulation
             settings = context.Scenario.Panic;
         }
 
-        /// <summary>Wired up after construction, because each needs the other's neighbours.</summary>
-        public void UseExtinguishers(ExtinguisherBehaviour behaviour) => extinguishers = behaviour;
-
-        /// <summary>Wired up after construction, for the same reason.</summary>
-        public void UseLeaders(LeaderBehaviour behaviour) => leaders = behaviour;
-
-        /// <summary>Wired up after construction, for the same reason.</summary>
-        public void UseAlarms(AlarmBehaviour behaviour) => alarms = behaviour;
-
-        /// <summary>Wired up after construction, for the same reason.</summary>
-        public void UseBarricades(BarricadeBehaviour behaviour) => barricades = behaviour;
+        /// <summary>
+        /// The things somebody might do instead of running, in priority order.
+        /// Wired up after construction, because each of them needs the others
+        /// around it.
+        /// </summary>
+        public void Offer(params IPanicOption[] inPriorityOrder) => options = inPriorityOrder;
 
         /// <summary>
         /// This tick's panicked decision. Returns no intent when the person
@@ -107,7 +101,8 @@ namespace Paniq.Simulation
                 fear.Unfreeze(agent);
             }
 
-            // A way out they can see standing open is the one thing worth doing.
+            // Set on a way out they can see standing open, right now, and not
+            // otherwise occupied. While this is true they stop dithering.
             // Worked out after the fire and the frozen have had their say, so
             // neither is overruled by it.
             bool eager = doorBehaviour.IsSetOnAWayOut(agent) && !inDanger && !agent.Burning.IsBurning &&
@@ -126,47 +121,19 @@ namespace Paniq.Simulation
                 chairs.StartStandingUp(agent);
                 if (tick < intent.ActivityEndTick)
                 {
-                    return new MotorIntent(agent.Body.Heading, 0, agent.Personality.PanicTurnRate, settings.Acceleration);
+                    return PanicIntent.StandAndFace(agent, agent.Body.Heading, settings);
                 }
 
                 intent.Activity = AgentActivityState.Fleeing;
             }
 
-            MotorIntent? following = leaders.Decide(agent, inDanger);
-            if (following.HasValue)
+            // Anything they would rather be doing than running, in order.
+            for (int i = 0; i < options.Length; i++)
             {
-                return following.Value;
-            }
-
-            MotorIntent? fighting = extinguishers.Decide(agent, inDanger);
-            if (fighting.HasValue)
-            {
-                return fighting.Value;
-            }
-
-            MotorIntent? helping = help.Decide(agent, inDanger);
-            if (helping.HasValue)
-            {
-                return helping.Value;
-            }
-
-            // After helping, so that somebody with an unconscious person in front
-            // of them sees to them rather than walking off to the bell. Plenty of
-            // other people are free to raise the alarm.
-            MotorIntent? raisingTheAlarm = alarms.Decide(agent, inDanger);
-            if (raisingTheAlarm.HasValue)
-            {
-                return raisingTheAlarm.Value;
-            }
-
-            // Somebody already wedging a door finishes; nobody starts sealing
-            // themselves in while a way out stands open.
-            if (!eager || BarricadeBehaviour.IsBarricading(agent))
-            {
-                MotorIntent? barricading = barricades.Decide(agent, inDanger);
-                if (barricading.HasValue)
+                MotorIntent? instead = options[i].Decide(agent, inDanger, eager);
+                if (instead.HasValue)
                 {
-                    return barricading.Value;
+                    return instead.Value;
                 }
             }
 
@@ -256,7 +223,9 @@ namespace Paniq.Simulation
             }
             else
             {
-                goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, intent.Target, agent.Body.Heading) + swerve;
+                // Round whatever is in the way rather than straight at it.
+                goalHeading = geometry.Routes.HeadingToward(
+                    agent.Body.Position, intent.Target, bodyRadius, agent.Body.Heading) + swerve;
             }
 
             long followX = 0L;
@@ -268,12 +237,12 @@ namespace Paniq.Simulation
 
             goalHeading = locomotion.Steer(agent, goalHeading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
                 settings.WallAvoidPercent, settings.ObjectAvoidPercent, followX, followZ);
-            return new MotorIntent(goalHeading, TraitEffects.FleeSpeed(agent), agent.Personality.PanicTurnRate, settings.Acceleration);
+            return PanicIntent.WalkTowards(agent, goalHeading, settings);
         }
 
         private MotorIntent LookIntent(Agent agent)
         {
-            return new MotorIntent(agent.Intent.LookHeading, 0, agent.Personality.PanicTurnRate, settings.Acceleration);
+            return PanicIntent.StandAndFace(agent, agent.Intent.LookHeading, settings);
         }
 
         private bool ShouldUnfreeze(Agent agent, bool inDanger)
@@ -394,10 +363,10 @@ namespace Paniq.Simulation
 
             long radiusSquared = radius * radius;
             int count = 0;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby neighbours = crowd.Within(agent.Body.Position, radius);
+            for (int i = 0; i < neighbours.Count; i++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[neighbours[i]];
                 if (other == agent ||
                     !other.IsParticipating ||
                     other.Fear.State != AgentFearState.Scared ||

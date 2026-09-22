@@ -25,7 +25,37 @@ end state, no required feature list, and no promise that any layer survives.
 A layer that does not feel right is reworked or thrown away. Its job is to
 find out, by playing, what Paniq should feel like.
 
-Rules for prototype work:
+### The question this prototype exists to answer
+
+> **Can a player watch a disaster, understand why it went wrong, change one
+> thing, and do better?**
+
+The [game vision](game-vision.md) already commits to this: outcomes must be
+surprising but explainable, so a player can learn from a chaotic run. Nothing
+built so far tests it, because the loop that would test it — a round that
+*ends*, is *scored*, can be *understood*, and can be *played again* — does not
+exist yet. A prototype that can only be watched cannot say whether the game is
+any good.
+
+Everything else is in service of that question.
+
+### What this prototype is deliberately not for
+
+Naming these keeps later stones from drifting:
+
+- **Not more disasters.** One is enough to answer the question above.
+- **Not art, menus, saving, or platform work.**
+- **Not new crowd behaviour for its own sake.** The forty-sixth behaviour stone
+  teaches less right now than the first stone of *game* does.
+
+### When the prototype has done its job
+
+Not a feature checklist — a moment. The prototype has taught enough when a
+build can be handed to somebody who has never seen it, with nothing explained,
+and they play three rounds in a row and understand more each time. At that
+point phase 3 can be described.
+
+### Rules for prototype work
 
 - Add one stone at a time and keep the prototype playable after each.
 - Every stone still obeys the foundation notes (replayable seeded
@@ -40,5 +70,5 @@ Rules for prototype work:
 **What a vertical slice is:** a short, finished-quality piece of the real game
 that shows every core part working together at the intended quality.
 
-It will be described later, once the prototype has taught enough about what
-Paniq should be. Until then, no work or document targets it.
+It will be described later, once the prototype has answered the question above.
+Until then, no work or document targets it.

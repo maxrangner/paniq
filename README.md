@@ -2,11 +2,14 @@
 
 Paniq is a darkly comedic 3D crowd-survival game inspired by the
 indirect-control lineage of *Lemmings*. The player influences an autonomous
-crowd during changing disasters and tries to save as many entities as possible.
-They never command an individual directly: instead, they change the environment
-and eventually may influence what people are capable of doing. Outcomes should
-be surprising but explainable, so players can learn from a chaotic run and do
-better on the next one.
+crowd during changing disasters and tries to save as many people as possible.
+They never command anyone directly and cannot tell a person where to go.
+Instead they change what a person is *capable of* — how strong, how brave, how
+frightened — and that person's own decisions do the rest, including the parts
+the player did not want. Outcomes should be surprising but explainable, so
+players can learn from a chaotic run and do better on the next one.
+
+The full design is in [`docs/game-vision.md`](docs/game-vision.md).
 
 ## Foundation
 

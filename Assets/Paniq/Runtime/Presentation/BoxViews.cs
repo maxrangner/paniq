@@ -7,7 +7,11 @@ namespace Paniq.Presentation
 {
     /// <summary>
     /// Loose objects: boxes are brown cubes 0.75 as tall as they are wide,
-    /// chairs a seat, a back and four legs. They slide smoothly and hop and
+    /// chairs a seat, a back and four legs. Anything drawn square is drawn to
+    /// fit inside the round footprint the simulation gives it, so its corners
+    /// never reach past what is actually solid: a cube as wide as its footprint
+    /// is round sticks its corners out by two fifths of a radius, which is what
+    /// people passing through the corner of a box were seeing. They slide smoothly and hop and
     /// tip a little when hit. Near flames they darken as they heat up; then
     /// they burn with a crown of flame cubes, and are left charcoal-black.
     /// A carried item is held up at chest height; a thrown one flies in a
@@ -15,6 +19,15 @@ namespace Paniq.Presentation
     /// </summary>
     internal sealed class BoxViews
     {
+        /// <summary>
+        /// How wide to draw something square whose footprint the simulation
+        /// treats as a circle of the same width: one over the root of two, so
+        /// the drawn corners land exactly on that circle instead of two fifths
+        /// of a radius outside it. Display only — the simulation's footprints
+        /// are unchanged.
+        /// </summary>
+        private const float SquareInsideFootprint = 0.70710678f;
+
         private sealed class BoxView
         {
             public Transform Transform;
@@ -79,7 +92,7 @@ namespace Paniq.Presentation
         private static BoxView CreateBox(FireReactionPhysicsObjectDefinition definition, PresentationMaterials materials,
             Transform parent)
         {
-            float size = Metres(definition.SizeMillimetres);
+            float size = Metres(definition.SizeMillimetres) * SquareInsideFootprint;
             float height = size * 0.75f;
             var root = new GameObject($"Box {definition.ObjectId.Value} (presentation)").transform;
             root.SetParent(parent, false);
@@ -215,6 +228,24 @@ namespace Paniq.Presentation
                         new Vector3(size * 0.8f, height * 0.6f, 0.03f));
                     break;
 
+                case PhysicsObjectKind.TableWreck:
+                    // What is left of a table that went over: three boards in a
+                    // heap, lying at angles to each other. Low enough to see
+                    // over, solid enough to have to go round.
+                    height = 0.18f;
+                    colour = PresentationMaterials.WoodColor * 0.75f;
+                    for (int board = 0; board < 3; board++)
+                    {
+                        GameObject plank = CreatePrimitive($"Board {board}", PrimitiveType.Cube, root,
+                            root.position + Vector3.up * (0.03f + board * 0.05f),
+                            new Vector3(size * 1.4f, 0.05f, size * 0.8f), materials.Box);
+                        plank.transform.localRotation = Quaternion.Euler(0f, board * 28f - 28f, board * 4f - 4f);
+                        ShowThroughWalls(plank, materials);
+                        renderers.Add(plank.GetComponent<Renderer>());
+                    }
+
+                    break;
+
                 case PhysicsObjectKind.WallSocket:
                     // A small flat plate; it never moves, so it is barely there.
                     height = size * 0.5f;
@@ -261,7 +292,7 @@ namespace Paniq.Presentation
         private static BoxView CreateChair(FireReactionPhysicsObjectDefinition definition, PresentationMaterials materials,
             Transform parent)
         {
-            float size = Metres(definition.SizeMillimetres) * 0.9f;
+            float size = Metres(definition.SizeMillimetres) * SquareInsideFootprint;
             const float seatHeight = 0.45f;
             const float leg = 0.035f;
             var root = new GameObject($"Chair {definition.ObjectId.Value} (presentation)").transform;

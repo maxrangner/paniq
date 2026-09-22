@@ -107,6 +107,13 @@ namespace Paniq.Simulation
                 fear.Unfreeze(agent);
             }
 
+            // A way out they can see standing open is the one thing worth doing.
+            // Worked out after the fire and the frozen have had their say, so
+            // neither is overruled by it.
+            bool eager = doorBehaviour.IsSetOnAWayOut(agent) && !inDanger && !agent.Burning.IsBurning &&
+                         agent.Body.State == AgentBodyState.Upright;
+            intent.SetOnAWayOut = eager;
+
             if (tick >= agent.Fear.NextShoutTick)
             {
                 sound.Yell(agent, agent.Fear.ScaredEventId);
@@ -152,10 +159,15 @@ namespace Paniq.Simulation
                 return raisingTheAlarm.Value;
             }
 
-            MotorIntent? barricading = barricades.Decide(agent, inDanger);
-            if (barricading.HasValue)
+            // Somebody already wedging a door finishes; nobody starts sealing
+            // themselves in while a way out stands open.
+            if (!eager || BarricadeBehaviour.IsBarricading(agent))
             {
-                return barricading.Value;
+                MotorIntent? barricading = barricades.Decide(agent, inDanger);
+                if (barricading.HasValue)
+                {
+                    return barricading.Value;
+                }
             }
 
             int room = geometry.RoomAt(agent.Body.Position);
@@ -176,7 +188,7 @@ namespace Paniq.Simulation
             }
 
             bool leaving = doorBehaviour.IsLeaving(agent);
-            if (leaving && intent.Activity == AgentActivityState.Hesitating)
+            if ((leaving || eager) && intent.Activity == AgentActivityState.Hesitating)
             {
                 intent.Activity = AgentActivityState.Fleeing;
             }
@@ -236,7 +248,7 @@ namespace Paniq.Simulation
 
             int goalHeading;
             bool nearExit = doorBehaviour.IsNearExit(agent, context.Scenario.Exits.NoSwerveDistanceMillimetres);
-            int swerve = tick < intent.SwerveEndTick && !nearExit ? intent.SwerveOffset : 0;
+            int swerve = tick < intent.SwerveEndTick && !nearExit && !eager ? intent.SwerveOffset : 0;
             if (inDanger && fireDistanceSquared > 0L && !leaving)
             {
                 // Too close: run directly away from the nearest flames.
@@ -249,7 +261,7 @@ namespace Paniq.Simulation
 
             long followX = 0L;
             long followZ = 0L;
-            if (!nearExit)
+            if (!nearExit && !eager)
             {
                 FollowNearbyRunners(agent, out followX, out followZ);
             }

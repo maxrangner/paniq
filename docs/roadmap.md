@@ -67,6 +67,16 @@ scene.
 | Things that rest on things | System | A laptop stands on a desk and a box on another box, out of everybody's way, until somebody lifts, throws or smashes what holds it up — and then it drops to clear floor beside it |
 | Bangs you can see | Style | A laptop battery, a wall socket, a microwave or a stick of TNT goes off with a flash that lights the room, sparks that fall to the floor, a puff of smoke and a jolt of the camera, sized to the blast |
 | Solid furniture | Style | People are drawn their real height, so desks come to their hips; and the see-through silhouette only paints where a wall or a door hides something, so a chair no longer shows through itself |
+| A way out that has just opened | Behaviour | Opening the one door is news: the people who could see or hear it go turn and head for it on the spot, and nobody is still trudging toward the fire on the strength of a door that used to be locked |
+| Eager to get out | Behaviour | People with a clear way out in front of them stop dithering, stop zig-zagging, stop drifting with the crowd and run for it — even the ones an alarm had left walking out calmly. The frozen, the burning, the cruel and the ones who turn back to help are still themselves |
+| Nobody is sent away from the only door | Behaviour | Backing out of a crush used to mean "go and try the other door", which with one way out meant giving up and wandering. Now they step aside for a moment and come again, and the way out never leaves their plan |
+| You can see why a door will not open | Style | A door with a chair wedged in it says so when you point at it, instead of turning green and then doing nothing; and somebody taking charge now sends the strong at a wedged door as well as a locked one |
+| Doors that give | Style | A door leaf swings away from whoever pushes it rather than always the same way, and each door carries a setting for the one-way doors a later scene may want |
+| Tables that tip over | System | A table hit hard enough tips up on one edge and crashes into a heap of boards; whatever stood on it slides off beside it, and the heap is then just another thing to shove, kick and trip over |
+| Sitting properly | Style | People at the meeting table sit on their chairs rather than standing in them, folded down so their heads clear the table, and they scoot the chair in as they settle and shove it back as they rise |
+| Stop, drop and roll | Behaviour | Somebody alight may throw themselves down and roll instead of running blind, and about a third of the time the flames go out and they get back up |
+| A jet you can watch | Style | An extinguisher is not a laser: the jet works back and forth across the fire, a narrow steady arc in strong hands and a wild wobble in weak ones |
+| Reading the crowd | Style | A small panel names what every mark over a head means, and boxes and chairs are drawn to fit inside the space the simulation actually keeps clear, so nobody clips through a corner any more |
 
 ## Agreed direction for the next stones
 

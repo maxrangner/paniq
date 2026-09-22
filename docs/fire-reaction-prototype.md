@@ -144,6 +144,29 @@ the player. At a shut door a runner:
 - opens the door at once if the player unlocks it while they are rattling or
   shoving it.
 
+**A way out opening is news.** The moment a door becomes a way through —
+opened by anybody, battered off its hinges, or blown open with TNT — the people
+in the room it is in, and in the room straight through it, look up and think
+again on the next tick rather than carrying on until their own next thought.
+Everybody further off keeps walking their current plan, but stops believing
+that door would not open. And a way out you can see standing open is never
+crossed off: having tried the handle five minutes ago is not a reason to walk
+past an open door to the street.
+
+**Backing out of a crush is not giving up.** Somebody wedged in the press at a
+doorway steps aside for a moment and comes again, keeping the way out as their
+plan. They are only sent off to try a *different* door when there is another
+one to try; with one way out of the building, being sent away would just mean
+wandering off, and the queue behind them would set solid.
+
+**People with a clear way out are in a hurry.** Anybody on their way to a way
+out they can see open stops dithering: no hesitating on the spot, no zig-zag,
+no drifting with whoever is running past, and a brisk walk becomes a run even
+for somebody an alarm had left composed. The exceptions are the ones who were
+never going to: people frozen stiff with fear, people alight, anybody with the
+flames already inside their danger distance, and anybody in the middle of
+shaking somebody awake or dragging them out. The cruel still stop to shove.
+
 Someone who walks 0.8 m out through an open door has **escaped**: they keep
 walking for a moment and shrink out of view. People stuck in a crowd on the
 way to a door try a different one for a few seconds. Someone wedged right
@@ -263,7 +286,9 @@ people. A heavy, fast box can knock someone off balance or trip them.
 
 **People catch fire.** A person touched by the fire does not drop dead: they
 burst into flames (an orange, flickering, flailing capsule with little flame
-cubes licking up it), scream every half second or so, and run around wildly
+cubes licking up it), scream every half second or so, and either **throw
+themselves down and roll** — about two people in five do, and about a third of
+those rolls smother the flames and they get back up — or run around wildly
 at full sprint, lurching in a new direction every 0.2–0.5 s and paying no
 attention to doors or other people, for 3–6 s. Then they collapse, lost, as
 a dark red capsule. Anyone they run into catches fire too, and anyone within a
@@ -312,10 +337,14 @@ stampede. The whole thing can be switched off in the scenario.
 
 **Furniture breaks.** A hurled box or chair that slams into a chair hard enough
 smashes it: it collapses into flatter, lighter wreckage that people still trip
-over but nobody can sit on. A hard enough hit **collapses a table**, and a
-collapsed table stops being something to walk around — so people start running
-straight across ground they had been picking their way around all game, and the
-shape of the room changes while you watch.
+over but nobody can sit on. A hard enough hit **tips a table over**: it comes
+up on one edge and crashes down into a heap of boards about half its short side
+across, whatever stood on it slides off onto clear floor beside it, and the heap
+takes a share of whatever knocked it over, so it skids rather than simply
+appearing. From then on it is an ordinary thing on the floor — it blocks, it
+slides when somebody kicks it, somebody strong can heave it out of a doorway,
+and people trip over it — but the ground the table stood on is walkable again,
+so the shape of the room changes while you watch.
 
 **Electrical things pop.** The microwave and the wall sockets do not sit and
 burn: the moment the flames reach them they go off. A bang the whole building
@@ -325,11 +354,18 @@ thing itself left as wreckage. One pop can start a second fire across the room
 from the first.
 
 **Wedged doorways.** Anything left resting in a doorway jams that door, from
-either side, and both ways: it cannot be opened and it cannot be shut. It
-happens by accident all the time — a kicked bin comes to rest in a gap — and
-people discover it exactly as they discover a locked door: they walk up, try it,
-and go looking elsewhere. Somebody strong (7+) instead heaves the obstruction
-out along the wall and then goes through.
+either side, and both ways: it cannot be opened and it cannot be shut, and no
+number of clicks will move it. It happens by accident all the time — a kicked
+bin comes to rest in a gap, an office chair rolls into the one way out of the
+building — and people discover it exactly as they discover a locked door: they
+walk up, try it, and go looking elsewhere. Somebody strong (7+) instead heaves
+the obstruction out along the wall and then goes through, and somebody taking
+charge sends them at it, because a chair in a doorway is there for anybody to
+see and needs no memory of having tried the door.
+
+**You can see why a door will not open.** Point at a wedged door and the line
+at the top left says so, rather than letting the click look as though it did
+nothing.
 
 People also wedge doors **on purpose**. Somebody frightened (nervousness 7+),
 sheltering in a room, fetches the nearest thing they can lift, carries it to a
@@ -548,7 +584,10 @@ it back down.
   with six seconds of spray in it. Someone brave (7+) near a fire of no more
   than 24 squares, or someone kind (7+) who can see a person alight within
   8 m, fetches the nearest free bottle, carries it to about 2 m from what they
-  are fighting, and holds the trigger down. The jet is a 3 m, 30° cone: it
+  are fighting, and holds the trigger down. The jet works back and forth across what they are fighting rather than holding
+one line: the aim swings either side of the target over two and a half seconds,
+24° less 3° per point of strength, so an ordinary person wavers 9° either way and
+anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   puts a burning square out after 0.6 s on it (one square at a time), puts out
   burning things and people it covers, and knocks anyone standing in it
   backwards and onto the floor. A square that has been put out stays too wet
@@ -819,6 +858,9 @@ outlines, icons, floor ripples and the counter are observational
 presentation. They map logical millimetres to Unity metres and never write
 simulation state.
 
+A small panel at the bottom left **names every mark**, so the crowd can be read
+without being told what the symbols are.
+
 **Icons** sit on a per-person anchor that always faces the camera, so they
 never spin with the body or tip over when it falls:
 - a red `!` that pops in and fades over 1.3 s on every `AgentAlerted` and
@@ -835,10 +877,15 @@ A ring grows across the floor to the sound's reach and fades over half a
 second for every yell, collision, trip, door shove and hard box hit.
 
 Walls are built from the scenario's room and split around each door. A door
-leaf is hinged at one side of its gap and swings 90° outward over 0.3 s when
-the door opens; a strip of darker ground outside shows the doorway. A person
+leaf is hinged at one side of its gap and swings 90° over 0.3 s when the door
+opens, away from whoever pushed it — outward for the player, who is not standing
+anywhere. Each door also carries a setting for which ways its leaf may swing,
+both ways for now, so a later scene can author a one-way fire door; a strip of darker ground outside shows the doorway. A person
 shoving a door lunges at it on each shove. Boxes are brown cubes, 0.75 as tall
-as they are wide, that hop and tip a little when hit. The door leaves are the
+as they are wide, that hop and tip a little when hit. Anything drawn square is
+drawn to fit *inside* the round footprint the simulation keeps clear — a cube
+as wide as its footprint would stick its corners out by two fifths of a radius,
+which is what people passing through the corner of a box were seeing. The door leaves are the
 only objects with colliders, used only to work out which door was clicked.
 
 The runner keeps the latest and previous snapshots. The display blends between
@@ -852,6 +899,12 @@ hash of the cell's grid position, never from the simulation's random
 generator. The cubes (and people, doors and boxes) share materials, recoloured per object through
 a `MaterialPropertyBlock`. The camera is 45 degrees around the room and
 35.264 degrees above the ground, which gives a standard isometric view.
+
+**Seeing through smoke.** The puff of smoke a bang throws carries the same mark
+a wall does, so anybody behind it shows through it as a pale silhouette instead
+of disappearing into the cloud; the smoke and the sparks also show through walls
+the way the flames do. Today the only smoke is the puff from an explosion, so
+this is a small thing on screen until there is more of it.
 
 **Seeing through walls.** People and the objects they knock about are drawn
 twice: normally, and again as a pale blue silhouette wherever a wall or a door

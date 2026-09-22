@@ -116,9 +116,14 @@
                         return true;
                     }
 
-                    // Right beside it: they settle onto it, unless someone is
-                    // in the way of where they would end up.
-                    if (crowd.FindBlocking(agent, agent.Body.Position, seat) != null)
+                    // Right beside it: they settle onto it, unless someone — or
+                    // something — is in the way of where they would end up.
+                    // Settling is the one move that is not checked by the
+                    // movement rules, so a bag left beside the chair would
+                    // otherwise leave them standing inside it for good.
+                    if (crowd.FindBlocking(agent, agent.Body.Position, seat) != null ||
+                        objects.FindBlocking(agent.Body.Position, seat,
+                            context.Scenario.World.OccupancyRadiusMillimetres, chair) >= 0)
                     {
                         Forget(agent);
                         return false;
@@ -155,6 +160,12 @@
             agent.Body.Position = objects.PositionOf(chair);
             agent.Body.Speed = 0;
             objects.SitOn(chair, agent);
+
+            // And they scoot it in under the table as they settle, the mirror of
+            // the shove back that getting out of it gives. It stops against
+            // whatever is in front of it, so a chair at a table ends up tucked
+            // against it. They ride it in.
+            agent.Body.Position = objects.ScootIn(chair, settings.SitScootMillimetres, agent);
             agent.Sitting.OnIt = true;
             agent.Intent.Activity = AgentActivityState.Sitting;
 

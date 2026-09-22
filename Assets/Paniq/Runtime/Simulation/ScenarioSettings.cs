@@ -67,6 +67,27 @@ namespace Paniq.Simulation
         public int BurningScreamMinimumTicks = 25;
         public int BurningScreamMaximumTicks = 50;
 
+        /// <summary>
+        /// The chance, each time somebody alight would lurch off in a new
+        /// direction, that they throw themselves down and roll instead. About
+        /// one lurch in twenty-five. Over the ten or so lurches somebody has
+        /// before they collapse that is about two people in five who try it, so
+        /// most of them still just run, and going down stays a thing you notice.
+        /// </summary>
+        public int DropAndRollChancePercent = 4;
+
+        /// <summary>How long they roll before getting up (or being put out).</summary>
+        public int RollMinimumTicks = 60;
+        public int RollMaximumTicks = 120;
+
+        /// <summary>
+        /// The chance that a roll, once it has run its course, smothers the
+        /// flames. One draw at the end rather than one a tick, so this number is
+        /// the odds as written: a third of rolls save the person, which makes
+        /// going down plainly worth doing and plainly not a rescue.
+        /// </summary>
+        public int RollPutsOutChancePercent = 35;
+
         /// <summary>How long a square that has been put out stays too wet to catch again.</summary>
         public int DousedWetTicks = 1000;
 
@@ -92,6 +113,9 @@ namespace Paniq.Simulation
                              Settings.Range(BurningScreamMinimumTicks, BurningScreamMaximumTicks, 1) &&
                              BurningSpreadGapMillimetres >= 0 && Settings.Percent(BurningSpreadChancePercent) &&
                              DousedWetTicks >= 0 && DouseTicksPerCell >= 1, "burning people");
+            Settings.Require(Settings.Percent(DropAndRollChancePercent) &&
+                             Settings.Percent(RollPutsOutChancePercent) &&
+                             Settings.Range(RollMinimumTicks, RollMaximumTicks, 1), "stop, drop and roll");
         }
     }
 
@@ -395,6 +419,14 @@ namespace Paniq.Simulation
         public int DoorAvoidMaximumTicks = 600;
         public int DoorCrowdedAvoidMinimumTicks = 100;
         public int DoorCrowdedAvoidMaximumTicks = 200;
+
+        /// <summary>
+        /// How long somebody eases out of the crush when the door they are
+        /// queueing at is the building's only way out. A second: long enough to
+        /// let the press shuffle forward without them, short enough that they
+        /// are plainly still trying to get out rather than wandering off.
+        /// </summary>
+        public int OnlyWayOutCrowdedAvoidTicks = 50;
         public int GiveUpGlanceMinimumTicks = 15;
         public int GiveUpGlanceMaximumTicks = 30;
 
@@ -672,6 +704,15 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ExtinguisherSettings
     {
+        /// <summary>
+        /// How far either side of what they are aiming at somebody with no
+        /// strength at all waves the jet, and how much each point of strength
+        /// steadies it. At 24 less 3 a point, an ordinary person (5) swings 9
+        /// degrees either side and anybody 8 or stronger holds it dead straight.
+        /// </summary>
+        public int SweepDegrees = 24;
+        public int SweepDegreesPerStrengthPoint = 3;
+
         /// <summary>How many ticks of spray one bottle holds.</summary>
         public int FuelTicks = 300;
 
@@ -766,7 +807,7 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ObjectKindSettings
     {
-        public const int KindCount = 11;
+        public const int KindCount = 12;
 
         public PhysicsObjectKind Kind;
         public int FrictionPercent = 100;
@@ -831,7 +872,14 @@ namespace Paniq.Simulation
                 Popping(Entry(PhysicsObjectKind.Microwave, 150, 120, 60, 90), 2200, 70, 3),
 
                 // Bolted to the wall, so it never slides anywhere.
-                Popping(Entry(PhysicsObjectKind.WallSocket, 1000, 90, 40, 60), 1400, 55, 2)
+                Popping(Entry(PhysicsObjectKind.WallSocket, 1000, 90, 40, 60), 1400, 55, 2),
+
+                // What a collapsed table becomes: a heap of boards. It shifts
+                // when somebody puts their shoulder into it but slides nowhere
+                // on its own, and it never catches by itself — the table it came
+                // from keeps its own burning, so a heap that could also catch
+                // would burn the same wood twice.
+                Entry(PhysicsObjectKind.TableWreck, 250, 0, 0, 0)
             };
         }
 
@@ -889,6 +937,21 @@ namespace Paniq.Simulation
         /// </summary>
         public int TableBreakMomentum = 600;
 
+        /// <summary>
+        /// What the heap of boards a collapsed table becomes weighs. A desk is
+        /// 40 kg, so somebody strong can shoulder it out of a doorway but
+        /// nobody kicks it across the room.
+        /// </summary>
+        public int TableWreckMassGrams = 40000;
+
+        /// <summary>
+        /// How wide the heap is: half the table's short side, kept between these.
+        /// A desk leaves something the size of a person to walk round; the
+        /// meeting table leaves a little more, without walling the room in two.
+        /// </summary>
+        public int TableWreckMinimumSizeMillimetres = 350;
+        public int TableWreckMaximumSizeMillimetres = 500;
+
         /// <summary>Ticks of heat before each kind catches fire.</summary>
         public int BoxIgniteTicks = 75;
         public int ChairIgniteTicks = 150;
@@ -934,7 +997,9 @@ namespace Paniq.Simulation
                              Settings.Range(ChairBurnMinimumTicks, ChairBurnMaximumTicks, 1) &&
                              Settings.Range(TableBurnMinimumTicks, TableBurnMaximumTicks, 1), "burn times");
             Settings.Require(FloorIgniteRestTicks >= 1 && TouchGapMillimetres >= 0, "burning things");
-            Settings.Require(TableBreakMomentum >= 0, "table strength");
+            Settings.Require(TableBreakMomentum >= 0 && TableWreckMassGrams > 0 &&
+                             TableWreckMinimumSizeMillimetres > 0 &&
+                             TableWreckMaximumSizeMillimetres >= TableWreckMinimumSizeMillimetres, "table strength");
             Settings.Require(Kinds != null && Kinds.Length == ObjectKindSettings.KindCount, "one entry per kind of object");
             for (int i = 0; i < Kinds.Length; i++)
             {
@@ -951,6 +1016,13 @@ namespace Paniq.Simulation
         /// <summary>The heaviest item someone can lift: this much, plus the next value per strength point.</summary>
         public int CarryBaseGrams = 5000;
         public int CarryGramsPerStrength = 2500;
+
+        /// <summary>
+        /// How far somebody settling into a chair scoots it in under the table.
+        /// Matched to the shove back they give it getting out, so the chair ends
+        /// a sit roughly where it started one.
+        /// </summary>
+        public int SitScootMillimetres = 120;
 
         /// <summary>A load as heavy as their limit slows a carrier by this percentage (lighter loads less).</summary>
         public int CarrySlowdownPercent = 40;

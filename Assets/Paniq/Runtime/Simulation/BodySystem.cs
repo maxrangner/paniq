@@ -175,6 +175,23 @@ namespace Paniq.Simulation
 
             agent.Burning.IsBurning = false;
             agent.Burning.EventId = 0UL;
+            agent.Burning.RollingUntilTick = 0;
+
+            // The flames are out, so they are not "burning" any more — and
+            // without this they were left in that activity for good, neither
+            // alight nor doing anything else. Whoever they were before the fire
+            // caught them, they are again: the frozen go back to staring, and
+            // everybody else looks for a way out on the next tick.
+            if (agent.Intent.Activity == AgentActivityState.Burning)
+            {
+                // Somebody whose freeze had not run out when the fire caught
+                // them goes back to staring at it; everybody else runs.
+                bool stillFrozen = agent.Personality.Temperament != AgentPanicTemperament.Runner &&
+                                   context.Tick < agent.Fear.FreezeEndTick;
+                agent.Intent.Activity = stillFrozen ? AgentActivityState.Frozen : AgentActivityState.Fleeing;
+                agent.Intent.NextPanicDecisionTick = context.Tick;
+            }
+
             context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentDoused,
                 agent.Body.Position, 0, 0, causeEventId, agent.Id);
         }
@@ -207,6 +224,26 @@ namespace Paniq.Simulation
                 causalParentEventId);
             PutDown(agent, AgentBodyState.Fallen, duration, trip.EventId);
             sound.Thud(agent.Id, agent.Body.Position, trip.EventId);
+        }
+
+        /// <summary>
+        /// Somebody on fire throws themselves down and rolls. It is not a fall:
+        /// nobody knocked them over, it makes no thud for anyone to turn toward,
+        /// and it is the one thing on the floor that can put a person out.
+        /// </summary>
+        public void DropAndRoll(Agent agent, int duration, ulong causalParentEventId)
+        {
+            CausalEvent rolled = context.Events.Append(
+                context.Tick,
+                agent.Id,
+                FireReactionEventType.AgentRolled,
+                agent.Body.Position,
+                0,
+                duration,
+                causalParentEventId);
+            agent.Burning.RollingUntilTick = checked(context.Tick + duration);
+            agent.Burning.RollEventId = rolled.EventId;
+            PutDown(agent, AgentBodyState.Fallen, duration, rolled.EventId);
         }
 
         private void PutDown(Agent agent, AgentBodyState state, int duration, ulong eventId)

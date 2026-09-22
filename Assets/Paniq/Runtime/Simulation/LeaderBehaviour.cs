@@ -94,8 +94,16 @@
             long bestDistance = long.MaxValue;
             for (int d = 0; d < doors.Count; d++)
             {
-                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) || !leader.Doors.FoundShut[d] ||
-                    !geometry.DoorTouchesRoom(d, room))
+                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) || !geometry.DoorTouchesRoom(d, room))
+                {
+                    continue;
+                }
+
+                // A way out they have tried themselves and found shut, or one
+                // with something plainly wedged in it. A jam needs no personal
+                // memory: anybody in the room can see the chair in the doorway,
+                // and it is exactly the sort of thing somebody takes charge of.
+                if (!leader.Doors.FoundShut[d] && !doors.IsObstructed(d))
                 {
                     continue;
                 }
@@ -113,7 +121,12 @@
                 return false;
             }
 
-            Agent breaker = NearbyBest(leader, settings.OrderRangeMillimetres, out _, IsStrongEnoughToBreakDoors);
+            // Heaving a bin out of a doorway asks less of somebody than taking a
+            // locked door off its hinges, so a wedged door takes whoever can
+            // shift it rather than only the very strongest.
+            bool wedged = doors.IsObstructed(door);
+            Agent breaker = NearbyBest(leader, settings.OrderRangeMillimetres, out _,
+                wedged ? (System.Func<Agent, bool>)IsStrongEnoughToShiftAnObstruction : IsStrongEnoughToBreakDoors);
             if (breaker == null)
             {
                 return false;
@@ -327,6 +340,11 @@
         public static bool IsUnderOrdersAtThisDoor(Agent agent, int door, int tick)
         {
             return agent.Leading.OrderedDoor == door && tick < agent.Leading.OrderedUntilTick;
+        }
+
+        private bool IsStrongEnoughToShiftAnObstruction(Agent agent)
+        {
+            return agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength;
         }
 
         private bool IsStrongEnoughToBreakDoors(Agent agent)

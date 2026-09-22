@@ -256,6 +256,10 @@ namespace Paniq.Presentation
             {
                 GameObject spark = CreatePrimitive($"Spark {i + 1}", PrimitiveType.Cube, root, Vector3.zero,
                     Vector3.one * 0.07f, materials.Fire);
+
+                // A bang in the next room shows through the wall, the way the
+                // flames themselves do.
+                ShowFireThroughWalls(spark, materials);
                 burst.Sparks[i] = spark.transform;
                 burst.SparkRenderers[i] = spark.GetComponent<Renderer>();
             }
@@ -266,6 +270,14 @@ namespace Paniq.Presentation
             {
                 GameObject puff = CreatePrimitive($"Smoke {i + 1}", PrimitiveType.Sphere, root, Vector3.zero,
                     Vector3.one, materials.Icon);
+
+                // Smoke hides people the way a wall does, so it gets the same
+                // mark a wall carries: anybody behind it shows through it as a
+                // pale silhouette instead of disappearing into the cloud. It
+                // also shows through walls itself, so a bang two rooms away
+                // still reads.
+                MarkAsWall(puff, materials);
+                ShowFireThroughWalls(puff, materials);
                 burst.Smoke[i] = puff.transform;
                 burst.SmokeRenderers[i] = puff.GetComponent<Renderer>();
             }

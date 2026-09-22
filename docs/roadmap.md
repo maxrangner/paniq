@@ -118,6 +118,10 @@ still picks each stone after playing the one before it.
   the rest up *and* down. Almost no new behaviour is required — the behaviours
   already read these traits.
 - **The Director.** The background system that adds and eases pressure.
+- **A camera the player drives.** Moving, rotating a quarter turn at a time
+  and zooming, per [look and controls](look-and-controls.md). The camera is
+  fixed today, which stops being acceptable the moment a level is bigger
+  than one screen.
 - **Pause to look.** Time stops and the camera moves, but nothing can be
   spent or played while paused.
 - **A staged level**, big enough that calm people are always on screen

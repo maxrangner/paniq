@@ -122,6 +122,9 @@ turns the camera. This makes audio a navigation system rather than decoration,
 and it is the single largest gap between what the simulation already knows and
 what the player currently receives.
 
+How the player drives the camera, and how the game is meant to look while they
+do it, are in [look and controls](look-and-controls.md).
+
 Because things will be missed, the **end screen carries the weight**: it
 freezes the scene and can be clicked for the facts about any person. A
 plain-language retelling of what happened out of sight is a later feature, and
@@ -228,6 +231,8 @@ treated as settled.
 - Specific disasters, locations, and the order levels are played in.
 - Whether the player knows individuals by name, or the crowd stays anonymous.
 - Audio design beyond the decision that sound replaces helper markers.
+- The models themselves, and the concept art that will pin them down; the
+  style they sit in is settled in [look and controls](look-and-controls.md).
 - Exact Influence numbers, card list, crowd size, and level size.
 - Relationships between people, and which information is hidden from the player.
 

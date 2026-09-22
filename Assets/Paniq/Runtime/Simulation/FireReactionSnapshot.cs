@@ -129,10 +129,13 @@ namespace Paniq.Simulation
     public readonly struct FireReactionDoorSnapshot
     {
         public FireReactionDoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state,
-            int damagePercent, bool isHole = false, bool isBlocked = false, bool leadsOutside = false)
+            int damagePercent, bool isHole = false, bool isBlocked = false, bool leadsOutside = false,
+            int openSide = 0, bool isJammed = false)
         {
             IsHole = isHole;
             IsBlocked = isBlocked;
+            OpenSide = openSide;
+            IsJammed = isJammed;
             LeadsOutside = leadsOutside;
             DamagePercent = damagePercent;
             DoorId = doorId;
@@ -160,8 +163,20 @@ namespace Paniq.Simulation
         /// </summary>
         public bool IsHole { get; }
 
-        /// <summary>Something is wedged in the gap, so the door will not budge either way.</summary>
+        /// <summary>Something is wedged in the gap, on one side of it or both.</summary>
         public bool IsBlocked { get; }
+
+        /// <summary>
+        /// Wedged so that the leaf cannot swing either way: this door really will
+        /// not open, and a click on it does nothing until the obstruction shifts.
+        /// </summary>
+        public bool IsJammed { get; }
+
+        /// <summary>
+        /// Which way the leaf stands open: +1 out of the room whose wall holds
+        /// it, -1 into that room, 0 while it is shut.
+        /// </summary>
+        public int OpenSide { get; }
 
         /// <summary>It leads out of the building rather than into the next room.</summary>
         public bool LeadsOutside { get; }

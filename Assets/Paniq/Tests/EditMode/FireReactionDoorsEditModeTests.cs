@@ -357,6 +357,103 @@ namespace Paniq.Tests.EditMode
         /// office has none of its own, and these tests are about how a door
         /// behaves rather than about the floor plan, so they bring their own.
         /// </summary>
+        /// <summary>
+        /// The owner's rule: with an unobstructed way out standing open, most
+        /// people trying to escape should be heading for it. Somebody stuck in a
+        /// queue behind somebody else still counts — being obstructed is the
+        /// other half of the game. So the excuses are all switched off here:
+        /// nobody freezes, nobody turns back to help, nobody fights the fire.
+        /// What is left is willingness, and nearly all of it should point at the
+        /// door.
+        /// </summary>
+        [Test]
+        public void WithAWayOutOpen_NearlyEverybodyHeadsForIt()
+        {
+            FireReactionScenarioData data = WithAWayOutOfTheOffice(DefaultData(), startsLocked: false);
+
+            // Eight ordinary people spread down the office, all of whom can see
+            // the fire when it starts.
+            var crowd = new List<FireReactionAgentDefinition>();
+            ulong id = 1UL;
+            for (int x = -4000; x <= 4000; x += 2000)
+            {
+                crowd.Add(new FireReactionAgentDefinition(new SimulationId(id++), new LogicalPosition(x, 2500),
+                    CardinalDirection.South, AgentTraitValues.AllOrdinary));
+            }
+
+            for (int x = -3000; x <= 3000; x += 2000)
+            {
+                crowd.Add(new FireReactionAgentDefinition(new SimulationId(id++), new LogicalPosition(x, 4000),
+                    CardinalDirection.South, AgentTraitValues.AllOrdinary));
+            }
+
+            data.Agents = crowd.ToArray();
+            data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
+            data.Tables = new FireReactionTableDefinition[0];
+            data.Alarms = new FireReactionAlarmDefinition[0];
+            data.Temperament.FreezeForeverPercent = 0;
+            data.Temperament.FreezeThenRunPercent = 0;
+            data.Help.ShakeMinimumCompassion = AgentTraitValues.Maximum + 1;
+            data.Help.DragMinimumCompassion = AgentTraitValues.Maximum + 1;
+            data.Extinguishers.FightMinimumBravery = AgentTraitValues.Maximum + 1;
+            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Fire.ActivationTick = 1;
+            data.Fire.SpawnBounds = new LogicalBounds(0, 0, -1000, -1000);
+            data.Fire.SpreadMinimumTicks = 2000;
+            data.Fire.SpreadMaximumTicks = 3000;
+
+            var simulation = new FireReactionSimulation(data);
+
+            // The player throws the door open, so there is nothing to work out
+            // and nothing in the way: just a way out, standing open.
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, NorthDoor, 2);
+            int wayOut = -1;
+            for (int d = 0; d < simulation.DoorCount; d++)
+            {
+                if (simulation.GetDoor(d).DoorId == NorthDoor)
+                {
+                    wayOut = d;
+                }
+            }
+
+            Assert.That(wayOut, Is.GreaterThanOrEqualTo(0));
+            for (int t = 0; t < 10 * FireReactionSimulation.TicksPerSecond; t++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(simulation.GetDoor(wayOut).State, Is.EqualTo(DoorState.Open), "The way out should be open.");
+
+            int frightened = 0;
+            int heading = 0;
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                FireReactionAgentSnapshot person = simulation.GetAgent(i);
+
+                // Somebody already outside was plainly heading for it, so they
+                // count on both sides rather than quietly leaving the sum.
+                if (person.Outcome == AgentTerminalOutcome.Escaped)
+                {
+                    frightened++;
+                    heading++;
+                    continue;
+                }
+
+                if (person.Participation != AgentParticipation.Participating ||
+                    person.FearState != AgentFearState.Scared || person.IsDown || person.IsBurning)
+                {
+                    continue;
+                }
+
+                frightened++;
+                heading += simulation.IsHeadingForWayOut(person.AgentId, wayOut) ? 1 : 0;
+            }
+
+            Assert.That(frightened, Is.GreaterThan(4), "Hardly anybody was frightened, so this proves nothing.");
+            Assert.That(heading * 4, Is.GreaterThanOrEqualTo(frightened * 3),
+                $"Only {heading} of {frightened} frightened people were heading for the open way out.");
+        }
+
         internal static FireReactionScenarioData WithAWayOutOfTheOffice(
             FireReactionScenarioData data, bool startsLocked = true)
         {

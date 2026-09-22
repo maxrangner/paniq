@@ -273,6 +273,26 @@ namespace Paniq.Simulation
 
         public FireReactionAgentSnapshot GetAgent(int index) => agents[index].ToSnapshot();
 
+        /// <summary>
+        /// Whether this person is on their way to the given way out: it is the
+        /// one at the end of the route they picked, and they have a door to head
+        /// through next. Being stuck in a queue still counts — this asks what
+        /// they are trying to do, not whether they are managing it.
+        /// </summary>
+        public bool IsHeadingForWayOut(SimulationId id, int wayOutDoorIndex)
+        {
+            for (int i = 0; i < agents.Length; i++)
+            {
+                if (agents[i].Id == id)
+                {
+                    return agents[i].Doors.WayOutDoorIndex == wayOutDoorIndex &&
+                           agents[i].Doors.ExitDoorIndex >= 0;
+                }
+            }
+
+            return false;
+        }
+
         public FireReactionAgentSnapshot GetAgent(SimulationId id)
         {
             for (int i = 0; i < agents.Length; i++)
@@ -407,6 +427,7 @@ namespace Paniq.Simulation
             locomotion.ResolveMovement();
             help.MoveDragged(agents);
             items.FollowCarriers(agents);
+            burning.RollToPutItOut();
             burning.SpreadFlames();
             doorBehaviour.ResolveRoomChangesAndEscapes();
             help.ResolveRescues(agents);
@@ -415,6 +436,13 @@ namespace Paniq.Simulation
             objects.Advance();
             flammables.Update();
             doors.ResolveBlockages();
+
+            // Last of all, once the tick has settled: anybody who could have
+            // seen or heard a door open this tick thinks again on the next one.
+            // Here for the same reason the blockages are worked out here — the
+            // next tick's decisions read one settled answer instead of one that
+            // changes as the door swings.
+            doorBehaviour.AnnounceWaysOut();
             CreditInfluenceForPeopleSaved();
         }
 

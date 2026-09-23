@@ -1,4 +1,4 @@
-using Paniq.Gameplay;
+﻿using Paniq.Gameplay;
 using UnityEditor;
 using UnityEngine;
 
@@ -35,10 +35,13 @@ namespace Paniq.EditorTools
                 return;
             }
 
-            // A batch-mode run (tools/RunEditModeTests.ps1, CI) has nobody to
-            // click a dialog: asking would just hang. Only the interactive
-            // editor menu confirms first.
-            if (!Application.isBatchMode && !EditorUtility.DisplayDialog(
+            // A batch-mode run (tools/RunEditModeTests.ps1, CI) and a run the
+            // test bridge asked for both have nobody to click a dialog, and a
+            // modal dialog freezes the whole editor rather than just this
+            // command. Only the interactive editor menu confirms first.
+            bool somebodyIsThere = !Application.isBatchMode &&
+                                   !SessionState.GetBool("Paniq.NobodyIsHereToAsk", false);
+            if (somebodyIsThere && !EditorUtility.DisplayDialog(
                     "Rewrite scenario asset?",
                     "This replaces every value in the scenario asset with the defaults written in the code. " +
                     "Anything changed by hand in the Inspector will be lost.",

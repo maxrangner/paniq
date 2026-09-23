@@ -211,6 +211,22 @@ behalf and are recorded here so they can be overturned.
 | Compatibility version 39 | Bumped from 38, content revision 46 to 47, and all ten replay fingerprints re-recorded | Six of the rows above change what a run produces. Done in the same commit, as [the workflow](development-workflow.md) requires | Every behaviour change; the procedure is the point, not this instance |
 
 
+## Prototype 2 decision: a camera you can swing, and the log that never opened
+
+Chosen on 2026-09-23 on the owner's behalf, after the owner asked for a camera
+that turns under the mouse. None of these is a rule the simulation obeys, so
+none of them touches a replay: this is all presentation.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| Free rotation, kept | Holding the **right mouse button** and dragging swings the view to any angle. Letting go does **not** spring back to a corner | The view could only sit at one of four corners, so anything behind a wall could not be leaned around — the nearest corner was as close as the player could get. Springing back on release would undo the one thing the drag is for | The owner finds the view drifting off-square annoying in ordinary play, in which case a gentle pull back toward the nearest corner after a pause is the smaller fix |
+| A drag is a quarter of a degree per pixel | `CameraRig.DegreesPerDragPixel = 0.25f` — a full turn is about a screen and a half of pointer travel | Fine enough to aim at one desk, coarse enough that turning right round is not a chore. Chosen by feel, not measured | Playtesters overshoot constantly, or say turning round takes too long |
+| Q and E measure from where the view is **going** | Each press lands on the next corner view round — `45 + 90n` — measured from the angle the view is easing toward rather than the angle it has reached | Measuring from the shown angle loses the second of two quick taps to the first one's travel, so a double tap turned one corner and a bit instead of two | Never, while the view eases at all |
+| Five pixels tells a click from a drag | A right button that travelled under `CameraRig.DragPixels = 5f` before coming back up is a click and puts the card down; more than that is a turn and leaves the card in hand. The card is dropped on **release**, not on press | The right button already meant "put the card down", and a drag that also threw the card away would be unusable. At the moment of pressing nobody yet knows which one it is, so the decision has to wait for the button to come back up | A shaky hand drops cards it meant to keep, or a small deliberate nudge of the view throws one away |
+| The zoom tilt waits until halfway | The camera holds the isometric 35.264 degrees for the first half of the wheel's travel and eases the whole way to 18 degrees over the second half, smoothed at both ends (`CameraRig.SwoopAt`) | The tilt used to start at the first notch, so a single click of the wheel both moved and tipped the view and read as a lurch rather than a step closer. Coming straight in first makes a small zoom feel like a small zoom | Playtests say the swoop is too sudden when it does arrive, which would move the halfway point rather than change the shape |
+| The round read-back is owned by the presentation | `RoundScreens` sets `WantsTheLog`; `FireReactionPrototypePresentation` takes it, clears it, opens `EventLogScreen` and draws it last | The flag was set and never read, so the end card's **What happened** button did nothing at all. Drawing it last is what puts the story over the end card rather than under it | A second screen wants the same treatment, at which point the request flag becomes a small stack |
+| The log is for looking, not acting | While the log is up the pointer reaches nothing in the run, and Escape closes it | The same rule pause already follows, and a click meant for the list should never also unlock a door behind it | Never |
+
 ## How decisions are made
 
 Paniq's owner is learning game development, so technical decisions must remain

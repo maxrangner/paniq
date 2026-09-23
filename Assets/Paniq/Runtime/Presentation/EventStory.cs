@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Paniq.Simulation;
 
 namespace Paniq.Presentation
@@ -71,6 +71,17 @@ namespace Paniq.Presentation
                 default:
                     return false;
             }
+        }
+
+        /// <summary>
+        /// The number drawn over this person's head, or nothing if the ID is
+        /// not a person's. Shared with anything else that names people, so the
+        /// "3" on a pop-up sign and the "person 3" in the log are the same
+        /// person the player has been watching.
+        /// </summary>
+        public int? NumberOf(SimulationId id)
+        {
+            return personNumbers.TryGetValue(id.Value, out int number) ? number : (int?)null;
         }
 
         /// <summary>The tick as a clock reading, counted from the start of the run.</summary>

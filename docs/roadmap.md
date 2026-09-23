@@ -195,6 +195,31 @@ number is a personal high-water mark the owner asked for, not a league table,
 and [game vision](game-vision.md) still holds that understanding a run is the
 real progression.
 
+## Prototype 2, second pass: feel
+
+Started 2026-09-23, after the owner played the round and asked for a camera
+that turns under the mouse, people who look like they are walking, and some
+way of knowing *why* something happened while it was happening rather than
+afterwards.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| The read-back actually opens | System | **What happened** on the end card opens the round's story. It was written, and the button was wired to ask for it, but nothing ever answered -- so pressing it did nothing at all |
+| A camera you can swing | Style | Hold the right mouse button and drag, and the building turns under the pointer to any angle you like, staying where you let go. Q and E still snap a quarter turn, now from wherever you are looking. The wheel comes straight in for the first half of its travel and only then swoops down to look along the carpet |
+| People waddle | Style | People rock and twist from foot to foot as they walk, like somebody play-walking a doll across a table. They used to slide like chess pieces. A shuffle barely moves; a panicked run is all shoulders |
+| Little signs say why | Style | The moment somebody catches fire, goes down in a crush or gives up on a door, a small cardboard sign pops up beside them saying so, with an arrow pointing at whatever caused it. It fades in under two seconds. The end card's list is still where the detail lives |
+
+**What this pass deliberately left out.** The signs name the moment, not the
+meaning -- "no way through!" rather than "the only other way out was already
+alight". The plain-language *retelling* the [game vision](game-vision.md)
+asks for is still ahead. Nothing here touches the simulation, so no replay
+moved and no version was bumped.
+
+**One thing to watch at the next playtest.** Four signs at once is the cap,
+and the same person cannot have a second inside about a second and a half.
+In a bad crush that will throw some of them away. Whether the ones kept are
+the ones worth keeping is a question only playing it answers.
+
 ## Agreed direction for the next stones
 
 Settled with the owner in a design review (see [game vision](game-vision.md)

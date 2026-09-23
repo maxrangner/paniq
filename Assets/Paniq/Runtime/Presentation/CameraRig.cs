@@ -5,11 +5,21 @@ namespace Paniq.Presentation
 {
     /// <summary>
     /// The camera the player drives, built to
-    /// <c>docs/look-and-controls.md</c>: the building is always seen from a
-    /// corner, W A S D slide the view across it, Q and E swing a quarter turn
-    /// to the next corner, and the wheel zooms while tilting the camera as it
-    /// goes -- further out looks down on the building, closer looks along the
-    /// floor.
+    /// <c>docs/look-and-controls.md</c>: W A S D slide the view across the
+    /// building, holding the right mouse button and dragging swings it to any
+    /// angle at all, Q and E snap a quarter turn to the next corner from
+    /// wherever it happens to be pointing, and the wheel zooms.
+    /// <para>
+    /// A drag does not spring back when it is let go. The four corners are
+    /// still there as somewhere tidy to land, but they are no longer the only
+    /// places the view can be.
+    /// </para>
+    /// <para>
+    /// The zoom tilts the camera as well, but not straight away: the first
+    /// half of the wheel's travel comes straight in from the isometric angle,
+    /// and only past halfway does the view swoop down to look along the floor.
+    /// Tilting from the very first notch made a small zoom feel like a lurch.
+    /// </para>
     /// <para>
     /// The rig owns where the camera rests. A bang adds a shake on top of
     /// that rest position rather than writing the transform itself, so the two
@@ -34,6 +44,27 @@ namespace Paniq.Presentation
         private const float PanMetresPerSecond = 14f;
         private const float ZoomPerWheelNotch = 0.12f;
 
+        /// <summary>
+        /// How far the view swings for each pixel the pointer is dragged. A
+        /// whole turn takes about a screen and a half of travel, which is
+        /// enough to aim finely without becoming a chore.
+        /// </summary>
+        private const float DegreesPerDragPixel = 0.25f;
+
+        /// <summary>
+        /// How far the pointer has to travel with the right button down before
+        /// it counts as turning the view rather than clicking. Below this a
+        /// right click still means "put the card down", which is what it has
+        /// always meant.
+        /// </summary>
+        private const float DragPixels = 5f;
+
+        /// <summary>
+        /// How much of the wheel's travel is spent coming straight in before
+        /// the camera starts tipping toward the floor.
+        /// </summary>
+        private const float ZoomBeforeTheSwoop = 0.5f;
+
         /// <summary>How far past the building's edge the player may push the view.</summary>
         private const float PanMarginMetres = 8f;
 
@@ -53,9 +84,13 @@ namespace Paniq.Presentation
         /// <summary>The orthographic size that frames the whole building.</summary>
         private readonly float framedSize;
 
-        /// <summary>Which corner the view is from, and which it is heading for.</summary>
-        private int corner;
+        /// <summary>Where the view is pointing, and where it is heading for.</summary>
         private float yaw;
+        private float targetYaw = YawFor(0);
+
+        /// <summary>The right-button drag in progress, and how far it has travelled.</summary>
+        private bool dragging;
+        private float dragTravel;
 
         /// <summary>0 is the whole building in view, 1 is as close as it goes.</summary>
         private float zoom;
@@ -94,13 +129,21 @@ namespace Paniq.Presentation
             // fades into at its foot.
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.10f, 0.11f, 0.14f);
-            yaw = YawFor(corner);
+            yaw = targetYaw;
             shownZoom = zoom;
             Place();
         }
 
         /// <summary>The camera's resting place, for a shake to be added on top of.</summary>
         public Vector3 Rest { get; private set; }
+
+        /// <summary>
+        /// Whether the right button is being used to swing the view rather
+        /// than to click. A card in hand is put down by a right <em>click</em>,
+        /// so whoever reads the pointer has to be able to tell the two apart --
+        /// otherwise every drag would also throw the card away.
+        /// </summary>
+        public bool IsTurningTheView => dragging && dragTravel >= DragPixels;
 
         /// <summary>
         /// One frame of the player's camera keys. <paramref name="shake"/> is
@@ -112,10 +155,12 @@ namespace Paniq.Presentation
             float delta = Time.unscaledDeltaTime;
             ReadKeys(delta);
             ReadWheel();
+            ReadDrag();
 
             float blend = 1f - Mathf.Exp(-Settle * delta);
-            yaw = Mathf.LerpAngle(yaw, YawFor(corner), blend);
+            yaw = Mathf.LerpAngle(yaw, targetYaw, blend);
             shownZoom = Mathf.Lerp(shownZoom, zoom, blend);
+            KeepTheAnglesSmall();
             Place();
             camera.transform.position = Rest + shake;
         }
@@ -151,13 +196,89 @@ namespace Paniq.Presentation
 
             if (keyboard.qKey.wasPressedThisFrame)
             {
-                corner--;
+                StepToTheNextCorner(-1);
             }
 
             if (keyboard.eKey.wasPressedThisFrame)
             {
-                corner++;
+                StepToTheNextCorner(1);
             }
+        }
+
+        /// <summary>
+        /// Swings to the next corner view round from wherever the view is
+        /// heading. Measured from where it is <em>going</em> rather than where
+        /// it has got to, so tapping the key twice quickly turns two corners
+        /// instead of losing the second tap to the first one's travel.
+        /// </summary>
+        internal void StepToTheNextCorner(int direction)
+        {
+            // The corner views are the whole numbers on this scale.
+            float where = (targetYaw - 45f) / 90f;
+            float next = direction > 0 ? Mathf.Floor(where + 1f) : Mathf.Ceil(where - 1f);
+            targetYaw = YawFor(Mathf.RoundToInt(next));
+        }
+
+        /// <summary>
+        /// One frame of a right-button drag. While the button is down the view
+        /// follows the hand exactly, with no easing at all: a view that lagged
+        /// behind the pointer felt like dragging something heavy through mud.
+        /// </summary>
+        private void ReadDrag()
+        {
+            Mouse mouse = Mouse.current;
+            if (mouse == null)
+            {
+                dragging = false;
+                return;
+            }
+
+            if (mouse.rightButton.wasPressedThisFrame)
+            {
+                dragging = true;
+                dragTravel = 0f;
+            }
+
+            if (dragging && mouse.rightButton.isPressed)
+            {
+                Vector2 moved = mouse.delta.ReadValue();
+                dragTravel += moved.magnitude;
+                Turn(moved.x * DegreesPerDragPixel);
+            }
+
+            if (mouse.rightButton.wasReleasedThisFrame)
+            {
+                dragging = false;
+            }
+        }
+
+        /// <summary>
+        /// Swings the view by this much at once. Both the shown angle and the
+        /// one being eased toward move together, so letting go of a drag
+        /// leaves the view exactly where the hand put it rather than easing
+        /// on somewhere else afterwards.
+        /// </summary>
+        internal void Turn(float degrees)
+        {
+            targetYaw += degrees;
+            yaw += degrees;
+        }
+
+        /// <summary>
+        /// Drags add up, so after enough of them the angles would be thousands
+        /// of degrees and start to lose their precision. Both are shifted by
+        /// the same whole number of turns, which leaves the view untouched.
+        /// </summary>
+        private void KeepTheAnglesSmall()
+        {
+            if (targetYaw >= -360f && targetYaw <= 360f)
+            {
+                return;
+            }
+
+            float whole = Mathf.Floor(targetYaw / 360f) * 360f;
+            targetYaw -= whole;
+            yaw -= whole;
         }
 
         private void ReadWheel()
@@ -180,7 +301,7 @@ namespace Paniq.Presentation
         /// <summary>Puts the camera where the corner, the zoom and the focus say it goes.</summary>
         private void Place()
         {
-            float pitch = Mathf.Lerp(IsometricPitch, ClosePitch, shownZoom);
+            float pitch = Mathf.Lerp(IsometricPitch, ClosePitch, SwoopAt(shownZoom));
             camera.orthographicSize = Mathf.Lerp(framedSize, framedSize * CloseSizeFraction, shownZoom);
 
             var rotation = Quaternion.Euler(pitch, yaw, 0f);
@@ -194,7 +315,24 @@ namespace Paniq.Presentation
             camera.farClipPlane = back * 2f + 200f;
         }
 
-        /// <summary>The four corners: 45 degrees around from each other, so two walls recede either way.</summary>
+        /// <summary>The four corners: 90 degrees around from each other, so two walls recede either way.</summary>
         private static float YawFor(int corner) => 45f + 90f * corner;
+
+        /// <summary>
+        /// How far through the tilt the camera is at this much zoom. Flat at
+        /// nothing for the first half of the wheel's travel -- the view simply
+        /// comes straight in -- and then eased the whole way down over the
+        /// second half, so the swoop starts and ends without a kink in it.
+        /// </summary>
+        internal static float SwoopAt(float zoom)
+        {
+            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(ZoomBeforeTheSwoop, 1f, zoom));
+        }
+
+        /// <summary>The view's angle right now, for a test to check a turn landed.</summary>
+        internal float Yaw => yaw;
+
+        /// <summary>Where the view is swinging to, for a test to check a turn was asked for.</summary>
+        internal float TargetYaw => targetYaw;
     }
 }

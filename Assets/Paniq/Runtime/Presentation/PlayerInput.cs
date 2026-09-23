@@ -90,7 +90,13 @@ namespace Paniq.Presentation
         /// still tells the player what is under it, but nothing they press
         /// reaches the run: pause is for looking, not for acting.
         /// </param>
-        public void Update(Camera camera, FireReactionSnapshot snapshot, bool lookOnly = false)
+        /// <param name="turningTheView">
+        /// The right button is being dragged to swing the camera. The right
+        /// button also puts a card back down, so without knowing this every
+        /// swing of the view would throw away whatever was in hand.
+        /// </param>
+        public void Update(Camera camera, FireReactionSnapshot snapshot, bool lookOnly = false,
+            bool turningTheView = false)
         {
             HoveredDoor = null;
             HoveredPerson = null;
@@ -103,7 +109,7 @@ namespace Paniq.Presentation
             }
             else
             {
-                ReadKeys();
+                ReadKeys(turningTheView);
             }
 
             Mouse mouse = Mouse.current;
@@ -167,8 +173,17 @@ namespace Paniq.Presentation
             }
         }
 
-        /// <summary>Number keys pick a card up; Escape or right click puts it down again.</summary>
-        private void ReadKeys()
+        /// <summary>
+        /// Number keys pick a card up; Escape or a right click puts it down
+        /// again.
+        /// <para>
+        /// The card is dropped on the right button being <em>released</em>
+        /// rather than pressed, because at the moment of pressing nobody yet
+        /// knows whether this is a click or the start of a drag that swings
+        /// the camera. By the time it comes back up, they do.
+        /// </para>
+        /// </summary>
+        private void ReadKeys(bool turningTheView)
         {
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null)
@@ -193,9 +208,10 @@ namespace Paniq.Presentation
                 Pick(3);
             }
 
-            bool cancelled = keyboard.escapeKey.wasPressedThisFrame ||
-                             (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame);
-            if (cancelled)
+            bool rightClicked = Mouse.current != null &&
+                                Mouse.current.rightButton.wasReleasedThisFrame &&
+                                !turningTheView;
+            if (keyboard.escapeKey.wasPressedThisFrame || rightClicked)
             {
                 SelectedCard = null;
             }

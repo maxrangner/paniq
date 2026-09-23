@@ -33,6 +33,13 @@ namespace Paniq.Presentation
         private SprayView spray;
         private NavigationGridView navigationGrid;
         private PopBursts pops;
+        private EventSigns signs;
+
+        /// <summary>
+        /// Who is who, for the signs. Built from the first snapshot, because
+        /// nobody joins or leaves a run once it has started.
+        /// </summary>
+        private EventStory story;
         private ParticleEffects effects;
         private PlayerInput input;
         private CameraRig cameraRig;
@@ -81,6 +88,7 @@ namespace Paniq.Presentation
                 ripples = new SoundRipples(materials.Icon, root);
                 spray = new SprayView(effects);
                 pops = new PopBursts(materials, effects, root);
+                signs = new EventSigns(materials, root);
                 input = new PlayerInput(runner, room);
 
                 // Off until G is pressed: the floor painted square by square
@@ -165,7 +173,8 @@ namespace Paniq.Presentation
             // Pause to look, not to act: while a card is up or the world is
             // stopped, the pointer still hovers but no click reaches the run.
             input.Update(prototypeCamera, frameSnapshot,
-                runner.IsPaused || screens.CardIsUp || log.IsOpen);
+                runner.IsPaused || screens.CardIsUp || log.IsOpen,
+                cameraRig.IsTurningTheView);
             hoveredDoor = input.HoveredDoor;
             Keyboard keyboard = Keyboard.current;
 
@@ -201,6 +210,7 @@ namespace Paniq.Presentation
             room.UpdateHoles(frameSnapshot);
             boxes.Update(frameSnapshot, previous, blend, time);
             ripples.Update(time);
+            signs.Update(time, prototypeCamera.transform.rotation);
             fire.Update(frameSnapshot, time);
             spray.Update(frameSnapshot);
             pops.Update(time);
@@ -312,9 +322,17 @@ namespace Paniq.Presentation
         {
             FireReactionScenarioData scenario = runner.Simulation.Scenario;
             int thudReach = scenario.Hearing.BumpSoundRadiusMillimetres;
+            story ??= new EventStory(snapshot);
             for (int i = eventsSeen; i < snapshot.Events.Count; i++)
             {
                 CausalEvent record = snapshot.Events[i];
+
+                // Every event is remembered, including the chatter, because the
+                // chatter is often exactly what caused the thing worth a sign.
+                // Only some of them earn one.
+                signs.Remember(record);
+                signs.Offer(record, story, time);
+
                 switch (record.EventType)
                 {
                     case FireReactionEventType.AgentAlerted:

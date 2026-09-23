@@ -7,7 +7,8 @@ namespace Paniq.Presentation
 {
     /// <summary>
     /// People as capsules. They blend between the last two ticks so movement
-    /// is smooth at any frame rate, bob with each stride, lean with speed,
+    /// is smooth at any frame rate, waddle from foot to foot as they walk,
+    /// bob with each stride, lean with speed,
     /// fall and lie where the physics engine laid them (and fly with it when a
     /// blast throws them), slump where there is no room to fall, wobble when staggering, tremble when frozen,
     /// flail with little flames licking up them when on fire, lunge at doors
@@ -164,6 +165,17 @@ namespace Paniq.Presentation
                 view.LastPlanarPosition = planar;
                 view.StridePhase += travelled / (running ? 1.1f : 0.7f) * Mathf.PI;
                 float bounce = Mathf.Abs(Mathf.Sin(view.StridePhase)) * (running ? 0.12f : 0.05f) * Mathf.Clamp01(speed);
+
+                // The waddle. The bounce above is a hop on every footfall, so
+                // it uses the size of the sine; these use its sign as well, so
+                // they come out opposite on the left foot and the right one
+                // and the body rocks from one to the other. Both fade out with
+                // speed, so somebody shuffling barely moves and somebody
+                // sprinting throws themselves about.
+                float onThisFoot = Mathf.Sin(view.StridePhase) * Mathf.Clamp01(speed) *
+                                   (running ? RunningWaddle : 1f);
+                float waddleRoll = onThisFoot * WaddleRollDegrees;
+                float waddleTwist = onThisFoot * WaddleTwistDegrees;
                 float alertJump = agent.FearState == AgentFearState.Alert && !agent.IsDown
                     ? 0.18f + Mathf.Abs(Mathf.Sin(time * 18f + agent.AgentId.Value % 997UL)) * 0.18f
                     : 0f;
@@ -217,12 +229,14 @@ namespace Paniq.Presentation
                 else
                 {
                     float lean = Mathf.Min(running ? 14f : 4f, speed * 3f);
-                    float roll = 0f;
+                    float roll = waddleRoll;
+                    float twist = waddleTwist;
                     Vector3 shake = Vector3.zero;
                     if (agent.BodyState == AgentBodyState.Staggering)
                     {
                         // Reeling from a bump.
                         roll = Mathf.Sin(time * 26f + view.ShakePhase) * 14f;
+                        twist = 0f;
                         lean = -8f;
                     }
                     else if (agent.ActivityState == AgentActivityState.ShakingAwake && agent.SpeedMillimetresPerTick == 0)
@@ -231,6 +245,7 @@ namespace Paniq.Presentation
                         Vector3 facing = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
                         shake = facing * (Mathf.Sin(time * 30f + view.ShakePhase) * 0.06f);
                         roll = Mathf.Sin(time * 30f + view.ShakePhase) * 6f;
+                        twist = 0f;
                     }
                     else if (agent.ActivityState == AgentActivityState.Dragging)
                     {
@@ -239,8 +254,11 @@ namespace Paniq.Presentation
                     }
                     else if (agent.IsBurning)
                     {
-                        // Flailing: thrashing side to side as they run.
+                        // Flailing: thrashing side to side as they run. Far
+                        // bigger than the waddle, and it replaces it: somebody
+                        // alight is not taking tidy steps any more.
                         roll = Mathf.Sin(time * 22f + view.ShakePhase) * 18f;
+                        twist = 0f;
                         lean += Mathf.Sin(time * 15f + view.ShakePhase * 0.7f) * 8f;
                     }
                     else if (frozen)
@@ -251,6 +269,7 @@ namespace Paniq.Presentation
                             0f,
                             Mathf.Sin(time * 53f + view.ShakePhase * 1.7f) * 0.025f);
                         roll = Mathf.Sin(time * 41f + view.ShakePhase) * 2.5f;
+                        twist = 0f;
                         bounce = 0f;
                     }
 
@@ -271,11 +290,15 @@ namespace Paniq.Presentation
                     {
                         seated = 1f;
                         bounce = 0f;
+                        roll = 0f;
+                        twist = 0f;
                     }
                     else if (agent.ActivityState == AgentActivityState.StandingUp)
                     {
                         seated = 0.5f;
                         bounce = 0f;
+                        roll = 0f;
+                        twist = 0f;
                     }
 
                     // Seated, the body settles lower and leans back into the
@@ -289,7 +312,7 @@ namespace Paniq.Presentation
                     view.Transform.localScale = BodyScale;
                     view.Transform.SetPositionAndRotation(
                         planar + shake + lunge + Vector3.up * (middle + bounce + alertJump),
-                        Quaternion.Euler(lean + SeatedLeanDegrees * seated, yaw, roll));
+                        Quaternion.Euler(lean + SeatedLeanDegrees * seated, yaw + twist, roll));
                 }
 
                 bool down = lost || view.Transform.up.y < 0.7f;
@@ -451,6 +474,28 @@ namespace Paniq.Presentation
 
         /// <summary>How far back somebody sitting leans into the chair.</summary>
         private const float SeatedLeanDegrees = 12f;
+
+        /// <summary>
+        /// How far a walking body rocks onto each foot in turn, in degrees.
+        /// This is the waddle: a person is a capsule with no legs, so the
+        /// tipping from side to side is what reads as steps being taken. It is
+        /// deliberately more than a real walk -- the look wanted is somebody
+        /// play-walking a doll across a table, not a gait.
+        /// </summary>
+        private const float WaddleRollDegrees = 9f;
+
+        /// <summary>
+        /// How far the body twists about its own axis on each step, in
+        /// degrees. A rock with no twist reads as a metronome; the two
+        /// together read as weight being thrown from one foot to the other.
+        /// </summary>
+        private const float WaddleTwistDegrees = 5f;
+
+        /// <summary>
+        /// How much harder somebody running waddles than somebody walking.
+        /// A panicked run is all shoulders.
+        /// </summary>
+        private const float RunningWaddle = 1.45f;
 
         private void UpdateVisionCone(FireReactionAgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw)
         {

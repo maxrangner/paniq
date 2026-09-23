@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -141,6 +141,14 @@ namespace Paniq.Editor
             string outcome;
             try
             {
+                // Nobody is sitting at the editor when a script drives it,
+                // and a modal dialog blocks Unity's main thread -- so a
+                // command that stops to ask "are you sure?" freezes not
+                // just itself but every later request, and even
+                // recompiling, until a person notices the dialog and
+                // clicks it. Commands that would ask read this instead and
+                // take the yes as given.
+                SessionState.SetBool(NobodyIsHereToAskKey, true);
                 outcome = EditorApplication.ExecuteMenuItem(item)
                     ? "menu=ran\n"
                     : "error=There is no menu command called '" + item + "'.\n";
@@ -151,8 +159,18 @@ namespace Paniq.Editor
             }
 
             File.WriteAllText(ResultPath, outcome + "done=" + id + "\n");
+            SessionState.SetBool(NobodyIsHereToAskKey, false);
             WriteStatus("idle");
         }
+
+        /// <summary>
+        /// Where the bridge records that a script, rather than a person,
+        /// asked for what is running. Kept in <c>SessionState</c> rather
+        /// than a field because the commands that need to read it live in
+        /// another assembly, and it clears itself when the editor
+        /// restarts, which is exactly the lifetime it should have.
+        /// </summary>
+        public const string NobodyIsHereToAskKey = "Paniq.NobodyIsHereToAsk";
 
         private static void RecordCompilerMessages(string assembly, CompilerMessage[] messages)
         {

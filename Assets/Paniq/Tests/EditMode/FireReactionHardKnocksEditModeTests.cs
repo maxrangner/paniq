@@ -25,7 +25,13 @@ namespace Paniq.Tests.EditMode
             UnityEngine.Object.DestroyImmediate(scenario);
         }
 
-        private FireReactionScenarioData DefaultData() => scenario.ToRuntimeData();
+        /// <summary>
+        /// The shipped floor, with a purse behind the player: a test here
+        /// opens the way out so a panicking crowd has somewhere to run, and a
+        /// round opens with nothing to spend it on.
+        /// </summary>
+        private FireReactionScenarioData DefaultData() =>
+            TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
 
         private static List<CausalEvent> EventsOfType(FireReactionSimulation simulation, FireReactionEventType type)
         {

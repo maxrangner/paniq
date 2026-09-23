@@ -25,10 +25,14 @@ namespace Paniq.Simulation
         private readonly DoorSystem doors;
         private readonly PlayerCommandSystem playerCommands;
         private readonly InfluenceSystem influence;
+        private readonly DeckSystem deck;
         private readonly RoundSystem round;
 
         /// <summary>How many people had got out as of the end of last tick, so this tick can pay for the new ones.</summary>
         private int escapedLastTick;
+
+        /// <summary>How many had been killed, so this tick can deal for the new ones.</summary>
+        private int lostLastTick;
         private readonly FearSystem fear;
         private readonly PerceptionSystem perception;
         private readonly WayfindingSystem wayfinding;
@@ -92,6 +96,7 @@ namespace Paniq.Simulation
                 doors.UseCrowd(crowd);
                 playerCommands = new PlayerCommandSystem(context);
                 influence = new InfluenceSystem(context);
+                deck = new DeckSystem(context);
                 round = new RoundSystem(context, agents, geometry, fire);
                 var sound = new SoundSystem(context, crowd, fire, fear, geometry);
                 perception = new PerceptionSystem(context, fire, fear, sound);
@@ -138,7 +143,7 @@ namespace Paniq.Simulation
                 // walking off to the bell; plenty of other people are free to hit it.
                 panic.Offer(leaders, extinguishers, help, alarmBehaviour, barricades);
                 round.Use(flammables, doors);
-                playerCommands.Use(doors, fire, objects, crowd, influence, sound, body, geometry, round, power);
+                playerCommands.Use(doors, fire, objects, crowd, influence, deck, sound, body, geometry, round, power);
             }
             catch
             {
@@ -478,6 +483,9 @@ namespace Paniq.Simulation
         internal bool RouteCrossesTableForTests(LogicalPosition from, LogicalPosition to) => geometry.RouteCrossesTable(from, to);
 
         /// <summary>Tests only: the fire system, to check its queries against a brute-force answer.</summary>
+        /// <summary>Tops up the purse for a test that is not about the economy.</summary>
+        public void GiveInfluenceForTests(int amount) => influence.GiveForTests(amount);
+
         internal FireSystem FireForTests => fire;
 
         internal WorldGeometry GeometryForTests => geometry;
@@ -693,7 +701,7 @@ namespace Paniq.Simulation
             // -- the next tick's decisions read one settled answer instead of
             // one that changes as the door swings.
             doorBehaviour.AnnounceWaysOut();
-            CreditInfluenceForPeopleSaved();
+            SettleThePurseAndTheHand();
 
             // Very last, once everything about this tick has settled: is the
             // round over? Judged on the tick as it ended rather than as it was
@@ -705,16 +713,26 @@ namespace Paniq.Simulation
         public RoundPhase Phase => round.Phase;
 
         /// <summary>
-        /// Everybody who got out this tick pays the player back. Counted rather
-        /// than reported by the behaviours, so nothing in the simulation has to
-        /// know the player's purse exists.
+        /// What this tick paid the player. Everybody who got out pays the purse
+        /// back, everything that happened feeds the meter, and everybody who
+        /// was killed deals a card. Counted here rather than reported by the
+        /// behaviours, so nothing in the simulation has to know the player's
+        /// purse exists.
+        /// <para>
+        /// The dead are dealt for in agent order, not in the order they
+        /// happened to be resolved, so a replay of the same seed draws the same
+        /// cards.
+        /// </para>
         /// </summary>
-        private void CreditInfluenceForPeopleSaved()
+        private void SettleThePurseAndTheHand()
         {
             int escaped = 0;
+            int lost = 0;
             for (int i = 0; i < agents.Length; i++)
             {
-                escaped += agents[i].Outcome == AgentTerminalOutcome.Escaped ? 1 : 0;
+                AgentTerminalOutcome outcome = agents[i].Outcome;
+                escaped += outcome == AgentTerminalOutcome.Escaped ? 1 : 0;
+                lost += outcome == AgentTerminalOutcome.Lost ? 1 : 0;
             }
 
             for (int saved = escapedLastTick; saved < escaped; saved++)
@@ -723,6 +741,39 @@ namespace Paniq.Simulation
             }
 
             escapedLastTick = escaped;
+
+            if (lost > lostLastTick)
+            {
+                DealForTheNewlyDead();
+                lostLastTick = lost;
+            }
+
+            influence.CreditUproar();
+        }
+
+        /// <summary>
+        /// One card for each person killed since last tick, found by walking
+        /// the crowd in order and dealing for anybody dead who has not been
+        /// dealt for yet. In crowd order rather than in the order they happened
+        /// to be resolved, so a replay of the same seed draws the same cards.
+        /// </summary>
+        private void DealForTheNewlyDead()
+        {
+            for (int i = 0; i < agents.Length; i++)
+            {
+                if (agents[i].Outcome != AgentTerminalOutcome.Lost || agents[i].DeathDealt)
+                {
+                    continue;
+                }
+
+                agents[i].DeathDealt = true;
+                deck.DealForDeath(
+                    agents[i].Id,
+                    agents[i].Body.Position,
+                    agents[i].DeathEventId,
+                    objects.HasSpareExtinguisher,
+                    doors.BlastChargesRemaining > 0);
+            }
         }
 
         /// <summary>Phase 3: anyone standing in fire catches fire.</summary>
@@ -810,6 +861,7 @@ namespace Paniq.Simulation
                 influence.Earned,
                 CardCosts(),
                 DoorClickCosts(),
+                TheHand(),
                 doors.BlastChargesRemaining,
                 power.Sparks(),
                 round.Phase,
@@ -826,6 +878,18 @@ namespace Paniq.Simulation
             }
 
             return costs;
+        }
+
+        /// <summary>The cards the player is holding, copied for the display.</summary>
+        private PlayerCommandType[] TheHand()
+        {
+            var held = new PlayerCommandType[deck.Hand.Count];
+            for (int i = 0; i < held.Length; i++)
+            {
+                held[i] = deck.Hand[i];
+            }
+
+            return held;
         }
 
         /// <summary>What a click costs on a door in each state, for the display.</summary>

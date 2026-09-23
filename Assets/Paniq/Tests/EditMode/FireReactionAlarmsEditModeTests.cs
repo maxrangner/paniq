@@ -54,7 +54,7 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         private FireReactionScenarioData OfficeAndMeetingRoom(AgentTraitValues raiser, AgentTraitValues faraway)
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(Raiser, new LogicalPosition(-4500, 2000), CardinalDirection.South, raiser),
@@ -260,7 +260,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheDefaultBuilding_HasAnAlarmInEachRoomPeopleUse()
         {
-            var simulation = new FireReactionSimulation(scenario.ToRuntimeData());
+            var simulation = new FireReactionSimulation(TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()));
             Assert.That(simulation.AlarmCount, Is.EqualTo(4),
                 "The office, the corridor, the cafeteria and the meeting room. The closet, the\n"
                 + "stalls and the maintenance room have none: they are cupboards.");

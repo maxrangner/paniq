@@ -48,6 +48,19 @@
         public AgentParticipation Participation;
         public AgentTerminalOutcome Outcome;
 
+        /// <summary>
+        /// Whether this person's death has already dealt the player their card.
+        /// Kept per person rather than as a running total, so the deal happens
+        /// exactly once however the death was resolved.
+        /// </summary>
+        public bool DeathDealt;
+
+        /// <summary>
+        /// The log entry for this person's death, so the card it deals the
+        /// player can point back at it.
+        /// </summary>
+        public ulong DeathEventId;
+
         public AgentTraitValues Traits;
 
         public readonly AgentBody Body = new AgentBody();

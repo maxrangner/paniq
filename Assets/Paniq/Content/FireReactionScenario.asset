@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 53
+    ContentRevision: 54
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 41
+    SimulationCompatibilityVersion: 42
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -520,14 +520,15 @@ MonoBehaviour:
       ReachMillimetres: 150
       ReachTimeoutTicks: 250
     Influence:
-      Starting: 100
+      Starting: 0
       PerPersonSaved: 15
       Maximum: 300
-      BeefcakeCost: 20
-      SpawnFireCost: 10
-      SpawnExtinguisherCost: 25
-      BlastWallCost: 40
-      PopFuseBoxCost: 45
+      StartingHand: 
+      CardPatchRadiusMillimetres: 1500
+      CardCost: 30
+      UproarSmall: 1
+      UproarMiddling: 3
+      UproarBig: 6
       UnlockDoorCost: 50
       OpenDoorCost: 30
       CloseDoorCost: 10

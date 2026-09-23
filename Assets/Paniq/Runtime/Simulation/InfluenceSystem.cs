@@ -1,10 +1,18 @@
 ﻿namespace Paniq.Simulation
 {
     /// <summary>
-    /// What the player has left to spend. They start with a set amount, every
-    /// card takes a bite out of it, and the only thing that pays any back is a
-    /// person getting out of the building alive. Spend it all and save nobody,
-    /// and there is nothing left to do but watch.
+    /// What the player has left to spend. The round opens with nothing, and
+    /// the meter fills from the uproar: people shouting, running into each
+    /// other, going down, catching fire, doors coming off their hinges,
+    /// appliances going off. Saving somebody pays too. So the player cannot do
+    /// anything at all until the building is in trouble, and the worse it gets
+    /// the more they can do about it.
+    /// <para>
+    /// Deaths are deliberately not in here. A death deals a card instead (see
+    /// <see cref="DeckSystem"/>), so it pays once rather than twice and the two
+    /// currencies keep one source each: the uproar fills the meter, the dead
+    /// deal the cards.
+    /// </para>
     /// <para>
     /// Influence is bookkeeping rather than something that happens in the
     /// world, so it is not an event in the causal log — for the same reason
@@ -15,9 +23,12 @@
     internal sealed class InfluenceSystem
     {
         private readonly InfluenceSettings settings;
+        private readonly SimulationContext context;
+        private int eventsRead;
 
         public InfluenceSystem(SimulationContext context)
         {
+            this.context = context;
             settings = context.Scenario.Influence;
             Influence = settings.Starting;
         }
@@ -35,11 +46,16 @@
         {
             switch (card)
             {
-                case PlayerCommandType.PlayBeefcake: return settings.BeefcakeCost;
-                case PlayerCommandType.SpawnFire: return settings.SpawnFireCost;
-                case PlayerCommandType.SpawnExtinguisher: return settings.SpawnExtinguisherCost;
-                case PlayerCommandType.BlastWall: return settings.BlastWallCost;
-                case PlayerCommandType.PopFuseBox: return settings.PopFuseBoxCost;
+                case PlayerCommandType.PlayBeefcake:
+                case PlayerCommandType.PlayCourage:
+                case PlayerCommandType.PlayTerror:
+                case PlayerCommandType.PlayBastard:
+                case PlayerCommandType.PlayColdHeart:
+                case PlayerCommandType.SpawnFire:
+                case PlayerCommandType.SpawnExtinguisher:
+                case PlayerCommandType.BlastWall:
+                case PlayerCommandType.PopFuseBox:
+                    return settings.CardCost;
 
                 // A door click is priced by what the door is doing, not by the
                 // command, so it is asked for separately; setting the disaster
@@ -88,8 +104,97 @@
         /// <summary>Somebody got out alive.</summary>
         public void CreditPersonSaved()
         {
+            Credit(settings.PerPersonSaved);
+        }
+
+        /// <summary>
+        /// Everything that has happened since the last time this was asked,
+        /// priced by how much of a commotion it is. Read off the causal log
+        /// rather than reported by the behaviours, so nothing in the simulation
+        /// has to know the player's purse exists — the same arrangement the
+        /// head count uses.
+        /// </summary>
+        public void CreditUproar()
+        {
+            var log = context.Events.Events;
+            for (int i = eventsRead; i < log.Count; i++)
+            {
+                Credit(UproarValueOf(log[i].EventType));
+            }
+
+            eventsRead = log.Count;
+        }
+
+        /// <summary>
+        /// What one thing happening is worth. Three sizes: somebody shouting or
+        /// tripping is small, somebody going down or a door coming off its
+        /// hinges is middling, and somebody catching fire or an appliance going
+        /// off is big.
+        /// <para>
+        /// Four groups pay nothing, each for its own reason. A death deals a
+        /// card instead. Somebody escaping is already paid for by the head
+        /// count. The player's own cards would otherwise refund themselves. And
+        /// fire spreading square by square is left out because it fires dozens
+        /// of times a second in a room nobody is standing in: the fire pays
+        /// through what it does to people and things, not through its own
+        /// arithmetic.
+        /// </para>
+        /// </summary>
+        private int UproarValueOf(FireReactionEventType what)
+        {
+            switch (what)
+            {
+                case FireReactionEventType.AgentCaughtFire:
+                case FireReactionEventType.AgentPassedOut:
+                case FireReactionEventType.AgentCrushed:
+                case FireReactionEventType.ObjectExploded:
+                case FireReactionEventType.DoorBrokenDown:
+                    return settings.UproarBig;
+
+                case FireReactionEventType.AgentKnockedDown:
+                case FireReactionEventType.AgentShoved:
+                case FireReactionEventType.AgentGrabbed:
+                case FireReactionEventType.AgentForcedDoor:
+                case FireReactionEventType.AgentBarricadedDoor:
+                case FireReactionEventType.ObjectBroke:
+                case FireReactionEventType.DoorBurntThrough:
+                case FireReactionEventType.BoxHitAgent:
+                case FireReactionEventType.AlarmPulled:
+                    return settings.UproarMiddling;
+
+                case FireReactionEventType.AgentYelled:
+                case FireReactionEventType.AgentScared:
+                case FireReactionEventType.AgentTripped:
+                case FireReactionEventType.AgentFroze:
+                case FireReactionEventType.AgentsCollided:
+                case FireReactionEventType.AgentShovedObstruction:
+                case FireReactionEventType.ObjectCaughtFire:
+                case FireReactionEventType.ItemThrown:
+                case FireReactionEventType.BoxBumped:
+                    return settings.UproarSmall;
+
+                default:
+                    return 0;
+            }
+        }
+
+        /// <summary>
+        /// Puts influence in the purse for a test whose subject is something
+        /// else. A round opens with nothing, so a test that wants to work a
+        /// door in its first tick -- checking the scene is wired up, say --
+        /// cannot get there by playing properly.
+        /// </summary>
+        public void GiveForTests(int amount) => Credit(amount);
+
+        private void Credit(int amount)
+        {
+            if (amount <= 0)
+            {
+                return;
+            }
+
             int before = Influence;
-            Influence = System.Math.Min(settings.Maximum, Influence + settings.PerPersonSaved);
+            Influence = System.Math.Min(settings.Maximum, Influence + amount);
             Earned += Influence - before;
         }
     }

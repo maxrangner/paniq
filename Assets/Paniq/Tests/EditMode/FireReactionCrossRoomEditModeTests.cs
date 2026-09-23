@@ -44,7 +44,7 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         private FireReactionScenarioData TwoRooms()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Tables = new FireReactionTableDefinition[0];
             data.Alarms = new FireReactionAlarmDefinition[0];
             data.BlastHoles = new SimulationId[0];

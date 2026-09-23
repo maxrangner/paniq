@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -46,7 +46,14 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         private FireReactionScenarioData Floor(bool withSigns, params FireReactionAgentDefinition[] people)
         {
-            FireReactionScenarioData data = TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
+            // These tests open the way out in their first two ticks, and a
+            // round now opens with an empty purse, so without this the clicks
+            // are refused for want of influence, the exit stays locked and
+            // nobody gets out of the building at all. This file was written
+            // before the economy landed; it is a test of where people walk,
+            // not of what the player can afford.
+            FireReactionScenarioData data =
+                TheBuilding.WithThePlayerAbleToAct(TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData()));
             data.Agents = people;
             if (!withSigns)
             {

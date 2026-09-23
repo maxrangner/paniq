@@ -24,16 +24,21 @@ namespace Paniq.Tests.EditMode
         };
 
         /// <summary>
-        /// Cards for the "cards played" runs: Beefcake on the nervous wreck, a
-        /// fire of the player's own, a spare extinguisher put down, and a wall
-        /// blown open. Enough to cover every command type in a replay.
+        /// Cards for the "cards played" runs: all five trait cards thrown into
+        /// the office where the crowd is, a fire of the player's own, a spare
+        /// extinguisher put down, and a wall blown open. Enough to cover every
+        /// command type in a replay.
         /// </summary>
         public static readonly (PlayerCommandType Card, SimulationId Target, LogicalPosition Point, int Tick)[] Cards =
         {
-            (PlayerCommandType.PlayBeefcake, new SimulationId(1006UL), default, 200),
+            (PlayerCommandType.PlayBeefcake, default, new LogicalPosition(0, 0), 200),
             (PlayerCommandType.SpawnFire, default, new LogicalPosition(3000, 3000), 400),
+            (PlayerCommandType.PlayCourage, default, new LogicalPosition(0, 0), 450),
             (PlayerCommandType.SpawnExtinguisher, default, new LogicalPosition(-4000, 4000), 600),
-            (PlayerCommandType.BlastWall, default, new LogicalPosition(0, -5900), 800)
+            (PlayerCommandType.PlayTerror, default, new LogicalPosition(-2000, 0), 650),
+            (PlayerCommandType.BlastWall, default, new LogicalPosition(0, -5900), 800),
+            (PlayerCommandType.PlayBastard, default, new LogicalPosition(2000, 0), 850),
+            (PlayerCommandType.PlayColdHeart, default, new LogicalPosition(0, 2000), 900)
         };
 
         /// <summary>
@@ -51,10 +56,24 @@ namespace Paniq.Tests.EditMode
         public static ulong Run(FireReactionScenarioData data, ulong seed, bool openDoors, bool kickBoxes = false,
             bool playCards = false)
         {
-            if (playCards)
+            if (playCards || openDoors)
             {
                 // A copy, so setting this does not leak into the caller's data.
                 data = data.Clone();
+
+                // A round now opens with an empty purse and an empty hand, so
+                // without this every door click and every card in the runs
+                // below would be refused for want of funds and the two would
+                // fingerprint identically to the run that does nothing. What is
+                // being guarded here is the simulation's response to a player
+                // acting, not whether they could afford to.
+                data.Influence.Starting = 100000;
+                data.Influence.Maximum = 100000;
+                data.Influence.StartingHand = TheBuilding.EveryCard();
+            }
+
+            if (playCards)
+            {
                 data.Round.HazardWaitsForTrigger = true;
             }
 

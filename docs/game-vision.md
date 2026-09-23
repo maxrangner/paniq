@@ -210,12 +210,17 @@ stays a real-time panic rather than becoming turn-based.
 These are accepted, not solved. Each needs playtest evidence before it is
 treated as settled.
 
-- **The Influence economy can spiral.** Influence is earned by saving people, so
-  a disastrous opening leaves the player without the means to recover. A
-  well-tuned Director is expected to absorb this by easing off. The intriguing
-  alternative, kept on the shelf, is for **panic itself to pay** — the more
-  chaos on screen, the faster Influence accrues, making the game and the toy
-  the same thing.
+- ~~**The Influence economy can spiral.**~~ **Settled on 2026-09-23: panic
+  pays.** The alternative that was kept on the shelf came off it. A round now
+  opens with an empty purse and an empty hand; the meter fills from the
+  building in uproar, and every person the disaster kills deals the player one
+  card at random. So a disastrous opening arms the player rather than leaving
+  them broke and spectating, and the game and the toy are the same thing. The
+  cost is that letting people die is genuinely tempting, which the owner chose
+  deliberately: it hurts the percentage and buys options, so it is a hard
+  choice rather than a free lunch. What is now unproven is the *wait* at the
+  start of a round — see the measurement in
+  [technical decisions](technical-decisions.md).
 - **The cascade curve.** Contagion tends to either fizzle out or run away, and
   the interesting middle is narrow. The Director is the intended cure and is
   unproven.
@@ -233,7 +238,8 @@ treated as settled.
 - Audio design beyond the decision that sound replaces helper markers.
 - The models themselves, and the concept art that will pin them down; the
   style they sit in is settled in [look and controls](look-and-controls.md).
-- Exact Influence numbers, card list, crowd size, and level size.
+- Crowd size and level size. (Influence numbers and the card list are settled
+  for now in [technical decisions](technical-decisions.md).)
 - Relationships between people, and which information is hidden from the player.
 
 Locations and situations will vary; no single narrative setting is committed.

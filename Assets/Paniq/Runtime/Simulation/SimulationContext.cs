@@ -1,4 +1,4 @@
-namespace Paniq.Simulation
+﻿namespace Paniq.Simulation
 {
     /// <summary>
     /// What every system in one run shares: the scenario it runs on, the
@@ -10,8 +10,15 @@ namespace Paniq.Simulation
         public SimulationContext(FireReactionScenarioData scenario, ulong seed)
         {
             Scenario = scenario;
+            Seed = seed;
             Random = new Pcg32(seed);
         }
+
+        /// <summary>
+        /// The run's seed, kept so a system that owns a stream of its own can
+        /// derive it. See <see cref="DeckSystem"/>, which is the only one.
+        /// </summary>
+        public readonly ulong Seed;
 
         public readonly FireReactionScenarioData Scenario;
         public readonly CausalEventLog Events = new CausalEventLog();

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
@@ -148,8 +148,14 @@ namespace Paniq.Simulation
                 return;
             }
 
+            // Falling back to the fright that set them looking, so this never
+            // goes into the log as a root event. Only a leader telling them
+            // hands over a cause of its own; seeing a door or reading a sign
+            // does not, and without this those two were the one thing in a
+            // plain run that nothing could be traced back through. Its sibling
+            // AgentLookedForAWayOut already names the same fright.
             context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentFoundTheWayOut,
-                agent.Body.Position, (int)how, 0, cause);
+                agent.Body.Position, (int)how, 0, cause != 0UL ? cause : agent.Fear.ScaredEventId);
             agent.Intent.NextPanicDecisionTick = context.Tick;
         }
 

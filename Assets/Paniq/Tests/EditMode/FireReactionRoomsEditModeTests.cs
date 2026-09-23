@@ -242,14 +242,23 @@ namespace Paniq.Tests.EditMode
         /// run ends.
         /// </para>
         /// </summary>
+        // One unlock time, not two. The second case unlocked at second twelve
+        // rather than second six and asked exactly the same question of exactly
+        // the same rule; nothing about standing clear of a doorway depends on
+        // the clock.
         [TestCase(300)]
-        [TestCase(600)]
         public void NobodyStandsStillInFrontOfAnOpenDoor(int unlockTick)
         {
             const int stuckLimitTicks = 5 * FireReactionSimulation.TicksPerSecond;
             for (ulong seed = 1UL; seed <= 10UL; seed++)
             {
-                FireReactionScenarioData data = scenario.ToRuntimeData();
+                // This test unlocks every door in the building and then checks
+                // nobody dawdles in an open one. A round opens with an empty
+                // purse, so without a purse behind the player not one of those
+                // unlocks lands, and "in front of an open door" stops being the
+                // thing being tested at all.
+                FireReactionScenarioData data =
+                    TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
                 var simulation = new FireReactionSimulation(data, seed);
                 foreach (FireReactionDoorDefinition door in data.Doors)
                 {

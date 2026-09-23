@@ -108,6 +108,13 @@ namespace Paniq.Tests.PlayMode
             Assert.That(Object.FindObjectsByType<Transform>(FindObjectsSortMode.None),
                 Has.Some.Property("name").EqualTo("Box 3001 (presentation)"));
 
+            // A round opens with an empty purse and working a door costs, so
+            // without this the clicks are refused and the door never moves.
+            // This test is about the scene being wired up -- a leaf that is
+            // there, can be clicked, and swings -- not about what the player
+            // can afford.
+            runner.Simulation.GiveInfluenceForTests(1000);
+
             var door = new Paniq.Simulation.SimulationId(2008UL);
             runner.QueueDoorClick(door);
             runner.StepForTests();

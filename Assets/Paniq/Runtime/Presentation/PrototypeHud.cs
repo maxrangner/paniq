@@ -75,12 +75,29 @@ namespace Paniq.Presentation
             }
         }
 
+        /// <summary>Which cards are thrown at a patch of crowd rather than at a place in the building.</summary>
+        private static bool IsAThrownCard(PlayerCommandType card)
+        {
+            switch (card)
+            {
+                case PlayerCommandType.PlayBeefcake:
+                case PlayerCommandType.PlayCourage:
+                case PlayerCommandType.PlayTerror:
+                case PlayerCommandType.PlayBastard:
+                case PlayerCommandType.PlayColdHeart:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         /// <summary>
         /// The player's purse and their cards, along the bottom. A card they
         /// cannot afford is dimmed red and cannot be picked up; the one in their
         /// hand is highlighted, and the line above says what a click will do.
         /// </summary>
-        public static void DrawCards(FireReactionSnapshot snapshot, PlayerCommandType? selected, PlayerInput input)
+        public static void DrawCards(
+            FireReactionSnapshot snapshot, PlayerCommandType? selected, PlayerInput input, int peopleInTheCircle)
         {
             const float cardWidth = 210f;
             const float cardHeight = 34f;
@@ -98,12 +115,24 @@ namespace Paniq.Presentation
             GUI.DrawTexture(new Rect(barArea.x, barArea.y, barArea.width * fraction, barArea.height), Texture2D.whiteTexture);
             GUI.color = Color.white;
             GUI.Label(new Rect(barArea.x + barArea.width + 10f, barArea.y - 3f, 400f, 22f),
-                $"Influence {snapshot.Influence}   (spent {snapshot.InfluenceSpent}, earned back {snapshot.InfluenceEarned})");
+                $"Influence {snapshot.Influence}   (spent {snapshot.InfluenceSpent}, taken in {snapshot.InfluenceEarned})");
 
-            // The cards.
-            for (int i = 0; i < PlayerInput.Cards.Length; i++)
+            // The hand. Empty at the start of every round: cards are not
+            // bought, they are dealt by whoever the building kills, so an empty
+            // bar is the game saying "nobody has died yet" rather than a
+            // display that has not loaded.
+            if (snapshot.Hand.Count == 0)
             {
-                PlayerCommandType card = PlayerInput.Cards[i];
+                GUI.color = new Color(0.75f, 0.75f, 0.75f);
+                GUI.Label(new Rect(20f, bottom - cardHeight + 7f, 700f, 22f),
+                    "No cards. The dead deal them.");
+                GUI.color = Color.white;
+                return;
+            }
+
+            for (int i = 0; i < snapshot.Hand.Count; i++)
+            {
+                PlayerCommandType card = snapshot.Hand[i];
                 int cost = snapshot.CostOf(card);
                 bool affordable = snapshot.Influence >= cost;
                 var area = new Rect(20f + i * (cardWidth + gap), bottom - cardHeight, cardWidth, cardHeight);
@@ -124,12 +153,29 @@ namespace Paniq.Presentation
                 return;
             }
 
-            string hint = PlayerInput.TargetsAPerson(selected.Value)
-                ? $"{PlayerInput.NameOf(selected.Value)}: click a person" +
-                  (input.HoveredPerson.HasValue ? $"  ->  person {input.HoveredPerson.Value.Value}" : string.Empty)
-                : selected.Value == PlayerCommandType.BlastWall
-                    ? $"TNT: click a wall  ({snapshot.BlastChargesRemaining} left)"
-                    : $"{PlayerInput.NameOf(selected.Value)}: click a spot on the floor";
+            // A trait card is thrown at a patch and catches whoever is inside
+            // it, so what the player needs to know is how many that is right
+            // now. The circle on the floor says the same thing; this says it in
+            // words, and says nought out loud, because a throw that catches
+            // nobody is the one mistake that is free.
+            string hint;
+            if (IsAThrownCard(selected.Value))
+            {
+                int caught = peopleInTheCircle;
+                hint = $"{PlayerInput.NameOf(selected.Value)}: " + (caught == 0
+                    ? "nobody in the circle -- a throw that catches nobody is free"
+                    : caught == 1 ? "1 person in the circle" : $"{caught} people in the circle");
+            }
+            else if (selected.Value == PlayerCommandType.BlastWall)
+            {
+                hint = $"TNT: click a wall  ({snapshot.BlastChargesRemaining} left)";
+            }
+            else
+            {
+                hint = $"{PlayerInput.NameOf(selected.Value)}: click a spot on the floor";
+            }
+
+            GUI.color = Color.white;
             GUI.Label(new Rect(20f, bottom - cardHeight - gap - 44f, 900f, 22f), hint);
         }
 
@@ -164,7 +210,9 @@ namespace Paniq.Presentation
 
             var keys = new[]
             {
-                ("1 - 4", "pick a card up, then click to play it"),
+                ("1 - 6", "pick a card up, then click to play it"),
+                ("Cards", "dealt by the dead, one each. Nobody dies, nobody deals"),
+                ("Influence", "paid by the uproar, and by everyone who gets out"),
                 ("Escape", "put the card back down (or right click)"),
                 ("Click a door", $"red is locked. Unlock {snapshot.CostOfDoorClick(DoorState.Locked)}, " +
                                  $"open {snapshot.CostOfDoorClick(DoorState.Unlocked)}, " +

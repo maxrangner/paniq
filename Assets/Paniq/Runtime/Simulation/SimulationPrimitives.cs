@@ -115,6 +115,21 @@ namespace Paniq.Simulation
     /// <c>TraitEffects</c>). Authored per person in the scenario, or drawn
     /// from the seed.
     /// </summary>
+    /// <summary>
+    /// The seven dials, by name, so a card can say which one it moves without
+    /// every card needing a method of its own.
+    /// </summary>
+    public enum AgentTrait
+    {
+        Strength,
+        Speed,
+        Bravery,
+        Compassion,
+        Evil,
+        Nervousness,
+        Leadership
+    }
+
     [Serializable]
     public struct AgentTraitValues : IEquatable<AgentTraitValues>
     {
@@ -150,11 +165,55 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// The same person with a different strength. Used by the player's
-        /// Beefcake power; everything that reads strength picks it up on the
+        /// Beefcake card; everything that reads strength picks it up on the
         /// next tick, because traits are read when used and never cached.
         /// </summary>
-        public AgentTraitValues WithStrength(int newStrength) =>
-            new AgentTraitValues(newStrength, speed, bravery, compassion, evil, nervousness, leadership);
+        public AgentTraitValues WithStrength(int newStrength) => With(AgentTrait.Strength, newStrength);
+
+        /// <summary>
+        /// The same person with one dial moved. The player's cards all do this
+        /// and differ only in which dial and which end, so they share one
+        /// method rather than having seven of their own.
+        /// </summary>
+        public AgentTraitValues With(AgentTrait which, int value)
+        {
+            switch (which)
+            {
+                case AgentTrait.Strength:
+                    return new AgentTraitValues(value, speed, bravery, compassion, evil, nervousness, leadership);
+                case AgentTrait.Speed:
+                    return new AgentTraitValues(strength, value, bravery, compassion, evil, nervousness, leadership);
+                case AgentTrait.Bravery:
+                    return new AgentTraitValues(strength, speed, value, compassion, evil, nervousness, leadership);
+                case AgentTrait.Compassion:
+                    return new AgentTraitValues(strength, speed, bravery, value, evil, nervousness, leadership);
+                case AgentTrait.Evil:
+                    return new AgentTraitValues(strength, speed, bravery, compassion, value, nervousness, leadership);
+                case AgentTrait.Nervousness:
+                    return new AgentTraitValues(strength, speed, bravery, compassion, evil, value, leadership);
+                case AgentTrait.Leadership:
+                    return new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, value);
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(which), $"Unknown trait {which}.");
+            }
+        }
+
+        /// <summary>One dial's reading, by name.</summary>
+        public int Of(AgentTrait which)
+        {
+            switch (which)
+            {
+                case AgentTrait.Strength: return strength;
+                case AgentTrait.Speed: return speed;
+                case AgentTrait.Bravery: return bravery;
+                case AgentTrait.Compassion: return compassion;
+                case AgentTrait.Evil: return evil;
+                case AgentTrait.Nervousness: return nervousness;
+                case AgentTrait.Leadership: return leadership;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(which), $"Unknown trait {which}.");
+            }
+        }
 
         public static AgentTraitValues AllOrdinary =>
             new AgentTraitValues(Ordinary, Ordinary, Ordinary, Ordinary, Ordinary, Ordinary, Ordinary);
@@ -536,7 +595,29 @@ namespace Paniq.Simulation
         /// there is one). No target, deliberately: the person is the subject,
         /// so the pop-up sign is theirs and carries their number.
         /// </summary>
-        AgentFoundTheWayOut
+        AgentFoundTheWayOut,
+
+        /// Somebody was killed and their death dealt the player a card. The
+        /// strength field carries which card it was, as a
+        /// <see cref="PlayerCommandType"/>.
+        /// </summary>
+        CardDealt,
+
+        // One apiece for the trait cards, appended once per person caught, so
+        // the round reads back as "you made these four fearless" rather than
+        // as one line naming a patch of carpet.
+
+        /// <summary>Courage caught this person: their bravery is now at the top.</summary>
+        PowerCourage,
+
+        /// <summary>Terror caught this person: their nervousness is now at the top.</summary>
+        PowerTerror,
+
+        /// <summary>Bastard caught this person: their evil is now at the top.</summary>
+        PowerBastard,
+
+        /// <summary>Cold heart caught this person: their compassion is now at the bottom.</summary>
+        PowerColdHeart
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="FireReactionEventType.AgentFoundTheWayOut"/>.</summary>
@@ -670,7 +751,23 @@ namespace Paniq.Simulation
         /// because the card finds the box near where the player pointed, and a
         /// floor has one of them.
         /// </summary>
-        PopFuseBox
+        PopFuseBox,
+
+        // The trait cards. Each is thrown at a patch of floor and slams one
+        // dial to the end of its scale for everybody caught inside, for the
+        // rest of the round.
+
+        /// <summary>Courage: bravery to the top. They stop dithering and go at the thing.</summary>
+        PlayCourage,
+
+        /// <summary>Terror: nervousness to the top. Whoever is caught bolts.</summary>
+        PlayTerror,
+
+        /// <summary>Bastard: evil to the top. They shove people aside and lock doors behind them.</summary>
+        PlayBastard,
+
+        /// <summary>Cold heart: compassion to the bottom. They stop going back for anybody.</summary>
+        PlayColdHeart
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Runs Paniq's tests inside the Unity editor that is already open.
 
@@ -22,6 +22,12 @@
 .PARAMETER PlayMode
     Run the play-mode tests instead of the edit-mode tests.
 
+.PARAMETER All
+    Run both halves, edit mode then play mode, and fail if either does. This
+    is what to use before committing. Without it the script runs edit mode
+    only, which is half the suite: a play-mode test once sat broken for a day
+    because every check that day had been an edit-mode one.
+
 .PARAMETER TimeoutSeconds
     How long to wait for the editor before giving up.
 
@@ -35,6 +41,7 @@
     afterwards.
 
 .EXAMPLE
+    .\tools\RunUnityTests.ps1 -All
     .\tools\RunUnityTests.ps1
     .\tools\RunUnityTests.ps1 -Category UnityPhysics
     .\tools\RunUnityTests.ps1 -Filter ReplayFingerprint
@@ -45,6 +52,7 @@ param(
     [string] $Filter,
     [string] $Category,
     [switch] $PlayMode,
+    [switch] $All,
     [int] $TimeoutSeconds = 900,
     [switch] $ShowPassed,
     [switch] $Reset,
@@ -52,6 +60,35 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($All) {
+    if ($Menu)     { throw '-All runs the tests; it cannot be combined with -Menu.' }
+    if ($PlayMode) { throw '-All already runs the play-mode tests.' }
+    if ($Reset)    { throw '-All runs the tests; it cannot be combined with -Reset.' }
+
+    $worst = 0
+    foreach ($half in @($false, $true)) {
+        Write-Host ''
+        Write-Host "===== $(if ($half) { 'play' } else { 'edit' }) mode =====" -ForegroundColor Cyan
+        $arguments = @{ TimeoutSeconds = $TimeoutSeconds }
+        if ($Filter)     { $arguments['Filter'] = $Filter }
+        if ($Category)   { $arguments['Category'] = $Category }
+        if ($ShowPassed) { $arguments['ShowPassed'] = $true }
+        if ($half)       { $arguments['PlayMode'] = $true }
+
+        & $PSCommandPath @arguments
+        if ($LASTEXITCODE -ne 0) { $worst = $LASTEXITCODE }
+    }
+
+    Write-Host ''
+    if ($worst -eq 0) {
+        Write-Host 'Both halves passed.' -ForegroundColor Green
+    } else {
+        Write-Host 'Something failed -- look above for which half.' -ForegroundColor Red
+    }
+
+    exit $worst
+}
 
 $repository = Split-Path -Parent $PSScriptRoot
 $folder = Join-Path $repository 'Temp\PaniqTestBridge'

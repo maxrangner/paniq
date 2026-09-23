@@ -47,7 +47,7 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         private FireReactionScenarioData FireAgainstTheClosetDoor()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(new SimulationId(1UL), TheBuilding.MeetingRoom,

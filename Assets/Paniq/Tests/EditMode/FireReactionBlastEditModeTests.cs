@@ -51,7 +51,7 @@ namespace Paniq.Tests.EditMode
         /// <summary>A quiet office with one person in it, no fire due, and nothing loose.</summary>
         private FireReactionScenarioData QuietOffice()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(Somebody, new LogicalPosition(0, 0), CardinalDirection.North,
@@ -87,7 +87,7 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(simulation.DoorCount, Is.EqualTo(openingsBefore + 1), "There should be one more way through.");
             Assert.That(simulation.BlastChargesRemaining, Is.EqualTo(chargesBefore - 1), "It should cost a charge.");
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.BlastWallCost));
+            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.CardCost));
 
             List<CausalEvent> blasted = EventsOfType(simulation, FireReactionEventType.PowerBlastedWall);
             Assert.That(blasted, Is.Not.Empty);
@@ -135,9 +135,9 @@ namespace Paniq.Tests.EditMode
         public void NobodyEverTriesToOpenShutOrBatterAHole()
         {
             FireReactionScenarioData data = QuietOffice();
-            data.Agents = scenario.ToRuntimeData().Agents;
-            data.PhysicsObjects = scenario.ToRuntimeData().PhysicsObjects;
-            data.Tables = scenario.ToRuntimeData().Tables;
+            data.Agents = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()).Agents;
+            data.PhysicsObjects = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()).PhysicsObjects;
+            data.Tables = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()).Tables;
             data.Fire.ActivationTick = 250;
             var simulation = new FireReactionSimulation(data, 42UL);
             Blast(simulation, SouthWall);
@@ -363,7 +363,7 @@ namespace Paniq.Tests.EditMode
         {
             ulong WithPool(int holes)
             {
-                FireReactionScenarioData data = scenario.ToRuntimeData();
+                FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
                 var ids = new SimulationId[holes];
                 for (int i = 0; i < holes; i++)
                 {

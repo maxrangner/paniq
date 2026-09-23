@@ -33,6 +33,10 @@ namespace Paniq.Presentation
         private SprayView spray;
         private NavigationGridView navigationGrid;
         private PopBursts pops;
+        private CardAimRing aimRing;
+
+        /// <summary>How wide a thrown card's patch is, read once when the scene is built.</summary>
+        private int cardPatchRadiusMillimetres;
         private EventSigns signs;
         private PowerCableView cable;
 
@@ -89,6 +93,8 @@ namespace Paniq.Presentation
                 ripples = new SoundRipples(materials.Icon, root);
                 spray = new SprayView(effects);
                 pops = new PopBursts(materials, effects, root);
+                aimRing = new CardAimRing(materials.Icon, root);
+                cardPatchRadiusMillimetres = scenario.Influence.CardPatchRadiusMillimetres;
                 signs = new EventSigns(materials, root);
                 cable = new PowerCableView(scenario, materials, root);
                 _ = new ExitSignView(scenario.ExitSigns, materials, root);
@@ -219,6 +225,19 @@ namespace Paniq.Presentation
             spray.Update(frameSnapshot);
             pops.Update(time);
 
+            // The patch a card in hand would catch if it were thrown where the
+            // pointer is. Nothing is drawn with no card in hand, and nothing is
+            // drawn while the world is stopped, because nothing can be thrown
+            // then either.
+            if (input.SelectedCard.HasValue && input.HoveredSpot.HasValue)
+            {
+                aimRing.Show(input.HoveredSpot.Value, cardPatchRadiusMillimetres, frameSnapshot, time);
+            }
+            else
+            {
+                aimRing.Hide();
+            }
+
             // The player's own camera, with a bang's shake added on top of
             // wherever they have put it.
             cameraRig.Update(pops.Shake);
@@ -265,7 +284,7 @@ namespace Paniq.Presentation
                     hoveredDoor.HasValue ? room.StateOf(hoveredDoor.Value) : DoorState.Locked,
                     hoveredDoor.HasValue && IsJammed(frameSnapshot, hoveredDoor.Value));
                 screens.DrawStrip(frameSnapshot);
-                PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input);
+                PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input, aimRing.PeopleInside);
                 if (runner.IsPaused)
                 {
                     PrototypeHud.DrawPauseHelp(frameSnapshot);
@@ -367,7 +386,19 @@ namespace Paniq.Presentation
                         ripples.Start(record.Position, record.Strength, SoundRipples.YellColor, time);
                         break;
                     case FireReactionEventType.PowerBeefcake:
+                    case FireReactionEventType.PowerCourage:
+                    case FireReactionEventType.PowerTerror:
+                    case FireReactionEventType.PowerBastard:
+                    case FireReactionEventType.PowerColdHeart:
+                        // One of these per person the throw caught, so
+                        // everybody it landed on flashes and the player can see
+                        // what they actually got.
                         agents.Notice(record.TargetId, time);
+                        break;
+                    case FireReactionEventType.CardDealt:
+                        // A death has just put a card on the bar. A ring where
+                        // they fell, so the player looks at what bought it.
+                        ripples.Start(record.Position, 1800, SoundRipples.YellColor, time);
                         break;
                     case FireReactionEventType.PowerBlastedWall:
                         // A very big ring: the bang carries across the building.

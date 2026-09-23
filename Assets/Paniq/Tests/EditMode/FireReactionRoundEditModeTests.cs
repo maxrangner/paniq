@@ -41,10 +41,16 @@ namespace Paniq.Tests.EditMode
             UnityEngine.Object.DestroyImmediate(scenario);
         }
 
-        /// <summary>A level's worth of settings: the hazard waits to be triggered.</summary>
+        /// <summary>
+        /// A level's worth of settings: the hazard waits to be triggered, and
+        /// the player can pay for the doors these tests open. A round opens
+        /// with an empty purse, so without that the clicks are refused, nobody
+        /// gets out, and a test about how a round ends is really a test of a
+        /// sealed building.
+        /// </summary>
         private FireReactionScenarioData LevelData()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Round.HazardWaitsForTrigger = true;
             return data;
         }

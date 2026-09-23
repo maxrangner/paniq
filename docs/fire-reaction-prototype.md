@@ -439,30 +439,68 @@ The camera keeps working while the game is paused. The full description is in
 
 **Doors,** as before: click to unlock, again to open, again to close.
 
-**Influence and cards.** A bar along the bottom of the screen shows what you
-have left to spend. You start with 100. Every card takes a bite out of it, and
-the only thing that pays any back is a person getting out of the building
-alive — 15 each. Spend it all and save nobody and there is nothing left to do
-but watch the fire finish. A card you cannot afford is dimmed and cannot be
-picked up; a card that cannot be played where you point costs nothing.
+**Influence and cards: the dead deal, the uproar pays.** A round opens with
+**nothing** — an empty purse and an empty bar — so the first thing you can do is
+watch.
 
-Press **1** to **4** to pick a card up, then click. Escape or a right click puts
+The meter fills from the building being in uproar: somebody shouting, tripping,
+freezing or running into somebody else pays a little; a knockdown, a shove, a
+door forced or burnt through, something broken, an alarm pays more; somebody
+catching fire, going out cold, being crushed, an appliance going off or a door
+coming off its hinges pays most. Everybody who gets out alive pays 15. A quiet
+building pays nothing, so you cannot act until things are going wrong.
+
+**Cards are not bought — they are dealt by the dead.** Every person the disaster
+kills puts one card, drawn at random, on your bar. A round nobody dies in leaves
+you with a full purse, an empty hand, and doors as your only move. Deaths pay in
+cards and not in influence, so the two currencies have one source each.
+
+Every card costs **30**. A card you are not holding does nothing however rich
+you are; a card you cannot pay for does nothing either. **A card that catches
+nobody is a miss: it costs neither the influence nor the card**, and stays on
+your bar. A card that catches the wrong person is spent, and that is your own
+fault — which is why a circle is drawn on the floor under the pointer showing
+exactly the patch it will catch, brightening when somebody is standing in it.
+
+Press a number key to pick a card up, then click. Escape or a right click puts
 it back down.
 
-1. **Beefcake (20)** — click a person and they become as strong as anyone can
-   be, for good. They shoulder a locked door off its hinges in a few swings
-   where before they gave up on it, shrug off hits that used to floor them,
-   heave obstructions out of doorways, and carry the heaviest thing in the room.
-2. **Start a fire (10)** — click the floor and a fire starts on that square. If
-   the scenario's own fire has not begun yet, yours is the one the run gets.
-3. **Put down an extinguisher (25)** — click clear floor and a full red bottle
-   appears there for somebody brave to pick up. There are four spares.
-4. **TNT (40)** — click a wall and it blows open into a ragged gap half again as
-   wide as a door. A hole is not a door: nobody can shut it, lock it or batter
-   it, and it stays open for the rest of the run. A hole in an outside wall is a
-   new way out of the building that nobody can take away. The bang is heard
-   across the building, flings loose things away from it, and knocks anybody
-   within a stride and a half off their feet. There are four sticks.
+The five **trait cards** are thrown at a patch of floor about a doorway and a
+half across — not at a chosen person — and slam one dial to the end of its scale
+for everybody standing inside, for the rest of the round:
+
+1. **Beefcake** — strength to the top. They shoulder a locked door off its
+   hinges in a few swings where before they gave up on it, shrug off hits that
+   used to floor them, heave obstructions out of doorways, and carry the
+   heaviest thing in the room — flooring anybody in the way as they go.
+2. **Courage** — bravery to the top. The frozen unfreeze, somebody fetches an
+   extinguisher and goes at the fire, and then keeps walking toward the thing
+   that is killing everybody.
+3. **Terror** — nervousness to the top. Whoever is caught bolts. Thrown into a
+   calm room it starts the evacuation early; thrown into a doorway it causes a
+   crush.
+4. **Bastard** — evil to the top. They shove people aside and lock doors behind
+   them. Thrown at a jammed scrum the queue unjams, because somebody threw two
+   people into a wall.
+5. **Cold heart** — compassion to the bottom. They stop running back in for
+   people who are not getting up. The card that saves a life by making somebody
+   worse.
+
+The other four are aimed at the building:
+
+6. **Start a fire** — click the floor and a fire starts on that square. If the
+   scenario's own fire has not begun yet, yours is the one the run gets.
+7. **Put down an extinguisher** — click clear floor and a full red bottle
+   appears there for somebody brave to pick up. There are four spares, and the
+   card stops being dealt once they are gone.
+8. **TNT** — click a wall and it blows open into a ragged gap half again as wide
+   as a door. A hole is not a door: nobody can shut it, lock it or batter it,
+   and it stays open for the rest of the run. A hole in an outside wall is a new
+   way out that nobody can take away. The bang is heard across the building,
+   flings loose things away from it, and knocks anybody within a stride and a
+   half off their feet. There are four sticks.
+9. **Pop the fuse box** — the biggest bang in the building, and it takes the
+   whole chain of sockets with it.
 
 ## Deterministic rules
 
@@ -856,15 +894,30 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   picking it up. All the timings are fixed rather than seeded, so this adds no
   randomness of its own. The kind never seal a door with somebody beyond it, and
   nobody seals their own chosen way out unless the room beyond it is alight.
-- **Influence.** Starts at 100; a card that actually does something spends its
-  cost; every person whose outcome becomes `Escaped` credits 15, capped at 300,
-  counted at the end of the tick rather than reported by the behaviours. A card
-  nobody can pay for does nothing. Influence is not an event, for the same reason
+- **Influence.** Starts at 0. A card that actually does something spends 30.
+  Everything in the tick's new causal events is priced by how much of a commotion
+  it is and credited to the meter, capped at 300; deaths are excluded, and so are
+  the player's own cards and fire spreading square by square. Every person whose
+  outcome becomes `Escaped` credits 15. All of it is counted at the end of the
+  tick rather than reported by the behaviours, so nothing in the simulation has
+  to know the purse exists. Influence is not an event, for the same reason
   sitting is not; each card's event records its cost in `Strength`.
-- **The cards.** All four are root events, because the player is the cause.
-  `PlayBeefcake` sets that person's strength to 10 and nothing else — traits are
-  read when used and never cached, so every strength rule picks it up on the next
-  tick; it is refused on somebody already at 10 or no longer in the run.
+- **The hand.** Empty at the start. Each person whose outcome becomes `Lost`
+  deals one card, drawn from `DeckSystem`'s own PCG32 stream (`initseq` 55, from
+  the scenario seed) so that dealing never shifts the crowd's randomness. The
+  dead are walked in ascending crowd order, so a replay deals the same cards in
+  the same order. Cards backed by a finite supply leave the deck once it is gone.
+  `CardDealt` names the death as its causal parent and carries the card in
+  `Strength`. A card must be in hand to play, and leaves the hand only when it is
+  paid for.
+- **The cards.** All are root events, because the player is the cause. The five
+  trait cards are aimed at a place: everybody participating within 1500 mm — an
+  exact round test, because the spatial index gathers a box — has one trait set
+  to the end of its scale, in ascending crowd order so the log is replay-stable.
+  Traits are read when used and never cached, so every rule picks the change up
+  on the next tick. A throw counts as played, and so is paid for and discarded,
+  only if it moved somebody's dial: one that catches nobody, or only people
+  already at that end, does nothing and is free.
   `SpawnFire` needs a floor square that is in a room, unlit and not wet, asked
   before anything is written down because the log is append-only; the square it
   lights names the card as its cause, and if the scenario's fire has not started

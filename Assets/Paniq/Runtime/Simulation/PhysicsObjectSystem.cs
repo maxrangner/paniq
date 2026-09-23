@@ -1051,6 +1051,26 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Whether there is a spare bottle left to put down. The deck asks, so
+        /// a death never deals a card that has nothing behind it.
+        /// </summary>
+        public bool HasSpareExtinguisher
+        {
+            get
+            {
+                for (int b = 0; b < bodies.Length; b++)
+                {
+                    if (bodies[b].Dormant && kinds.Of(bodies[b].Kind).IsEquipment)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Stands one of the spare extinguishers on the floor where the player
         /// pointed, full of spray. Refuses if there is no spare left or the spot
         /// is not clear floor, and takes the lowest-numbered spare so a replay

@@ -77,7 +77,7 @@ namespace Paniq.Tests.EditMode
         public void Player_CannotCloseADoorSomeoneIsStandingIn()
         {
             FireReactionScenarioData data =
-                FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(scenario.ToRuntimeData());
+                FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()));
 
             // Standing right in the doorway, and staying put (no fire, very slow calm decisions).
             data.Agents = new[]
@@ -119,7 +119,7 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         private FireReactionSimulation InTheClosetWithSomeoneOutside(AgentTraitValues insider, int outsiderX = 4500)
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(7000, 2500), CardinalDirection.West, insider),
@@ -174,7 +174,7 @@ namespace Paniq.Tests.EditMode
         private FireReactionSimulation EscapingWithSomeoneBehind(AgentTraitValues escaper, LogicalPosition follower)
         {
             FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheWayOut(
-                scenario.ToRuntimeData(), 0, escaper);
+                TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()), 0, escaper);
             FireReactionAgentDefinition runner = data.Agents[0];
             data.Agents = new[]
             {
@@ -278,7 +278,7 @@ namespace Paniq.Tests.EditMode
         {
             for (ulong seed = 40UL; seed <= 46UL; seed++)
             {
-                var simulation = new FireReactionSimulation(scenario.ToRuntimeData(), seed);
+                var simulation = new FireReactionSimulation(TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()), seed);
                 for (int t = 0; t < 60 * FireReactionSimulation.TicksPerSecond; t++)
                 {
                     simulation.Step();
@@ -327,7 +327,7 @@ namespace Paniq.Tests.EditMode
             // One person in the storage closet with the door open and a fire
             // away across the office: far enough that the flames are nowhere
             // near the doorway, so the closet door is still their way out.
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(7000, 2500),
@@ -396,7 +396,7 @@ namespace Paniq.Tests.EditMode
         public void Escaper_LocksTheDoorBehindThemOnlyIfEvil(int evil, bool expectLocked)
         {
             FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheWayOut(
-                scenario.ToRuntimeData(), 0, new AgentTraitValues(5, 5, 5, 5, evil, 5));
+                TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()), 0, new AgentTraitValues(5, 5, 5, 5, evil, 5));
             var simulation = new FireReactionSimulation(data);
             Click(simulation, OfficeWayOut, 1);
             Click(simulation, OfficeWayOut, 2);

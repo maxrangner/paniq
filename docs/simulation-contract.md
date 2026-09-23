@@ -41,9 +41,20 @@ generator from that seed. The generator uses the PCG reference initialization
 procedure with the scenario seed as `initstate` and a fixed `initseq` of `54`.
 
 - Simulation systems obtain all random values only from that generator.
-- Derived streams are not allowed in the foundation. A later stream design must
-  name its derivation algorithm, state ownership, and compatibility effect
-  before it is introduced.
+- Derived streams must name their derivation algorithm, state ownership, and
+  compatibility effect before they are introduced. One exists:
+
+  | Stream | `initseq` | Owner | Why it is separate |
+  | --- | --- | --- | --- |
+  | The run | `54` | `SimulationContext.Random`, shared | Everything the world and the crowd decide |
+  | The deck | `55` | `DeckSystem`, owned outright | Which card a death deals the player |
+
+  Both derive from the same scenario seed as `initstate`, so a replay of a seed
+  reproduces both. The deck is separate because dealing a card must not shift
+  everybody else's randomness: while it shared the run's generator, one death
+  drew a number and from that tick on every person in the building panicked,
+  tripped and froze differently than they had before the deck existed. A third
+  stream deserves a derivation scheme rather than a third constant.
 - Simulation code must not use Unity's global `UnityEngine.Random`, wall-clock
   time, rendering-frame count, or presentation state to choose an outcome.
 - Visual, audio, and UI code may use presentation-only variation, but may not

@@ -24,8 +24,14 @@ namespace Paniq.Tests.EditMode
             UnityEngine.Object.DestroyImmediate(scenario);
         }
 
+        /// <summary>
+        /// The shipped floor with the fire in the office, and a purse behind
+        /// the player. Tests here click the way out open to see people use it;
+        /// a round opens with nothing to spend, so without this those clicks
+        /// are refused and the tests quietly check a sealed building.
+        /// </summary>
         private FireReactionScenarioData DefaultData() =>
-            TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
+            TheBuilding.WithThePlayerAbleToAct(TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData()));
 
         /// <summary>How far one solid thing may press into another, in millimetres, as the physics engine settles contacts.</summary>
         private const int PhysicsTolerance = 15;

@@ -315,6 +315,145 @@ Sources: J. D. Sime, [Movement toward the Familiar](https://journals.sagepub.com
 *Fire Safety Journal* 45(1), 2010, which names familiarity with the building
 layout among the things that decide how well people get out.
 
+## Prototype 2 decision: the dead deal, the uproar pays
+
+Chosen on 2026-09-23, after the owner said the round had nothing to do in it
+and that they could not read anybody. The four rules of the economy are the
+owner's; everything else below was chosen on their behalf.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| A round opens with nothing (**owner**) | `InfluenceSettings.Starting` 100 -> 0, and an empty hand | The old opening was the same every time: pay 80 of your 100 for the one way out, then sit on the remaining 20, which bought exactly one card. Starting at nothing makes the first move a decision about *when*, not *what*, and it means the building has to get into trouble before the player has earned the right to save anybody | The measurement below says the wait is longer than a player will sit through |
+| The uproar fills the meter (**owner**) | Every notable thing in the causal log pays, in three sizes: 1 for shouting, tripping, freezing, a collision, something catching; 3 for a knockdown, a shove, a door forced or burnt through, something broken, an alarm; 6 for somebody catching fire, going out cold, being crushed, an appliance going off, a door coming off its hinges | `game-vision.md` listed "panic itself pays" as the intriguing alternative kept on the shelf. It comes off the shelf: it fixes the death spiral (a disastrous opening no longer leaves the player broke and spectating) and it makes the game and the toy the same thing | Two sizes turn out to be enough, or the meter fills so fast that influence stops being a constraint at all |
+| Deaths deal cards, and pay nothing else (**owner**) | One card per death, drawn uniformly from what is still available. A death credits no influence | The owner's reasoning is the best argument in the design: it hurts your percentage but buys you options, so it is a genuinely hard choice rather than a free lunch. Keeping deaths out of the meter gives the two currencies one source each, which is a rule that fits in one sentence apiece | Deaths paying twice is ever wanted, which would make letting people die the best move on both axes at once |
+| Every card costs 30 (**owner**) | One `CardCost`, replacing Beefcake 20, fire 10, extinguisher 25, TNT 40, fuse box 45 | Which card you hold is not something you choose any more, so pricing them against each other would be pricing a choice nobody makes. What the player chooses is whether this moment is worth thirty | A card is ever bought rather than dealt |
+| **TNT and the fuse box got cheaper** | 40 -> 30 and 45 -> 30 | Follows from the flat price. It is softened by their now being rare draws rather than things to save up for, and both are still limited to four charges | A single card is seen to decide a round on its own |
+| Doors are unchanged (**owner**) | Unlock 50, walk open 30, pull shut 10 | The owner kept them deliberately. The one way out therefore costs 80, which is now something to be earned rather than something you begin with | — |
+| Saving somebody still pays 15 | `PerPersonSaved` unchanged | The owner's rules did not remove it, and it is the only force in the economy pulling against "let it burn". It is also what makes opening the exit start to fund the rest of the round | The pull toward letting people die is judged too weak or too strong in play |
+| Fire spreading pays nothing | Excluded from the uproar | It fires dozens of times a second in a room nobody is standing in, and would have swamped every other signal. The fire pays through what it does to people and things instead | The uproar is ever wanted to track the hazard rather than the crowd |
+| The player's own cards pay nothing | `Power*` events excluded | Otherwise a card would partly refund itself | Never |
+| The deck has its own random stream | A second PCG32 from the same scenario seed on `initseq` 55, owned by `DeckSystem`; the crowd keeps 54 | Sharing the one generator made the deck retune the entire game: a death drew a number, and from then on everybody panicked, tripped and froze differently. Sixty tests failed for no reason but that. [Simulation contract](simulation-contract.md) allows a derived stream on stated terms, which this is the first use of | A third stream is ever wanted, at which point the derivation deserves a scheme rather than a second constant |
+| A dealt card names the death that dealt it | `CardDealt` carries the `AgentLost` event as its causal parent, and the card in its strength field | Every event in the log traces back to a cause; a test caught this one not doing so. It also makes the round read back properly: "Ana died, and dealt you TNT" | Never |
+| Cards can be dealt before a level starts | `InfluenceSettings.StartingHand`, empty in the office | A level may later want to hand the player something, and forty tests need a particular card in hand without being tests of the economy. A real setting rather than a test backdoor | — |
+| Content revision and compatibility version both move | `ContentRevision` 52 -> 53; `SimulationCompatibilityVersion` 40 -> 41 | A new command outcome, a new event type and a new random stream all change what a recorded run means | — |
+
+### What the measurement said
+
+`HeadlessMeasurements.HowLongBeforeThePlayerCanOpenTheWayOut`, seeds 40-46,
+first minute of each run. The way out costs 80; a card costs 30.
+
+| Seed | Way out affordable | First card | Purse at 30 s | Purse at 60 s |
+| --- | --- | --- | --- | --- |
+| 40 | 56.9 s | 25.3 s | 37 | 109 |
+| 41 | 16.9 s | 25.0 s | 300 | 300 |
+| 42 | 57.8 s | 19.7 s | 43 | 93 |
+| 43 | not within a minute | 19.2 s | 41 | 69 |
+| 44 | 46.8 s | 24.8 s | 47 | 300 |
+| 45 | 18.0 s | 19.1 s | 291 | 300 |
+| 46 | 28.7 s | 21.9 s | 98 | 300 |
+
+Re-measured on the same day after the wayfinding work was joined to this,
+which made five of the fourteen people visitors who do not know the way out.
+Every figure held except seed 45's purse at thirty seconds, which rose from 267
+to 291, and a card or two more dealt on seeds 41 and 44. Strangers dying more
+was expected to move these numbers and barely did.
+
+Two things to watch, both for the owner to judge in play rather than for
+anybody to tune blind:
+
+- **The spread is enormous.** Seventeen seconds on one seed, not within a
+  minute on another. A seed where the fire starts among people pays quickly; a
+  seed where it starts in an empty corner pays almost nothing until it reaches
+  somebody. The lever is `InfluenceSettings.UproarSmall/Middling/Big`.
+- **The first card always arrives before the door can be opened**, at about
+  twenty seconds on every seed. So the player's first move is a card, not the
+  exit, on every seed measured. That may be exactly right -- something to do
+  while the meter fills -- or it may mean the exit is priced out of the opening.
+
+## Prototype 2 decision: cards you throw into the crowd
+
+Chosen on 2026-09-23, immediately after the economy above. The owner settled how
+blunt a card is, what it hits, when it can be played and how a person is read;
+everything else was chosen on their behalf.
+
+The owner rejected a first design built around pausing, an inspector panel and
+seven dials to push, in these words: *"the game should not steer into a paused
+and tactical game style. Point of the game is panic. It should be chaos."* That
+rejection is the reason for most of the rows below.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| A card slams a dial to the end (**owner**) | One throw takes the dial to 10, or to 0 for Cold heart. No nudging | You see what you did: the man who was dithering picks up an extinguisher and goes at the fire. A nudge from 2 to 4 often changes nothing visible, which is a bad feeling to pay for | Everybody the player touches reads as a caricature |
+| It lasts the round (**owner**) | No decay, no undo | The consequence plays out over minutes, which is where the joke is: the one you made fearless is also the one who walks toward the thing killing everybody. A timed version invites spamming and micro-timing, which is what pause was rejected for | — |
+| Thrown at a patch, not a person (**owner**) | Everybody within 1500 mm of the point, for the rest of the round | Picking one capsule out of a running crowd is inherently a precision game, and precision is what pulls toward slow motion and pausing. A patch means you pick the right *moment* and live with who was standing there | Playtests say throws feel arbitrary rather than chaotic |
+| Full speed only (**owner**) | No acting while paused, no slow motion. Space still pauses for looking | `game-vision.md` already said pause is for looking, not acting; the first design would have overturned it and the owner put it back. The round stays a real-time panic | — |
+| A miss is free (**owner**) | A throw that moves nobody's dial costs neither the influence nor the card | The owner's rule: *"if you miss and don't hit anyone the card aren't spent, but hitting the wrong agent is your own fault."* It also matches the rule Beefcake already had | — |
+| A throw that catches only people already at that end is also free | Same rule | It moved nobody, so it did nothing, and the established rule is that a card which does nothing is free. It is the difference between a wasted throw and a throw that never happened | The player is seen to farm this by aiming at a group they have already changed |
+| Nothing displays a person's traits (**owner**) | No panel, no inspector, no marks over heads | You read character from conduct: the man standing still in the smoke *is* the coward. It is what you would do watching a real panic, and it costs nothing to build because the behaviour is already on screen | Playtesters say their cards feel random |
+| A circle on the floor under the pointer | `CardAimRing`, sized to the patch, dim when empty and bright when somebody is inside; the HUD says how many | "You hit the wrong person and that is your fault" is only a fair rule if you could see who was standing there. The count is worked out in the presentation purely to draw and describe the aim; the run decides for itself who was caught | — |
+| Everybody caught flashes | One `Power…` event per person, each driving the existing `agents.Notice` blink | You can see what you actually got, which is how a player learns to aim. One event per person also makes the round read back as "you made these four fearless" rather than as one line naming a patch of carpet | — |
+| The patch is round, not square | Exact distance test on top of the index's box gather | The spatial index gathers a bounding box, so without it the corners would catch somebody 2.1 m away on the diagonal — outside the circle the player was shown. A test covers it | Never |
+| The four cards chosen (**owner**) | Courage, Terror, Bastard, Cold heart, alongside the existing Beefcake | The owner picked these over one card per trait and over a smaller pair. Each has a large amount of prototype 1 behaviour already behind it, and each is a joke as well as a tool | — |
+| Speed and leadership get no card | Left out | Nine cards is already the width of the bar, and these two have the least visible consequence behind them. Leadership especially needs people nearby to lead | The bar becomes a hand that scrolls, or a level wants a leader made on purpose |
+| Beefcake converted rather than kept | It is now thrown at a patch like the rest, and no longer names a person | Two rules for the same kind of card would be one to learn for nothing. It also removes the last thing aimed at a chosen person, which is what `TargetsAPerson` now returns false for everywhere | The end screen's "click somebody for their facts" arrives, which reuses the person-picking that was deliberately left in place |
+| One dial each, no trade-offs | Courage does not cost compassion | A third option the owner did not take. It would need the panel that was rejected, to show what you broke | The cards are judged too strong |
+| Content revision and compatibility version both move again | `ContentRevision` 53 -> 54; `SimulationCompatibilityVersion` 41 -> 42 | Four new commands, four new event types, and a deck that now deals nine cards rather than five | — |
+
+## Prototype 2 decision: joining the two lines of work
+
+Chosen on 2026-09-23. Two sessions wrote to
+`feat/prototype-2-round-and-controls` at the same time: one added wayfinding
+and visitors and pushed it, the other added the economy and the cards and
+committed locally. Neither is at fault and no work was lost. The branch was
+rebased into one straight line, wayfinding first, and these are the things that
+only showed up once the two were together.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| One straight line, not a merge (**owner**) | The economy and the cards replayed on top of wayfinding | A deliberate exception to the `--no-ff` rule, which is about integrating one branch into another; this was a single branch that forked because two sessions wrote to it. The two local commits had never been shared, so rewriting them cost nothing | Two sessions are ever deliberately kept on separate branches, where the rule applies as written |
+| Both groups of events kept their order | Wayfinding's three appended first, the economy's five after | The event list is append-only because its ordinals are part of every recorded run. Theirs were pushed first, so theirs keep the lower numbers | Never |
+| **`AgentFoundTheWayOut` now names a cause** | Falls back to the fright that set them looking, `agent.Fear.ScaredEventId`, when nothing more specific is passed | Only a leader telling somebody handed over a cause; seeing a door or reading a sign did not, so in a plain run those two were the one thing nothing could be traced back through, and a long-standing test that walks the whole log said so the first time it was ever run against wayfinding. Its sibling `AgentLookedForAWayOut` already names the same fright, so this is the arrangement that side had chosen anyway | Somebody wants a way out learned with no fright behind it, which today cannot happen: the event is only written to a frightened person |
+| A test that needs a death now arranges one | `LostAgents_TraceBackThroughTheFlamesToABurningSquare` and the three card-dealing tests pin the fire to a named square and stand somebody on it | They used to put a person at the middle of the fire's spawn *area* and trust the seed to light it under them. That is not a property of a seed, it is a property of where a random draw lands, so the day wayfinding shifted the run's randomness the fire moved off them and four tests lost the death they were about. A death a test needs is a death it arranges | Never |
+| Wayfinding's own run tests can afford their setup | `WayfindingRunEditModeTests.Floor` opens with a full purse | They open the way out in their first two ticks, and a round now opens with nothing, so every one of them had the exit stay locked and nobody get out of the building. The file predates the economy and is a test of where people walk | Never |
+| Their invariant fingerprints re-recorded once | `WithNoVisitors_TheFloorReplaysExactlyAsItDidBefore` | Its note said never to re-record it. It had to be, exactly once: the dead now deal a card, which writes a line into the log of every run somebody dies in, so the numbers moved for a reason that has nothing to do with wayfinding. From here it means what it was written to mean | Never again |
+| **That invariant is weaker than it reads** | Left as it is, with the fact written into its own comment | On seeds 40, 42 and 46 the meeting room is never frightened inside the minute, so the visitors never look for anything and nine of its ten cases come out identical to the runs that *have* visitors. Only cards-played on seed 42 tells a floor of staff from a floor with strangers on it. Worth knowing before trusting it | Somebody picks seeds for it that frighten the meeting room, which would make all ten cases mean something |
+| The new events pay nothing into the purse | `AgentLookedForAWayOut`, `AgentFoundADeadEnd`, `AgentFoundTheWayOut` are left out of the uproar | They are somebody thinking, not a commotion, and they fire often. Confirmed deliberately rather than left to the default | The purse is ever meant to reward a crowd that is lost rather than a crowd in uproar |
+
+**What the whole branch had never done before this:** pass. The wayfinding
+commit was written without a Unity editor, so it shipped ten knowingly-stale
+fingerprints and two test files -- 690 lines -- that had never been run once.
+Both are now recorded and run: 391 passing, 0 failing.
+
+## Prototype 2 decision: the test suite reviewed
+
+Chosen on 2026-09-23, after a play-mode test sat broken for a day because every
+check that day had been an edit-mode one. The owner settled two things and the
+rest was chosen on their behalf.
+
+**Settled by the owner:** the liveliness tests stay as real tests -- furniture
+still burns, somebody still gets knocked out, people still throw things -- and
+the suite should stay quick enough to run constantly, cutting duplication hard
+in exchange.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **One command runs both halves** | `tools/RunUnityTests.ps1 -All`, which calls the script once per half so the two paths cannot drift | The suite has always had two halves and the command ran one. That is not a thinking error to be more careful about next time, it is a tool that quietly did half its job, and it put a broken test on GitHub | Never; the plain form stays for when one half is wanted |
+| Four of six "same seed, same run" tests cut | Kept `TheBusiestRun_PlaysOutTheSameWayThreeTimes` and `FixedSeedRuns_ProduceIdenticalStateAndEvents` | Six tests asked one question. The busiest replays a seed with doors, boxes and cards all going, three times over; the other keeps two runs in lockstep and so names the *tick* they diverged, which is the one thing a fingerprint cannot tell you. The four cut were narrower versions that would have to get past both | A third way of being non-deterministic turns up that neither notices |
+| `PanickedCrowds_BumpKnockDownTripAndGetBackUp` 20 seeds -> 8 | ~15 s saved | It checks invariants on every tick of every run rather than asking whether something happens sometimes, so eight runs is still tens of thousands of checks. Seed count is the right lever for an invariant sweep and the wrong one for a liveliness test, where fewer runs only makes the answer wobblier | It ever starts failing on one seed and passing on another, which would mean it had become a liveliness test |
+| `NobodyStandsStillInFrontOfAnOpenDoor` down to one case | ~9 s saved | The two cases differed only in whether the door was unlocked at second six or second twelve, and nothing about standing clear of a doorway depends on the clock | — |
+| `WithNoVisitors` from ten cases to three, on different seeds | ~7 s saved, and the test now means something | Measured: on seeds 40, 42 and 46 the meeting room is never frightened inside the minute, so the visitors never looked for anything and nine of the ten cases ran a simulation identical to the test above them -- proving only that a run equals itself. It now runs seed 41, where five people find the way out and four go looking, and cards-played on 42 | The shipped floor changes enough that these seeds stop frightening the meeting room |
+| **The aim circle is tested against the card** | New `CardAimRingEditModeTests` | The circle drawn under the pointer and the patch the card catches are two separately written pieces of code -- one counts from the snapshot in the presentation, the other gathers from the crowd index in the run. A card that catches the wrong person is spent, and that is only fair because the player was shown the patch first. Nothing checked they agreed. Proved able to fail by widening the card's patch by 700 mm and watching it report "the circle promised 3 and the card caught 4" | Never |
+| No test for the card bar reading the hand | Left out deliberately | It would need simulated keyboard input in play mode to set up two lines that mirror `snapshot.Hand`, and the economy tests already check that at the source. A heavy test for a thin seam is the kind this review exists to remove | The bar ever holds state of its own rather than mirroring the run |
+| **Five tests were quietly working shut doors** | `FireReactionFurniture`, `FireReactionHardKnocks`, `FireReactionRooms`, `FireReactionRound` and `HeadlessMeasurements` now put a purse behind the player | Found while reviewing, not while failing. A round opens with an empty purse, so every door click in those files was being refused and they went on passing while checking a building nobody had opened. `NobodyStandsStillInFrontOfAnOpenDoor` unlocks every door as its whole premise, and none of them were unlocking; `CountEventsForSeeds40To46` printed its "doors all opened" and "doors locked" halves as the same run for both. Repaired, the opened half now reports 13 doors opened against 2 | Never -- and it is the third time this week that an empty purse silently hollowed out a test, so the helper is the first thing to reach for when a test works a door |
+
+**Before and after.** 391 edit-mode tests in 203 s, with play mode run by a
+separate command nobody was running. Now **381 edit-mode tests in 160 s, plus
+16 play-mode tests, both halves in one command in 172 s of wall clock.**
+Fourteen cases removed, four added, five files repaired. Two minutes was the
+target and it missed by about fifty seconds; closing that would mean cutting
+into the liveliness tests, which the owner chose to keep and which are worth
+more than the time.
+
 ## How decisions are made
 
 Paniq's owner is learning game development, so technical decisions must remain

@@ -30,6 +30,7 @@ namespace Paniq.Simulation
         private PhysicsObjectSystem objects;
         private Crowd crowd;
         private InfluenceSystem influence;
+        private DeckSystem deck;
         private SoundSystem sound;
         private BodySystem body;
         private WorldGeometry geometry;
@@ -43,8 +44,8 @@ namespace Paniq.Simulation
 
         /// <summary>Wired up after construction, because these are all built after this system.</summary>
         public void Use(DoorSystem doorSystem, FireSystem fireSystem, PhysicsObjectSystem physicsObjects, Crowd people,
-            InfluenceSystem influenceSystem, SoundSystem soundSystem, BodySystem bodySystem, WorldGeometry world,
-            RoundSystem theRound, PowerSystem thePower)
+            InfluenceSystem influenceSystem, DeckSystem theDeck, SoundSystem soundSystem, BodySystem bodySystem,
+            WorldGeometry world, RoundSystem theRound, PowerSystem thePower)
         {
             round = theRound;
             power = thePower;
@@ -53,6 +54,7 @@ namespace Paniq.Simulation
             objects = physicsObjects;
             crowd = people;
             influence = influenceSystem;
+            deck = theDeck;
             sound = soundSystem;
             body = bodySystem;
             geometry = world;
@@ -98,13 +100,16 @@ namespace Paniq.Simulation
                     }
 
                     break;
+                // Every card below names a place, not a thing, so there is
+                // nothing to check here: whether the throw caught anybody is
+                // decided when it lands, because the world will have moved on
+                // by then. Beefcake used to name a person and be checked here;
+                // it is thrown at a patch like the rest of them now.
                 case PlayerCommandType.PlayBeefcake:
-                    if (crowd.IndexOf(targetId) < 0)
-                    {
-                        throw new ArgumentException($"Unknown person ID {targetId}.", nameof(targetId));
-                    }
-
-                    break;
+                case PlayerCommandType.PlayCourage:
+                case PlayerCommandType.PlayTerror:
+                case PlayerCommandType.PlayBastard:
+                case PlayerCommandType.PlayColdHeart:
                 case PlayerCommandType.SpawnFire:
                 case PlayerCommandType.SpawnExtinguisher:
                 case PlayerCommandType.BlastWall:
@@ -165,6 +170,14 @@ namespace Paniq.Simulation
                 return;
             }
 
+            // A card they are not holding is not theirs to play. Cards are not
+            // bought -- the dead deal them -- so having the influence for one is
+            // only half of being able to play it.
+            if (!deck.Holds(command.CommandType))
+            {
+                return;
+            }
+
             // A card the player cannot pay for does nothing at all.
             if (!influence.CanAfford(command.CommandType))
             {
@@ -175,7 +188,11 @@ namespace Paniq.Simulation
             switch (command.CommandType)
             {
                 case PlayerCommandType.PlayBeefcake:
-                    played = PlayBeefcake(command);
+                case PlayerCommandType.PlayCourage:
+                case PlayerCommandType.PlayTerror:
+                case PlayerCommandType.PlayBastard:
+                case PlayerCommandType.PlayColdHeart:
+                    played = PlayTraitCard(command);
                     break;
                 case PlayerCommandType.SpawnFire:
                     played = SpawnFire(command);
@@ -194,30 +211,118 @@ namespace Paniq.Simulation
                     break;
             }
 
+            // Only a card that actually did something is paid for, and only a
+            // card that is paid for leaves the hand. A throw that caught
+            // nobody was a miss: it costs neither the influence nor the card.
             if (played)
             {
                 influence.Spend(command.CommandType);
+                deck.Discard(command.CommandType);
             }
         }
 
         /// <summary>
-        /// Beefcake: as strong as a person can be, for good. Nothing else about
-        /// them changes, and because traits are read when they are used the very
-        /// next tick already has them shouldering doors off their hinges.
+        /// What each trait card does: which dial it moves, which end it moves
+        /// it to, and what the log calls it. Every one of them is thrown at a
+        /// patch of floor rather than at a chosen person.
         /// </summary>
-        private bool PlayBeefcake(PlayerCommand command)
+        private static bool DialOf(
+            PlayerCommandType card, out AgentTrait trait, out int end, out FireReactionEventType logged)
         {
-            Agent agent = crowd.All[crowd.IndexOf(command.TargetId)];
-            if (!agent.IsParticipating || agent.Traits.Strength >= AgentTraitValues.Maximum)
+            switch (card)
             {
-                // Gone, or already as strong as they can get.
+                case PlayerCommandType.PlayBeefcake:
+                    trait = AgentTrait.Strength;
+                    end = AgentTraitValues.Maximum;
+                    logged = FireReactionEventType.PowerBeefcake;
+                    return true;
+                case PlayerCommandType.PlayCourage:
+                    trait = AgentTrait.Bravery;
+                    end = AgentTraitValues.Maximum;
+                    logged = FireReactionEventType.PowerCourage;
+                    return true;
+                case PlayerCommandType.PlayTerror:
+                    trait = AgentTrait.Nervousness;
+                    end = AgentTraitValues.Maximum;
+                    logged = FireReactionEventType.PowerTerror;
+                    return true;
+                case PlayerCommandType.PlayBastard:
+                    trait = AgentTrait.Evil;
+                    end = AgentTraitValues.Maximum;
+                    logged = FireReactionEventType.PowerBastard;
+                    return true;
+                case PlayerCommandType.PlayColdHeart:
+                    trait = AgentTrait.Compassion;
+                    end = AgentTraitValues.Minimum;
+                    logged = FireReactionEventType.PowerColdHeart;
+                    return true;
+                default:
+                    trait = AgentTrait.Strength;
+                    end = 0;
+                    logged = default;
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// A trait card, thrown at a patch of floor: everybody standing inside
+        /// it has that one dial slammed to the end of its scale, for the rest
+        /// of the round. Nothing else about them changes, and because traits
+        /// are read when they are used rather than cached, the very next tick
+        /// already has them behaving like the person they have become.
+        /// <para>
+        /// It counts as played -- and so is paid for, and leaves the hand -- if
+        /// it moved anybody's dial. A throw that catches nobody is a miss, and
+        /// so is one that catches four people who were all at that end
+        /// already: the established rule is that a card which does nothing is
+        /// free. A throw that catches the wrong person is spent, which is the
+        /// whole of the player's accuracy.
+        /// </para>
+        /// <para>
+        /// The crowd is walked in ascending order (which is the order
+        /// <see cref="Crowd.Within"/> reports), so the events this writes go
+        /// into the log in the same order on every replay of a seed.
+        /// </para>
+        /// </summary>
+        private bool PlayTraitCard(PlayerCommand command)
+        {
+            if (!DialOf(command.CommandType, out AgentTrait trait, out int end, out FireReactionEventType logged))
+            {
                 return false;
             }
 
-            agent.Traits = agent.Traits.WithStrength(AgentTraitValues.Maximum);
-            context.Events.Append(context.Tick, agent.Id, FireReactionEventType.PowerBeefcake, agent.Body.Position,
-                influence.CostOf(command.CommandType), 0, 0UL, agent.Id);
-            return true;
+            long radius = context.Scenario.Influence.CardPatchRadiusMillimetres;
+            int price = influence.CostOf(command.CommandType);
+            bool caught = false;
+
+            using (Crowd.Nearby inside = crowd.Within(command.Point, radius))
+            {
+                for (int i = 0; i < inside.Count; i++)
+                {
+                    Agent agent = crowd.All[inside[i]];
+                    if (!agent.IsParticipating || agent.Traits.Of(trait) == end)
+                    {
+                        // Gone, or that dial is already where this card would
+                        // put it.
+                        continue;
+                    }
+
+                    // The index gathers a box, not a circle, so the corners
+                    // have to be turned down by hand or the patch would catch
+                    // people 2.1 m away on the diagonal.
+                    if (LogicalPosition.DistanceSquared(agent.Body.Position, command.Point) > radius * radius)
+                    {
+                        continue;
+                    }
+
+                    agent.Traits = agent.Traits.With(trait, end);
+                    context.Events.Append(
+                        context.Tick, agent.Id, logged, agent.Body.Position, price, 0, 0UL, agent.Id);
+                    caught = true;
+                }
+            }
+
+            return caught;
         }
 
         /// <summary>A fire where the player pointed, if that square is floor, dry and not already alight.</summary>

@@ -1636,8 +1636,13 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class InfluenceSettings
     {
-        /// <summary>What the player starts the run with.</summary>
-        public int Starting = 100;
+        /// <summary>
+        /// What the player starts the run with: nothing. The round opens with
+        /// an empty purse and an empty hand, so the first thing the player can
+        /// do is watch. The building has to get into trouble before there is
+        /// anything to spend, which is the whole shape of the game.
+        /// </summary>
+        public int Starting = 0;
 
         /// <summary>Earned for each person who gets out alive, rescued or under their own steam.</summary>
         public int PerPersonSaved = 15;
@@ -1645,17 +1650,50 @@ namespace Paniq.Simulation
         /// <summary>The most influence the player can bank, so saving everybody does not leave a meaningless pile.</summary>
         public int Maximum = 300;
 
-        public int BeefcakeCost = 20;
-        public int SpawnFireCost = 10;
-        public int SpawnExtinguisherCost = 25;
-        public int BlastWallCost = 40;
+        /// <summary>
+        /// Cards the player is holding before anybody has died. Empty in the
+        /// office, where the whole point is that the round opens with nothing.
+        /// A later level that wants to hand the player something to start with
+        /// -- or a test that needs a particular card in hand -- sets it here.
+        /// </summary>
+        public PlayerCommandType[] StartingHand = new PlayerCommandType[0];
 
         /// <summary>
-        /// Popping the fuse box by hand. Dearer than TNT, because it is the
-        /// biggest bang in the building and it takes the whole chain of sockets
-        /// with it.
+        /// How wide a patch a card thrown at the floor catches. About a
+        /// doorway and a half across: wide enough that a scrum wedged in a door
+        /// is one throw, narrow enough that a calm room is not.
+        /// <para>
+        /// Cards are aimed at a place rather than at a chosen person, so this
+        /// is the whole of the player's accuracy. A throw that catches nobody
+        /// is a miss and costs nothing; a throw that catches the wrong person
+        /// is spent.
+        /// </para>
         /// </summary>
-        public int PopFuseBoxCost = 45;
+        public int CardPatchRadiusMillimetres = 1500;
+
+        /// <summary>
+        /// Every card costs the same. Which card you get is not something you
+        /// choose -- the dead deal them -- so pricing them against each other
+        /// would be pricing a choice nobody makes. What the player chooses is
+        /// whether this moment is worth thirty.
+        /// </summary>
+        public int CardCost = 30;
+
+        /// <summary>
+        /// What the uproar pays. Every notable thing that happens in the
+        /// building feeds the meter, sorted into three sizes: somebody
+        /// shouting or tripping is small, somebody going down or a door coming
+        /// off its hinges is middling, and somebody catching fire or an
+        /// appliance going off is big.
+        /// <para>
+        /// Deaths are deliberately not in here. A death deals a card instead,
+        /// so it pays once rather than twice and the two currencies keep one
+        /// source each.
+        /// </para>
+        /// </summary>
+        public int UproarSmall = 1;
+        public int UproarMiddling = 3;
+        public int UproarBig = 6;
 
         /// <summary>
         /// What a door click costs. Reaching into the building and working a
@@ -1669,13 +1707,25 @@ namespace Paniq.Simulation
         public int OpenDoorCost = 30;
         public int CloseDoorCost = 10;
 
-        public InfluenceSettings Clone() => (InfluenceSettings)MemberwiseClone();
+        public InfluenceSettings Clone()
+        {
+            var copy = (InfluenceSettings)MemberwiseClone();
+
+            // The shallow copy would hand both scenarios the same array, so a
+            // level that dealt itself an opening card would deal it to every
+            // other copy too.
+            copy.StartingHand = StartingHand == null
+                ? new PlayerCommandType[0]
+                : (PlayerCommandType[])StartingHand.Clone();
+            return copy;
+        }
 
         internal void Validate()
         {
             Settings.Require(Starting >= 0 && PerPersonSaved >= 0 && Maximum >= Starting, "influence");
-            Settings.Require(BeefcakeCost >= 0 && SpawnFireCost >= 0 && SpawnExtinguisherCost >= 0 &&
-                             BlastWallCost >= 0 && PopFuseBoxCost >= 0, "card costs");
+            Settings.Require(CardCost >= 0, "card costs");
+            Settings.Require(CardPatchRadiusMillimetres > 0, "how wide a card's patch is");
+            Settings.Require(UproarSmall >= 0 && UproarMiddling >= 0 && UproarBig >= 0, "what the uproar pays");
             Settings.Require(UnlockDoorCost >= 0 && OpenDoorCost >= 0 && CloseDoorCost >= 0, "door costs");
         }
     }

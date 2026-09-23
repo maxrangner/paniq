@@ -33,7 +33,7 @@ namespace Paniq.Tests.EditMode
         /// <summary>A quiet building: nobody much about, nothing burning, just the cable.</summary>
         private FireReactionScenarioData Quiet()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(new SimulationId(1UL), TheBuilding.MeetingRoom,
@@ -71,7 +71,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheDefaultBuilding_HasCableJoiningItsSocketsToTheFuseBox()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             Assert.That(data.PowerLines, Has.Length.EqualTo(3),
                 "Three runs of cable: the fuse box to the first socket, and on down the chain.");
             foreach (FireReactionPowerLineDefinition line in data.PowerLines)
@@ -105,7 +105,7 @@ namespace Paniq.Tests.EditMode
         public void PoppingTheFuseBox_CostsItsPriceOnce()
         {
             FireReactionScenarioData data = Quiet();
-            int price = data.Influence.PopFuseBoxCost;
+            int price = data.Influence.CardCost;
             var simulation = new FireReactionSimulation(data);
             LogicalPosition box = FuseBoxPosition(simulation);
             int before = simulation.Influence;
@@ -250,7 +250,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheSpark_TravelsSlowerThanSomebodyRunning()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             int sparkPerTick = data.Power.SparkSpeedMillimetresPerTick;
             Assert.That(sparkPerTick, Is.LessThan(data.Panic.SpeedMaximum),
                 "A fuse that outruns the people watching it is just a delayed explosion.");

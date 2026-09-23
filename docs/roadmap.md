@@ -175,6 +175,8 @@ on the same seed or a different one -- which is exactly the loop
 | You can click the person you meant | System | Cards are aimed at bodies on the screen rather than at a spot on the floor under them. Aiming at the floor meant that with the camera tilted low, clicking somebody's chest picked a patch of carpet two or three metres behind them, and the card was never played |
 | A star for a leader | Style | Somebody other people are following wears a green star. The people trailing after them wear nothing. Both used to wear the same arrow at different sizes |
 | Read the round back | System | **What happened** on the end card opens the whole round as a list: the fire taking hold, every shout, every door forced, shut or burnt through, everybody who caught fire and everybody who got out. The background chatter is folded into a line apiece, and one button unfolds the lot |
+| The dead deal, the uproar pays | System | A round opens with an empty purse and an empty bar. The meter fills from the building in uproar -- shouting, thuds, people going down, things catching -- and every person the fire kills deals you one card at random. Cards all cost 30, doors cost what they always did, and the one way out is 80 you now have to earn |
+| Cards you throw into the crowd | Behaviour | Five cards — Beefcake, Courage, Terror, Bastard and Cold heart — thrown at a patch of floor rather than at a chosen person. Everybody caught has one dial slammed to the end of its scale for the rest of the round, so the four you meant to save and the one who was doing fine all change together. A circle under the pointer shows what you are about to catch; a throw that catches nobody is free, and a throw that catches the wrong person is yours to live with |
 
 **What these stones deliberately left out.** Clicking a person on the frozen
 end screen for the facts about them, and the plain-language *retelling* -- the
@@ -335,10 +337,13 @@ a door they have never opened.
 - **Sound.** Yells, thuds, alarms and screams carried from where they happen.
   The game deliberately has no helper markers, so sound is how a player knows
   to turn the camera. The simulation already emits every one of these events.
-- **The trait dials as the toolkit.** Turning strength, bravery, compassion and
-  the rest up *and* down. Almost no new behaviour is required — the behaviours
-  already read these traits.
+- ~~**Cards you throw into the crowd.**~~ Built, alongside the economy that
+  deals them. What is left of the idea is the other direction of each dial (a
+  *coward* card, a *saint* card) and cards for speed and leadership.
 - **The Director.** The background system that adds and eases pressure.
+- **Zombies**, rather than the generic hunter below: the vision's *contagious
+  plus hunting* mix. The owner chose the fiction; the work is still the seam
+  between "afraid of the fire" and "afraid of a threat".
 - ~~**A camera the player drives.**~~ Built: moving, rotating a quarter turn at
   a time and zooming, per [look and controls](look-and-controls.md).
 - ~~**Pause to look.**~~ Built: time stops and the camera moves, but nothing

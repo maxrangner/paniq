@@ -28,7 +28,7 @@ namespace Paniq.Tests.EditMode
         }
 
         private FireReactionScenarioData DefaultData() =>
-            TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
+            TheBuilding.WithTheFireInTheOffice(TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()));
 
         private static FireReactionAgentDefinition Agent(ulong id, int x, int z, CardinalDirection facing)
         {
@@ -168,54 +168,10 @@ namespace Paniq.Tests.EditMode
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, new SimulationId(1001UL), simulation.Tick + 1));
         }
 
-        [Test]
-        public void ReplayingTheSameClicks_GivesTheSameRun()
-        {
-            var first = new FireReactionSimulation(DefaultData());
-            for (int t = 0; t < 1500; t++)
-            {
-                if (first.Tick == 300 || first.Tick == 330)
-                {
-                    Click(first, new SimulationId(2002UL));
-                }
-
-                if (first.Tick == 400)
-                {
-                    Click(first, TheWayOut);
-                    Click(first, TheWayOut);
-                }
-
-                first.Step();
-            }
-
-            var second = new FireReactionSimulation(DefaultData());
-            foreach (PlayerCommand command in first.Commands)
-            {
-                second.QueueCommand(command.CommandType, command.TargetId, command.TargetTick);
-            }
-
-            for (int t = 0; t < 1500; t++)
-            {
-                second.Step();
-            }
-
-            Assert.That(second.EventLog.Count, Is.EqualTo(first.EventLog.Count));
-            for (int i = 0; i < first.EventLog.Count; i++)
-            {
-                CausalEvent a = first.EventLog.Events[i];
-                CausalEvent b = second.EventLog.Events[i];
-                Assert.That(b.EventType, Is.EqualTo(a.EventType), $"Event {i}");
-                Assert.That(b.Tick, Is.EqualTo(a.Tick), $"Event {i}");
-                Assert.That(b.SourceId, Is.EqualTo(a.SourceId), $"Event {i}");
-                Assert.That(b.Position, Is.EqualTo(a.Position), $"Event {i}");
-                Assert.That(b.CausalParentEventId, Is.EqualTo(a.CausalParentEventId), $"Event {i}");
-            }
-
-            for (int i = 0; i < first.AgentCount; i++)
-            {
-                Assert.That(second.GetAgent(i).Position, Is.EqualTo(first.GetAgent(i).Position));
-            }
-        }
+        // ReplayingTheSameClicks_GivesTheSameRun queued door clicks into a
+        // fresh run and checked it came out the same. That is what
+        // TheBusiestRun_PlaysOutTheSameWayThreeTimes does, with the boxes and
+        // the cards going too.
 
         // ---------------------------------------------------------------- locked and open
 

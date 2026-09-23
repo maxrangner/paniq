@@ -431,6 +431,7 @@ namespace Paniq.Simulation
             int influenceEarned,
             int[] cardCosts,
             int[] doorClickCosts,
+            PlayerCommandType[] hand,
             int blastChargesRemaining,
             IReadOnlyList<FireReactionPowerSparkSnapshot> powerSparks,
             RoundPhase roundPhase,
@@ -447,6 +448,7 @@ namespace Paniq.Simulation
             InfluenceEarned = influenceEarned;
             this.cardCosts = cardCosts;
             this.doorClickCosts = doorClickCosts;
+            Hand = hand;
             ClearOfFireCount = clearOfFireCount;
             this.tables = tables;
             this.doors = doors;
@@ -473,6 +475,13 @@ namespace Paniq.Simulation
         public int InfluenceMaximum { get; }
         public int InfluenceSpent { get; }
         public int InfluenceEarned { get; }
+
+        /// <summary>
+        /// The cards the player is holding, in the order the dead dealt them.
+        /// Empty at the start of every round: nothing is bought, everything is
+        /// dealt.
+        /// </summary>
+        public IReadOnlyList<PlayerCommandType> Hand { get; }
 
         /// <summary>How many sticks of TNT the player has left.</summary>
         public int BlastChargesRemaining { get; }

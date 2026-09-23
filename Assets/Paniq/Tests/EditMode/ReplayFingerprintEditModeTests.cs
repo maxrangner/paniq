@@ -13,18 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        // TO RE-RECORD: compatibility version 41 (visitors) changes every run
-        // below, but these could only be recorded inside the Unity editor, and
-        // the change was written without one. Until they are re-recorded they
-        // still hold version 40's values and fail. Run them in the editor, paste
-        // in the value each failure message prints, and delete this note. The
-        // WithNoVisitors test at the bottom must pass before and after.
-        [TestCase(42UL, false, 0x390203F0F6720385UL)]
-        [TestCase(42UL, true, 0xE67C0708659BD136UL)]
-        [TestCase(40UL, false, 0xA840F980F57E70ECUL)]
-        [TestCase(40UL, true, 0x0BE208AA8F2101CFUL)]
-        [TestCase(46UL, false, 0xC0D916341F6E24CCUL)]
-        [TestCase(46UL, true, 0x30ABB1F51C684582UL)]
+        [TestCase(42UL, false, 0xE259538A61F45C57UL)]
+        [TestCase(42UL, true, 0x401B84C10B923882UL)]
+        [TestCase(40UL, false, 0x82E325DDEC23AE6BUL)]
+        [TestCase(40UL, true, 0xA9A0B57396E39180UL)]
+        [TestCase(46UL, false, 0x404DBF0A21370481UL)]
+        [TestCase(46UL, true, 0x5D5ED4C5AFF8A1E0UL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -47,8 +41,8 @@ namespace Paniq.Tests.EditMode
         /// well as by their own tests, so the whole command path is covered by
         /// replay. This run waits to be triggered, as a played level does.
         /// </summary>
-        [TestCase(42UL, 0xEC7769BD687259ACUL)]
-        [TestCase(40UL, 0xFB3B49308CBCFE42UL)]
+        [TestCase(42UL, 0xFC6550EA71652F63UL)]
+        [TestCase(40UL, 0xA602F3A62AA94C3CUL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -65,8 +59,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0xC36274F7296CA5FFUL)]
-        [TestCase(40UL, 0x189616C48F4AA7E9UL)]
+        [TestCase(42UL, 0x1F641F9EC7DCFBE2UL)]
+        [TestCase(40UL, 0x1D29E373ECD40B9EUL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();
@@ -84,28 +78,36 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// Every run above, with the meeting's visitors made staff again: the
-        /// fingerprints recorded before anybody could be a stranger, kept
-        /// exactly as they were. This is what proves that somebody who knows
-        /// the building walks exactly as everybody used to -- that the whole of
-        /// finding your way (knowing doors, looking round, searching, being
-        /// told) costs a person who knows the floor nothing at all, not so
-        /// much as one random number.
+        /// Every run above, with the meeting's visitors made staff again. This
+        /// is what proves that somebody who knows the building walks exactly as
+        /// everybody used to -- that the whole of finding your way (knowing
+        /// doors, looking round, searching, being told) costs a person who
+        /// knows the floor nothing at all, not so much as one random number.
         /// <para>
-        /// Unlike the fingerprints above these should never be re-recorded:
-        /// a change that moves them has changed how staff behave.
+        /// These were recorded before anybody could be a stranger, and were
+        /// meant never to be re-recorded. They were re-recorded exactly once,
+        /// when the economy landed: the dead now deal the player a card, which
+        /// writes a line into the log of every run somebody dies in, so the
+        /// numbers moved for a reason that has nothing to do with wayfinding.
+        /// From here they hold the meaning they were written for -- a change
+        /// that moves them has changed how staff behave -- and should not be
+        /// re-recorded again.
+        /// </para>
+        /// <para>
+        /// Three cases, not ten, and on the seeds where it means something. It
+        /// used to run seeds 40, 42 and 46, where the meeting room is never
+        /// frightened inside the minute: the visitors never looked for
+        /// anything, so nine of the ten cases were running a simulation
+        /// identical to the test above them and proving only that a run equals
+        /// itself. Seed 41 frightens the meeting room -- five people find the
+        /// way out and four go looking, measured -- and cards played on seed 42
+        /// frightens it too, so all three now genuinely compare a floor of
+        /// staff against a floor with strangers on it.
         /// </para>
         /// </summary>
-        [TestCase(42UL, Run.DoorsLocked, 0x390203F0F6720385UL)]
-        [TestCase(42UL, Run.DoorsOpened, 0xE67C0708659BD136UL)]
-        [TestCase(40UL, Run.DoorsLocked, 0xA840F980F57E70ECUL)]
-        [TestCase(40UL, Run.DoorsOpened, 0x0BE208AA8F2101CFUL)]
-        [TestCase(46UL, Run.DoorsLocked, 0xC0D916341F6E24CCUL)]
-        [TestCase(46UL, Run.DoorsOpened, 0x30ABB1F51C684582UL)]
-        [TestCase(42UL, Run.CardsPlayed, 0xEC7769BD687259ACUL)]
-        [TestCase(40UL, Run.CardsPlayed, 0xFB3B49308CBCFE42UL)]
-        [TestCase(42UL, Run.BoxesKicked, 0xC36274F7296CA5FFUL)]
-        [TestCase(40UL, Run.BoxesKicked, 0x189616C48F4AA7E9UL)]
+        [TestCase(41UL, Run.DoorsLocked, 0x28665FF8E6A65828UL)]
+        [TestCase(41UL, Run.DoorsOpened, 0x91F92781B5E1412FUL)]
+        [TestCase(42UL, Run.CardsPlayed, 0xC55EF9A1B385944CUL)]
         public void WithNoVisitors_TheFloorReplaysExactlyAsItDidBefore(ulong seed, Run run, ulong expected)
         {
             FireReactionScenario scenario = FireReactionScenario.CreateDefault();

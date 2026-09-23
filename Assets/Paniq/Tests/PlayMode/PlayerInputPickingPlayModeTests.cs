@@ -22,6 +22,15 @@ namespace Paniq.Tests.PlayMode
     /// The player clicked a body and the game looked for them on an empty
     /// patch of carpet.
     /// </para>
+    /// <para>
+    /// No card is aimed at a person any more -- every one of them is thrown at
+    /// a patch of floor, so <c>PlayerInput.TargetsAPerson</c> is false for all
+    /// of them and nothing in a played round reaches the picking below. It is
+    /// kept, and so are these, for the end screen's "click somebody for the
+    /// facts about them", which wants exactly this and has the same camera
+    /// angle to get wrong. Read these as guarding something not yet switched
+    /// on, not as covering live behaviour.
+    /// </para>
     /// </summary>
     public sealed class PlayerInputPickingPlayModeTests
     {

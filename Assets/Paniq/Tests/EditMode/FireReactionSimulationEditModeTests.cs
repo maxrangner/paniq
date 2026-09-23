@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("53"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(41));
+            Assert.That(data.ContentRevision, Is.EqualTo("54"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(42));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -861,10 +861,19 @@ namespace Paniq.Tests.EditMode
             // came down to luck. Any change to what a frightened crowd does
             // could take the death away and leave this test with nothing to
             // trace.
+            //
+            // The fire is pinned to one named square rather than left to the
+            // spawn area, and the person put on that square. Standing them at
+            // the middle of the area was not the same thing: the fire is drawn
+            // from the seed anywhere inside it, so whether they were in the
+            // flames at all depended on where that draw landed -- and any
+            // change that shifts the run's randomness, as adding wayfinding
+            // did, moves the fire off them and the death disappears.
             data.Fire.ActivationTick = 1;
+            TheBuilding.FireAt(data, TheBuilding.Office);
             var people = new List<FireReactionAgentDefinition>(data.Agents)
             {
-                new FireReactionAgentDefinition(new SimulationId(1999UL), data.Fire.SpawnBounds.Centre,
+                new FireReactionAgentDefinition(new SimulationId(1999UL), TheBuilding.Office,
                     CardinalDirection.North, AgentTraitValues.AllOrdinary)
             };
             data.Agents = people.ToArray();
@@ -1201,7 +1210,13 @@ namespace Paniq.Tests.EditMode
             int collisions = 0;
             int knockdowns = 0;
             int trips = 0;
-            for (ulong seed = 1UL; seed <= 20UL; seed++)
+            // Eight seeds, not twenty. This one checks invariants on every
+            // tick of every run -- nobody overlapping, nobody sliding about on
+            // the floor -- rather than asking whether something happens
+            // sometimes, so eight runs is still tens of thousands of checks and
+            // a violation has nowhere to hide. Twenty took twenty-five seconds,
+            // an eighth of the whole suite, for the same answer.
+            for (ulong seed = 1UL; seed <= 8UL; seed++)
             {
                 FireReactionScenarioData data = DefaultData();
                 var simulation = new FireReactionSimulation(data, seed);

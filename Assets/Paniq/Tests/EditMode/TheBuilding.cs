@@ -108,6 +108,67 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
+        /// <summary>
+        /// The building with the economy taken out of the way: a deep purse, a
+        /// deep hand, and an uproar that pays nothing.
+        /// <para>
+        /// A played round opens with nothing -- no influence and no cards --
+        /// and fills the purse from the uproar while the dead deal the cards.
+        /// That is the game, and it has its own tests. But a test about what a
+        /// crowd does once a door is open is not a test of the economy: it
+        /// opens the door as a way of setting the scene. Rather than have forty
+        /// such tests quietly fail because the player could not afford the
+        /// setup, they say here that the economy is not what they are about.
+        /// </para>
+        /// <para>
+        /// The uproar is silenced as well as the purse filled, because a test
+        /// that checks what a card cost counts the purse before and after: with
+        /// the building paying for its own commotion in between, the sum came
+        /// out a few short and the test was really measuring how much shouting
+        /// happened to have gone on.
+        /// </para>
+        /// </summary>
+        public static FireReactionScenarioData WithThePlayerAbleToAct(FireReactionScenarioData data)
+        {
+            data.Influence.Starting = 100000;
+            data.Influence.Maximum = 100000;
+            data.Influence.StartingHand = EveryCard();
+            data.Influence.UproarSmall = 0;
+            data.Influence.UproarMiddling = 0;
+            data.Influence.UproarBig = 0;
+            return data;
+        }
+
+        /// <summary>
+        /// A deep hand: a dozen of every card there is. Playing one takes it
+        /// out of the hand, so a test that plays the same card five times over
+        /// -- running TNT out of charges, say -- needs more than one of it.
+        /// </summary>
+        public static PlayerCommandType[] EveryCard()
+        {
+            var kinds = new[]
+            {
+                PlayerCommandType.PlayBeefcake,
+                PlayerCommandType.PlayCourage,
+                PlayerCommandType.PlayTerror,
+                PlayerCommandType.PlayBastard,
+                PlayerCommandType.PlayColdHeart,
+                PlayerCommandType.SpawnFire,
+                PlayerCommandType.SpawnExtinguisher,
+                PlayerCommandType.BlastWall,
+                PlayerCommandType.PopFuseBox
+            };
+
+            const int spare = 12;
+            var hand = new PlayerCommandType[kinds.Length * spare];
+            for (int i = 0; i < hand.Length; i++)
+            {
+                hand[i] = kinds[i % kinds.Length];
+            }
+
+            return hand;
+        }
+
         /// <summary>A fire in one square, at a named place, that never spreads on its own.</summary>
         public static void FireAt(FireReactionScenarioData data, LogicalPosition where)
         {

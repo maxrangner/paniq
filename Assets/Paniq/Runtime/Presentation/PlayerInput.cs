@@ -1,4 +1,6 @@
-﻿using Paniq.Gameplay;
+﻿using System;
+using System.Collections.Generic;
+using Paniq.Gameplay;
 using Paniq.Simulation;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -62,17 +64,25 @@ namespace Paniq.Presentation
         /// <summary>Where on the floor the pointer is, while a place-card is picked.</summary>
         public LogicalPosition? HoveredSpot { get; private set; }
 
-        /// <summary>The cards, in the order their number keys run.</summary>
-        public static readonly PlayerCommandType[] Cards =
-        {
-            PlayerCommandType.PlayBeefcake,
-            PlayerCommandType.SpawnFire,
-            PlayerCommandType.SpawnExtinguisher,
-            PlayerCommandType.BlastWall,
-            PlayerCommandType.PopFuseBox
-        };
+        /// <summary>
+        /// The cards the player is holding, in the order their number keys run.
+        /// <para>
+        /// This used to be a fixed list of every card in the game, because
+        /// every card was always available and only the purse decided whether
+        /// one could be played. Cards are now dealt by the dead, so the bar is
+        /// a hand that grows and shrinks during the round, and it comes from
+        /// the run rather than from here.
+        /// </para>
+        /// </summary>
+        public IReadOnlyList<PlayerCommandType> Hand { get; private set; } = Array.Empty<PlayerCommandType>();
 
-        public static bool TargetsAPerson(PlayerCommandType card) => card == PlayerCommandType.PlayBeefcake;
+        /// <summary>
+        /// Nothing is aimed at a chosen person any more: every card is thrown
+        /// at a patch of floor and catches whoever is standing in it. Kept as a
+        /// method rather than deleted because the end screen's "click somebody
+        /// for their facts" still wants the person-picking below.
+        /// </summary>
+        public static bool TargetsAPerson(PlayerCommandType card) => false;
 
         /// <summary>The number keys, in the order the cards run along the bar.</summary>
         private static readonly UnityEngine.InputSystem.Key[] NumberKeys =
@@ -90,6 +100,10 @@ namespace Paniq.Presentation
             switch (card)
             {
                 case PlayerCommandType.PlayBeefcake: return "Beefcake";
+                case PlayerCommandType.PlayCourage: return "Courage";
+                case PlayerCommandType.PlayTerror: return "Terror";
+                case PlayerCommandType.PlayBastard: return "Bastard";
+                case PlayerCommandType.PlayColdHeart: return "Cold heart";
                 case PlayerCommandType.SpawnFire: return "Start a fire";
                 case PlayerCommandType.SpawnExtinguisher: return "Put down an extinguisher";
                 case PlayerCommandType.BlastWall: return "TNT: blow open a wall";
@@ -114,6 +128,15 @@ namespace Paniq.Presentation
             HoveredDoor = null;
             HoveredPerson = null;
             HoveredSpot = null;
+            Hand = snapshot != null ? snapshot.Hand : Array.Empty<PlayerCommandType>();
+
+            // A card that has just been played, or that was never theirs, is
+            // not still in their hand to aim.
+            if (SelectedCard.HasValue && !Holding(SelectedCard.Value))
+            {
+                SelectedCard = null;
+            }
+
             if (lookOnly)
             {
                 // A card picked up before the freeze is put back down, so
@@ -206,7 +229,7 @@ namespace Paniq.Presentation
 
             // One branch per card rather than a ladder of them: the fifth
             // card was the moment copying the fourth stopped being sensible.
-            for (int i = 0; i < Cards.Length && i < NumberKeys.Length; i++)
+            for (int i = 0; i < Hand.Count && i < NumberKeys.Length; i++)
             {
                 if (keyboard[NumberKeys[i]].wasPressedThisFrame)
                 {
@@ -224,10 +247,24 @@ namespace Paniq.Presentation
             }
         }
 
+        /// <summary>Whether that card is on the bar. A short list, walked rather than searched.</summary>
+        private bool Holding(PlayerCommandType card)
+        {
+            for (int i = 0; i < Hand.Count; i++)
+            {
+                if (Hand[i] == card)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private void Pick(int index)
         {
             // Pressing the same number again puts the card back down.
-            PlayerCommandType card = Cards[index];
+            PlayerCommandType card = Hand[index];
             SelectedCard = SelectedCard == card ? (PlayerCommandType?)null : card;
         }
 

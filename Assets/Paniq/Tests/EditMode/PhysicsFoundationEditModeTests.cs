@@ -1,4 +1,4 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
 
@@ -85,16 +85,11 @@ namespace Paniq.Tests.EditMode
                 "A crate in one world was moved by a crate in another.");
         }
 
-        [TestCase(42UL, false, false)]
-        [TestCase(42UL, true, false)]
-        [TestCase(40UL, false, true)]
-        public void TheSameSeed_PlaysOutTheSameWayTwice(ulong seed, bool kickBoxes, bool playCards)
-        {
-            ulong first = ReplayFingerprint.Run(DefaultData(), seed, openDoors: true, kickBoxes, playCards);
-            PhysicsWorld.DisposeEveryWorld();
-            ulong second = ReplayFingerprint.Run(DefaultData(), seed, openDoors: true, kickBoxes, playCards);
-            Assert.That(second, Is.EqualTo(first), "Two runs of the same seed came out different.");
-        }
+        // TheSameSeed_PlaysOutTheSameWayTwice was three narrower versions of
+        // TheBusiestRun_PlaysOutTheSameWayThreeTimes below, which replays the
+        // same seed with the doors worked, the boxes kicked and the cards
+        // played all at once. Anything that made the run wander would have to
+        // get past that first.
 
         /// <summary>
         /// Three times over, with every door opened, every card played and

@@ -46,7 +46,7 @@ namespace Paniq.Tests.EditMode
         /// <summary>A quiet room with one ordinary person in it and no fire due.</summary>
         private FireReactionScenarioData QuietRoom()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(0, 0), CardinalDirection.North,
@@ -218,17 +218,17 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = QuietRoom();
             var simulation = new FireReactionSimulation(data);
-            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new SimulationId(1UL), 1);
+            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new LogicalPosition(0, 0), 1);
             simulation.Step();
 
             Assert.That(simulation.GetAgent(0).Traits.Strength, Is.EqualTo(AgentTraitValues.Maximum));
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.BeefcakeCost));
+            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.CardCost));
 
             List<CausalEvent> played = EventsOfType(simulation, FireReactionEventType.PowerBeefcake);
             Assert.That(played, Is.Not.Empty, "Playing Beefcake should be in the log.");
             Assert.That(played[0].TargetId, Is.EqualTo(new SimulationId(1UL)), "It names who it was played on.");
             Assert.That(played[0].CausalParentEventId, Is.Zero, "The player is the cause, so it is a root event.");
-            Assert.That(played[0].Strength, Is.EqualTo(data.Influence.BeefcakeCost), "It records what it cost.");
+            Assert.That(played[0].Strength, Is.EqualTo(data.Influence.CardCost), "It records what it cost.");
         }
 
         [Test]
@@ -237,7 +237,7 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = QuietRoom();
             var simulation = new FireReactionSimulation(data);
             AgentTraitValues before = simulation.GetAgent(0).Traits;
-            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new SimulationId(1UL), 1);
+            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new LogicalPosition(0, 0), 1);
             simulation.Step();
             AgentTraitValues after = simulation.GetAgent(0).Traits;
 
@@ -250,12 +250,12 @@ namespace Paniq.Tests.EditMode
             // An ordinary person (strength 5) does no damage to a locked door at
             // all; the same person after Beefcake breaks it off its hinges.
             FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheWayOut(
-                scenario.ToRuntimeData(), 0, AgentTraitValues.AllOrdinary);
+                TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()), 0, AgentTraitValues.AllOrdinary);
             data.Exits.DoorForceChancePercent = 100;
             data.Exits.DoorForceMinimumTicks = 100000;
             data.Exits.DoorForceMaximumTicks = 100000;
             var simulation = new FireReactionSimulation(data);
-            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new SimulationId(1UL), 1);
+            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, data.Agents[0].InitialPosition, 1);
             for (int t = 0; t < 40 * FireReactionSimulation.TicksPerSecond &&
                             EventsOfType(simulation, FireReactionEventType.DoorBrokenDown).Count == 0; t++)
             {
@@ -267,11 +267,22 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void Beefcake_CannotNameSomebodyWhoIsNotThere()
+        public void Beefcake_ThrownWhereNobodyIsStanding_IsFree()
         {
-            var simulation = new FireReactionSimulation(QuietRoom());
-            Assert.That(() => simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new SimulationId(9999UL), 1),
-                Throws.ArgumentException);
+            // Beefcake used to name a person, and naming somebody who was not
+            // there threw. It is thrown at a patch of floor now, so the same
+            // mistake is a miss instead: it catches nobody, and a card that
+            // catches nobody costs neither influence nor the card.
+            FireReactionScenarioData data = QuietRoom();
+            var simulation = new FireReactionSimulation(data);
+            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new LogicalPosition(4000, 4000), 1);
+            simulation.Step();
+            simulation.Step();
+
+            Assert.That(simulation.GetAgent(0).Traits.Strength, Is.EqualTo(AgentTraitValues.Ordinary),
+                "The person across the room is untouched.");
+            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting), "A miss is free.");
+            Assert.That(EventsOfType(simulation, FireReactionEventType.PowerBeefcake), Is.Empty);
         }
 
         [Test]
@@ -281,7 +292,7 @@ namespace Paniq.Tests.EditMode
             data.Agents[0] = new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(0, 0),
                 CardinalDirection.North, AgentTraitValues.AllOrdinary.WithStrength(AgentTraitValues.Maximum));
             var simulation = new FireReactionSimulation(data);
-            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new SimulationId(1UL), 1);
+            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new LogicalPosition(0, 0), 1);
             simulation.Step();
 
             Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting), "A card that does nothing is free.");
@@ -302,7 +313,7 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(simulation.FireActive, Is.True, "The player's card should have started the fire.");
             Assert.That(simulation.FireCellCount, Is.EqualTo(1));
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.SpawnFireCost));
+            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.CardCost));
 
             List<CausalEvent> card = EventsOfType(simulation, FireReactionEventType.PowerSpawnedFire);
             Assert.That(card, Is.Not.Empty);
@@ -355,7 +366,7 @@ namespace Paniq.Tests.EditMode
             simulation.Step();
             simulation.Step();
 
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.SpawnFireCost),
+            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.CardCost),
                 "The second card should have been refused.");
         }
 
@@ -373,7 +384,7 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(CountBottlesInTheWorld(simulation), Is.EqualTo(bottlesBefore + 1));
             Assert.That(simulation.Influence,
-                Is.EqualTo(data.Influence.Starting - data.Influence.SpawnExtinguisherCost));
+                Is.EqualTo(data.Influence.Starting - data.Influence.CardCost));
 
             List<CausalEvent> card = EventsOfType(simulation, FireReactionEventType.PowerSpawnedExtinguisher);
             Assert.That(card, Is.Not.Empty);
@@ -431,7 +442,7 @@ namespace Paniq.Tests.EditMode
         public void GettingSomebodyOut_PaysTheirRescueBack()
         {
             FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheWayOut(
-                scenario.ToRuntimeData(), 0, AgentTraitValues.AllOrdinary);
+                TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()), 0, AgentTraitValues.AllOrdinary);
             int starting = data.Influence.Starting;
             var simulation = new FireReactionSimulation(data);
             simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, 1);
@@ -457,7 +468,7 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = QuietRoom();
             data.Influence.Starting = 0;
             var simulation = new FireReactionSimulation(data);
-            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new SimulationId(1UL), 1);
+            simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new LogicalPosition(0, 0), 1);
             simulation.QueueCommand(PlayerCommandType.SpawnFire, new LogicalPosition(3000, 3000), 2);
             simulation.Step();
             simulation.Step();
@@ -467,25 +478,11 @@ namespace Paniq.Tests.EditMode
             Assert.That(simulation.Influence, Is.Zero);
         }
 
-        [Test]
-        public void ReplayingTheSameCards_GivesTheSameRun()
-        {
-            ulong First()
-            {
-                FireReactionScenarioData data = scenario.ToRuntimeData();
-                var simulation = new FireReactionSimulation(data, 42UL);
-                simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new SimulationId(1006UL), 60);
-                simulation.QueueCommand(PlayerCommandType.SpawnFire, new LogicalPosition(4000, 4000), 120);
-                simulation.QueueCommand(PlayerCommandType.SpawnExtinguisher, new LogicalPosition(-4000, 4000), 180);
-                for (int t = 0; t < 600; t++)
-                {
-                    simulation.Step();
-                }
+        // ReplayingTheSameCards_GivesTheSameRun compared nothing but the
+        // random generator's final state after playing three cards, which
+        // TheBusiestRun_PlaysOutTheSameWayThreeTimes covers with the whole run
+        // hashed rather than one number, and the replay fingerprints cover
+        // against recorded values as well.
 
-                return simulation.Random.State;
-            }
-
-            Assert.That(First(), Is.EqualTo(First()), "The same cards on the same seed must give the same run.");
-        }
     }
 }

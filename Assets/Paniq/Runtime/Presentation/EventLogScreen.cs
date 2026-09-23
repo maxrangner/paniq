@@ -179,12 +179,17 @@ namespace Paniq.Presentation
             switch (type)
             {
                 case FireReactionEventType.PowerBeefcake:
+                case FireReactionEventType.PowerCourage:
+                case FireReactionEventType.PowerTerror:
+                case FireReactionEventType.PowerBastard:
+                case FireReactionEventType.PowerColdHeart:
                 case FireReactionEventType.PowerSpawnedFire:
                 case FireReactionEventType.PowerSpawnedExtinguisher:
                 case FireReactionEventType.PowerBlastedWall:
                 case FireReactionEventType.PowerPoppedFuseBox:
                 case FireReactionEventType.RoundEventTriggered:
                 case FireReactionEventType.DoorUnlocked:
+                case FireReactionEventType.CardDealt:
                     return Player;
 
                 case FireReactionEventType.AgentLost:

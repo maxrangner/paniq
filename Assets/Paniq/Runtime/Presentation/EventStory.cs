@@ -180,6 +180,10 @@ namespace Paniq.Presentation
                 case FireReactionEventType.AlarmRang: return "the alarms rang out";
 
                 case FireReactionEventType.PowerBeefcake: return $"you made {whom} as strong as anyone can be";
+                case FireReactionEventType.PowerCourage: return $"you made {whom} fearless";
+                case FireReactionEventType.PowerTerror: return $"you put the fear of God into {whom}";
+                case FireReactionEventType.PowerBastard: return $"you turned {whom} nasty";
+                case FireReactionEventType.PowerColdHeart: return $"you stopped {whom} caring what happened to anybody";
                 case FireReactionEventType.PowerSpawnedFire: return "you started a fire of your own";
                 case FireReactionEventType.PowerSpawnedExtinguisher: return "you stood an extinguisher on the floor";
                 case FireReactionEventType.PowerBlastedWall: return "you blew a hole through a wall";
@@ -190,6 +194,9 @@ namespace Paniq.Presentation
                            $"toward {Name(record.TargetId)}";
                 case FireReactionEventType.PowerSparkArrived:
                     return $"the spark reached {Name(record.TargetId)}";
+
+                case FireReactionEventType.CardDealt:
+                    return $"{who} died, and dealt you {PlayerInput.NameOf((PlayerCommandType)record.Strength)}";
 
                 case FireReactionEventType.RoundEnded: return $"the round ended with {record.Strength} saved";
                 default: return record.EventType.ToString();

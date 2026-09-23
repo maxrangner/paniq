@@ -72,7 +72,7 @@ namespace Paniq.Tests.EditMode
         /// </param>
         private FireReactionScenarioData BoxInTheOfficeWayOutway(int millimetresInsideTheRoom = 200)
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Tables = new FireReactionTableDefinition[0];
             data.Alarms = new FireReactionAlarmDefinition[0];
 
@@ -261,7 +261,7 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         private FireReactionScenarioData ShelteringWithTheFireNextDoor(AgentTraitValues who)
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Tables = new FireReactionTableDefinition[0];
             data.Alarms = new FireReactionAlarmDefinition[0];
             data.PhysicsObjects = new[]

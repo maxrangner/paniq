@@ -12,12 +12,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class NavigationRoutesEditModeTests
     {
-        private FireReactionScenario scenario;
+        private ScenarioAsset scenario;
 
         [SetUp]
         public void SetUp()
         {
-            scenario = FireReactionScenario.CreateDefault();
+            scenario = ScenarioAsset.CreateDefault();
         }
 
         [TearDown]
@@ -28,9 +28,9 @@ namespace Paniq.Tests.EditMode
 
         private WorldGeometry Geometry(out int radius)
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
             radius = data.World.OccupancyRadiusMillimetres;
-            return new FireReactionSimulation(data).GeometryForTests;
+            return new Run(data).GeometryForTests;
         }
 
         [Test]
@@ -72,9 +72,9 @@ namespace Paniq.Tests.EditMode
             // The whole point. Standing on one side of the meeting room's long
             // table with a goal on the other side, the old answer was to face
             // the table and walk into it.
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
             int radius = data.World.OccupancyRadiusMillimetres;
-            WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
+            WorldGeometry geometry = new Run(data).GeometryForTests;
 
             LogicalBounds table = LongestTable(data);
             var thisSide = new LogicalPosition((table.MinX + table.MaxX) / 2, table.MinZ - 700);
@@ -108,9 +108,9 @@ namespace Paniq.Tests.EditMode
         {
             // A goal inside a table, or outside the building. The answer has to
             // be "no way", not a route that ends in a wall.
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
             int radius = data.World.OccupancyRadiusMillimetres;
-            WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
+            WorldGeometry geometry = new Run(data).GeometryForTests;
 
             LogicalBounds table = LongestTable(data);
             var insideTheTable = new LogicalPosition((table.MinX + table.MaxX) / 2, (table.MinZ + table.MaxZ) / 2);
@@ -120,11 +120,11 @@ namespace Paniq.Tests.EditMode
                 "The middle of a table was treated as somewhere to walk to.");
         }
 
-        private static LogicalBounds LongestTable(FireReactionScenarioData data)
+        private static LogicalBounds LongestTable(ScenarioData data)
         {
             LogicalBounds longest = default;
             long biggest = 0;
-            foreach (FireReactionTableDefinition table in data.Tables)
+            foreach (TableDefinition table in data.Tables)
             {
                 long area = (long)(table.Bounds.MaxX - table.Bounds.MinX) * (table.Bounds.MaxZ - table.Bounds.MinZ);
                 if (area > biggest)

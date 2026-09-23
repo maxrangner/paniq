@@ -196,7 +196,7 @@ namespace Paniq.Simulation
                 objects.PickUp(item, agent);
                 agent.Carry.Holding = true;
                 agent.Intent.ActivityEndTick = checked(tick + settings.FightTimeoutTicks);
-                context.Events.Append(tick, agent.Id, FireReactionEventType.AgentTookExtinguisher,
+                context.Events.Append(tick, agent.Id, CausalEventType.AgentTookExtinguisher,
                     agent.Body.Position, 0, 0, agent.Fear.ScaredEventId, objects.IdOf(item));
                 return Walk(agent, where, 0);
             }
@@ -204,7 +204,7 @@ namespace Paniq.Simulation
             if (objects.FuelOf(item) <= 0)
             {
                 // Empty: they drop it and run.
-                context.Events.Append(tick, agent.Id, FireReactionEventType.ExtinguisherEmptied,
+                context.Events.Append(tick, agent.Id, CausalEventType.ExtinguisherEmptied,
                     agent.Body.Position, 0, 0, agent.Doors.AttemptEventId, objects.IdOf(item));
                 items.PutDownWhereTheyStand(agent, agent.Fear.ScaredEventId);
                 GiveUp(agent);
@@ -317,7 +317,7 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             objects.UseFuel(item, 1);
-            ulong spray = context.Events.Append(tick, agent.Id, FireReactionEventType.ExtinguisherSprayed,
+            ulong spray = context.Events.Append(tick, agent.Id, CausalEventType.ExtinguisherSprayed,
                 agent.Body.Position, settings.SprayRangeMillimetres, agent.Body.Heading,
                 agent.Fear.ScaredEventId, objects.IdOf(item)).EventId;
 
@@ -337,21 +337,23 @@ namespace Paniq.Simulation
             // blasted off their feet — including whoever was alight.
             flammables.DouseWithin(agent.Body.Position, settings.SprayRangeMillimetres, spray, agent.Body.Heading, Cone(agent));
 
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using (Crowd.Nearby near = crowd.Within(agent.Body.Position, settings.SprayRangeMillimetres))
             {
-                Agent other = agents[i];
-                if (other == agent || !other.IsParticipating || !InTheCone(agent, other.Body.Position))
+                for (int c = 0; c < near.Count; c++)
                 {
-                    continue;
-                }
+                    Agent other = crowd.All[near[c]];
+                    if (other == agent || !other.IsParticipating || !InTheCone(agent, other.Body.Position))
+                    {
+                        continue;
+                    }
 
-                if (other.Burning.IsBurning)
-                {
-                    body.PutOutPerson(other, spray);
-                }
+                    if (other.Burning.IsBurning)
+                    {
+                        body.PutOutPerson(other, spray);
+                    }
 
-                Blast(agent, other, spray);
+                    Blast(agent, other, spray);
+                }
             }
 
             Recoil(agent, spray);
@@ -371,7 +373,7 @@ namespace Paniq.Simulation
 
             int away = IntegerMath.HeadingBetween(sprayer.Body.Position, hit.Body.Position, hit.Body.Heading);
             hit.Body.BlastedUntilTick = checked(context.Tick + settings.BlastRecoveryTicks);
-            context.Events.Append(context.Tick, sprayer.Id, FireReactionEventType.AgentBlasted,
+            context.Events.Append(context.Tick, sprayer.Id, CausalEventType.AgentBlasted,
                 hit.Body.Position, 0, away, sprayEventId, hit.Id);
             body.ShoveBack(hit, away, settings.BlastPushMillimetres, sprayEventId);
         }
@@ -466,9 +468,11 @@ namespace Paniq.Simulation
             long reach = settings.FetchRangeMillimetres;
             long bestDistance = reach * reach;
             int best = -1;
-            for (int i = 0; i < objects.Count; i++)
+            IReadOnlyList<int> bottles = objects.Equipment;
+            for (int b = 0; b < bottles.Count; b++)
             {
-                if (!objects.IsEquipment(i) || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                int i = bottles[b];
+                if (objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
                 {
                     continue;
                 }

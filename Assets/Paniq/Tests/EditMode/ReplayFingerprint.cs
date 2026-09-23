@@ -53,7 +53,7 @@ namespace Paniq.Tests.EditMode
         /// happen often enough to be covered; the default scenario only
         /// produces a few.
         /// </param>
-        public static ulong Run(FireReactionScenarioData data, ulong seed, bool openDoors, bool kickBoxes = false,
+        public static ulong Of(ScenarioData data, ulong seed, bool openDoors, bool kickBoxes = false,
             bool playCards = false)
         {
             if (playCards || openDoors)
@@ -77,7 +77,7 @@ namespace Paniq.Tests.EditMode
                 data.Round.HazardWaitsForTrigger = true;
             }
 
-            var simulation = new FireReactionSimulation(data, seed);
+            var simulation = new Run(data, seed);
             if (playCards)
             {
                 // The hazard is the player's to set going in this run, as it
@@ -127,7 +127,7 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
                 for (int i = 0; i < simulation.AgentCount; i++)
                 {
-                    FireReactionAgentSnapshot agent = simulation.GetAgent(i);
+                    AgentSnapshot agent = simulation.GetAgent(i);
                     hash.Add(agent.Position.X);
                     hash.Add(agent.Position.Z);
                     hash.Add(agent.HeadingDegrees);
@@ -174,7 +174,7 @@ namespace Paniq.Tests.EditMode
             return hash.Value;
         }
 
-        private static void AddObject(ref Fnv1a hash, FireReactionPhysicsObjectSnapshot thing)
+        private static void AddObject(ref Fnv1a hash, PhysicsObjectSnapshot thing)
         {
             hash.Add(thing.Position.X);
             hash.Add(thing.Position.Z);

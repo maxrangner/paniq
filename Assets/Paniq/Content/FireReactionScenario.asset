@@ -11,12 +11,12 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9e5f8e9be6b64528aa691500194ea499, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
+  m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 54
+    ContentRevision: 57
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 42
+    SimulationCompatibilityVersion: 45
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120

@@ -1417,7 +1417,7 @@ namespace Paniq.Simulation
         /// <summary>
         /// How hard a chair somebody leapt out of is sent over backwards, in
         /// millimetres a tick. A shove, not a throw: at twice this it clatters
-        /// into the meeting table hard enough to smash it, which is not what
+        /// into the meeting table hard enough to shift it, which is not what
         /// standing up quickly should do. What tips it over is the lift and
         /// the spin, not the speed.
         /// </summary>

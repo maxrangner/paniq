@@ -24,14 +24,14 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class CardAimRingEditModeTests
     {
-        private FireReactionScenario scenario;
+        private ScenarioAsset scenario;
         private GameObject parent;
         private Material material;
 
         [SetUp]
         public void SetUp()
         {
-            scenario = FireReactionScenario.CreateDefault();
+            scenario = ScenarioAsset.CreateDefault();
             parent = new GameObject("Test aim ring parent");
             material = new Material(Shader.Find("Sprites/Default"));
         }
@@ -45,15 +45,15 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>A quiet office with people exactly where the test puts them, and every card in hand.</summary>
-        private FireReactionScenarioData QuietRoomWith(params LogicalPosition[] people)
+        private ScenarioData QuietRoomWith(params LogicalPosition[] people)
         {
-            FireReactionScenarioData data =
+            ScenarioData data =
                 TheBuilding.WithThePlayerAbleToAct(TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData()));
 
-            var crowd = new FireReactionAgentDefinition[people.Length];
+            var crowd = new AgentDefinition[people.Length];
             for (int i = 0; i < people.Length; i++)
             {
-                crowd[i] = new FireReactionAgentDefinition(new SimulationId((ulong)(1 + i)), people[i],
+                crowd[i] = new AgentDefinition(new SimulationId((ulong)(1 + i)), people[i],
                     CardinalDirection.North, AgentTraitValues.AllOrdinary);
             }
 
@@ -64,7 +64,7 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
-        private static List<CausalEvent> EventsOfType(FireReactionSimulation simulation, FireReactionEventType type)
+        private static List<CausalEvent> EventsOfType(Run simulation, CausalEventType type)
         {
             var found = new List<CausalEvent>();
             foreach (CausalEvent record in simulation.EventLog.Events)
@@ -78,7 +78,7 @@ namespace Paniq.Tests.EditMode
             return found;
         }
 
-        private int Counted(FireReactionSimulation simulation, LogicalPosition at, int radius)
+        private int Counted(Run simulation, LogicalPosition at, int radius)
         {
             var ring = new CardAimRing(material, parent.transform);
             ring.Show(at, radius, simulation.GetSnapshot(), 0f);
@@ -94,7 +94,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void WhatTheCircleSaysItWillCatch_IsWhatTheCardCatches()
         {
-            FireReactionScenarioData data = QuietRoomWith(
+            ScenarioData data = QuietRoomWith(
                 new LogicalPosition(0, 0),
                 new LogicalPosition(1000, 0),
                 new LogicalPosition(-1200, 900),
@@ -118,7 +118,7 @@ namespace Paniq.Tests.EditMode
             int everCaught = 0;
             foreach (LogicalPosition spot in aimedAt)
             {
-                using (var simulation = new FireReactionSimulation(data))
+                using (var simulation = new Run(data))
                 {
                     simulation.Step();
                     int promised = Counted(simulation, spot, radius);
@@ -126,7 +126,7 @@ namespace Paniq.Tests.EditMode
                     simulation.QueueCommand(PlayerCommandType.PlayCourage, spot, simulation.Tick + 1);
                     simulation.Step();
                     simulation.Step();
-                    int caught = EventsOfType(simulation, FireReactionEventType.PowerCourage).Count;
+                    int caught = EventsOfType(simulation, CausalEventType.PowerCourage).Count;
 
                     Assert.That(caught, Is.EqualTo(promised),
                         $"Aimed at {spot.X},{spot.Z}: the circle promised {promised} and the card caught {caught}.");
@@ -144,8 +144,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void AnEmptyPatch_CountsNobody()
         {
-            FireReactionScenarioData data = QuietRoomWith(new LogicalPosition(0, 0));
-            using (var simulation = new FireReactionSimulation(data))
+            ScenarioData data = QuietRoomWith(new LogicalPosition(0, 0));
+            using (var simulation = new Run(data))
             {
                 simulation.Step();
                 Assert.That(Counted(simulation, new LogicalPosition(5000, 5000),
@@ -162,8 +162,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void ThePatch_IsRoundOnScreenAsWellAsInTheRun()
         {
-            FireReactionScenarioData data = QuietRoomWith(new LogicalPosition(1200, 1200));
-            using (var simulation = new FireReactionSimulation(data))
+            ScenarioData data = QuietRoomWith(new LogicalPosition(1200, 1200));
+            using (var simulation = new Run(data))
             {
                 simulation.Step();
                 Assert.That(Counted(simulation, new LogicalPosition(0, 0), 1500), Is.Zero,
@@ -181,13 +181,13 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheDead_AreNotInTheCircle()
         {
-            FireReactionScenarioData data = QuietRoomWith(new LogicalPosition(0, 0));
+            ScenarioData data = QuietRoomWith(new LogicalPosition(0, 0));
             data.Fire.ActivationTick = 1;
             TheBuilding.FireAt(data, new LogicalPosition(0, 0));
             data.Extinguishers.FightMinimumBravery = AgentTraitValues.Maximum + 1;
             data.Extinguishers.SaveMinimumCompassion = AgentTraitValues.Maximum + 1;
 
-            using (var simulation = new FireReactionSimulation(data))
+            using (var simulation = new Run(data))
             {
                 for (int tick = 0; tick < 2000 && simulation.GetAgent(0).Outcome != AgentTerminalOutcome.Lost; tick++)
                 {

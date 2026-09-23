@@ -15,12 +15,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class NavigationGridEditModeTests
     {
-        private FireReactionScenario scenario;
+        private ScenarioAsset scenario;
 
         [SetUp]
         public void SetUp()
         {
-            scenario = FireReactionScenario.CreateDefault();
+            scenario = ScenarioAsset.CreateDefault();
         }
 
         [TearDown]
@@ -30,11 +30,11 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>The biggest table in the building, which is the meeting room's.</summary>
-        private static LogicalBounds LongestTable(FireReactionScenarioData data)
+        private static LogicalBounds LongestTable(ScenarioData data)
         {
             LogicalBounds longest = default;
             long biggest = 0;
-            foreach (FireReactionTableDefinition table in data.Tables)
+            foreach (TableDefinition table in data.Tables)
             {
                 long area = (long)(table.Bounds.MaxX - table.Bounds.MinX) * (table.Bounds.MaxZ - table.Bounds.MinZ);
                 if (area > biggest)
@@ -48,10 +48,10 @@ namespace Paniq.Tests.EditMode
         }
 
         private WorldGeometry Geometry() =>
-            new FireReactionSimulation(scenario.ToRuntimeData()).GeometryForTests;
+            new Run(scenario.ToRuntimeData()).GeometryForTests;
 
         /// <summary>Near enough to some doorway that its floor is expected to reach here.</summary>
-        private static bool IsInADoorway(WorldGeometry geometry, FireReactionScenarioData data, LogicalPosition at)
+        private static bool IsInADoorway(WorldGeometry geometry, ScenarioData data, LogicalPosition at)
         {
             for (int door = 0; door < data.Doors.Length; door++)
             {
@@ -69,8 +69,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void EverySquare_BelongsToTheRoomTheGeometrySaysItIsIn()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
-            WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
+            ScenarioData data = scenario.ToRuntimeData();
+            WorldGeometry geometry = new Run(data).GeometryForTests;
             NavigationGrid grid = geometry.Navigation;
             int checkedSquares = 0;
 
@@ -152,8 +152,8 @@ namespace Paniq.Tests.EditMode
             // A route that reached a doorway and stopped dead at it would leave
             // everybody shut in the room they started in, so the ground through
             // a doorway -- and just outside a way out -- has to be floor.
-            FireReactionScenarioData data = scenario.ToRuntimeData();
-            WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
+            ScenarioData data = scenario.ToRuntimeData();
+            WorldGeometry geometry = new Run(data).GeometryForTests;
             NavigationGrid grid = geometry.Navigation;
             int radius = data.World.OccupancyRadiusMillimetres;
 
@@ -168,8 +168,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void EveryDoorway_IsWideEnoughToWalkThrough()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
-            WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
+            ScenarioData data = scenario.ToRuntimeData();
+            WorldGeometry geometry = new Run(data).GeometryForTests;
             int radius = data.World.OccupancyRadiusMillimetres;
 
             for (int door = 0; door < data.Doors.Length; door++)
@@ -188,9 +188,9 @@ namespace Paniq.Tests.EditMode
             // Asking whether that square can be walked to always answers no,
             // which reads as "there is no way to the fire" and makes everybody
             // give up on fighting it.
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
             int radius = data.World.OccupancyRadiusMillimetres;
-            WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
+            WorldGeometry geometry = new Run(data).GeometryForTests;
             NavigationGrid grid = geometry.Navigation;
 
             LogicalBounds table = LongestTable(data);
@@ -205,9 +205,9 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void APointAlreadyOnClearFloor_IsLeftAlone()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
             int radius = data.World.OccupancyRadiusMillimetres;
-            NavigationGrid grid = new FireReactionSimulation(data).GeometryForTests.Navigation;
+            NavigationGrid grid = new Run(data).GeometryForTests.Navigation;
 
             var openFloor = new LogicalPosition(-4000, -4000);
             Assert.That(grid.Fits(grid.CellAt(openFloor), radius), Is.True, "The test needs a spot somebody can stand on.");
@@ -222,8 +222,8 @@ namespace Paniq.Tests.EditMode
             // simply floor nobody can stand on, seam and all -- which is the
             // first sign that the shape of the world is no longer limited to
             // what one rectangle can say.
-            FireReactionScenarioData data = scenario.ToRuntimeData();
-            WorldGeometry geometry = new FireReactionSimulation(data).GeometryForTests;
+            ScenarioData data = scenario.ToRuntimeData();
+            WorldGeometry geometry = new Run(data).GeometryForTests;
             NavigationGrid grid = geometry.Navigation;
 
             LogicalBounds longest = LongestTable(data);

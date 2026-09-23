@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Paniq.Simulation
 {
     /// <summary>
@@ -90,7 +92,7 @@ namespace Paniq.Simulation
 
             if (!TryOrderADoorBrokenDown(agent) && !TryOrderTheFireFought(agent))
             {
-                Rally(agent, FireReactionEventType.LeaderCalledPeopleOn, default);
+                Rally(agent, CausalEventType.LeaderCalledPeopleOn, default);
             }
 
             // Leaders lead by going: their own running is decided as usual.
@@ -143,11 +145,11 @@ namespace Paniq.Simulation
             if (!Obeys(breaker, leader))
             {
                 // They shout anyway; whoever it was simply does not take it on.
-                Rally(leader, FireReactionEventType.LeaderCalledPeopleOn, default);
+                Rally(leader, CausalEventType.LeaderCalledPeopleOn, default);
                 return true;
             }
 
-            ulong order = Rally(leader, FireReactionEventType.LeaderOrderedDoorBroken, doors.IdOf(door), breaker.Id);
+            ulong order = Rally(leader, CausalEventType.LeaderOrderedDoorBroken, doors.IdOf(door), breaker.Id);
 
             // Sent at that door: they stop trailing after the leader, or the
             // next thing they decide would be to follow them again and the
@@ -183,11 +185,13 @@ namespace Paniq.Simulation
             // walking in straight lines.
             FlowField walking = geometry.Routes.ReachFrom(leader.Body.Position, bodyRadius);
             int bottle = -1;
-            for (int i = 0; i < objects.Count; i++)
+            IReadOnlyList<int> bottles = objects.Equipment;
+            for (int b = 0; b < bottles.Count; b++)
             {
                 // A bottle anywhere somebody could be sent to, rather than
                 // only one in the room the leader is standing in.
-                if (!objects.IsEquipment(i) || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                int i = bottles[b];
+                if (objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
                 {
                     continue;
                 }
@@ -216,11 +220,11 @@ namespace Paniq.Simulation
 
             if (!Obeys(fighter, leader))
             {
-                Rally(leader, FireReactionEventType.LeaderCalledPeopleOn, default);
+                Rally(leader, CausalEventType.LeaderCalledPeopleOn, default);
                 return true;
             }
 
-            ulong order = Rally(leader, FireReactionEventType.LeaderOrderedFireFought, objects.IdOf(bottle), fighter.Id);
+            ulong order = Rally(leader, CausalEventType.LeaderOrderedFireFought, objects.IdOf(bottle), fighter.Id);
 
             // Sent for the bottle: they stop following the leader first, or the
             // next thing they decide would be to fall in behind them again.
@@ -240,7 +244,7 @@ namespace Paniq.Simulation
         /// A shout that gathers whoever is near: they follow this leader
         /// until they are out, down, or the leader stops being one.
         /// </summary>
-        private ulong Rally(Agent leader, FireReactionEventType eventType, SimulationId target, SimulationId ordered = default)
+        private ulong Rally(Agent leader, CausalEventType eventType, SimulationId target, SimulationId ordered = default)
         {
             ulong order = context.Events.Append(context.Tick, leader.Id, eventType, leader.Body.Position,
                 settings.RallyRangeMillimetres, 0, leader.Fear.ScaredEventId,
@@ -249,10 +253,10 @@ namespace Paniq.Simulation
 
             long range = settings.RallyRangeMillimetres;
             int room = geometry.RoomOf(leader);
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby near = crowd.Within(leader.Body.Position, range);
+            for (int c = 0; c < near.Count; c++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[near[c]];
                 // Somebody frozen with fear does not hear a shout; they
                 // have to be shaken (see HelpBehaviour).
                 if (other == leader || !other.IsParticipating ||
@@ -395,10 +399,10 @@ namespace Paniq.Simulation
             int room = geometry.RoomOf(leader);
             long best = (long)reach * reach;
             Agent found = null;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby near = crowd.Within(leader.Body.Position, reach);
+            for (int c = 0; c < near.Count; c++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[near[c]];
                 // Nobody frozen with fear, alight, off their feet, or
                 // already under somebody's orders.
                 if (other == leader || !other.IsParticipating || other.Burning.IsBurning ||

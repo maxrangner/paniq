@@ -407,13 +407,17 @@ can be clicked, and a card already in your hand is put back down. Space again
 and it all carries on.
 
 **It ends when nobody is left to resolve.** That means every person is out of
-the building, dead, or alive somewhere the fire cannot get to — where "cannot
-get to" is worked out room by room, spreading from every burning room through
-every door that is open, broken or blasted, and held for five seconds so a
-round does not end in the lull before somebody shoulders a door open. Everyone
-still alive at that moment is written down as having **survived**, which counts
-as saved exactly as escaping does: barricading yourself into the storeroom is a
-way of living through a disaster, not an exploit.
+the building or dead — or the whole building has been doing nothing at all
+for long enough that there is plainly nothing left to wait for: nobody has got
+anywhere, nothing new has caught, no door has moved. A queue wedged in a
+doorway counts as something still happening, so a round never ends on top of
+a crush that has not cleared. It used to end the moment everybody left was in
+a room the fire could not reach; that stopped rounds while people were still
+walking to the door, and a shut door does not make a room permanently safe
+anyway. Everyone still alive at the end is written down as having
+**survived**, which counts as saved exactly as escaping does: barricading
+yourself into the storeroom is a way of living through a disaster, not an
+exploit.
 
 Then the scene freezes and a card gives the result — how many of the twenty
 were saved and what share that is, whether it cleared the 75% needed, how the
@@ -428,12 +432,14 @@ what happened out of sight. Both are planned and both are what would make a run
 ## The camera
 
 **W A S D** slide the view across the building, and W always moves it up the
-screen whichever corner you are looking from. **Q** and **E** swing a quarter
-turn to the next corner, snapping rather than sweeping, so there are four
-views. The **mouse wheel** zooms, and tilts as it goes: pulled out you look
-down on the building at the isometric angle, pushed in you look along the floor.
-The camera keeps working while the game is paused. The full description is in
-[look and controls](look-and-controls.md).
+screen whichever way you are looking. **Hold the right mouse button and drag**
+to swing the view to any angle at all; it stays where you let go. **Q** and
+**E** snap a quarter turn to the next corner view from wherever the view is
+now, so the four corners remain somewhere tidy to land. The **mouse wheel**
+zooms, and tilts as it goes: pulled out you look down on the building at the
+isometric angle, pushed in you look along the floor. A right *click* without a
+drag puts down the card in your hand. The camera keeps working while the game
+is paused. The full description is in [look and controls](look-and-controls.md).
 
 ## What the player can do
 
@@ -505,7 +511,7 @@ The other four are aimed at the building:
 ## Deterministic rules
 
 - The simulation runs at 50 logical ticks per second through one
-  `FireReactionRunner.FixedUpdate` entry point. It keeps the contract's order:
+  `RunDriver.FixedUpdate` entry point. It keeps the contract's order:
   fire advances, fire contact at current positions, agent decisions in
   ascending Agent ID order, movement resolution, then fire contact along
   accepted moves.
@@ -820,7 +826,7 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   down if the shover's strength exceeds theirs by 2 or more, and staggered
   otherwise. A calm victim is alarmed (`Bumped`); it makes a thud. A shove needs
   no speed, so it is what happens in a doorway queue.
-- **Starting possessions.** `FireReactionAgentDefinition.CarriedObjectId` names a
+- **Starting possessions.** `AgentDefinition.CarriedObjectId` names a
   thing somebody walks in holding. Bound after the objects exist and before the
   first tick, drawing no random numbers, so the start-up draw order is unchanged.
   The thing is marked `Carry.OwnsIt`, which exempts it from the calm put-down and
@@ -830,7 +836,7 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   holding is their own heading plus a seeded ±60°, except that evil 7+ aim at the
   nearest person within the existing aim range. Nothing else about letting go
   changed: the very nervous still drop rather than throw.
-- **Fire alarms.** One authored alarm per room (`FireReactionAlarmDefinition`).
+- **Fire alarms.** One authored alarm per room (`AlarmDefinition`).
   `AlarmBehaviour.Decide` sits in the panic chain after helping and before the
   door work, so somebody with an unconscious person in front of them sees to them
   rather than walking off to the bell. A scared, upright, empty-handed person not

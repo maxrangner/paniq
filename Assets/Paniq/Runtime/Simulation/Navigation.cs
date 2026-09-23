@@ -83,7 +83,7 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Throws away every route worked out so far, because the floor has
-        /// changed shape: a wall blown through, a table smashed to wreckage.
+        /// changed shape: a wall blown through, a table shoved somewhere new.
         /// They are cheap to work out again, and a stale one sends people at a
         /// wall that is no longer there.
         /// </summary>

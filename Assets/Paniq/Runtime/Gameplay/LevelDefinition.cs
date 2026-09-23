@@ -23,7 +23,7 @@ namespace Paniq.Gameplay
         [SerializeField] private string displayName = "The Office";
 
         [Tooltip("The building, the people and every rule they follow.")]
-        [SerializeField] private FireReactionScenario scenario;
+        [SerializeField] private ScenarioAsset scenario;
 
         [Tooltip("How the physics feels. Leave empty for the scenario's own values.")]
         [SerializeField] private PhysicsFeelPreset physicsFeel;
@@ -47,13 +47,13 @@ namespace Paniq.Gameplay
         /// A fresh copy of the scenario for one run, with this level's own
         /// rules written over it. Nothing here writes to the assets.
         /// </summary>
-        public FireReactionScenarioData ToRuntimeData()
+        public ScenarioData ToRuntimeData()
         {
             // With no scenario assigned, the code defaults: the same building
             // the scenario asset holds a saved copy of.
-            FireReactionScenarioData data = scenario != null
+            ScenarioData data = scenario != null
                 ? scenario.ToRuntimeData()
-                : new FireReactionScenarioData();
+                : new ScenarioData();
             data.Round.HazardWaitsForTrigger = hazardWaitsForTrigger;
             data.Round.TargetSavedPercent = targetSavedPercent;
             return data;

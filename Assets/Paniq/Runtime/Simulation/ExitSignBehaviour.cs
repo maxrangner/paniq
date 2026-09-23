@@ -23,13 +23,13 @@ namespace Paniq.Simulation
     /// </summary>
     internal sealed class ExitSignBehaviour
     {
-        private readonly FireReactionExitSignDefinition[] signs;
+        private readonly ExitSignDefinition[] signs;
         private readonly WorldGeometry geometry;
         private readonly PanicSettings settings;
 
         public ExitSignBehaviour(SimulationContext context, WorldGeometry geometry)
         {
-            signs = context.Scenario.ExitSigns ?? new FireReactionExitSignDefinition[0];
+            signs = context.Scenario.ExitSigns ?? new ExitSignDefinition[0];
             this.geometry = geometry;
             settings = context.Scenario.Panic;
         }

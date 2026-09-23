@@ -69,12 +69,12 @@ namespace Paniq.Simulation
             this.objects = objects;
             settings = context.Scenario.Power;
 
-            FireReactionPowerLineDefinition[] authored =
-                context.Scenario.PowerLines ?? Array.Empty<FireReactionPowerLineDefinition>();
+            PowerLineDefinition[] authored =
+                context.Scenario.PowerLines ?? Array.Empty<PowerLineDefinition>();
 
             // Only the runs whose ends are really in this building. Cable to
             // something that is not here is not here either.
-            var present = new System.Collections.Generic.List<FireReactionPowerLineDefinition>();
+            var present = new System.Collections.Generic.List<PowerLineDefinition>();
             for (int i = 0; i < authored.Length; i++)
             {
                 if (objects.IndexOf(authored[i].FromObjectId) >= 0 && objects.IndexOf(authored[i].ToObjectId) >= 0)
@@ -145,9 +145,9 @@ namespace Paniq.Simulation
         /// only when something is actually lit, which is most of a round not
         /// at all.
         /// </summary>
-        public System.Collections.Generic.IReadOnlyList<FireReactionPowerSparkSnapshot> Sparks()
+        public System.Collections.Generic.IReadOnlyList<PowerSparkSnapshot> Sparks()
         {
-            System.Collections.Generic.List<FireReactionPowerSparkSnapshot> live = null;
+            System.Collections.Generic.List<PowerSparkSnapshot> live = null;
             for (int i = 0; i < lines.Length; i++)
             {
                 if (!lines[i].Live || lines[i].ExtraDelay > 0)
@@ -155,12 +155,12 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                live ??= new System.Collections.Generic.List<FireReactionPowerSparkSnapshot>();
-                live.Add(new FireReactionPowerSparkSnapshot(i, lines[i].Travelled, lines[i].FromTheFromEnd));
+                live ??= new System.Collections.Generic.List<PowerSparkSnapshot>();
+                live.Add(new PowerSparkSnapshot(i, lines[i].Travelled, lines[i].FromTheFromEnd));
             }
 
-            return (System.Collections.Generic.IReadOnlyList<FireReactionPowerSparkSnapshot>)live ??
-                   System.Array.Empty<FireReactionPowerSparkSnapshot>();
+            return (System.Collections.Generic.IReadOnlyList<PowerSparkSnapshot>)live ??
+                   System.Array.Empty<PowerSparkSnapshot>();
         }
 
         /// <summary>How many runs of cable there are, for the display and the tests.</summary>
@@ -313,7 +313,7 @@ namespace Paniq.Simulation
 
                 int arrivedAt = lines[i].FromTheFromEnd ? lines[i].ToNode : lines[i].FromNode;
                 context.Events.Append(context.Tick, nodeIds[arrivedAt],
-                    FireReactionEventType.PowerSparkArrived, PositionOfNode(arrivedAt), 0, 0,
+                    CausalEventType.PowerSparkArrived, PositionOfNode(arrivedAt), 0, 0,
                     lines[i].CauseEventId, nodeIds[arrivedAt]);
 
                 // Already wreckage: the spark got there, and there is nothing
@@ -374,7 +374,7 @@ namespace Paniq.Simulation
                 // A beat of silence before the big one.
                 lines[line].ExtraDelay = nodeIsFuseBox[farEnd] ? settings.FuseBoxExtraDelayTicks : 0;
 
-                context.Events.Append(context.Tick, nodeIds[node], FireReactionEventType.PowerSparkStarted,
+                context.Events.Append(context.Tick, nodeIds[node], CausalEventType.PowerSparkStarted,
                     PositionOfNode(node), lines[line].LengthMillimetres,
                     TicksToCross(line), causeEventId, nodeIds[farEnd]);
             }

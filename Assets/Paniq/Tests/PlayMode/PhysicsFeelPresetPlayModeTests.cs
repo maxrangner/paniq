@@ -33,7 +33,7 @@ namespace Paniq.Tests.PlayMode
         public IEnumerator ThePrototypeLevel_StartsWithTheCartoonFeel()
         {
             yield return SceneManager.LoadSceneAsync(Paniq.App.Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
-            var runner = Object.FindFirstObjectByType<FireReactionRunner>();
+            var runner = Object.FindFirstObjectByType<RunDriver>();
             Assert.That(runner, Is.Not.Null);
             Assert.That(runner.PhysicsFeelName, Is.EqualTo("PhysicsFeel-Cartoon"));
             Assert.That(runner.IsLiveTuned, Is.False, "Live tuning should start switched off.");

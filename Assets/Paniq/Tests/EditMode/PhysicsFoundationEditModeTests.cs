@@ -13,9 +13,9 @@ namespace Paniq.Tests.EditMode
     [Category("UnityPhysics")]
     public sealed class PhysicsFoundationEditModeTests
     {
-        private static FireReactionScenarioData DefaultData()
+        private static ScenarioData DefaultData()
         {
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
                 return scenario.ToRuntimeData();
@@ -100,10 +100,10 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheBusiestRun_PlaysOutTheSameWayThreeTimes()
         {
-            ulong first = ReplayFingerprint.Run(DefaultData(), 41UL, openDoors: true, kickBoxes: true, playCards: true);
+            ulong first = ReplayFingerprint.Of(DefaultData(), 41UL, openDoors: true, kickBoxes: true, playCards: true);
             for (int repeat = 0; repeat < 2; repeat++)
             {
-                ulong again = ReplayFingerprint.Run(DefaultData(), 41UL, openDoors: true, kickBoxes: true, playCards: true);
+                ulong again = ReplayFingerprint.Of(DefaultData(), 41UL, openDoors: true, kickBoxes: true, playCards: true);
                 Assert.That(again, Is.EqualTo(first), $"Repeat {repeat + 2} of the same run came out different.");
             }
         }
@@ -111,8 +111,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void DifferentSeeds_PlayOutDifferently()
         {
-            ulong first = ReplayFingerprint.Run(DefaultData(), 42UL, openDoors: true);
-            ulong second = ReplayFingerprint.Run(DefaultData(), 43UL, openDoors: true);
+            ulong first = ReplayFingerprint.Of(DefaultData(), 42UL, openDoors: true);
+            ulong second = ReplayFingerprint.Of(DefaultData(), 43UL, openDoors: true);
             Assert.That(second, Is.Not.EqualTo(first));
         }
     }

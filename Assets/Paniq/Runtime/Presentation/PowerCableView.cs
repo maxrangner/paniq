@@ -29,13 +29,13 @@ namespace Paniq.Presentation
         private static readonly Color SparkColour = new Color(1f, 0.92f, 0.45f);
         private static readonly Color TailColour = new Color(1f, 0.45f, 0.08f);
 
-        private readonly FireReactionPowerLineDefinition[] lines;
+        private readonly PowerLineDefinition[] lines;
         private readonly Transform[] sparks;
         private readonly LineRenderer[] tails;
 
-        public PowerCableView(FireReactionScenarioData scenario, PresentationMaterials materials, Transform parent)
+        public PowerCableView(ScenarioData scenario, PresentationMaterials materials, Transform parent)
         {
-            lines = scenario.PowerLines ?? System.Array.Empty<FireReactionPowerLineDefinition>();
+            lines = scenario.PowerLines ?? System.Array.Empty<PowerLineDefinition>();
 
             var root = new GameObject("Power cable (presentation)").transform;
             root.SetParent(parent, false);
@@ -102,14 +102,14 @@ namespace Paniq.Presentation
         }
 
         /// <summary>One frame: every live spark put where the run says it has got to.</summary>
-        public void Update(FireReactionSnapshot snapshot, float time)
+        public void Update(RunSnapshot snapshot, float time)
         {
             int shown = 0;
             if (snapshot != null)
             {
                 for (int i = 0; i < snapshot.PowerSparks.Count && shown < sparks.Length; i++)
                 {
-                    FireReactionPowerSparkSnapshot spark = snapshot.PowerSparks[i];
+                    PowerSparkSnapshot spark = snapshot.PowerSparks[i];
                     if (spark.LineIndex < 0 || spark.LineIndex >= lines.Length)
                     {
                         continue;
@@ -147,7 +147,7 @@ namespace Paniq.Presentation
         /// Walked leg by leg, the same way the run's length is added up, so the
         /// drawn spark sits exactly where the rules put it.
         /// </summary>
-        private static Vector3 PointAlong(FireReactionPowerLineDefinition line, int travelled, bool forward)
+        private static Vector3 PointAlong(PowerLineDefinition line, int travelled, bool forward)
         {
             LogicalPosition[] corners = line.Corners;
             int count = corners.Length;

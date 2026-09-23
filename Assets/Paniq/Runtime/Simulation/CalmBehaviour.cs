@@ -391,10 +391,14 @@ namespace Paniq.Simulation
             long minimumSquared = (long)settings.SocialMinimumDistanceMillimetres * settings.SocialMinimumDistanceMillimetres;
             long maximumSquared = (long)settings.SocialMaximumDistanceMillimetres * settings.SocialMaximumDistanceMillimetres;
             Agent[] agents = crowd.All;
+
+            // Only the people near enough to be worth walking over to, in the
+            // same ascending order a walk of everybody would visit them in.
+            using Crowd.Nearby near = crowd.Within(agent.Body.Position, settings.SocialMaximumDistanceMillimetres);
             int candidateCount = 0;
-            for (int i = 0; i < agents.Length; i++)
+            for (int c = 0; c < near.Count; c++)
             {
-                if (IsSocialCandidate(agent, agents[i], minimumSquared, maximumSquared))
+                if (IsSocialCandidate(agent, agents[near[c]], minimumSquared, maximumSquared))
                 {
                     candidateCount++;
                 }
@@ -406,8 +410,9 @@ namespace Paniq.Simulation
             }
 
             int pick = context.Random.NextIntInclusive(0, candidateCount - 1);
-            for (int i = 0; i < agents.Length; i++)
+            for (int c = 0; c < near.Count; c++)
             {
+                int i = near[c];
                 if (!IsSocialCandidate(agent, agents[i], minimumSquared, maximumSquared))
                 {
                     continue;

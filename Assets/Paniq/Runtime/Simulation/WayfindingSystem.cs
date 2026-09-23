@@ -154,7 +154,7 @@ namespace Paniq.Simulation
             // does not, and without this those two were the one thing in a
             // plain run that nothing could be traced back through. Its sibling
             // AgentLookedForAWayOut already names the same fright.
-            context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentFoundTheWayOut,
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentFoundTheWayOut,
                 agent.Body.Position, (int)how, 0, cause != 0UL ? cause : agent.Fear.ScaredEventId);
             agent.Intent.NextPanicDecisionTick = context.Tick;
         }
@@ -217,7 +217,7 @@ namespace Paniq.Simulation
             agent.Intent.NextPanicDecisionTick = context.Tick;
             if (IsDeadEnd(agent, room))
             {
-                context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentFoundADeadEnd,
+                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentFoundADeadEnd,
                     eye, 0, 0, knowledge.SearchEventId);
             }
         }

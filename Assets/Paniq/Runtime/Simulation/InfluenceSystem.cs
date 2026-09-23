@@ -20,6 +20,15 @@
     /// log still accounts for where the influence went.
     /// </para>
     /// </summary>
+    /// <summary>How much of a commotion one kind of event is, to the player's meter.</summary>
+    public enum UproarTier
+    {
+        Nothing,
+        Small,
+        Middling,
+        Big
+    }
+
     internal sealed class InfluenceSystem
     {
         private readonly InfluenceSettings settings;
@@ -125,56 +134,140 @@
             eventsRead = log.Count;
         }
 
+        /// <summary>What one thing happening is worth to the meter: nothing, or one of three sizes.</summary>
+        private int UproarValueOf(CausalEventType what)
+        {
+            switch (UproarTierOf(what))
+            {
+                case UproarTier.Big: return settings.UproarBig;
+                case UproarTier.Middling: return settings.UproarMiddling;
+                case UproarTier.Small: return settings.UproarSmall;
+                default: return 0;
+            }
+        }
+
         /// <summary>
-        /// What one thing happening is worth. Three sizes: somebody shouting or
-        /// tripping is small, somebody going down or a door coming off its
-        /// hinges is middling, and somebody catching fire or an appliance going
-        /// off is big.
+        /// Which size of commotion each kind of event is. Three sizes: somebody
+        /// shouting or tripping is small, somebody going down or a door coming
+        /// off its hinges is middling, and somebody catching fire or an
+        /// appliance going off is big.
         /// <para>
-        /// Four groups pay nothing, each for its own reason. A death deals a
-        /// card instead. Somebody escaping is already paid for by the head
-        /// count. The player's own cards would otherwise refund themselves. And
-        /// fire spreading square by square is left out because it fires dozens
-        /// of times a second in a room nobody is standing in: the fire pays
-        /// through what it does to people and things, not through its own
-        /// arithmetic.
+        /// Every event type is named here, including the ones that pay nothing,
+        /// and an event type left out is an error rather than a silent zero. It
+        /// used to be a switch with a default of nothing, so a new event landed
+        /// in the wrong tier by omission and no test could tell. A test now
+        /// walks every value of the enum through this.
+        /// </para>
+        /// <para>
+        /// The groups that pay nothing, each for its own reason. A death deals
+        /// a card instead. Somebody escaping is already paid for by the head
+        /// count. The player's own cards would otherwise refund themselves.
+        /// Fire spreading square by square fires dozens of times a second in a
+        /// room nobody is standing in: the fire pays through what it does to
+        /// people and things, not through its own arithmetic. Somebody thinking
+        /// (looking for a way out, finding one) is not a commotion. And the
+        /// rest are bookkeeping.
         /// </para>
         /// </summary>
-        private int UproarValueOf(FireReactionEventType what)
+        internal static UproarTier UproarTierOf(CausalEventType what)
         {
             switch (what)
             {
-                case FireReactionEventType.AgentCaughtFire:
-                case FireReactionEventType.AgentPassedOut:
-                case FireReactionEventType.AgentCrushed:
-                case FireReactionEventType.ObjectExploded:
-                case FireReactionEventType.DoorBrokenDown:
-                    return settings.UproarBig;
+                case CausalEventType.AgentCaughtFire:
+                case CausalEventType.AgentPassedOut:
+                case CausalEventType.AgentCrushed:
+                case CausalEventType.ObjectExploded:
+                case CausalEventType.DoorBrokenDown:
+                    return UproarTier.Big;
 
-                case FireReactionEventType.AgentKnockedDown:
-                case FireReactionEventType.AgentShoved:
-                case FireReactionEventType.AgentGrabbed:
-                case FireReactionEventType.AgentForcedDoor:
-                case FireReactionEventType.AgentBarricadedDoor:
-                case FireReactionEventType.ObjectBroke:
-                case FireReactionEventType.DoorBurntThrough:
-                case FireReactionEventType.BoxHitAgent:
-                case FireReactionEventType.AlarmPulled:
-                    return settings.UproarMiddling;
+                case CausalEventType.AgentKnockedDown:
+                case CausalEventType.AgentShoved:
+                case CausalEventType.AgentGrabbed:
+                case CausalEventType.AgentForcedDoor:
+                case CausalEventType.AgentBarricadedDoor:
+                case CausalEventType.ObjectBroke:
+                case CausalEventType.DoorBurntThrough:
+                case CausalEventType.BoxHitAgent:
+                case CausalEventType.AlarmPulled:
+                    return UproarTier.Middling;
 
-                case FireReactionEventType.AgentYelled:
-                case FireReactionEventType.AgentScared:
-                case FireReactionEventType.AgentTripped:
-                case FireReactionEventType.AgentFroze:
-                case FireReactionEventType.AgentsCollided:
-                case FireReactionEventType.AgentShovedObstruction:
-                case FireReactionEventType.ObjectCaughtFire:
-                case FireReactionEventType.ItemThrown:
-                case FireReactionEventType.BoxBumped:
-                    return settings.UproarSmall;
+                case CausalEventType.AgentYelled:
+                case CausalEventType.AgentScared:
+                case CausalEventType.AgentTripped:
+                case CausalEventType.AgentFroze:
+                case CausalEventType.AgentsCollided:
+                case CausalEventType.AgentShovedObstruction:
+                case CausalEventType.ObjectCaughtFire:
+                case CausalEventType.ItemThrown:
+                case CausalEventType.BoxBumped:
+                    return UproarTier.Small;
+
+                // A death deals a card; the head count pays for an escape.
+                case CausalEventType.AgentLost:
+                case CausalEventType.AgentEscaped:
+                case CausalEventType.AgentRescued:
+                case CausalEventType.AgentSurvived:
+                case CausalEventType.CardDealt:
+
+                // The player's own doing.
+                case CausalEventType.PowerBeefcake:
+                case CausalEventType.PowerCourage:
+                case CausalEventType.PowerTerror:
+                case CausalEventType.PowerBastard:
+                case CausalEventType.PowerColdHeart:
+                case CausalEventType.PowerSpawnedFire:
+                case CausalEventType.PowerSpawnedExtinguisher:
+                case CausalEventType.PowerBlastedWall:
+                case CausalEventType.PowerPoppedFuseBox:
+                case CausalEventType.DoorUnlocked:
+                case CausalEventType.RoundEventTriggered:
+                case CausalEventType.RoundEnded:
+
+                // The hazard's own arithmetic.
+                case CausalEventType.FireActivated:
+                case CausalEventType.FireSpread:
+                case CausalEventType.FireDoused:
+                case CausalEventType.ObjectBurntOut:
+                case CausalEventType.PowerSparkStarted:
+                case CausalEventType.PowerSparkArrived:
+
+                // Somebody thinking, or somebody being told.
+                case CausalEventType.AgentAlerted:
+                case CausalEventType.AgentNoticedSound:
+                case CausalEventType.AgentUnfroze:
+                case CausalEventType.AgentLookedForAWayOut:
+                case CausalEventType.AgentFoundADeadEnd:
+                case CausalEventType.AgentFoundTheWayOut:
+                case CausalEventType.LeaderCalledPeopleOn:
+                case CausalEventType.LeaderOrderedDoorBroken:
+                case CausalEventType.LeaderOrderedFireFought:
+
+                // Bookkeeping: things happening quietly to people, things and doors.
+                case CausalEventType.AgentGotUp:
+                case CausalEventType.AgentCameTo:
+                case CausalEventType.AgentRolled:
+                case CausalEventType.AgentDoused:
+                case CausalEventType.AgentBlasted:
+                case CausalEventType.AgentShookAwake:
+                case CausalEventType.AgentDropped:
+                case CausalEventType.AgentTriedDoor:
+                case CausalEventType.AgentGaveUpOnDoor:
+                case CausalEventType.AgentTookExtinguisher:
+                case CausalEventType.ExtinguisherSprayed:
+                case CausalEventType.ExtinguisherEmptied:
+                case CausalEventType.ItemDropped:
+                case CausalEventType.BoxesCollided:
+                case CausalEventType.DoorOpened:
+                case CausalEventType.DoorClosed:
+                case CausalEventType.DoorLocked:
+                case CausalEventType.DoorBlocked:
+                case CausalEventType.DoorUnblocked:
+                case CausalEventType.AlarmRang:
+                    return UproarTier.Nothing;
 
                 default:
-                    return 0;
+                    throw new System.ArgumentOutOfRangeException(nameof(what),
+                        $"{what} has no uproar tier. Every event type must say what it pays, even if that is nothing.");
             }
         }
 

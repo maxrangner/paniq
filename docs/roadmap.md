@@ -96,7 +96,7 @@ cross a room.
 
 | What changed | What it means |
 | --- | --- |
-| Edit-mode tests run without closing Unity (`tools/RunEditModeTests.ps1`) | The whole suite in about twenty seconds, so a large change can be checked as it is made |
+| Edit-mode tests ran without closing Unity (`tools/RunEditModeTests.ps1`; retired 2026-09-23 once every test needed the physics engine) | At the time, the whole suite in about twenty seconds; today `tools/RunUnityTests.ps1` asks the open editor instead |
 | An index of who and what is standing where | "Who is near me" stops meaning "look at everyone"; the costs that grew with the square of the crowd are gone |
 | The floor drawn as 250 mm squares, with real clearance | A doorway too narrow to walk through is refused when the floor plan loads, instead of sealing a room in silence |
 | Flow fields | People find their way round furniture and across the building; a crowd of two hundred costs no more to steer than twenty |
@@ -281,6 +281,27 @@ read as a queue. The dead-end arm of the T is the other thing to watch: it
 exists to be a wrong turn, and whether anybody actually takes it is a question
 only playing it answers.
 
+## Foundations reviewed (2026-09-23)
+
+Not a stone. The owner asked for a full review of the code against the game
+these documents describe, and accepted its plan in full: six phases of
+refactoring on one branch, then merged back. The review's verdict was that the
+foundations are sound and that the prototype had outgrown two of its founding
+assumptions, "the hazard is the fire" and "twenty people in a small office".
+Each phase is recorded here as it lands, with its decision-log entry.
+
+| Phase | What changed | What it means for the game |
+| --- | --- | --- |
+| 1. Afraid of a threat | The crowd asks `Threats`, never the fire by name; the fire is one `IThreat`. One binding pass replaces eleven setters. Every event type says what it pays the meter | The hunter stone below can be built as a second threat rather than by editing seventeen files. Nothing a player sees moved: all thirteen fingerprints held |
+| 2a. One map | A route between rooms costs what it is to walk, round the furniture, instead of the straight line from door to door. The fields people steer by and the graph they choose doors by now agree | Somebody choosing between two ways out picks the shorter walk, not the shorter line. This is the one review phase that changes a run: the versions were bumped and the recorded runs that moved were re-recorded. Testing it exposed a stranger bouncing through one doorway for ever, fixed in its own commit |
+| 6. The documents | The prototype note says what a round and the camera do now; the exit-sign comments say strangers read the signs; nine comments stop saying tables smash; the version list is a table | Nothing a player sees. The notes the owner reads match the game again |
+| 5. The rename | `FireReactionSimulation` is `Run`, `FireReactionSnapshot` is `RunSnapshot`, `FireReactionRunner` is `RunDriver`, `FireReactionEventType` is `CausalEventType`, and every other `FireReaction*` type drops the prefix; files moved with their `.meta` files so the scene and the asset still point at them | Nothing a player sees. The code now says it is the game, not a fire demo; a hunter written into it reads right |
+| 4c. A full buffer is not an answer | The physics look-ups (is this spot clear, is anybody in this doorway, is a wall between us) grow their buffers instead of answering from the first thirty-two things found | In a dense crush nobody stands up inside somebody else and no door shuts on somebody it should refuse. Versions bumped; no recorded run reaches that density, so all thirteen fingerprints held |
+| 4b. The fire in batches | Every burning square's tile and flames are drawn in a few dozen batched calls instead of three or four scene objects per square, glow through walls included | A whole floor ablaze no longer drags the frame rate down while the simulation is fine. Same look; presentation only |
+| 4a. Nothing allocated a tick | The display fills two reusable snapshots turn about instead of building a fresh one every tick; the cost tables are worked out once a run; the stress profile also measures the panicking building | No stutter from memory tidying as the crowd grows. Nothing a player sees today; all thirteen fingerprints held |
+| 3. Dead weight out | The movement rules from before the physics engine (`KeepObjectInRoom`, `ClipsDoorFrame`, `TableHit`, doorway strips, `IsWalkable`, `ClampIntoWalkable`, `PhysicsWorld.RemoveTable`) and the test runner that needed no editor are deleted; the one live use, where a helper drags a casualty to, is a ten-line `ClampIntoRoom` | Nothing a player sees. The world code is about a tenth shorter and no longer describes two ways of moving, one of them dead. All thirteen fingerprints held |
+| 2b. The index everywhere | Every question one person asks about the people or things near them reads the spatial index for that patch of floor instead of walking everybody. Rooms come from the navigation grid; IDs are looked up in one step. A panic measurement (fire lit, everybody frightened, up to 500 people) now exists next to the calm one | The cost of a panic no longer grows with the square of the crowd, which is what a larger level needs. Nothing a player sees moved: all thirteen fingerprints held and the measured runs end identically |
+
 ## Agreed direction for the next stones
 
 Settled with the owner in a design review (see [game vision](game-vision.md)
@@ -321,16 +342,18 @@ a door they have never opened.
 2. **Layer:** system and behaviour.
 3. **Deliberately left out:** fiction, art, weapons, and any second hazard
    family. This stone is not a zombie scenario; it is a test.
-4. **Why this one:** the crowd's fear currently points at a grid of burning
+4. **Why this one:** the crowd's fear used to point at a grid of burning
    floor squares. A hunter is a threat that *moves and chooses*, which is the
-   hardest assumption in the current design. The real work of this stone is
-   generalising "afraid of the fire" into "afraid of a threat" — something at a
-   place, with a size, that can be noticed and that hurts on contact. Finding
-   that seam now, while the codebase is small, is worth more than a second
-   hazard that reuses everything.
-5. **How it is checked:** edit-mode tests that the existing fire behaviour is
-   unchanged by the generalisation, plus tests for chase and conversion. On
-   screen: the crowd flees a walking threat the same way it flees fire.
+   hardest assumption in the current design. The seam -- "afraid of a threat":
+   something at a place, with a size, that can be noticed and that hurts on
+   contact -- now exists (`IThreat`, built in the review refactor above), so
+   the work of this stone is the hunter itself: one that walks, picks a
+   target, and converts whoever it catches.
+5. **How it is checked:** the fire behaviour is already proven unchanged by
+   the generalisation (all thirteen fingerprints held), and a stationary test
+   threat already frightens, is fled from and hurts; this stone adds tests for
+   chase and conversion. On screen: the crowd flees a walking threat the same
+   way it flees fire.
 
 ### After that, in rough order
 

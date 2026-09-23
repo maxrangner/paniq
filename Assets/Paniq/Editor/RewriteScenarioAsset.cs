@@ -8,7 +8,7 @@ namespace Paniq.EditorTools
     /// Puts the scenario asset back in step with the numbers in the code.
     /// <para>
     /// Every tunable value has its default written once, in
-    /// <c>FireReactionScenarioData</c> and <c>ScenarioSettings.cs</c>. The asset
+    /// <c>ScenarioData</c> and <c>ScenarioSettings.cs</c>. The asset
     /// in <c>Assets/Paniq/Content</c> is a saved copy of those, so the owner can
     /// change them in the Inspector without touching code. Whenever a default
     /// changes, or a new group of settings or a new kind of thing is added, the
@@ -28,7 +28,7 @@ namespace Paniq.EditorTools
         [MenuItem("Paniq/Rewrite Scenario Asset From Code Defaults")]
         public static void Rewrite()
         {
-            var asset = AssetDatabase.LoadAssetAtPath<FireReactionScenario>(AssetPath);
+            var asset = AssetDatabase.LoadAssetAtPath<ScenarioAsset>(AssetPath);
             if (asset == null)
             {
                 Debug.LogError($"Paniq: no scenario asset at {AssetPath}.");
@@ -55,7 +55,7 @@ namespace Paniq.EditorTools
             // Unity writes the new values out when the asset is saved.
             SerializedObject serialized = new SerializedObject(asset);
             serialized.Update();
-            FireReactionScenario fresh = FireReactionScenario.CreateDefault();
+            ScenarioAsset fresh = ScenarioAsset.CreateDefault();
             EditorUtility.CopySerialized(fresh, asset);
             Object.DestroyImmediate(fresh);
             EditorUtility.SetDirty(asset);

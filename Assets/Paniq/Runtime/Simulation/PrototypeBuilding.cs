@@ -4,7 +4,7 @@
     /// The prototype's building, cast and clutter, written out longhand.
     ///
     /// This is content, not rules. It used to live inside
-    /// <see cref="FireReactionScenarioData"/>, which meant the type that
+    /// <see cref="ScenarioData"/>, which meant the type that
     /// describes what a scenario can say was also the one place saying what
     /// this particular scenario says -- so the shape of the data and one
     /// building's worth of coordinates could not be told apart. Kept separate,
@@ -77,28 +77,28 @@
         /// navigation square, so no square is ever half in one room and half
         /// in another.
         /// </summary>
-        public static FireReactionRoomDefinition[] DefaultRooms()
+        public static RoomDefinition[] DefaultRooms()
         {
             return new[]
             {
                 // Unchanged from prototype 1, and deliberately so.
-                new FireReactionRoomDefinition(Office, new LogicalBounds(-6000, 6000, -6000, 6000)),
-                new FireReactionRoomDefinition(Closet, new LogicalBounds(6000, 8000, 1500, 3500)),
+                new RoomDefinition(Office, new LogicalBounds(-6000, 6000, -6000, 6000)),
+                new RoomDefinition(Closet, new LogicalBounds(6000, 8000, 1500, 3500)),
 
-                new FireReactionRoomDefinition(Corridor, new LogicalBounds(-6000, 13000, 6000, 9000)),
-                new FireReactionRoomDefinition(Cafeteria, new LogicalBounds(2000, 13000, 9000, 17000)),
-                new FireReactionRoomDefinition(MeetingRoom, new LogicalBounds(-6000, 2000, 9000, 17000)),
-                new FireReactionRoomDefinition(Bathroom, new LogicalBounds(8000, 13000, 1000, 6000)),
-                new FireReactionRoomDefinition(Maintenance, new LogicalBounds(-9000, -6000, 6000, 9000)),
-                new FireReactionRoomDefinition(Crossbar, new LogicalBounds(13000, 16000, 2000, 17000)),
+                new RoomDefinition(Corridor, new LogicalBounds(-6000, 13000, 6000, 9000)),
+                new RoomDefinition(Cafeteria, new LogicalBounds(2000, 13000, 9000, 17000)),
+                new RoomDefinition(MeetingRoom, new LogicalBounds(-6000, 2000, 9000, 17000)),
+                new RoomDefinition(Bathroom, new LogicalBounds(8000, 13000, 1000, 6000)),
+                new RoomDefinition(Maintenance, new LogicalBounds(-9000, -6000, 6000, 9000)),
+                new RoomDefinition(Crossbar, new LogicalBounds(13000, 16000, 2000, 17000)),
 
                 // The stalls: 1.5 m square apiece, hung off the bathroom's
                 // south wall. Small, but a person is half a metre across and
                 // the navigation squares are a quarter of one, so there is
                 // real room to stand and turn round inside each.
-                new FireReactionRoomDefinition(StallOne, new LogicalBounds(8250, 9750, -500, 1000)),
-                new FireReactionRoomDefinition(StallTwo, new LogicalBounds(9750, 11250, -500, 1000)),
-                new FireReactionRoomDefinition(StallThree, new LogicalBounds(11250, 12750, -500, 1000))
+                new RoomDefinition(StallOne, new LogicalBounds(8250, 9750, -500, 1000)),
+                new RoomDefinition(StallTwo, new LogicalBounds(9750, 11250, -500, 1000)),
+                new RoomDefinition(StallThree, new LogicalBounds(11250, 12750, -500, 1000))
             };
         }
 
@@ -108,17 +108,17 @@
         /// the door. The south arm gets one too, because somebody who has run
         /// down the dead end needs telling they have.
         /// </summary>
-        public static FireReactionExitSignDefinition[] DefaultExitSigns()
+        public static ExitSignDefinition[] DefaultExitSigns()
         {
             const int North = 0;
             const int East = 90;
             return new[]
             {
-                new FireReactionExitSignDefinition(new LogicalPosition(-3000, 8600), East),
-                new FireReactionExitSignDefinition(new LogicalPosition(3000, 8600), East),
-                new FireReactionExitSignDefinition(new LogicalPosition(9000, 8600), East),
-                new FireReactionExitSignDefinition(new LogicalPosition(14500, 11000), North),
-                new FireReactionExitSignDefinition(new LogicalPosition(14500, 4000), North)
+                new ExitSignDefinition(new LogicalPosition(-3000, 8600), East),
+                new ExitSignDefinition(new LogicalPosition(3000, 8600), East),
+                new ExitSignDefinition(new LogicalPosition(9000, 8600), East),
+                new ExitSignDefinition(new LogicalPosition(14500, 11000), North),
+                new ExitSignDefinition(new LogicalPosition(14500, 4000), North)
             };
         }
 
@@ -136,20 +136,20 @@
         /// maintenance room and along the line of sockets.
         /// </para>
         /// </summary>
-        public static FireReactionPowerLineDefinition[] DefaultPowerLines()
+        public static PowerLineDefinition[] DefaultPowerLines()
         {
             return new[]
             {
                 // The fuse box to the office socket: out of the maintenance
                 // room, along the corridor's south wall, and down the office's
                 // west wall.
-                new FireReactionPowerLineDefinition(FuseBox, new SimulationId(3271UL),
+                new PowerLineDefinition(FuseBox, new SimulationId(3271UL),
                     new LogicalPosition(-7500, 6500),
                     new LogicalPosition(-5800, 6500),
                     new LogicalPosition(-5800, -4000)),
 
                 // Across the office's south end to the socket on its east side.
-                new FireReactionPowerLineDefinition(new SimulationId(3271UL), new SimulationId(3272UL),
+                new PowerLineDefinition(new SimulationId(3271UL), new SimulationId(3272UL),
                     new LogicalPosition(-5800, -4000),
                     new LogicalPosition(-5800, -5800),
                     new LogicalPosition(5800, -5800),
@@ -157,7 +157,7 @@
 
                 // And on to the cafeteria, up the corridor and along its north
                 // wall to the bank of microwaves.
-                new FireReactionPowerLineDefinition(new SimulationId(3272UL), new SimulationId(3273UL),
+                new PowerLineDefinition(new SimulationId(3272UL), new SimulationId(3273UL),
                     new LogicalPosition(5800, 4000),
                     new LogicalPosition(5800, 6200),
                     new LogicalPosition(12800, 6200),
@@ -196,29 +196,29 @@
         /// or a long one. Everything inside starts shut but unlocked, so people
         /// can work the doors themselves.
         /// </summary>
-        public static FireReactionDoorDefinition[] DefaultDoors()
+        public static DoorDefinition[] DefaultDoors()
         {
             return new[]
             {
                 // The office's storage closet. Unchanged from prototype 1.
-                new FireReactionDoorDefinition(new SimulationId(2002UL), Office, WallSide.East, 2500, 1000, false),
+                new DoorDefinition(new SimulationId(2002UL), Office, WallSide.East, 2500, 1000, false),
 
                 // The four rooms onto the corridor.
-                new FireReactionDoorDefinition(new SimulationId(2005UL), Office, WallSide.North, 0, 1000, false),
-                new FireReactionDoorDefinition(new SimulationId(2006UL), MeetingRoom, WallSide.South, -2000, 1000, false),
-                new FireReactionDoorDefinition(new SimulationId(2011UL), Cafeteria, WallSide.South, 6000, 1000, false),
-                new FireReactionDoorDefinition(new SimulationId(2012UL), Bathroom, WallSide.North, 10500, 1000, false),
+                new DoorDefinition(new SimulationId(2005UL), Office, WallSide.North, 0, 1000, false),
+                new DoorDefinition(new SimulationId(2006UL), MeetingRoom, WallSide.South, -2000, 1000, false),
+                new DoorDefinition(new SimulationId(2011UL), Cafeteria, WallSide.South, 6000, 1000, false),
+                new DoorDefinition(new SimulationId(2012UL), Bathroom, WallSide.North, 10500, 1000, false),
 
                 // The cafeteria's second door, onto the arm nearer the exit.
-                new FireReactionDoorDefinition(new SimulationId(2009UL), Cafeteria, WallSide.East, 12000, 1000, false),
+                new DoorDefinition(new SimulationId(2009UL), Cafeteria, WallSide.East, 12000, 1000, false),
 
                 // The maintenance room at the dead west end.
-                new FireReactionDoorDefinition(new SimulationId(2010UL), Corridor, WallSide.West, 7500, 1000, false),
+                new DoorDefinition(new SimulationId(2010UL), Corridor, WallSide.West, 7500, 1000, false),
 
                 // The bathroom stalls.
-                new FireReactionDoorDefinition(new SimulationId(2013UL), StallOne, WallSide.North, 9000, 800, false),
-                new FireReactionDoorDefinition(new SimulationId(2014UL), StallTwo, WallSide.North, 10500, 800, false),
-                new FireReactionDoorDefinition(new SimulationId(2015UL), StallThree, WallSide.North, 12000, 800, false),
+                new DoorDefinition(new SimulationId(2013UL), StallOne, WallSide.North, 9000, 800, false),
+                new DoorDefinition(new SimulationId(2014UL), StallTwo, WallSide.North, 10500, 800, false),
+                new DoorDefinition(new SimulationId(2015UL), StallThree, WallSide.North, 12000, 800, false),
 
                 // The T itself: an archway rather than a door, because a
                 // corridor that turns a corner is two rectangles and there is
@@ -226,12 +226,12 @@
                 // corridor's 3 m, which is as wide as an opening may be and
                 // still leave the stub of wall either side that a doorway
                 // needs to be a doorway.
-                new FireReactionDoorDefinition(new SimulationId(2016UL), Corridor, WallSide.East, 7500, 2400,
+                new DoorDefinition(new SimulationId(2016UL), Corridor, WallSide.East, 7500, 2400,
                     startsLocked: false, isOpening: true),
 
                 // The building's one way out, at the end of the north arm, as
                 // far from the maintenance room as the floor goes.
-                new FireReactionDoorDefinition(new SimulationId(2008UL), Crossbar, WallSide.North, 14500, 1000)
+                new DoorDefinition(new SimulationId(2008UL), Crossbar, WallSide.North, 14500, 1000)
             };
         }
 
@@ -249,7 +249,7 @@
         /// other. Everybody else works on this floor and knows it.
         /// </para>
         /// </summary>
-        public static FireReactionAgentDefinition[] DefaultAgents()
+        public static AgentDefinition[] DefaultAgents()
         {
             return new[]
             {
@@ -290,13 +290,13 @@
         /// Three desks around the office, the meeting room's long table, and
         /// two cafeteria tables.
         /// </summary>
-        public static FireReactionTableDefinition[] DefaultTables()
+        public static TableDefinition[] DefaultTables()
         {
             return new[]
             {
-                new FireReactionTableDefinition(new SimulationId(4001UL), new LogicalPosition(-2500, -1500), 1200, 700),
-                new FireReactionTableDefinition(new SimulationId(4002UL), new LogicalPosition(2500, 2800), 1200, 700),
-                new FireReactionTableDefinition(new SimulationId(4003UL), new LogicalPosition(-1500, 2000), 1200, 700),
+                new TableDefinition(new SimulationId(4001UL), new LogicalPosition(-2500, -1500), 1200, 700),
+                new TableDefinition(new SimulationId(4002UL), new LogicalPosition(2500, 2800), 1200, 700),
+                new TableDefinition(new SimulationId(4003UL), new LogicalPosition(-1500, 2000), 1200, 700),
 
                 // The meeting room's long table: one 5.4 x 1 m slab down the
                 // middle of the room.
@@ -308,11 +308,11 @@
                 // the half that had not, with nothing able to correct it,
                 // because keeping things out of furniture works by asking which
                 // side they came from and the answer was "neither".
-                new FireReactionTableDefinition(new SimulationId(4004UL), new LogicalPosition(-2000, 13000), 5400, 1000),
+                new TableDefinition(new SimulationId(4004UL), new LogicalPosition(-2000, 13000), 5400, 1000),
 
                 // The cafeteria's two tables.
-                new FireReactionTableDefinition(new SimulationId(4005UL), new LogicalPosition(5000, 12000), 1200, 1200),
-                new FireReactionTableDefinition(new SimulationId(4006UL), new LogicalPosition(9000, 12000), 1200, 1200)
+                new TableDefinition(new SimulationId(4005UL), new LogicalPosition(5000, 12000), 1200, 1200),
+                new TableDefinition(new SimulationId(4006UL), new LogicalPosition(9000, 12000), 1200, 1200)
             };
         }
 
@@ -324,7 +324,7 @@
         /// castors around the meeting and cafeteria tables; extinguishers; and
         /// the electrical things, which go off when the flames reach them.
         /// </summary>
-        public static FireReactionPhysicsObjectDefinition[] DefaultPhysicsObjects()
+        public static PhysicsObjectDefinition[] DefaultPhysicsObjects()
         {
             return new[]
             {
@@ -432,14 +432,14 @@
         /// door turns into a queue. The closet, the stalls and the maintenance
         /// room have none: they are cupboards.
         /// </summary>
-        public static FireReactionAlarmDefinition[] DefaultAlarms()
+        public static AlarmDefinition[] DefaultAlarms()
         {
             return new[]
             {
-                new FireReactionAlarmDefinition(new SimulationId(6001UL), new LogicalPosition(-5700, 2000)),
-                new FireReactionAlarmDefinition(new SimulationId(6002UL), new LogicalPosition(3000, 8700)),
-                new FireReactionAlarmDefinition(new SimulationId(6003UL), new LogicalPosition(7000, 16700)),
-                new FireReactionAlarmDefinition(new SimulationId(6004UL), new LogicalPosition(-5700, 16700))
+                new AlarmDefinition(new SimulationId(6001UL), new LogicalPosition(-5700, 2000)),
+                new AlarmDefinition(new SimulationId(6002UL), new LogicalPosition(3000, 8700)),
+                new AlarmDefinition(new SimulationId(6003UL), new LogicalPosition(7000, 16700)),
+                new AlarmDefinition(new SimulationId(6004UL), new LogicalPosition(-5700, 16700))
             };
         }
 
@@ -449,43 +449,43 @@
         private const int South = 180;
         private const int West = 270;
 
-        private static FireReactionPhysicsObjectDefinition Chair(ulong id, int x, int z, int facing = North)
+        private static PhysicsObjectDefinition Chair(ulong id, int x, int z, int facing = North)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Chair, new LogicalPosition(x, z), 450, 5000,
                 initialFacingDegrees: facing);
         }
 
         /// <summary>An office chair: the same size as a wooden one, but on castors (see the kind's friction).</summary>
-        private static FireReactionPhysicsObjectDefinition OfficeChair(ulong id, int x, int z, int facing = North)
+        private static PhysicsObjectDefinition OfficeChair(ulong id, int x, int z, int facing = North)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.OfficeChair, new LogicalPosition(x, z), 500, 9000,
                 initialFacingDegrees: facing);
         }
 
-        private static FireReactionPhysicsObjectDefinition Bin(ulong id, int x, int z)
+        private static PhysicsObjectDefinition Bin(ulong id, int x, int z)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.WasteBin, new LogicalPosition(x, z), 300, 2000);
         }
 
-        private static FireReactionPhysicsObjectDefinition Plant(ulong id, int x, int z)
+        private static PhysicsObjectDefinition Plant(ulong id, int x, int z)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.PottedPlant, new LogicalPosition(x, z), 450, 25000);
         }
 
-        private static FireReactionPhysicsObjectDefinition Bag(ulong id, int x, int z)
+        private static PhysicsObjectDefinition Bag(ulong id, int x, int z)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Bag, new LogicalPosition(x, z), 350, 4000);
         }
 
         /// <summary>A fire extinguisher: small, heavy for its size, and it never burns.</summary>
-        private static FireReactionPhysicsObjectDefinition Extinguisher(ulong id, int x, int z)
+        private static PhysicsObjectDefinition Extinguisher(ulong id, int x, int z)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Extinguisher, new LogicalPosition(x, z), 250, 7000);
         }
 
@@ -493,18 +493,18 @@
         /// A laptop, open on a desk. It rests on the table it stands on, so it
         /// is in nobody's way until somebody lifts it off.
         /// </summary>
-        private static FireReactionPhysicsObjectDefinition Laptop(ulong id, int x, int z)
+        private static PhysicsObjectDefinition Laptop(ulong id, int x, int z)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Laptop, new LogicalPosition(x, z), 300, 1500,
                 startsResting: true);
         }
 
-        private static FireReactionAgentDefinition Agent(
+        private static AgentDefinition Agent(
             ulong id, int x, int z, CardinalDirection facing,
             int strength, int speed, int bravery, int compassion, int evil, int nervousness, int leadership)
         {
-            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
+            return new AgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
                 new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, leadership));
         }
 
@@ -514,12 +514,12 @@
         /// the chair is; the run settles them onto it at tick zero, facing the
         /// way the chair faces.
         /// </summary>
-        private static FireReactionAgentDefinition Seated(
+        private static AgentDefinition Seated(
             ulong id, int x, int z, int facing,
             int strength, int speed, int bravery, int compassion, int evil, int nervousness, int leadership,
             ulong chair, ulong carrying = 0UL)
         {
-            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z),
+            return new AgentDefinition(new SimulationId(id), new LogicalPosition(x, z),
                 DirectionOf(facing),
                 new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, leadership),
                 new SimulationId(carrying), new SimulationId(chair));
@@ -532,12 +532,12 @@
         }
 
         /// <summary>The same person, but walking in with something in their hand.</summary>
-        private static FireReactionAgentDefinition Agent(
+        private static AgentDefinition Agent(
             ulong id, int x, int z, CardinalDirection facing,
             int strength, int speed, int bravery, int compassion, int evil, int nervousness, int leadership,
             ulong carrying)
         {
-            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
+            return new AgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
                 new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, leadership),
                 new SimulationId(carrying));
         }
@@ -546,16 +546,16 @@
         /// One of the spare extinguishers the player's card puts down. It is not
         /// in the world until then, so its position is never used.
         /// </summary>
-        private static FireReactionPhysicsObjectDefinition SpareExtinguisher(ulong id)
+        private static PhysicsObjectDefinition SpareExtinguisher(ulong id)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Extinguisher, new LogicalPosition(0, 0), 220, 9000, true);
         }
 
         /// <summary>A microwave on a counter: heavy, and it goes off with a bang.</summary>
-        private static FireReactionPhysicsObjectDefinition Microwave(ulong id, int x, int z)
+        private static PhysicsObjectDefinition Microwave(ulong id, int x, int z)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Microwave, new LogicalPosition(x, z), 450, 14000);
         }
 
@@ -563,22 +563,22 @@
         /// The main fuse box: bolted to the wall like a socket, and the biggest
         /// bang in the building when the spark reaches it.
         /// </summary>
-        private static FireReactionPhysicsObjectDefinition MainFuseBox(ulong id, int x, int z)
+        private static PhysicsObjectDefinition MainFuseBox(ulong id, int x, int z)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.FuseBox, new LogicalPosition(x, z), 600, 90000);
         }
 
         /// <summary>A wall socket: it never shifts, but it pops.</summary>
-        private static FireReactionPhysicsObjectDefinition WallSocket(ulong id, int x, int z)
+        private static PhysicsObjectDefinition WallSocket(ulong id, int x, int z)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.WallSocket, new LogicalPosition(x, z), 160, 60000);
         }
 
-        private static FireReactionPhysicsObjectDefinition Briefcase(ulong id, int x, int z)
+        private static PhysicsObjectDefinition Briefcase(ulong id, int x, int z)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Briefcase, new LogicalPosition(x, z), 400, 6000);
         }
 
@@ -587,10 +587,10 @@
         /// upper box of a stacked pair, authored at the same spot as the one it
         /// stands on.
         /// </summary>
-        private static FireReactionPhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams,
+        private static PhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams,
             bool restsOnTheOneBelow = false)
         {
-            return new FireReactionPhysicsObjectDefinition(
+            return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Box, new LogicalPosition(x, z), size, massGrams,
                 startsResting: restsOnTheOneBelow);
         }

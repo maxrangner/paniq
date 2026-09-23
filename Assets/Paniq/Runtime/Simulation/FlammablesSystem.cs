@@ -122,8 +122,12 @@ namespace Paniq.Simulation
 
             int tick = context.Tick;
 
-            // Burning people set alight whatever they touch.
+            // Burning people set alight whatever they touch: the loose things
+            // near them, read from the index, then the tables, which are few.
+            // Loose things come before tables in the list of things, so this
+            // is the order a walk of everything would have lit them in.
             Agent[] agents = crowd.All;
+            int touch = personRadius + settings.TouchGapMillimetres;
             for (int a = 0; a < agents.Length; a++)
             {
                 Agent agent = agents[a];
@@ -132,7 +136,20 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                for (int i = 0; i < things.Length; i++)
+                using (PhysicsObjectSystem.Nearby near = objects.Gather(
+                           UniformGridIndex.Around(agent.Body.Position, (long)touch + objects.WidestRadius)))
+                {
+                    for (int c = 0; c < near.Count; c++)
+                    {
+                        int i = near[c];
+                        if (things[i].State == ObjectBurnState.Intact && Touches(things[i], agent))
+                        {
+                            Ignite(things[i], agent.Burning.EventId);
+                        }
+                    }
+                }
+
+                for (int i = objects.Count; i < things.Length; i++)
                 {
                     if (things[i].State == ObjectBurnState.Intact && Touches(things[i], agent))
                     {
@@ -176,19 +193,26 @@ namespace Paniq.Simulation
                 if (tick >= thing.BurnEndTick)
                 {
                     StopBurning(thing);
-                    context.Events.Append(tick, thing.Id, FireReactionEventType.ObjectBurntOut, PositionOf(thing), 0, 0,
+                    context.Events.Append(tick, thing.Id, CausalEventType.ObjectBurntOut, PositionOf(thing), 0, 0,
                         thing.EventId);
                     continue;
                 }
 
                 LightTheFloor(thing);
 
-                // Anyone touching it catches fire.
-                for (int a = 0; a < agents.Length; a++)
+                // Anyone touching it catches fire: only the people near it,
+                // in ascending order as ever.
+                using (Crowd.Nearby near = thing.IsTable
+                           ? crowd.Gather(Grow(geometry.TableBounds(thing.Index), touch))
+                           : crowd.Within(objects.PositionOf(thing.Index), objects.RadiusOf(thing.Index) + (long)touch))
                 {
-                    if (agents[a].IsParticipating && !agents[a].Burning.IsBurning && Touches(thing, agents[a]))
+                    for (int c = 0; c < near.Count; c++)
                     {
-                        body.CatchFire(agents[a], thing.EventId);
+                        Agent agent = agents[near[c]];
+                        if (agent.IsParticipating && !agent.Burning.IsBurning && Touches(thing, agent))
+                        {
+                            body.CatchFire(agent, thing.EventId);
+                        }
                     }
                 }
             }
@@ -222,7 +246,7 @@ namespace Paniq.Simulation
                 }
 
                 StopBurning(thing);
-                context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ObjectBurntOut, where, 0, 0, causeEventId);
+                context.Events.Append(context.Tick, thing.Id, CausalEventType.ObjectBurntOut, where, 0, 0, causeEventId);
             }
         }
 
@@ -276,7 +300,7 @@ namespace Paniq.Simulation
             int duration = context.Random.NextIntInclusive(thing.BurnMinimumTicks, thing.BurnMaximumTicks);
             StartBurning(thing);
             thing.BurnEndTick = checked(tick + duration);
-            thing.EventId = context.Events.Append(tick, thing.Id, FireReactionEventType.ObjectCaughtFire, PositionOf(thing),
+            thing.EventId = context.Events.Append(tick, thing.Id, CausalEventType.ObjectCaughtFire, PositionOf(thing),
                 0, duration, causeEventId).EventId;
             thing.RestCell = -1;
             thing.RestTicks = 0;
@@ -406,17 +430,22 @@ namespace Paniq.Simulation
 
         public int ObjectHeatPercent(int objectIndex) => HeatPercent(things[objectIndex]);
 
-        public FireReactionTableSnapshot[] GetTableSnapshots()
+        public TableSnapshot[] GetTableSnapshots()
         {
-            var tables = new FireReactionTableSnapshot[geometry.TableCount];
-            for (int t = 0; t < tables.Length; t++)
+            var tables = new TableSnapshot[geometry.TableCount];
+            FillTableSnapshots(tables);
+            return tables;
+        }
+
+        /// <summary>Every table as it stands, written into a buffer of exactly that many.</summary>
+        public void FillTableSnapshots(TableSnapshot[] into)
+        {
+            for (int t = 0; t < into.Length; t++)
             {
                 Flammable thing = things[objects.Count + t];
-                tables[t] = new FireReactionTableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
+                into[t] = new TableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
                     geometry.TablePose(t));
             }
-
-            return tables;
         }
 
         private static int HeatPercent(Flammable thing)

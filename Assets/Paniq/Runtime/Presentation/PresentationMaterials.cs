@@ -42,6 +42,10 @@ namespace Paniq.Presentation
             Fire.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
             Fire.SetColor(EmissionColorId, FlameRed);
 
+            // The fire is drawn in batches (one call per colour, however many
+            // squares burn), which needs the material to allow it.
+            Fire.enableInstancing = true;
+
             // The pale silhouette drawn wherever a wall is in the way. Its
             // shader lives in Content/Rendering; without it, things behind a
             // wall are simply hidden.
@@ -56,6 +60,7 @@ namespace Paniq.Presentation
                 // room is unmistakable.
                 FireSeeThrough = new Material(seeThrough);
                 FireSeeThrough.SetColor(GhostColorId, new Color(1f, 0.45f, 0.1f, 0.45f));
+                FireSeeThrough.enableInstancing = true;
             }
             else
             {
@@ -106,11 +111,17 @@ namespace Paniq.Presentation
         /// <summary>Recolours one emissive renderer without copying its material.</summary>
         public void SetColors(Renderer target, Color baseColor, Color emission)
         {
-            propertyBlock.Clear();
-            propertyBlock.SetColor(BaseColorId, baseColor);
-            propertyBlock.SetColor(ColorId, baseColor);
-            propertyBlock.SetColor(EmissionColorId, emission);
+            FillColors(propertyBlock, baseColor, emission);
             target.SetPropertyBlock(propertyBlock);
+        }
+
+        /// <summary>The same colours into a block of the caller's own, for things drawn in batches rather than as objects.</summary>
+        public void FillColors(MaterialPropertyBlock block, Color baseColor, Color emission)
+        {
+            block.Clear();
+            block.SetColor(BaseColorId, baseColor);
+            block.SetColor(ColorId, baseColor);
+            block.SetColor(EmissionColorId, emission);
         }
 
         public void Destroy()

@@ -18,7 +18,7 @@ namespace Paniq.Simulation
     /// pointed, does nothing and costs nothing.
     /// </para>
     /// </summary>
-    internal sealed class PlayerCommandSystem
+    internal sealed class PlayerCommandSystem : IBindable
     {
         private readonly SimulationContext context;
         private readonly List<PlayerCommand> pending = new List<PlayerCommand>();
@@ -42,22 +42,20 @@ namespace Paniq.Simulation
             this.context = context;
         }
 
-        /// <summary>Wired up after construction, because these are all built after this system.</summary>
-        public void Use(DoorSystem doorSystem, FireSystem fireSystem, PhysicsObjectSystem physicsObjects, Crowd people,
-            InfluenceSystem influenceSystem, DeckSystem theDeck, SoundSystem soundSystem, BodySystem bodySystem,
-            WorldGeometry world, RoundSystem theRound, PowerSystem thePower)
+        /// <summary>Every system a command reaches into is built after this one, so they are handed over once everything exists.</summary>
+        public void Bind(Systems systems)
         {
-            round = theRound;
-            power = thePower;
-            doors = doorSystem;
-            fire = fireSystem;
-            objects = physicsObjects;
-            crowd = people;
-            influence = influenceSystem;
-            deck = theDeck;
-            sound = soundSystem;
-            body = bodySystem;
-            geometry = world;
+            round = systems.Round;
+            power = systems.Power;
+            doors = systems.Doors;
+            fire = systems.Fire;
+            objects = systems.Objects;
+            crowd = systems.Crowd;
+            influence = systems.Influence;
+            deck = systems.Deck;
+            sound = systems.Sound;
+            body = systems.Body;
+            geometry = systems.Geometry;
         }
 
         /// <summary>Every command queued so far, in sequence order.</summary>
@@ -227,34 +225,34 @@ namespace Paniq.Simulation
         /// patch of floor rather than at a chosen person.
         /// </summary>
         private static bool DialOf(
-            PlayerCommandType card, out AgentTrait trait, out int end, out FireReactionEventType logged)
+            PlayerCommandType card, out AgentTrait trait, out int end, out CausalEventType logged)
         {
             switch (card)
             {
                 case PlayerCommandType.PlayBeefcake:
                     trait = AgentTrait.Strength;
                     end = AgentTraitValues.Maximum;
-                    logged = FireReactionEventType.PowerBeefcake;
+                    logged = CausalEventType.PowerBeefcake;
                     return true;
                 case PlayerCommandType.PlayCourage:
                     trait = AgentTrait.Bravery;
                     end = AgentTraitValues.Maximum;
-                    logged = FireReactionEventType.PowerCourage;
+                    logged = CausalEventType.PowerCourage;
                     return true;
                 case PlayerCommandType.PlayTerror:
                     trait = AgentTrait.Nervousness;
                     end = AgentTraitValues.Maximum;
-                    logged = FireReactionEventType.PowerTerror;
+                    logged = CausalEventType.PowerTerror;
                     return true;
                 case PlayerCommandType.PlayBastard:
                     trait = AgentTrait.Evil;
                     end = AgentTraitValues.Maximum;
-                    logged = FireReactionEventType.PowerBastard;
+                    logged = CausalEventType.PowerBastard;
                     return true;
                 case PlayerCommandType.PlayColdHeart:
                     trait = AgentTrait.Compassion;
                     end = AgentTraitValues.Minimum;
-                    logged = FireReactionEventType.PowerColdHeart;
+                    logged = CausalEventType.PowerColdHeart;
                     return true;
                 default:
                     trait = AgentTrait.Strength;
@@ -286,7 +284,7 @@ namespace Paniq.Simulation
         /// </summary>
         private bool PlayTraitCard(PlayerCommand command)
         {
-            if (!DialOf(command.CommandType, out AgentTrait trait, out int end, out FireReactionEventType logged))
+            if (!DialOf(command.CommandType, out AgentTrait trait, out int end, out CausalEventType logged))
             {
                 return false;
             }
@@ -336,7 +334,7 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            CausalEvent card = context.Events.Append(context.Tick, default, FireReactionEventType.PowerSpawnedFire,
+            CausalEvent card = context.Events.Append(context.Tick, default, CausalEventType.PowerSpawnedFire,
                 command.Point, influence.CostOf(command.CommandType));
             fire.TryIgniteForPlayer(cell, card.EventId, out ulong _);
             return true;
@@ -368,7 +366,7 @@ namespace Paniq.Simulation
             }
 
             ulong played = context.Events.Append(context.Tick, default,
-                FireReactionEventType.PowerPoppedFuseBox, command.Point,
+                CausalEventType.PowerPoppedFuseBox, command.Point,
                 influence.CostOf(command.CommandType), 0, 0UL).EventId;
             power.PopTheFuseBoxNear(command.Point, played);
             return true;
@@ -386,21 +384,23 @@ namespace Paniq.Simulation
             sound.Bang(default, command.Point, blast.BangHearingRadiusMillimetres, blast.BangAlarmRadiusMillimetres, blasted);
             objects.FlingFrom(command.Point, blast.ThrowRadiusMillimetres, blast.ThrowSpeedMillimetresPerTick, -1, blasted);
 
-            Agent[] people = crowd.All;
             long radius = blast.KnockDownRadiusMillimetres;
-            for (int i = 0; i < people.Length; i++)
+            using (Crowd.Nearby people = crowd.Within(command.Point, radius))
             {
-                Agent agent = people[i];
-                if (!agent.IsParticipating ||
-                    LogicalPosition.DistanceSquared(agent.Body.Position, command.Point) > radius * radius)
+                for (int c = 0; c < people.Count; c++)
                 {
-                    continue;
-                }
+                    Agent agent = crowd.All[people[c]];
+                    if (!agent.IsParticipating ||
+                        LogicalPosition.DistanceSquared(agent.Body.Position, command.Point) > radius * radius)
+                    {
+                        continue;
+                    }
 
-                int away = IntegerMath.HeadingBetween(command.Point, agent.Body.Position, agent.Body.Heading);
-                body.BlowOver(agent, away,
-                    blast.ShoveDistanceMillimetres * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
-                    context.Scenario.PhysicsFeel.BlastLiftPercent, blasted);
+                    int away = IntegerMath.HeadingBetween(command.Point, agent.Body.Position, agent.Body.Heading);
+                    body.BlowOver(agent, away,
+                        blast.ShoveDistanceMillimetres * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
+                        context.Scenario.PhysicsFeel.BlastLiftPercent, blasted);
+                }
             }
 
             return true;
@@ -415,7 +415,7 @@ namespace Paniq.Simulation
             }
 
             context.Events.Append(context.Tick, objects.IdOf(index),
-                FireReactionEventType.PowerSpawnedExtinguisher, command.Point,
+                CausalEventType.PowerSpawnedExtinguisher, command.Point,
                 influence.CostOf(command.CommandType), 0, 0UL, objects.IdOf(index));
             OfferItToWhoeverCanSeeIt(command.Point);
             return true;
@@ -433,10 +433,10 @@ namespace Paniq.Simulation
             ExtinguisherSettings settings = context.Scenario.Extinguishers;
             int room = geometry.RoomAtPoint(spot);
             long reach = settings.OfferedNoticeRangeMillimetres;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby near = crowd.Within(spot, reach);
+            for (int c = 0; c < near.Count; c++)
             {
-                Agent agent = agents[i];
+                Agent agent = crowd.All[near[c]];
                 if (!agent.IsParticipating || agent.Burning.IsBurning ||
                     geometry.RoomOf(agent) != room ||
                     LogicalPosition.DistanceSquared(agent.Body.Position, spot) > reach * reach)

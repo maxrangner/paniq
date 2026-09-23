@@ -28,12 +28,12 @@ namespace Paniq.Simulation
     /// saved. The display only reads the result off the snapshot.
     /// </para>
     /// </summary>
-    internal sealed class RoundSystem
+    internal sealed class RoundSystem : IBindable
     {
         private readonly SimulationContext context;
         private readonly Agent[] agents;
         private readonly WorldGeometry geometry;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly RoundSettings settings;
 
         /// <summary>Wired up after construction: both are built after this system is.</summary>
@@ -48,28 +48,28 @@ namespace Paniq.Simulation
 
         /// <summary>What the rest of the world looked like at that same moment.</summary>
         private int anchoredResolved = -1;
-        private int anchoredFireCells = -1;
+        private long anchoredThreats = -1L;
         private int anchoredBurningThings = -1;
         private long anchoredDoors;
 
         /// <summary>The first tick on which nothing at all was happening, or -1 while something is.</summary>
         private int stalledSinceTick = -1;
 
-        public RoundSystem(SimulationContext context, Agent[] agents, WorldGeometry geometry, FireSystem fire)
+        public RoundSystem(SimulationContext context, Agent[] agents, WorldGeometry geometry, Threats threats)
         {
             this.context = context;
             this.agents = agents;
             this.geometry = geometry;
-            this.fire = fire;
+            this.threats = threats;
             settings = context.Scenario.Round;
             stallAnchor = new LogicalPosition[agents.Length];
         }
 
-        /// <summary>Wired up after construction, because both are built later.</summary>
-        public void Use(FlammablesSystem burningThings, DoorSystem doorSystem)
+        /// <summary>Both are built after this system, so they are handed over once everything exists.</summary>
+        public void Bind(Systems systems)
         {
-            flammables = burningThings;
-            doors = doorSystem;
+            flammables = systems.Flammables;
+            doors = systems.Doors;
         }
 
         /// <summary>Where the round has got to.</summary>
@@ -97,11 +97,11 @@ namespace Paniq.Simulation
             CausalEvent triggered = context.Events.Append(
                 context.Tick,
                 default,
-                FireReactionEventType.RoundEventTriggered,
+                CausalEventType.RoundEventTriggered,
                 geometry.FireArea.Centre,
                 context.Tick);
             TriggerEventId = triggered.EventId;
-            fire.RequestStart();
+            threats.RequestStart();
         }
 
         /// <summary>
@@ -113,7 +113,7 @@ namespace Paniq.Simulation
         {
             if (Phase == RoundPhase.BeforeEvent)
             {
-                if (!fire.StartRequested)
+                if (!threats.StartRequested)
                 {
                     return;
                 }
@@ -190,7 +190,7 @@ namespace Paniq.Simulation
             }
 
             return anchoredResolved != ResolvedCount() ||
-                   anchoredFireCells != fire.BurningCount ||
+                   anchoredThreats != threats.Signature ||
                    anchoredBurningThings != (flammables == null ? 0 : flammables.BurningCount) ||
                    anchoredDoors != (doors == null ? 0L : doors.DoorSignature);
         }
@@ -228,7 +228,7 @@ namespace Paniq.Simulation
             }
 
             anchoredResolved = ResolvedCount();
-            anchoredFireCells = fire.BurningCount;
+            anchoredThreats = threats.Signature;
             anchoredBurningThings = flammables == null ? 0 : flammables.BurningCount;
             anchoredDoors = doors == null ? 0L : doors.DoorSignature;
         }
@@ -277,7 +277,7 @@ namespace Paniq.Simulation
                     context.Events.Append(
                         context.Tick,
                         agent.Id,
-                        FireReactionEventType.AgentSurvived,
+                        CausalEventType.AgentSurvived,
                         agent.Body.Position,
                         0,
                         0,
@@ -292,7 +292,7 @@ namespace Paniq.Simulation
             context.Events.Append(
                 context.Tick,
                 default,
-                FireReactionEventType.RoundEnded,
+                CausalEventType.RoundEnded,
                 geometry.FireArea.Centre,
                 saved,
                 0,

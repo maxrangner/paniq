@@ -50,7 +50,7 @@ namespace Paniq.Presentation
         private readonly PresentationMaterials materials;
         private readonly ParticleEffects effects;
         private readonly Transform parent;
-        private readonly FireReactionScenarioData scenario;
+        private readonly ScenarioData scenario;
         private readonly Dictionary<SimulationId, DoorView> doors = new Dictionary<SimulationId, DoorView>();
         private readonly Dictionary<Collider, SimulationId> doorByCollider = new Dictionary<Collider, SimulationId>();
 
@@ -99,7 +99,7 @@ namespace Paniq.Presentation
 
         private static readonly Color AlarmRestingColor = new Color(0.75f, 0.12f, 0.12f);
 
-        public RoomView(FireReactionScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
+        public RoomView(ScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
             Transform parent)
         {
             this.scenario = scenario;
@@ -111,17 +111,17 @@ namespace Paniq.Presentation
 
         private void Build()
         {
-            foreach (FireReactionRoomDefinition room in scenario.Rooms)
+            foreach (RoomDefinition room in scenario.Rooms)
             {
                 CreateRoom(room);
             }
 
-            foreach (FireReactionTableDefinition table in scenario.Tables)
+            foreach (TableDefinition table in scenario.Tables)
             {
                 CreateTable(table);
             }
 
-            foreach (FireReactionAlarmDefinition alarm in scenario.Alarms)
+            foreach (AlarmDefinition alarm in scenario.Alarms)
             {
                 CreateAlarm(alarm);
             }
@@ -132,7 +132,7 @@ namespace Paniq.Presentation
         /// and then flashes for the rest of the run so the player can see at a
         /// glance that the building has been told.
         /// </summary>
-        private void CreateAlarm(FireReactionAlarmDefinition alarm)
+        private void CreateAlarm(AlarmDefinition alarm)
         {
             const float height = 1.1f;
             Vector3 at = ToUnityPosition(alarm.Position) + Vector3.up * height;
@@ -144,7 +144,7 @@ namespace Paniq.Presentation
         }
 
         /// <summary>Every bell flashes while the alarms are ringing.</summary>
-        public void UpdateAlarms(FireReactionSnapshot snapshot, float time)
+        public void UpdateAlarms(RunSnapshot snapshot, float time)
         {
             for (int i = 0; i < alarms.Count; i++)
             {
@@ -166,7 +166,7 @@ namespace Paniq.Presentation
         /// both, so each cuts the gaps of every door along that wall line;
         /// the swinging leaf itself belongs to the room that holds the door.
         /// </summary>
-        private void CreateRoom(FireReactionRoomDefinition room)
+        private void CreateRoom(RoomDefinition room)
         {
             float minX = Metres(room.Bounds.MinX);
             float maxX = Metres(room.Bounds.MaxX);
@@ -184,8 +184,8 @@ namespace Paniq.Presentation
                 float start = (alongX ? minX : minZ) - WallThickness * 0.5f;
                 float end = (alongX ? maxX : maxZ) + WallThickness * 0.5f;
 
-                var gaps = new List<FireReactionDoorDefinition>();
-                foreach (FireReactionDoorDefinition door in scenario.Doors)
+                var gaps = new List<DoorDefinition>();
+                foreach (DoorDefinition door in scenario.Doors)
                 {
                     if (CrossesWall(door, alongX, wallLine, start, end))
                     {
@@ -196,7 +196,7 @@ namespace Paniq.Presentation
                 gaps.Sort((left, right) => left.CentreAlongWallMillimetres.CompareTo(right.CentreAlongWallMillimetres));
                 float cursor = start;
                 int piece = 1;
-                foreach (FireReactionDoorDefinition door in gaps)
+                foreach (DoorDefinition door in gaps)
                 {
                     float gapStart = Metres(door.CentreAlongWallMillimetres - door.WidthMillimetres / 2);
                     CreateWallPiece(side, piece++, alongX, wallLine, cursor, gapStart, name);
@@ -215,7 +215,7 @@ namespace Paniq.Presentation
         }
 
         /// <summary>Whether this door's gap lies in a wall along <paramref name="wallLine"/>, between the two ends.</summary>
-        private bool CrossesWall(FireReactionDoorDefinition door, bool alongX, float wallLine, float from, float to)
+        private bool CrossesWall(DoorDefinition door, bool alongX, float wallLine, float from, float to)
         {
             bool doorAlongX = door.Side == WallSide.North || door.Side == WallSide.South;
             if (doorAlongX != alongX)
@@ -235,7 +235,7 @@ namespace Paniq.Presentation
 
         private LogicalBounds RoomBoundsOf(SimulationId roomId)
         {
-            foreach (FireReactionRoomDefinition room in scenario.Rooms)
+            foreach (RoomDefinition room in scenario.Rooms)
             {
                 if (room.RoomId == roomId)
                 {
@@ -247,12 +247,12 @@ namespace Paniq.Presentation
         }
 
         /// <summary>Whether a door leads out of the building: no room lies beyond its wall.</summary>
-        private bool LeadsOutside(FireReactionDoorDefinition door)
+        private bool LeadsOutside(DoorDefinition door)
         {
             LogicalBounds owner = RoomBoundsOf(door.RoomId);
             bool alongX = door.Side == WallSide.North || door.Side == WallSide.South;
             int half = door.WidthMillimetres / 2;
-            foreach (FireReactionRoomDefinition other in scenario.Rooms)
+            foreach (RoomDefinition other in scenario.Rooms)
             {
                 if (other.RoomId == door.RoomId)
                 {
@@ -293,7 +293,7 @@ namespace Paniq.Presentation
         /// <summary>How high a table top is, in metres: where a laptop on it is drawn.</summary>
         public const float TableHeight = 0.74f;
 
-        private void CreateTable(FireReactionTableDefinition table)
+        private void CreateTable(TableDefinition table)
         {
             const float height = TableHeight;
             const float topThickness = 0.06f;
@@ -365,9 +365,9 @@ namespace Paniq.Presentation
         /// Holes the player has blasted since the last frame. A door this view has
         /// never seen before is one of them.
         /// </summary>
-        public void UpdateHoles(FireReactionSnapshot snapshot)
+        public void UpdateHoles(RunSnapshot snapshot)
         {
-            foreach (FireReactionDoorSnapshot door in snapshot.Doors)
+            foreach (DoorSnapshot door in snapshot.Doors)
             {
                 if (door.IsHole && !holesDrawn.Contains(door.DoorId))
                 {
@@ -382,7 +382,7 @@ namespace Paniq.Presentation
         /// left in the gap. A hole has no leaf, so nothing swings and nothing can
         /// be clicked.
         /// </summary>
-        private void CreateHole(FireReactionDoorSnapshot hole)
+        private void CreateHole(DoorSnapshot hole)
         {
             holesDrawn.Add(hole.DoorId);
             bool alongX = hole.Side == WallSide.North || hole.Side == WallSide.South;
@@ -447,7 +447,7 @@ namespace Paniq.Presentation
         }
 
         /// <summary>A door leaf hinged at one side of the gap, which swings outward when the door opens.</summary>
-        private void CreateDoor(FireReactionDoorDefinition door, bool alongX, float wallLine)
+        private void CreateDoor(DoorDefinition door, bool alongX, float wallLine)
         {
             float width = Metres(door.WidthMillimetres);
             float centre = Metres(door.CentreAlongWallMillimetres);
@@ -523,9 +523,9 @@ namespace Paniq.Presentation
             }
         }
 
-        public void Update(FireReactionSnapshot snapshot, SimulationId? hoveredDoor, float time, float deltaTime)
+        public void Update(RunSnapshot snapshot, SimulationId? hoveredDoor, float time, float deltaTime)
         {
-            foreach (FireReactionDoorSnapshot door in snapshot.Doors)
+            foreach (DoorSnapshot door in snapshot.Doors)
             {
                 if (doors.TryGetValue(door.DoorId, out DoorView known))
                 {
@@ -539,7 +539,7 @@ namespace Paniq.Presentation
                 }
             }
 
-            foreach (FireReactionTableSnapshot table in snapshot.Tables)
+            foreach (TableSnapshot table in snapshot.Tables)
             {
                 if (!tables.TryGetValue(table.TableId, out TableView view))
                 {

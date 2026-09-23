@@ -13,7 +13,7 @@ namespace Paniq.Simulation
     /// seen through a wall. This system owns the fire's state and answers
     /// every question about where the fire is.
     /// </summary>
-    internal sealed class FireSystem
+    internal sealed class FireSystem : IThreat
     {
         private static readonly int[] NeighbourOffsetX = { 0, 1, 0, -1 };
         private static readonly int[] NeighbourOffsetZ = { 1, 0, -1, 0 };
@@ -94,6 +94,41 @@ namespace Paniq.Simulation
 
         public bool Active => active;
         public int BurningCount => burningCells.Count;
+
+        // ---------------------------------------------------------------- as a threat
+
+        /// <summary>The fire that lit it all: what every fright traces back to.</summary>
+        ulong IThreat.RootEventId => activationEventId;
+
+        /// <summary>How much fire there is: burning squares.</summary>
+        int IThreat.Count => burningCells.Count;
+
+        /// <summary>
+        /// The number of burning squares, which is what the round clock watched
+        /// before the fire was a threat like any other. Kept as exactly that so
+        /// no recorded run moved.
+        /// </summary>
+        long IThreat.Signature => burningCells.Count;
+
+        /// <summary>Fire crackles: a calm person this close turns to see what it is.</summary>
+        int IThreat.HeardWithinMillimetres => context.Scenario.Hearing.FireHearingRadiusMillimetres;
+
+        bool IThreat.IsInRoom(int room) => IsBurningInRoom(room);
+
+        ulong IThreat.Touching(LogicalPosition position) => FindTouching(position);
+
+        ulong IThreat.TouchingAlong(LogicalPosition from, LogicalPosition to) => FindTouchingSweep(from, to);
+
+        /// <summary>Touching the fire sets you alight.</summary>
+        void IThreat.Harm(Agent agent, ulong causeEventId, BodySystem body) => body.CatchFire(agent, causeEventId);
+
+        /// <summary>The nearest burning point, and the ignition event of the square it is on.</summary>
+        public long NearestDistanceSquared(LogicalPosition from, out LogicalPosition point, out ulong causeEventId)
+        {
+            long distance = NearestCellDistanceSquared(from, out point, out int cell);
+            causeEventId = cell >= 0 ? cellEventIds[cell] : 0UL;
+            return distance;
+        }
         public int GridColumns => gridColumns;
         public int GridRows => gridRows;
         public LogicalPosition Origin => CellBounds(originCell).Centre;
@@ -134,7 +169,7 @@ namespace Paniq.Simulation
                 if (due)
                 {
                     active = true;
-                    activationEventId = Ignite(originCell, FireReactionEventType.FireActivated, 0UL);
+                    activationEventId = Ignite(originCell, CausalEventType.FireActivated, 0UL);
                 }
 
                 return;
@@ -160,17 +195,17 @@ namespace Paniq.Simulation
                 }
 
                 int chosen = neighbourScratch[context.Random.NextIntInclusive(0, neighbourScratch.Count - 1)];
-                Ignite(chosen, FireReactionEventType.FireSpread, cellEventIds[cell]);
+                Ignite(chosen, CausalEventType.FireSpread, cellEventIds[cell]);
                 cellNextSpreadTicks[cell] = checked(tick + NextSpreadDelay());
             }
         }
 
-        private ulong Ignite(int cell, FireReactionEventType eventType, ulong parentEventId)
+        private ulong Ignite(int cell, CausalEventType eventType, ulong parentEventId)
         {
             int tick = context.Tick;
             CausalEvent ignition = context.Events.Append(
                 tick,
-                new SimulationId(FireReactionSimulation.FireHazardIdValue),
+                new SimulationId(Run.FireHazardIdValue),
                 eventType,
                 CellBounds(cell).Centre,
                 settings.CellSizeMillimetres,
@@ -367,7 +402,7 @@ namespace Paniq.Simulation
                 cellRecordIndex[cell] = -1;
             }
 
-            context.Events.Append(context.Tick, source, FireReactionEventType.FireDoused,
+            context.Events.Append(context.Tick, source, CausalEventType.FireDoused,
                 CellBounds(cell).Centre, settings.CellSizeMillimetres, 0, causeEventId);
             return true;
         }
@@ -428,7 +463,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+            Ignite(cell, CausalEventType.FireSpread, causeEventId);
         }
 
         /// <summary>
@@ -452,12 +487,12 @@ namespace Paniq.Simulation
                 // The player has beaten the scenario to it, so their card is
                 // where this run's fire came from.
                 active = true;
-                activationEventId = Ignite(cell, FireReactionEventType.FireActivated, causeEventId);
+                activationEventId = Ignite(cell, CausalEventType.FireActivated, causeEventId);
                 eventId = activationEventId;
                 return true;
             }
 
-            eventId = Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+            eventId = Ignite(cell, CausalEventType.FireSpread, causeEventId);
             return true;
         }
 
@@ -498,7 +533,7 @@ namespace Paniq.Simulation
                         continue;
                     }
 
-                    Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+                    Ignite(cell, CausalEventType.FireSpread, causeEventId);
                     lit++;
                 }
             }
@@ -594,7 +629,7 @@ namespace Paniq.Simulation
         /// from the position in square rings of cells and stops once no
         /// closer cell is possible.
         /// </summary>
-        public long NearestDistanceSquared(LogicalPosition position, out LogicalPosition nearestPoint, out int nearestCell)
+        public long NearestCellDistanceSquared(LogicalPosition position, out LogicalPosition nearestPoint, out int nearestCell)
         {
             nearestPoint = position;
             nearestCell = -1;
@@ -684,12 +719,12 @@ namespace Paniq.Simulation
 
         public long NearestDistanceSquared(LogicalPosition position, out LogicalPosition nearestPoint)
         {
-            return NearestDistanceSquared(position, out nearestPoint, out _);
+            return NearestCellDistanceSquared(position, out nearestPoint, out _);
         }
 
         public long NearestDistanceSquared(LogicalPosition position)
         {
-            return NearestDistanceSquared(position, out _, out _);
+            return NearestCellDistanceSquared(position, out _, out _);
         }
 
         /// <summary>True when the straight line between two points passes within <paramref name="clearance"/> of fire (checked at its quarter points).</summary>

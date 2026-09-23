@@ -61,7 +61,7 @@ namespace Paniq.Presentation
         public void Close() => IsOpen = false;
 
         /// <summary>Drawn last of all, over the end card, so nothing shows through it.</summary>
-        public void Draw(FireReactionSnapshot snapshot)
+        public void Draw(RunSnapshot snapshot)
         {
             if (!IsOpen || snapshot == null)
             {
@@ -109,7 +109,7 @@ namespace Paniq.Presentation
         /// changed. A finished round never grows, so in practice this runs once
         /// per opening rather than once per frame.
         /// </summary>
-        private void Rebuild(FireReactionSnapshot snapshot)
+        private void Rebuild(RunSnapshot snapshot)
         {
             if (builtFromCount == snapshot.Events.Count && builtShowingEverything == showEverything)
             {
@@ -122,7 +122,7 @@ namespace Paniq.Presentation
 
             var story = new EventStory(snapshot);
             int runLength = 0;
-            FireReactionEventType runType = default;
+            CausalEventType runType = default;
             int runStartTick = 0;
             string runText = null;
 
@@ -158,7 +158,7 @@ namespace Paniq.Presentation
         /// Closes off a run of the same background event: one of them is a line
         /// of its own, a stretch of them is one line saying how many.
         /// </summary>
-        private void FlushRun(ref int runLength, FireReactionEventType type, int startTick, string text)
+        private void FlushRun(ref int runLength, CausalEventType type, int startTick, string text)
         {
             if (runLength <= 0)
             {
@@ -174,39 +174,39 @@ namespace Paniq.Presentation
         /// Three colours and no more: what the player did, what went wrong, and
         /// what went right. Everything else is plain text.
         /// </summary>
-        private static Color ColourOf(FireReactionEventType type)
+        private static Color ColourOf(CausalEventType type)
         {
             switch (type)
             {
-                case FireReactionEventType.PowerBeefcake:
-                case FireReactionEventType.PowerCourage:
-                case FireReactionEventType.PowerTerror:
-                case FireReactionEventType.PowerBastard:
-                case FireReactionEventType.PowerColdHeart:
-                case FireReactionEventType.PowerSpawnedFire:
-                case FireReactionEventType.PowerSpawnedExtinguisher:
-                case FireReactionEventType.PowerBlastedWall:
-                case FireReactionEventType.PowerPoppedFuseBox:
-                case FireReactionEventType.RoundEventTriggered:
-                case FireReactionEventType.DoorUnlocked:
-                case FireReactionEventType.CardDealt:
+                case CausalEventType.PowerBeefcake:
+                case CausalEventType.PowerCourage:
+                case CausalEventType.PowerTerror:
+                case CausalEventType.PowerBastard:
+                case CausalEventType.PowerColdHeart:
+                case CausalEventType.PowerSpawnedFire:
+                case CausalEventType.PowerSpawnedExtinguisher:
+                case CausalEventType.PowerBlastedWall:
+                case CausalEventType.PowerPoppedFuseBox:
+                case CausalEventType.RoundEventTriggered:
+                case CausalEventType.DoorUnlocked:
+                case CausalEventType.CardDealt:
                     return Player;
 
-                case FireReactionEventType.AgentLost:
-                case FireReactionEventType.AgentCaughtFire:
-                case FireReactionEventType.AgentPassedOut:
-                case FireReactionEventType.AgentCrushed:
-                case FireReactionEventType.DoorBurntThrough:
-                case FireReactionEventType.DoorLocked:
-                case FireReactionEventType.DoorBlocked:
+                case CausalEventType.AgentLost:
+                case CausalEventType.AgentCaughtFire:
+                case CausalEventType.AgentPassedOut:
+                case CausalEventType.AgentCrushed:
+                case CausalEventType.DoorBurntThrough:
+                case CausalEventType.DoorLocked:
+                case CausalEventType.DoorBlocked:
                     return Bad;
 
-                case FireReactionEventType.AgentEscaped:
-                case FireReactionEventType.AgentSurvived:
-                case FireReactionEventType.AgentRescued:
-                case FireReactionEventType.AgentDoused:
-                case FireReactionEventType.AgentFoundTheWayOut:
-                case FireReactionEventType.RoundEnded:
+                case CausalEventType.AgentEscaped:
+                case CausalEventType.AgentSurvived:
+                case CausalEventType.AgentRescued:
+                case CausalEventType.AgentDoused:
+                case CausalEventType.AgentFoundTheWayOut:
+                case CausalEventType.RoundEnded:
                     return Good;
 
                 default:

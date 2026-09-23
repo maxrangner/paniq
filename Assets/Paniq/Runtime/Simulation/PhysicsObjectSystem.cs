@@ -16,7 +16,8 @@ namespace Paniq.Simulation
     /// collisions) and each bump becomes a push on the engine's body. Then
     /// the engine steps, and every hit it reports is judged here: a heavy
     /// thing flying into somebody staggers or floors them, a hard knock
-    /// smashes what was hit, a thing hurled at a table may smash the table.
+    /// smashes what was hit. Furniture (tables, chairs) is shoved and tipped
+    /// but never smashes.
     ///
     /// Objects are also items: a person can pick one up (it then touches
     /// nothing and is carried in front of them), set it down, drop it or
@@ -24,7 +25,7 @@ namespace Paniq.Simulation
     /// instead of kicking it. A thrown item hits people harder than a sliding
     /// one, because it strikes the body, not the feet.
     /// </summary>
-    internal sealed class PhysicsObjectSystem
+    internal sealed class PhysicsObjectSystem : IBindable
     {
         /// <summary>Object positions and velocities are kept in hundredths of a millimetre.</summary>
         public const int SubMillimetre = PhysicsWorld.SubMillimetre;
@@ -220,12 +221,12 @@ namespace Paniq.Simulation
             items = context.Scenario.Items;
             personRadius = context.Scenario.World.OccupancyRadiusMillimetres;
 
-            var definitions = (FireReactionPhysicsObjectDefinition[])context.Scenario.PhysicsObjects.Clone();
+            var definitions = (PhysicsObjectDefinition[])context.Scenario.PhysicsObjects.Clone();
             Array.Sort(definitions, (left, right) => left.ObjectId.CompareTo(right.ObjectId));
             bodies = new PhysicsBody[definitions.Length];
             for (int i = 0; i < bodies.Length; i++)
             {
-                FireReactionPhysicsObjectDefinition definition = definitions[i];
+                PhysicsObjectDefinition definition = definitions[i];
                 bodies[i] = new PhysicsBody
                 {
                     Id = definition.ObjectId,
@@ -247,6 +248,11 @@ namespace Paniq.Simulation
                     (long)definition.InitialPosition.X * SubMillimetre,
                     (long)definition.InitialPosition.Z * SubMillimetre);
                 widestRadius = Math.Max(widestRadius, definition.RadiusMillimetres);
+                indexById[definition.ObjectId] = i;
+                if (kinds.Of(definition.Kind).IsEquipment)
+                {
+                    equipment.Add(i);
+                }
             }
 
             // Things are flung about, so the grid reaches well past the rooms.
@@ -285,7 +291,7 @@ namespace Paniq.Simulation
         /// it, or else the lowest-numbered floor object at its spot, so a
         /// replay always stacks the same way.
         /// </summary>
-        private void AddToTheWorld(FireReactionPhysicsObjectDefinition[] definitions)
+        private void AddToTheWorld(PhysicsObjectDefinition[] definitions)
         {
             for (int i = 0; i < bodies.Length; i++)
             {
@@ -348,7 +354,7 @@ namespace Paniq.Simulation
 
         private int DefinitionOf(SimulationId id)
         {
-            FireReactionPhysicsObjectDefinition[] definitions = context.Scenario.PhysicsObjects;
+            PhysicsObjectDefinition[] definitions = context.Scenario.PhysicsObjects;
             for (int d = 0; d < definitions.Length; d++)
             {
                 if (definitions[d].ObjectId == id)
@@ -380,14 +386,15 @@ namespace Paniq.Simulation
 
         public int Count => bodies.Length;
 
-        /// <summary>Wired up after construction, because people's bodies are built after the things'.</summary>
-        public void UsePeople(PeopleBodies bodies) => people = bodies;
-
         /// <summary>
-        /// Wired up after construction, because the cable is built from the
-        /// things and so cannot exist before them.
+        /// People's bodies are built after the things', and the cable is built
+        /// from the things, so both are handed over once everything exists.
         /// </summary>
-        public void UsePower(PowerSystem powerSystem) => power = powerSystem;
+        public void Bind(Systems systems)
+        {
+            people = systems.People;
+            power = systems.Power;
+        }
 
         /// <summary>
         /// Something electrical goes off: the bang, the fling, the people
@@ -413,7 +420,7 @@ namespace Paniq.Simulation
 
             LogicalPosition centre = PositionOf(index);
             long radius = kind.PopRadiusMillimetres;
-            ulong bang = context.Events.Append(context.Tick, id, FireReactionEventType.ObjectExploded, centre,
+            ulong bang = context.Events.Append(context.Tick, id, CausalEventType.ObjectExploded, centre,
                 kind.PopRadiusMillimetres, 0, causeEventId).EventId;
 
             // Heard well beyond the blast itself, which is how the far side of
@@ -422,20 +429,22 @@ namespace Paniq.Simulation
 
             FlingFrom(centre, kind.PopRadiusMillimetres, kind.PopSpeed, index, bang);
 
-            Agent[] people = crowd.All;
-            for (int i = 0; i < people.Length; i++)
+            using (Crowd.Nearby people = crowd.Within(centre, radius))
             {
-                Agent agent = people[i];
-                if (!agent.IsParticipating ||
-                    LogicalPosition.DistanceSquared(agent.Body.Position, centre) > radius * radius)
+                for (int c = 0; c < people.Count; c++)
                 {
-                    continue;
-                }
+                    Agent agent = crowd.All[people[c]];
+                    if (!agent.IsParticipating ||
+                        LogicalPosition.DistanceSquared(agent.Body.Position, centre) > radius * radius)
+                    {
+                        continue;
+                    }
 
-                int away = IntegerMath.HeadingBetween(centre, agent.Body.Position, agent.Body.Heading);
-                body.BlowOver(agent, away,
-                    kind.PopRadiusMillimetres / 3 * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
-                    context.Scenario.PhysicsFeel.BlastLiftPercent, bang);
+                    int away = IntegerMath.HeadingBetween(centre, agent.Body.Position, agent.Body.Heading);
+                    body.BlowOver(agent, away,
+                        kind.PopRadiusMillimetres / 3 * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
+                        context.Scenario.PhysicsFeel.BlastLiftPercent, bang);
+                }
             }
 
             fire.IgniteAround(centre, kind.PopRadiusMillimetres, kind.PopIgniteCells, bang);
@@ -463,18 +472,19 @@ namespace Paniq.Simulation
         public SimulationId IdOf(int index) => bodies[index].Id;
 
         /// <summary>The thing with this ID, or -1 if the run has no such thing.</summary>
-        public int IndexOf(SimulationId id)
-        {
-            for (int i = 0; i < bodies.Length; i++)
-            {
-                if (bodies[i].Id == id)
-                {
-                    return i;
-                }
-            }
+        public int IndexOf(SimulationId id) => indexById.TryGetValue(id, out int index) ? index : -1;
 
-            return -1;
-        }
+        /// <summary>Every thing by ID, built once.</summary>
+        private readonly Dictionary<SimulationId, int> indexById = new Dictionary<SimulationId, int>();
+
+        /// <summary>
+        /// The things that are equipment (extinguishers), in ascending order.
+        /// Everybody looking for a bottle used to walk every loose thing in the
+        /// building to find the few that are bottles.
+        /// </summary>
+        public IReadOnlyList<int> Equipment => equipment;
+
+        private readonly List<int> equipment = new List<int>();
 
         public PhysicsObjectKind KindOf(int index) => bodies[index].Kind;
 
@@ -606,7 +616,7 @@ namespace Paniq.Simulation
         public void RecordBlockage(int index, SimulationId doorId, LogicalPosition doorCentre)
         {
             bodies[index].BlockedEventId = context.Events.Append(context.Tick, bodies[index].Id,
-                FireReactionEventType.DoorBlocked, doorCentre, 0, 0, bodies[index].LastPushEventId, doorId).EventId;
+                CausalEventType.DoorBlocked, doorCentre, 0, 0, bodies[index].LastPushEventId, doorId).EventId;
         }
 
         /// <summary>Whatever was jamming that door is clear of it again.</summary>
@@ -617,7 +627,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            context.Events.Append(context.Tick, bodies[index].Id, FireReactionEventType.DoorUnblocked, doorCentre,
+            context.Events.Append(context.Tick, bodies[index].Id, CausalEventType.DoorUnblocked, doorCentre,
                 0, 0, bodies[index].BlockedEventId, doorId);
             bodies[index].BlockedEventId = 0UL;
         }
@@ -630,7 +640,7 @@ namespace Paniq.Simulation
             SetMotion(index, (long)velocity.X * SubMillimetre, 0L, (long)velocity.Z * SubMillimetre);
             thing.Thrown = false;
             thing.LastPushEventId = context.Events.Append(context.Tick, shover.Id,
-                FireReactionEventType.AgentShovedObstruction, thing.Position, speed, 0, causeEventId, thing.Id).EventId;
+                CausalEventType.AgentShovedObstruction, thing.Position, speed, 0, causeEventId, thing.Id).EventId;
             sound.Thud(shover.Id, thing.Position, thing.LastPushEventId);
         }
 
@@ -1007,7 +1017,7 @@ namespace Paniq.Simulation
         {
             PhysicsBody thing = bodies[index];
             long speed = IntegerMath.Sqrt((long)velocityX * velocityX + (long)velocityZ * velocityZ);
-            thing.LastPushEventId = context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ItemThrown,
+            thing.LastPushEventId = context.Events.Append(context.Tick, thing.Id, CausalEventType.ItemThrown,
                 thing.Position, (int)speed, 0, 0UL, thing.Id).EventId;
             SetMotion(index, (long)velocityX * SubMillimetre, (long)velocityY * SubMillimetre, (long)velocityZ * SubMillimetre);
         }
@@ -1117,30 +1127,34 @@ namespace Paniq.Simulation
         {
             long reach = radius;
             long strength = (long)speed * feel.BlastStrengthPercent / 100L;
-            for (int b = 0; b < bodies.Length; b++)
+            using (Nearby near = Gather(UniformGridIndex.Around(centre, reach)))
             {
-                PhysicsBody thing = bodies[b];
-                if (b == exceptIndex || thing.Dormant || thing.HeldBy >= 0 || thing.OccupiedBy >= 0 || IsFixedInPlace(b))
+                for (int c = 0; c < near.Count; c++)
                 {
-                    continue;
-                }
+                    int b = near[c];
+                    PhysicsBody thing = bodies[b];
+                    if (b == exceptIndex || thing.Dormant || thing.HeldBy >= 0 || thing.OccupiedBy >= 0 || IsFixedInPlace(b))
+                    {
+                        continue;
+                    }
 
-                if (LogicalPosition.DistanceSquared(thing.Position, centre) > reach * reach)
-                {
-                    continue;
-                }
+                    if (LogicalPosition.DistanceSquared(thing.Position, centre) > reach * reach)
+                    {
+                        continue;
+                    }
 
-                int away = IntegerMath.HeadingBetween(centre, thing.Position, thing.Heading);
-                LogicalPosition velocity = IntegerMath.Displacement(away, (int)strength);
-                SetMotion(b,
-                    (long)velocity.X * SubMillimetre,
-                    strength * SubMillimetre * feel.BlastLiftPercent / 100L,
-                    (long)velocity.Z * SubMillimetre);
-                Tumble(b, away, (int)strength, BlastTumbleMultiplier);
-                thing.Thrown = true;
-                thing.LastPushEventId = causeEventId;
-                context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ItemThrown, thing.Position,
-                    speed, 0, causeEventId, thing.Id);
+                    int away = IntegerMath.HeadingBetween(centre, thing.Position, thing.Heading);
+                    LogicalPosition velocity = IntegerMath.Displacement(away, (int)strength);
+                    SetMotion(b,
+                        (long)velocity.X * SubMillimetre,
+                        strength * SubMillimetre * feel.BlastLiftPercent / 100L,
+                        (long)velocity.Z * SubMillimetre);
+                    Tumble(b, away, (int)strength, BlastTumbleMultiplier);
+                    thing.Thrown = true;
+                    thing.LastPushEventId = causeEventId;
+                    context.Events.Append(context.Tick, thing.Id, CausalEventType.ItemThrown, thing.Position,
+                        speed, 0, causeEventId, thing.Id);
+                }
             }
 
             ShoveTablesFrom(centre, reach, strength, causeEventId);
@@ -1275,7 +1289,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            ulong bumpEventId = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.BoxBumped, point,
+            ulong bumpEventId = context.Events.Append(context.Tick, agent.Id, CausalEventType.BoxBumped, point,
                 closing, 0, agent.Fear.ScaredEventId, thing.Id).EventId;
             thing.LastPushEventId = bumpEventId;
 
@@ -1368,7 +1382,7 @@ namespace Paniq.Simulation
         {
             PhysicsBody item = bodies[index];
             int speed = ThrowSpeed(agent, index);
-            CausalEvent thrown = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemThrown, item.Position,
+            CausalEvent thrown = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemThrown, item.Position,
                 speed, 0, causeEventId, item.Id);
 
             // Snatched off the floor and flung from the hip: it goes up and
@@ -1420,8 +1434,8 @@ namespace Paniq.Simulation
         /// read back in ascending ID order, then every collision the engine
         /// reported is judged, in the sorted order it gives them. A thing
         /// flying into a person may stagger or floor them; two things meeting
-        /// hard enough smash what was hit; a thing slammed into a table may
-        /// smash the table. The bouncing itself has already happened.
+        /// hard enough smash what was hit (furniture never smashes). The
+        /// bouncing itself has already happened.
         /// </summary>
         public void AfterStep()
         {
@@ -1584,7 +1598,7 @@ namespace Paniq.Simulation
             }
 
             LogicalPosition point = contact.Point;
-            CausalEvent hit = context.Events.Append(context.Tick, physicsBody.Id, FireReactionEventType.BoxHitAgent, point,
+            CausalEvent hit = context.Events.Append(context.Tick, physicsBody.Id, CausalEventType.BoxHitAgent, point,
                 (int)(closing / SubMillimetre), 0, physicsBody.LastPushEventId, agent.Id);
             bool wasCalm = agent.Fear.State == AgentFearState.Calm;
             if (momentum >= settings.KnockdownMomentum)
@@ -1647,7 +1661,7 @@ namespace Paniq.Simulation
 
             if (closing >= (long)settings.LoggedBoxHitSpeed * SubMillimetre)
             {
-                other.LastPushEventId = context.Events.Append(context.Tick, physicsBody.Id, FireReactionEventType.BoxesCollided,
+                other.LastPushEventId = context.Events.Append(context.Tick, physicsBody.Id, CausalEventType.BoxesCollided,
                     contact.Point, (int)(closing / SubMillimetre), 0, physicsBody.LastPushEventId, other.Id).EventId;
             }
             else
@@ -1680,7 +1694,7 @@ namespace Paniq.Simulation
             target.MassGrams = Math.Max(1000, target.MassGrams / 2);
             world.Resize(index, 75);
             world.SetMass(index, target.MassGrams);
-            context.Events.Append(context.Tick, target.Id, FireReactionEventType.ObjectBroke, target.Position,
+            context.Events.Append(context.Tick, target.Id, CausalEventType.ObjectBroke, target.Position,
                 (int)Math.Min(int.MaxValue, momentum), 0, causeEventId, brokenBy);
             sound.Thud(target.Id, target.Position, target.LastPushEventId);
         }
@@ -1710,12 +1724,12 @@ namespace Paniq.Simulation
             return value % divisor != 0L && (value < 0L) != (divisor < 0L) ? quotient - 1L : quotient;
         }
 
-        public FireReactionPhysicsObjectSnapshot GetSnapshot(int index)
+        public PhysicsObjectSnapshot GetSnapshot(int index)
         {
             PhysicsBody physicsBody = bodies[index];
             long speed = IntegerMath.Sqrt(physicsBody.VelocityX * physicsBody.VelocityX + physicsBody.VelocityZ * physicsBody.VelocityZ);
             PhysicsWorld.Reading reading = physicsBody.Reading;
-            return new FireReactionPhysicsObjectSnapshot(
+            return new PhysicsObjectSnapshot(
                 physicsBody.Id,
                 physicsBody.Kind,
                 physicsBody.Position,
@@ -1734,9 +1748,9 @@ namespace Paniq.Simulation
                         reading.RotationX, reading.RotationY, reading.RotationZ, reading.RotationW, reading.Position));
         }
 
-        public FireReactionPhysicsObjectSnapshot[] GetSnapshots()
+        public PhysicsObjectSnapshot[] GetSnapshots()
         {
-            var snapshots = new FireReactionPhysicsObjectSnapshot[bodies.Length];
+            var snapshots = new PhysicsObjectSnapshot[bodies.Length];
             for (int i = 0; i < bodies.Length; i++)
             {
                 snapshots[i] = GetSnapshot(i);

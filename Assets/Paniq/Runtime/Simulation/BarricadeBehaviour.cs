@@ -19,19 +19,27 @@ namespace Paniq.Simulation
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly DoorSystem doors;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly PhysicsObjectSystem objects;
         private readonly FlammablesSystem flammables;
         private readonly Locomotion locomotion;
         private readonly BlockadeSettings settings;
         private readonly PanicSettings panic;
 
+        /// <summary>
+        /// Per door slot: who last set out to wedge it (their index), or -1.
+        /// Read through <see cref="IsTakenByAnybodyElse"/>, which checks they
+        /// are still on it. This used to be a walk of the whole crowd for
+        /// every door a frightened person considered.
+        /// </summary>
+        private readonly int[] barricaderOf;
+
         public BarricadeBehaviour(
             SimulationContext context,
             Crowd crowd,
             WorldGeometry geometry,
             DoorSystem doors,
-            FireSystem fire,
+            Threats threats,
             PhysicsObjectSystem objects,
             FlammablesSystem flammables,
             Locomotion locomotion)
@@ -40,12 +48,17 @@ namespace Paniq.Simulation
             this.crowd = crowd;
             this.geometry = geometry;
             this.doors = doors;
-            this.fire = fire;
+            this.threats = threats;
             this.objects = objects;
             this.flammables = flammables;
             this.locomotion = locomotion;
             settings = context.Scenario.Blockades;
             panic = context.Scenario.Panic;
+            barricaderOf = new int[geometry.DoorSlotCount];
+            for (int i = 0; i < barricaderOf.Length; i++)
+            {
+                barricaderOf[i] = -1;
+            }
         }
 
         public static bool IsBarricading(Agent agent)
@@ -88,7 +101,7 @@ namespace Paniq.Simulation
             }
 
             int room = geometry.RoomOf(agent);
-            if (room < 0 || fire.IsBurningInRoom(room))
+            if (room < 0 || threats.IsInRoom(room))
             {
                 // Their own room is alight: wedging its doors saves nobody.
                 return null;
@@ -109,6 +122,7 @@ namespace Paniq.Simulation
             }
 
             agent.Barricade.DoorIndex = door;
+            barricaderOf[door] = agent.Index;
             agent.Carry.ItemIndex = item;
             agent.Carry.Holding = false;
             agent.Intent.Activity = AgentActivityState.FetchingBarricade;
@@ -142,7 +156,7 @@ namespace Paniq.Simulation
                 }
 
                 int beyondRoom = geometry.RoomBeyond(door, room);
-                bool flamesBeyond = beyondRoom >= 0 && fire.IsBurningInRoom(beyondRoom);
+                bool flamesBeyond = beyondRoom >= 0 && threats.IsInRoom(beyondRoom);
                 if (!nowhereLeftToGo && !flamesBeyond)
                 {
                     // Still hoping to walk out, and nothing is coming through
@@ -184,30 +198,36 @@ namespace Paniq.Simulation
 
         private bool IsTakenByAnybodyElse(Agent agent, int door)
         {
-            Agent[] people = crowd.All;
-            for (int i = 0; i < people.Length; i++)
-            {
-                if (people[i] != agent && people[i].Barricade.DoorIndex == door)
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            int taker = barricaderOf[door];
+            return taker >= 0 && crowd.All[taker] != agent && crowd.All[taker].Barricade.DoorIndex == door;
         }
 
         private bool SomebodyBeyond(Agent agent, int door, int room)
         {
-            Agent[] people = crowd.All;
-            for (int i = 0; i < people.Length; i++)
+            int beyond = geometry.RoomBeyond(door, room);
+            if (beyond < 0)
             {
-                Agent other = people[i];
-                if (other == agent || !other.IsParticipating)
+                // A door to the street: "beyond" is nobody's room, and the
+                // question as always asked matches anybody standing in a
+                // doorway anywhere. Kept as it was; it is a rare question.
+                Agent[] people = crowd.All;
+                for (int i = 0; i < people.Length; i++)
                 {
-                    continue;
+                    Agent other = people[i];
+                    if (other != agent && other.IsParticipating && geometry.RoomAt(other.Body.Position) < 0)
+                    {
+                        return true;
+                    }
                 }
 
-                if (geometry.RoomAt(other.Body.Position) == geometry.RoomBeyond(door, room))
+                return false;
+            }
+
+            using Crowd.Nearby near = crowd.Gather(geometry.RoomBounds(beyond));
+            for (int c = 0; c < near.Count; c++)
+            {
+                Agent other = crowd.All[near[c]];
+                if (other != agent && other.IsParticipating && geometry.RoomAt(other.Body.Position) == beyond)
                 {
                     return true;
                 }
@@ -221,8 +241,11 @@ namespace Paniq.Simulation
         {
             int best = -1;
             long bestDistance = (long)settings.BarricadeFetchRangeMillimetres * settings.BarricadeFetchRangeMillimetres;
-            for (int i = 0; i < objects.Count; i++)
+            using PhysicsObjectSystem.Nearby near =
+                objects.Gather(UniformGridIndex.Around(agent.Body.Position, settings.BarricadeFetchRangeMillimetres));
+            for (int c = 0; c < near.Count; c++)
             {
+                int i = near[c];
                 if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0 ||
                     objects.IsEquipment(i) || objects.IsMoving(i) ||
                     !objects.CanLift(agent, i) || flammables.ObjectState(i) != ObjectBurnState.Intact ||
@@ -252,7 +275,7 @@ namespace Paniq.Simulation
                 agent.Burning.IsBurning || context.Tick >= agent.Barricade.GiveUpTick ||
                 agent.Body.BlockedTicks >= settings.BarricadeBlockedGiveUpTicks ||
                 geometry.IsDoorOpen(door) || doors.IsObstructed(door) ||
-                room < 0 || fire.IsBurningInRoom(room))
+                room < 0 || threats.IsInRoom(room))
             {
                 GiveUp(agent);
                 return null;
@@ -294,7 +317,7 @@ namespace Paniq.Simulation
 
                 if (objects.TrySetDownAt(item, spot, agent.Fear.ScaredEventId))
                 {
-                    context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentBarricadedDoor, spot,
+                    context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentBarricadedDoor, spot,
                         0, 0, agent.Fear.ScaredEventId, doors.IdOf(door));
                     agent.Carry.ItemIndex = -1;
                     agent.Carry.Holding = false;

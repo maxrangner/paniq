@@ -17,14 +17,14 @@ namespace Paniq.Tests.EditMode
         [TestCase(42UL, true, 0x401B84C10B923882UL)]
         [TestCase(40UL, false, 0x82E325DDEC23AE6BUL)]
         [TestCase(40UL, true, 0xA9A0B57396E39180UL)]
-        [TestCase(46UL, false, 0x404DBF0A21370481UL)]
+        [TestCase(46UL, false, 0xFD12B9D8F2FE8F28UL)]
         [TestCase(46UL, true, 0x5D5ED4C5AFF8A1E0UL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
-                ulong actual = ReplayFingerprint.Run(scenario.ToRuntimeData(), seed, openDoors);
+                ulong actual = ReplayFingerprint.Of(scenario.ToRuntimeData(), seed, openDoors);
                 Assert.That(actual, Is.EqualTo(expected),
                     $"Seed {seed}, doors {(openDoors ? "opened" : "locked")}: fingerprint is 0x{actual:X16}UL. " +
                     "If behaviour was meant to change, bump the compatibility version and re-record.");
@@ -41,14 +41,14 @@ namespace Paniq.Tests.EditMode
         /// well as by their own tests, so the whole command path is covered by
         /// replay. This run waits to be triggered, as a played level does.
         /// </summary>
-        [TestCase(42UL, 0xFC6550EA71652F63UL)]
+        [TestCase(42UL, 0x63AE9404596392EDUL)]
         [TestCase(40UL, 0xA602F3A62AA94C3CUL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
-                ulong actual = ReplayFingerprint.Run(scenario.ToRuntimeData(), seed, false, false, true);
+                ulong actual = ReplayFingerprint.Of(scenario.ToRuntimeData(), seed, false, false, true);
                 Assert.That(actual, Is.EqualTo(expected),
                     $"Seed {seed}, cards played: fingerprint is 0x{actual:X16}UL. " +
                     "If behaviour was meant to change, bump the compatibility version and re-record.");
@@ -63,10 +63,10 @@ namespace Paniq.Tests.EditMode
         [TestCase(40UL, 0x1D29E373ECD40B9EUL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
-                ulong actual = ReplayFingerprint.Run(scenario.ToRuntimeData(), seed, false, true);
+                ulong actual = ReplayFingerprint.Of(scenario.ToRuntimeData(), seed, false, true);
                 Assert.That(actual, Is.EqualTo(expected),
                     $"Seed {seed}, boxes kicked: fingerprint is 0x{actual:X16}UL. " +
                     "If behaviour was meant to change, bump the compatibility version and re-record.");
@@ -105,22 +105,22 @@ namespace Paniq.Tests.EditMode
         /// staff against a floor with strangers on it.
         /// </para>
         /// </summary>
-        [TestCase(41UL, Run.DoorsLocked, 0x28665FF8E6A65828UL)]
-        [TestCase(41UL, Run.DoorsOpened, 0x91F92781B5E1412FUL)]
-        [TestCase(42UL, Run.CardsPlayed, 0xC55EF9A1B385944CUL)]
-        public void WithNoVisitors_TheFloorReplaysExactlyAsItDidBefore(ulong seed, Run run, ulong expected)
+        [TestCase(41UL, RecordedRun.DoorsLocked, 0x28665FF8E6A65828UL)]
+        [TestCase(41UL, RecordedRun.DoorsOpened, 0x91F92781B5E1412FUL)]
+        [TestCase(42UL, RecordedRun.CardsPlayed, 0x4387B12C54077077UL)]
+        public void WithNoVisitors_TheFloorReplaysExactlyAsItDidBefore(ulong seed, RecordedRun run, ulong expected)
         {
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
-                FireReactionScenarioData data = scenario.ToRuntimeData();
+                ScenarioData data = scenario.ToRuntimeData();
                 for (int i = 0; i < data.Agents.Length; i++)
                 {
                     data.Agents[i] = data.Agents[i].WithFamiliarity(AgentFamiliarity.KnowsTheBuilding);
                 }
 
-                ulong actual = ReplayFingerprint.Run(data, seed, run == Run.DoorsOpened, run == Run.BoxesKicked,
-                    run == Run.CardsPlayed);
+                ulong actual = ReplayFingerprint.Of(data, seed, run == RecordedRun.DoorsOpened, run == RecordedRun.BoxesKicked,
+                    run == RecordedRun.CardsPlayed);
                 Assert.That(actual, Is.EqualTo(expected),
                     $"Seed {seed}, {run}, nobody a visitor: fingerprint is 0x{actual:X16}UL. " +
                     "Somebody who knows the building no longer behaves as they did before visitors existed.");
@@ -132,7 +132,7 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>Which of the recorded runs to play.</summary>
-        public enum Run
+        public enum RecordedRun
         {
             DoorsLocked,
             DoorsOpened,

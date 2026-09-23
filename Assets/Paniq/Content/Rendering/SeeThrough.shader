@@ -47,6 +47,9 @@ Shader "Paniq/See-Through"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
+            // The fire's glow is drawn in batches of many cubes at once.
+            #pragma multi_compile_instancing
+
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
@@ -56,6 +59,7 @@ Shader "Paniq/See-Through"
             struct Attributes
             {
                 float4 positionOS : POSITION;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -66,6 +70,7 @@ Shader "Paniq/See-Through"
             Varyings Vertex(Attributes input)
             {
                 Varyings output;
+                UNITY_SETUP_INSTANCE_ID(input);
                 output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
                 return output;
             }

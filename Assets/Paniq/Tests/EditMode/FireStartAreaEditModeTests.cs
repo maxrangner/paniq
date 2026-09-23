@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class FireStartAreaEditModeTests
     {
-        private FireReactionScenario scenario;
+        private ScenarioAsset scenario;
 
         [SetUp]
         public void SetUp()
         {
-            scenario = FireReactionScenario.CreateDefault();
+            scenario = ScenarioAsset.CreateDefault();
         }
 
         [TearDown]
@@ -30,8 +30,8 @@ namespace Paniq.Tests.EditMode
         /// <summary>Which room the fire starts in on this seed, or -1 if it is nowhere.</summary>
         private int RoomTheFireStartsIn(ulong seed, out LogicalPosition origin)
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
-            var simulation = new FireReactionSimulation(data, seed);
+            ScenarioData data = scenario.ToRuntimeData();
+            var simulation = new Run(data, seed);
             origin = simulation.FireOriginForTests;
             for (int r = 0; r < data.Rooms.Length; r++)
             {
@@ -82,7 +82,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheFire_NeverStartsInTheCorridor()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
             for (ulong seed = 1UL; seed <= 40UL; seed++)
             {
                 int room = RoomTheFireStartsIn(seed, out LogicalPosition origin);
@@ -100,9 +100,9 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void OneNamedArea_PutsTheFireExactlyThere()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
             data.Fire.SpawnBounds = new LogicalBounds(1000, 1000, 1000, 1000);
-            var simulation = new FireReactionSimulation(data, 7UL);
+            var simulation = new Run(data, 7UL);
 
             // Snapped to the middle of the half-metre square it landed in.
             LogicalPosition origin = simulation.FireOriginForTests;
@@ -114,7 +114,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void SettingTheOneArea_ReplacesTheWholeList()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
             Assert.That(data.Fire.SpawnAreas, Has.Length.GreaterThan(1), "The shipped building has several.");
 
             data.Fire.SpawnBounds = new LogicalBounds(0, 0, 0, 0);
@@ -129,8 +129,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void ChangingOneRunsAreas_LeavesAnotherRunsAlone()
         {
-            FireReactionScenarioData one = scenario.ToRuntimeData();
-            FireReactionScenarioData other = scenario.ToRuntimeData();
+            ScenarioData one = scenario.ToRuntimeData();
+            ScenarioData other = scenario.ToRuntimeData();
             int before = other.Fire.SpawnAreas.Length;
 
             one.Fire.SpawnBounds = new LogicalBounds(0, 0, 0, 0);

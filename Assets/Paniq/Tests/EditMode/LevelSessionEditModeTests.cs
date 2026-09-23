@@ -118,7 +118,7 @@ namespace Paniq.Tests.EditMode
             LevelDefinition level = LevelDefinition.CreateDefault();
             try
             {
-                Simulation.FireReactionScenarioData data = level.ToRuntimeData();
+                Simulation.ScenarioData data = level.ToRuntimeData();
                 Assert.That(data.Round.HazardWaitsForTrigger, Is.True,
                     "A playable level opens calm and waits for the player.");
                 Assert.That(data.Round.TargetSavedPercent, Is.EqualTo(level.TargetSavedPercent));

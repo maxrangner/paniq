@@ -28,7 +28,7 @@ namespace Paniq.Simulation
             this.geometry = geometry;
             settings = context.Scenario.Alarm;
 
-            FireReactionAlarmDefinition[] definitions = context.Scenario.Alarms;
+            AlarmDefinition[] definitions = context.Scenario.Alarms;
             ids = new SimulationId[definitions.Length];
             positions = new LogicalPosition[definitions.Length];
             rooms = new int[definitions.Length];
@@ -111,12 +111,12 @@ namespace Paniq.Simulation
             }
 
             Ringing = true;
-            ulong pulled = context.Events.Append(context.Tick, puller.Id, FireReactionEventType.AlarmPulled,
+            ulong pulled = context.Events.Append(context.Tick, puller.Id, CausalEventType.AlarmPulled,
                 positions[alarm], 0, 0, causeEventId, ids[alarm]).EventId;
 
             for (int i = 0; i < ids.Length; i++)
             {
-                ulong rang = context.Events.Append(context.Tick, ids[i], FireReactionEventType.AlarmRang,
+                ulong rang = context.Events.Append(context.Tick, ids[i], CausalEventType.AlarmRang,
                     positions[i], settings.BellHearingRadiusMillimetres, 0, pulled).EventId;
                 sound.Bell(ids[i], positions[i], rang);
             }

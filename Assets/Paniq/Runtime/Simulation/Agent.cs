@@ -144,9 +144,9 @@
             }
         }
 
-        public FireReactionAgentSnapshot ToSnapshot()
+        public AgentSnapshot ToSnapshot()
         {
-            return new FireReactionAgentSnapshot(
+            return new AgentSnapshot(
                 Id,
                 Body.Position,
                 Participation,

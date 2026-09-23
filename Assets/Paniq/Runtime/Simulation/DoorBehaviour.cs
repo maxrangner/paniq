@@ -12,13 +12,13 @@ namespace Paniq.Simulation
     /// out through a door to the outside is an escape. People close doors
     /// behind them, or keep them open, according to their personality.
     /// </summary>
-    internal sealed class DoorBehaviour
+    internal sealed class DoorBehaviour : IBindable
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly DoorSystem doors;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly SoundSystem sound;
         private readonly ExitSignBehaviour exitSigns;
         private readonly WayfindingSystem wayfinding;
@@ -32,7 +32,7 @@ namespace Paniq.Simulation
             Crowd crowd,
             WorldGeometry geometry,
             DoorSystem doors,
-            FireSystem fire,
+            Threats threats,
             SoundSystem sound,
             ExitSignBehaviour exitSigns,
             WayfindingSystem wayfinding)
@@ -41,7 +41,7 @@ namespace Paniq.Simulation
             this.crowd = crowd;
             this.geometry = geometry;
             this.doors = doors;
-            this.fire = fire;
+            this.threats = threats;
             this.sound = sound;
             this.exitSigns = exitSigns;
             this.wayfinding = wayfinding;
@@ -206,7 +206,7 @@ namespace Paniq.Simulation
                     ? IntegerMath.Distance(position, approach)
                     : routeCost + IntegerMath.Distance(geometry.DoorCentre(last), approach);
                 long score = context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) - walk;
-                if (wayOutIsOpen && !fire.IsBurningInRoom(geometry.DoorRoom(d)))
+                if (wayOutIsOpen && !threats.IsInRoom(geometry.DoorRoom(d)))
                 {
                     // A way out you can see standing open is worth more than
                     // any walk in this building -- but not if the room it is
@@ -220,7 +220,7 @@ namespace Paniq.Simulation
                 }
 
                 score -= RoutePenalties(agent, position, next);
-                if (fire.AnyCloserThan(approach, TraitEffects.DangerDistance(agent, context.Scenario)))
+                if (threats.AnyCloserThan(approach, TraitEffects.DangerDistance(agent, context.Scenario)))
                 {
                     score -= settings.InFirePenaltyMillimetres;
                 }
@@ -228,7 +228,7 @@ namespace Paniq.Simulation
                 // Nobody walks into the next room, or all the way to a
                 // door in a far room, while that room is alight.
                 int into = geometry.RoomBeyond(next, room);
-                if ((into >= 0 && fire.IsBurningInRoom(into)) || fire.IsBurningInRoom(geometry.DoorRoom(d)))
+                if ((into >= 0 && threats.IsInRoom(into)) || threats.IsInRoom(geometry.DoorRoom(d)))
                 {
                     score -= settings.InFirePenaltyMillimetres;
                 }
@@ -265,11 +265,14 @@ namespace Paniq.Simulation
         /// <summary>
         /// A visitor who knows of no way out looks for one. Two kinds of place
         /// are worth a look: the part of this room they have not seen yet, and
-        /// any room they know how to reach but have not looked round. Each is
-        /// scored like a way out -- the shorter walk, the way a sign they can
-        /// see points, clear of the danger, and a little for sticking with what
-        /// they already chose -- with a little noise. False when there is
-        /// nowhere left to look.
+        /// any room they know how to reach but have not looked round. The room
+        /// they are standing in comes first: having walked in to look round
+        /// it, they look round it before any other room is weighed, unless its
+        /// unseen corner is by the danger or cannot be reached. Otherwise each
+        /// place is scored like a way out -- the shorter walk, the way a sign
+        /// they can see points, clear of the danger, and a little for sticking
+        /// with what they already chose -- with a little noise. False when
+        /// there is nowhere left to look.
         /// <para>
         /// On the way, a door they were looking for turns up, or a sign, or a
         /// leader; any of those makes them think again at once (see
@@ -290,6 +293,7 @@ namespace Paniq.Simulation
             bool readASign = exitSigns.TryRead(agent, out int pointing);
             int danger = TraitEffects.DangerDistance(agent, context.Scenario);
             bool found = false;
+            bool lookHereFirst = false;
             long bestScore = long.MinValue;
 
             if (!knowledge.HasLookedOver(room))
@@ -297,12 +301,12 @@ namespace Paniq.Simulation
                 LogicalPosition spot = UnseenCorner(knowledge, room, position, panic.EscapeWallMarginMillimetres);
                 long score = context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) -
                              IntegerMath.Distance(position, spot);
-                if (fire.RoutePassesNear(position, spot, panic.EscapeRouteClearanceMillimetres))
+                if (threats.RoutePassesNear(position, spot, panic.EscapeRouteClearanceMillimetres))
                 {
                     score -= panic.EscapeRoutePenaltyMillimetres;
                 }
 
-                if (fire.AnyCloserThan(spot, danger))
+                if (threats.AnyCloserThan(spot, danger))
                 {
                     score -= settings.InFirePenaltyMillimetres;
                 }
@@ -321,9 +325,19 @@ namespace Paniq.Simulation
                 bestScore = score;
                 knowledge.HasSearchSpot = true;
                 knowledge.SearchSpot = spot;
+
+                // Without this, a room whose far corners are further off than
+                // the next room's door was left the moment it was entered, and
+                // from the corridor that same room was the nearest place
+                // unseen, so a stranger bounced through one doorway until the
+                // building burned down. Costing routes as real walks made that
+                // a certainty on the shipped floor; it had been a matter of luck.
+                lookHereFirst = !threats.AnyCloserThan(spot, danger) &&
+                                geometry.Routes.CanGetFromHereToThere(position, spot,
+                                    context.Scenario.World.OccupancyRadiusMillimetres);
             }
 
-            for (int r = 0; r < geometry.RoomCount; r++)
+            for (int r = 0; !lookHereFirst && r < geometry.RoomCount; r++)
             {
                 if (r == room || knowledge.HasLookedOver(r) ||
                     !geometry.TryFindKnownRoute(room, position, r, agent, out int first, out _, out long routeCost) ||
@@ -342,7 +356,7 @@ namespace Paniq.Simulation
                 long score = context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) - routeCost -
                              RoutePenalties(agent, position, first);
                 int into = geometry.RoomBeyond(first, room);
-                if ((into >= 0 && fire.IsBurningInRoom(into)) || fire.IsBurningInRoom(r))
+                if ((into >= 0 && threats.IsInRoom(into)) || threats.IsInRoom(r))
                 {
                     score -= settings.InFirePenaltyMillimetres;
                 }
@@ -370,7 +384,7 @@ namespace Paniq.Simulation
             {
                 knowledge.Searching = true;
                 knowledge.SearchEventId = context.Events.Append(context.Tick, agent.Id,
-                    FireReactionEventType.AgentLookedForAWayOut, position, 0, 0, agent.Fear.ScaredEventId).EventId;
+                    CausalEventType.AgentLookedForAWayOut, position, 0, 0, agent.Fear.ScaredEventId).EventId;
             }
 
             return found;
@@ -439,7 +453,7 @@ namespace Paniq.Simulation
                 long score = RefugeScore(r, routeCost) +
                              context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) -
                              RoutePenalties(agent, position, first) -
-                             (into >= 0 && fire.IsBurningInRoom(into) ? settings.InFirePenaltyMillimetres : 0L);
+                             (into >= 0 && threats.IsInRoom(into) ? settings.InFirePenaltyMillimetres : 0L);
                 if (score > bestScore)
                 {
                     bestScore = score;
@@ -460,13 +474,21 @@ namespace Paniq.Simulation
             LogicalBounds b = geometry.RoomBounds(room);
             long space = settings.RefugeSpacePerPersonMillimetres;
             long capacity = (b.MaxX - b.MinX) / space * ((b.MaxZ - b.MinZ) / space);
-            Agent[] agents = crowd.All;
+
+            // Everybody who counts as being in the room stands inside it or in
+            // one of its doorways, and a doorway to the street reaches the
+            // doorway depth past the wall: so the room grown by that depth
+            // holds every candidate, and the index reads only those.
             int inside = 0;
-            for (int i = 0; i < agents.Length; i++)
+            using (Crowd.Nearby people = crowd.Gather(geometry.RoomAreaWithDoorways(room)))
             {
-                if (agents[i] != hopeful && agents[i].IsParticipating && geometry.RoomOf(agents[i]) == room)
+                for (int c = 0; c < people.Count; c++)
                 {
-                    inside++;
+                    Agent other = crowd.All[people[c]];
+                    if (other != hopeful && other.IsParticipating && geometry.RoomOf(other) == room)
+                    {
+                        inside++;
+                    }
                 }
             }
 
@@ -481,11 +503,11 @@ namespace Paniq.Simulation
         private long RefugeScore(int room, long routeCost)
         {
             LogicalPosition middle = geometry.RoomBounds(room).Centre;
-            long fireDistanceSquared = fire.NearestDistanceSquared(middle);
+            long fireDistanceSquared = threats.NearestDistanceSquared(middle, out _, out _);
             long score = fireDistanceSquared == long.MaxValue
                 ? settings.RefugeNoFireMillimetres
                 : IntegerMath.Sqrt(fireDistanceSquared);
-            if (fire.IsBurningInRoom(room))
+            if (threats.IsInRoom(room))
             {
                 score -= settings.InFirePenaltyMillimetres;
             }
@@ -502,7 +524,7 @@ namespace Paniq.Simulation
         {
             LogicalPosition centre = geometry.DoorCentre(door);
             long penalty = 0L;
-            if (fire.RoutePassesNear(position, centre, context.Scenario.Panic.EscapeRouteClearanceMillimetres))
+            if (threats.RoutePassesNear(position, centre, context.Scenario.Panic.EscapeRouteClearanceMillimetres))
             {
                 penalty += context.Scenario.Panic.EscapeRoutePenaltyMillimetres;
             }
@@ -627,7 +649,7 @@ namespace Paniq.Simulation
             agent.Doors.AttemptEventId = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentTriedDoor,
+                CausalEventType.AgentTriedDoor,
                 geometry.DoorCentre(door),
                 0,
                 0,
@@ -782,7 +804,7 @@ namespace Paniq.Simulation
                         CausalEvent shove = context.Events.Append(
                             tick,
                             agent.Id,
-                            FireReactionEventType.AgentForcedDoor,
+                            CausalEventType.AgentForcedDoor,
                             doorCentre,
                             context.Scenario.Hearing.BumpSoundRadiusMillimetres,
                             0,
@@ -826,7 +848,7 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             int door = agent.Doors.ExitDoorIndex;
-            context.Events.Append(tick, agent.Id, FireReactionEventType.AgentGaveUpOnDoor, geometry.DoorCentre(door),
+            context.Events.Append(tick, agent.Id, CausalEventType.AgentGaveUpOnDoor, geometry.DoorCentre(door),
                 0, 0, agent.Doors.AttemptEventId, doors.IdOf(door));
             agent.Doors.AvoidUntilTick[door] = checked(tick + context.Random.NextIntInclusive(
                 settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
@@ -909,10 +931,10 @@ namespace Paniq.Simulation
         {
             long reach = settings.ApproachInsetMillimetres + context.Scenario.World.OccupancyRadiusMillimetres * 2L;
             LogicalPosition centre = geometry.DoorCentre(door);
-            Agent[] people = crowd.All;
-            for (int i = 0; i < people.Length; i++)
+            using Crowd.Nearby people = crowd.Within(centre, reach);
+            for (int c = 0; c < people.Count; c++)
             {
-                Agent other = people[i];
+                Agent other = crowd.All[people[c]];
                 if (other == agent || !other.IsParticipating || other.Body.State != AgentBodyState.Upright)
                 {
                     continue;
@@ -1077,8 +1099,8 @@ namespace Paniq.Simulation
         /// have just left is alight, which is
         /// <see cref="ConsiderShuttingAgainstFire"/>'s business, not spite.
         /// </summary>
-        /// <summary>Wired up after construction, because the objects are built after this behaviour.</summary>
-        public void UseObjects(PhysicsObjectSystem physicsObjects) => objects = physicsObjects;
+        /// <summary>The objects are built after this behaviour, so they are handed over once everything exists.</summary>
+        public void Bind(Systems systems) => objects = systems.Objects;
 
         public void ConsiderSlammingBehind(Agent agent, int door, int previousRoom, ulong causeEventId)
         {
@@ -1091,7 +1113,7 @@ namespace Paniq.Simulation
             if (traits.Evil < settings.EvilCloseMinimum)
             {
                 // Not cruel: the only reason left to shut it is the fire.
-                if (previousRoom >= 0 && fire.IsBurningInRoom(previousRoom))
+                if (previousRoom >= 0 && threats.IsInRoom(previousRoom))
                 {
                     ConsiderShuttingAgainstFire(agent, door, causeEventId);
                 }
@@ -1157,14 +1179,14 @@ namespace Paniq.Simulation
             }
 
             int room = geometry.RoomAt(agent.Body.Position);
-            if (room < 0 || fire.IsBurningInRoom(room))
+            if (room < 0 || threats.IsInRoom(room))
             {
                 // Their own room is alight: shutting this door saves nobody.
                 return;
             }
 
             LogicalPosition doorCentre = geometry.DoorCentre(door);
-            bool flamesAtTheDoor = fire.AnyCloserThan(doorCentre, settings.FireAtDoorRadiusMillimetres);
+            bool flamesAtTheDoor = threats.AnyCloserThan(doorCentre, settings.FireAtDoorRadiusMillimetres);
             if (!flamesAtTheDoor && WouldCutOffTheirOwnWayOut(agent, room, door))
             {
                 // Getting out beats shutting the fire in. Nobody slams a door
@@ -1228,10 +1250,10 @@ namespace Paniq.Simulation
         {
             long radius = settings.CloseApproachRadiusMillimetres;
             LogicalPosition doorCentre = geometry.DoorCentre(door);
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby people = crowd.Within(doorCentre, radius);
+            for (int c = 0; c < people.Count; c++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[people[c]];
                 if (other == closer || !other.IsParticipating ||
                     (closerRoom >= 0 && geometry.RoomAt(other.Body.Position) == closerRoom) ||
                     LogicalPosition.DistanceSquared(other.Body.Position, doorCentre) > radius * radius)
@@ -1252,7 +1274,7 @@ namespace Paniq.Simulation
         /// </summary>
         public void ConsiderClosingAgainstFire(Agent agent, int room)
         {
-            if (fire.IsBurningInRoom(room))
+            if (threats.IsInRoom(room))
             {
                 return;
             }
@@ -1267,7 +1289,7 @@ namespace Paniq.Simulation
                 // ConsiderShuttingAgainstFire refuses any door on their own way
                 // out, this one included, so it is not checked twice here.
                 if (!geometry.IsDoorOpen(door) || beyond < 0 ||
-                    !fire.IsBurningInRoom(beyond) ||
+                    !threats.IsInRoom(beyond) ||
                     LogicalPosition.DistanceSquared(agent.Body.Position, geometry.DoorCentre(door)) > reach * reach)
                 {
                     continue;
@@ -1319,7 +1341,7 @@ namespace Paniq.Simulation
 
                 agent.Participation = AgentParticipation.NoLongerParticipating;
                 agent.Outcome = AgentTerminalOutcome.Escaped;
-                ulong escaped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentEscaped,
+                ulong escaped = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentEscaped,
                     agent.Body.Position, 0, 0, doors.OpenedEventIdOf(door), doors.IdOf(door)).EventId;
                 agent.Doors.EscapedEventId = escaped;
 

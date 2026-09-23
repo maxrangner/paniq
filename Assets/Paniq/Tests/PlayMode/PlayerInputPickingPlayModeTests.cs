@@ -44,11 +44,11 @@ namespace Paniq.Tests.PlayMode
             yield return null;
 
             Camera camera = Camera.main;
-            FireReactionRunner runner = Object.FindObjectOfType<FireReactionRunner>();
+            RunDriver runner = Object.FindObjectOfType<RunDriver>();
             Assert.That(camera, Is.Not.Null);
             Assert.That(runner, Is.Not.Null);
 
-            FireReactionSnapshot snapshot = runner.Snapshot;
+            RunSnapshot snapshot = runner.Snapshot;
             Assert.That(snapshot.Agents.Count, Is.GreaterThan(0));
 
             // Everybody on screen, aimed at squarely: every one of them has to
@@ -56,7 +56,7 @@ namespace Paniq.Tests.PlayMode
             int aimedAt = 0;
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
-                FireReactionAgentSnapshot agent = snapshot.Agents[i];
+                AgentSnapshot agent = snapshot.Agents[i];
                 if (agent.Participation != AgentParticipation.Participating)
                 {
                     continue;
@@ -91,14 +91,14 @@ namespace Paniq.Tests.PlayMode
             yield return null;
 
             Camera camera = Camera.main;
-            FireReactionRunner runner = Object.FindObjectOfType<FireReactionRunner>();
-            FireReactionSnapshot snapshot = runner.Snapshot;
+            RunDriver runner = Object.FindObjectOfType<RunDriver>();
+            RunSnapshot snapshot = runner.Snapshot;
             var ground = new Plane(Vector3.up, 0f);
 
             int checkedPeople = 0;
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
-                FireReactionAgentSnapshot agent = snapshot.Agents[i];
+                AgentSnapshot agent = snapshot.Agents[i];
                 if (agent.Participation != AgentParticipation.Participating)
                 {
                     continue;
@@ -123,7 +123,7 @@ namespace Paniq.Tests.PlayMode
             Assert.That(checkedPeople, Is.GreaterThan(5));
         }
 
-        private static Vector3 BodyMiddleOf(FireReactionAgentSnapshot agent) =>
+        private static Vector3 BodyMiddleOf(AgentSnapshot agent) =>
             PresentationUtility.ToUnityPosition(agent.Position) + Vector3.up * 0.5f;
     }
 }

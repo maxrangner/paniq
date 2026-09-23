@@ -26,8 +26,8 @@ namespace Paniq.Tests.PlayMode
                 SceneManager.GetActiveScene().name,
                 Is.EqualTo(Bootstrapper.FireReactionPrototypeSceneName),
                 $"Bootstrap did not load {Bootstrapper.FireReactionPrototypeSceneName} within {SceneLoadTimeoutSeconds} seconds.");
-            Assert.That(Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>(), Is.Not.Null);
-            Assert.That(Object.FindObjectsByType<Paniq.Presentation.FireReactionPrototypePresentation>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
+            Assert.That(Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>(), Is.Not.Null);
+            Assert.That(Object.FindObjectsByType<Paniq.Presentation.RunPresentation>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
         }
 
         [UnityTest]
@@ -35,14 +35,14 @@ namespace Paniq.Tests.PlayMode
         {
             yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
 
-            Paniq.Gameplay.FireReactionRunner runner = Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>();
+            Paniq.Gameplay.RunDriver runner = Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>();
             Assert.That(runner, Is.Not.Null);
             Assert.That(runner.IsWaitingToStart, Is.True, "A level opens behind its start card.");
             Assert.That(runner.IsTicking, Is.False, "Nothing moves until the player presses Play.");
 
             // A long minute of office life: still nothing alight, because the
             // fire waits for the player rather than for a tick count.
-            for (int tick = 0; tick < 60 * Paniq.Simulation.FireReactionSimulation.TicksPerSecond; tick++)
+            for (int tick = 0; tick < 60 * Paniq.Simulation.Run.TicksPerSecond; tick++)
             {
                 runner.StepForTests();
             }
@@ -58,7 +58,7 @@ namespace Paniq.Tests.PlayMode
         {
             yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
 
-            Paniq.Gameplay.FireReactionRunner runner = Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>();
+            Paniq.Gameplay.RunDriver runner = Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>();
             Assert.That(runner, Is.Not.Null);
             runner.BeginPlaying();
             runner.QueueTriggerEvent();
@@ -70,10 +70,16 @@ namespace Paniq.Tests.PlayMode
             yield return null;
 
             Assert.That(runner.Snapshot.FireActive, Is.True);
-            GameObject fire = GameObject.Find("Fire cell 1 (read-only presentation)");
-            Assert.That(fire, Is.Not.Null);
-            Assert.That(fire.activeSelf, Is.True);
-            Assert.That(fire.transform.childCount, Is.GreaterThanOrEqualTo(3), "Expected a scorch tile plus flame cubes.");
+
+            // The fire is drawn in batches, not as scene objects, so the
+            // check is what the view says it drew this frame.
+            var presentation = Object.FindFirstObjectByType<Paniq.Presentation.RunPresentation>();
+            Assert.That(presentation, Is.Not.Null);
+            Assert.That(presentation.FireForTests, Is.Not.Null);
+            Assert.That(presentation.FireForTests.DrawnCellCount, Is.GreaterThanOrEqualTo(1),
+                "Expected at least one burning square to be drawn.");
+            Assert.That(presentation.FireForTests.DrawnFlameCount, Is.GreaterThanOrEqualTo(2),
+                "Expected flame cubes over the first burning square.");
         }
 
         [UnityTest]
@@ -85,7 +91,7 @@ namespace Paniq.Tests.PlayMode
             Paniq.Gameplay.LevelSession.RequestSeed(chosen, true);
             yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
 
-            Paniq.Gameplay.FireReactionRunner runner = Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>();
+            Paniq.Gameplay.RunDriver runner = Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>();
             Assert.That(runner, Is.Not.Null);
             Assert.That(runner.Seed, Is.EqualTo(chosen), "A chosen seed has to survive the reload that restarts the level.");
             Assert.That(runner.IsWaitingToStart, Is.False,
@@ -100,7 +106,7 @@ namespace Paniq.Tests.PlayMode
         {
             yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
 
-            Paniq.Gameplay.FireReactionRunner runner = Object.FindFirstObjectByType<Paniq.Gameplay.FireReactionRunner>();
+            Paniq.Gameplay.RunDriver runner = Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>();
             Assert.That(runner, Is.Not.Null);
             GameObject leaf = GameObject.Find("Door 2008 (click target)");
             Assert.That(leaf, Is.Not.Null, "Expected a clickable door leaf on the meeting room's east wall.");
@@ -137,10 +143,10 @@ namespace Paniq.Tests.PlayMode
         }
 
         private static Paniq.Simulation.DoorState DoorState(
-            Paniq.Gameplay.FireReactionRunner runner,
+            Paniq.Gameplay.RunDriver runner,
             Paniq.Simulation.SimulationId door)
         {
-            foreach (Paniq.Simulation.FireReactionDoorSnapshot snapshot in runner.Snapshot.Doors)
+            foreach (Paniq.Simulation.DoorSnapshot snapshot in runner.Snapshot.Doors)
             {
                 if (snapshot.DoorId == door)
                 {

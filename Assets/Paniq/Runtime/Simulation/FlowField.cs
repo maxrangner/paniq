@@ -98,6 +98,12 @@ namespace Paniq.Simulation
         public bool Reaches(int cell) => CostAt(cell) != Unreachable;
 
         /// <summary>
+        /// The cost of every square, copied out, for somebody who wants to keep
+        /// the answer without keeping the scratch space a field carries.
+        /// </summary>
+        public void CopyCostsTo(int[] into) => Array.Copy(cost, into, cost.Length);
+
+        /// <summary>
         /// Works out the cost of reaching <paramref name="goal"/> from every
         /// square a body of this size could stand on.
         /// </summary>

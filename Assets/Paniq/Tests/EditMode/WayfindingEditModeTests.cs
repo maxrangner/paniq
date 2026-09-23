@@ -281,6 +281,48 @@ namespace Paniq.Tests.EditMode
 
         // ------------------------------------------------------------ routes
 
+        /// <summary>
+        /// A long table across the cafeteria between its two doors. Somebody
+        /// by the corridor door who wants the shortcut cannot walk the line to
+        /// it any more: they go round the table's far end, or out by the
+        /// corridor door and round through the corridor, whichever is the
+        /// shorter walk, and either is far longer than the line. Only the
+        /// shortcut is known, so the route has to name it, and its cost is
+        /// that walk: the same squares the feet will follow.
+        /// </summary>
+        [Test]
+        public void ARoute_CostsTheWalkRoundATable_NotTheLine()
+        {
+            var byTheCorridorDoor = new LogicalPosition(6000, 9600);
+            long line = IntegerMath.Distance(byTheCorridorDoor, new LogicalPosition(13000, 12000));
+
+            long CostOfTheShortcut(FireReactionScenarioData data)
+            {
+                Floor floor = Build(data, (byTheCorridorDoor, 0));
+                Agent visitor = floor.Visitor(0);
+                int shortcut = floor.Door(TheBuilding.CafeteriaShortcut);
+                int from = floor.Room(TheBuilding.Cafeteria);
+                int to = floor.Geometry.RoomBeyond(shortcut, from);
+                Assert.That(floor.Geometry.TryFindKnownRoute(from, byTheCorridorDoor, to, visitor,
+                        out int first, out _, out long cost), Is.True);
+                Assert.That(first, Is.EqualTo(shortcut));
+                return cost;
+            }
+
+            long clear = CostOfTheShortcut(scenario.ToRuntimeData());
+            Assert.That(clear, Is.GreaterThan(line * 9 / 10).And.LessThan(line * 13 / 10),
+                "With the floor clear, the walk is about the straight line.");
+
+            FireReactionScenarioData blocked = scenario.ToRuntimeData();
+            blocked.Tables = blocked.Tables.Concat(new[]
+            {
+                new FireReactionTableDefinition(new SimulationId(4999UL), new LogicalPosition(7900, 10700), 9800, 1000),
+            }).ToArray();
+            long round = CostOfTheShortcut(blocked);
+            Assert.That(round, Is.GreaterThan(line * 3 / 2),
+                "With the table in the way, the route costs a real walk round it, not the line through it.");
+        }
+
         [Test]
         public void ARoute_OnlyCrossesDoorsTheyKnow()
         {

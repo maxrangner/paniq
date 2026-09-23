@@ -72,6 +72,18 @@ namespace Paniq.Simulation
         private readonly int[] routeEntryDoor;
         private readonly bool[] routeSettled;
 
+        /// <summary>
+        /// How far it is to walk to each door from every square of floor,
+        /// per door and per side of it (the door's own room, then the room
+        /// beyond): what a route between rooms costs its legs with. Worked out
+        /// the first time a door is asked about and thrown away when the floor
+        /// changes shape, so a run pays for each once. Null until asked.
+        /// </summary>
+        private readonly int[][] doorWalks;
+
+        /// <summary>The one field used to work the door walks out, kept so working one out allocates nothing.</summary>
+        private FlowField doorWalkScratch;
+
         public WorldGeometry(SimulationContext context, DoorRuntime[] doors)
         {
             this.context = context;
@@ -132,6 +144,7 @@ namespace Paniq.Simulation
             navigationGrid = new NavigationGrid(FireArea, rooms, StandingTables(), BuildWalls(), BuildDoorways());
             RefuseDoorwaysNobodyCanFitThrough();
             navigation = new Navigation(context, navigationGrid);
+            doorWalks = new int[doors.Length * 2][];
         }
 
         /// <summary>
@@ -634,8 +647,9 @@ namespace Paniq.Simulation
         /// <summary>
         /// How far it is to walk from one room to another through doors, and
         /// which door to head for first, and which door they would walk in
-        /// through at the end. Distance is measured from where the traveller
-        /// stands, door centre to door centre. A shut door still
+        /// through at the end. Distance is what it is to walk: from where the
+        /// traveller stands to the first door round whatever is in the way,
+        /// then door to door across each room the same way. A shut door still
         /// counts as a way through (people expect to open one), but not one
         /// this person has just given up on. False when there is no way at all.
         /// </summary>
@@ -674,8 +688,9 @@ namespace Paniq.Simulation
                 return true;
             }
 
-            // Dijkstra over a handful of rooms: the building is far smaller
-            // than a dozen rooms, so scanning for the nearest one is enough.
+            // Dijkstra over the rooms, scanning for the nearest unsettled one:
+            // fine for a floor of a few dozen rooms, and each leg is a table
+            // look-up, so the search itself is what costs.
             for (int r = 0; r < rooms.Length; r++)
             {
                 routeCost[r] = long.MaxValue;
@@ -712,7 +727,14 @@ namespace Paniq.Simulation
                 }
 
                 routeSettled[room] = true;
-                LogicalPosition here = routeEntryDoor[room] < 0 ? from : DoorCentre(routeEntryDoor[room]);
+
+                // Where this leg starts: where they stand, or just inside the
+                // door they came in by. The straight line from the door's
+                // centre is what a leg costs when the squares cannot say.
+                LogicalPosition here = routeEntryDoor[room] < 0
+                    ? from
+                    : DoorApproachPoint(routeEntryDoor[room], room);
+                LogicalPosition line = routeEntryDoor[room] < 0 ? from : DoorCentre(routeEntryDoor[room]);
                 int[] candidates = roomDoors[room];
                 for (int i = 0; i < candidates.Length; i++)
                 {
@@ -723,7 +745,13 @@ namespace Paniq.Simulation
                         continue;
                     }
 
-                    long total = routeCost[room] + IntegerMath.Distance(here, DoorCentre(door));
+                    long leg = WalkFrom(here, door, room);
+                    if (leg < 0L)
+                    {
+                        leg = IntegerMath.Distance(line, DoorCentre(door));
+                    }
+
+                    long total = routeCost[room] + leg;
                     if (total >= routeCost[next])
                     {
                         continue;
@@ -734,6 +762,80 @@ namespace Paniq.Simulation
                     routeFirstDoor[next] = routeFirstDoor[room] < 0 ? door : routeFirstDoor[room];
                 }
             }
+        }
+
+        /// <summary>
+        /// How far it is to walk from a point to a door, on the side of it
+        /// that faces <paramref name="room"/>, going round the furniture; or
+        /// -1 when the squares cannot say (the point is off the grid, or on a
+        /// square nobody could stand on, or nothing joins it to the door).
+        /// </summary>
+        private long WalkFrom(LogicalPosition from, int door, int room)
+        {
+            int cell = navigationGrid.CellAt(from);
+            if (cell < 0)
+            {
+                return -1L;
+            }
+
+            int cost = WalkTo(door, room)[cell];
+            return cost == FlowField.Unreachable
+                ? -1L
+                : (long)cost * NavigationGrid.CellSizeMillimetres / FlowField.StraightCost;
+        }
+
+        /// <summary>
+        /// The walking cost of every square to a door from the side facing
+        /// <paramref name="room"/>, worked out the first time it is wanted.
+        /// </summary>
+        private int[] WalkTo(int door, int room)
+        {
+            int key = door * 2 + (doors[door].Room == room ? 0 : 1);
+            int[] walk = doorWalks[key];
+            if (walk != null)
+            {
+                return walk;
+            }
+
+            if (doorWalkScratch == null)
+            {
+                doorWalkScratch = new FlowField(navigationGrid);
+            }
+
+            // Built to the spot just inside the doorway where somebody stands
+            // to go through, or a step further in if that square is too tight
+            // for a body; with no such square every cost is "no way".
+            LogicalPosition spot = DoorApproachPoint(door, room);
+            int goal = navigationGrid.CellAt(spot);
+            doorWalkScratch.Build(navigationGrid.Fits(goal, radius) ? goal : -1, radius);
+            walk = new int[navigationGrid.CellCount];
+            doorWalkScratch.CopyCostsTo(walk);
+            doorWalks[key] = walk;
+            return walk;
+        }
+
+        /// <summary>
+        /// The spot on the <paramref name="room"/> side of a door where a
+        /// route's walk to it ends and the next leg starts: a body's width in
+        /// from the wall, or a square or so further in when that square is
+        /// too tight for a body. The same spot is the goal of the door's walk
+        /// table and the start of the leg beyond it, so the two agree.
+        /// </summary>
+        private LogicalPosition DoorApproachPoint(int door, int room)
+        {
+            LogicalPosition first = DoorPointFrom(door, room, 0, -radius);
+            for (int step = 0; step < 4; step++)
+            {
+                LogicalPosition spot = step == 0
+                    ? first
+                    : DoorPointFrom(door, room, 0, -(radius + step * NavigationGrid.CellSizeMillimetres));
+                if (navigationGrid.Fits(navigationGrid.CellAt(spot), radius))
+                {
+                    return spot;
+                }
+            }
+
+            return first;
         }
 
         /// <summary>
@@ -1148,6 +1250,7 @@ namespace Paniq.Simulation
         {
             navigationGrid.Rebuild(where, rooms, StandingTables(), BuildWalls(), BuildDoorways());
             navigation.Forget();
+            Array.Clear(doorWalks, 0, doorWalks.Length);
         }
 
         /// <summary>The tables still standing; smashed ones are wreckage people walk over.</summary>

@@ -18,6 +18,13 @@ namespace Paniq.Simulation
         /// <summary>The chair they are already sitting on when the run starts, or the default ID for standing.</summary>
         [UnityEngine.SerializeField] private SimulationId seatedOnObjectId;
 
+        /// <summary>
+        /// How well they know the building. Declared last so it sits last in
+        /// the saved asset, and zero -- what anybody authored before it existed
+        /// reads back as -- means they know it.
+        /// </summary>
+        [UnityEngine.SerializeField] private AgentFamiliarity familiarity;
+
         public FireReactionAgentDefinition(SimulationId agentId, LogicalPosition initialPosition)
             : this(agentId, initialPosition, CardinalDirection.North)
         {
@@ -36,6 +43,7 @@ namespace Paniq.Simulation
             traits = default;
             carriedObjectId = default;
             seatedOnObjectId = default;
+            familiarity = default;
         }
 
         /// <summary>A person with an authored personality.</summary>
@@ -52,6 +60,7 @@ namespace Paniq.Simulation
             this.traits = traits;
             carriedObjectId = default;
             seatedOnObjectId = default;
+            familiarity = default;
         }
 
         /// <summary>
@@ -74,6 +83,7 @@ namespace Paniq.Simulation
             this.traits = traits;
             this.carriedObjectId = carriedObjectId;
             this.seatedOnObjectId = seatedOnObjectId;
+            familiarity = default;
         }
 
         public SimulationId AgentId => agentId;
@@ -94,6 +104,20 @@ namespace Paniq.Simulation
         public SimulationId SeatedOnObjectId => seatedOnObjectId;
 
         public bool StartsSeated => seatedOnObjectId.Value != 0UL;
+
+        /// <summary>Whether they know the building or only the room they start in.</summary>
+        public AgentFamiliarity Familiarity => familiarity;
+
+        /// <summary>
+        /// The same person, knowing the building this well. A copy rather than
+        /// another constructor, so every way of writing a person gains it at once.
+        /// </summary>
+        public FireReactionAgentDefinition WithFamiliarity(AgentFamiliarity value)
+        {
+            FireReactionAgentDefinition copy = this;
+            copy.familiarity = value;
+            return copy;
+        }
     }
 
     /// <summary>
@@ -171,6 +195,33 @@ namespace Paniq.Simulation
         /// them. It behaves exactly as a hole blown in a wall already does.
         /// </summary>
         public bool IsOpening => isOpening;
+    }
+
+    /// <summary>
+    /// A little green sign on the way out, and the way it points.
+    /// <para>
+    /// For the player's eye only. People find their own way out by the
+    /// navigation grid and would do so if every sign were taken down; what the
+    /// signs fix is that a player looking at a corridor which Ts at one end
+    /// cannot otherwise tell which arm the door is up.
+    /// </para>
+    /// </summary>
+    [Serializable]
+    public struct FireReactionExitSignDefinition
+    {
+        [UnityEngine.SerializeField] private LogicalPosition at;
+        [UnityEngine.SerializeField] private int pointingDegrees;
+
+        public FireReactionExitSignDefinition(LogicalPosition at, int pointingDegrees)
+        {
+            this.at = at;
+            this.pointingDegrees = pointingDegrees;
+        }
+
+        public LogicalPosition At => at;
+
+        /// <summary>Which way it points: a compass bearing clockwise from north, like every other heading.</summary>
+        public int PointingDegrees => pointingDegrees;
     }
 
     /// <summary>
@@ -408,9 +459,12 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "50";
+        public string ContentRevision = "53";
         public ulong DefaultSeed = 42UL;
 
+        // 41: people plan their escape only through doors they know. Visitors
+        // look for a way out, and seeing a door, reading a sign, a door opening
+        // beside them and a leader's shout all teach them one.
         // 40: the tick schedule gained a phase. The cable between the sockets
         // and the fuse box advances its sparks beside the fire, in phase 2, so
         // a run recorded before this one cannot be replayed against it.
@@ -421,7 +475,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 40;
+        public int SimulationCompatibilityVersion = 41;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -464,6 +518,9 @@ namespace Paniq.Simulation
         /// <summary>The cable running from socket to socket and back to the fuse box.</summary>
         public FireReactionPowerLineDefinition[] PowerLines = PrototypeBuilding.DefaultPowerLines();
 
+        /// <summary>The signs pointing the way out. Nothing in the run reads them.</summary>
+        public FireReactionExitSignDefinition[] ExitSigns = PrototypeBuilding.DefaultExitSigns();
+
         /// <summary>A deep copy: changing the copy never changes this one.</summary>
         public FireReactionScenarioData Clone()
         {
@@ -500,6 +557,7 @@ namespace Paniq.Simulation
             copy.Alarms = (FireReactionAlarmDefinition[])Alarms?.Clone();
             copy.BlastHoles = (SimulationId[])BlastHoles?.Clone();
             copy.PowerLines = (FireReactionPowerLineDefinition[])PowerLines?.Clone();
+            copy.ExitSigns = (FireReactionExitSignDefinition[])ExitSigns?.Clone();
             return copy;
         }
 
@@ -584,6 +642,11 @@ namespace Paniq.Simulation
                 if (agent.HasAuthoredTraits && !agent.Traits.IsValid)
                 {
                     throw new InvalidOperationException($"Agent {agent.AgentId} has a trait outside 0–10.");
+                }
+
+                if (!Enum.IsDefined(typeof(AgentFamiliarity), agent.Familiarity))
+                {
+                    throw new InvalidOperationException($"Agent {agent.AgentId} has an unknown familiarity with the building.");
                 }
 
                 if (RoomHolding(StartPositionOf(agent), radius) < 0)

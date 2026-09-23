@@ -271,6 +271,8 @@ namespace Paniq.EditorTools
                         new AgentTraitValues(person.Strength, person.Speed, person.Bravery,
                             person.Compassion, person.Evil, person.Nervousness, person.Leadership))
                     : new FireReactionAgentDefinition(new SimulationId((ulong)person.AgentId), where, facing);
+                baked[i] = baked[i].WithFamiliarity(
+                    person.Visitor ? AgentFamiliarity.Visitor : AgentFamiliarity.KnowsTheBuilding);
             }
 
             return baked;

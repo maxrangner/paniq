@@ -14,15 +14,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.FireReactionScenario
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 50
+    ContentRevision: 53
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 40
+    SimulationCompatibilityVersion: 41
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
     Perception:
       VisionRangeMillimetres: 3000
       MaximumReactionDelayTicks: 20
+      DoorSightRangeMillimetres: 8000
     Fire:
       SpawnAreas:
       - minX: -4500
@@ -128,6 +129,8 @@ MonoBehaviour:
       EscapeTurnPenaltyPerDegree: 10
       EscapeNoiseMillimetres: 1500
       TableRoutePenaltyMillimetres: 3000
+      SignReadRangeMillimetres: 8000
+      SignEscapeBonusMillimetres: 6000
       PeopleAvoidPercent: 50
       WallAvoidPercent: 200
       ObjectAvoidPercent: 20
@@ -582,6 +585,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1002
       initialPosition:
@@ -601,6 +605,7 @@ MonoBehaviour:
         value: 3251
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1003
       initialPosition:
@@ -620,6 +625,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1004
       initialPosition:
@@ -639,6 +645,7 @@ MonoBehaviour:
         value: 3221
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1005
       initialPosition:
@@ -658,6 +665,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1006
       initialPosition:
@@ -677,6 +685,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1007
       initialPosition:
@@ -696,6 +705,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1008
       initialPosition:
@@ -715,6 +725,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1009
       initialPosition:
@@ -734,6 +745,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 3241
+      familiarity: 1
     - agentId:
         value: 1010
       initialPosition:
@@ -753,6 +765,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 3242
+      familiarity: 1
     - agentId:
         value: 1011
       initialPosition:
@@ -772,6 +785,7 @@ MonoBehaviour:
         value: 3223
       seatedOnObjectId:
         value: 3243
+      familiarity: 1
     - agentId:
         value: 1012
       initialPosition:
@@ -791,6 +805,7 @@ MonoBehaviour:
         value: 3252
       seatedOnObjectId:
         value: 3244
+      familiarity: 1
     - agentId:
         value: 1013
       initialPosition:
@@ -810,6 +825,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 3245
+      familiarity: 1
     - agentId:
         value: 1014
       initialPosition:
@@ -829,6 +845,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 3246
+      familiarity: 0
     - agentId:
         value: 1015
       initialPosition:
@@ -848,6 +865,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 3247
+      familiarity: 0
     - agentId:
         value: 1016
       initialPosition:
@@ -867,6 +885,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 3248
+      familiarity: 0
     - agentId:
         value: 1017
       initialPosition:
@@ -886,6 +905,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1018
       initialPosition:
@@ -905,6 +925,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1019
       initialPosition:
@@ -924,6 +945,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     - agentId:
         value: 1020
       initialPosition:
@@ -943,6 +965,7 @@ MonoBehaviour:
         value: 0
       seatedOnObjectId:
         value: 0
+      familiarity: 0
     Doors:
     - doorId:
         value: 2002
@@ -1887,3 +1910,24 @@ MonoBehaviour:
         z: 6200
       - x: 12800
         z: 10000
+    ExitSigns:
+    - at:
+        x: -3000
+        z: 8600
+      pointingDegrees: 90
+    - at:
+        x: 3000
+        z: 8600
+      pointingDegrees: 90
+    - at:
+        x: 9000
+        z: 8600
+      pointingDegrees: 90
+    - at:
+        x: 14500
+        z: 11000
+      pointingDegrees: 0
+    - at:
+        x: 14500
+        z: 4000
+      pointingDegrees: 0

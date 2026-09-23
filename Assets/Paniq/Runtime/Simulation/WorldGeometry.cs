@@ -590,6 +590,25 @@ namespace Paniq.Simulation
         public bool TryFindRoute(int fromRoom, LogicalPosition from, int toRoom, Agent traveller,
             out int firstDoor, out int lastDoor, out long cost)
         {
+            return FindRoute(fromRoom, from, toRoom, traveller, false, out firstDoor, out lastDoor, out cost);
+        }
+
+        /// <summary>
+        /// The same walk, but only through doors this person knows are there
+        /// (see <see cref="AgentKnowledge"/>). For somebody who knows the
+        /// building it is exactly <see cref="TryFindRoute"/>. Asked wherever a
+        /// frightened person plans how to get out, or where to hide: nobody
+        /// runs for a door they have never seen.
+        /// </summary>
+        public bool TryFindKnownRoute(int fromRoom, LogicalPosition from, int toRoom, Agent traveller,
+            out int firstDoor, out int lastDoor, out long cost)
+        {
+            return FindRoute(fromRoom, from, toRoom, traveller, true, out firstDoor, out lastDoor, out cost);
+        }
+
+        private bool FindRoute(int fromRoom, LogicalPosition from, int toRoom, Agent traveller, bool knownOnly,
+            out int firstDoor, out int lastDoor, out long cost)
+        {
             firstDoor = -1;
             lastDoor = -1;
             cost = 0L;
@@ -647,7 +666,7 @@ namespace Paniq.Simulation
                 {
                     int door = candidates[i];
                     int next = RoomBeyond(door, room);
-                    if (next < 0 || routeSettled[next] || !CanRouteThrough(door, traveller))
+                    if (next < 0 || routeSettled[next] || !CanRouteThrough(door, traveller, knownOnly))
                     {
                         continue;
                     }
@@ -676,10 +695,11 @@ namespace Paniq.Simulation
         /// doors it settled on.
         /// </para>
         /// </summary>
-        public bool RouteUsesDoor(int fromRoom, LogicalPosition from, int toRoom, Agent traveller, int door)
+        public bool RouteUsesDoor(int fromRoom, LogicalPosition from, int toRoom, Agent traveller, int door,
+            bool knownOnly = false)
         {
             if (fromRoom < 0 || toRoom < 0 || fromRoom == toRoom ||
-                !TryFindRoute(fromRoom, from, toRoom, traveller, out _, out _, out _))
+                !FindRoute(fromRoom, from, toRoom, traveller, knownOnly, out _, out _, out _))
             {
                 // Already in the room they are making for: no door between here
                 // and there, so no door they could shut on themselves.
@@ -710,11 +730,52 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// A door someone may plan a route through: open, or shut but not one
-        /// they have just given up on. A broken door counts as open.
+        /// Every door on the walk from one room to another, in the order they
+        /// are walked through, added to <paramref name="into"/>. False, adding
+        /// nothing, when there is no way at all. Nobody's knowledge or memory
+        /// is consulted when <paramref name="traveller"/> is null: that is the
+        /// building's own answer, which is what a sign on its wall gives.
         /// </summary>
-        private bool CanRouteThrough(int door, Agent traveller)
+        public bool RouteDoors(int fromRoom, LogicalPosition from, int toRoom, Agent traveller, List<int> into)
         {
+            if (fromRoom < 0 || toRoom < 0 ||
+                !FindRoute(fromRoom, from, toRoom, traveller, false, out _, out _, out _))
+            {
+                return false;
+            }
+
+            // Walked back from the far room, one entry door at a time, then
+            // turned round. Bounded by the number of rooms, as above.
+            int start = into.Count;
+            int room = toRoom;
+            for (int step = 0; step < rooms.Length && room != fromRoom; step++)
+            {
+                int entry = routeEntryDoor[room];
+                if (entry < 0)
+                {
+                    break;
+                }
+
+                into.Add(entry);
+                room = RoomBeyond(entry, room);
+            }
+
+            into.Reverse(start, into.Count - start);
+            return true;
+        }
+
+        /// <summary>
+        /// A door someone may plan a route through: open, or shut but not one
+        /// they have just given up on. A broken door counts as open. When only
+        /// what they know counts, it also has to be a door they know is there.
+        /// </summary>
+        private bool CanRouteThrough(int door, Agent traveller, bool knownOnly)
+        {
+            if (knownOnly && traveller != null && !traveller.Knowledge.Knows(door))
+            {
+                return false;
+            }
+
             return IsDoorOpen(door) || traveller == null || context.Tick >= traveller.Doors.AvoidUntilTick[door];
         }
 

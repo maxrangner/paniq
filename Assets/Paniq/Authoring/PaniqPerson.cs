@@ -28,6 +28,10 @@ namespace Paniq.Authoring
         [Range(0, 10)] public int Nervousness = 5;
         [Range(0, 10)] public int Leadership = 4;
 
+        [Tooltip("A visitor: knows only the room they start in, and has to find the way out by looking, " +
+                 "reading the signs and following people who know.")]
+        public bool Visitor;
+
         private void OnDrawGizmos()
         {
             Gizmos.color = new Color(0.85f, 0.9f, 0.95f);

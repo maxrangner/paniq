@@ -217,6 +217,52 @@ namespace Paniq.Tests.EditMode
                 "A chair with someone sitting on it should not slide.");
         }
 
+        /// <summary>
+        /// Getting out of a chair in a fright leaves somebody standing where
+        /// they sat. They used to be shoved 800 mm straight backwards from the
+        /// way they were facing in a single tick, and because the view slides a
+        /// body smoothly between one tick's position and the next without
+        /// turning it, six people round a meeting table all appeared to float
+        /// backwards into the walls the moment the alarm went.
+        /// </summary>
+        [Test]
+        public void LeavingAChairInAFright_LeavesThemStandingWhereTheySat()
+        {
+            FireReactionScenarioData data = OnePersonOneChair();
+            data.Fire.ActivationTick = 400;
+            data.Fire.SpawnBounds = new LogicalBounds(0, 0, 0, 0);
+            data.Perception.MaximumReactionDelayTicks = 0;
+            var simulation = new FireReactionSimulation(data);
+            for (int t = 0; t < 8 * FireReactionSimulation.TicksPerSecond &&
+                            simulation.GetAgent(0).ActivityState != AgentActivityState.Sitting; t++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(simulation.GetAgent(0).ActivityState, Is.EqualTo(AgentActivityState.Sitting), "Nobody sat down.");
+            while (simulation.Tick < data.Fire.ActivationTick)
+            {
+                simulation.Step();
+            }
+
+            LogicalPosition seat = simulation.GetAgent(0).Position;
+            LogicalPosition previous = seat;
+            long longestStep = 0L;
+            for (int t = 0; t < 5 * FireReactionSimulation.TicksPerSecond && OnTheChair(simulation); t++)
+            {
+                simulation.Step();
+                LogicalPosition now = simulation.GetAgent(0).Position;
+                longestStep = Math.Max(longestStep, IntegerMath.Distance(previous, now));
+                previous = now;
+            }
+
+            Assert.That(OnTheChair(simulation), Is.False, "They never got out of the chair.");
+            Assert.That(longestStep, Is.LessThan(200L),
+                "Nobody crosses 200 mm of floor in a fiftieth of a second. A jump that big is a teleport, not a step.");
+            Assert.That(IntegerMath.Distance(seat, simulation.GetAgent(0).Position), Is.LessThan(400L),
+                "They should come up out of the seat where they sat, not a stride behind it.");
+        }
+
         [Test]
         public void SomeoneSittingWhenTheFireStarts_GetsUpBeforeTheyRun()
         {

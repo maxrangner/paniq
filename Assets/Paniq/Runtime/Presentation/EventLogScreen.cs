@@ -200,6 +200,7 @@ namespace Paniq.Presentation
                 case FireReactionEventType.AgentSurvived:
                 case FireReactionEventType.AgentRescued:
                 case FireReactionEventType.AgentDoused:
+                case FireReactionEventType.AgentFoundTheWayOut:
                 case FireReactionEventType.RoundEnded:
                     return Good;
 

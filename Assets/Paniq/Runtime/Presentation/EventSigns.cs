@@ -279,6 +279,9 @@ namespace Paniq.Presentation
                 case FireReactionEventType.DoorBurntThrough: return "burnt through!";
                 case FireReactionEventType.ObjectExploded: return "bang!";
                 case FireReactionEventType.PowerSparkStarted: return "the wire is lit!";
+                case FireReactionEventType.AgentLookedForAWayOut: return "which way?";
+                case FireReactionEventType.AgentFoundADeadEnd: return "dead end!";
+                case FireReactionEventType.AgentFoundTheWayOut: return "this way!";
                 default: return null;
             }
         }
@@ -295,6 +298,7 @@ namespace Paniq.Presentation
                 case FireReactionEventType.AgentRescued:
                 case FireReactionEventType.AgentShookAwake:
                 case FireReactionEventType.AgentDoused:
+                case FireReactionEventType.AgentFoundTheWayOut:
                     return true;
                 default:
                     return false;

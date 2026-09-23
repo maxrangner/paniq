@@ -16,6 +16,13 @@ namespace Paniq.Simulation
     /// leader is out, down, alight, or no longer worth following. Orders are
     /// events naming the person ordered, never a hold on them: whoever is
     /// ordered may still decide otherwise.
+    /// <para>
+    /// Whoever falls in behind a leader, or is already following them when
+    /// they shout again, is told everything the leader knows about the
+    /// building (see <see cref="WayfindingSystem.Share"/>). A host who works
+    /// here can walk a room of lost visitors out; a leader who is lost
+    /// themselves can only lead them round in the same circles.
+    /// </para>
     /// </summary>
     internal sealed class LeaderBehaviour : IPanicOption
     {
@@ -31,6 +38,7 @@ namespace Paniq.Simulation
         private readonly SoundSystem sound;
         private readonly PhysicsObjectSystem objects;
         private readonly Locomotion locomotion;
+        private readonly WayfindingSystem wayfinding;
         private readonly LeadershipSettings settings;
 
         public LeaderBehaviour(
@@ -42,7 +50,8 @@ namespace Paniq.Simulation
             FireSystem fire,
             SoundSystem sound,
             PhysicsObjectSystem objects,
-            Locomotion locomotion)
+            Locomotion locomotion,
+            WayfindingSystem wayfinding)
         {
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -54,6 +63,7 @@ namespace Paniq.Simulation
             this.sound = sound;
             this.objects = objects;
             this.locomotion = locomotion;
+            this.wayfinding = wayfinding;
             settings = context.Scenario.Leadership;
         }
 
@@ -101,7 +111,7 @@ namespace Paniq.Simulation
                 // Any way out they have found shut themselves, or that is
                 // wedged, not only one in the room they happen to be standing
                 // in: the person they send can walk to it now.
-                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) ||
+                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) || !leader.Knowledge.Knows(d) ||
                     (!leader.Doors.FoundShut[d] && !doors.IsObstructed(d)))
                 {
                     continue;
@@ -145,6 +155,7 @@ namespace Paniq.Simulation
             StopFollowing(breaker);
 
             // Sent at that door, and they will not give up on it while it holds.
+            wayfinding.Learn(breaker, door, WayLearned.Told, order);
             breaker.Doors.ExitDoorIndex = door;
             breaker.Doors.ApproachRoom = geometry.RoomOf(breaker);
             breaker.Doors.FoundShut[door] = false;
@@ -244,11 +255,19 @@ namespace Paniq.Simulation
                 Agent other = agents[i];
                 // Somebody frozen with fear does not hear a shout; they
                 // have to be shaken (see HelpBehaviour).
-                if (other == leader || !other.IsParticipating || other.Leading.FollowingIndex == leader.Index ||
+                if (other == leader || !other.IsParticipating ||
                     other.Intent.Activity == AgentActivityState.Frozen || other.Burning.IsBurning ||
                     !geometry.RoomsOpenToEachOther(room, geometry.RoomOf(other)) ||
                     LogicalPosition.DistanceSquared(other.Body.Position, leader.Body.Position) > range * range)
                 {
+                    continue;
+                }
+
+                if (other.Leading.FollowingIndex == leader.Index)
+                {
+                    // Already behind them: nothing new to decide, but whatever
+                    // the leader has found out since, they hear now.
+                    wayfinding.Share(leader, other, order);
                     continue;
                 }
 
@@ -257,6 +276,7 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                wayfinding.Share(leader, other, order);
                 other.Leading.FollowingIndex = leader.Index;
                 other.Leading.FollowUntilTick = checked(context.Tick + settings.FollowLastsTicks);
                 other.Leading.OrderEventId = order;

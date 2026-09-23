@@ -276,9 +276,12 @@ namespace Paniq.Simulation
             FlowField walking = geometry.Routes.ReachFrom(agent.Body.Position, radius);
             for (int d = 0; d < geometry.DoorCount; d++)
             {
-                if (!geometry.IsDoorOpen(d) || !geometry.DoorLeadsOutside(d) || doors.IsObstructed(d))
+                if (!geometry.IsDoorOpen(d) || !geometry.DoorLeadsOutside(d) || doors.IsObstructed(d) ||
+                    !agent.Knowledge.Knows(d))
                 {
                     // Something wedged in the gap: they would never get through.
+                    // Or a way out they do not know is there, which to them is
+                    // no way out at all.
                     continue;
                 }
 

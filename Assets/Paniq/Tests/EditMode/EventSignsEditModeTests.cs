@@ -40,6 +40,9 @@ namespace Paniq.Tests.EditMode
         [TestCase(FireReactionEventType.AgentRescued)]
         [TestCase(FireReactionEventType.DoorBlocked)]
         [TestCase(FireReactionEventType.ObjectExploded)]
+        [TestCase(FireReactionEventType.AgentLookedForAWayOut)]
+        [TestCase(FireReactionEventType.AgentFoundADeadEnd)]
+        [TestCase(FireReactionEventType.AgentFoundTheWayOut)]
         public void SomethingWorthSaying_EarnsASign(FireReactionEventType type)
         {
             Assert.That(EventSigns.EarnsASign(type), Is.True);
@@ -69,10 +72,13 @@ namespace Paniq.Tests.EditMode
             Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentRescued), Is.True);
             Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentDoused), Is.True);
             Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentShookAwake), Is.True);
+            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentFoundTheWayOut), Is.True);
 
             Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentCaughtFire), Is.False);
             Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentCrushed), Is.False);
             Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentLost), Is.False);
+            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentLookedForAWayOut), Is.False);
+            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentFoundADeadEnd), Is.False);
         }
 
         /// <summary>

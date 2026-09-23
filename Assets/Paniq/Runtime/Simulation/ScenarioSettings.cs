@@ -34,11 +34,23 @@ namespace Paniq.Simulation
         public int VisionRangeMillimetres = 3000;
         public int MaximumReactionDelayTicks = 20;
 
+        /// <summary>
+        /// How far away somebody who does not know the building notices a door
+        /// or a corner of the room they are in. Eight metres is how far off a
+        /// green sign can be read, so a door and the sign beside it are seen
+        /// together. On this floor it is also what makes the T at the end of
+        /// the corridor a real choice: stood in its archway, the dead end is
+        /// five and a half metres off and in sight, and the way out is nine and
+        /// a half metres off and not.
+        /// </summary>
+        public int DoorSightRangeMillimetres = 8000;
+
         public PerceptionSettings Clone() => (PerceptionSettings)MemberwiseClone();
 
         internal void Validate()
         {
-            Settings.Require(VisionRangeMillimetres > 0 && MaximumReactionDelayTicks >= 0, "perception");
+            Settings.Require(VisionRangeMillimetres > 0 && MaximumReactionDelayTicks >= 0 && DoorSightRangeMillimetres >= 0,
+                "perception");
         }
     }
 
@@ -368,6 +380,27 @@ namespace Paniq.Simulation
         /// <summary>A spot or door whose straight route runs into a table scores this much worse.</summary>
         public int TableRoutePenaltyMillimetres = 3000;
 
+        // Reading the exit signs. Somebody running who catches sight of one
+        // takes its word for which way the way out is.
+
+        /// <summary>
+        /// How far off a sign can still be read, in millimetres. A sign is a
+        /// big lit thing you pick out down a corridor, not something you have
+        /// to be standing under: the fire's 3 m vision range is the distance at
+        /// which flames are upon you, and would be far too short for this.
+        /// </summary>
+        public int SignReadRangeMillimetres = 8000;
+
+        /// <summary>
+        /// How much better a spot scores for lying the way a visible sign
+        /// points, in millimetres, falling to that much worse for lying the
+        /// opposite way. Big enough to beat the noise in the scoring and to
+        /// stand alongside the penalty for a route past the fire, so a sign
+        /// changes where somebody decides to go rather than only how they
+        /// drift once they are going.
+        /// </summary>
+        public int SignEscapeBonusMillimetres = 6000;
+
         /// <summary>Steering weights, as percentages of the pull toward the goal.</summary>
         public int PeopleAvoidPercent = 50;
         public int WallAvoidPercent = 200;
@@ -394,6 +427,8 @@ namespace Paniq.Simulation
                              EscapeShortHopPenaltyMillimetres >= 0 && EscapeTurnPenaltyPerDegree >= 0 &&
                              EscapeNoiseMillimetres >= 0 && TableRoutePenaltyMillimetres >= 0, "escape scoring");
             Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0, "panic steering weights");
+            Settings.Require(SignReadRangeMillimetres >= 0 && SignEscapeBonusMillimetres >= 0,
+                "exit sign reading");
         }
     }
 

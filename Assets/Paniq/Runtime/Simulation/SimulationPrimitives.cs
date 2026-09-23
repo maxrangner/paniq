@@ -198,6 +198,26 @@ namespace Paniq.Simulation
         West
     }
 
+    /// <summary>
+    /// How well somebody knows the building before anything happens.
+    /// <para>
+    /// Zero has to mean "knows it": a person authored before this existed, or
+    /// in any level that never says, reads back as zero and keeps the perfect
+    /// map everybody used to be given.
+    /// </para>
+    /// </summary>
+    public enum AgentFamiliarity
+    {
+        /// <summary>Works here: knows every door and where it leads.</summary>
+        KnowsTheBuilding,
+
+        /// <summary>
+        /// Only knows the room they start in. Everything else they find out by
+        /// looking, reading the signs, and being shown.
+        /// </summary>
+        Visitor
+    }
+
     public enum AgentParticipation
     {
         Participating,
@@ -494,7 +514,45 @@ namespace Paniq.Simulation
         PowerSparkArrived,
 
         /// <summary>The player popped the fuse box by hand (target: the box; strength: what it cost).</summary>
-        PowerPoppedFuseBox
+        PowerPoppedFuseBox,
+
+        /// <summary>
+        /// Somebody frightened who knows of no way out has started looking for
+        /// one (source: them; cause: what frightened them).
+        /// </summary>
+        AgentLookedForAWayOut,
+
+        /// <summary>
+        /// Somebody looking for a way out has looked all round a room and found
+        /// nothing onward from it but the way they came in (source: them;
+        /// cause: when they started looking).
+        /// </summary>
+        AgentFoundADeadEnd,
+
+        /// <summary>
+        /// Somebody frightened has just learned of a way out they did not know
+        /// (source: them; strength: how they learned it, a
+        /// <see cref="WayLearned"/>; cause: the rally that told them, where
+        /// there is one). No target, deliberately: the person is the subject,
+        /// so the pop-up sign is theirs and carries their number.
+        /// </summary>
+        AgentFoundTheWayOut
+    }
+
+    /// <summary>How somebody came to know a door, carried as the strength of <see cref="FireReactionEventType.AgentFoundTheWayOut"/>.</summary>
+    public enum WayLearned
+    {
+        /// <summary>They saw it, in their own room or through an open doorway.</summary>
+        Saw,
+
+        /// <summary>A green sign pointed the way.</summary>
+        Sign,
+
+        /// <summary>It opened near them, which nobody misses.</summary>
+        SawItOpen,
+
+        /// <summary>A leader they fell in behind told them.</summary>
+        Told
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>

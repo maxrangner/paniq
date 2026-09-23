@@ -31,6 +31,7 @@ namespace Paniq.Simulation
         private int escapedLastTick;
         private readonly FearSystem fear;
         private readonly PerceptionSystem perception;
+        private readonly WayfindingSystem wayfinding;
         private readonly BodySystem body;
         private readonly CollisionSystem collisions;
         private readonly PhysicsObjectSystem objects;
@@ -76,7 +77,7 @@ namespace Paniq.Simulation
             DoorRuntime[] doorStates = DoorSystem.CreateDoors(scenario);
             geometry = new WorldGeometry(context, doorStates);
             fire = new FireSystem(context, geometry);
-            agents = CreateAgents(doorStates.Length);
+            agents = CreateAgents(doorStates.Length, geometry);
             fear = new FearSystem(context, fire);
             fear.DealTemperaments(agents);
 
@@ -113,14 +114,18 @@ namespace Paniq.Simulation
                 items = new ItemBehaviour(context, geometry, objects, flammables);
                 chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs);
-                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound);
+                var exitSigns = new ExitSignBehaviour(context, geometry);
+                wayfinding = new WayfindingSystem(context, geometry, exitSigns);
+                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound, exitSigns, wayfinding);
                 doorBehaviour.UseObjects(objects);
                 help = new HelpBehaviour(context, crowd, geometry, fire, fear, body, objects, locomotion, people);
                 help.UseDoors(doors);
-                panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, chairs, locomotion);
+                panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, chairs,
+                    exitSigns, locomotion);
                 burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
                 extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
-                leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion);
+                leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion,
+                    wayfinding);
                 alarms = new AlarmSystem(context, sound, geometry);
                 alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion);
                 var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, fire, objects, flammables, locomotion);
@@ -316,7 +321,7 @@ namespace Paniq.Simulation
             }
         }
 
-        private Agent[] CreateAgents(int doorCount)
+        private Agent[] CreateAgents(int doorCount, WorldGeometry building)
         {
             FireReactionScenarioData scenario = context.Scenario;
             var definitions = (FireReactionAgentDefinition[])scenario.Agents.Clone();
@@ -326,11 +331,19 @@ namespace Paniq.Simulation
             {
                 FireReactionAgentDefinition definition = definitions[i];
                 int heading = IntegerMath.CardinalToDegrees(definition.InitialFacingDirection);
-                var agent = new Agent(i, definition.AgentId, doorCount)
+                var agent = new Agent(i, definition.AgentId, doorCount, building.RoomCount)
                 {
                     Participation = AgentParticipation.Participating,
                     Outcome = AgentTerminalOutcome.Unresolved
                 };
+                if (definition.Familiarity == AgentFamiliarity.Visitor)
+                {
+                    // Draws nothing, so the start-up order of random numbers
+                    // above and below is untouched.
+                    int startRoom = building.RoomStoodIn(definition.InitialPosition);
+                    agent.Knowledge.StartAsVisitor(startRoom, building.RoomDoors(startRoom));
+                }
+
                 // Before the crowd exists, so there is no index to tell yet;
                 // the crowd indexes everybody as it is built.
                 agent.Body.MoveWithoutTellingTheCrowd(definition.InitialPosition);
@@ -599,6 +612,11 @@ namespace Paniq.Simulation
                 }
 
                 perception.Update(agent);
+
+                // Whatever doors and corners they can see, before they decide
+                // anything: somebody who has just come round a corner and seen
+                // the way out runs for it this tick, not next time they think.
+                wayfinding.Look(agent);
 
                 // Startled, off their feet or on fire: whatever they carry is dropped or thrown.
                 items.LetGoIfNeeded(agent);

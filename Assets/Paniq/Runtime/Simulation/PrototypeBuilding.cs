@@ -102,6 +102,26 @@
             };
         }
 
+        /// <summary>
+        /// The signs pointing the way out: three down the corridor pointing
+        /// east toward the T, and one in each arm of the T pointing north at
+        /// the door. The south arm gets one too, because somebody who has run
+        /// down the dead end needs telling they have.
+        /// </summary>
+        public static FireReactionExitSignDefinition[] DefaultExitSigns()
+        {
+            const int North = 0;
+            const int East = 90;
+            return new[]
+            {
+                new FireReactionExitSignDefinition(new LogicalPosition(-3000, 8600), East),
+                new FireReactionExitSignDefinition(new LogicalPosition(3000, 8600), East),
+                new FireReactionExitSignDefinition(new LogicalPosition(9000, 8600), East),
+                new FireReactionExitSignDefinition(new LogicalPosition(14500, 11000), North),
+                new FireReactionExitSignDefinition(new LogicalPosition(14500, 4000), North)
+            };
+        }
+
         /// <summary>The floor's main fuse box, on the maintenance room wall.</summary>
         public static readonly SimulationId FuseBox = new SimulationId(3281UL);
 
@@ -220,6 +240,14 @@
         /// four in the cafeteria and two in the bathroom. Each has an authored
         /// personality so every trait shows up in play: Str, Spd, Brv, Cmp,
         /// Evl, Nrv, Ldr.
+        /// <para>
+        /// The meeting is a client visit. Five of the six are visitors, who
+        /// came up in the lift -- which is no way out in a fire -- and have no
+        /// idea where the stairs are. Their host works here, and is the
+        /// strongest leader in the building: turned up, they can walk the lot of
+        /// them out; left alone, they have the signs, their eyes and each
+        /// other. Everybody else works on this floor and knows it.
+        /// </para>
         /// </summary>
         public static FireReactionAgentDefinition[] DefaultAgents()
         {
@@ -238,12 +266,13 @@
                 // The meeting room: a meeting already under way, six of them
                 // round the long table. None can see the fire wherever it
                 // starts; they learn about it from the shouting and the alarm.
-                Seated(1009UL, -3600, 13900, South, 5, 5, 6, 5, 3, 4, 4, 3241UL), // ordinary
-                Seated(1010UL, -2000, 13900, South, 9, 4, 7, 6, 2, 3, 5, 3242UL), // the strong one
-                Seated(1011UL, -400, 13900, South, 4, 7, 3, 7, 1, 7, 2, 3243UL, 3223UL), // the worrier, bag by her chair
-                Seated(1012UL, -3600, 12100, North, 3, 6, 2, 8, 0, 9, 1, 3244UL, 3252UL), // the timid carer, briefcase by her chair
-                Seated(1013UL, -2000, 12100, North, 7, 8, 8, 4, 7, 2, 6, 3245UL), // the chancer
-                Seated(1014UL, -400, 12100, North, 6, 5, 7, 9, 1, 3, 9, 3246UL), // the other hero
+                // Five are clients visiting; the other hero is their host.
+                Seated(1009UL, -3600, 13900, South, 5, 5, 6, 5, 3, 4, 4, 3241UL).WithFamiliarity(AgentFamiliarity.Visitor), // ordinary
+                Seated(1010UL, -2000, 13900, South, 9, 4, 7, 6, 2, 3, 5, 3242UL).WithFamiliarity(AgentFamiliarity.Visitor), // the strong one
+                Seated(1011UL, -400, 13900, South, 4, 7, 3, 7, 1, 7, 2, 3243UL, 3223UL).WithFamiliarity(AgentFamiliarity.Visitor), // the worrier, bag by her chair
+                Seated(1012UL, -3600, 12100, North, 3, 6, 2, 8, 0, 9, 1, 3244UL, 3252UL).WithFamiliarity(AgentFamiliarity.Visitor), // the timid carer, briefcase by her chair
+                Seated(1013UL, -2000, 12100, North, 7, 8, 8, 4, 7, 2, 6, 3245UL).WithFamiliarity(AgentFamiliarity.Visitor), // the chancer
+                Seated(1014UL, -400, 12100, North, 6, 5, 7, 9, 1, 3, 9, 3246UL), // the other hero, and the host
 
                 // The cafeteria: two at a table, two on their feet.
                 Seated(1015UL, 5000, 13000, South, 5, 5, 4, 5, 4, 6, 4, 3247UL), // ordinary

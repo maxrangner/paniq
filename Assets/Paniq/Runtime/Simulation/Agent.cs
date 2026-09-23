@@ -1,4 +1,4 @@
-namespace Paniq.Simulation
+﻿namespace Paniq.Simulation
 {
     /// <summary>
     /// One person's runtime state, split by concern so it is clear which
@@ -16,6 +16,7 @@ namespace Paniq.Simulation
     /// <item><see cref="Intent"/>: what they are trying to do right now (the behaviours).</item>
     /// <item><see cref="Hearing"/>: the last noise worth turning toward.</item>
     /// <item><see cref="Doors"/>: the door they are running for and doors that failed them.</item>
+    /// <item><see cref="Knowledge"/>: which doors they know of, and how much of each room they have looked round.</item>
     /// <item><see cref="Burning"/>: whether they are on fire, and until when.</item>
     /// <item><see cref="Carry"/>: the item they are going for or carrying.</item>
     /// <item><see cref="Help"/>: the person they are helping, if any.</item>
@@ -27,11 +28,17 @@ namespace Paniq.Simulation
     /// </summary>
     internal sealed class Agent
     {
-        public Agent(int index, SimulationId id, int doorCount)
+        /// <summary>
+        /// A person who knows the building. <paramref name="roomCount"/> only
+        /// matters for somebody later made a visitor; left at nothing, they can
+        /// never be.
+        /// </summary>
+        public Agent(int index, SimulationId id, int doorCount, int roomCount = 0)
         {
             Index = index;
             Id = id;
             Doors = new AgentDoorMemory(doorCount);
+            Knowledge = new AgentKnowledge(doorCount, roomCount);
         }
 
         /// <summary>Position in ascending-ID order; the processing order of every per-person loop.</summary>
@@ -49,6 +56,7 @@ namespace Paniq.Simulation
         public readonly AgentIntent Intent = new AgentIntent();
         public readonly AgentHearing Hearing = new AgentHearing();
         public readonly AgentDoorMemory Doors;
+        public readonly AgentKnowledge Knowledge;
         public readonly AgentBurning Burning = new AgentBurning();
         public readonly AgentCarry Carry = new AgentCarry();
         public readonly AgentHelp Help = new AgentHelp();
@@ -353,6 +361,89 @@ namespace Paniq.Simulation
         public ulong EscapedEventId;
     }
 
+    /// <summary>
+    /// What somebody knows of the building: which doors they know are there
+    /// and where each leads, and how much of each room they have looked round.
+    /// <para>
+    /// Somebody who works here knows it all, and every question below answers
+    /// "yes" for them without looking at anything -- which is what keeps them
+    /// walking exactly as everybody did before anybody could be a stranger.
+    /// A visitor starts out knowing only the room they are in and learns the
+    /// rest (see <see cref="WayfindingSystem"/>). Nothing is ever forgotten.
+    /// </para>
+    /// <para>
+    /// Knowledge is kept per door rather than per room on purpose. Seeing into
+    /// a room must not tell anybody where its far door is: stood at the mouth
+    /// of a long corridor you know the corridor is there, not that the stairs
+    /// are at the end of it.
+    /// </para>
+    /// </summary>
+    internal sealed class AgentKnowledge
+    {
+        /// <summary>All four corners of a room: south-west, south-east, north-west and north-east, one bit each.</summary>
+        public const byte AllCorners = 0xF;
+
+        public AgentKnowledge(int doorSlots, int roomCount)
+        {
+            KnowsDoor = new bool[doorSlots];
+            CornersSeen = new byte[roomCount];
+        }
+
+        /// <summary>Knows the building: every door, including any hole blown later, and every room.</summary>
+        public bool KnowsEverything { get; private set; } = true;
+
+        /// <summary>Per door slot: they know it is there and where it leads. Only read for a visitor.</summary>
+        public readonly bool[] KnowsDoor;
+
+        /// <summary>Per room: the corners they have been within sight of, from inside it. Only read for a visitor.</summary>
+        public readonly byte[] CornersSeen;
+
+        /// <summary>The room they were last seen to be in, and the one before it: the way they came.</summary>
+        public int LookRoom = -1;
+
+        public int CameFrom = -1;
+
+        /// <summary>Frightened, knowing of no way out, and looking for one.</summary>
+        public bool Searching;
+
+        /// <summary>Their AgentLookedForAWayOut, while they are still looking.</summary>
+        public ulong SearchEventId;
+
+        /// <summary>A spot in the room they are in that they are going to look round from, instead of a door.</summary>
+        public bool HasSearchSpot;
+
+        public LogicalPosition SearchSpot;
+
+        public bool Knows(int door) => KnowsEverything || KnowsDoor[door];
+
+        /// <summary>They have been within sight of every corner of this room from inside it.</summary>
+        public bool HasLookedOver(int room) => KnowsEverything || CornersSeen[room] == AllCorners;
+
+        /// <summary>
+        /// Forget the building but for the room they start in, which they have
+        /// been sitting in long enough to know every door of.
+        /// </summary>
+        public void StartAsVisitor(int room, int[] doorsOfRoom)
+        {
+            if (room < 0 || room >= CornersSeen.Length)
+            {
+                throw new System.InvalidOperationException("A visitor has to start in a room the building has.");
+            }
+
+            KnowsEverything = false;
+            System.Array.Clear(KnowsDoor, 0, KnowsDoor.Length);
+            System.Array.Clear(CornersSeen, 0, CornersSeen.Length);
+            for (int i = 0; i < doorsOfRoom.Length; i++)
+            {
+                KnowsDoor[doorsOfRoom[i]] = true;
+            }
+
+            CornersSeen[room] = AllCorners;
+            LookRoom = room;
+            CameFrom = -1;
+        }
+    }
+
     internal sealed class AgentLeading
     {
         /// <summary>The leader (agent index) they are following, or -1.</summary>
@@ -401,7 +492,14 @@ namespace Paniq.Simulation
         PullingOut,
         Lowering,
         ScootingOut,
-        Rising
+        Rising,
+
+        /// <summary>
+        /// Coming up out of the seat in a fright rather than on purpose: the
+        /// chair has already been kicked away behind them and they are rising
+        /// where they sat, so nothing shoves them backwards out of it.
+        /// </summary>
+        LeapingUp
     }
 
     internal sealed class AgentSitting

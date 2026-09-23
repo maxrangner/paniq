@@ -24,6 +24,7 @@ namespace Paniq.Simulation
         private readonly DoorBehaviour doorBehaviour;
         private readonly HelpBehaviour help;
         private readonly ChairBehaviour chairs;
+        private readonly ExitSignBehaviour exitSigns;
 
         /// <summary>
         /// The things somebody might do instead of running, in the order they
@@ -45,10 +46,12 @@ namespace Paniq.Simulation
             DoorBehaviour doorBehaviour,
             HelpBehaviour help,
             ChairBehaviour chairs,
+            ExitSignBehaviour exitSigns,
             Locomotion locomotion)
         {
             this.help = help;
             this.chairs = chairs;
+            this.exitSigns = exitSigns;
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
@@ -115,11 +118,13 @@ namespace Paniq.Simulation
                 agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
             }
 
-            if (agent.Sitting.OnIt)
+            if (agent.Sitting.OnIt || agent.Sitting.Phase == SitPhase.LeapingUp)
             {
-                // Still in a chair: they have to get out of it first.
-                chairs.StartStandingUp(agent);
-                if (tick < intent.ActivityEndTick)
+                // Still in a chair: they have to get out of it first. They come
+                // up on the spot and the chair goes over behind them, so nobody
+                // is shoved backwards out of their seat before they run.
+                chairs.StartLeapingUp(agent);
+                if (chairs.UpdateLeapingUp(agent))
                 {
                     return PanicIntent.StandAndFace(agent, agent.Body.Heading, settings);
                 }
@@ -296,7 +301,12 @@ namespace Paniq.Simulation
 
             intent.Activity = AgentActivityState.Fleeing;
             agent.Doors.ExitDoorIndex = doorBehaviour.ChooseExitDoor(agent);
-            intent.Target = agent.Doors.ExitDoorIndex >= 0 ? doorBehaviour.DoorTarget(agent) : ChooseEscapeTarget(agent);
+
+            // A door; or, for a visitor looking for a way out, the spot to look
+            // round this room from; or, with nothing better, a spot to run to.
+            intent.Target = agent.Doors.ExitDoorIndex >= 0 ? doorBehaviour.DoorTarget(agent)
+                : agent.Knowledge.HasSearchSpot ? agent.Knowledge.SearchSpot
+                : ChooseEscapeTarget(agent);
             if (context.Random.NextPercent(TraitEffects.SwerveChancePercent(agent, context.Scenario)))
             {
                 int side = context.Random.NextIntInclusive(0, 1) == 0 ? -1 : 1;
@@ -309,9 +319,9 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Samples spots in the room they are in and scores them: far from
-        /// fire is good, a route that brushes past the fire is bad, a U-turn
-        /// is a little bad, and random noise keeps the choice human and
-        /// imperfect.
+        /// fire is good, the way a sign they can see points is good, a route
+        /// that brushes past the fire is bad, a U-turn is a little bad, and
+        /// random noise keeps the choice human and imperfect.
         /// </summary>
         private LogicalPosition ChooseEscapeTarget(Agent agent)
         {
@@ -319,6 +329,11 @@ namespace Paniq.Simulation
             LogicalPosition best = position;
             long bestScore = long.MinValue;
             int room = geometry.RoomOf(agent);
+
+            // Read the signs once, before the samples, rather than once per
+            // sample: what they can see does not change between one candidate
+            // spot and the next.
+            bool readASign = exitSigns.TryRead(agent, out int signPointing);
             for (int sample = 0; sample < settings.EscapeSampleCount; sample++)
             {
                 LogicalPosition candidate = geometry.RandomInteriorPoint(room, settings.EscapeWallMarginMillimetres);
@@ -347,6 +362,15 @@ namespace Paniq.Simulation
                     agent.Body.Heading,
                     IntegerMath.HeadingBetween(position, candidate, agent.Body.Heading)));
                 score -= turn * settings.EscapeTurnPenaltyPerDegree;
+
+                if (readASign)
+                {
+                    // They have been told which way the door is, and they
+                    // believe it: a spot the sign's way is worth crossing the
+                    // room for, and one the other way is worth less than where
+                    // they already stand.
+                    score += exitSigns.ScoreToward(position, candidate, signPointing);
+                }
 
                 if (score > bestScore)
                 {

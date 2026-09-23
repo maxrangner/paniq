@@ -20,6 +20,8 @@ namespace Paniq.Simulation
         private readonly DoorSystem doors;
         private readonly FireSystem fire;
         private readonly SoundSystem sound;
+        private readonly ExitSignBehaviour exitSigns;
+        private readonly WayfindingSystem wayfinding;
         private readonly ExitSettings settings;
 
         /// <summary>Set once the objects exist, for heaving whatever is wedged in a doorway.</summary>
@@ -31,7 +33,9 @@ namespace Paniq.Simulation
             WorldGeometry geometry,
             DoorSystem doors,
             FireSystem fire,
-            SoundSystem sound)
+            SoundSystem sound,
+            ExitSignBehaviour exitSigns,
+            WayfindingSystem wayfinding)
         {
             this.context = context;
             this.crowd = crowd;
@@ -39,6 +43,8 @@ namespace Paniq.Simulation
             this.doors = doors;
             this.fire = fire;
             this.sound = sound;
+            this.exitSigns = exitSigns;
+            this.wayfinding = wayfinding;
             settings = context.Scenario.Exits;
         }
 
@@ -70,6 +76,10 @@ namespace Paniq.Simulation
         /// longer poisoned, until their own next decision. Otherwise a whole
         /// building turns on its heel the instant a latch clicks two rooms away,
         /// which reads worse than the problem it fixes.
+        ///
+        /// Those same people learn the door is there, if they did not know: a
+        /// door swinging open, or a wall blown out, beside you is not something
+        /// anybody misses, whether or not they knew the building.
         ///
         /// Ascending door index, then ascending agent index, and no random
         /// numbers: this adds no randomness of its own.
@@ -112,6 +122,7 @@ namespace Paniq.Simulation
                     if (room == side || (beyond >= 0 && room == beyond))
                     {
                         agent.Intent.NextPanicDecisionTick = context.Tick;
+                        wayfinding.Learn(agent, door, WayLearned.SawItOpen, 0UL);
                     }
                 }
             }
@@ -125,6 +136,12 @@ namespace Paniq.Simulation
         /// it is to walk there through the rooms; the first door on that walk
         /// is the one they run for. With no way out left, they pick the room
         /// furthest from the fire instead.
+        /// <para>
+        /// Only a way out they know of counts, walked through doors they know
+        /// of. For somebody who knows the building that is all of them. A
+        /// visitor who knows of no way out goes looking for one before they
+        /// give up and hide (<see cref="TryChooseSearch"/>).
+        /// </para>
         /// </summary>
         public int ChooseExitDoor(Agent agent)
         {
@@ -137,13 +154,14 @@ namespace Paniq.Simulation
             }
 
             agent.Doors.ApproachRoom = room;
+            agent.Knowledge.HasSearchSpot = false;
             int best = -1;
             int bestWayOut = -1;
             long bestScore = long.MinValue;
             for (int d = 0; d < doors.Count; d++)
             {
-                if (!geometry.DoorLeadsOutside(d) ||
-                    !geometry.TryFindRoute(room, position, geometry.DoorRoom(d), agent, out int first, out int last, out long routeCost))
+                if (!geometry.DoorLeadsOutside(d) || !agent.Knowledge.Knows(d) ||
+                    !geometry.TryFindKnownRoute(room, position, geometry.DoorRoom(d), agent, out int first, out int last, out long routeCost))
                 {
                     continue;
                 }
@@ -226,13 +244,170 @@ namespace Paniq.Simulation
             if (best >= 0)
             {
                 agent.Doors.WayOutDoorIndex = bestWayOut;
+                agent.Knowledge.Searching = false;
                 return best;
             }
 
-            // Every way out has been tried and would not open: get into
-            // whichever room is furthest from the flames instead.
             agent.Doors.WayOutDoorIndex = -1;
+            if (!agent.Knowledge.KnowsEverything && TryChooseSearch(agent, room, position, out int search))
+            {
+                // Somewhere they have not looked yet: a door, or -1 with a
+                // spot in this room to look round from.
+                return search;
+            }
+
+            // Every way out has been tried and would not open, and there is
+            // nowhere left to look: get into whichever room is furthest from
+            // the flames instead.
             return ChooseRefugeDoor(agent, room, position);
+        }
+
+        /// <summary>
+        /// A visitor who knows of no way out looks for one. Two kinds of place
+        /// are worth a look: the part of this room they have not seen yet, and
+        /// any room they know how to reach but have not looked round. Each is
+        /// scored like a way out -- the shorter walk, the way a sign they can
+        /// see points, clear of the danger, and a little for sticking with what
+        /// they already chose -- with a little noise. False when there is
+        /// nowhere left to look.
+        /// <para>
+        /// On the way, a door they were looking for turns up, or a sign, or a
+        /// leader; any of those makes them think again at once (see
+        /// <see cref="WayfindingSystem"/>), and from then on they are running
+        /// for the way out like anybody else.
+        /// </para>
+        /// <para>
+        /// Draws one random number per place considered, in a fixed order:
+        /// this room first, then the others by ascending index. Nobody who
+        /// knows the building ever gets here.
+        /// </para>
+        /// </summary>
+        private bool TryChooseSearch(Agent agent, int room, LogicalPosition position, out int door)
+        {
+            door = -1;
+            AgentKnowledge knowledge = agent.Knowledge;
+            PanicSettings panic = context.Scenario.Panic;
+            bool readASign = exitSigns.TryRead(agent, out int pointing);
+            int danger = TraitEffects.DangerDistance(agent, context.Scenario);
+            bool found = false;
+            long bestScore = long.MinValue;
+
+            if (!knowledge.HasLookedOver(room))
+            {
+                LogicalPosition spot = UnseenCorner(knowledge, room, position, panic.EscapeWallMarginMillimetres);
+                long score = context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) -
+                             IntegerMath.Distance(position, spot);
+                if (fire.RoutePassesNear(position, spot, panic.EscapeRouteClearanceMillimetres))
+                {
+                    score -= panic.EscapeRoutePenaltyMillimetres;
+                }
+
+                if (fire.AnyCloserThan(spot, danger))
+                {
+                    score -= settings.InFirePenaltyMillimetres;
+                }
+
+                if (readASign)
+                {
+                    score += exitSigns.ScoreToward(position, spot, pointing);
+                }
+
+                if (knowledge.Searching && agent.Doors.ExitDoorIndex < 0 && agent.Intent.Target.Equals(spot))
+                {
+                    score += settings.CurrentChoiceBonusMillimetres;
+                }
+
+                found = true;
+                bestScore = score;
+                knowledge.HasSearchSpot = true;
+                knowledge.SearchSpot = spot;
+            }
+
+            for (int r = 0; r < geometry.RoomCount; r++)
+            {
+                if (r == room || knowledge.HasLookedOver(r) ||
+                    !geometry.TryFindKnownRoute(room, position, r, agent, out int first, out _, out long routeCost) ||
+                    first < 0)
+                {
+                    continue;
+                }
+
+                if (!geometry.IsDoorOpen(first) &&
+                    (context.Tick < agent.Doors.AvoidUntilTick[first] || agent.Doors.FoundShut[first]))
+                {
+                    continue;
+                }
+
+                LogicalPosition doorway = geometry.DoorCentre(first);
+                long score = context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) - routeCost -
+                             RoutePenalties(agent, position, first);
+                int into = geometry.RoomBeyond(first, room);
+                if ((into >= 0 && fire.IsBurningInRoom(into)) || fire.IsBurningInRoom(r))
+                {
+                    score -= settings.InFirePenaltyMillimetres;
+                }
+
+                if (readASign)
+                {
+                    score += exitSigns.ScoreToward(position, doorway, pointing);
+                }
+
+                if (first == agent.Doors.ExitDoorIndex)
+                {
+                    score += settings.CurrentChoiceBonusMillimetres;
+                }
+
+                if (score > bestScore)
+                {
+                    found = true;
+                    bestScore = score;
+                    door = first;
+                    knowledge.HasSearchSpot = false;
+                }
+            }
+
+            if (found && !knowledge.Searching)
+            {
+                knowledge.Searching = true;
+                knowledge.SearchEventId = context.Events.Append(context.Tick, agent.Id,
+                    FireReactionEventType.AgentLookedForAWayOut, position, 0, 0, agent.Fear.ScaredEventId).EventId;
+            }
+
+            return found;
+        }
+
+        /// <summary>
+        /// Where to stand to see the nearest corner of this room they have not
+        /// seen yet: that corner, drawn in from the walls by the margin (less
+        /// in a small room). Ties go south-west, south-east, north-west,
+        /// north-east, the order the corners are numbered in.
+        /// </summary>
+        private LogicalPosition UnseenCorner(AgentKnowledge knowledge, int room, LogicalPosition position, int margin)
+        {
+            LogicalBounds b = geometry.RoomBounds(room);
+            margin = System.Math.Min(margin, System.Math.Min(b.MaxX - b.MinX, b.MaxZ - b.MinZ) / 2);
+            byte seen = knowledge.CornersSeen[room];
+            LogicalPosition best = position;
+            long bestDistance = long.MaxValue;
+            for (int corner = 0; corner < 4; corner++)
+            {
+                if ((seen & (1 << corner)) != 0)
+                {
+                    continue;
+                }
+
+                var spot = new LogicalPosition(
+                    (corner & 1) == 0 ? b.MinX + margin : b.MaxX - margin,
+                    (corner & 2) == 0 ? b.MinZ + margin : b.MaxZ - margin);
+                long distance = LogicalPosition.DistanceSquared(position, spot);
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    best = spot;
+                }
+            }
+
+            return best;
         }
 
         /// <summary>
@@ -247,7 +422,7 @@ namespace Paniq.Simulation
             for (int r = 0; r < geometry.RoomCount; r++)
             {
                 if (r == room ||
-                    !geometry.TryFindRoute(room, position, r, agent, out int first, out int last, out long routeCost) ||
+                    !geometry.TryFindKnownRoute(room, position, r, agent, out int first, out int last, out long routeCost) ||
                     first < 0)
                 {
                     continue;
@@ -877,7 +1052,8 @@ namespace Paniq.Simulation
                 for (int d = 0; d < doors.Count; d++)
                 {
                     if (d != door && geometry.DoorLeadsOutside(d) && !agent.Doors.FoundShut[d] &&
-                        geometry.TryFindRoute(room, agent.Body.Position, geometry.DoorRoom(d), agent,
+                        agent.Knowledge.Knows(d) &&
+                        geometry.TryFindKnownRoute(room, agent.Body.Position, geometry.DoorRoom(d), agent,
                             out int first, out _, out _) &&
                         first != door)
                     {
@@ -1043,7 +1219,8 @@ namespace Paniq.Simulation
             // the route search disagrees with the choice they already made.
             return door == agent.Doors.ExitDoorIndex ||
                    door == wayOut ||
-                   geometry.RouteUsesDoor(room, agent.Body.Position, geometry.DoorRoom(wayOut), agent, door);
+                   geometry.RouteUsesDoor(room, agent.Body.Position, geometry.DoorRoom(wayOut), agent, door,
+                       knownOnly: true);
         }
 
         /// <summary>Anyone else still in the run near the door, on the side the closer is not.</summary>

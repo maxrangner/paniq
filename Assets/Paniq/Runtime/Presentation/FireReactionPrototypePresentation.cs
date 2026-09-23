@@ -91,6 +91,7 @@ namespace Paniq.Presentation
                 pops = new PopBursts(materials, effects, root);
                 signs = new EventSigns(materials, root);
                 cable = new PowerCableView(scenario, materials, root);
+                _ = new ExitSignView(scenario.ExitSigns, materials, root);
                 input = new PlayerInput(runner, room);
 
                 // Off until G is pressed: the floor painted square by square

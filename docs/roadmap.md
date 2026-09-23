@@ -228,8 +228,13 @@ the ones worth keeping is a question only playing it answers.
 | Doorways with no door in them | System | The corridor turns a corner without a door in the middle of it. A room has always been a rectangle, so a corridor that turns is two of them, and until now two rooms could only be joined by a door -- which would have put a swinging door in the middle of a hallway. An **archway** is a doorway with nothing in it: permanently open, nothing to shut, and the fire walks straight through |
 | Bathroom stalls | Style | Three stalls off the bathroom, each its own little room with its own narrow door, the way the storage closet already hangs off the office |
 | The power runs through the walls | System | The sockets are joined by cable running through the walls, and every run ends at the main fuse box in the maintenance room. When the flames reach a socket it pops and the cable lights like a fuse on a stick of dynamite: a spark crawls along the wall to the next socket, which pops in turn, and so on down the line. When it reaches the fuse box, the box goes off harder than anything else in the building |
+| Signs to the way out | Style | Little green signs along the corridor with an arrow pointing the way to the actual exit, and one in each arm of the T -- including the dead end, because somebody who has run down it needs telling they have. They are drawn lying flat above head height rather than upright on a wall, because the view looks down on the building and an upright sign would be edge-on half the time |
 | A card for the fuse box | System | A fifth card pops the fuse box yourself. The spark then runs the *other* way, out of the maintenance room and along the line of sockets. It is the far end of the floor from the way out, so it is a deliberate trip to the back of the building |
 | The fire could start anywhere | System | One run it starts among the desks, the next behind a bathroom stall door, the next by the cafeteria counter. It used to be drawn from one four-metre patch of carpet in the middle of the office, so the seed changed who panicked but never changed the problem. The corridor is deliberately left off the list: it is the one route the whole floor shares, and a fire starting in it would cut the building in half before the player had touched anything |
+| Getting out of a chair | System | People frightened out of a seat come up where they sat and then turn and run. They used to be shoved the better part of a metre straight backwards from the way they were facing in a single tick, and because everyone at the meeting table faces the table, the whole meeting appeared to float backwards into the walls the moment the alarm went |
+| Sitting up properly | Style | Somebody at a desk sits upright on top of the chair, with the seat visible under them. They used to be sunk 200 mm into the floor and tipped forward into the table |
+| The signs point people out | System | The green signs stop being scenery. Somebody who has no way out in mind, picking a direction to run in, now weighs that choice by the nearest sign they can see, so they are less likely to commit to the dead end. On this floor that is a rarer moment than it sounds -- everybody can work out a route to the building's one way out, and the signs point at that same door -- so the signs change some runs and not others. Making them matter every time means taking away the map everybody is currently given, which is a bigger change and the owner's to make |
+| People find their own way out | System | The five clients at the meeting do not know the floor; everybody else works here and runs exactly as before. When the clients panic, "which way?" pops up over them, and they go and look: the doors they can see, the rooms they have not looked round, the far end of the corridor. A cupboard earns "dead end!" and they come back out. The moment a green sign, a door flying open beside them, or their host's shout tells them the way, "this way!" goes up and they run for it. This is the change the row above said was the owner's: the signs, the leadership dial and a door being opened now decide whether a stranger gets out. Whether somebody knows the building is a tick box on each person, so it works on any floor and against any danger |
 
 **What is held still, and why.** The open office keeps its exact old rectangle
 and stays the first room, and the storage closet keeps its rectangle and its
@@ -252,6 +257,21 @@ got out**. At two metres a second -- slower than a running person -- the same
 round saves nine. The speed of the fuse is the difference between a hazard you
 can do something about and one that simply happens to you, and it is one number:
 `PowerSettings.SparkSpeedMillimetresPerTick`.
+
+**Two things to watch at the next playtest, for the visitors.** A stranger
+checks the nearest doors first, and on this floor the nearest one from the
+meeting room is the maintenance cupboard, so a lost client may well visit it
+before anything useful. Whether that reads as a person looking or as a person
+being stupid is the first question. The second is balance: the host usually
+rallies the room, and a client facing along the corridor usually reads a sign,
+so the clients may turn out rarely to be lost at all -- or, with the host
+turned down, lost too long.
+
+**Not yet checked in the editor.** This stone was written without Unity. Its
+rules have tests that run outside the editor, and they pass; the whole-run
+tests and the ten replay fingerprints need Unity's physics, and the
+fingerprints still hold the values from before the change. They have to be run
+and re-recorded in the editor (see the decision log).
 
 **One thing to watch at the next playtest.** The building funnels everybody down
 one corridor to one door. That is the tension it is built for, but it may simply
@@ -288,6 +308,10 @@ rather than stopping as soon as the people left were out of the fire's reach.
    the percentage, and a click on a body producing their facts.
 
 ### Then: one hunter
+
+People who only know part of the building went ahead of this, by the owner's
+choice, so the hunter meets a crowd where some people can run into it through
+a door they have never opened.
 
 1. **What the player sees:** something that walks toward people and turns
    whoever it catches into another one of itself. Not a horde, not a mode —

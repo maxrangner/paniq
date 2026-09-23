@@ -393,6 +393,55 @@ namespace Paniq.Simulation
             agent.Intent.ActivityEndTick = System.Math.Max(agent.Sitting.SitUntilTick, context.Tick + 1);
         }
 
+        /// <summary>
+        /// Frightened out of a chair. They come up out of it <em>where they
+        /// sat</em>: the old path shoved them the better part of a metre
+        /// straight backwards in a single tick, which drew as everyone at the
+        /// meeting table gliding backwards into the walls without ever turning
+        /// round. Getting up still costs them the moment it always did, and the
+        /// chair still goes over behind them when they finally leave it.
+        /// </summary>
+        public void StartLeapingUp(Agent agent)
+        {
+            if (agent.Sitting.Phase == SitPhase.LeapingUp)
+            {
+                return;
+            }
+
+            if (agent.Sitting.ChairIndex >= 0 && !agent.Sitting.OnIt && agent.Sitting.Phase != SitPhase.None)
+            {
+                // Caught halfway into the seat: they let go of the chair.
+                objects.StopPulling(agent.Sitting.ChairIndex);
+            }
+
+            agent.Intent.Activity = AgentActivityState.StandingUp;
+            agent.Intent.ActivityEndTick = checked(context.Tick + TraitEffects.StandUpTicks(agent, context.Scenario));
+            agent.Sitting.Phase = SitPhase.LeapingUp;
+            agent.Sitting.PhaseStartTick = context.Tick;
+            agent.Sitting.MoveFrom = agent.Body.Position;
+            agent.Sitting.PulledOutMillimetres = 0;
+        }
+
+        /// <summary>
+        /// Coming up out of the seat in a fright, one tick at a time. They are
+        /// held on the spot the whole way up, and the chair is theirs until the
+        /// moment they are on their feet -- getting out of it is still a moment
+        /// spent rather than something that happens between two ticks. False
+        /// once they are up and free to run.
+        /// </summary>
+        public bool UpdateLeapingUp(Agent agent)
+        {
+            if (context.Tick < agent.Intent.ActivityEndTick)
+            {
+                return true;
+            }
+
+            // Up: the chair goes over behind them and they are left standing
+            // where they sat.
+            Forget(agent);
+            return false;
+        }
+
         /// <summary>Getting out of the chair, which takes a moment longer if they are placid.</summary>
         public void StartStandingUp(Agent agent)
         {
@@ -452,9 +501,11 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Off the chair: they step out of it, and it is shoved the other way
-        /// as they go. If there is nowhere to step they stay put and the
-        /// chair simply comes loose again.
+        /// Off the chair, because something knocked them out of it or set them
+        /// alight. The chair goes over behind them and they are left standing
+        /// where they sat: they used to be shoved the better part of a metre
+        /// backwards in a single tick, which drew as a body gliding backwards
+        /// without ever turning round.
         /// </summary>
         private void Forget(Agent agent)
         {
@@ -471,10 +522,12 @@ namespace Paniq.Simulation
 
                 // Out of it in a hurry, because something frightened them or
                 // knocked them out of it: the chair goes over backwards behind
-                // them rather than being tucked politely away.
+                // them rather than being tucked politely away. They stay on the
+                // spot, and the two pass through each other until the chair has
+                // slid clear.
                 objects.StandUp(chair, 0, 0);
                 objects.KnockOver(chair, away, settings.JumpUpKnockOverSpeed, agent.Fear.ScaredEventId);
-                StepOutOfTheChair(agent, chair, IntegerMath.NormalizeDegrees(agent.Body.Heading + 180));
+                people.LeaveChair(agent, null);
             }
 
             agent.Sitting.ChairIndex = -1;
@@ -508,43 +561,6 @@ namespace Paniq.Simulation
             }
 
             return agent.Body.Position;
-        }
-
-        /// <summary>
-        /// One step clear of the seat, so they are not standing in the chair.
-        /// Somebody knocked off it takes no step: they lie where they fell, and
-        /// the chair, loose again, is shoved out from under them instead.
-        /// </summary>
-        private void StepOutOfTheChair(Agent agent, int chair, int away)
-        {
-            if (agent.IsDown)
-            {
-                people.LeaveChair(agent, null);
-                return;
-            }
-
-            int clearance = context.Scenario.World.OccupancyRadiusMillimetres + objects.RadiusOf(chair) + 50;
-            for (int turn = 0; turn <= 180; turn += 45)
-            {
-                for (int side = -1; side <= 1; side += 2)
-                {
-                    int heading = IntegerMath.NormalizeDegrees(away + side * turn);
-                    LogicalPosition step = agent.Body.Position + IntegerMath.Displacement(heading, clearance);
-                    if (geometry.RoomAt(step) < 0 || geometry.TableAt(step, context.Scenario.World.OccupancyRadiusMillimetres) >= 0 ||
-                        crowd.FindBlocking(agent, agent.Body.Position, step) != null ||
-                        objects.FindBlocking(agent.Body.Position, step, context.Scenario.World.OccupancyRadiusMillimetres, chair) >= 0)
-                    {
-                        continue;
-                    }
-
-                    people.LeaveChair(agent, step);
-                    return;
-                }
-            }
-
-            // Nowhere to step: they stand up where they are, and the chair
-            // they were in is eased out from under them.
-            people.LeaveChair(agent, null);
         }
     }
 }

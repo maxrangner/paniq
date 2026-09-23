@@ -126,6 +126,17 @@ namespace Paniq.Presentation
                 case FireReactionEventType.AgentCrushed: return $"{who} was squeezed off their feet by the crush";
                 case FireReactionEventType.AgentShoved: return $"{who} heaved {whom} out of the way";
 
+                case FireReactionEventType.AgentLookedForAWayOut: return $"{who} did not know the way out and went looking";
+                case FireReactionEventType.AgentFoundADeadEnd: return $"{who} found only a dead end";
+                case FireReactionEventType.AgentFoundTheWayOut:
+                    switch ((WayLearned)record.Strength)
+                    {
+                        case WayLearned.Sign: return $"{who} read a sign and knew the way out";
+                        case WayLearned.SawItOpen: return $"{who} saw a way out open up";
+                        case WayLearned.Told: return $"{who} was shown the way out";
+                        default: return $"{who} spotted the way out";
+                    }
+
                 case FireReactionEventType.DoorUnlocked: return $"{who} was unlocked";
                 case FireReactionEventType.DoorOpened: return $"{who} was opened";
                 case FireReactionEventType.DoorClosed: return $"{who} shut {whom}";

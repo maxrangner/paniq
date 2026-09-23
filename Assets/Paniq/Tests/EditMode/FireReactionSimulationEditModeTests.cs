@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("50"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(40));
+            Assert.That(data.ContentRevision, Is.EqualTo("53"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(41));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -853,6 +853,15 @@ namespace Paniq.Tests.EditMode
             // always a death to trace back however well the rest get out. This
             // test is about the trail of causes behind a death, not about how
             // deadly the building is.
+            //
+            // The flames go up on them at once rather than after the usual five
+            // seconds. They used to be lit five seconds in, by which time this
+            // person -- calm, and free to stroll like anybody else -- had often
+            // wandered off the spot, and whether the run killed anybody at all
+            // came down to luck. Any change to what a frightened crowd does
+            // could take the death away and leave this test with nothing to
+            // trace.
+            data.Fire.ActivationTick = 1;
             var people = new List<FireReactionAgentDefinition>(data.Agents)
             {
                 new FireReactionAgentDefinition(new SimulationId(1999UL), data.Fire.SpawnBounds.Centre,

@@ -89,6 +89,50 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// The whole meeting gets up without anybody gliding backwards. Each of
+        /// the six used to be shoved 800 mm straight back from the way they
+        /// faced in the single tick they stopped being seated, and since three
+        /// of them face north and three face south, the table emptied outwards
+        /// into both walls at once.
+        /// </summary>
+        [Test]
+        public void WhenTheMeetingIsStartled_NobodyGlidesBackwardsOutOfTheirChair()
+        {
+            var simulation = new FireReactionSimulation(DefaultData());
+            var wasAt = new LogicalPosition[simulation.AgentCount];
+            var seated = new bool[simulation.AgentCount];
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                FireReactionAgentSnapshot person = simulation.GetAgent(i);
+                wasAt[i] = person.Position;
+                seated[i] = person.ActivityState == AgentActivityState.Sitting &&
+                            AcrossTheCorridor(person.Position) && person.Position.X < 2000;
+            }
+
+            Assert.That(System.Array.FindAll(seated, s => s).Length, Is.EqualTo(6), "Six are in the meeting.");
+
+            // Long enough for the fire to break out, the bell to go and every
+            // one of them to be up and running.
+            for (int t = 0; t < 30 * FireReactionSimulation.TicksPerSecond; t++)
+            {
+                simulation.Step();
+                for (int i = 0; i < simulation.AgentCount; i++)
+                {
+                    if (!seated[i])
+                    {
+                        continue;
+                    }
+
+                    LogicalPosition now = simulation.GetAgent(i).Position;
+                    long step = IntegerMath.Distance(wasAt[i], now);
+                    Assert.That(step, Is.LessThan(200L),
+                        $"Person {simulation.GetAgent(i).AgentId} crossed {step} mm in one tick: that is a teleport, not a step.");
+                    wasAt[i] = now;
+                }
+            }
+        }
+
         [Test]
         public void EveryChair_FacesATableAndEveryLaptop_StandsOnOne()
         {

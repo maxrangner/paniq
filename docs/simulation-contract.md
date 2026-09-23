@@ -112,7 +112,10 @@ The tick schedule is, in order:
 3. Resolve hazard contact at current positions.
 4. Make agent decisions, in ascending Agent ID order, then resolve what those
    decisions set in motion: standing up from chairs, following leaders,
-   spraying, and helpers pulling the people they drag.
+   spraying, and helpers pulling the people they drag. Each person's turn
+   begins with what they notice: the fire, and then, for somebody who does not
+   know the building, the doors, signs and corners in sight
+   (`WayfindingSystem.Look`), which draws no random numbers.
 5. Step the physics world once (see below).
 6. Judge what the step did, in the sorted contact order: loose things meeting
    people and other things (hits, breakages, smashed tables), then people

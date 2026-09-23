@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -24,7 +24,8 @@ namespace Paniq.Tests.EditMode
             UnityEngine.Object.DestroyImmediate(scenario);
         }
 
-        private FireReactionScenarioData DefaultData() => scenario.ToRuntimeData();
+        private FireReactionScenarioData DefaultData() =>
+            TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
 
         /// <summary>How far one solid thing may press into another, in millimetres, as the physics engine settles contacts.</summary>
         private const int PhysicsTolerance = 15;
@@ -96,7 +97,8 @@ namespace Paniq.Tests.EditMode
         public void DefaultBuilding_HasTablesAndChairsInBothRooms()
         {
             FireReactionScenarioData data = DefaultData();
-            Assert.That(data.Tables, Has.Length.EqualTo(4), "Three in the office, and the meeting room’s long table.");
+            Assert.That(data.Tables, Has.Length.EqualTo(6),
+                "Three desks in the office, the meeting room's long table, and two in the cafeteria.");
             int chairs = 0;
             int officeChairs = 0;
             foreach (FireReactionPhysicsObjectDefinition item in data.PhysicsObjects)
@@ -106,7 +108,8 @@ namespace Paniq.Tests.EditMode
             }
 
             Assert.That(chairs, Is.EqualTo(8), "Wooden chairs around the office tables.");
-            Assert.That(officeChairs, Is.EqualTo(9), "Office chairs on castors: four down each side of the meeting table and one at its head.");
+            Assert.That(officeChairs, Is.EqualTo(8),
+                "Office chairs on castors: six round the meeting table and two in the cafeteria.");
             Assert.That(data.Tables[0].Bounds.MaxX - data.Tables[0].Bounds.MinX, Is.EqualTo(1200));
         }
 

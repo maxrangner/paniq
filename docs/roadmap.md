@@ -220,6 +220,45 @@ and the same person cannot have a second inside about a second and a half.
 In a bad crush that will throw some of them away. Whether the ones kept are
 the ones worth keeping is a question only playing it answers.
 
+## Prototype 2, second pass: a real office floor
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| A floor plan instead of a test rig | System | A corridor runs the length of the building. The meeting room and the cafeteria open onto one side of it, the open office and the bathroom onto the other. At the east end it Ts: the one way out is up the north arm, and the south arm is a dead end that frightened people will sometimes run down. The cafeteria has a second door onto that arm, so from the cafeteria there is a short way out and a long one. Past everything at the west end is the maintenance room |
+| Doorways with no door in them | System | The corridor turns a corner without a door in the middle of it. A room has always been a rectangle, so a corridor that turns is two of them, and until now two rooms could only be joined by a door -- which would have put a swinging door in the middle of a hallway. An **archway** is a doorway with nothing in it: permanently open, nothing to shut, and the fire walks straight through |
+| Bathroom stalls | Style | Three stalls off the bathroom, each its own little room with its own narrow door, the way the storage closet already hangs off the office |
+| The power runs through the walls | System | The sockets are joined by cable running through the walls, and every run ends at the main fuse box in the maintenance room. When the flames reach a socket it pops and the cable lights like a fuse on a stick of dynamite: a spark crawls along the wall to the next socket, which pops in turn, and so on down the line. When it reaches the fuse box, the box goes off harder than anything else in the building |
+| A card for the fuse box | System | A fifth card pops the fuse box yourself. The spark then runs the *other* way, out of the maintenance room and along the line of sockets. It is the far end of the floor from the way out, so it is a deliberate trip to the back of the building |
+| The fire could start anywhere | System | One run it starts among the desks, the next behind a bathroom stall door, the next by the cafeteria counter. It used to be drawn from one four-metre patch of carpet in the middle of the office, so the seed changed who panicked but never changed the problem. The corridor is deliberately left off the list: it is the one route the whole floor shares, and a fire starting in it would cut the building in half before the player had touched anything |
+
+**What is held still, and why.** The open office keeps its exact old rectangle
+and stays the first room, and the storage closet keeps its rectangle and its
+door. Dozens of tests name places inside them by coordinate. Moving them would
+have meant rewriting tests that have nothing to do with the shape of a building.
+
+**What this cost.** Seventy tests across seventeen files, against an estimate of
+about ten. Most were scenes built around "fire on one side, the way out on the
+other" -- and the office's test-only way out had to move from its north wall,
+which now opens onto the corridor, to its south wall, which still faces the
+street. Every one of those scenes had to be turned round with it. The tests now
+name places through a shared `TheBuilding` helper rather than writing
+coordinates out longhand, so the next time a room moves, one file moves with it.
+
+**A number that turned out to matter enormously.** The spark first crawled at
+six metres a second, which is faster than anybody in the building can run. The
+whole chain of sockets went off within a few seconds of the first one, and in a
+test round with every door open **nineteen of the twenty people died and nobody
+got out**. At two metres a second -- slower than a running person -- the same
+round saves nine. The speed of the fuse is the difference between a hazard you
+can do something about and one that simply happens to you, and it is one number:
+`PowerSettings.SparkSpeedMillimetresPerTick`.
+
+**One thing to watch at the next playtest.** The building funnels everybody down
+one corridor to one door. That is the tension it is built for, but it may simply
+read as a queue. The dead-end arm of the T is the other thing to watch: it
+exists to be a wrong turn, and whether anybody actually takes it is a question
+only playing it answers.
+
 ## Agreed direction for the next stones
 
 Settled with the owner in a design review (see [game vision](game-vision.md)

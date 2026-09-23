@@ -46,30 +46,33 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// One person fleeing north up a bare room with somebody standing in
-        /// their way, at a pace too slow to run anybody over, so the only way
-        /// past is to shove. The person in the way neither sees the fire nor
-        /// hears the shouting, so they just stand there.
+        /// One person fleeing down a bare room toward the way out with somebody
+        /// standing in their way, at a pace too slow to run anybody over, so the
+        /// only way past is to shove. The person in the way neither sees the
+        /// fire nor hears the shouting, so they just stand there.
         /// </summary>
         private FireReactionScenarioData BlockedOnTheWayOut(AgentTraitValues shover, AgentTraitValues inTheWay)
         {
-            // A way out of the office's north wall, so north is where the
-            // shover bolts and the blockage is on their way to it.
+            // A way out in the office's south wall, so south is where the
+            // shover bolts and the blockage is on their way to it. Both stand
+            // on the line through that doorway, or the shover simply walks
+            // round the blockage instead of having to deal with it.
             FireReactionScenarioData data =
                 FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(scenario.ToRuntimeData());
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(Shover, new LogicalPosition(-2500, 1000), CardinalDirection.South, shover),
-                new FireReactionAgentDefinition(InTheWay, new LogicalPosition(-2500, 1800), CardinalDirection.North, inTheWay)
+                new FireReactionAgentDefinition(Shover, new LogicalPosition(-2500, -1000), CardinalDirection.North, shover),
+                new FireReactionAgentDefinition(InTheWay, new LogicalPosition(-2500, -1800), CardinalDirection.South, inTheWay)
             };
             data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
             data.Tables = new FireReactionTableDefinition[0];
 
-            // A fire just south of the shover, who is facing it and so sees it
-            // at once, then bolts away from it: straight north into the other
-            // person. The one in the way faces north and never sees it.
+            // A fire just north of the shover, who is facing it and so sees it
+            // at once, then bolts away from it: straight south into the other
+            // person, and on toward the way out. The one in the way faces south
+            // and never sees it.
             data.Fire.ActivationTick = 3;
-            data.Fire.SpawnBounds = new LogicalBounds(-2500, -2500, -200, -200);
+            data.Fire.SpawnBounds = new LogicalBounds(-2500, -2500, 200, 200);
             data.Fire.SpreadMinimumTicks = 100000;
             data.Fire.SpreadMaximumTicks = 100000;
             data.Perception.MaximumReactionDelayTicks = 0;

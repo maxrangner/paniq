@@ -176,6 +176,18 @@ namespace Paniq.Presentation
 
                     break;
 
+                case PhysicsObjectKind.FuseBox:
+                    // A grey steel cabinet on the wall, with a door on the
+                    // front of it: bigger than anything else electrical, and it
+                    // should look like it.
+                    height = size;
+                    colour = new Color(0.55f, 0.57f, 0.60f);
+                    Part("Cabinet", PrimitiveType.Cube, Vector3.up * (height * 0.5f),
+                        new Vector3(size, height, size * 0.35f));
+                    Part("Door", PrimitiveType.Cube, new Vector3(0f, height * 0.5f, -size * 0.2f),
+                        new Vector3(size * 0.85f, height * 0.8f, 0.03f));
+                    break;
+
                 case PhysicsObjectKind.WallSocket:
                     // A small flat plate; it never moves, so it is barely there.
                     height = size * 0.5f;

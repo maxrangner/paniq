@@ -39,6 +39,7 @@
                 case PlayerCommandType.SpawnFire: return settings.SpawnFireCost;
                 case PlayerCommandType.SpawnExtinguisher: return settings.SpawnExtinguisherCost;
                 case PlayerCommandType.BlastWall: return settings.BlastWallCost;
+                case PlayerCommandType.PopFuseBox: return settings.PopFuseBoxCost;
 
                 // A door click is priced by what the door is doing, not by the
                 // command, so it is asked for separately; setting the disaster

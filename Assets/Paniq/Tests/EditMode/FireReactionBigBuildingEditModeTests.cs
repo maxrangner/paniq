@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Diagnostics;
 using Paniq.Gameplay;
@@ -201,6 +201,9 @@ namespace Paniq.Tests.EditMode
 
             // No doorway at all between them: the only way through is one blown.
             data.Doors = new FireReactionDoorDefinition[0];
+
+            // Its own rooms, so its own fire area.
+            data.Fire.SpawnBounds = new LogicalBounds(0, 0, 0, 0);
             data.Fire.ActivationTick = int.MaxValue;
             data.Agents = new[]
             {

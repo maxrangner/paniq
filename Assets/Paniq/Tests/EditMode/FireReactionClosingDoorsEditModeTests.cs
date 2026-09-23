@@ -18,14 +18,14 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class FireReactionClosingDoorsEditModeTests
     {
-        private static readonly SimulationId NorthDoor = new SimulationId(2001UL);
+        private static readonly SimulationId OfficeWayOut = new SimulationId(2001UL);
         private static readonly SimulationId ClosetDoor = new SimulationId(2002UL);
 
         /// <summary>Someone near the north door, close enough to be shut out, but off to one side of the gap.</summary>
-        private static readonly LogicalPosition Nearby = new LogicalPosition(-400, 4600);
+        private static readonly LogicalPosition Nearby = new LogicalPosition(-400, -4600);
 
         /// <summary>Someone right across the room, far too far away to be shut out.</summary>
-        private static readonly LogicalPosition FarOff = new LogicalPosition(-2500, -4000);
+        private static readonly LogicalPosition FarOff = new LogicalPosition(-2500, 4000);
 
         private FireReactionScenario scenario;
 
@@ -79,26 +79,30 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data =
                 FireReactionDoorsEditModeTests.WithAWayOutOfTheOffice(scenario.ToRuntimeData());
 
-            // Standing right in the north doorway, and staying put (no fire, very slow calm decisions).
+            // Standing right in the doorway, and staying put (no fire, very slow calm decisions).
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-2500, 5750), CardinalDirection.South)
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-2500, -5750), CardinalDirection.South)
             };
+
+            // The office has a stack of boxes against that stretch of wall, and
+            // this test is about a door and a person standing in it.
+            data.PhysicsObjects = System.Array.Empty<FireReactionPhysicsObjectDefinition>();
             data.Fire.ActivationTick = int.MaxValue;
             data.Calm.DecisionMinimumTicks = 5000;
             data.Calm.DecisionMaximumTicks = 5000;
             var simulation = new FireReactionSimulation(data);
-            Click(simulation, NorthDoor, 1);
-            Click(simulation, NorthDoor, 2);
-            Click(simulation, NorthDoor, 3);
+            Click(simulation, OfficeWayOut, 1);
+            Click(simulation, OfficeWayOut, 2);
+            Click(simulation, OfficeWayOut, 3);
             for (int t = 0; t < 5; t++)
             {
                 simulation.Step();
             }
 
-            Assert.That(LogicalPosition.DistanceSquared(simulation.GetAgent(0).Position, new LogicalPosition(-2500, 5750)),
+            Assert.That(LogicalPosition.DistanceSquared(simulation.GetAgent(0).Position, new LogicalPosition(-2500, -5750)),
                 Is.LessThanOrEqualTo(50L * 50L), "They are still standing in the doorway.");
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open), "Nobody can close a door on someone in it.");
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(DoorState.Open), "Nobody can close a door on someone in it.");
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed), Is.Empty);
         }
 
@@ -169,13 +173,13 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         private FireReactionSimulation EscapingWithSomeoneBehind(AgentTraitValues escaper, LogicalPosition follower)
         {
-            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheNorthDoor(
+            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheWayOut(
                 scenario.ToRuntimeData(), 0, escaper);
             FireReactionAgentDefinition runner = data.Agents[0];
             data.Agents = new[]
             {
                 runner,
-                new FireReactionAgentDefinition(new SimulationId(2UL), follower, CardinalDirection.North,
+                new FireReactionAgentDefinition(new SimulationId(2UL), follower, CardinalDirection.South,
                     AgentTraitValues.AllOrdinary)
             };
             // The other person neither sees the fire nor hears the runner,
@@ -186,8 +190,8 @@ namespace Paniq.Tests.EditMode
             data.Calm.DecisionMinimumTicks = 5000;
             data.Calm.DecisionMaximumTicks = 5000;
             var simulation = new FireReactionSimulation(data);
-            Click(simulation, NorthDoor, 1);
-            Click(simulation, NorthDoor, 2);
+            Click(simulation, OfficeWayOut, 1);
+            Click(simulation, OfficeWayOut, 2);
             return simulation;
         }
 
@@ -209,7 +213,7 @@ namespace Paniq.Tests.EditMode
             RunUntilEscaped(simulation);
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed), Is.Empty,
                 "Kind people never shut a door with someone coming.");
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open));
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(DoorState.Open));
         }
 
         [Test]
@@ -218,7 +222,7 @@ namespace Paniq.Tests.EditMode
             // Nobody else near, so nothing but cruelty could make them shut it.
             FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 5, 3, 0, 9), FarOff);
             RunUntilEscaped(simulation);
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open),
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(DoorState.Open),
                 "Being frightened is not a reason to shut people in; only the cruel do that.");
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed), Is.Empty);
         }
@@ -228,7 +232,7 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 9, 9, 0, 3), FarOff);
             RunUntilEscaped(simulation);
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open));
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(DoorState.Open));
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorClosed), Is.Empty);
         }
 
@@ -250,7 +254,7 @@ namespace Paniq.Tests.EditMode
             FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 5, 1, evil, 5), Nearby);
             RunUntilEscaped(simulation);
             DoorState expected = expectLocked ? DoorState.Locked : expectShut ? DoorState.Unlocked : DoorState.Open;
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(expected),
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(expected),
                 $"Evil {evil} should leave the north door {expected}.");
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorLocked).Count,
                 Is.EqualTo(expectLocked ? 1 : 0), "Only the cruellest turn the key.");
@@ -261,7 +265,7 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionSimulation simulation = EscapingWithSomeoneBehind(AgentTraitValues.AllOrdinary, FarOff);
             RunUntilEscaped(simulation);
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open));
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(DoorState.Open));
         }
 
         /// <summary>
@@ -379,11 +383,11 @@ namespace Paniq.Tests.EditMode
             // Evil 9 is past both the shutting bar (8) and the locking bar (9).
             FireReactionSimulation simulation = EscapingWithSomeoneBehind(new AgentTraitValues(5, 5, 5, 1, 9, 5), Nearby);
             RunUntilEscaped(simulation);
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Locked));
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(DoorState.Locked));
             List<CausalEvent> closed = EventsOfType(simulation, FireReactionEventType.DoorClosed);
             List<CausalEvent> locked = EventsOfType(simulation, FireReactionEventType.DoorLocked);
             Assert.That(closed[0].SourceId, Is.EqualTo(new SimulationId(1UL)));
-            Assert.That(closed[0].TargetId, Is.EqualTo(NorthDoor));
+            Assert.That(closed[0].TargetId, Is.EqualTo(OfficeWayOut));
             Assert.That(locked[0].CausalParentEventId, Is.EqualTo(closed[0].EventId));
         }
 
@@ -391,11 +395,11 @@ namespace Paniq.Tests.EditMode
         [TestCase(0, false)]
         public void Escaper_LocksTheDoorBehindThemOnlyIfEvil(int evil, bool expectLocked)
         {
-            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheNorthDoor(
+            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheWayOut(
                 scenario.ToRuntimeData(), 0, new AgentTraitValues(5, 5, 5, 5, evil, 5));
             var simulation = new FireReactionSimulation(data);
-            Click(simulation, NorthDoor, 1);
-            Click(simulation, NorthDoor, 2);
+            Click(simulation, OfficeWayOut, 1);
+            Click(simulation, OfficeWayOut, 2);
             for (int t = 0; t < 10 * FireReactionSimulation.TicksPerSecond &&
                             simulation.GetAgent(0).Outcome != AgentTerminalOutcome.Escaped; t++)
             {
@@ -403,7 +407,7 @@ namespace Paniq.Tests.EditMode
             }
 
             Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped));
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(expectLocked ? DoorState.Locked : DoorState.Open));
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(expectLocked ? DoorState.Locked : DoorState.Open));
             if (expectLocked)
             {
                 CausalEvent closed = EventsOfType(simulation, FireReactionEventType.DoorClosed)[0];

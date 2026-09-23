@@ -42,7 +42,6 @@ namespace Paniq.Simulation
         private readonly FireSystem fire;
         private readonly PhysicsObjectSystem objects;
         private readonly BodySystem body;
-        private readonly SoundSystem sound;
         private readonly FlammableSettings settings;
         private readonly int personRadius;
 
@@ -64,10 +63,8 @@ namespace Paniq.Simulation
             WorldGeometry geometry,
             FireSystem fire,
             PhysicsObjectSystem objects,
-            BodySystem body,
-            SoundSystem sound)
+            BodySystem body)
         {
-            this.sound = sound;
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
@@ -306,41 +303,9 @@ namespace Paniq.Simulation
                 return;
             }
 
-            ObjectKindSettings kind = settings.Of(objects.KindOf(thing.Index));
-            if (kind.PopRadiusMillimetres <= 0)
-            {
-                return;
-            }
-
-            LogicalPosition centre = objects.PositionOf(thing.Index);
-            long radius = kind.PopRadiusMillimetres;
-            ulong bang = context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ObjectExploded, centre,
-                kind.PopRadiusMillimetres, 0, thing.EventId).EventId;
-
-            // Heard well beyond the blast itself, which is how the far side of
-            // the building learns something has happened.
-            sound.Bang(thing.Id, centre, kind.PopRadiusMillimetres * 6, kind.PopRadiusMillimetres * 3, bang);
-
-            objects.FlingFrom(centre, kind.PopRadiusMillimetres, kind.PopSpeed, thing.Index, bang);
-
-            Agent[] people = crowd.All;
-            for (int i = 0; i < people.Length; i++)
-            {
-                Agent agent = people[i];
-                if (!agent.IsParticipating ||
-                    LogicalPosition.DistanceSquared(agent.Body.Position, centre) > radius * radius)
-                {
-                    continue;
-                }
-
-                int away = IntegerMath.HeadingBetween(centre, agent.Body.Position, agent.Body.Heading);
-                body.BlowOver(agent, away,
-                    kind.PopRadiusMillimetres / 3 * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
-                    context.Scenario.PhysicsFeel.BlastLiftPercent, bang);
-            }
-
-            fire.IgniteAround(centre, kind.PopRadiusMillimetres, kind.PopIgniteCells, bang);
-            objects.Wreck(thing.Index, thing.Id, bang);
+            // The blast itself belongs to the things, not to the flames: the
+            // fire reaching it is only one of the reasons something goes off.
+            objects.Detonate(thing.Index, thing.Id, thing.EventId);
         }
 
         /// <summary>A burning thing that stays in one square for a moment sets that square alight.</summary>

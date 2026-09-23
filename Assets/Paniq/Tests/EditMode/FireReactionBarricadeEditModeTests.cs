@@ -14,7 +14,7 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class FireReactionBarricadeEditModeTests
     {
-        private static readonly SimulationId NorthDoor = new SimulationId(2001UL);
+        private static readonly SimulationId OfficeWayOut = new SimulationId(2001UL);
         private static readonly SimulationId ClosetDoor = new SimulationId(2002UL);
         private static readonly SimulationId TheBox = new SimulationId(3001UL);
         private static readonly SimulationId Somebody = new SimulationId(1UL);
@@ -70,7 +70,7 @@ namespace Paniq.Tests.EditMode
         /// 200 puts it clear of the frame on the inside, where it stops the leaf
         /// swinging inwards and leaves the outward swing free.
         /// </param>
-        private FireReactionScenarioData BoxInTheNorthDoorway(int millimetresInsideTheRoom = 200)
+        private FireReactionScenarioData BoxInTheOfficeWayOutway(int millimetresInsideTheRoom = 200)
         {
             FireReactionScenarioData data = scenario.ToRuntimeData();
             data.Tables = new FireReactionTableDefinition[0];
@@ -84,13 +84,17 @@ namespace Paniq.Tests.EditMode
             };
             data.Doors = new[]
             {
-                new FireReactionDoorDefinition(NorthDoor, PrototypeBuilding.Office, WallSide.North, -2500, 1000, false)
+                new FireReactionDoorDefinition(OfficeWayOut, PrototypeBuilding.Office, WallSide.North, -2500, 1000, false)
             };
             data.Rooms = new[]
             {
                 new FireReactionRoomDefinition(PrototypeBuilding.Office,
                     new LogicalBounds(-6000, 6000, -6000, 6000))
             };
+
+            // This scenario is one room, so it says where its own fire could
+            // start rather than inheriting the shipped building's four areas.
+            data.Fire.SpawnBounds = new LogicalBounds(0, 0, 0, 0);
             data.Fire.ActivationTick = int.MaxValue;
             data.Calm.DecisionMinimumTicks = 100000;
             data.Calm.DecisionMaximumTicks = 100000;
@@ -111,16 +115,16 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void SomethingRestingInADoorway_JamsTheDoorShut()
         {
-            var simulation = new FireReactionSimulation(BoxInTheNorthDoorway());
+            var simulation = new FireReactionSimulation(BoxInTheOfficeWayOutway());
 
             // One tick for the blockage to be noticed, then the player tries to
             // open the door: nothing happens.
             simulation.Step();
-            simulation.QueueCommand(PlayerCommandType.ClickDoor, NorthDoor, simulation.Tick + 1);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, simulation.Tick + 1);
             simulation.Step();
             simulation.Step();
 
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Unlocked),
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(DoorState.Unlocked),
                 "A door with something wedged against it does not open.");
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorOpened), Is.Empty);
         }
@@ -128,7 +132,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void SomethingRestingInADoorway_AlsoStopsTheDoorBeingShut()
         {
-            FireReactionScenarioData data = BoxInTheNorthDoorway();
+            FireReactionScenarioData data = BoxInTheOfficeWayOutway();
 
             // Put the box a little further in so the door can open first.
             data.PhysicsObjects = new[]
@@ -136,10 +140,10 @@ namespace Paniq.Tests.EditMode
                 new FireReactionPhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box, new LogicalPosition(-2500, 4000), 400, 12000)
             };
             var simulation = new FireReactionSimulation(data);
-            simulation.QueueCommand(PlayerCommandType.ClickDoor, NorthDoor, 1);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, 1);
             simulation.Step();
             simulation.Step();
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open), "It should have opened.");
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(DoorState.Open), "It should have opened.");
 
             // Now slide the box into the gap and try to close it. Not too
             // hard: an open doorway is a way through for things as well as
@@ -151,26 +155,26 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
             }
 
-            simulation.QueueCommand(PlayerCommandType.ClickDoor, NorthDoor, simulation.Tick + 1);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, simulation.Tick + 1);
             simulation.Step();
             simulation.Step();
 
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorBlocked), Is.Not.Empty,
                 "The box should have ended up in the doorway.");
-            Assert.That(StateOf(simulation, NorthDoor), Is.EqualTo(DoorState.Open),
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(DoorState.Open),
                 "A door with something in the gap cannot be shut either.");
         }
 
         [Test]
         public void AJammedDoorway_IsLoggedWithWhatJammedItAndWhichDoor()
         {
-            var simulation = new FireReactionSimulation(BoxInTheNorthDoorway());
+            var simulation = new FireReactionSimulation(BoxInTheOfficeWayOutway());
             simulation.Step();
 
             List<CausalEvent> blocked = EventsOfType(simulation, FireReactionEventType.DoorBlocked);
             Assert.That(blocked, Is.Not.Empty, "Something resting in a doorway should be in the log.");
             Assert.That(blocked[0].SourceId, Is.EqualTo(TheBox), "It names the thing.");
-            Assert.That(blocked[0].TargetId, Is.EqualTo(NorthDoor), "And the door it jammed.");
+            Assert.That(blocked[0].TargetId, Is.EqualTo(OfficeWayOut), "And the door it jammed.");
         }
 
         /// <summary>
@@ -179,7 +183,7 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         private FireReactionScenarioData RunnerAtAJammedDoor(int strength)
         {
-            FireReactionScenarioData data = BoxInTheNorthDoorway();
+            FireReactionScenarioData data = BoxInTheOfficeWayOutway();
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(Somebody, new LogicalPosition(-2500, 2000), CardinalDirection.South,

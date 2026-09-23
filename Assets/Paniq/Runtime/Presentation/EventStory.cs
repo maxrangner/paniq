@@ -67,6 +67,7 @@ namespace Paniq.Presentation
                 case FireReactionEventType.BoxesCollided:
                 case FireReactionEventType.AlarmRang:
                 case FireReactionEventType.ObjectBurntOut:
+                case FireReactionEventType.PowerSparkArrived:
                     return true;
                 default:
                     return false;
@@ -85,6 +86,7 @@ namespace Paniq.Presentation
         }
 
         /// <summary>The tick as a clock reading, counted from the start of the run.</summary>
+        /// <remarks>Kept beside the other formatting helpers.</remarks>
         public static string TimeOf(int tick)
         {
             int seconds = tick / FireReactionSimulation.TicksPerSecond;
@@ -170,6 +172,13 @@ namespace Paniq.Presentation
                 case FireReactionEventType.PowerSpawnedFire: return "you started a fire of your own";
                 case FireReactionEventType.PowerSpawnedExtinguisher: return "you stood an extinguisher on the floor";
                 case FireReactionEventType.PowerBlastedWall: return "you blew a hole through a wall";
+                case FireReactionEventType.PowerPoppedFuseBox: return "you popped the fuse box";
+
+                case FireReactionEventType.PowerSparkStarted:
+                    return $"a spark set off along the cable from {Name(record.SourceId)} " +
+                           $"toward {Name(record.TargetId)}";
+                case FireReactionEventType.PowerSparkArrived:
+                    return $"the spark reached {Name(record.TargetId)}";
 
                 case FireReactionEventType.RoundEnded: return $"the round ended with {record.Strength} saved";
                 default: return record.EventType.ToString();
@@ -216,6 +225,7 @@ namespace Paniq.Presentation
                 case PhysicsObjectKind.Briefcase: return "a briefcase";
                 case PhysicsObjectKind.Microwave: return "the microwave";
                 case PhysicsObjectKind.WallSocket: return "a wall socket";
+                case PhysicsObjectKind.FuseBox: return "the fuse box";
                 case PhysicsObjectKind.TableWreck: return "a heap of broken boards";
                 default: return "something";
             }

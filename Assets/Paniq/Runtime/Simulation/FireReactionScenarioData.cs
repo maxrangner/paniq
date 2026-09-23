@@ -131,6 +131,7 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private int centreAlongWallMillimetres;
         [UnityEngine.SerializeField] private int widthMillimetres;
         [UnityEngine.SerializeField] private bool startsLocked;
+        [UnityEngine.SerializeField] private bool isOpening;
 
         public FireReactionDoorDefinition(
             SimulationId doorId,
@@ -138,7 +139,8 @@ namespace Paniq.Simulation
             WallSide side,
             int centreAlongWallMillimetres,
             int widthMillimetres,
-            bool startsLocked = true)
+            bool startsLocked = true,
+            bool isOpening = false)
         {
             this.doorId = doorId;
             this.roomId = roomId;
@@ -146,6 +148,7 @@ namespace Paniq.Simulation
             this.centreAlongWallMillimetres = centreAlongWallMillimetres;
             this.widthMillimetres = widthMillimetres;
             this.startsLocked = startsLocked;
+            this.isOpening = isOpening;
         }
 
         public SimulationId DoorId => doorId;
@@ -158,7 +161,118 @@ namespace Paniq.Simulation
         public int WidthMillimetres => widthMillimetres;
 
         /// <summary>Locked at the start (the player's doors); otherwise it starts shut but openable.</summary>
-        public bool StartsLocked => startsLocked;
+        public bool StartsLocked => startsLocked && !isOpening;
+
+        /// <summary>
+        /// A doorway with no door in it: an archway, permanently open, which
+        /// nobody can shut and the fire walks straight through. This is how two
+        /// rectangles are joined into one L- or T-shaped space, because a room
+        /// is always a rectangle and a corridor that turns a corner is two of
+        /// them. It behaves exactly as a hole blown in a wall already does.
+        /// </summary>
+        public bool IsOpening => isOpening;
+    }
+
+    /// <summary>
+    /// One run of cable between two electrical things, as a line of corners in
+    /// whole millimetres following the walls.
+    /// <para>
+    /// The route is authored rather than worked out, because both sides of the
+    /// line need it and they have to agree. How long the spark takes to travel
+    /// is an outcome of the run -- it decides when the next socket pops -- and
+    /// where the spark is drawn is a picture. One route, measured once, and
+    /// neither can drift from the other.
+    /// </para>
+    /// </summary>
+    [Serializable]
+    public struct FireReactionPowerLineDefinition
+    {
+        [UnityEngine.SerializeField] private SimulationId fromObjectId;
+        [UnityEngine.SerializeField] private SimulationId toObjectId;
+        [UnityEngine.SerializeField] private LogicalPosition[] corners;
+
+        public FireReactionPowerLineDefinition(SimulationId fromObjectId, SimulationId toObjectId,
+            params LogicalPosition[] corners)
+        {
+            this.fromObjectId = fromObjectId;
+            this.toObjectId = toObjectId;
+            this.corners = corners;
+        }
+
+        public SimulationId FromObjectId => fromObjectId;
+        public SimulationId ToObjectId => toObjectId;
+
+        /// <summary>The route, end to end. At least two points, each a corner of the run.</summary>
+        public LogicalPosition[] Corners => corners;
+
+        /// <summary>
+        /// Two runs of cable are the same run when they join the same things
+        /// by the same route. Spelled out because the route is an array, and
+        /// without this two identical routes compare as different for having
+        /// been built twice -- which is exactly what comparing the saved
+        /// scenario against the code does.
+        /// </summary>
+        public override bool Equals(object other)
+        {
+            if (!(other is FireReactionPowerLineDefinition line))
+            {
+                return false;
+            }
+
+            if (fromObjectId != line.fromObjectId || toObjectId != line.toObjectId)
+            {
+                return false;
+            }
+
+            LogicalPosition[] mine = corners ?? Array.Empty<LogicalPosition>();
+            LogicalPosition[] theirs = line.corners ?? Array.Empty<LogicalPosition>();
+            if (mine.Length != theirs.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < mine.Length; i++)
+            {
+                if (mine[i].X != theirs[i].X || mine[i].Z != theirs[i].Z)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = fromObjectId.GetHashCode() * 397 ^ toObjectId.GetHashCode();
+                LogicalPosition[] route = corners ?? Array.Empty<LogicalPosition>();
+                for (int i = 0; i < route.Length; i++)
+                {
+                    hash = hash * 397 ^ route[i].X;
+                    hash = hash * 397 ^ route[i].Z;
+                }
+
+                return hash;
+            }
+        }
+
+        /// <summary>How far the spark has to travel, in whole millimetres.</summary>
+        public int LengthMillimetres
+        {
+            get
+            {
+                int total = 0;
+                for (int i = 1; i < corners.Length; i++)
+                {
+                    total += System.Math.Abs(corners[i].X - corners[i - 1].X) +
+                             System.Math.Abs(corners[i].Z - corners[i - 1].Z);
+                }
+
+                return total;
+            }
+        }
     }
 
     /// <summary>
@@ -294,9 +408,12 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "47";
+        public string ContentRevision = "50";
         public ulong DefaultSeed = 42UL;
 
+        // 40: the tick schedule gained a phase. The cable between the sockets
+        // and the fuse box advances its sparks beside the fire, in phase 2, so
+        // a run recorded before this one cannot be replayed against it.
         // 39: doors cost influence to work, a shut door standing in the flames
         // burns through instead of holding them off for ever, the round runs
         // until everybody is out or dead rather than until they are merely out
@@ -304,11 +421,12 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 39;
+        public int SimulationCompatibilityVersion = 40;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
-        public FireSettings Fire = new FireSettings();
+        public FireSettings Fire = new FireSettings { SpawnAreas = PrototypeBuilding.DefaultFireAreas() };
+        public PowerSettings Power = new PowerSettings();
         public RoundSettings Round = new RoundSettings();
         public SteeringSettings Steering = new SteeringSettings();
         public CalmSettings Calm = new CalmSettings();
@@ -343,6 +461,9 @@ namespace Paniq.Simulation
         /// </summary>
         public SimulationId[] BlastHoles = DefaultBlastHoles();
 
+        /// <summary>The cable running from socket to socket and back to the fuse box.</summary>
+        public FireReactionPowerLineDefinition[] PowerLines = PrototypeBuilding.DefaultPowerLines();
+
         /// <summary>A deep copy: changing the copy never changes this one.</summary>
         public FireReactionScenarioData Clone()
         {
@@ -350,6 +471,7 @@ namespace Paniq.Simulation
             copy.World = World?.Clone();
             copy.Perception = Perception?.Clone();
             copy.Fire = Fire?.Clone();
+            copy.Power = Power?.Clone();
             copy.Round = Round?.Clone();
             copy.Steering = Steering?.Clone();
             copy.Calm = Calm?.Clone();
@@ -377,6 +499,7 @@ namespace Paniq.Simulation
             copy.Rooms = (FireReactionRoomDefinition[])Rooms?.Clone();
             copy.Alarms = (FireReactionAlarmDefinition[])Alarms?.Clone();
             copy.BlastHoles = (SimulationId[])BlastHoles?.Clone();
+            copy.PowerLines = (FireReactionPowerLineDefinition[])PowerLines?.Clone();
             return copy;
         }
 
@@ -424,6 +547,7 @@ namespace Paniq.Simulation
             Alarm.Validate();
             Blockades.Validate();
             Blast.Validate();
+            Power.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");
@@ -431,13 +555,14 @@ namespace Paniq.Simulation
             var roomIds = new HashSet<SimulationId>();
             ValidateRooms(roomIds);
 
-            // The fire starts in the first room.
-            LogicalBounds room = Rooms[0].Bounds;
-            int spawnMargin = Fire.CellSizeMillimetres / 2;
-            if (!room.ContainsCircle(new LogicalPosition(Fire.SpawnBounds.MinX, Fire.SpawnBounds.MinZ), spawnMargin) ||
-                !room.ContainsCircle(new LogicalPosition(Fire.SpawnBounds.MaxX, Fire.SpawnBounds.MaxZ), spawnMargin))
+            // The fire starts somewhere inside a room -- any room, not just the
+            // first one. It used to have to be the first, which was fine while
+            // there was one room worth burning; now that the danger may begin
+            // anywhere on the floor, what matters is only that every rectangle
+            // it could be drawn from is a room rather than a wall or the street.
+            for (int i = 0; i < Fire.SpawnAreas.Length; i++)
             {
-                throw new InvalidOperationException("The fire spawn rectangle must remain inside the first room.");
+                ValidateSpawnArea(Fire.SpawnAreas[i]);
             }
 
             if (Agents == null || Agents.Length == 0)
@@ -493,6 +618,7 @@ namespace Paniq.Simulation
             ValidateStartingPossessions();
             ValidateAlarms(ids);
             ValidateBlastHoles(ids);
+            ValidatePowerLines();
         }
 
         /// <summary>
@@ -566,6 +692,29 @@ namespace Paniq.Simulation
         /// each other, and never overlapping (sharing a wall line is how they
         /// are joined, so touching is fine).
         /// </summary>
+        /// <summary>
+        /// A rectangle the fire may be drawn from has to sit inside one room,
+        /// clear of its walls. Spanning two rooms is refused even when both
+        /// ends are indoors, because the space between them is a wall.
+        /// </summary>
+        private void ValidateSpawnArea(LogicalBounds area)
+        {
+            int margin = Fire.CellSizeMillimetres / 2;
+            var lowest = new LogicalPosition(area.MinX, area.MinZ);
+            var highest = new LogicalPosition(area.MaxX, area.MaxZ);
+            for (int r = 0; r < Rooms.Length; r++)
+            {
+                LogicalBounds room = Rooms[r].Bounds;
+                if (room.ContainsCircle(lowest, margin) && room.ContainsCircle(highest, margin))
+                {
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException(
+                "A fire spawn rectangle must lie inside one room, clear of its walls.");
+        }
+
         private void ValidateRooms(HashSet<SimulationId> roomIds)
         {
             if (Rooms == null || Rooms.Length == 0)
@@ -821,6 +970,128 @@ namespace Paniq.Simulation
         }
 
         /// <summary>Every stick of TNT needs its own ID, like anything else in the run.</summary>
+        /// <summary>
+        /// The cable has to make sense before a run starts: every end a real
+        /// electrical thing, every leg square to the walls, and every socket
+        /// able to reach the fuse box. A cable that goes nowhere would simply
+        /// do nothing, silently, for the whole round.
+        /// </summary>
+        private void ValidatePowerLines()
+        {
+            PowerLines ??= Array.Empty<FireReactionPowerLineDefinition>();
+            if (PowerLines.Length == 0)
+            {
+                return;
+            }
+
+            var electrical = new Dictionary<SimulationId, PhysicsObjectKind>();
+            for (int i = 0; i < PhysicsObjects.Length; i++)
+            {
+                PhysicsObjectKind kind = PhysicsObjects[i].Kind;
+                if (kind == PhysicsObjectKind.WallSocket || kind == PhysicsObjectKind.FuseBox)
+                {
+                    electrical[PhysicsObjects[i].ObjectId] = kind;
+                }
+            }
+
+            int real = 0;
+            for (int i = 0; i < PowerLines.Length; i++)
+            {
+                FireReactionPowerLineDefinition line = PowerLines[i];
+
+                // A run to something this building does not have is simply not
+                // there. Cable is an attribute of the things it joins, so a
+                // scenario that swaps out the clutter loses the wiring with it
+                // rather than having to remember to delete it as well.
+                if (!electrical.ContainsKey(line.FromObjectId) || !electrical.ContainsKey(line.ToObjectId))
+                {
+                    continue;
+                }
+
+                real++;
+                if (line.FromObjectId == line.ToObjectId)
+                {
+                    throw new InvalidOperationException($"Power line {i} joins {line.FromObjectId} to itself.");
+                }
+
+                LogicalPosition[] corners = line.Corners;
+                if (corners == null || corners.Length < 2)
+                {
+                    throw new InvalidOperationException($"Power line {i} needs at least two corners.");
+                }
+
+                for (int c = 1; c < corners.Length; c++)
+                {
+                    bool alongX = corners[c].Z == corners[c - 1].Z;
+                    bool alongZ = corners[c].X == corners[c - 1].X;
+                    if (alongX == alongZ)
+                    {
+                        throw new InvalidOperationException(
+                            $"Power line {i} has a leg that is diagonal or goes nowhere; cable follows the walls.");
+                    }
+                }
+            }
+
+            if (real == 0)
+            {
+                // No cable in this building at all.
+                return;
+            }
+
+            // Everything electrical has to be reachable from the fuse box, or a
+            // socket popping would light a cable that leads nowhere.
+            SimulationId fuseBox = default;
+            int boxes = 0;
+            foreach (KeyValuePair<SimulationId, PhysicsObjectKind> thing in electrical)
+            {
+                if (thing.Value == PhysicsObjectKind.FuseBox)
+                {
+                    fuseBox = thing.Key;
+                    boxes++;
+                }
+            }
+
+            if (boxes != 1)
+            {
+                throw new InvalidOperationException(
+                    $"A building with cable in it needs exactly one fuse box, and this one has {boxes}.");
+            }
+
+            var reached = new HashSet<SimulationId> { fuseBox };
+            bool grew = true;
+            while (grew)
+            {
+                grew = false;
+                for (int i = 0; i < PowerLines.Length; i++)
+                {
+                    SimulationId from = PowerLines[i].FromObjectId;
+                    SimulationId to = PowerLines[i].ToObjectId;
+                    if (!electrical.ContainsKey(from) || !electrical.ContainsKey(to))
+                    {
+                        continue;
+                    }
+
+                    if (reached.Contains(from) && reached.Add(to))
+                    {
+                        grew = true;
+                    }
+                    else if (reached.Contains(to) && reached.Add(from))
+                    {
+                        grew = true;
+                    }
+                }
+            }
+
+            foreach (KeyValuePair<SimulationId, PhysicsObjectKind> thing in electrical)
+            {
+                if (!reached.Contains(thing.Key))
+                {
+                    throw new InvalidOperationException(
+                        $"{thing.Key} has no cable back to the fuse box, so nothing could ever reach it.");
+                }
+            }
+        }
+
         private void ValidateBlastHoles(HashSet<SimulationId> ids)
         {
             BlastHoles ??= Array.Empty<SimulationId>();

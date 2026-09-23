@@ -97,11 +97,74 @@ namespace Paniq.Simulation
         }
     }
 
+    /// <summary>
+    /// The cable between the sockets and the fuse box, and how fast a spark
+    /// runs along it once something sets it off.
+    /// </summary>
+    [Serializable]
+    public sealed class PowerSettings
+    {
+        /// <summary>
+        /// How fast the spark crawls, in millimetres a tick. 45 is a little
+        /// over two metres a second -- a brisk walk, and slower than somebody
+        /// running.
+        /// <para>
+        /// It started at 120, which is six metres a second. That is faster than
+        /// anybody in the building can run, so the whole chain of sockets went
+        /// off within a few seconds of the first one and there was nothing to
+        /// watch and nothing to do about it. A fuse has to crawl or it is just
+        /// a delayed explosion.
+        /// </para>
+        /// </summary>
+        public int SparkSpeedMillimetresPerTick = 45;
+
+        /// <summary>
+        /// A beat of silence at the fuse box before the big one. Half a second
+        /// of nothing is what makes it land.
+        /// </summary>
+        public int FuseBoxExtraDelayTicks = 25;
+
+        /// <summary>How near the player has to click the fuse box for the card to find it.</summary>
+        public int CardReachMillimetres = 2500;
+
+        public PowerSettings Clone() => (PowerSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(SparkSpeedMillimetresPerTick >= 1, "spark speed");
+            Settings.Require(FuseBoxExtraDelayTicks >= 0, "fuse box delay");
+            Settings.Require(CardReachMillimetres >= 0, "fuse box card reach");
+        }
+    }
+
     /// <summary>Where and when the fire starts, and how fast it spreads square by square.</summary>
     [Serializable]
     public sealed class FireSettings
     {
-        public LogicalBounds SpawnBounds = new LogicalBounds(-2000, 2000, -2000, 2000);
+        /// <summary>
+        /// The preset areas the danger may begin in. One of them is drawn, and
+        /// then a spot inside it, so a run's fire is somewhere different every
+        /// seed without ever being somewhere silly -- inside a wall, in the
+        /// corridor everybody has to use, or out in the street.
+        /// <para>
+        /// A list rather than one rectangle because a floor has more than one
+        /// room worth burning, and because a finished level wants to say where
+        /// its disaster is allowed to start rather than leaving it to chance.
+        /// </para>
+        /// </summary>
+        public LogicalBounds[] SpawnAreas = { new LogicalBounds(-2000, 2000, -2000, 2000) };
+
+        /// <summary>
+        /// The one area, for a scenario that wants the fire in exactly one
+        /// place -- which nearly every test does. Reading it gives the first
+        /// area; setting it replaces the lot with that one.
+        /// </summary>
+        public LogicalBounds SpawnBounds
+        {
+            get => SpawnAreas != null && SpawnAreas.Length > 0 ? SpawnAreas[0] : default;
+            set => SpawnAreas = new[] { value };
+        }
+
         public int ActivationTick = 250;
         public int CellSizeMillimetres = 500;
         public int SpreadMinimumTicks = 40;
@@ -144,11 +207,24 @@ namespace Paniq.Simulation
         /// <summary>Chance a roll puts the flames out for good.</summary>
         public int RollPutsOutChancePercent = 35;
 
-        public FireSettings Clone() => (FireSettings)MemberwiseClone();
+        public FireSettings Clone()
+        {
+            var copy = (FireSettings)MemberwiseClone();
+
+            // The shallow copy would hand both runs the same array, and a run
+            // must never be able to reach into another one's scenario.
+            copy.SpawnAreas = (LogicalBounds[])SpawnAreas?.Clone();
+            return copy;
+        }
 
         internal void Validate()
         {
-            Settings.Require(SpawnBounds.MinX <= SpawnBounds.MaxX && SpawnBounds.MinZ <= SpawnBounds.MaxZ, "fire spawn bounds");
+            Settings.Require(SpawnAreas != null && SpawnAreas.Length > 0, "at least one fire spawn area");
+            for (int i = 0; i < SpawnAreas.Length; i++)
+            {
+                Settings.Require(SpawnAreas[i].MinX <= SpawnAreas[i].MaxX && SpawnAreas[i].MinZ <= SpawnAreas[i].MaxZ,
+                    "fire spawn bounds");
+            }
             Settings.Require(ActivationTick >= 0 && CellSizeMillimetres >= 100, "fire timing and cell size");
             Settings.Require(SpreadMinimumTicks > 0 && SpreadMaximumTicks >= SpreadMinimumTicks, "fire spread interval");
             Settings.Require(Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1) &&
@@ -1023,7 +1099,7 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ObjectKindSettings
     {
-        public const int KindCount = 12;
+        public const int KindCount = 13;
 
         public PhysicsObjectKind Kind;
         public int FrictionPercent = 100;
@@ -1112,7 +1188,13 @@ namespace Paniq.Simulation
 
                 // A pre-authored dormant heap, claimed and placed when a table
                 // is smashed: already wreckage, so it never catches again.
-                Entry(PhysicsObjectKind.TableWreck, 250, 0, 0, 0)
+                Entry(PhysicsObjectKind.TableWreck, 250, 0, 0, 0),
+
+                // The main fuse box. Bolted to the wall like a socket, and the
+                // biggest bang in the building by a long way: a 3.2 m circle
+                // against the microwave's 2.2, and it sets five squares of
+                // floor alight rather than three.
+                Popping(Entry(PhysicsObjectKind.FuseBox, 1000, 110, 50, 80), 3200, 95, 5)
             };
         }
 
@@ -1534,6 +1616,13 @@ namespace Paniq.Simulation
         public int BlastWallCost = 40;
 
         /// <summary>
+        /// Popping the fuse box by hand. Dearer than TNT, because it is the
+        /// biggest bang in the building and it takes the whole chain of sockets
+        /// with it.
+        /// </summary>
+        public int PopFuseBoxCost = 45;
+
+        /// <summary>
         /// What a door click costs. Reaching into the building and working a
         /// door is the player's commonest move, and it used to be free, so
         /// there was never a reason not to fling every door in the place open.
@@ -1551,7 +1640,7 @@ namespace Paniq.Simulation
         {
             Settings.Require(Starting >= 0 && PerPersonSaved >= 0 && Maximum >= Starting, "influence");
             Settings.Require(BeefcakeCost >= 0 && SpawnFireCost >= 0 && SpawnExtinguisherCost >= 0 &&
-                             BlastWallCost >= 0, "card costs");
+                             BlastWallCost >= 0 && PopFuseBoxCost >= 0, "card costs");
             Settings.Require(UnlockDoorCost >= 0 && OpenDoorCost >= 0 && CloseDoorCost >= 0, "door costs");
         }
     }

@@ -58,7 +58,7 @@ namespace Paniq.Tests.EditMode
             data.Agents = new[]
             {
                 new FireReactionAgentDefinition(Raiser, new LogicalPosition(-4500, 2000), CardinalDirection.South, raiser),
-                new FireReactionAgentDefinition(FarAway, new LogicalPosition(15000, 0), CardinalDirection.North, faraway)
+                new FireReactionAgentDefinition(FarAway, TheBuilding.MeetingRoom, CardinalDirection.North, faraway)
             };
             data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];
             data.Tables = new FireReactionTableDefinition[0];
@@ -261,7 +261,9 @@ namespace Paniq.Tests.EditMode
         public void TheDefaultBuilding_HasAnAlarmInEachRoomPeopleUse()
         {
             var simulation = new FireReactionSimulation(scenario.ToRuntimeData());
-            Assert.That(simulation.AlarmCount, Is.EqualTo(3), "The office, the corridor and the meeting room.");
+            Assert.That(simulation.AlarmCount, Is.EqualTo(4),
+                "The office, the corridor, the cafeteria and the meeting room. The closet, the\n"
+                + "stalls and the maintenance room have none: they are cupboards.");
         }
     }
 }

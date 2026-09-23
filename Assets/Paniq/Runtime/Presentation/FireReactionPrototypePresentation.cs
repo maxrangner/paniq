@@ -34,6 +34,7 @@ namespace Paniq.Presentation
         private NavigationGridView navigationGrid;
         private PopBursts pops;
         private EventSigns signs;
+        private PowerCableView cable;
 
         /// <summary>
         /// Who is who, for the signs. Built from the first snapshot, because
@@ -89,6 +90,7 @@ namespace Paniq.Presentation
                 spray = new SprayView(effects);
                 pops = new PopBursts(materials, effects, root);
                 signs = new EventSigns(materials, root);
+                cable = new PowerCableView(scenario, materials, root);
                 input = new PlayerInput(runner, room);
 
                 // Off until G is pressed: the floor painted square by square
@@ -211,6 +213,7 @@ namespace Paniq.Presentation
             boxes.Update(frameSnapshot, previous, blend, time);
             ripples.Update(time);
             signs.Update(time, prototypeCamera.transform.rotation);
+            cable.Update(frameSnapshot, time);
             fire.Update(frameSnapshot, time);
             spray.Update(frameSnapshot);
             pops.Update(time);
@@ -371,6 +374,11 @@ namespace Paniq.Presentation
                         ripples.Start(record.Position, scenario.Blast.BangHearingRadiusMillimetres,
                             SoundRipples.ThudColor, time);
                         pops.Start(record.Position, 0.8f, scenario.Blast.ThrowRadiusMillimetres, record.EventId, time);
+                        break;
+                    case FireReactionEventType.PowerPoppedFuseBox:
+                        // The player reached in and did it themselves; the bang
+                        // itself arrives as an ObjectExploded a moment later.
+                        ripples.Start(record.Position, 2000, SoundRipples.ThudColor, time);
                         break;
                     case FireReactionEventType.ObjectExploded:
                         // A flash, sparks and smoke sized to the blast, and a big

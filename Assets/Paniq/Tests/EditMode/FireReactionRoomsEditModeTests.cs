@@ -92,7 +92,9 @@ namespace Paniq.Tests.EditMode
         public void DefaultScenario_HasAStorageClosetBehindTheEastDoor()
         {
             FireReactionScenarioData data = scenario.ToRuntimeData();
-            Assert.That(data.Rooms, Has.Length.EqualTo(4), "Office, closet, corridor and meeting room.");
+            Assert.That(data.Rooms, Has.Length.EqualTo(11),
+                "Office, closet, corridor, cafeteria, meeting room, bathroom, maintenance,\n"
+                + "the crossbar of the T, and three bathroom stalls.");
             LogicalBounds b = data.Rooms[1].Bounds;
             Assert.That((b.MaxX - b.MinX) * (long)(b.MaxZ - b.MinZ), Is.EqualTo(4000000L), "2 × 2 m: room for two or three.");
 

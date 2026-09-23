@@ -278,6 +278,7 @@ namespace Paniq.Presentation
                 case FireReactionEventType.DoorBlocked: return "jammed!";
                 case FireReactionEventType.DoorBurntThrough: return "burnt through!";
                 case FireReactionEventType.ObjectExploded: return "bang!";
+                case FireReactionEventType.PowerSparkStarted: return "the wire is lit!";
                 default: return null;
             }
         }

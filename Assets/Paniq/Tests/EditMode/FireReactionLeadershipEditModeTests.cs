@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
@@ -108,14 +108,15 @@ namespace Paniq.Tests.EditMode
             data.Doors = FireReactionDoorsEditModeTests
                 .WithAWayOutOfTheOffice(scenario.ToRuntimeData(), startsLocked: false).Doors;
 
-            // The north door's gap is centred on x = -2500 in the wall at z = 6000.
+            // The way out's gap is centred on x = -2500 in the office's south
+            // wall at z = -6000.
             // 20 kg: more than the leader (strength 4) can lift, so they cannot
             // just throw it clear themselves, but not too much for somebody
             // strong -- which is what a leader is for.
             data.PhysicsObjects = new[]
             {
                 new FireReactionPhysicsObjectDefinition(new SimulationId(3001UL), PhysicsObjectKind.Box,
-                    new LogicalPosition(-2500, 5800), 400, 20000)
+                    new LogicalPosition(-2500, -5800), 400, 20000)
             };
 
             var simulation = new FireReactionSimulation(data);

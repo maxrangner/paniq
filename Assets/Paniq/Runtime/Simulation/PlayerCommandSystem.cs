@@ -34,6 +34,7 @@ namespace Paniq.Simulation
         private BodySystem body;
         private WorldGeometry geometry;
         private RoundSystem round;
+        private PowerSystem power;
 
         public PlayerCommandSystem(SimulationContext context)
         {
@@ -43,9 +44,10 @@ namespace Paniq.Simulation
         /// <summary>Wired up after construction, because these are all built after this system.</summary>
         public void Use(DoorSystem doorSystem, FireSystem fireSystem, PhysicsObjectSystem physicsObjects, Crowd people,
             InfluenceSystem influenceSystem, SoundSystem soundSystem, BodySystem bodySystem, WorldGeometry world,
-            RoundSystem theRound)
+            RoundSystem theRound, PowerSystem thePower)
         {
             round = theRound;
+            power = thePower;
             doors = doorSystem;
             fire = fireSystem;
             objects = physicsObjects;
@@ -107,6 +109,7 @@ namespace Paniq.Simulation
                 case PlayerCommandType.SpawnExtinguisher:
                 case PlayerCommandType.BlastWall:
                 case PlayerCommandType.TriggerEvent:
+                case PlayerCommandType.PopFuseBox:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(commandType), $"Unknown command type {commandType}.");
@@ -183,6 +186,9 @@ namespace Paniq.Simulation
                 case PlayerCommandType.BlastWall:
                     played = BlastWall(command);
                     break;
+                case PlayerCommandType.PopFuseBox:
+                    played = PopFuseBox(command);
+                    break;
                 default:
                     played = false;
                     break;
@@ -237,6 +243,32 @@ namespace Paniq.Simulation
         /// then the noise, then the loose things flung away from it, then the
         /// people knocked over.
         /// </summary>
+        /// <summary>
+        /// Pop the fuse box by hand. The spark then runs the other way, out of
+        /// the maintenance room and along the line of sockets, popping each in
+        /// turn -- which costs no extra rules, because a run of cable has no
+        /// direction of its own.
+        /// <para>
+        /// Refused, at no cost and with nothing written down, when there is no
+        /// fuse box near where the player pointed or it has already gone. The
+        /// reach is checked before anything is written, because the log only
+        /// ever grows and must not record something that did not happen.
+        /// </para>
+        /// </summary>
+        private bool PopFuseBox(PlayerCommand command)
+        {
+            if (!power.CanPopTheFuseBoxNear(command.Point))
+            {
+                return false;
+            }
+
+            ulong played = context.Events.Append(context.Tick, default,
+                FireReactionEventType.PowerPoppedFuseBox, command.Point,
+                influence.CostOf(command.CommandType), 0, 0UL).EventId;
+            power.PopTheFuseBoxNear(command.Point, played);
+            return true;
+        }
+
         private bool BlastWall(PlayerCommand command)
         {
             ulong blasted = doors.TryBlastWall(command.Point, influence.CostOf(command.CommandType));

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -176,7 +176,16 @@ namespace Paniq.Simulation
                     Side = definitions[i].Side,
                     Centre = definitions[i].CentreAlongWallMillimetres,
                     Width = definitions[i].WidthMillimetres,
-                    State = definitions[i].StartsLocked ? DoorState.Locked : DoorState.Unlocked
+
+                    // An archway is a doorway with nothing in it. That is
+                    // exactly what a hole blown through a wall already is, so
+                    // it is one: permanently open, nothing to shut, and the
+                    // fire walks through it. The only difference is that this
+                    // one was there from the start rather than being made.
+                    IsHole = definitions[i].IsOpening,
+                    State = definitions[i].IsOpening
+                        ? DoorState.Broken
+                        : definitions[i].StartsLocked ? DoorState.Locked : DoorState.Unlocked
                 };
             }
 

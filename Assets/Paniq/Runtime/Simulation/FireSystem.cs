@@ -77,10 +77,19 @@ namespace Paniq.Simulation
 
             burningPerRoom = new int[geometry.RoomCount];
 
+            // Which preset area the danger begins in, and then whereabouts in
+            // it. A scenario with one area draws nothing for the choice: the
+            // draw is skipped rather than made and thrown away, so every
+            // single-area run -- which is nearly every test -- asks the
+            // generator for exactly the two numbers it always did.
+            LogicalBounds[] areas = settings.SpawnAreas;
+            LogicalBounds area = areas.Length == 1
+                ? areas[0]
+                : areas[context.Random.NextIntInclusive(0, areas.Length - 1)];
             var origin = new LogicalPosition(
-                context.Random.NextIntInclusive(settings.SpawnBounds.MinX, settings.SpawnBounds.MaxX),
-                context.Random.NextIntInclusive(settings.SpawnBounds.MinZ, settings.SpawnBounds.MaxZ));
-            originCell = CellAt(origin);
+                context.Random.NextIntInclusive(area.MinX, area.MaxX),
+                context.Random.NextIntInclusive(area.MinZ, area.MaxZ));
+            originCell = NearestSquareThatCanBurn(CellAt(origin));
         }
 
         public bool Active => active;
@@ -243,6 +252,65 @@ namespace Paniq.Simulation
 
                 neighbourScratch.Add(neighbour);
             }
+        }
+
+        /// <summary>
+        /// The drawn square, or the nearest one to it that is floor in some
+        /// room. A spot drawn inside a spawn area can still land on a square
+        /// whose middle falls in a wall, and a fire lit there would sit in the
+        /// brickwork doing nothing at all.
+        /// <para>
+        /// The search walks outward ring by ring and takes the first square it
+        /// finds, in a fixed order every time. It draws no random numbers, so
+        /// it cannot shift a replay by itself.
+        /// </para>
+        /// </summary>
+        private int NearestSquareThatCanBurn(int cell)
+        {
+            if (cellRooms[cell] >= 0)
+            {
+                return cell;
+            }
+
+            int fromColumn = cell % gridColumns;
+            int fromRow = cell / gridColumns;
+            int furthest = Math.Max(gridColumns, gridRows);
+            for (int ring = 1; ring <= furthest; ring++)
+            {
+                for (int row = fromRow - ring; row <= fromRow + ring; row++)
+                {
+                    if (row < 0 || row >= gridRows)
+                    {
+                        continue;
+                    }
+
+                    bool edgeRow = row == fromRow - ring || row == fromRow + ring;
+                    for (int column = fromColumn - ring; column <= fromColumn + ring; column++)
+                    {
+                        if (column < 0 || column >= gridColumns)
+                        {
+                            continue;
+                        }
+
+                        // Only the ring itself: everything inside it was looked
+                        // at on an earlier, smaller ring.
+                        if (!edgeRow && column != fromColumn - ring && column != fromColumn + ring)
+                        {
+                            continue;
+                        }
+
+                        int candidate = row * gridColumns + column;
+                        if (cellRooms[candidate] >= 0)
+                        {
+                            return candidate;
+                        }
+                    }
+                }
+            }
+
+            // No square anywhere is floor, which a scenario with a room cannot
+            // manage; the drawn square is as good an answer as there is.
+            return cell;
         }
 
         private int CellAt(LogicalPosition position)

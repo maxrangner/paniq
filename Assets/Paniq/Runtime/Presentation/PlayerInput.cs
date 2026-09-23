@@ -68,10 +68,22 @@ namespace Paniq.Presentation
             PlayerCommandType.PlayBeefcake,
             PlayerCommandType.SpawnFire,
             PlayerCommandType.SpawnExtinguisher,
-            PlayerCommandType.BlastWall
+            PlayerCommandType.BlastWall,
+            PlayerCommandType.PopFuseBox
         };
 
         public static bool TargetsAPerson(PlayerCommandType card) => card == PlayerCommandType.PlayBeefcake;
+
+        /// <summary>The number keys, in the order the cards run along the bar.</summary>
+        private static readonly UnityEngine.InputSystem.Key[] NumberKeys =
+        {
+            UnityEngine.InputSystem.Key.Digit1,
+            UnityEngine.InputSystem.Key.Digit2,
+            UnityEngine.InputSystem.Key.Digit3,
+            UnityEngine.InputSystem.Key.Digit4,
+            UnityEngine.InputSystem.Key.Digit5,
+            UnityEngine.InputSystem.Key.Digit6
+        };
 
         public static string NameOf(PlayerCommandType card)
         {
@@ -81,6 +93,7 @@ namespace Paniq.Presentation
                 case PlayerCommandType.SpawnFire: return "Start a fire";
                 case PlayerCommandType.SpawnExtinguisher: return "Put down an extinguisher";
                 case PlayerCommandType.BlastWall: return "TNT: blow open a wall";
+                case PlayerCommandType.PopFuseBox: return "Pop the fuse box";
                 default: return card.ToString();
             }
         }
@@ -191,21 +204,15 @@ namespace Paniq.Presentation
                 return;
             }
 
-            if (keyboard.digit1Key.wasPressedThisFrame)
+            // One branch per card rather than a ladder of them: the fifth
+            // card was the moment copying the fourth stopped being sensible.
+            for (int i = 0; i < Cards.Length && i < NumberKeys.Length; i++)
             {
-                Pick(0);
-            }
-            else if (keyboard.digit2Key.wasPressedThisFrame)
-            {
-                Pick(1);
-            }
-            else if (keyboard.digit3Key.wasPressedThisFrame)
-            {
-                Pick(2);
-            }
-            else if (keyboard.digit4Key.wasPressedThisFrame)
-            {
-                Pick(3);
+                if (keyboard[NumberKeys[i]].wasPressedThisFrame)
+                {
+                    Pick(i);
+                    break;
+                }
             }
 
             bool rightClicked = Mouse.current != null &&

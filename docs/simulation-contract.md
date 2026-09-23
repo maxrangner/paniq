@@ -105,7 +105,10 @@ a logged event, but no behaviour moves a body itself.
 The tick schedule is, in order:
 
 1. Consume commands assigned to this tick.
-2. Advance hazard state.
+2. Advance hazard state. The fire first, then the sparks crawling along the
+   building's power cable, which are hazard advancing on their own clock in
+   exactly the way the fire is. The fire keeps its place at the front of the
+   phase so that adding the cable left its random draws where they were.
 3. Resolve hazard contact at current positions.
 4. Make agent decisions, in ascending Agent ID order, then resolve what those
    decisions set in motion: standing up from chairs, following leaders,

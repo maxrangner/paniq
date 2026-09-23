@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -9,7 +9,7 @@ namespace Paniq.Tests.EditMode
     /// <summary>Hard knocks: being knocked out cold, and strong people breaking locked doors down.</summary>
     public sealed class FireReactionHardKnocksEditModeTests
     {
-        private static readonly SimulationId NorthDoor = new SimulationId(2001UL);
+        private static readonly SimulationId OfficeWayOut = new SimulationId(2001UL);
 
         private FireReactionScenario scenario;
 
@@ -169,7 +169,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void StrongRunner_BreaksALockedDoorDownAndEscapesThroughIt()
         {
-            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheNorthDoor(
+            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheWayOut(
                 DefaultData(), 100, new AgentTraitValues(10, 5, 5, 5, 5, 5));
             data.Exits.DoorStrength = 12;
             var simulation = new FireReactionSimulation(data);
@@ -178,7 +178,7 @@ namespace Paniq.Tests.EditMode
                             simulation.GetAgent(0).Outcome == AgentTerminalOutcome.Unresolved; t++)
             {
                 simulation.Step();
-                FireReactionDoorSnapshot door = Door(simulation, NorthDoor);
+                FireReactionDoorSnapshot door = Door(simulation, OfficeWayOut);
                 if (door.State == DoorState.Locked)
                 {
                     shovesBeforeBreaking = EventsOfType(simulation, FireReactionEventType.AgentForcedDoor).Count;
@@ -191,25 +191,25 @@ namespace Paniq.Tests.EditMode
             List<CausalEvent> broken = EventsOfType(simulation, FireReactionEventType.DoorBrokenDown);
             Assert.That(broken, Has.Count.EqualTo(1), "The strong runner never broke the door.");
             Assert.That(broken[0].SourceId, Is.EqualTo(new SimulationId(1UL)));
-            Assert.That(broken[0].TargetId, Is.EqualTo(NorthDoor));
+            Assert.That(broken[0].TargetId, Is.EqualTo(OfficeWayOut));
             Assert.That(simulation.EventLog.Get(broken[0].CausalParentEventId).EventType,
                 Is.EqualTo(FireReactionEventType.AgentForcedDoor));
-            Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Broken));
+            Assert.That(Door(simulation, OfficeWayOut).State, Is.EqualTo(DoorState.Broken));
 
             Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped));
             List<CausalEvent> escaped = EventsOfType(simulation, FireReactionEventType.AgentEscaped);
             Assert.That(escaped[0].CausalParentEventId, Is.EqualTo(broken[0].EventId), "The escape traces back to the break.");
 
             // A broken door cannot be clicked shut or locked again.
-            simulation.QueueCommand(PlayerCommandType.ClickDoor, NorthDoor, simulation.Tick + 1);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, simulation.Tick + 1);
             simulation.Step();
-            Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Broken));
+            Assert.That(Door(simulation, OfficeWayOut).State, Is.EqualTo(DoorState.Broken));
         }
 
         [Test]
         public void OrdinaryRunner_NeverBreaksADoorDown()
         {
-            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheNorthDoor(
+            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheWayOut(
                 DefaultData(), 100, AgentTraitValues.AllOrdinary);
             data.Exits.DoorStrength = 1;
             var simulation = new FireReactionSimulation(data);
@@ -220,8 +220,8 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(EventsOfType(simulation, FireReactionEventType.AgentForcedDoor), Is.Not.Empty);
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorBrokenDown), Is.Empty);
-            Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Locked));
-            Assert.That(Door(simulation, NorthDoor).DamagePercent, Is.EqualTo(0), "Ordinary shoulders do no damage.");
+            Assert.That(Door(simulation, OfficeWayOut).State, Is.EqualTo(DoorState.Locked));
+            Assert.That(Door(simulation, OfficeWayOut).DamagePercent, Is.EqualTo(0), "Ordinary shoulders do no damage.");
         }
 
         [Test]

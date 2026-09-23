@@ -1,4 +1,4 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
 
@@ -42,7 +42,7 @@ namespace Paniq.Tests.EditMode
             // straight lines.
             WorldGeometry geometry = Geometry(out int radius);
             var inTheOffice = new LogicalPosition(-4000, 0);
-            var inTheMeetingRoom = new LogicalPosition(17000, 0);
+            LogicalPosition inTheMeetingRoom = TheBuilding.MeetingRoom;
 
             Assert.That(geometry.Routes.CanGetFromHereToThere(inTheOffice, inTheMeetingRoom, radius), Is.True,
                 "There is no way from the office to the meeting room.");
@@ -56,7 +56,7 @@ namespace Paniq.Tests.EditMode
             // further than the straight line that goes through two walls.
             WorldGeometry geometry = Geometry(out int radius);
             var inTheOffice = new LogicalPosition(-4000, 0);
-            var inTheMeetingRoom = new LogicalPosition(17000, 0);
+            LogicalPosition inTheMeetingRoom = TheBuilding.MeetingRoom;
 
             long walking = geometry.Routes.WalkingDistance(inTheOffice, inTheMeetingRoom, radius);
             long asTheCrowFlies = IntegerMath.Distance(inTheOffice, inTheMeetingRoom);

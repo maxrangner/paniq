@@ -1,4 +1,4 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
 
@@ -41,8 +41,11 @@ namespace Paniq.Tests.EditMode
             return false;
         }
 
+        /// <summary>North of the corridor: the meeting room and the cafeteria.</summary>
+        private static bool AcrossTheCorridor(LogicalPosition where) => where.Z > 9000;
+
         [Test]
-        public void NinePeople_StartTheRunSeatedAndOneIsOnTheirFeet()
+        public void EightPeople_StartTheRunSeated_SixOfThemInTheMeeting()
         {
             var simulation = new FireReactionSimulation(DefaultData());
             FireReactionSnapshot snapshot = simulation.GetSnapshot();
@@ -57,22 +60,12 @@ namespace Paniq.Tests.EditMode
                 }
 
                 seated++;
-                seatedInTheMeetingRoom += person.Position.X > 9000 ? 1 : 0;
+                seatedInTheMeetingRoom += AcrossTheCorridor(person.Position) && person.Position.X < 2000 ? 1 : 0;
             }
 
-            Assert.That(seated, Is.EqualTo(9), "Nine people are sitting at the meeting table before anything happens.");
-            Assert.That(seatedInTheMeetingRoom, Is.EqualTo(9), "All of them are in the meeting room.");
-
-            int onTheirFeetInTheMeetingRoom = 0;
-            foreach (FireReactionAgentSnapshot person in snapshot.Agents)
-            {
-                if (person.ActivityState != AgentActivityState.Sitting && person.Position.X > 9000)
-                {
-                    onTheirFeetInTheMeetingRoom++;
-                }
-            }
-
-            Assert.That(onTheirFeetInTheMeetingRoom, Is.EqualTo(1), "One person stands at the end of the table.");
+            Assert.That(seated, Is.EqualTo(8),
+                "Six round the meeting table and two at a cafeteria table, before anything happens.");
+            Assert.That(seatedInTheMeetingRoom, Is.EqualTo(6), "Six of them are in the meeting.");
         }
 
         [Test]
@@ -123,7 +116,8 @@ namespace Paniq.Tests.EditMode
                 }
             }
 
-            Assert.That(chairs, Is.EqualTo(17), "Eight chairs at the office desks and nine at the meeting table.");
+            Assert.That(chairs, Is.EqualTo(16),
+                "Eight at the office desks, six at the meeting table and two in the cafeteria.");
             Assert.That(laptops, Is.GreaterThan(0));
         }
 

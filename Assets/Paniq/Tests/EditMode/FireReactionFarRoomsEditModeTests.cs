@@ -1,4 +1,4 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
 
@@ -57,6 +57,9 @@ namespace Paniq.Tests.EditMode
             {
                 new FireReactionDoorDefinition(BetweenThem, NearRoom, WallSide.East, 0, 1000, false)
             };
+
+            // Its own rooms, so its own fire area.
+            data.Fire.SpawnBounds = new LogicalBounds(0, 0, 0, 0);
             data.Fire.ActivationTick = int.MaxValue;
             data.Calm.DecisionMinimumTicks = 100000;
             data.Calm.DecisionMaximumTicks = 100000;

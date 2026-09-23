@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
@@ -111,23 +111,25 @@ namespace Paniq.Tests.EditMode
         public void StrongKindRunner_DragsSomeoneKnockedOutThroughAnOpenDoor()
         {
             // The person in need is knocked out cold by a heavy box before the fire starts;
-            // the helper, between them and a fire to the south, sees the fire and panics.
+            // the helper, between them and a fire to the north, sees the fire and panics.
+            // The way out is the office's south door, so dragging them clear is
+            // dragging them away from the flames rather than through them.
             FireReactionScenarioData data = EmptyRoom(
-                new FireReactionAgentDefinition(Helper, new LogicalPosition(-2500, 1500), CardinalDirection.South,
+                new FireReactionAgentDefinition(Helper, new LogicalPosition(-2500, -1500), CardinalDirection.North,
                     new AgentTraitValues(8, 6, 8, 8, 1, 3)),
-                new FireReactionAgentDefinition(InNeed, new LogicalPosition(-2500, 3000), CardinalDirection.South,
+                new FireReactionAgentDefinition(InNeed, new LogicalPosition(-2500, -3000), CardinalDirection.North,
                     AgentTraitValues.AllOrdinary));
             data.PhysicsObjects = new[]
             {
                 new FireReactionPhysicsObjectDefinition(new SimulationId(3001UL), PhysicsObjectKind.Box,
-                    new LogicalPosition(-4500, 3000), 600, 20000)
+                    new LogicalPosition(-4500, -3000), 600, 20000)
             };
             data.Falls.PassOutChancePercent = 100;
             data.Falls.PassOutMaximumPercent = 100;
             data.Falls.UnconsciousMinimumTicks = 3000;
             data.Falls.UnconsciousMaximumTicks = 3000;
             data.Fire.ActivationTick = 60;
-            data.Fire.SpawnBounds = new LogicalBounds(-2750, -2750, -750, -750);
+            data.Fire.SpawnBounds = new LogicalBounds(-2750, -2750, 750, 750);
             data.Temperament.FreezeForeverPercent = 0;
             data.Temperament.FreezeThenRunPercent = 0;
             var simulation = new FireReactionSimulation(data);

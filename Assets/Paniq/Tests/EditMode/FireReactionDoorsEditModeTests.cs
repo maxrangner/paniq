@@ -8,7 +8,7 @@ namespace Paniq.Tests.EditMode
 {
     public sealed class FireReactionDoorsEditModeTests
     {
-        private static readonly SimulationId NorthDoor = new SimulationId(2001UL);
+        private static readonly SimulationId OfficeWayOut = new SimulationId(2001UL);
 
         /// <summary>The building's one way out, in the meeting room.</summary>
         internal static readonly SimulationId TheWayOut = new SimulationId(2008UL);
@@ -27,7 +27,8 @@ namespace Paniq.Tests.EditMode
             UnityEngine.Object.DestroyImmediate(scenario);
         }
 
-        private FireReactionScenarioData DefaultData() => scenario.ToRuntimeData();
+        private FireReactionScenarioData DefaultData() =>
+            TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
 
         private static FireReactionAgentDefinition Agent(ulong id, int x, int z, CardinalDirection facing)
         {
@@ -83,13 +84,24 @@ namespace Paniq.Tests.EditMode
         {
             FireReactionScenarioData data = DefaultData();
             var simulation = new FireReactionSimulation(data);
-            Assert.That(simulation.DoorCount, Is.EqualTo(4));
+            // Four rooms onto the corridor, the closet, the cafeteria's
+            // shortcut, the maintenance room, three stalls, the archway where
+            // the corridor Ts, and the one way out.
+            Assert.That(simulation.DoorCount, Is.EqualTo(12));
             var sides = new HashSet<WallSide>();
             int locked = 0;
             for (int i = 0; i < simulation.DoorCount; i++)
             {
                 FireReactionDoorSnapshot door = simulation.GetDoor(i);
                 FireReactionDoorDefinition definition = Array.Find(data.Doors, d => d.DoorId == door.DoorId);
+                if (definition.IsOpening)
+                {
+                    // An archway is a gap rather than a door: nothing shuts it,
+                    // and the rules already describe a gap in a wall as broken.
+                    Assert.That(door.State, Is.EqualTo(DoorState.Broken),
+                        $"The archway {door.DoorId} should stand open from the start.");
+                    continue;
+                }
 
                 // The ways out start locked; the inside doors are shut but not locked.
                 Assert.That(door.State, Is.EqualTo(definition.StartsLocked ? DoorState.Locked : DoorState.Unlocked));
@@ -115,32 +127,32 @@ namespace Paniq.Tests.EditMode
             data.Influence.Starting = 1000;
             data.Influence.Maximum = 1000;
             var simulation = new FireReactionSimulation(data);
-            Click(simulation, NorthDoor);
+            Click(simulation, OfficeWayOut);
             simulation.Step();
-            Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Unlocked));
+            Assert.That(Door(simulation, OfficeWayOut).State, Is.EqualTo(DoorState.Unlocked));
             List<CausalEvent> unlocked = EventsOfType(simulation, FireReactionEventType.DoorUnlocked);
             Assert.That(unlocked, Has.Count.EqualTo(1));
-            Assert.That(unlocked[0].SourceId, Is.EqualTo(NorthDoor));
+            Assert.That(unlocked[0].SourceId, Is.EqualTo(OfficeWayOut));
             Assert.That(unlocked[0].HasCausalParent, Is.False, "A player click is a root cause.");
 
-            Click(simulation, NorthDoor);
+            Click(simulation, OfficeWayOut);
             simulation.Step();
-            Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Open));
+            Assert.That(Door(simulation, OfficeWayOut).State, Is.EqualTo(DoorState.Open));
             List<CausalEvent> opened = EventsOfType(simulation, FireReactionEventType.DoorOpened);
             Assert.That(opened, Has.Count.EqualTo(1));
             Assert.That(opened[0].CausalParentEventId, Is.EqualTo(unlocked[0].EventId));
 
-            Click(simulation, NorthDoor);
+            Click(simulation, OfficeWayOut);
             simulation.Step();
-            Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Unlocked), "A third click closes it.");
+            Assert.That(Door(simulation, OfficeWayOut).State, Is.EqualTo(DoorState.Unlocked), "A third click closes it.");
             List<CausalEvent> closed = EventsOfType(simulation, FireReactionEventType.DoorClosed);
             Assert.That(closed, Has.Count.EqualTo(1));
             Assert.That(closed[0].HasCausalParent, Is.False, "The player closing a door is a root cause.");
-            Assert.That(closed[0].TargetId, Is.EqualTo(NorthDoor));
+            Assert.That(closed[0].TargetId, Is.EqualTo(OfficeWayOut));
 
-            Click(simulation, NorthDoor);
+            Click(simulation, OfficeWayOut);
             simulation.Step();
-            Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Open));
+            Assert.That(Door(simulation, OfficeWayOut).State, Is.EqualTo(DoorState.Open));
             Assert.That(EventsOfType(simulation, FireReactionEventType.DoorOpened), Has.Count.EqualTo(2));
             Assert.That(simulation.Commands, Has.Count.EqualTo(4));
         }
@@ -151,7 +163,7 @@ namespace Paniq.Tests.EditMode
             var simulation = new FireReactionSimulation(DefaultData());
             simulation.Step();
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                simulation.QueueCommand(PlayerCommandType.ClickDoor, NorthDoor, simulation.Tick));
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, simulation.Tick));
             Assert.Throws<ArgumentException>(() =>
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, new SimulationId(1001UL), simulation.Tick + 1));
         }
@@ -216,9 +228,13 @@ namespace Paniq.Tests.EditMode
             {
                 FireReactionScenarioData data = DefaultData();
 
-                // Every door is locked here, inside doors included.
+                // Every door is locked here, inside doors included. An archway
+                // stays an archway: it is a gap in a wall rather than a door,
+                // so there is nothing there to turn a key in, and pretending
+                // otherwise would wall off half the building.
                 data.Doors = Array.ConvertAll(data.Doors, d => new FireReactionDoorDefinition(
-                    d.DoorId, d.RoomId, d.Side, d.CentreAlongWallMillimetres, d.WidthMillimetres, true));
+                    d.DoorId, d.RoomId, d.Side, d.CentreAlongWallMillimetres, d.WidthMillimetres,
+                    startsLocked: true, isOpening: d.IsOpening));
 
                 // Nobody here is strong enough to break a door down.
                 data.Traits.DoorDamagePerPoint = 0;
@@ -244,8 +260,14 @@ namespace Paniq.Tests.EditMode
                     {
                         case FireReactionEventType.AgentTriedDoor:
                             tried++;
+
+                            // Somebody tries a door because they are frightened.
+                            // Catching fire is its own reason to be frightened,
+                            // and somebody alight rattling a locked handle is
+                            // the same behaviour with a worse cause.
                             Assert.That(simulation.EventLog.Get(record.CausalParentEventId).EventType,
-                                Is.EqualTo(FireReactionEventType.AgentScared));
+                                Is.EqualTo(FireReactionEventType.AgentScared)
+                                    .Or.EqualTo(FireReactionEventType.AgentCaughtFire));
                             break;
                         case FireReactionEventType.AgentForcedDoor:
                         case FireReactionEventType.AgentGaveUpOnDoor:
@@ -272,6 +294,16 @@ namespace Paniq.Tests.EditMode
             for (ulong seed = 40UL; seed <= 44UL; seed++)
             {
                 FireReactionScenarioData data = DefaultData();
+
+                // Enough in the purse to actually work every door. Twelve
+                // doors at thirty apiece is far past the hundred a round
+                // starts with, so "with every door open" was quietly untrue:
+                // the money ran out around the third door and the way out was
+                // never touched. This test is about what open doors do, not
+                // about what they cost -- FireReactionPowersEditModeTests owns
+                // the prices.
+                data.Influence.Starting = 2000;
+                data.Influence.Maximum = 2000;
                 var simulation = new FireReactionSimulation(data, seed);
                 OpenEveryDoor(simulation);
                 // Bodies give a little: in a packed, shoving crowd two people on
@@ -279,7 +311,11 @@ namespace Paniq.Tests.EditMode
                 // no further. People knocked down can end up in a heap, one
                 // sprawled across another, which is a pile, not an overlap.
                 long touching = data.World.OccupancyRadiusMillimetres * 2L - 50L;
-                int endTick = data.Fire.ActivationTick + 30 * FireReactionSimulation.TicksPerSecond;
+                // A minute, not thirty seconds. The way out is at the far end
+                // of a corridor that runs the length of the building now, so
+                // somebody starting in the office has twenty-odd metres and a
+                // queue between them and the street.
+                int endTick = data.Fire.ActivationTick + 60 * FireReactionSimulation.TicksPerSecond;
                 List<NavigationGrid.Wall> walls = simulation.GeometryForTests.SolidWalls();
                 var before = new LogicalPosition[simulation.AgentCount];
                 for (int i = 0; i < before.Length; i++)
@@ -465,11 +501,11 @@ namespace Paniq.Tests.EditMode
 
             // The player throws the door open, so there is nothing to work out
             // and nothing in the way: just a way out, standing open.
-            simulation.QueueCommand(PlayerCommandType.ClickDoor, NorthDoor, 2);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, 2);
             int wayOut = -1;
             for (int d = 0; d < simulation.DoorCount; d++)
             {
-                if (simulation.GetDoor(d).DoorId == NorthDoor)
+                if (simulation.GetDoor(d).DoorId == OfficeWayOut)
                 {
                     wayOut = d;
                 }
@@ -520,7 +556,7 @@ namespace Paniq.Tests.EditMode
         /// luck. The people are frightened by hand once the fire has started;
         /// see <see cref="Frighten"/>.
         /// </summary>
-        private FireReactionScenarioData FleeingTheMeetingRoom(params FireReactionAgentDefinition[] people)
+        private FireReactionScenarioData FleeingTowardTheWayOut(params FireReactionAgentDefinition[] people)
         {
             FireReactionScenarioData data = DefaultData();
             data.Agents = people;
@@ -566,17 +602,23 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The owner's report (seed 42): somebody let out of the corridor steps
-        /// through into the meeting room, is knocked off their line a moment
-        /// later, and walks back into the corridor to go through the same door
-        /// again -- and, being close to it, never thinks again. Once through,
-        /// the next leg starts from the room they are standing in.
+        /// The owner's report (seed 42): somebody steps through a doorway, is
+        /// knocked off their line a moment later, and walks back through the
+        /// same door to go through it again -- and, being close to it, never
+        /// thinks again. Once through, the next leg starts from the room they
+        /// are standing in.
+        /// <para>
+        /// It was first seen on the corridor door into the meeting room. The
+        /// meeting room is a dead end now, so the same trap is set the other
+        /// way round: out of the meeting room into the corridor, which is the
+        /// direction somebody heading for the way out actually goes.
+        /// </para>
         /// </summary>
         [Test]
         public void SomebodyKnockedAsideJustThroughADoor_CarriesOnRatherThanGoingBack()
         {
-            FireReactionScenarioData data = FleeingTheMeetingRoom(
-                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(9800, 900),
+            FireReactionScenarioData data = FleeingTowardTheWayOut(
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-2000, 8600),
                     CardinalDirection.South, AgentTraitValues.AllOrdinary));
             var simulation = new FireReactionSimulation(data);
             simulation.QueueCommand(PlayerCommandType.ClickDoor, new SimulationId(2006UL), 1);
@@ -589,13 +631,14 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
             }
 
-            // Exactly where the owner saw it: still set on the corridor door,
-            // from the corridor side, but standing in the meeting room beside it.
+            // Exactly the shape of what the owner saw: still set on the door
+            // they have just used, from the side they came from, but standing
+            // in the room beyond it.
             WorldGeometry geometry = simulation.GeometryForTests;
-            int corridor = geometry.RoomAt(new LogicalPosition(7500, 0));
+            int meetingRoom = geometry.RoomAt(TheBuilding.MeetingRoom);
             Agent person = simulation.AgentForTests(0);
             person.Doors.ExitDoorIndex = DoorIndex(simulation, new SimulationId(2006UL));
-            person.Doors.ApproachRoom = corridor;
+            person.Doors.ApproachRoom = meetingRoom;
             person.Intent.NextPanicDecisionTick = simulation.Tick + 10000;
 
             for (int t = 0; t < 5 * FireReactionSimulation.TicksPerSecond; t++)
@@ -607,8 +650,8 @@ namespace Paniq.Tests.EditMode
                     break;
                 }
 
-                Assert.That(geometry.RoomAt(now.Position), Is.Not.EqualTo(corridor),
-                    $"They walked back into the corridor at tick {simulation.Tick}.");
+                Assert.That(geometry.RoomAt(now.Position), Is.Not.EqualTo(meetingRoom),
+                    $"They walked back into the meeting room at tick {simulation.Tick}.");
             }
 
             if (simulation.GetAgent(0).Outcome != AgentTerminalOutcome.Escaped)
@@ -631,9 +674,9 @@ namespace Paniq.Tests.EditMode
             FireReactionAgentDefinition Person(ulong id, int x, int z) =>
                 new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z),
                     CardinalDirection.South, AgentTraitValues.AllOrdinary);
-            FireReactionScenarioData data = FleeingTheMeetingRoom(
-                Person(1UL, 18750, 3000), Person(2UL, 18750, 3550), Person(3UL, 18200, 3300),
-                Person(4UL, 18200, 3850), Person(5UL, 17650, 3550));
+            FireReactionScenarioData data = FleeingTowardTheWayOut(
+                Person(1UL, 14000, 16200), Person(2UL, 14550, 16200), Person(3UL, 14275, 15650),
+                Person(4UL, 14825, 15650), Person(5UL, 14550, 15100));
             var simulation = new FireReactionSimulation(data);
             simulation.QueueCommand(PlayerCommandType.ClickDoor, TheWayOut, 1);
             simulation.QueueCommand(PlayerCommandType.ClickDoor, TheWayOut, 2);
@@ -662,15 +705,15 @@ namespace Paniq.Tests.EditMode
         public void AChairWedgedInTheWayOut_IsThrownClearByAnOrdinaryPerson()
         {
             var ordinary = new AgentTraitValues(5, 5, 5, 5, 2, 5, 4);
-            FireReactionScenarioData data = FleeingTheMeetingRoom(
-                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(17600, 2500),
-                    CardinalDirection.East, ordinary));
+            FireReactionScenarioData data = FleeingTowardTheWayOut(
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(14500, 15400),
+                    CardinalDirection.North, ordinary));
             Assert.That(ordinary.Strength, Is.LessThan(data.Blockades.ShoveMinimumStrength),
                 "The point is somebody too weak to heave it along the wall.");
             data.PhysicsObjects = new[]
             {
                 new FireReactionPhysicsObjectDefinition(new SimulationId(3900UL), PhysicsObjectKind.OfficeChair,
-                    new LogicalPosition(18740, 2500), 500, 9000)
+                    new LogicalPosition(14500, 16600), 500, 9000)
             };
 
             var simulation = new FireReactionSimulation(data);
@@ -698,7 +741,10 @@ namespace Paniq.Tests.EditMode
         {
             var doors = new List<FireReactionDoorDefinition>(data.Doors)
             {
-                new FireReactionDoorDefinition(NorthDoor, PrototypeBuilding.Office, WallSide.North, -2500, 1000,
+                // The south wall, not the north one: the office's north wall
+                // opens onto the corridor now, and a way *out* has to face the
+                // street or nobody can ever leave through it.
+                new FireReactionDoorDefinition(OfficeWayOut, PrototypeBuilding.Office, WallSide.South, -2500, 1000,
                     startsLocked)
             };
             data.Doors = doors.ToArray();
@@ -706,17 +752,17 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>One runner (an ordinary person unless traits are given) who panics right beside the locked north door.</summary>
-        internal static FireReactionScenarioData RunnerByTheNorthDoor(
+        internal static FireReactionScenarioData RunnerByTheWayOut(
             FireReactionScenarioData data, int forceChancePercent, AgentTraitValues traits)
         {
             WithAWayOutOfTheOffice(data);
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-2500, 4700), CardinalDirection.South, traits)
+                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-2500, -4700), CardinalDirection.North, traits)
             };
             data.PhysicsObjects = Array.Empty<FireReactionPhysicsObjectDefinition>();
             data.Fire.ActivationTick = 1;
-            data.Fire.SpawnBounds = new LogicalBounds(-2500, -2500, 2100, 2100);
+            data.Fire.SpawnBounds = new LogicalBounds(-2500, -2500, -2100, -2100);
             data.Perception.MaximumReactionDelayTicks = 0;
             data.Temperament.FreezeThenRunPercent = 0;
             data.Temperament.FreezeForeverPercent = 0;
@@ -727,15 +773,15 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
-        private FireReactionScenarioData RunnerByTheNorthDoor(int forceChancePercent)
+        private FireReactionScenarioData RunnerByTheWayOut(int forceChancePercent)
         {
-            return RunnerByTheNorthDoor(DefaultData(), forceChancePercent, AgentTraitValues.AllOrdinary);
+            return RunnerByTheWayOut(DefaultData(), forceChancePercent, AgentTraitValues.AllOrdinary);
         }
 
         [Test]
         public void RunnerAtALockedDoor_ForcesItInVainUntilItIsUnlocked()
         {
-            var simulation = new FireReactionSimulation(RunnerByTheNorthDoor(100));
+            var simulation = new FireReactionSimulation(RunnerByTheWayOut(100));
             CausalEvent firstShove = default;
             for (int t = 0; t < 5 * FireReactionSimulation.TicksPerSecond; t++)
             {
@@ -751,12 +797,12 @@ namespace Paniq.Tests.EditMode
             Assert.That(firstShove.EventId, Is.Not.EqualTo(0UL), "The runner never tried to force the locked door.");
             CausalEvent tried = simulation.EventLog.Get(firstShove.CausalParentEventId);
             Assert.That(tried.EventType, Is.EqualTo(FireReactionEventType.AgentTriedDoor));
-            Assert.That(tried.Position, Is.EqualTo(Door(simulation, NorthDoor).Centre));
+            Assert.That(tried.Position, Is.EqualTo(Door(simulation, OfficeWayOut).Centre));
             Assert.That(simulation.GetAgent(0).ActivityState, Is.EqualTo(AgentActivityState.ForcingDoor));
-            Assert.That(Door(simulation, NorthDoor).State, Is.EqualTo(DoorState.Locked), "Forcing must never work.");
+            Assert.That(Door(simulation, OfficeWayOut).State, Is.EqualTo(DoorState.Locked), "Forcing must never work.");
 
             // The player unlocks it mid-shove: the runner gets it open at once and leaves.
-            Click(simulation, NorthDoor);
+            Click(simulation, OfficeWayOut);
             for (int t = 0; t < 3 * FireReactionSimulation.TicksPerSecond &&
                             simulation.GetAgent(0).Outcome != AgentTerminalOutcome.Escaped; t++)
             {
@@ -774,8 +820,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void RunnerAtALockedDoor_CanGiveUpAndLookForAnotherWay()
         {
-            var simulation = new FireReactionSimulation(RunnerByTheNorthDoor(0));
-            LogicalPosition doorCentre = Door(simulation, NorthDoor).Centre;
+            var simulation = new FireReactionSimulation(RunnerByTheWayOut(0));
+            LogicalPosition doorCentre = Door(simulation, OfficeWayOut).Centre;
             int gaveUpTick = -1;
             long farthest = 0L;
             for (int t = 0; t < 8 * FireReactionSimulation.TicksPerSecond; t++)
@@ -918,6 +964,12 @@ namespace Paniq.Tests.EditMode
                     case FireReactionEventType.AgentBlasted:
                     case FireReactionEventType.AgentDoused:
                         Assert.That(agents, Does.Contain(record.TargetId), $"{record.EventType} names the person hit.");
+                        break;
+
+                    case FireReactionEventType.PowerSparkStarted:
+                    case FireReactionEventType.PowerSparkArrived:
+                        Assert.That(boxes, Does.Contain(record.TargetId),
+                            $"{record.EventType} names the socket or fuse box at the far end.");
                         break;
                     default:
                         Assert.That(record.HasTarget, Is.False, $"{record.EventType} should not name a target.");

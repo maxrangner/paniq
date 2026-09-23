@@ -21,6 +21,7 @@ namespace Paniq.Simulation
         private readonly SimulationContext context;
         private readonly Agent[] agents;
         private readonly FireSystem fire;
+        private readonly PowerSystem power;
         private readonly DoorSystem doors;
         private readonly PlayerCommandSystem playerCommands;
         private readonly InfluenceSystem influence;
@@ -94,11 +95,13 @@ namespace Paniq.Simulation
                 var sound = new SoundSystem(context, crowd, fire, fear, geometry);
                 perception = new PerceptionSystem(context, fire, fear, sound);
                 body = new BodySystem(context, fire, sound, fear);
-                objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound, physics);
+                objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound, fire, physics);
                 people = new PeopleBodies(context, crowd, physics, fire, objects.Count);
                 people.UseBody(body);
                 body.UsePeople(people);
                 objects.UsePeople(people);
+                power = new PowerSystem(context, objects);
+                objects.UsePower(power);
                 collisions = new CollisionSystem(context, crowd, body, fear, sound, people);
                 doors.UseObjects(objects);
                 doors.UsePhysics(physics, people);
@@ -106,7 +109,7 @@ namespace Paniq.Simulation
                 people.AddEveryone();
                 SeatPeopleWhoStartSeated();
                 locomotion = new Locomotion(context, crowd, geometry, objects);
-                flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body, sound);
+                flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
                 items = new ItemBehaviour(context, geometry, objects, flammables);
                 chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs);
@@ -130,7 +133,7 @@ namespace Paniq.Simulation
                 // walking off to the bell; plenty of other people are free to hit it.
                 panic.Offer(leaders, extinguishers, help, alarmBehaviour, barricades);
                 round.Use(flammables, doors);
-                playerCommands.Use(doors, fire, objects, crowd, influence, sound, body, geometry, round);
+                playerCommands.Use(doors, fire, objects, crowd, influence, sound, body, geometry, round, power);
             }
             catch
             {
@@ -466,6 +469,16 @@ namespace Paniq.Simulation
 
         internal WorldGeometry GeometryForTests => geometry;
 
+        /// <summary>
+        /// The middle of the square the fire was drawn to start in, whether or
+        /// not it has been lit yet. For a test that wants to know where the
+        /// danger would begin without having to set it going.
+        /// </summary>
+        internal LogicalPosition FireOriginForTests => fire.Origin;
+
+        /// <summary>The cable and the sparks on it, for a test to watch one travel.</summary>
+        internal PowerSystem PowerForTests => power;
+
         /// <summary>Tests only: what touched what in the last physics step.</summary>
         internal IReadOnlyList<PhysicsWorld.Contact> ContactsForTests => physics.Contacts;
 
@@ -564,6 +577,11 @@ namespace Paniq.Simulation
             context.Tick = checked(context.Tick + 1);
             playerCommands.Consume();
             fire.Advance();
+
+            // Phase 2 as well: a fuse burning along a wall toward a socket is
+            // hazard advancing on its own clock, exactly as the fire is. It
+            // goes after the fire so the fire's draws stay where they were.
+            power.Advance();
             ResolveCurrentFireContact();
 
             for (int i = 0; i < agents.Length; i++)
@@ -775,6 +793,7 @@ namespace Paniq.Simulation
                 CardCosts(),
                 DoorClickCosts(),
                 doors.BlastChargesRemaining,
+                power.Sparks(),
                 round.Phase,
                 context.Scenario.Round.TargetSavedPercent);
         }

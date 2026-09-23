@@ -329,6 +329,34 @@ namespace Paniq.Simulation
     /// origin: the spot on its underside it was built up from, which is where
     /// its feet are for a person and the middle of its base for an object.
     /// </summary>
+    /// <summary>
+    /// A spark on its way along one run of cable: which run, and how far along
+    /// it has got in millimetres from the end it started at.
+    /// <para>
+    /// How far it has travelled is a rule -- it decides when the next socket
+    /// pops -- so the view reads it rather than timing its own animation, and
+    /// the drawn spark is always exactly where the run has it.
+    /// </para>
+    /// </summary>
+    public readonly struct FireReactionPowerSparkSnapshot
+    {
+        public FireReactionPowerSparkSnapshot(int lineIndex, int travelledMillimetres, bool runsForward)
+        {
+            LineIndex = lineIndex;
+            TravelledMillimetres = travelledMillimetres;
+            RunsForward = runsForward;
+        }
+
+        /// <summary>Which run of cable, as an index into the scenario's power lines.</summary>
+        public int LineIndex { get; }
+
+        /// <summary>How far along that run the spark has crawled, from the end it started at.</summary>
+        public int TravelledMillimetres { get; }
+
+        /// <summary>Whether it is travelling from the run's first corner toward its last.</summary>
+        public bool RunsForward { get; }
+    }
+
     public readonly struct BodyPose
     {
         public const int RotationScale = 10000;
@@ -404,12 +432,14 @@ namespace Paniq.Simulation
             int[] cardCosts,
             int[] doorClickCosts,
             int blastChargesRemaining,
+            IReadOnlyList<FireReactionPowerSparkSnapshot> powerSparks,
             RoundPhase roundPhase,
             int targetSavedPercent)
         {
             RoundPhase = roundPhase;
             TargetSavedPercent = targetSavedPercent;
             BlastChargesRemaining = blastChargesRemaining;
+            PowerSparks = powerSparks;
             AlarmsRinging = alarmsRinging;
             Influence = influence;
             InfluenceMaximum = influenceMaximum;
@@ -468,6 +498,13 @@ namespace Paniq.Simulation
         public LogicalPosition FireOrigin { get; }
         public int FireCellSizeMillimetres { get; }
         public IReadOnlyList<FireCellSnapshot> FireCells => fireCells;
+
+        /// <summary>
+        /// Every spark crawling along the cable right now, so the view can
+        /// draw it in the same place the rules have it. Empty when nothing is
+        /// lit, which is most of a round.
+        /// </summary>
+        public IReadOnlyList<FireReactionPowerSparkSnapshot> PowerSparks { get; }
         public IReadOnlyList<FireReactionAgentSnapshot> Agents => agents;
         public IReadOnlyList<CausalEvent> Events => events;
         public IReadOnlyList<FireReactionDoorSnapshot> Doors => doors;

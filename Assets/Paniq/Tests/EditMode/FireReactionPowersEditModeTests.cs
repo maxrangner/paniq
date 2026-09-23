@@ -13,7 +13,7 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class FireReactionPowersEditModeTests
     {
-        private static readonly SimulationId NorthDoor = new SimulationId(2001UL);
+        private static readonly SimulationId OfficeWayOut = new SimulationId(2001UL);
 
         private FireReactionScenario scenario;
 
@@ -249,7 +249,7 @@ namespace Paniq.Tests.EditMode
         {
             // An ordinary person (strength 5) does no damage to a locked door at
             // all; the same person after Beefcake breaks it off its hinges.
-            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheNorthDoor(
+            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheWayOut(
                 scenario.ToRuntimeData(), 0, AgentTraitValues.AllOrdinary);
             data.Exits.DoorForceChancePercent = 100;
             data.Exits.DoorForceMinimumTicks = 100000;
@@ -430,12 +430,12 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void GettingSomebodyOut_PaysTheirRescueBack()
         {
-            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheNorthDoor(
+            FireReactionScenarioData data = FireReactionDoorsEditModeTests.RunnerByTheWayOut(
                 scenario.ToRuntimeData(), 0, AgentTraitValues.AllOrdinary);
             int starting = data.Influence.Starting;
             var simulation = new FireReactionSimulation(data);
-            simulation.QueueCommand(PlayerCommandType.ClickDoor, NorthDoor, 1);
-            simulation.QueueCommand(PlayerCommandType.ClickDoor, NorthDoor, 2);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, 1);
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, 2);
             for (int t = 0; t < 20 * FireReactionSimulation.TicksPerSecond &&
                             simulation.GetAgent(0).Outcome != AgentTerminalOutcome.Escaped; t++)
             {

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 
@@ -182,6 +182,7 @@ namespace Paniq.Presentation
                 case FireReactionEventType.PowerSpawnedFire:
                 case FireReactionEventType.PowerSpawnedExtinguisher:
                 case FireReactionEventType.PowerBlastedWall:
+                case FireReactionEventType.PowerPoppedFuseBox:
                 case FireReactionEventType.RoundEventTriggered:
                 case FireReactionEventType.DoorUnlocked:
                     return Player;

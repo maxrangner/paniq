@@ -201,7 +201,10 @@ namespace Paniq.Presentation
                     float gapStart = Metres(door.CentreAlongWallMillimetres - door.WidthMillimetres / 2);
                     CreateWallPiece(side, piece++, alongX, wallLine, cursor, gapStart, name);
                     cursor = Metres(door.CentreAlongWallMillimetres + door.WidthMillimetres / 2);
-                    if (door.RoomId == room.RoomId)
+                    // An archway is a gap and nothing else: the wall is cut
+                    // around it exactly as it is for a door, but there is no
+                    // leaf to hang, nothing to swing and nothing to click.
+                    if (door.RoomId == room.RoomId && !door.IsOpening)
                     {
                         CreateDoor(door, alongX, wallLine);
                     }

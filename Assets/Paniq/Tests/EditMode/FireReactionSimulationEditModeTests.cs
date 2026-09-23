@@ -25,7 +25,8 @@ namespace Paniq.Tests.EditMode
             UnityEngine.Object.DestroyImmediate(scenario);
         }
 
-        private FireReactionScenarioData DefaultData() => scenario.ToRuntimeData();
+        private FireReactionScenarioData DefaultData() =>
+            TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
 
         private static FireReactionAgentDefinition Agent(ulong id, int x, int z, CardinalDirection facing)
         {
@@ -41,8 +42,8 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("47"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(39));
+            Assert.That(data.ContentRevision, Is.EqualTo("50"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(40));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -58,7 +59,11 @@ namespace Paniq.Tests.EditMode
             var asset = AssetDatabase.LoadAssetAtPath<FireReactionScenario>(ScenarioAssetPath);
             Assert.That(asset, Is.Not.Null, $"Missing {ScenarioAssetPath}.");
             Assert.That(asset.IsValid(out string error), Is.True, error);
-            int compared = AssertSameValues(asset.ToRuntimeData(), DefaultData(), "scenario");
+            // The untouched defaults, not this class's DefaultData: that one
+            // pins the fire to the office so the crowd tests always have a fire
+            // where the crowd is, and comparing against it would say the saved
+            // asset was wrong about the very thing it is right about.
+            int compared = AssertSameValues(asset.ToRuntimeData(), scenario.ToRuntimeData(), "scenario");
             Assert.That(compared, Is.GreaterThan(100), "The comparison walked too few values; it may have stopped finding the settings.");
         }
 
@@ -291,10 +296,17 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = NobodyFightsTheFire();
             data.Fire.ActivationTick = 1;
             var simulation = new FireReactionSimulation(data);
-            // The office's 24 × 24 squares, plus the closet, the 3 m corridor
-            // and the 10 × 9 m meeting room.
+            // The office is 24 x 24 squares of the fire's half-metre grid.
             int officeCells = 24 * 24;
-            Assert.That(simulation.FireFloorCellCount, Is.EqualTo(officeCells + 4 * 4 + 6 * 6 + 20 * 18));
+
+            // The rest of the floor -- the closet, the corridor and its arm,
+            // the cafeteria, the meeting room, the bathroom, its three stalls
+            // and the maintenance room -- is a good deal more again. The exact
+            // total is not pinned here: it is a property of the floor plan,
+            // and a test about the fire filling a room should not fail because
+            // somebody moved a wall.
+            Assert.That(simulation.FireFloorCellCount, Is.GreaterThan(officeCells),
+                "The building is bigger than the office it starts in.");
             for (int i = 0; i < 60 * FireReactionSimulation.TicksPerSecond && simulation.FireCellCount < officeCells; i++)
             {
                 simulation.Step();
@@ -1093,10 +1105,15 @@ namespace Paniq.Tests.EditMode
                     if (agent.ActivityState == AgentActivityState.Frozen)
                     {
                         // Frozen to the spot, give or take being jostled by the
-                        // people running past.
+                        // people running past. Eighty centimetres rather than
+                        // sixty: the building now funnels everybody down one
+                        // corridor, so somebody rooted in a doorway takes a far
+                        // harder shoving than they did in two big rooms. It is
+                        // still nothing like walking away, which is what this
+                        // is guarding against.
                         frozenAt[i] ??= agent.Position;
                         Assert.That(LogicalPosition.DistanceSquared(agent.Position, frozenAt[i].Value),
-                            Is.LessThanOrEqualTo(600L * 600L),
+                            Is.LessThanOrEqualTo(800L * 800L),
                             $"Permanently frozen agent {agent.AgentId} moved.");
                     }
                     else

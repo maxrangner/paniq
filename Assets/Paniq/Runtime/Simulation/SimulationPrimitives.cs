@@ -477,7 +477,24 @@ namespace Paniq.Simulation
         /// burning square that ate it). It is open for good, like any other
         /// broken door.
         /// </summary>
-        DoorBurntThrough
+        DoorBurntThrough,
+
+        /// <summary>
+        /// A spark set off along a run of cable (source: the thing that just
+        /// went off; target: what is at the far end; strength: how long the
+        /// run is in millimetres; duration: how many ticks it will take).
+        /// </summary>
+        PowerSparkStarted,
+
+        /// <summary>
+        /// A spark reached the far end of its cable (source and target: the
+        /// thing it reached). Whatever is there goes off, unless it already
+        /// has.
+        /// </summary>
+        PowerSparkArrived,
+
+        /// <summary>The player popped the fuse box by hand (target: the box; strength: what it cost).</summary>
+        PowerPoppedFuseBox
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>
@@ -549,7 +566,14 @@ namespace Paniq.Simulation
         WallSocket,
 
         /// <summary>The heap a smashed table collapses into: still something to trip over, but nobody sits on it.</summary>
-        TableWreck
+        TableWreck,
+
+        /// <summary>
+        /// The floor's main fuse box, bolted to the maintenance room wall.
+        /// Every socket's cable runs back to it, and when it goes off it goes
+        /// off harder than anything else in the building.
+        /// </summary>
+        FuseBox
     }
 
     /// <summary>
@@ -581,7 +605,14 @@ namespace Paniq.Simulation
         /// one deliberate "start the trouble" the round waits for. The first
         /// one starts the hazard; any later one does nothing.
         /// </summary>
-        TriggerEvent
+        TriggerEvent,
+
+        /// <summary>
+        /// Pop the fuse box by hand. Aimed at a place rather than a thing,
+        /// because the card finds the box near where the player pointed, and a
+        /// floor has one of them.
+        /// </summary>
+        PopFuseBox
     }
 
     /// <summary>

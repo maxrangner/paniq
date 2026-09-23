@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -150,6 +150,8 @@ namespace Paniq.Simulation
         private readonly BodySystem body;
         private readonly FearSystem fear;
         private readonly SoundSystem sound;
+        private readonly FireSystem fire;
+        private PowerSystem power;
         private readonly PhysicsWorld world;
         private readonly ObjectPhysicsSettings settings;
         private readonly PhysicsFeelSettings feel;
@@ -201,7 +203,7 @@ namespace Paniq.Simulation
             WorldGeometry geometry,
             BodySystem body,
             FearSystem fear,
-            SoundSystem sound,
+            SoundSystem sound, FireSystem fire,
             PhysicsWorld world)
         {
             this.context = context;
@@ -210,6 +212,7 @@ namespace Paniq.Simulation
             this.body = body;
             this.fear = fear;
             this.sound = sound;
+            this.fire = fire;
             this.world = world;
             settings = context.Scenario.ObjectPhysics;
             feel = context.Scenario.PhysicsFeel;
@@ -381,10 +384,81 @@ namespace Paniq.Simulation
         public void UsePeople(PeopleBodies bodies) => people = bodies;
 
         /// <summary>
+        /// Wired up after construction, because the cable is built from the
+        /// things and so cannot exist before them.
+        /// </summary>
+        public void UsePower(PowerSystem powerSystem) => power = powerSystem;
+
+        /// <summary>
+        /// Something electrical goes off: the bang, the fling, the people
+        /// knocked down and the floor set alight, in one place.
+        /// <para>
+        /// Everything here is somebody else's existing rule, in a fixed order
+        /// so the run stays repeatable: the objects in ascending ID order, then
+        /// the people in ascending ID order, then the floor squares row by row.
+        /// </para>
+        /// <para>
+        /// It lives here rather than with the flammable things because the
+        /// flames are only one of the reasons a thing goes off. Returns the
+        /// bang's event ID, or zero for something that does not go off at all.
+        /// </para>
+        /// </summary>
+        public ulong Detonate(int index, SimulationId id, ulong causeEventId)
+        {
+            ObjectKindSettings kind = kinds.Of(KindOf(index));
+            if (kind.PopRadiusMillimetres <= 0)
+            {
+                return 0UL;
+            }
+
+            LogicalPosition centre = PositionOf(index);
+            long radius = kind.PopRadiusMillimetres;
+            ulong bang = context.Events.Append(context.Tick, id, FireReactionEventType.ObjectExploded, centre,
+                kind.PopRadiusMillimetres, 0, causeEventId).EventId;
+
+            // Heard well beyond the blast itself, which is how the far side of
+            // the building learns something has happened.
+            sound.Bang(id, centre, kind.PopRadiusMillimetres * 6, kind.PopRadiusMillimetres * 3, bang);
+
+            FlingFrom(centre, kind.PopRadiusMillimetres, kind.PopSpeed, index, bang);
+
+            Agent[] people = crowd.All;
+            for (int i = 0; i < people.Length; i++)
+            {
+                Agent agent = people[i];
+                if (!agent.IsParticipating ||
+                    LogicalPosition.DistanceSquared(agent.Body.Position, centre) > radius * radius)
+                {
+                    continue;
+                }
+
+                int away = IntegerMath.HeadingBetween(centre, agent.Body.Position, agent.Body.Heading);
+                body.BlowOver(agent, away,
+                    kind.PopRadiusMillimetres / 3 * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
+                    context.Scenario.PhysicsFeel.BlastLiftPercent, bang);
+            }
+
+            fire.IgniteAround(centre, kind.PopRadiusMillimetres, kind.PopIgniteCells, bang);
+            Wreck(index, id, bang);
+
+            // Anything on the cable lights the cable. The power system has
+            // already marked whatever it set off itself, so a spark that caused
+            // this bang cannot come straight back round and cause it again.
+            power?.SomethingPopped(id, bang);
+            return bang;
+        }
+
+        /// <summary>
         /// Built into the building rather than standing in it: a wall socket.
         /// It never moves, whatever hits it or goes off beside it.
         /// </summary>
-        private bool IsFixedInPlace(int index) => bodies[index].Kind == PhysicsObjectKind.WallSocket;
+        /// <summary>
+        /// Bolted to the wall: nothing shifts it, nobody picks it up, and a
+        /// blast throws everything else around it instead.
+        /// </summary>
+        private bool IsFixedInPlace(int index) =>
+            bodies[index].Kind == PhysicsObjectKind.WallSocket ||
+            bodies[index].Kind == PhysicsObjectKind.FuseBox;
 
         public SimulationId IdOf(int index) => bodies[index].Id;
 

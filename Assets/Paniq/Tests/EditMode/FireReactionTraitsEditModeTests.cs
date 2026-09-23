@@ -105,8 +105,8 @@ namespace Paniq.Tests.EditMode
                 if (agent.Temperament == AgentPanicTemperament.FreezeForever)
                 {
                     freezeForever++;
-                    Assert.That(agent.AgentId.Value, Is.EqualTo(1006UL).Or.EqualTo(1009UL).Or.EqualTo(1015UL),
-                        "The nervous wreck, the coward and the timid carer are the most fearful.");
+                    Assert.That(agent.AgentId.Value, Is.EqualTo(1006UL).Or.EqualTo(1012UL).Or.EqualTo(1018UL),
+                        "The nervous wreck, the timid carer and the coward are the most fearful.");
                 }
             }
 

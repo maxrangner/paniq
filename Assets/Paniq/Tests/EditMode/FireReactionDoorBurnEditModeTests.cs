@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
@@ -50,7 +50,7 @@ namespace Paniq.Tests.EditMode
             FireReactionScenarioData data = scenario.ToRuntimeData();
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(18000, 3500),
+                new FireReactionAgentDefinition(new SimulationId(1UL), TheBuilding.MeetingRoom,
                     CardinalDirection.East, AgentTraitValues.AllOrdinary)
             };
             data.PhysicsObjects = new FireReactionPhysicsObjectDefinition[0];

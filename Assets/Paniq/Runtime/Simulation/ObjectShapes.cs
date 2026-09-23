@@ -1,4 +1,4 @@
-namespace Paniq.Simulation
+﻿namespace Paniq.Simulation
 {
     /// <summary>
     /// The solid shape of each kind of loose thing, built from boxes and
@@ -99,6 +99,11 @@ namespace Paniq.Simulation
                 case PhysicsObjectKind.WallSocket:
                     return new[] { Box(0, size / 4, 0, size, size / 2, 30) };
 
+                // A cabinet on the wall: as deep as it is wide is wrong, but a
+                // slab a hand's breadth off the wall is about right.
+                case PhysicsObjectKind.FuseBox:
+                    return new[] { Box(0, size / 2, 0, size, size, 120) };
+
                 case PhysicsObjectKind.Briefcase:
                     return new[] { Box(0, size * 4 / 10, 0, size, size * 8 / 10, size * 3 / 10) };
 
@@ -160,6 +165,8 @@ namespace Paniq.Simulation
                     return size * 6 / 10;
                 case PhysicsObjectKind.WallSocket:
                     return size / 2;
+                case PhysicsObjectKind.FuseBox:
+                    return size;
                 case PhysicsObjectKind.Briefcase:
                     return size * 8 / 10;
                 case PhysicsObjectKind.Laptop:

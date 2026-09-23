@@ -22,7 +22,8 @@ namespace Paniq.Tests.EditMode
             UnityEngine.Object.DestroyImmediate(scenario);
         }
 
-        private FireReactionScenarioData DefaultData() => scenario.ToRuntimeData();
+        private FireReactionScenarioData DefaultData() =>
+            TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
 
         private static FireReactionPhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams)
         {

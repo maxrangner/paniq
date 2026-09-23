@@ -20,21 +20,21 @@ namespace Paniq.Tests.EditMode
         [TestCase(false, 3000)]
         public void CountEventsForSeeds40To46(bool openAllDoors, int ticks)
         {
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
                 var report = new StringBuilder();
-                report.AppendLine($"Doors {(openAllDoors ? "all opened at 5 s" : "locked")}, first {ticks / FireReactionSimulation.TicksPerSecond} s:");
+                report.AppendLine($"Doors {(openAllDoors ? "all opened at 5 s" : "locked")}, first {ticks / Run.TicksPerSecond} s:");
                 for (ulong seed = 40UL; seed <= 46UL; seed++)
                 {
                     // The "doors all opened" half clicks every door twice, and a
                     // round opens with an empty purse, so without a purse behind
                     // the player the clicks were refused and both halves of this
                     // measurement printed the same run.
-                    FireReactionScenarioData data = openAllDoors
+                    ScenarioData data = openAllDoors
                         ? TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData())
                         : scenario.ToRuntimeData();
-                    var simulation = new FireReactionSimulation(data, seed);
+                    var simulation = new Run(data, seed);
                     if (openAllDoors)
                     {
                         for (int d = 0; d < data.Doors.Length; d++)
@@ -88,18 +88,18 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void HowLongBeforeThePlayerCanOpenTheWayOut()
         {
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
                 var report = new StringBuilder();
-                FireReactionScenarioData costs = scenario.ToRuntimeData();
+                ScenarioData costs = scenario.ToRuntimeData();
                 int wayOut = costs.Influence.UnlockDoorCost + costs.Influence.OpenDoorCost;
                 report.AppendLine($"The way out costs {wayOut}. A card costs {costs.Influence.CardCost}.");
 
                 for (ulong seed = 40UL; seed <= 46UL; seed++)
                 {
-                    FireReactionScenarioData data = scenario.ToRuntimeData();
-                    var simulation = new FireReactionSimulation(data, seed);
+                    ScenarioData data = scenario.ToRuntimeData();
+                    var simulation = new Run(data, seed);
                     int affordedAt = -1;
                     int firstCardAt = -1;
                     int atThirtySeconds = 0;
@@ -117,7 +117,7 @@ namespace Paniq.Tests.EditMode
                             firstCardAt = tick;
                         }
 
-                        if (tick == 30 * FireReactionSimulation.TicksPerSecond - 1)
+                        if (tick == 30 * Run.TicksPerSecond - 1)
                         {
                             atThirtySeconds = simulation.Influence;
                         }
@@ -141,7 +141,7 @@ namespace Paniq.Tests.EditMode
 
         private static string Seconds(int tick)
         {
-            return tick < 0 ? "never" : $"{tick / (float)FireReactionSimulation.TicksPerSecond:0.0} s";
+            return tick < 0 ? "never" : $"{tick / (float)Run.TicksPerSecond:0.0} s";
         }
     }
 }

@@ -33,7 +33,7 @@ namespace Paniq.EditorTools
         [MenuItem("Paniq/Bake Scenario From Scene")]
         public static void Bake()
         {
-            var scenario = AssetDatabase.LoadAssetAtPath<FireReactionScenario>(ScenarioAssetPath);
+            var scenario = AssetDatabase.LoadAssetAtPath<ScenarioAsset>(ScenarioAssetPath);
             if (scenario == null)
             {
                 EditorUtility.DisplayDialog("Paniq", "There is no scenario at " + ScenarioAssetPath + ".", "Right");
@@ -42,7 +42,7 @@ namespace Paniq.EditorTools
 
             // Start from the current settings, so the tuning numbers survive and
             // only the shape of the building is taken from the scene.
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
             var problems = new List<string>();
 
             PaniqRoom[] rooms = Find<PaniqRoom>();
@@ -70,7 +70,7 @@ namespace Paniq.EditorTools
                     // that would fail at play time fails here instead, with the
                     // scene still in front of you.
                     data.Clone().Validate();
-                    new FireReactionSimulation(data);
+                    new Run(data);
                 }
                 catch (Exception refused)
                 {
@@ -120,13 +120,13 @@ namespace Paniq.EditorTools
 
         // ---------------------------------------------------------------- rooms
 
-        private static FireReactionRoomDefinition[] BakeRooms(PaniqRoom[] rooms, List<string> problems)
+        private static RoomDefinition[] BakeRooms(PaniqRoom[] rooms, List<string> problems)
         {
-            var baked = new FireReactionRoomDefinition[rooms.Length];
+            var baked = new RoomDefinition[rooms.Length];
             for (int i = 0; i < rooms.Length; i++)
             {
                 RectInt floor = rooms[i].Floor;
-                baked[i] = new FireReactionRoomDefinition(
+                baked[i] = new RoomDefinition(
                     new SimulationId((ulong)rooms[i].RoomId),
                     new LogicalBounds(floor.xMin, floor.xMax, floor.yMin, floor.yMax));
 
@@ -151,9 +151,9 @@ namespace Paniq.EditorTools
         /// you only have to slide it along a wall rather than say which wall it
         /// is in.
         /// </summary>
-        private static FireReactionDoorDefinition[] BakeDoors(PaniqDoor[] doors, PaniqRoom[] rooms, List<string> problems)
+        private static DoorDefinition[] BakeDoors(PaniqDoor[] doors, PaniqRoom[] rooms, List<string> problems)
         {
-            var baked = new List<FireReactionDoorDefinition>();
+            var baked = new List<DoorDefinition>();
             foreach (PaniqDoor door in doors)
             {
                 Vector2Int at = PaniqAuthoring.Millimetres(door.transform.position);
@@ -178,7 +178,7 @@ namespace Paniq.EditorTools
 
                 bool alongX = side == WallSide.North || side == WallSide.South;
                 int centre = PaniqAuthoring.Snapped(alongX ? at.x : at.y);
-                baked.Add(new FireReactionDoorDefinition(
+                baked.Add(new DoorDefinition(
                     new SimulationId((ulong)door.DoorId),
                     new SimulationId((ulong)inWallOf.RoomId),
                     side,
@@ -218,14 +218,14 @@ namespace Paniq.EditorTools
 
         // ---------------------------------------------------------------- the rest
 
-        private static FireReactionTableDefinition[] BakeTables(PaniqTable[] tables, List<string> problems)
+        private static TableDefinition[] BakeTables(PaniqTable[] tables, List<string> problems)
         {
-            var baked = new FireReactionTableDefinition[tables.Length];
+            var baked = new TableDefinition[tables.Length];
             for (int i = 0; i < tables.Length; i++)
             {
                 Vector2Int centre = PaniqAuthoring.Millimetres(tables[i].transform.position);
                 Vector2Int size = PaniqAuthoring.SizeMillimetres(tables[i].transform);
-                baked[i] = new FireReactionTableDefinition(
+                baked[i] = new TableDefinition(
                     new SimulationId((ulong)tables[i].TableId),
                     new LogicalPosition(centre.x, centre.y),
                     size.x,
@@ -235,14 +235,14 @@ namespace Paniq.EditorTools
             return baked;
         }
 
-        private static FireReactionPhysicsObjectDefinition[] BakeProps(PaniqProp[] props, List<string> problems)
+        private static PhysicsObjectDefinition[] BakeProps(PaniqProp[] props, List<string> problems)
         {
-            var baked = new FireReactionPhysicsObjectDefinition[props.Length];
+            var baked = new PhysicsObjectDefinition[props.Length];
             for (int i = 0; i < props.Length; i++)
             {
                 PaniqProp prop = props[i];
                 Vector2Int at = PaniqAuthoring.Millimetres(prop.transform.position);
-                baked[i] = new FireReactionPhysicsObjectDefinition(
+                baked[i] = new PhysicsObjectDefinition(
                     new SimulationId((ulong)prop.ObjectId),
                     prop.Kind,
                     new LogicalPosition(at.x, at.y),
@@ -255,9 +255,9 @@ namespace Paniq.EditorTools
             return baked;
         }
 
-        private static FireReactionAgentDefinition[] BakePeople(PaniqPerson[] people, List<string> problems)
+        private static AgentDefinition[] BakePeople(PaniqPerson[] people, List<string> problems)
         {
-            var baked = new FireReactionAgentDefinition[people.Length];
+            var baked = new AgentDefinition[people.Length];
             for (int i = 0; i < people.Length; i++)
             {
                 PaniqPerson person = people[i];
@@ -266,11 +266,11 @@ namespace Paniq.EditorTools
                 CardinalDirection facing = Facing(person.transform.eulerAngles.y);
 
                 baked[i] = person.AuthorTheirPersonality
-                    ? new FireReactionAgentDefinition(
+                    ? new AgentDefinition(
                         new SimulationId((ulong)person.AgentId), where, facing,
                         new AgentTraitValues(person.Strength, person.Speed, person.Bravery,
                             person.Compassion, person.Evil, person.Nervousness, person.Leadership))
-                    : new FireReactionAgentDefinition(new SimulationId((ulong)person.AgentId), where, facing);
+                    : new AgentDefinition(new SimulationId((ulong)person.AgentId), where, facing);
                 baked[i] = baked[i].WithFamiliarity(
                     person.Visitor ? AgentFamiliarity.Visitor : AgentFamiliarity.KnowsTheBuilding);
             }
@@ -278,13 +278,13 @@ namespace Paniq.EditorTools
             return baked;
         }
 
-        private static FireReactionAlarmDefinition[] BakeAlarms(PaniqAlarm[] alarms, List<string> problems)
+        private static AlarmDefinition[] BakeAlarms(PaniqAlarm[] alarms, List<string> problems)
         {
-            var baked = new FireReactionAlarmDefinition[alarms.Length];
+            var baked = new AlarmDefinition[alarms.Length];
             for (int i = 0; i < alarms.Length; i++)
             {
                 Vector2Int at = PaniqAuthoring.Millimetres(alarms[i].transform.position);
-                baked[i] = new FireReactionAlarmDefinition(
+                baked[i] = new AlarmDefinition(
                     new SimulationId((ulong)alarms[i].AlarmId),
                     new LogicalPosition(at.x, at.y));
             }
@@ -292,7 +292,7 @@ namespace Paniq.EditorTools
             return baked;
         }
 
-        private static void BakeFire(PaniqFireStart[] starts, FireReactionScenarioData data, PaniqRoom[] rooms,
+        private static void BakeFire(PaniqFireStart[] starts, ScenarioData data, PaniqRoom[] rooms,
             List<string> problems)
         {
             if (starts.Length == 0)
@@ -313,7 +313,7 @@ namespace Paniq.EditorTools
             data.Fire.SpawnBounds = new LogicalBounds(
                 at.x - size.x / 2, at.x + size.x / 2, at.y - size.y / 2, at.y + size.y / 2);
             data.Fire.ActivationTick = Mathf.Max(1,
-                Mathf.RoundToInt(start.StartsAfterSeconds * FireReactionSimulation.TicksPerSecond));
+                Mathf.RoundToInt(start.StartsAfterSeconds * Run.TicksPerSecond));
 
             // The run insists the fire starts in the first room, so the room it
             // is standing in has to be the one written first.
@@ -327,7 +327,7 @@ namespace Paniq.EditorTools
 
             if (inside != 0)
             {
-                FireReactionRoomDefinition first = data.Rooms[0];
+                RoomDefinition first = data.Rooms[0];
                 data.Rooms[0] = data.Rooms[inside];
                 data.Rooms[inside] = first;
             }

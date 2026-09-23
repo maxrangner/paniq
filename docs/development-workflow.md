@@ -101,7 +101,7 @@ editor's physics engine, so nearly the whole suite was skipped under it and it
 was retired along with its stand-ins and its runner. The two checks it made
 its own way live in the editor's suite: the fixed timestep in
 `SimulationContractEditModeTests`, and the saved scenario asset matching the
-code defaults in `FireReactionSimulationEditModeTests`.
+code defaults in `SimulationEditModeTests`.
 
 ## Building a floor plan
 

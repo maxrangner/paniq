@@ -202,10 +202,10 @@ namespace Paniq.Tests.EditMode
             // The guard against somebody later writing a new way to move a
             // person or a box that forgets to tell the index. A stale entry
             // would quietly wrong every question about that patch of floor.
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
-                var simulation = new FireReactionSimulation(scenario.ToRuntimeData());
+                var simulation = new Run(scenario.ToRuntimeData());
                 Assert.That(simulation.SpatialIndexesAreConsistentForTests, Is.True,
                     "The indexes were wrong before the run even started.");
 

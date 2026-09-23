@@ -252,7 +252,7 @@ namespace Paniq.Simulation
 
             int item = agent.Carry.ItemIndex;
             LogicalPosition spot = objects.FindSpotToPutDown(item, agent, out LogicalPosition clear) ? clear : agent.Body.Position;
-            ulong dropped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemDropped, spot, 0, 0,
+            ulong dropped = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemDropped, spot, 0, 0,
                 causeEventId, objects.IdOf(item)).EventId;
             objects.Release(item, spot, 0, 0, dropped);
             agent.Carry.ItemIndex = -1;
@@ -268,7 +268,7 @@ namespace Paniq.Simulation
 
             int item = agent.Carry.ItemIndex;
             LogicalPosition spot = objects.FindSpotToPutDown(item, agent, out LogicalPosition clear) ? clear : agent.Body.Position;
-            ulong dropped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemDropped, spot, 0, 0,
+            ulong dropped = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemDropped, spot, 0, 0,
                 agent.Burning.EventId, objects.IdOf(item)).EventId;
             objects.Release(item, spot, 0, 0, dropped);
             agent.Carry.ItemIndex = -1;
@@ -338,7 +338,7 @@ namespace Paniq.Simulation
                         agent.Traits.Nervousness >= settings.DropNervousness;
             if (drop)
             {
-                ulong dropped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemDropped, spot, 0, 0,
+                ulong dropped = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemDropped, spot, 0, 0,
                     cause, objects.IdOf(item)).EventId;
                 objects.Release(item, spot, 0, 0, dropped);
             }
@@ -347,7 +347,7 @@ namespace Paniq.Simulation
                 int speed = objects.ThrowSpeed(agent, item);
                 int heading = objects.PanicThrowHeading(agent, spot);
                 LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
-                ulong thrown = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemThrown, spot, speed, 0,
+                ulong thrown = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemThrown, spot, speed, 0,
                     cause, objects.IdOf(item)).EventId;
                 objects.Release(item, spot, velocity.X, velocity.Z, thrown);
             }

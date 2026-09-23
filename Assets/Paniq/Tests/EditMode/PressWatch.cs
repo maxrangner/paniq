@@ -36,7 +36,7 @@ namespace Paniq.Tests.EditMode
 
         private int deepTicks;
 
-        public void Check(FireReactionSimulation simulation, string context)
+        public void Check(Run simulation, string context)
         {
             if (simulation.DeepestPressMillimetres <= DeepestSqueezeMillimetres)
             {

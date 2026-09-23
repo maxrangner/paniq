@@ -23,9 +23,9 @@ namespace Paniq.Presentation
             this.effects = effects;
         }
 
-        public void Update(FireReactionSnapshot snapshot)
+        public void Update(RunSnapshot snapshot)
         {
-            foreach (FireReactionAgentSnapshot agent in snapshot.Agents)
+            foreach (AgentSnapshot agent in snapshot.Agents)
             {
                 if (agent.ActivityState != AgentActivityState.Spraying ||
                     agent.Participation != AgentParticipation.Participating)

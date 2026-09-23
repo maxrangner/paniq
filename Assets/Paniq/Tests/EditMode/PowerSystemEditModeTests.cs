@@ -16,12 +16,12 @@ namespace Paniq.Tests.EditMode
         private static readonly SimulationId FarSocket = new SimulationId(3272UL);
         private static readonly SimulationId TheFuseBox = new SimulationId(3281UL);
 
-        private FireReactionScenario scenario;
+        private ScenarioAsset scenario;
 
         [SetUp]
         public void SetUp()
         {
-            scenario = FireReactionScenario.CreateDefault();
+            scenario = ScenarioAsset.CreateDefault();
         }
 
         [TearDown]
@@ -31,12 +31,12 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>A quiet building: nobody much about, nothing burning, just the cable.</summary>
-        private FireReactionScenarioData Quiet()
+        private ScenarioData Quiet()
         {
-            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
+            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(new SimulationId(1UL), TheBuilding.MeetingRoom,
+                new AgentDefinition(new SimulationId(1UL), TheBuilding.MeetingRoom,
                     CardinalDirection.North, AgentTraitValues.AllOrdinary)
             };
             data.Fire.ActivationTick = int.MaxValue;
@@ -45,7 +45,7 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
-        private static List<CausalEvent> EventsOfType(FireReactionSimulation simulation, FireReactionEventType type)
+        private static List<CausalEvent> EventsOfType(Run simulation, CausalEventType type)
         {
             var found = new List<CausalEvent>();
             foreach (CausalEvent record in simulation.EventLog.Events)
@@ -59,7 +59,7 @@ namespace Paniq.Tests.EditMode
             return found;
         }
 
-        private static void Run(FireReactionSimulation simulation, int ticks)
+        private static void Advance(Run simulation, int ticks)
         {
             for (int t = 0; t < ticks; t++)
             {
@@ -71,10 +71,10 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheDefaultBuilding_HasCableJoiningItsSocketsToTheFuseBox()
         {
-            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
+            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             Assert.That(data.PowerLines, Has.Length.EqualTo(3),
                 "Three runs of cable: the fuse box to the first socket, and on down the chain.");
-            foreach (FireReactionPowerLineDefinition line in data.PowerLines)
+            foreach (PowerLineDefinition line in data.PowerLines)
             {
                 Assert.That(line.LengthMillimetres, Is.GreaterThan(0), "A run of cable has to go somewhere.");
                 Assert.That(line.Corners, Has.Length.GreaterThanOrEqualTo(2));
@@ -88,15 +88,15 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheCard_PopsTheFuseBoxAndSendsASparkOutAlongTheCable()
         {
-            FireReactionScenarioData data = Quiet();
-            var simulation = new FireReactionSimulation(data);
+            ScenarioData data = Quiet();
+            var simulation = new Run(data);
             LogicalPosition box = FuseBoxPosition(simulation);
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, box, 1);
-            Run(simulation, 3);
+            Advance(simulation, 3);
 
-            Assert.That(EventsOfType(simulation, FireReactionEventType.PowerPoppedFuseBox), Has.Count.EqualTo(1));
+            Assert.That(EventsOfType(simulation, CausalEventType.PowerPoppedFuseBox), Has.Count.EqualTo(1));
             Assert.That(simulation.PowerForTests.FuseBoxHasBlown, Is.True);
-            Assert.That(EventsOfType(simulation, FireReactionEventType.PowerSparkStarted), Is.Not.Empty,
+            Assert.That(EventsOfType(simulation, CausalEventType.PowerSparkStarted), Is.Not.Empty,
                 "Popping the box should light the cable leaving it.");
         }
 
@@ -104,36 +104,36 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void PoppingTheFuseBox_CostsItsPriceOnce()
         {
-            FireReactionScenarioData data = Quiet();
+            ScenarioData data = Quiet();
             int price = data.Influence.CardCost;
-            var simulation = new FireReactionSimulation(data);
+            var simulation = new Run(data);
             LogicalPosition box = FuseBoxPosition(simulation);
             int before = simulation.Influence;
 
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, box, 1);
-            Run(simulation, 2);
+            Advance(simulation, 2);
             Assert.That(simulation.Influence, Is.EqualTo(before - price));
 
             // A second card on a box that has already gone does nothing at all.
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, box, simulation.Tick + 1);
-            Run(simulation, 3);
+            Advance(simulation, 3);
             Assert.That(simulation.Influence, Is.EqualTo(before - price), "A refused card is free.");
-            Assert.That(EventsOfType(simulation, FireReactionEventType.PowerPoppedFuseBox), Has.Count.EqualTo(1));
+            Assert.That(EventsOfType(simulation, CausalEventType.PowerPoppedFuseBox), Has.Count.EqualTo(1));
         }
 
         /// <summary>Aimed at nothing in particular, the card is refused and costs nothing.</summary>
         [Test]
         public void TheCardPlayedNowhereNearTheFuseBox_IsRefusedAndFree()
         {
-            FireReactionScenarioData data = Quiet();
-            var simulation = new FireReactionSimulation(data);
+            ScenarioData data = Quiet();
+            var simulation = new Run(data);
             int before = simulation.Influence;
 
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, TheBuilding.Cafeteria, 1);
-            Run(simulation, 3);
+            Advance(simulation, 3);
 
             Assert.That(simulation.Influence, Is.EqualTo(before), "Nothing happened, so nothing was spent.");
-            Assert.That(EventsOfType(simulation, FireReactionEventType.PowerPoppedFuseBox), Is.Empty,
+            Assert.That(EventsOfType(simulation, CausalEventType.PowerPoppedFuseBox), Is.Empty,
                 "The log should not record something that did not happen.");
             Assert.That(simulation.PowerForTests.FuseBoxHasBlown, Is.False);
         }
@@ -142,14 +142,14 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void WithAnEmptyPurse_TheCardIsRefused()
         {
-            FireReactionScenarioData data = Quiet();
+            ScenarioData data = Quiet();
             data.Influence.Starting = 1;
             data.Influence.Maximum = 1;
-            var simulation = new FireReactionSimulation(data);
+            var simulation = new Run(data);
             LogicalPosition box = FuseBoxPosition(simulation);
 
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, box, 1);
-            Run(simulation, 3);
+            Advance(simulation, 3);
 
             Assert.That(simulation.PowerForTests.FuseBoxHasBlown, Is.False);
             Assert.That(simulation.Influence, Is.EqualTo(1));
@@ -163,19 +163,19 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void ASpark_ArrivesWhenTheLengthOfTheCableSaysItShould()
         {
-            FireReactionScenarioData data = Quiet();
-            var simulation = new FireReactionSimulation(data);
+            ScenarioData data = Quiet();
+            var simulation = new Run(data);
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, FuseBoxPosition(simulation), 1);
-            Run(simulation, 2);
+            Advance(simulation, 2);
 
-            List<CausalEvent> started = EventsOfType(simulation, FireReactionEventType.PowerSparkStarted);
+            List<CausalEvent> started = EventsOfType(simulation, CausalEventType.PowerSparkStarted);
             Assert.That(started, Is.Not.Empty);
             CausalEvent first = started[0];
             int predicted = first.DurationTicks;
             Assert.That(predicted, Is.GreaterThan(0), "The spark should say how long it will take.");
 
-            Run(simulation, predicted + 5);
-            List<CausalEvent> arrived = EventsOfType(simulation, FireReactionEventType.PowerSparkArrived);
+            Advance(simulation, predicted + 5);
+            List<CausalEvent> arrived = EventsOfType(simulation, CausalEventType.PowerSparkArrived);
             Assert.That(arrived, Is.Not.Empty, "The spark never got there.");
             Assert.That(arrived[0].Tick - first.Tick, Is.EqualTo(predicted).Within(2),
                 "It arrived at a different time from the one it predicted.");
@@ -188,13 +188,13 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void LeftAlone_TheWholeChainGoesOffOneAfterAnother()
         {
-            FireReactionScenarioData data = Quiet();
-            var simulation = new FireReactionSimulation(data);
+            ScenarioData data = Quiet();
+            var simulation = new Run(data);
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, FuseBoxPosition(simulation), 1);
-            Run(simulation, 60 * FireReactionSimulation.TicksPerSecond);
+            Advance(simulation, 60 * Run.TicksPerSecond);
 
             var went = new HashSet<ulong>();
-            foreach (CausalEvent record in EventsOfType(simulation, FireReactionEventType.ObjectExploded))
+            foreach (CausalEvent record in EventsOfType(simulation, CausalEventType.ObjectExploded))
             {
                 went.Add(record.SourceId.Value);
             }
@@ -211,13 +211,13 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void NothingOnTheCable_EverGoesOffTwice()
         {
-            FireReactionScenarioData data = Quiet();
-            var simulation = new FireReactionSimulation(data);
+            ScenarioData data = Quiet();
+            var simulation = new Run(data);
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, FuseBoxPosition(simulation), 1);
-            Run(simulation, 60 * FireReactionSimulation.TicksPerSecond);
+            Advance(simulation, 60 * Run.TicksPerSecond);
 
             var counts = new Dictionary<ulong, int>();
-            foreach (CausalEvent record in EventsOfType(simulation, FireReactionEventType.ObjectExploded))
+            foreach (CausalEvent record in EventsOfType(simulation, CausalEventType.ObjectExploded))
             {
                 counts.TryGetValue(record.SourceId.Value, out int n);
                 counts[record.SourceId.Value] = n + 1;
@@ -233,12 +233,12 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void ABuildingWithNoCable_StillRuns()
         {
-            FireReactionScenarioData data = Quiet();
-            data.PowerLines = new FireReactionPowerLineDefinition[0];
-            var simulation = new FireReactionSimulation(data);
+            ScenarioData data = Quiet();
+            data.PowerLines = new PowerLineDefinition[0];
+            var simulation = new Run(data);
 
             Assert.That(simulation.PowerForTests.LineCount, Is.Zero);
-            Assert.DoesNotThrow(() => Run(simulation, 100));
+            Assert.DoesNotThrow(() => Advance(simulation, 100));
         }
 
         /// <summary>
@@ -250,13 +250,13 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheSpark_TravelsSlowerThanSomebodyRunning()
         {
-            FireReactionScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
+            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             int sparkPerTick = data.Power.SparkSpeedMillimetresPerTick;
             Assert.That(sparkPerTick, Is.LessThan(data.Panic.SpeedMaximum),
                 "A fuse that outruns the people watching it is just a delayed explosion.");
         }
 
-        private static LogicalPosition FuseBoxPosition(FireReactionSimulation simulation)
+        private static LogicalPosition FuseBoxPosition(Run simulation)
         {
             Assert.That(simulation.PowerForTests.TryFindTheFuseBox(out LogicalPosition where), Is.True,
                 "The building should have a fuse box.");

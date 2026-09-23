@@ -12,12 +12,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ExitSignReadingEditModeTests
     {
-        private FireReactionScenario scenario;
+        private ScenarioAsset scenario;
 
         [SetUp]
         public void SetUp()
         {
-            scenario = FireReactionScenario.CreateDefault();
+            scenario = ScenarioAsset.CreateDefault();
         }
 
         [TearDown]
@@ -28,7 +28,7 @@ namespace Paniq.Tests.EditMode
 
         /// <summary>A sign reader for a floor carrying exactly these signs, and one person to do the reading.</summary>
         private static (ExitSignBehaviour Signs, Agent Person) Set(
-            FireReactionScenarioData data, LogicalPosition standing, int facing)
+            ScenarioData data, LogicalPosition standing, int facing)
         {
             DoorRuntime[] doors = DoorSystem.CreateDoors(data);
             var context = new SimulationContext(data, 1UL);
@@ -40,10 +40,10 @@ namespace Paniq.Tests.EditMode
             return (new ExitSignBehaviour(context, geometry), person);
         }
 
-        private FireReactionScenarioData FloorWithOneSign(LogicalPosition at, int pointing)
+        private ScenarioData FloorWithOneSign(LogicalPosition at, int pointing)
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
-            data.ExitSigns = new[] { new FireReactionExitSignDefinition(at, pointing) };
+            ScenarioData data = scenario.ToRuntimeData();
+            data.ExitSigns = new[] { new ExitSignDefinition(at, pointing) };
             return data;
         }
 

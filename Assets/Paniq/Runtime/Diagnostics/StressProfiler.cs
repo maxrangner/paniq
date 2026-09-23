@@ -49,8 +49,8 @@ namespace Paniq.Diagnostics
             report.AppendLine();
             report.AppendLine("Simulation, stress building, no fire, everybody busy (budgets: physics <= 3 ms a tick at 500 people; whole tick <= 5 ms at 200):");
 
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
-            FireReactionScenarioData template = scenario.ToRuntimeData();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
+            ScenarioData template = scenario.ToRuntimeData();
             foreach ((int people, int things) in Crowds)
             {
                 string line;
@@ -171,9 +171,9 @@ namespace Paniq.Diagnostics
             }
         }
 
-        private static string MeasureSimulation(FireReactionScenarioData template, int people, int things, bool panicking = false)
+        private static string MeasureSimulation(ScenarioData template, int people, int things, bool panicking = false)
         {
-            FireReactionScenarioData data = StressBuilding.Build(template, people, things);
+            ScenarioData data = StressBuilding.Build(template, people, things);
             if (panicking)
             {
                 // The fire lit in the first room on the first tick, and
@@ -183,7 +183,7 @@ namespace Paniq.Diagnostics
                 data.Fire.SpawnBounds = new LogicalBounds(3000, 3000, 3000, 3000);
             }
 
-            using (var simulation = new FireReactionSimulation(data, 42UL))
+            using (var simulation = new Run(data, 42UL))
             {
                 if (panicking)
                 {

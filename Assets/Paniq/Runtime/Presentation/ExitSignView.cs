@@ -33,7 +33,7 @@ namespace Paniq.Presentation
         private static readonly Color SignGreen = new Color(0.10f, 0.52f, 0.20f);
         private static readonly Color ArrowWhite = new Color(0.95f, 0.98f, 0.95f);
 
-        public ExitSignView(FireReactionExitSignDefinition[] signs, PresentationMaterials materials, Transform parent)
+        public ExitSignView(ExitSignDefinition[] signs, PresentationMaterials materials, Transform parent)
         {
             if (signs == null || signs.Length == 0)
             {
@@ -49,7 +49,7 @@ namespace Paniq.Presentation
             }
         }
 
-        private static void Build(FireReactionExitSignDefinition sign, int index, PresentationMaterials materials,
+        private static void Build(ExitSignDefinition sign, int index, PresentationMaterials materials,
             Transform root)
         {
             var at = new GameObject($"Exit sign {index + 1}").transform;

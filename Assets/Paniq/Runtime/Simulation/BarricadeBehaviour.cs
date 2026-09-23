@@ -317,7 +317,7 @@ namespace Paniq.Simulation
 
                 if (objects.TrySetDownAt(item, spot, agent.Fear.ScaredEventId))
                 {
-                    context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentBarricadedDoor, spot,
+                    context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentBarricadedDoor, spot,
                         0, 0, agent.Fear.ScaredEventId, doors.IdOf(door));
                     agent.Carry.ItemIndex = -1;
                     agent.Carry.Holding = false;

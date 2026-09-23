@@ -34,11 +34,11 @@ namespace Paniq.Presentation
         private readonly Dictionary<SimulationId, BoxView> boxes = new Dictionary<SimulationId, BoxView>();
         private readonly PresentationMaterials materials;
 
-        public BoxViews(FireReactionScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
+        public BoxViews(ScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
             Transform parent)
         {
             this.materials = materials;
-            foreach (FireReactionPhysicsObjectDefinition definition in scenario.PhysicsObjects)
+            foreach (PhysicsObjectDefinition definition in scenario.PhysicsObjects)
             {
                 if (definition.Kind == PhysicsObjectKind.Chair || definition.Kind == PhysicsObjectKind.OfficeChair)
                 {
@@ -55,7 +55,7 @@ namespace Paniq.Presentation
                 boxes.Add(definition.ObjectId, CreateBox(definition, materials, parent));
             }
 
-            foreach (FireReactionPhysicsObjectDefinition definition in scenario.PhysicsObjects)
+            foreach (PhysicsObjectDefinition definition in scenario.PhysicsObjects)
             {
                 boxes[definition.ObjectId].Kind = definition.Kind;
             }
@@ -71,7 +71,7 @@ namespace Paniq.Presentation
         /// other loose thing it is a cube on a root at floor level, so squashing
         /// or moving the root never touches the box's own size.
         /// </summary>
-        private static BoxView CreateBox(FireReactionPhysicsObjectDefinition definition, PresentationMaterials materials,
+        private static BoxView CreateBox(PhysicsObjectDefinition definition, PresentationMaterials materials,
             Transform parent)
         {
             float size = Metres(definition.SizeMillimetres);
@@ -103,7 +103,7 @@ namespace Paniq.Presentation
         /// root at floor level: a waste bin, a potted plant, a soft bag, or a
         /// laptop lying open.
         /// </summary>
-        private static BoxView CreateOfficeThing(FireReactionPhysicsObjectDefinition definition,
+        private static BoxView CreateOfficeThing(PhysicsObjectDefinition definition,
             PresentationMaterials materials, Transform parent)
         {
             float size = Metres(definition.SizeMillimetres);
@@ -229,7 +229,7 @@ namespace Paniq.Presentation
         }
 
         /// <summary>A simple wooden chair built on a root at floor level, facing its back toward -Z.</summary>
-        private static BoxView CreateChair(FireReactionPhysicsObjectDefinition definition, PresentationMaterials materials,
+        private static BoxView CreateChair(PhysicsObjectDefinition definition, PresentationMaterials materials,
             Transform parent)
         {
             float size = Metres(definition.SizeMillimetres) * 0.9f;
@@ -354,11 +354,11 @@ namespace Paniq.Presentation
         /// <summary>Where the simulation lets go of a carried thing, in metres; it is drawn there while held.</summary>
         private const float HandHeight = 1f;
 
-        public void Update(FireReactionSnapshot snapshot, FireReactionSnapshot previousSnapshot, float blend, float time)
+        public void Update(RunSnapshot snapshot, RunSnapshot previousSnapshot, float blend, float time)
         {
             for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
             {
-                FireReactionPhysicsObjectSnapshot box = snapshot.PhysicsObjects[i];
+                PhysicsObjectSnapshot box = snapshot.PhysicsObjects[i];
                 if (!boxes.TryGetValue(box.ObjectId, out BoxView view))
                 {
                     continue;
@@ -376,7 +376,7 @@ namespace Paniq.Presentation
                     continue;
                 }
 
-                FireReactionPhysicsObjectSnapshot previous = previousSnapshot != null && i < previousSnapshot.PhysicsObjects.Count
+                PhysicsObjectSnapshot previous = previousSnapshot != null && i < previousSnapshot.PhysicsObjects.Count
                     ? previousSnapshot.PhysicsObjects[i]
                     : box;
 

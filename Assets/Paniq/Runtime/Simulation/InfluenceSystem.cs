@@ -135,7 +135,7 @@
         }
 
         /// <summary>What one thing happening is worth to the meter: nothing, or one of three sizes.</summary>
-        private int UproarValueOf(FireReactionEventType what)
+        private int UproarValueOf(CausalEventType what)
         {
             switch (UproarTierOf(what))
             {
@@ -169,100 +169,100 @@
         /// rest are bookkeeping.
         /// </para>
         /// </summary>
-        internal static UproarTier UproarTierOf(FireReactionEventType what)
+        internal static UproarTier UproarTierOf(CausalEventType what)
         {
             switch (what)
             {
-                case FireReactionEventType.AgentCaughtFire:
-                case FireReactionEventType.AgentPassedOut:
-                case FireReactionEventType.AgentCrushed:
-                case FireReactionEventType.ObjectExploded:
-                case FireReactionEventType.DoorBrokenDown:
+                case CausalEventType.AgentCaughtFire:
+                case CausalEventType.AgentPassedOut:
+                case CausalEventType.AgentCrushed:
+                case CausalEventType.ObjectExploded:
+                case CausalEventType.DoorBrokenDown:
                     return UproarTier.Big;
 
-                case FireReactionEventType.AgentKnockedDown:
-                case FireReactionEventType.AgentShoved:
-                case FireReactionEventType.AgentGrabbed:
-                case FireReactionEventType.AgentForcedDoor:
-                case FireReactionEventType.AgentBarricadedDoor:
-                case FireReactionEventType.ObjectBroke:
-                case FireReactionEventType.DoorBurntThrough:
-                case FireReactionEventType.BoxHitAgent:
-                case FireReactionEventType.AlarmPulled:
+                case CausalEventType.AgentKnockedDown:
+                case CausalEventType.AgentShoved:
+                case CausalEventType.AgentGrabbed:
+                case CausalEventType.AgentForcedDoor:
+                case CausalEventType.AgentBarricadedDoor:
+                case CausalEventType.ObjectBroke:
+                case CausalEventType.DoorBurntThrough:
+                case CausalEventType.BoxHitAgent:
+                case CausalEventType.AlarmPulled:
                     return UproarTier.Middling;
 
-                case FireReactionEventType.AgentYelled:
-                case FireReactionEventType.AgentScared:
-                case FireReactionEventType.AgentTripped:
-                case FireReactionEventType.AgentFroze:
-                case FireReactionEventType.AgentsCollided:
-                case FireReactionEventType.AgentShovedObstruction:
-                case FireReactionEventType.ObjectCaughtFire:
-                case FireReactionEventType.ItemThrown:
-                case FireReactionEventType.BoxBumped:
+                case CausalEventType.AgentYelled:
+                case CausalEventType.AgentScared:
+                case CausalEventType.AgentTripped:
+                case CausalEventType.AgentFroze:
+                case CausalEventType.AgentsCollided:
+                case CausalEventType.AgentShovedObstruction:
+                case CausalEventType.ObjectCaughtFire:
+                case CausalEventType.ItemThrown:
+                case CausalEventType.BoxBumped:
                     return UproarTier.Small;
 
                 // A death deals a card; the head count pays for an escape.
-                case FireReactionEventType.AgentLost:
-                case FireReactionEventType.AgentEscaped:
-                case FireReactionEventType.AgentRescued:
-                case FireReactionEventType.AgentSurvived:
-                case FireReactionEventType.CardDealt:
+                case CausalEventType.AgentLost:
+                case CausalEventType.AgentEscaped:
+                case CausalEventType.AgentRescued:
+                case CausalEventType.AgentSurvived:
+                case CausalEventType.CardDealt:
 
                 // The player's own doing.
-                case FireReactionEventType.PowerBeefcake:
-                case FireReactionEventType.PowerCourage:
-                case FireReactionEventType.PowerTerror:
-                case FireReactionEventType.PowerBastard:
-                case FireReactionEventType.PowerColdHeart:
-                case FireReactionEventType.PowerSpawnedFire:
-                case FireReactionEventType.PowerSpawnedExtinguisher:
-                case FireReactionEventType.PowerBlastedWall:
-                case FireReactionEventType.PowerPoppedFuseBox:
-                case FireReactionEventType.DoorUnlocked:
-                case FireReactionEventType.RoundEventTriggered:
-                case FireReactionEventType.RoundEnded:
+                case CausalEventType.PowerBeefcake:
+                case CausalEventType.PowerCourage:
+                case CausalEventType.PowerTerror:
+                case CausalEventType.PowerBastard:
+                case CausalEventType.PowerColdHeart:
+                case CausalEventType.PowerSpawnedFire:
+                case CausalEventType.PowerSpawnedExtinguisher:
+                case CausalEventType.PowerBlastedWall:
+                case CausalEventType.PowerPoppedFuseBox:
+                case CausalEventType.DoorUnlocked:
+                case CausalEventType.RoundEventTriggered:
+                case CausalEventType.RoundEnded:
 
                 // The hazard's own arithmetic.
-                case FireReactionEventType.FireActivated:
-                case FireReactionEventType.FireSpread:
-                case FireReactionEventType.FireDoused:
-                case FireReactionEventType.ObjectBurntOut:
-                case FireReactionEventType.PowerSparkStarted:
-                case FireReactionEventType.PowerSparkArrived:
+                case CausalEventType.FireActivated:
+                case CausalEventType.FireSpread:
+                case CausalEventType.FireDoused:
+                case CausalEventType.ObjectBurntOut:
+                case CausalEventType.PowerSparkStarted:
+                case CausalEventType.PowerSparkArrived:
 
                 // Somebody thinking, or somebody being told.
-                case FireReactionEventType.AgentAlerted:
-                case FireReactionEventType.AgentNoticedSound:
-                case FireReactionEventType.AgentUnfroze:
-                case FireReactionEventType.AgentLookedForAWayOut:
-                case FireReactionEventType.AgentFoundADeadEnd:
-                case FireReactionEventType.AgentFoundTheWayOut:
-                case FireReactionEventType.LeaderCalledPeopleOn:
-                case FireReactionEventType.LeaderOrderedDoorBroken:
-                case FireReactionEventType.LeaderOrderedFireFought:
+                case CausalEventType.AgentAlerted:
+                case CausalEventType.AgentNoticedSound:
+                case CausalEventType.AgentUnfroze:
+                case CausalEventType.AgentLookedForAWayOut:
+                case CausalEventType.AgentFoundADeadEnd:
+                case CausalEventType.AgentFoundTheWayOut:
+                case CausalEventType.LeaderCalledPeopleOn:
+                case CausalEventType.LeaderOrderedDoorBroken:
+                case CausalEventType.LeaderOrderedFireFought:
 
                 // Bookkeeping: things happening quietly to people, things and doors.
-                case FireReactionEventType.AgentGotUp:
-                case FireReactionEventType.AgentCameTo:
-                case FireReactionEventType.AgentRolled:
-                case FireReactionEventType.AgentDoused:
-                case FireReactionEventType.AgentBlasted:
-                case FireReactionEventType.AgentShookAwake:
-                case FireReactionEventType.AgentDropped:
-                case FireReactionEventType.AgentTriedDoor:
-                case FireReactionEventType.AgentGaveUpOnDoor:
-                case FireReactionEventType.AgentTookExtinguisher:
-                case FireReactionEventType.ExtinguisherSprayed:
-                case FireReactionEventType.ExtinguisherEmptied:
-                case FireReactionEventType.ItemDropped:
-                case FireReactionEventType.BoxesCollided:
-                case FireReactionEventType.DoorOpened:
-                case FireReactionEventType.DoorClosed:
-                case FireReactionEventType.DoorLocked:
-                case FireReactionEventType.DoorBlocked:
-                case FireReactionEventType.DoorUnblocked:
-                case FireReactionEventType.AlarmRang:
+                case CausalEventType.AgentGotUp:
+                case CausalEventType.AgentCameTo:
+                case CausalEventType.AgentRolled:
+                case CausalEventType.AgentDoused:
+                case CausalEventType.AgentBlasted:
+                case CausalEventType.AgentShookAwake:
+                case CausalEventType.AgentDropped:
+                case CausalEventType.AgentTriedDoor:
+                case CausalEventType.AgentGaveUpOnDoor:
+                case CausalEventType.AgentTookExtinguisher:
+                case CausalEventType.ExtinguisherSprayed:
+                case CausalEventType.ExtinguisherEmptied:
+                case CausalEventType.ItemDropped:
+                case CausalEventType.BoxesCollided:
+                case CausalEventType.DoorOpened:
+                case CausalEventType.DoorClosed:
+                case CausalEventType.DoorLocked:
+                case CausalEventType.DoorBlocked:
+                case CausalEventType.DoorUnblocked:
+                case CausalEventType.AlarmRang:
                     return UproarTier.Nothing;
 
                 default:

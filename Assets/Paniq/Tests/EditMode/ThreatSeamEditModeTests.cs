@@ -15,12 +15,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ThreatSeamEditModeTests
     {
-        private FireReactionScenario scenario;
+        private ScenarioAsset scenario;
 
         [SetUp]
         public void SetUp()
         {
-            scenario = FireReactionScenario.CreateDefault();
+            scenario = ScenarioAsset.CreateDefault();
         }
 
         [TearDown]
@@ -80,7 +80,7 @@ namespace Paniq.Tests.EditMode
                 // A test double borrows the fire's start event; a real threat
                 // would name its own.
                 RootEventId = context.Events.Append(context.Tick, new SimulationId(777UL),
-                    FireReactionEventType.FireActivated, at, radius).EventId;
+                    CausalEventType.FireActivated, at, radius).EventId;
             }
 
             public long NearestDistanceSquared(LogicalPosition from, out LogicalPosition point, out ulong causeEventId)
@@ -146,12 +146,12 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>One person alone in the office, the fire never due, and nothing to do but stand there.</summary>
-        private FireReactionScenarioData OnePersonAndNoFire(LogicalPosition at, CardinalDirection facing)
+        private ScenarioData OnePersonAndNoFire(LogicalPosition at, CardinalDirection facing)
         {
-            FireReactionScenarioData data = TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
+            ScenarioData data = TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
             data.Agents = new[]
             {
-                new FireReactionAgentDefinition(new SimulationId(1UL), at, facing, AgentTraitValues.AllOrdinary)
+                new AgentDefinition(new SimulationId(1UL), at, facing, AgentTraitValues.AllOrdinary)
             };
             data.Fire.ActivationTick = int.MaxValue;
             data.Round.HazardWaitsForTrigger = false;
@@ -162,7 +162,7 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
-        private static List<CausalEvent> EventsOfType(FireReactionSimulation simulation, FireReactionEventType type)
+        private static List<CausalEvent> EventsOfType(Run simulation, CausalEventType type)
         {
             var found = new List<CausalEvent>();
             foreach (CausalEvent record in simulation.EventLog.Events)
@@ -176,7 +176,7 @@ namespace Paniq.Tests.EditMode
             return found;
         }
 
-        private static void Step(FireReactionSimulation simulation, int ticks)
+        private static void Step(Run simulation, int ticks)
         {
             for (int t = 0; t < ticks; t++)
             {
@@ -187,8 +187,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void ACalmPerson_IsFrightenedByAThreatThatIsNotFire_AndBlamesIt()
         {
-            FireReactionScenarioData data = OnePersonAndNoFire(TheBuilding.Office, CardinalDirection.North);
-            using (var simulation = new FireReactionSimulation(data, 42UL))
+            ScenarioData data = OnePersonAndNoFire(TheBuilding.Office, CardinalDirection.North);
+            using (var simulation = new Run(data, 42UL))
             {
                 // Two metres straight ahead of them, inside their vision cone.
                 var threat = new StationaryThreat(simulation.ContextForTests, new LogicalPosition(0, 2000), 300, 5, 0,
@@ -196,17 +196,17 @@ namespace Paniq.Tests.EditMode
                 simulation.AddThreatForTests(threat);
                 Step(simulation, 80);
 
-                FireReactionSnapshot snapshot = simulation.GetSnapshot();
+                RunSnapshot snapshot = simulation.GetSnapshot();
                 Assert.That(snapshot.FireActive, Is.False, "No fire was ever lit.");
                 Assert.That(snapshot.Agents[0].FearState, Is.EqualTo(AgentFearState.Scared),
                     "Somebody who can see a threat panics, whatever the threat is.");
 
-                List<CausalEvent> alerts = EventsOfType(simulation, FireReactionEventType.AgentAlerted);
+                List<CausalEvent> alerts = EventsOfType(simulation, CausalEventType.AgentAlerted);
                 Assert.That(alerts, Is.Not.Empty);
                 Assert.That(alerts[0].CausalParentEventId, Is.EqualTo(threat.RootEventId),
                     "The fright names the threat they saw as its cause.");
                 Assert.That(alerts[0].Strength, Is.EqualTo(1), "How bad things are is the threat's own count.");
-                Assert.That(EventsOfType(simulation, FireReactionEventType.AgentScared), Is.Not.Empty);
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentScared), Is.Not.Empty);
             }
         }
 
@@ -215,8 +215,8 @@ namespace Paniq.Tests.EditMode
         {
             // Facing south at a threat two metres south; the office's door is
             // north, so away from the threat and out is the same way.
-            FireReactionScenarioData data = OnePersonAndNoFire(TheBuilding.Office, CardinalDirection.South);
-            using (var simulation = new FireReactionSimulation(data, 42UL))
+            ScenarioData data = OnePersonAndNoFire(TheBuilding.Office, CardinalDirection.South);
+            using (var simulation = new Run(data, 42UL))
             {
                 var at = new LogicalPosition(0, -2000);
                 simulation.AddThreatForTests(new StationaryThreat(simulation.ContextForTests, at, 300, 5, 0,
@@ -224,7 +224,7 @@ namespace Paniq.Tests.EditMode
                 long before = IntegerMath.Distance(simulation.GetAgent(0).Position, at);
                 Step(simulation, 200);
 
-                FireReactionAgentSnapshot person = simulation.GetAgent(0);
+                AgentSnapshot person = simulation.GetAgent(0);
                 Assert.That(person.FearState, Is.EqualTo(AgentFearState.Scared));
                 Assert.That(person.BodyState, Is.EqualTo(AgentBodyState.Upright), "They never touched it.");
                 Assert.That(IntegerMath.Distance(person.Position, at), Is.GreaterThan(before + 2000),
@@ -235,8 +235,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TouchingIt_DoesWhatTheThreatSays_HereATrip()
         {
-            FireReactionScenarioData data = OnePersonAndNoFire(TheBuilding.Office, CardinalDirection.North);
-            using (var simulation = new FireReactionSimulation(data, 42UL))
+            ScenarioData data = OnePersonAndNoFire(TheBuilding.Office, CardinalDirection.North);
+            using (var simulation = new Run(data, 42UL))
             {
                 // Right on top of them, from tick five.
                 var threat = new StationaryThreat(simulation.ContextForTests, TheBuilding.Office, 600, 5, 0,
@@ -244,11 +244,11 @@ namespace Paniq.Tests.EditMode
                 simulation.AddThreatForTests(threat);
                 Step(simulation, 6);
 
-                List<CausalEvent> trips = EventsOfType(simulation, FireReactionEventType.AgentTripped);
+                List<CausalEvent> trips = EventsOfType(simulation, CausalEventType.AgentTripped);
                 Assert.That(trips, Is.Not.Empty, "Touching this threat trips you.");
                 Assert.That(trips[0].CausalParentEventId, Is.EqualTo(threat.RootEventId));
                 Assert.That(simulation.GetAgent(0).BodyState, Is.EqualTo(AgentBodyState.Fallen));
-                Assert.That(EventsOfType(simulation, FireReactionEventType.AgentCaughtFire), Is.Empty,
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentCaughtFire), Is.Empty,
                     "Nothing about it is fire.");
             }
         }
@@ -260,9 +260,9 @@ namespace Paniq.Tests.EditMode
             // One person standing still, a threat well behind them and out of
             // sight, and a short stall clock. A threat that keeps changing is
             // something still happening; one that has settled lets the round end.
-            FireReactionScenarioData data = OnePersonAndNoFire(TheBuilding.Office, CardinalDirection.North);
+            ScenarioData data = OnePersonAndNoFire(TheBuilding.Office, CardinalDirection.North);
             data.Round.StallTicks = 50;
-            using (var simulation = new FireReactionSimulation(data, 42UL))
+            using (var simulation = new Run(data, 42UL))
             {
                 simulation.AddThreatForTests(new StationaryThreat(simulation.ContextForTests,
                     new LogicalPosition(-4500, -4500), 300, 5, -1, data.World.OccupancyRadiusMillimetres, keepsChanging));
@@ -277,9 +277,9 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheTrigger_SetsEveryThreatGoing()
         {
-            FireReactionScenarioData data = OnePersonAndNoFire(TheBuilding.Office, CardinalDirection.North);
+            ScenarioData data = OnePersonAndNoFire(TheBuilding.Office, CardinalDirection.North);
             data.Round.HazardWaitsForTrigger = true;
-            using (var simulation = new FireReactionSimulation(data, 42UL))
+            using (var simulation = new Run(data, 42UL))
             {
                 var threat = new StationaryThreat(simulation.ContextForTests, new LogicalPosition(-4500, -4500), 300,
                     int.MaxValue, -1, data.World.OccupancyRadiusMillimetres);

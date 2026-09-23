@@ -102,7 +102,7 @@ namespace Paniq.Tests.EditMode
         /// is, every time, or it is really a test of which room came up.
         /// </para>
         /// </summary>
-        public static FireReactionScenarioData WithTheFireInTheOffice(FireReactionScenarioData data)
+        public static ScenarioData WithTheFireInTheOffice(ScenarioData data)
         {
             data.Fire.SpawnBounds = new LogicalBounds(-4500, 4500, -4500, 4500);
             return data;
@@ -128,7 +128,7 @@ namespace Paniq.Tests.EditMode
         /// happened to have gone on.
         /// </para>
         /// </summary>
-        public static FireReactionScenarioData WithThePlayerAbleToAct(FireReactionScenarioData data)
+        public static ScenarioData WithThePlayerAbleToAct(ScenarioData data)
         {
             data.Influence.Starting = 100000;
             data.Influence.Maximum = 100000;
@@ -170,7 +170,7 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>A fire in one square, at a named place, that never spreads on its own.</summary>
-        public static void FireAt(FireReactionScenarioData data, LogicalPosition where)
+        public static void FireAt(ScenarioData data, LogicalPosition where)
         {
             data.Fire.SpawnBounds = new LogicalBounds(where.X, where.X, where.Z, where.Z);
         }

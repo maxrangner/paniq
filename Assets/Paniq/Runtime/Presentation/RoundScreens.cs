@@ -23,7 +23,7 @@ namespace Paniq.Presentation
         private static readonly Color TriggerReady = new Color(0.75f, 0.2f, 0.15f, 0.95f);
         private static readonly Color Spent = new Color(0.18f, 0.18f, 0.2f, 0.8f);
 
-        private readonly FireReactionRunner runner;
+        private readonly RunDriver runner;
 
         /// <summary>What the player has typed in the seed box, kept between frames.</summary>
         private string seedText;
@@ -34,7 +34,7 @@ namespace Paniq.Presentation
         /// <summary>Whether this round beat the best ever, worked out once when it ended.</summary>
         private bool beatTheBest;
 
-        public RoundScreens(FireReactionRunner runner)
+        public RoundScreens(RunDriver runner)
         {
             this.runner = runner;
             seedText = runner.Seed.ToString();
@@ -47,7 +47,7 @@ namespace Paniq.Presentation
         private string LevelName => runner.Level != null ? runner.Level.DisplayName : "The Office";
 
         /// <summary>The running score, the trigger and the pause button, along the top.</summary>
-        public void DrawStrip(FireReactionSnapshot snapshot)
+        public void DrawStrip(RunSnapshot snapshot)
         {
             var strip = new Rect(20f, 140f, 720f, 30f);
             GUI.color = StripBack;
@@ -95,7 +95,7 @@ namespace Paniq.Presentation
         }
 
         /// <summary>The card before the round: the level, the target, the best so far, and the seed.</summary>
-        public void DrawStartCard(FireReactionSnapshot snapshot)
+        public void DrawStartCard(RunSnapshot snapshot)
         {
             const float height = 250f;
             Rect card = CentredCard(height);
@@ -130,7 +130,7 @@ namespace Paniq.Presentation
         /// The card at the end: what the round came to, a way to read it back,
         /// and two ways to play it again.
         /// </summary>
-        public void DrawEndCard(FireReactionSnapshot snapshot)
+        public void DrawEndCard(RunSnapshot snapshot)
         {
             RecordResultOnce(snapshot);
 
@@ -242,7 +242,7 @@ namespace Paniq.Presentation
         }
 
         /// <summary>The high score is written once, the first frame the end card is drawn.</summary>
-        private void RecordResultOnce(FireReactionSnapshot snapshot)
+        private void RecordResultOnce(RunSnapshot snapshot)
         {
             if (resultRecorded)
             {

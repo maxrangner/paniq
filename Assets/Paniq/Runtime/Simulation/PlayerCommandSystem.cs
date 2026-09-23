@@ -225,34 +225,34 @@ namespace Paniq.Simulation
         /// patch of floor rather than at a chosen person.
         /// </summary>
         private static bool DialOf(
-            PlayerCommandType card, out AgentTrait trait, out int end, out FireReactionEventType logged)
+            PlayerCommandType card, out AgentTrait trait, out int end, out CausalEventType logged)
         {
             switch (card)
             {
                 case PlayerCommandType.PlayBeefcake:
                     trait = AgentTrait.Strength;
                     end = AgentTraitValues.Maximum;
-                    logged = FireReactionEventType.PowerBeefcake;
+                    logged = CausalEventType.PowerBeefcake;
                     return true;
                 case PlayerCommandType.PlayCourage:
                     trait = AgentTrait.Bravery;
                     end = AgentTraitValues.Maximum;
-                    logged = FireReactionEventType.PowerCourage;
+                    logged = CausalEventType.PowerCourage;
                     return true;
                 case PlayerCommandType.PlayTerror:
                     trait = AgentTrait.Nervousness;
                     end = AgentTraitValues.Maximum;
-                    logged = FireReactionEventType.PowerTerror;
+                    logged = CausalEventType.PowerTerror;
                     return true;
                 case PlayerCommandType.PlayBastard:
                     trait = AgentTrait.Evil;
                     end = AgentTraitValues.Maximum;
-                    logged = FireReactionEventType.PowerBastard;
+                    logged = CausalEventType.PowerBastard;
                     return true;
                 case PlayerCommandType.PlayColdHeart:
                     trait = AgentTrait.Compassion;
                     end = AgentTraitValues.Minimum;
-                    logged = FireReactionEventType.PowerColdHeart;
+                    logged = CausalEventType.PowerColdHeart;
                     return true;
                 default:
                     trait = AgentTrait.Strength;
@@ -284,7 +284,7 @@ namespace Paniq.Simulation
         /// </summary>
         private bool PlayTraitCard(PlayerCommand command)
         {
-            if (!DialOf(command.CommandType, out AgentTrait trait, out int end, out FireReactionEventType logged))
+            if (!DialOf(command.CommandType, out AgentTrait trait, out int end, out CausalEventType logged))
             {
                 return false;
             }
@@ -334,7 +334,7 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            CausalEvent card = context.Events.Append(context.Tick, default, FireReactionEventType.PowerSpawnedFire,
+            CausalEvent card = context.Events.Append(context.Tick, default, CausalEventType.PowerSpawnedFire,
                 command.Point, influence.CostOf(command.CommandType));
             fire.TryIgniteForPlayer(cell, card.EventId, out ulong _);
             return true;
@@ -366,7 +366,7 @@ namespace Paniq.Simulation
             }
 
             ulong played = context.Events.Append(context.Tick, default,
-                FireReactionEventType.PowerPoppedFuseBox, command.Point,
+                CausalEventType.PowerPoppedFuseBox, command.Point,
                 influence.CostOf(command.CommandType), 0, 0UL).EventId;
             power.PopTheFuseBoxNear(command.Point, played);
             return true;
@@ -415,7 +415,7 @@ namespace Paniq.Simulation
             }
 
             context.Events.Append(context.Tick, objects.IdOf(index),
-                FireReactionEventType.PowerSpawnedExtinguisher, command.Point,
+                CausalEventType.PowerSpawnedExtinguisher, command.Point,
                 influence.CostOf(command.CommandType), 0, 0UL, objects.IdOf(index));
             OfferItToWhoeverCanSeeIt(command.Point);
             return true;

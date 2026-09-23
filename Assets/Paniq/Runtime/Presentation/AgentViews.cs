@@ -52,17 +52,17 @@ namespace Paniq.Presentation
             public FlameEmitter Flames;
         }
 
-        private readonly FireReactionScenarioData scenario;
+        private readonly ScenarioData scenario;
         private readonly PresentationMaterials materials;
         private readonly Dictionary<SimulationId, AgentView> agents = new Dictionary<SimulationId, AgentView>();
 
-        public AgentViews(FireReactionScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
+        public AgentViews(ScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
             Transform parent)
         {
             this.scenario = scenario;
             this.materials = materials;
             int number = 0;
-            foreach (FireReactionAgentDefinition definition in scenario.Agents)
+            foreach (AgentDefinition definition in scenario.Agents)
             {
                 number++;
                 GameObject agentObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -125,18 +125,18 @@ namespace Paniq.Presentation
             }
         }
 
-        public void Update(FireReactionSnapshot snapshot, FireReactionSnapshot previousSnapshot, float blend, float time,
+        public void Update(RunSnapshot snapshot, RunSnapshot previousSnapshot, float blend, float time,
             Transform cameraTransform)
         {
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
-                FireReactionAgentSnapshot agent = snapshot.Agents[i];
+                AgentSnapshot agent = snapshot.Agents[i];
                 if (!agents.TryGetValue(agent.AgentId, out AgentView view))
                 {
                     continue;
                 }
 
-                FireReactionAgentSnapshot previous = previousSnapshot != null && i < previousSnapshot.Agents.Count
+                AgentSnapshot previous = previousSnapshot != null && i < previousSnapshot.Agents.Count
                     ? previousSnapshot.Agents[i]
                     : agent;
                 Vector3 planar = Vector3.Lerp(ToUnityPosition(previous.Position), ToUnityPosition(agent.Position), blend);
@@ -156,8 +156,8 @@ namespace Paniq.Presentation
                 bool lost = agent.Outcome == AgentTerminalOutcome.Lost;
                 bool frozen = agent.ActivityState == AgentActivityState.Frozen;
                 bool running = agent.FearState == AgentFearState.Scared && !frozen;
-                float speed = agent.SpeedMillimetresPerTick * FireReactionSimulation.TicksPerSecond /
-                              (float)FireReactionSimulation.MillimetresPerMetre;
+                float speed = agent.SpeedMillimetresPerTick * Run.TicksPerSecond /
+                              (float)Run.MillimetresPerMetre;
 
                 // A step bounce driven by distance actually travelled, so feet
                 // never appear to slide.
@@ -327,7 +327,7 @@ namespace Paniq.Presentation
         }
 
         /// <summary>Someone who got out keeps walking a few steps and shrinks away.</summary>
-        private static void UpdateEscaped(FireReactionAgentSnapshot agent, AgentView view, Vector3 planar, float yaw, float time)
+        private static void UpdateEscaped(AgentSnapshot agent, AgentView view, Vector3 planar, float yaw, float time)
         {
             if (view.EscapedSince < 0f)
             {
@@ -344,8 +344,8 @@ namespace Paniq.Presentation
                 return;
             }
 
-            float speed = Mathf.Max(1.5f, agent.SpeedMillimetresPerTick * FireReactionSimulation.TicksPerSecond /
-                                          (float)FireReactionSimulation.MillimetresPerMetre);
+            float speed = Mathf.Max(1.5f, agent.SpeedMillimetresPerTick * Run.TicksPerSecond /
+                                          (float)Run.MillimetresPerMetre);
             Vector3 forward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
             view.Transform.SetPositionAndRotation(
                 view.EscapePosition + forward * (speed * age * EscapeFadeSeconds) + Vector3.up * BodyHalfHeight,
@@ -357,7 +357,7 @@ namespace Paniq.Presentation
         /// Notices a fall, a get-up or a recovery, remembering when it began
         /// and where the body was drawn at that moment.
         /// </summary>
-        private void NoteBodyStateChange(FireReactionAgentSnapshot agent, AgentView view, float time)
+        private void NoteBodyStateChange(AgentSnapshot agent, AgentView view, float time)
         {
             if (agent.BodyState == view.LastBodyState)
             {
@@ -368,7 +368,7 @@ namespace Paniq.Presentation
             int riseTicks = view.LastBodyState == AgentBodyState.Unconscious
                 ? scenario.Falls.ComeToGetUpTicks
                 : scenario.Falls.GetUpTicks;
-            view.RiseSeconds = Mathf.Max(0.05f, (float)riseTicks / FireReactionSimulation.TicksPerSecond);
+            view.RiseSeconds = Mathf.Max(0.05f, (float)riseTicks / Run.TicksPerSecond);
             view.LastBodyState = agent.BodyState;
             view.BodyStateSince = time;
             view.FromPosition = view.Transform.position;
@@ -381,7 +381,7 @@ namespace Paniq.Presentation
         /// of the physical one. Where there was no room to fall they stay on
         /// their feet in the physics, and are drawn slumped to their knees.
         /// </summary>
-        private static void DownPose(FireReactionAgentSnapshot agent, FireReactionAgentSnapshot previous, float blend,
+        private static void DownPose(AgentSnapshot agent, AgentSnapshot previous, float blend,
             Vector3 planar, float yaw, out Vector3 position, out Quaternion rotation)
         {
             if (!agent.Pose.IsKnown)
@@ -405,7 +405,7 @@ namespace Paniq.Presentation
         }
 
         private void UpdateAppearance(
-            FireReactionAgentSnapshot agent,
+            AgentSnapshot agent,
             AgentView view,
             Vector3 planar,
             float yaw,
@@ -513,7 +513,7 @@ namespace Paniq.Presentation
         /// </summary>
         private const float RunningWaddle = 1.45f;
 
-        private void UpdateVisionCone(FireReactionAgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw)
+        private void UpdateVisionCone(AgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw)
         {
             vision.enabled = agent.Participation == AgentParticipation.Participating;
             if (!vision.enabled)

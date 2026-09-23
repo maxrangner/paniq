@@ -28,10 +28,10 @@ namespace Paniq.Tests.EditMode
         [TestCase(200)]
         public void HowLongASecondOfSimulationTakes(int people)
         {
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
-                FireReactionScenarioData data = scenario.ToRuntimeData();
+                ScenarioData data = scenario.ToRuntimeData();
                 data.Agents = PeopleInTheBuilding(data, people);
 
                 // No fire, so the crowd stays whole for the whole window.
@@ -51,7 +51,7 @@ namespace Paniq.Tests.EditMode
                 data.Calm.DecisionMinimumTicks = 1;
                 data.Calm.DecisionMaximumTicks = 3;
 
-                var simulation = new FireReactionSimulation(data, 42UL);
+                var simulation = new Run(data, 42UL);
 
                 // Long enough that everybody has chosen something to be doing.
                 for (int tick = 0; tick < 200; tick++)
@@ -76,7 +76,7 @@ namespace Paniq.Tests.EditMode
                 report.Append(" people: ");
                 report.Append(millisecondsPerTick.ToString("0.000", CultureInfo.InvariantCulture));
                 report.Append(" ms per tick, ");
-                report.Append((millisecondsPerTick * FireReactionSimulation.TicksPerSecond)
+                report.Append((millisecondsPerTick * Run.TicksPerSecond)
                     .ToString("0.0", CultureInfo.InvariantCulture));
                 report.Append(" ms of work per second of game time");
 
@@ -104,11 +104,11 @@ namespace Paniq.Tests.EditMode
         [TestCase(500, 1000)]
         public void HowLongAPackedBuildingTakes(int people, int things)
         {
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
-                FireReactionScenarioData data = StressBuilding.Build(scenario.ToRuntimeData(), people, things);
-                using (var simulation = new FireReactionSimulation(data, 42UL))
+                ScenarioData data = StressBuilding.Build(scenario.ToRuntimeData(), people, things);
+                using (var simulation = new Run(data, 42UL))
                 {
                     for (int tick = 0; tick < 100; tick++)
                     {
@@ -152,13 +152,13 @@ namespace Paniq.Tests.EditMode
         [TestCase(500, 1000)]
         public void HowLongAPanickingBuildingTakes(int people, int things)
         {
-            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            ScenarioAsset scenario = ScenarioAsset.CreateDefault();
             try
             {
-                FireReactionScenarioData data = StressBuilding.Build(scenario.ToRuntimeData(), people, things);
+                ScenarioData data = StressBuilding.Build(scenario.ToRuntimeData(), people, things);
                 data.Fire.ActivationTick = 1;
                 data.Fire.SpawnBounds = new LogicalBounds(3000, 3000, 3000, 3000);
-                using (var simulation = new FireReactionSimulation(data, 42UL))
+                using (var simulation = new Run(data, 42UL))
                 {
                     simulation.Step();
                     for (int i = 0; i < people; i++)
@@ -185,7 +185,7 @@ namespace Paniq.Tests.EditMode
                     stopwatch.Stop();
                     double perTick = stopwatch.Elapsed.TotalMilliseconds / measured;
                     double physics = (simulation.PhysicsStepTime - physicsBefore).TotalMilliseconds / measured;
-                    FireReactionSnapshot snapshot = simulation.GetSnapshot();
+                    RunSnapshot snapshot = simulation.GetSnapshot();
                     TestContext.WriteLine(
                         $"{people} people panicking, {things} boxes (editor): " +
                         $"{perTick.ToString("0.00", CultureInfo.InvariantCulture)} ms a tick, of which physics " +
@@ -202,7 +202,7 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>How many of the crowd are still in the building and being simulated.</summary>
-        private static int StillInside(FireReactionSimulation simulation, int people)
+        private static int StillInside(Run simulation, int people)
         {
             int inside = 0;
             for (int i = 0; i < people; i++)
@@ -220,15 +220,15 @@ namespace Paniq.Tests.EditMode
         /// People stood on a lattice through every room, far enough apart to
         /// start clear of each other and of the furniture already there.
         /// </summary>
-        private static FireReactionAgentDefinition[] PeopleInTheBuilding(FireReactionScenarioData data, int people)
+        private static AgentDefinition[] PeopleInTheBuilding(ScenarioData data, int people)
         {
             const int margin = 600;
             const int spacing = 800;
             int personRadius = data.World.OccupancyRadiusMillimetres;
-            var made = new FireReactionAgentDefinition[people];
+            var made = new AgentDefinition[people];
             int placed = 0;
 
-            foreach (FireReactionRoomDefinition definition in data.Rooms)
+            foreach (RoomDefinition definition in data.Rooms)
             {
                 LogicalBounds room = definition.Bounds;
                 int columns = (room.MaxX - room.MinX - 2 * margin) / spacing + 1;
@@ -243,7 +243,7 @@ namespace Paniq.Tests.EditMode
                         continue;
                     }
 
-                    made[placed] = new FireReactionAgentDefinition(
+                    made[placed] = new AgentDefinition(
                         new SimulationId((ulong)(9000 + placed)),
                         at,
                         CardinalDirection.North,
@@ -274,9 +274,9 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>Floor with no authored furniture or loose object already standing on it.</summary>
-        private static bool IsClearFloor(FireReactionScenarioData data, LogicalPosition at, int personRadius)
+        private static bool IsClearFloor(ScenarioData data, LogicalPosition at, int personRadius)
         {
-            foreach (FireReactionPhysicsObjectDefinition thing in data.PhysicsObjects)
+            foreach (PhysicsObjectDefinition thing in data.PhysicsObjects)
             {
                 if (thing.StartsDormant)
                 {
@@ -290,7 +290,7 @@ namespace Paniq.Tests.EditMode
                 }
             }
 
-            foreach (FireReactionTableDefinition table in data.Tables)
+            foreach (TableDefinition table in data.Tables)
             {
                 LogicalBounds bounds = table.Bounds;
                 if (at.X >= bounds.MinX - personRadius && at.X <= bounds.MaxX + personRadius &&

@@ -40,13 +40,13 @@ namespace Paniq.Presentation
         /// </summary>
         private const float TorsoHeight = 0.5f;
 
-        private readonly FireReactionRunner runner;
+        private readonly RunDriver runner;
         private readonly RoomView room;
 
         /// <summary>The ground, for turning a screen position into a place on the floor.</summary>
         private static readonly Plane Ground = new Plane(Vector3.up, 0f);
 
-        public PlayerInput(FireReactionRunner runner, RoomView room)
+        public PlayerInput(RunDriver runner, RoomView room)
         {
             this.runner = runner;
             this.room = room;
@@ -122,7 +122,7 @@ namespace Paniq.Presentation
         /// button also puts a card back down, so without knowing this every
         /// swing of the view would throw away whatever was in hand.
         /// </param>
-        public void Update(Camera camera, FireReactionSnapshot snapshot, bool lookOnly = false,
+        public void Update(Camera camera, RunSnapshot snapshot, bool lookOnly = false,
             bool turningTheView = false)
         {
             HoveredDoor = null;
@@ -283,8 +283,8 @@ namespace Paniq.Presentation
 
             Vector3 point = ray.GetPoint(distance);
             spot = new LogicalPosition(
-                Mathf.RoundToInt(point.x * FireReactionSimulation.MillimetresPerMetre),
-                Mathf.RoundToInt(point.z * FireReactionSimulation.MillimetresPerMetre));
+                Mathf.RoundToInt(point.x * Run.MillimetresPerMetre),
+                Mathf.RoundToInt(point.z * Run.MillimetresPerMetre));
             return true;
         }
 
@@ -294,13 +294,13 @@ namespace Paniq.Presentation
         /// than across the floor: a body stands a metre up in the air, so the
         /// two are nowhere near each other once the camera tilts.
         /// </summary>
-        internal static SimulationId? NearestPerson(Camera camera, FireReactionSnapshot snapshot, Vector2 pointer)
+        internal static SimulationId? NearestPerson(Camera camera, RunSnapshot snapshot, Vector2 pointer)
         {
             float best = PickPersonPixels * PickPersonPixels;
             SimulationId? found = null;
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
-                FireReactionAgentSnapshot agent = snapshot.Agents[i];
+                AgentSnapshot agent = snapshot.Agents[i];
                 if (agent.Participation != AgentParticipation.Participating)
                 {
                     continue;

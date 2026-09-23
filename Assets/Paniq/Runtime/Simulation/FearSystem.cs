@@ -79,7 +79,7 @@
             CausalEvent alert = context.Events.Append(
                 tick,
                 agent.Id,
-                FireReactionEventType.AgentAlerted,
+                CausalEventType.AgentAlerted,
                 agent.Body.Position,
                 threats.Count,
                 agent.Fear.ReactionDelayTicks,
@@ -133,7 +133,7 @@
             CausalEvent alert = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentAlerted,
+                CausalEventType.AgentAlerted,
                 agent.Body.Position,
                 threats.Count,
                 agent.Fear.ReactionDelayTicks,
@@ -157,7 +157,7 @@
             CausalEvent scared = context.Events.Append(
                 tick,
                 agent.Id,
-                FireReactionEventType.AgentScared,
+                CausalEventType.AgentScared,
                 agent.Body.Position,
                 threats.Count,
                 0,
@@ -179,7 +179,7 @@
             CausalEvent froze = context.Events.Append(
                 tick,
                 agent.Id,
-                FireReactionEventType.AgentFroze,
+                CausalEventType.AgentFroze,
                 agent.Body.Position,
                 0,
                 agent.Fear.FreezeEndTick == int.MaxValue ? 0 : agent.Fear.FreezeEndTick - tick,
@@ -193,7 +193,7 @@
         /// </summary>
         public void Unfreeze(Agent agent, ulong causalParentEventId = 0UL)
         {
-            context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentUnfroze, agent.Body.Position, 0, 0,
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentUnfroze, agent.Body.Position, 0, 0,
                 causalParentEventId != 0UL ? causalParentEventId : agent.Fear.FrozeEventId);
             StartFleeing(agent);
             agent.Fear.NextShoutTick = context.Tick;

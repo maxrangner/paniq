@@ -132,7 +132,7 @@ namespace Paniq.Simulation
             hand.Add(dealt);
             Dealt++;
             context.Events.Append(
-                context.Tick, who, FireReactionEventType.CardDealt, where, (int)dealt, 0, deathEventId);
+                context.Tick, who, CausalEventType.CardDealt, where, (int)dealt, 0, deathEventId);
         }
     }
 }

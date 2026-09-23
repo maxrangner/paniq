@@ -28,7 +28,7 @@ namespace Paniq.Presentation
 
         private readonly HashSet<ulong> doorIds = new HashSet<ulong>();
 
-        public EventStory(FireReactionSnapshot snapshot)
+        public EventStory(RunSnapshot snapshot)
         {
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
@@ -37,7 +37,7 @@ namespace Paniq.Presentation
 
             for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
             {
-                FireReactionPhysicsObjectSnapshot thing = snapshot.PhysicsObjects[i];
+                PhysicsObjectSnapshot thing = snapshot.PhysicsObjects[i];
                 thingNames[thing.ObjectId.Value] = NameOfKind(thing.Kind);
             }
 
@@ -53,21 +53,21 @@ namespace Paniq.Presentation
         /// bumping shoulders -- and printed one to a line they bury everything
         /// worth reading. The log folds runs of them into a single line.
         /// </summary>
-        public static bool IsBackground(FireReactionEventType type)
+        public static bool IsBackground(CausalEventType type)
         {
             switch (type)
             {
-                case FireReactionEventType.FireSpread:
-                case FireReactionEventType.FireDoused:
-                case FireReactionEventType.ExtinguisherSprayed:
-                case FireReactionEventType.AgentYelled:
-                case FireReactionEventType.AgentNoticedSound:
-                case FireReactionEventType.AgentsCollided:
-                case FireReactionEventType.BoxBumped:
-                case FireReactionEventType.BoxesCollided:
-                case FireReactionEventType.AlarmRang:
-                case FireReactionEventType.ObjectBurntOut:
-                case FireReactionEventType.PowerSparkArrived:
+                case CausalEventType.FireSpread:
+                case CausalEventType.FireDoused:
+                case CausalEventType.ExtinguisherSprayed:
+                case CausalEventType.AgentYelled:
+                case CausalEventType.AgentNoticedSound:
+                case CausalEventType.AgentsCollided:
+                case CausalEventType.BoxBumped:
+                case CausalEventType.BoxesCollided:
+                case CausalEventType.AlarmRang:
+                case CausalEventType.ObjectBurntOut:
+                case CausalEventType.PowerSparkArrived:
                     return true;
                 default:
                     return false;
@@ -89,7 +89,7 @@ namespace Paniq.Presentation
         /// <remarks>Kept beside the other formatting helpers.</remarks>
         public static string TimeOf(int tick)
         {
-            int seconds = tick / FireReactionSimulation.TicksPerSecond;
+            int seconds = tick / Run.TicksPerSecond;
             return $"{seconds / 60}:{seconds % 60:00}";
         }
 
@@ -100,35 +100,35 @@ namespace Paniq.Presentation
             string whom = Name(record.TargetId);
             switch (record.EventType)
             {
-                case FireReactionEventType.RoundEventTriggered: return "you set it off";
-                case FireReactionEventType.FireActivated: return "a fire took hold";
-                case FireReactionEventType.FireSpread: return "the fire spread";
-                case FireReactionEventType.FireDoused: return "a burning patch went out";
+                case CausalEventType.RoundEventTriggered: return "you set it off";
+                case CausalEventType.FireActivated: return "a fire took hold";
+                case CausalEventType.FireSpread: return "the fire spread";
+                case CausalEventType.FireDoused: return "a burning patch went out";
 
-                case FireReactionEventType.AgentAlerted: return $"{who} noticed something was wrong";
-                case FireReactionEventType.AgentYelled: return $"{who} shouted";
-                case FireReactionEventType.AgentNoticedSound: return $"{who} heard something";
-                case FireReactionEventType.AgentScared: return $"{who} panicked";
-                case FireReactionEventType.AgentFroze: return $"{who} froze on the spot";
-                case FireReactionEventType.AgentUnfroze: return $"{who} came out of it and moved";
-                case FireReactionEventType.AgentCaughtFire: return $"{who} caught fire";
-                case FireReactionEventType.AgentRolled: return $"{who} threw themselves down and rolled";
-                case FireReactionEventType.AgentLost: return $"{who} did not make it";
-                case FireReactionEventType.AgentEscaped: return $"{who} got out of the building";
-                case FireReactionEventType.AgentSurvived: return $"{who} was still alive inside at the end";
+                case CausalEventType.AgentAlerted: return $"{who} noticed something was wrong";
+                case CausalEventType.AgentYelled: return $"{who} shouted";
+                case CausalEventType.AgentNoticedSound: return $"{who} heard something";
+                case CausalEventType.AgentScared: return $"{who} panicked";
+                case CausalEventType.AgentFroze: return $"{who} froze on the spot";
+                case CausalEventType.AgentUnfroze: return $"{who} came out of it and moved";
+                case CausalEventType.AgentCaughtFire: return $"{who} caught fire";
+                case CausalEventType.AgentRolled: return $"{who} threw themselves down and rolled";
+                case CausalEventType.AgentLost: return $"{who} did not make it";
+                case CausalEventType.AgentEscaped: return $"{who} got out of the building";
+                case CausalEventType.AgentSurvived: return $"{who} was still alive inside at the end";
 
-                case FireReactionEventType.AgentsCollided: return $"{who} ran into {whom}";
-                case FireReactionEventType.AgentKnockedDown: return $"{who} was knocked off their feet";
-                case FireReactionEventType.AgentTripped: return $"{who} tripped";
-                case FireReactionEventType.AgentGotUp: return $"{who} picked themselves up";
-                case FireReactionEventType.AgentPassedOut: return $"{who} was knocked out cold";
-                case FireReactionEventType.AgentCameTo: return $"{who} came round";
-                case FireReactionEventType.AgentCrushed: return $"{who} was squeezed off their feet by the crush";
-                case FireReactionEventType.AgentShoved: return $"{who} heaved {whom} out of the way";
+                case CausalEventType.AgentsCollided: return $"{who} ran into {whom}";
+                case CausalEventType.AgentKnockedDown: return $"{who} was knocked off their feet";
+                case CausalEventType.AgentTripped: return $"{who} tripped";
+                case CausalEventType.AgentGotUp: return $"{who} picked themselves up";
+                case CausalEventType.AgentPassedOut: return $"{who} was knocked out cold";
+                case CausalEventType.AgentCameTo: return $"{who} came round";
+                case CausalEventType.AgentCrushed: return $"{who} was squeezed off their feet by the crush";
+                case CausalEventType.AgentShoved: return $"{who} heaved {whom} out of the way";
 
-                case FireReactionEventType.AgentLookedForAWayOut: return $"{who} did not know the way out and went looking";
-                case FireReactionEventType.AgentFoundADeadEnd: return $"{who} found only a dead end";
-                case FireReactionEventType.AgentFoundTheWayOut:
+                case CausalEventType.AgentLookedForAWayOut: return $"{who} did not know the way out and went looking";
+                case CausalEventType.AgentFoundADeadEnd: return $"{who} found only a dead end";
+                case CausalEventType.AgentFoundTheWayOut:
                     switch ((WayLearned)record.Strength)
                     {
                         case WayLearned.Sign: return $"{who} read a sign and knew the way out";
@@ -137,68 +137,68 @@ namespace Paniq.Presentation
                         default: return $"{who} spotted the way out";
                     }
 
-                case FireReactionEventType.DoorUnlocked: return $"{who} was unlocked";
-                case FireReactionEventType.DoorOpened: return $"{who} was opened";
-                case FireReactionEventType.DoorClosed: return $"{who} shut {whom}";
-                case FireReactionEventType.DoorLocked: return $"{who} locked {whom}";
-                case FireReactionEventType.DoorBrokenDown: return $"{who} shouldered {whom} off its hinges";
-                case FireReactionEventType.DoorBurntThrough: return $"{who} burnt through and the fire came on";
-                case FireReactionEventType.DoorBlocked: return $"{who} came to rest in {whom} and jammed it";
-                case FireReactionEventType.DoorUnblocked: return $"{whom} was clear again";
-                case FireReactionEventType.AgentTriedDoor: return $"{who} tried a door and it would not open";
-                case FireReactionEventType.AgentForcedDoor: return $"{who} threw a shoulder at a door";
-                case FireReactionEventType.AgentGaveUpOnDoor: return $"{who} gave up on a door";
-                case FireReactionEventType.AgentBarricadedDoor: return $"{who} wedged something against {whom}";
-                case FireReactionEventType.AgentShovedObstruction: return $"{who} heaved {whom} out of a doorway";
+                case CausalEventType.DoorUnlocked: return $"{who} was unlocked";
+                case CausalEventType.DoorOpened: return $"{who} was opened";
+                case CausalEventType.DoorClosed: return $"{who} shut {whom}";
+                case CausalEventType.DoorLocked: return $"{who} locked {whom}";
+                case CausalEventType.DoorBrokenDown: return $"{who} shouldered {whom} off its hinges";
+                case CausalEventType.DoorBurntThrough: return $"{who} burnt through and the fire came on";
+                case CausalEventType.DoorBlocked: return $"{who} came to rest in {whom} and jammed it";
+                case CausalEventType.DoorUnblocked: return $"{whom} was clear again";
+                case CausalEventType.AgentTriedDoor: return $"{who} tried a door and it would not open";
+                case CausalEventType.AgentForcedDoor: return $"{who} threw a shoulder at a door";
+                case CausalEventType.AgentGaveUpOnDoor: return $"{who} gave up on a door";
+                case CausalEventType.AgentBarricadedDoor: return $"{who} wedged something against {whom}";
+                case CausalEventType.AgentShovedObstruction: return $"{who} heaved {whom} out of a doorway";
 
-                case FireReactionEventType.AgentTookExtinguisher: return $"{who} picked up {whom}";
-                case FireReactionEventType.ExtinguisherSprayed: return "an extinguisher was sprayed at the fire";
-                case FireReactionEventType.ExtinguisherEmptied: return $"{who} ran dry";
-                case FireReactionEventType.AgentBlasted: return $"{whom} was knocked over by the jet";
-                case FireReactionEventType.AgentDoused: return $"{whom} was hosed down and put out";
+                case CausalEventType.AgentTookExtinguisher: return $"{who} picked up {whom}";
+                case CausalEventType.ExtinguisherSprayed: return "an extinguisher was sprayed at the fire";
+                case CausalEventType.ExtinguisherEmptied: return $"{who} ran dry";
+                case CausalEventType.AgentBlasted: return $"{whom} was knocked over by the jet";
+                case CausalEventType.AgentDoused: return $"{whom} was hosed down and put out";
 
-                case FireReactionEventType.LeaderCalledPeopleOn: return $"{who} called everybody on";
-                case FireReactionEventType.LeaderOrderedDoorBroken: return $"{who} sent {whom} at a door";
-                case FireReactionEventType.LeaderOrderedFireFought: return $"{who} sent {whom} for an extinguisher";
+                case CausalEventType.LeaderCalledPeopleOn: return $"{who} called everybody on";
+                case CausalEventType.LeaderOrderedDoorBroken: return $"{who} sent {whom} at a door";
+                case CausalEventType.LeaderOrderedFireFought: return $"{who} sent {whom} for an extinguisher";
 
-                case FireReactionEventType.AgentShookAwake: return $"{who} shook {whom} awake";
-                case FireReactionEventType.AgentGrabbed: return $"{who} took hold of {whom}";
-                case FireReactionEventType.AgentDropped: return $"{who} let go of {whom}";
-                case FireReactionEventType.AgentRescued: return $"{who} dragged {whom} clear";
+                case CausalEventType.AgentShookAwake: return $"{who} shook {whom} awake";
+                case CausalEventType.AgentGrabbed: return $"{who} took hold of {whom}";
+                case CausalEventType.AgentDropped: return $"{who} let go of {whom}";
+                case CausalEventType.AgentRescued: return $"{who} dragged {whom} clear";
 
-                case FireReactionEventType.ItemThrown: return $"{who} flung {whom} away from them";
-                case FireReactionEventType.ItemDropped: return $"{who} dropped {whom}";
-                case FireReactionEventType.BoxBumped: return $"{whom} was knocked about";
-                case FireReactionEventType.BoxHitAgent: return $"{whom} was hit by something flying";
-                case FireReactionEventType.BoxesCollided: return $"{who} knocked into {whom}";
-                case FireReactionEventType.ObjectCaughtFire: return $"{who} caught fire";
-                case FireReactionEventType.ObjectBurntOut: return $"{who} burnt out";
-                case FireReactionEventType.ObjectBroke: return $"{who} broke";
-                case FireReactionEventType.ObjectExploded: return $"{who} went off with a bang";
+                case CausalEventType.ItemThrown: return $"{who} flung {whom} away from them";
+                case CausalEventType.ItemDropped: return $"{who} dropped {whom}";
+                case CausalEventType.BoxBumped: return $"{whom} was knocked about";
+                case CausalEventType.BoxHitAgent: return $"{whom} was hit by something flying";
+                case CausalEventType.BoxesCollided: return $"{who} knocked into {whom}";
+                case CausalEventType.ObjectCaughtFire: return $"{who} caught fire";
+                case CausalEventType.ObjectBurntOut: return $"{who} burnt out";
+                case CausalEventType.ObjectBroke: return $"{who} broke";
+                case CausalEventType.ObjectExploded: return $"{who} went off with a bang";
 
-                case FireReactionEventType.AlarmPulled: return $"{who} hit a fire alarm";
-                case FireReactionEventType.AlarmRang: return "the alarms rang out";
+                case CausalEventType.AlarmPulled: return $"{who} hit a fire alarm";
+                case CausalEventType.AlarmRang: return "the alarms rang out";
 
-                case FireReactionEventType.PowerBeefcake: return $"you made {whom} as strong as anyone can be";
-                case FireReactionEventType.PowerCourage: return $"you made {whom} fearless";
-                case FireReactionEventType.PowerTerror: return $"you put the fear of God into {whom}";
-                case FireReactionEventType.PowerBastard: return $"you turned {whom} nasty";
-                case FireReactionEventType.PowerColdHeart: return $"you stopped {whom} caring what happened to anybody";
-                case FireReactionEventType.PowerSpawnedFire: return "you started a fire of your own";
-                case FireReactionEventType.PowerSpawnedExtinguisher: return "you stood an extinguisher on the floor";
-                case FireReactionEventType.PowerBlastedWall: return "you blew a hole through a wall";
-                case FireReactionEventType.PowerPoppedFuseBox: return "you popped the fuse box";
+                case CausalEventType.PowerBeefcake: return $"you made {whom} as strong as anyone can be";
+                case CausalEventType.PowerCourage: return $"you made {whom} fearless";
+                case CausalEventType.PowerTerror: return $"you put the fear of God into {whom}";
+                case CausalEventType.PowerBastard: return $"you turned {whom} nasty";
+                case CausalEventType.PowerColdHeart: return $"you stopped {whom} caring what happened to anybody";
+                case CausalEventType.PowerSpawnedFire: return "you started a fire of your own";
+                case CausalEventType.PowerSpawnedExtinguisher: return "you stood an extinguisher on the floor";
+                case CausalEventType.PowerBlastedWall: return "you blew a hole through a wall";
+                case CausalEventType.PowerPoppedFuseBox: return "you popped the fuse box";
 
-                case FireReactionEventType.PowerSparkStarted:
+                case CausalEventType.PowerSparkStarted:
                     return $"a spark set off along the cable from {Name(record.SourceId)} " +
                            $"toward {Name(record.TargetId)}";
-                case FireReactionEventType.PowerSparkArrived:
+                case CausalEventType.PowerSparkArrived:
                     return $"the spark reached {Name(record.TargetId)}";
 
-                case FireReactionEventType.CardDealt:
+                case CausalEventType.CardDealt:
                     return $"{who} died, and dealt you {PlayerInput.NameOf((PlayerCommandType)record.Strength)}";
 
-                case FireReactionEventType.RoundEnded: return $"the round ended with {record.Strength} saved";
+                case CausalEventType.RoundEnded: return $"the round ended with {record.Strength} saved";
                 default: return record.EventType.ToString();
             }
         }

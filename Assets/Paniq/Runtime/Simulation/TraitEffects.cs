@@ -32,7 +32,7 @@ namespace Paniq.Simulation
         /// between the Speed 0 and Speed 10 values, plus a seeded jitter (two
         /// random draws: walking, then sprinting).
         /// </summary>
-        public static void ApplyPace(Agent agent, FireReactionScenarioData scenario, ref Pcg32 random)
+        public static void ApplyPace(Agent agent, ScenarioData scenario, ref Pcg32 random)
         {
             int speed = agent.Traits.Speed;
             TraitSettings settings = scenario.Traits;
@@ -50,13 +50,13 @@ namespace Paniq.Simulation
         // ---------------------------------------------------------------- strength
 
         /// <summary>Effective body weight when shoving a box.</summary>
-        public static long PushMassGrams(Agent agent, FireReactionScenarioData scenario)
+        public static long PushMassGrams(Agent agent, ScenarioData scenario)
         {
             return Scale(scenario.ObjectPhysics.AgentMassGrams, scenario.Traits.StrengthMassPercentPerPoint, agent.Traits.Strength);
         }
 
         /// <summary>True when <paramref name="agent"/> is so much stronger than <paramref name="other"/> that a knock-down hit only staggers them.</summary>
-        public static bool ShrugsOff(Agent agent, Agent other, FireReactionScenarioData scenario)
+        public static bool ShrugsOff(Agent agent, Agent other, ScenarioData scenario)
         {
             return agent.Traits.Strength - other.Traits.Strength >= scenario.Traits.StrengthShrugOffGap;
         }
@@ -66,14 +66,14 @@ namespace Paniq.Simulation
         /// <paramref name="basePercent"/> (already raised for a harder hit),
         /// less for the strong, never above the scenario's maximum.
         /// </summary>
-        public static int PassOutChancePercent(Agent agent, FireReactionScenarioData scenario, int basePercent)
+        public static int PassOutChancePercent(Agent agent, ScenarioData scenario, int basePercent)
         {
             int chance = basePercent - scenario.Traits.StrengthPassOutPercentPerPoint * FromOrdinary(agent.Traits.Strength);
             return Math.Max(0, Math.Min(scenario.Falls.PassOutMaximumPercent, chance));
         }
 
         /// <summary>Chance to start shoving a locked door rather than give up at once.</summary>
-        public static int DoorForceChancePercent(Agent agent, FireReactionScenarioData scenario)
+        public static int DoorForceChancePercent(Agent agent, ScenarioData scenario)
         {
             return Percent(scenario.Exits.DoorForceChancePercent +
                            scenario.Traits.StrengthForceChancePerPoint * FromOrdinary(agent.Traits.Strength));
@@ -83,14 +83,14 @@ namespace Paniq.Simulation
         /// Getting out of a chair: the nervous are out of it fastest, the
         /// placid take their time, and nobody takes less than a fifth of a second.
         /// </summary>
-        public static int StandUpTicks(Agent agent, FireReactionScenarioData scenario)
+        public static int StandUpTicks(Agent agent, ScenarioData scenario)
         {
             ItemSettings items = scenario.Items;
             return Math.Max(10, items.StandUpTicks - agent.Traits.Nervousness * items.StandUpTicksPerNervousness);
         }
 
         /// <summary>Damage one shove does to a locked door; zero below the minimum strength.</summary>
-        public static int DoorShoveDamage(Agent agent, FireReactionScenarioData scenario)
+        public static int DoorShoveDamage(Agent agent, ScenarioData scenario)
         {
             TraitSettings settings = scenario.Traits;
             int points = agent.Traits.Strength - settings.DoorBreakMinimumStrength + 1;
@@ -98,7 +98,7 @@ namespace Paniq.Simulation
         }
 
         /// <summary>The heaviest item this person can lift and carry.</summary>
-        public static long CarryLimitGrams(Agent agent, FireReactionScenarioData scenario)
+        public static long CarryLimitGrams(Agent agent, ScenarioData scenario)
         {
             ItemSettings items = scenario.Items;
             return items.CarryBaseGrams + (long)items.CarryGramsPerStrength * agent.Traits.Strength;
@@ -106,13 +106,13 @@ namespace Paniq.Simulation
 
         // ---------------------------------------------------------------- bravery
 
-        public static int MaximumReactionDelayTicks(Agent agent, FireReactionScenarioData scenario)
+        public static int MaximumReactionDelayTicks(Agent agent, ScenarioData scenario)
         {
             return (int)Scale(scenario.Perception.MaximumReactionDelayTicks,
                 -scenario.Traits.BraveryReactionDelayPercentPerPoint, agent.Traits.Bravery);
         }
 
-        public static int DangerDistance(Agent agent, FireReactionScenarioData scenario)
+        public static int DangerDistance(Agent agent, ScenarioData scenario)
         {
             return (int)Scale(scenario.Panic.DangerDistanceMillimetres,
                 -scenario.Traits.BraveryDangerDistancePercentPerPoint, agent.Traits.Bravery);
@@ -120,7 +120,7 @@ namespace Paniq.Simulation
 
         // ---------------------------------------------------------------- nervousness
 
-        public static int ShoutInterval(Agent agent, FireReactionScenarioData scenario, ref Pcg32 random)
+        public static int ShoutInterval(Agent agent, ScenarioData scenario, ref Pcg32 random)
         {
             PanicSettings panic = scenario.Panic;
             int percent = -scenario.Traits.NervousShoutIntervalPercentPerPoint;
@@ -130,7 +130,7 @@ namespace Paniq.Simulation
                 Math.Max(1, (int)Scale(panic.ShoutMaximumTicks, percent, nervousness)));
         }
 
-        public static int PanicDecisionInterval(Agent agent, FireReactionScenarioData scenario, ref Pcg32 random)
+        public static int PanicDecisionInterval(Agent agent, ScenarioData scenario, ref Pcg32 random)
         {
             PanicSettings panic = scenario.Panic;
             int percent = -scenario.Traits.NervousDecisionIntervalPercentPerPoint;
@@ -140,7 +140,7 @@ namespace Paniq.Simulation
                 Math.Max(1, (int)Scale(panic.DecisionMaximumTicks, percent, nervousness)));
         }
 
-        public static int SwerveChancePercent(Agent agent, FireReactionScenarioData scenario)
+        public static int SwerveChancePercent(Agent agent, ScenarioData scenario)
         {
             if (agent.Fear.Composed || agent.Intent.SetOnAWayOut)
             {
@@ -153,7 +153,7 @@ namespace Paniq.Simulation
                            scenario.Traits.NervousSwerveChancePerPoint * FromOrdinary(agent.Traits.Nervousness));
         }
 
-        public static int HesitateChancePercent(Agent agent, FireReactionScenarioData scenario)
+        public static int HesitateChancePercent(Agent agent, ScenarioData scenario)
         {
             if (agent.Fear.Composed || agent.Intent.SetOnAWayOut)
             {
@@ -179,14 +179,14 @@ namespace Paniq.Simulation
                 : agent.Personality.PanicSpeed;
         }
 
-        public static int TripChancePercent(Agent agent, FireReactionScenarioData scenario)
+        public static int TripChancePercent(Agent agent, ScenarioData scenario)
         {
             return Percent((int)Scale(scenario.Falls.TripChancePercent, scenario.Traits.NervousTripPercentPerPoint,
                 agent.Traits.Nervousness));
         }
 
         /// <summary>How wide the extinguisher jet sweeps: a strong pair of hands keeps a narrow, steady arc.</summary>
-        public static int SpraySweepDegrees(Agent agent, FireReactionScenarioData scenario)
+        public static int SpraySweepDegrees(Agent agent, ScenarioData scenario)
         {
             ExtinguisherSettings settings = scenario.Extinguishers;
             return Math.Max(0, settings.SweepDegrees - settings.SweepDegreesPerStrengthPoint * agent.Traits.Strength);
@@ -196,7 +196,7 @@ namespace Paniq.Simulation
         /// Whether a bell is enough to make this person leave briskly rather
         /// than panic: brave enough, and not too nervous.
         /// </summary>
-        public static bool StaysComposed(AgentTraitValues traits, FireReactionScenarioData scenario)
+        public static bool StaysComposed(AgentTraitValues traits, ScenarioData scenario)
         {
             return traits.Bravery - traits.Nervousness >= scenario.Alarm.ComposureGap;
         }
@@ -204,7 +204,7 @@ namespace Paniq.Simulation
         // ---------------------------------------------------------------- compassion and evil
 
         /// <summary>How hard a runner steers around people: compassion adds, evil takes away.</summary>
-        public static int PanicPeopleAvoidPercent(Agent agent, FireReactionScenarioData scenario)
+        public static int PanicPeopleAvoidPercent(Agent agent, ScenarioData scenario)
         {
             TraitSettings settings = scenario.Traits;
             long percent = 100L +
@@ -214,7 +214,7 @@ namespace Paniq.Simulation
         }
 
         /// <summary>The closing speed at which a runner rams someone instead of trying to dodge.</summary>
-        public static int BumpMinimumSpeed(Agent agent, FireReactionScenarioData scenario)
+        public static int BumpMinimumSpeed(Agent agent, ScenarioData scenario)
         {
             TraitSettings settings = scenario.Traits;
             return Math.Max(settings.MinimumBumpSpeed,

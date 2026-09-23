@@ -196,7 +196,7 @@ namespace Paniq.Simulation
                 objects.PickUp(item, agent);
                 agent.Carry.Holding = true;
                 agent.Intent.ActivityEndTick = checked(tick + settings.FightTimeoutTicks);
-                context.Events.Append(tick, agent.Id, FireReactionEventType.AgentTookExtinguisher,
+                context.Events.Append(tick, agent.Id, CausalEventType.AgentTookExtinguisher,
                     agent.Body.Position, 0, 0, agent.Fear.ScaredEventId, objects.IdOf(item));
                 return Walk(agent, where, 0);
             }
@@ -204,7 +204,7 @@ namespace Paniq.Simulation
             if (objects.FuelOf(item) <= 0)
             {
                 // Empty: they drop it and run.
-                context.Events.Append(tick, agent.Id, FireReactionEventType.ExtinguisherEmptied,
+                context.Events.Append(tick, agent.Id, CausalEventType.ExtinguisherEmptied,
                     agent.Body.Position, 0, 0, agent.Doors.AttemptEventId, objects.IdOf(item));
                 items.PutDownWhereTheyStand(agent, agent.Fear.ScaredEventId);
                 GiveUp(agent);
@@ -317,7 +317,7 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             objects.UseFuel(item, 1);
-            ulong spray = context.Events.Append(tick, agent.Id, FireReactionEventType.ExtinguisherSprayed,
+            ulong spray = context.Events.Append(tick, agent.Id, CausalEventType.ExtinguisherSprayed,
                 agent.Body.Position, settings.SprayRangeMillimetres, agent.Body.Heading,
                 agent.Fear.ScaredEventId, objects.IdOf(item)).EventId;
 
@@ -373,7 +373,7 @@ namespace Paniq.Simulation
 
             int away = IntegerMath.HeadingBetween(sprayer.Body.Position, hit.Body.Position, hit.Body.Heading);
             hit.Body.BlastedUntilTick = checked(context.Tick + settings.BlastRecoveryTicks);
-            context.Events.Append(context.Tick, sprayer.Id, FireReactionEventType.AgentBlasted,
+            context.Events.Append(context.Tick, sprayer.Id, CausalEventType.AgentBlasted,
                 hit.Body.Position, 0, away, sprayEventId, hit.Id);
             body.ShoveBack(hit, away, settings.BlastPushMillimetres, sprayEventId);
         }

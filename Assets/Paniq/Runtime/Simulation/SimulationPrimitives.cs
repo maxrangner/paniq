@@ -410,7 +410,7 @@ namespace Paniq.Simulation
         Over
     }
 
-    public enum FireReactionEventType
+    public enum CausalEventType
     {
         FireActivated,
         FireSpread,
@@ -620,7 +620,7 @@ namespace Paniq.Simulation
         PowerColdHeart
     }
 
-    /// <summary>How somebody came to know a door, carried as the strength of <see cref="FireReactionEventType.AgentFoundTheWayOut"/>.</summary>
+    /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
     public enum WayLearned
     {
         /// <summary>They saw it, in their own room or through an open doorway.</summary>

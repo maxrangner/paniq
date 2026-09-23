@@ -162,9 +162,9 @@ namespace Paniq.Simulation
         /// start locked (they are the player's to unlock); inside doors start
         /// shut but unlocked, so people can open them themselves.
         /// </summary>
-        public static DoorRuntime[] CreateDoors(FireReactionScenarioData scenario)
+        public static DoorRuntime[] CreateDoors(ScenarioData scenario)
         {
-            var definitions = (FireReactionDoorDefinition[])scenario.Doors.Clone();
+            var definitions = (DoorDefinition[])scenario.Doors.Clone();
             Array.Sort(definitions, (left, right) => left.DoorId.CompareTo(right.DoorId));
             SimulationId[] spares = scenario.BlastHoles ?? Array.Empty<SimulationId>();
             var doors = new DoorRuntime[definitions.Length + spares.Length];
@@ -249,7 +249,7 @@ namespace Paniq.Simulation
 
             // A hole is open for good, and the escape rules want an event to name
             // as the reason anybody got out through it.
-            ulong blasted = context.Events.Append(context.Tick, doors[slot].Id, FireReactionEventType.PowerBlastedWall,
+            ulong blasted = context.Events.Append(context.Tick, doors[slot].Id, CausalEventType.PowerBlastedWall,
                 centre, costForTheLog, 0, 0UL, doors[slot].Id).EventId;
             doors[slot].OpenedEventId = blasted;
 
@@ -381,7 +381,7 @@ namespace Paniq.Simulation
                     // The player is the cause, so this is a root event.
                     d.State = DoorState.Unlocked;
                     d.UnlockedEventId = context.Events.Append(
-                        context.Tick, d.Id, FireReactionEventType.DoorUnlocked, geometry.DoorCentre(door)).EventId;
+                        context.Tick, d.Id, CausalEventType.DoorUnlocked, geometry.DoorCentre(door)).EventId;
                     return true;
                 case DoorState.Unlocked:
                     return Open(door, d.UnlockedEventId);
@@ -438,7 +438,7 @@ namespace Paniq.Simulation
 
             d.State = DoorState.Unlocked;
             d.OpenSide = 0;
-            return context.Events.Append(context.Tick, closer, FireReactionEventType.DoorClosed, geometry.DoorCentre(door),
+            return context.Events.Append(context.Tick, closer, CausalEventType.DoorClosed, geometry.DoorCentre(door),
                 0, 0, causalParentEventId, d.Id).EventId;
         }
 
@@ -452,7 +452,7 @@ namespace Paniq.Simulation
             }
 
             d.State = DoorState.Locked;
-            context.Events.Append(context.Tick, locker.Id, FireReactionEventType.DoorLocked, geometry.DoorCentre(door),
+            context.Events.Append(context.Tick, locker.Id, CausalEventType.DoorLocked, geometry.DoorCentre(door),
                 0, 0, causalParentEventId, d.Id);
         }
 
@@ -494,7 +494,7 @@ namespace Paniq.Simulation
             d.OpenedEventId = context.Events.Append(
                 context.Tick,
                 d.Id,
-                FireReactionEventType.DoorOpened,
+                CausalEventType.DoorOpened,
                 geometry.DoorCentre(door),
                 d.Width,
                 0,
@@ -533,7 +533,7 @@ namespace Paniq.Simulation
             // It comes off its hinges away from whoever was shouldering it,
             // whatever is lying on the far side: it is not swinging any more.
             Break(door, breaker.Id, -geometry.SideOf(door, breaker.Body.Position), shoveEventId,
-                FireReactionEventType.DoorBrokenDown);
+                CausalEventType.DoorBrokenDown);
         }
 
         /// <summary>
@@ -542,7 +542,7 @@ namespace Paniq.Simulation
         /// escaping, fire spreading -- names this event as its cause.
         /// </summary>
         private void Break(int door, SimulationId source, int fallsToward, ulong causalParentEventId,
-            FireReactionEventType how)
+            CausalEventType how)
         {
             DoorRuntime d = doors[door];
             d.State = DoorState.Broken;
@@ -599,7 +599,7 @@ namespace Paniq.Simulation
 
                 // What is left of it falls away from the flames.
                 Break(door, d.Id, -geometry.SideOf(door, flames), fire.CellEventId(cell),
-                    FireReactionEventType.DoorBurntThrough);
+                    CausalEventType.DoorBurntThrough);
             }
         }
 
@@ -613,20 +613,20 @@ namespace Paniq.Simulation
 
         public ulong OpenedEventIdOf(int door) => doors[door].OpenedEventId;
 
-        public FireReactionDoorSnapshot GetSnapshot(int door)
+        public DoorSnapshot GetSnapshot(int door)
         {
             DoorRuntime d = doors[door];
             int damagePercent = Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength);
-            return new FireReactionDoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent,
+            return new DoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent,
                 ScorchPercent(d),
                 d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door));
         }
 
-        public FireReactionDoorSnapshot[] GetSnapshots()
+        public DoorSnapshot[] GetSnapshots()
         {
             // Only the openings that are really there: a spare hole slot has no
             // position to draw and nothing to say about it.
-            var snapshots = new FireReactionDoorSnapshot[Count];
+            var snapshots = new DoorSnapshot[Count];
             for (int i = 0; i < snapshots.Length; i++)
             {
                 snapshots[i] = GetSnapshot(i);

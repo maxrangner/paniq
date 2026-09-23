@@ -15,20 +15,20 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void EveryEventType_HasAnUproarTier()
         {
-            foreach (FireReactionEventType type in Enum.GetValues(typeof(FireReactionEventType)))
+            foreach (CausalEventType type in Enum.GetValues(typeof(CausalEventType)))
             {
                 Assert.That(() => InfluenceSystem.UproarTierOf(type), Throws.Nothing,
                     $"{type} does not say what it pays into the meter.");
             }
         }
 
-        [TestCase(FireReactionEventType.AgentCaughtFire, UproarTier.Big)]
-        [TestCase(FireReactionEventType.AgentKnockedDown, UproarTier.Middling)]
-        [TestCase(FireReactionEventType.AgentYelled, UproarTier.Small)]
-        [TestCase(FireReactionEventType.FireSpread, UproarTier.Nothing)]
-        [TestCase(FireReactionEventType.AgentLost, UproarTier.Nothing)]
-        [TestCase(FireReactionEventType.PowerBeefcake, UproarTier.Nothing)]
-        public void TheTiers_AreAsTheDecisionLogSays(FireReactionEventType type, UproarTier expected)
+        [TestCase(CausalEventType.AgentCaughtFire, UproarTier.Big)]
+        [TestCase(CausalEventType.AgentKnockedDown, UproarTier.Middling)]
+        [TestCase(CausalEventType.AgentYelled, UproarTier.Small)]
+        [TestCase(CausalEventType.FireSpread, UproarTier.Nothing)]
+        [TestCase(CausalEventType.AgentLost, UproarTier.Nothing)]
+        [TestCase(CausalEventType.PowerBeefcake, UproarTier.Nothing)]
+        public void TheTiers_AreAsTheDecisionLogSays(CausalEventType type, UproarTier expected)
         {
             Assert.That(InfluenceSystem.UproarTierOf(type), Is.EqualTo(expected));
         }

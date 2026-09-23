@@ -505,7 +505,7 @@ The other four are aimed at the building:
 ## Deterministic rules
 
 - The simulation runs at 50 logical ticks per second through one
-  `FireReactionRunner.FixedUpdate` entry point. It keeps the contract's order:
+  `RunDriver.FixedUpdate` entry point. It keeps the contract's order:
   fire advances, fire contact at current positions, agent decisions in
   ascending Agent ID order, movement resolution, then fire contact along
   accepted moves.
@@ -820,7 +820,7 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   down if the shover's strength exceeds theirs by 2 or more, and staggered
   otherwise. A calm victim is alarmed (`Bumped`); it makes a thud. A shove needs
   no speed, so it is what happens in a doorway queue.
-- **Starting possessions.** `FireReactionAgentDefinition.CarriedObjectId` names a
+- **Starting possessions.** `AgentDefinition.CarriedObjectId` names a
   thing somebody walks in holding. Bound after the objects exist and before the
   first tick, drawing no random numbers, so the start-up draw order is unchanged.
   The thing is marked `Carry.OwnsIt`, which exempts it from the calm put-down and
@@ -830,7 +830,7 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   holding is their own heading plus a seeded ±60°, except that evil 7+ aim at the
   nearest person within the existing aim range. Nothing else about letting go
   changed: the very nervous still drop rather than throw.
-- **Fire alarms.** One authored alarm per room (`FireReactionAlarmDefinition`).
+- **Fire alarms.** One authored alarm per room (`AlarmDefinition`).
   `AlarmBehaviour.Decide` sits in the panic chain after helping and before the
   door work, so somebody with an unconscious person in front of them sees to them
   rather than walking off to the bell. A scared, upright, empty-handed person not

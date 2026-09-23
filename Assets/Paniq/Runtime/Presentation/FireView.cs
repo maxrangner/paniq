@@ -124,7 +124,7 @@ namespace Paniq.Presentation
         public int DrawnCellCount { get; private set; }
         public int DrawnFlameCount { get; private set; }
 
-        public void Update(FireReactionSnapshot snapshot, float time)
+        public void Update(RunSnapshot snapshot, float time)
         {
             // Burning cells only ever get added, in ignition order.
             while (cells.Count < snapshot.FireCells.Count)

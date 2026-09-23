@@ -35,7 +35,7 @@ namespace Paniq.Simulation
             CausalEvent yell = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentYelled,
+                CausalEventType.AgentYelled,
                 agent.Body.Position,
                 settings.YellHearingRadiusMillimetres,
                 0,
@@ -143,7 +143,7 @@ namespace Paniq.Simulation
             agent.Intent.ActivityEndTick = checked(context.Tick + context.Random.NextIntInclusive(
                 settings.InvestigateMinimumTicks,
                 settings.InvestigateMaximumTicks));
-            context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentNoticedSound, point, 0, 0, soundEventId);
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentNoticedSound, point, 0, 0, soundEventId);
         }
     }
 }

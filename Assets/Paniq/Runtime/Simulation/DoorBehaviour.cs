@@ -384,7 +384,7 @@ namespace Paniq.Simulation
             {
                 knowledge.Searching = true;
                 knowledge.SearchEventId = context.Events.Append(context.Tick, agent.Id,
-                    FireReactionEventType.AgentLookedForAWayOut, position, 0, 0, agent.Fear.ScaredEventId).EventId;
+                    CausalEventType.AgentLookedForAWayOut, position, 0, 0, agent.Fear.ScaredEventId).EventId;
             }
 
             return found;
@@ -649,7 +649,7 @@ namespace Paniq.Simulation
             agent.Doors.AttemptEventId = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentTriedDoor,
+                CausalEventType.AgentTriedDoor,
                 geometry.DoorCentre(door),
                 0,
                 0,
@@ -804,7 +804,7 @@ namespace Paniq.Simulation
                         CausalEvent shove = context.Events.Append(
                             tick,
                             agent.Id,
-                            FireReactionEventType.AgentForcedDoor,
+                            CausalEventType.AgentForcedDoor,
                             doorCentre,
                             context.Scenario.Hearing.BumpSoundRadiusMillimetres,
                             0,
@@ -848,7 +848,7 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             int door = agent.Doors.ExitDoorIndex;
-            context.Events.Append(tick, agent.Id, FireReactionEventType.AgentGaveUpOnDoor, geometry.DoorCentre(door),
+            context.Events.Append(tick, agent.Id, CausalEventType.AgentGaveUpOnDoor, geometry.DoorCentre(door),
                 0, 0, agent.Doors.AttemptEventId, doors.IdOf(door));
             agent.Doors.AvoidUntilTick[door] = checked(tick + context.Random.NextIntInclusive(
                 settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
@@ -1341,7 +1341,7 @@ namespace Paniq.Simulation
 
                 agent.Participation = AgentParticipation.NoLongerParticipating;
                 agent.Outcome = AgentTerminalOutcome.Escaped;
-                ulong escaped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentEscaped,
+                ulong escaped = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentEscaped,
                     agent.Body.Position, 0, 0, doors.OpenedEventIdOf(door), doors.IdOf(door)).EventId;
                 agent.Doors.EscapedEventId = escaped;
 

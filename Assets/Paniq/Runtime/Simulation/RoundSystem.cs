@@ -97,7 +97,7 @@ namespace Paniq.Simulation
             CausalEvent triggered = context.Events.Append(
                 context.Tick,
                 default,
-                FireReactionEventType.RoundEventTriggered,
+                CausalEventType.RoundEventTriggered,
                 geometry.FireArea.Centre,
                 context.Tick);
             TriggerEventId = triggered.EventId;
@@ -277,7 +277,7 @@ namespace Paniq.Simulation
                     context.Events.Append(
                         context.Tick,
                         agent.Id,
-                        FireReactionEventType.AgentSurvived,
+                        CausalEventType.AgentSurvived,
                         agent.Body.Position,
                         0,
                         0,
@@ -292,7 +292,7 @@ namespace Paniq.Simulation
             context.Events.Append(
                 context.Tick,
                 default,
-                FireReactionEventType.RoundEnded,
+                CausalEventType.RoundEnded,
                 geometry.FireArea.Centre,
                 saved,
                 0,

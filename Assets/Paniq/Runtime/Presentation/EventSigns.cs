@@ -250,7 +250,7 @@ namespace Paniq.Presentation
         /// chatter fails that rule, and is excluded before anything else is
         /// asked.
         /// </summary>
-        internal static bool EarnsASign(FireReactionEventType type)
+        internal static bool EarnsASign(CausalEventType type)
         {
             return !EventStory.IsBackground(type) && WordsFor(type) != null;
         }
@@ -261,27 +261,27 @@ namespace Paniq.Presentation
         /// read at a glance while the room is on fire. Null means this event
         /// gets no sign.
         /// </summary>
-        private static string WordsFor(FireReactionEventType type)
+        private static string WordsFor(CausalEventType type)
         {
             switch (type)
             {
-                case FireReactionEventType.AgentCaughtFire: return "on fire!";
-                case FireReactionEventType.AgentPassedOut: return "knocked out!";
-                case FireReactionEventType.AgentCrushed: return "crushed!";
-                case FireReactionEventType.AgentGaveUpOnDoor: return "no way through!";
-                case FireReactionEventType.AgentShoved: return "shoved!";
-                case FireReactionEventType.AgentFroze: return "frozen!";
-                case FireReactionEventType.AgentLost: return "lost";
-                case FireReactionEventType.AgentRescued: return "dragged clear!";
-                case FireReactionEventType.AgentShookAwake: return "woken up!";
-                case FireReactionEventType.AgentDoused: return "put out!";
-                case FireReactionEventType.DoorBlocked: return "jammed!";
-                case FireReactionEventType.DoorBurntThrough: return "burnt through!";
-                case FireReactionEventType.ObjectExploded: return "bang!";
-                case FireReactionEventType.PowerSparkStarted: return "the wire is lit!";
-                case FireReactionEventType.AgentLookedForAWayOut: return "which way?";
-                case FireReactionEventType.AgentFoundADeadEnd: return "dead end!";
-                case FireReactionEventType.AgentFoundTheWayOut: return "this way!";
+                case CausalEventType.AgentCaughtFire: return "on fire!";
+                case CausalEventType.AgentPassedOut: return "knocked out!";
+                case CausalEventType.AgentCrushed: return "crushed!";
+                case CausalEventType.AgentGaveUpOnDoor: return "no way through!";
+                case CausalEventType.AgentShoved: return "shoved!";
+                case CausalEventType.AgentFroze: return "frozen!";
+                case CausalEventType.AgentLost: return "lost";
+                case CausalEventType.AgentRescued: return "dragged clear!";
+                case CausalEventType.AgentShookAwake: return "woken up!";
+                case CausalEventType.AgentDoused: return "put out!";
+                case CausalEventType.DoorBlocked: return "jammed!";
+                case CausalEventType.DoorBurntThrough: return "burnt through!";
+                case CausalEventType.ObjectExploded: return "bang!";
+                case CausalEventType.PowerSparkStarted: return "the wire is lit!";
+                case CausalEventType.AgentLookedForAWayOut: return "which way?";
+                case CausalEventType.AgentFoundADeadEnd: return "dead end!";
+                case CausalEventType.AgentFoundTheWayOut: return "this way!";
                 default: return null;
             }
         }
@@ -291,14 +291,14 @@ namespace Paniq.Presentation
         /// and bad in red, so the colour alone carries at a glance even when
         /// there is no time to read the words.
         /// </summary>
-        internal static bool IsGoodNews(FireReactionEventType type)
+        internal static bool IsGoodNews(CausalEventType type)
         {
             switch (type)
             {
-                case FireReactionEventType.AgentRescued:
-                case FireReactionEventType.AgentShookAwake:
-                case FireReactionEventType.AgentDoused:
-                case FireReactionEventType.AgentFoundTheWayOut:
+                case CausalEventType.AgentRescued:
+                case CausalEventType.AgentShookAwake:
+                case CausalEventType.AgentDoused:
+                case CausalEventType.AgentFoundTheWayOut:
                     return true;
                 default:
                     return false;

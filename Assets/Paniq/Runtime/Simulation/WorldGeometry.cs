@@ -91,7 +91,7 @@ namespace Paniq.Simulation
             radius = context.Scenario.World.OccupancyRadiusMillimetres;
             exits = context.Scenario.Exits;
 
-            var definitions = (FireReactionTableDefinition[])context.Scenario.Tables.Clone();
+            var definitions = (TableDefinition[])context.Scenario.Tables.Clone();
             Array.Sort(definitions, (left, right) => left.TableId.CompareTo(right.TableId));
             tables = new LogicalBounds[definitions.Length];
             tableIds = new SimulationId[definitions.Length];
@@ -105,7 +105,7 @@ namespace Paniq.Simulation
             }
 
             // Rooms keep their authored order: the first one is where the fire starts.
-            FireReactionRoomDefinition[] authored = context.Scenario.Rooms;
+            RoomDefinition[] authored = context.Scenario.Rooms;
             rooms = new LogicalBounds[authored.Length];
             roomIds = new SimulationId[authored.Length];
             for (int r = 0; r < authored.Length; r++)

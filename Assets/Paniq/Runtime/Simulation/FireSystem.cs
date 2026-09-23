@@ -169,7 +169,7 @@ namespace Paniq.Simulation
                 if (due)
                 {
                     active = true;
-                    activationEventId = Ignite(originCell, FireReactionEventType.FireActivated, 0UL);
+                    activationEventId = Ignite(originCell, CausalEventType.FireActivated, 0UL);
                 }
 
                 return;
@@ -195,17 +195,17 @@ namespace Paniq.Simulation
                 }
 
                 int chosen = neighbourScratch[context.Random.NextIntInclusive(0, neighbourScratch.Count - 1)];
-                Ignite(chosen, FireReactionEventType.FireSpread, cellEventIds[cell]);
+                Ignite(chosen, CausalEventType.FireSpread, cellEventIds[cell]);
                 cellNextSpreadTicks[cell] = checked(tick + NextSpreadDelay());
             }
         }
 
-        private ulong Ignite(int cell, FireReactionEventType eventType, ulong parentEventId)
+        private ulong Ignite(int cell, CausalEventType eventType, ulong parentEventId)
         {
             int tick = context.Tick;
             CausalEvent ignition = context.Events.Append(
                 tick,
-                new SimulationId(FireReactionSimulation.FireHazardIdValue),
+                new SimulationId(Run.FireHazardIdValue),
                 eventType,
                 CellBounds(cell).Centre,
                 settings.CellSizeMillimetres,
@@ -402,7 +402,7 @@ namespace Paniq.Simulation
                 cellRecordIndex[cell] = -1;
             }
 
-            context.Events.Append(context.Tick, source, FireReactionEventType.FireDoused,
+            context.Events.Append(context.Tick, source, CausalEventType.FireDoused,
                 CellBounds(cell).Centre, settings.CellSizeMillimetres, 0, causeEventId);
             return true;
         }
@@ -463,7 +463,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+            Ignite(cell, CausalEventType.FireSpread, causeEventId);
         }
 
         /// <summary>
@@ -487,12 +487,12 @@ namespace Paniq.Simulation
                 // The player has beaten the scenario to it, so their card is
                 // where this run's fire came from.
                 active = true;
-                activationEventId = Ignite(cell, FireReactionEventType.FireActivated, causeEventId);
+                activationEventId = Ignite(cell, CausalEventType.FireActivated, causeEventId);
                 eventId = activationEventId;
                 return true;
             }
 
-            eventId = Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+            eventId = Ignite(cell, CausalEventType.FireSpread, causeEventId);
             return true;
         }
 
@@ -533,7 +533,7 @@ namespace Paniq.Simulation
                         continue;
                     }
 
-                    Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+                    Ignite(cell, CausalEventType.FireSpread, causeEventId);
                     lit++;
                 }
             }

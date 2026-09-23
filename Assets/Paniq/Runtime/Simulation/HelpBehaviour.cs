@@ -238,7 +238,7 @@ namespace Paniq.Simulation
             }
 
             // Got a grip: start dragging.
-            agent.Help.GrabEventId = context.Events.Append(tick, agent.Id, FireReactionEventType.AgentGrabbed,
+            agent.Help.GrabEventId = context.Events.Append(tick, agent.Id, CausalEventType.AgentGrabbed,
                 target.Body.Position, 0, 0, agent.Fear.ScaredEventId, target.Id).EventId;
             agent.Intent.Activity = AgentActivityState.Dragging;
             agent.Body.BlockedTicks = 0;
@@ -252,7 +252,7 @@ namespace Paniq.Simulation
             bool forGood = target.Personality.Temperament == AgentPanicTemperament.FreezeForever;
             if (!forGood || context.Random.NextPercent(settings.ShakeFreezeForeverSuccessPercent))
             {
-                CausalEvent shook = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentShookAwake,
+                CausalEvent shook = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentShookAwake,
                     target.Body.Position, 0, 0, agent.Fear.ScaredEventId, target.Id);
                 fear.Unfreeze(target, shook.EventId);
             }
@@ -367,7 +367,7 @@ namespace Paniq.Simulation
             if (agent.Intent.Activity == AgentActivityState.Dragging && logDrop && agent.Help.TargetIndex >= 0)
             {
                 Agent target = crowd.All[agent.Help.TargetIndex];
-                context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentDropped, target.Body.Position, 0, 0,
+                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDropped, target.Body.Position, 0, 0,
                     agent.Help.GrabEventId, target.Id);
             }
 
@@ -471,7 +471,7 @@ namespace Paniq.Simulation
 
                 dragged.Participation = AgentParticipation.NoLongerParticipating;
                 dragged.Outcome = AgentTerminalOutcome.Escaped;
-                context.Events.Append(context.Tick, helper.Id, FireReactionEventType.AgentRescued, dragged.Body.Position, 0, 0,
+                context.Events.Append(context.Tick, helper.Id, CausalEventType.AgentRescued, dragged.Body.Position, 0, 0,
                     helper.Doors.EscapedEventId, dragged.Id);
             }
         }

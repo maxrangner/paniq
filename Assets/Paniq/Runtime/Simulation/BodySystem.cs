@@ -59,7 +59,7 @@ namespace Paniq.Simulation
             if (body.State == AgentBodyState.Unconscious)
             {
                 // Coming round, then getting up slowly.
-                body.EventId = context.Events.Append(tick, agent.Id, FireReactionEventType.AgentCameTo, body.Position, 0,
+                body.EventId = context.Events.Append(tick, agent.Id, CausalEventType.AgentCameTo, body.Position, 0,
                     settings.ComeToGetUpTicks, body.EventId).EventId;
                 body.State = AgentBodyState.GettingUp;
                 body.EndTick = checked(tick + settings.ComeToGetUpTicks);
@@ -68,7 +68,7 @@ namespace Paniq.Simulation
 
             if (body.State == AgentBodyState.GettingUp)
             {
-                context.Events.Append(tick, agent.Id, FireReactionEventType.AgentGotUp, body.Position, 0, 0, body.EventId);
+                context.Events.Append(tick, agent.Id, CausalEventType.AgentGotUp, body.Position, 0, 0, body.EventId);
             }
 
             body.State = AgentBodyState.Upright;
@@ -92,7 +92,7 @@ namespace Paniq.Simulation
             CausalEvent down = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentKnockedDown,
+                CausalEventType.AgentKnockedDown,
                 agent.Body.Position,
                 0,
                 duration,
@@ -114,7 +114,7 @@ namespace Paniq.Simulation
             }
 
             int duration = context.Random.NextIntInclusive(settings.UnconsciousMinimumTicks, settings.UnconsciousMaximumTicks);
-            CausalEvent passedOut = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentPassedOut,
+            CausalEvent passedOut = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentPassedOut,
                 agent.Body.Position, 0, duration, downEventId);
             PutDown(agent, AgentBodyState.Unconscious, duration, passedOut.EventId);
         }
@@ -148,7 +148,7 @@ namespace Paniq.Simulation
             people.FallTowards(agent, away);
             people.Push(agent, away, speed, speed * liftPercent / 100);
             int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
-            CausalEvent down = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentKnockedDown,
+            CausalEvent down = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentKnockedDown,
                 agent.Body.Position, 0, duration, causeEventId);
             PutDown(agent, AgentBodyState.Fallen, duration, down.EventId);
         }
@@ -177,7 +177,7 @@ namespace Paniq.Simulation
 
             fear.BreakComposure(agent);
             int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
-            CausalEvent crushed = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentCrushed,
+            CausalEvent crushed = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentCrushed,
                 agent.Body.Position, squeeze, duration, cause);
             people.FallTowards(agent, agent.Body.Heading);
             PutDown(agent, AgentBodyState.Fallen, duration, crushed.EventId);
@@ -212,7 +212,7 @@ namespace Paniq.Simulation
                 agent.Intent.NextPanicDecisionTick = context.Tick;
             }
 
-            context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentDoused,
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDoused,
                 agent.Body.Position, 0, 0, causeEventId, agent.Id);
         }
 
@@ -237,7 +237,7 @@ namespace Paniq.Simulation
             CausalEvent trip = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentTripped,
+                CausalEventType.AgentTripped,
                 agent.Body.Position,
                 context.Scenario.Hearing.BumpSoundRadiusMillimetres,
                 duration,
@@ -257,7 +257,7 @@ namespace Paniq.Simulation
             CausalEvent rolled = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentRolled,
+                CausalEventType.AgentRolled,
                 agent.Body.Position,
                 0,
                 duration,
@@ -294,7 +294,7 @@ namespace Paniq.Simulation
             int tick = context.Tick;
             FireSettings fireSettings = context.Scenario.Fire;
             int duration = context.Random.NextIntInclusive(fireSettings.BurnMinimumTicks, fireSettings.BurnMaximumTicks);
-            CausalEvent caught = context.Events.Append(tick, agent.Id, FireReactionEventType.AgentCaughtFire,
+            CausalEvent caught = context.Events.Append(tick, agent.Id, CausalEventType.AgentCaughtFire,
                 agent.Body.Position, 0, duration, causeEventId);
 
             AgentBurning burning = agent.Burning;
@@ -343,7 +343,7 @@ namespace Paniq.Simulation
             CausalEvent death = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentLost,
+                CausalEventType.AgentLost,
                 agent.Body.Position,
                 threats.Count,
                 0,

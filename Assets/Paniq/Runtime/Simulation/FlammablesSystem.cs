@@ -193,7 +193,7 @@ namespace Paniq.Simulation
                 if (tick >= thing.BurnEndTick)
                 {
                     StopBurning(thing);
-                    context.Events.Append(tick, thing.Id, FireReactionEventType.ObjectBurntOut, PositionOf(thing), 0, 0,
+                    context.Events.Append(tick, thing.Id, CausalEventType.ObjectBurntOut, PositionOf(thing), 0, 0,
                         thing.EventId);
                     continue;
                 }
@@ -246,7 +246,7 @@ namespace Paniq.Simulation
                 }
 
                 StopBurning(thing);
-                context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ObjectBurntOut, where, 0, 0, causeEventId);
+                context.Events.Append(context.Tick, thing.Id, CausalEventType.ObjectBurntOut, where, 0, 0, causeEventId);
             }
         }
 
@@ -300,7 +300,7 @@ namespace Paniq.Simulation
             int duration = context.Random.NextIntInclusive(thing.BurnMinimumTicks, thing.BurnMaximumTicks);
             StartBurning(thing);
             thing.BurnEndTick = checked(tick + duration);
-            thing.EventId = context.Events.Append(tick, thing.Id, FireReactionEventType.ObjectCaughtFire, PositionOf(thing),
+            thing.EventId = context.Events.Append(tick, thing.Id, CausalEventType.ObjectCaughtFire, PositionOf(thing),
                 0, duration, causeEventId).EventId;
             thing.RestCell = -1;
             thing.RestTicks = 0;
@@ -430,20 +430,20 @@ namespace Paniq.Simulation
 
         public int ObjectHeatPercent(int objectIndex) => HeatPercent(things[objectIndex]);
 
-        public FireReactionTableSnapshot[] GetTableSnapshots()
+        public TableSnapshot[] GetTableSnapshots()
         {
-            var tables = new FireReactionTableSnapshot[geometry.TableCount];
+            var tables = new TableSnapshot[geometry.TableCount];
             FillTableSnapshots(tables);
             return tables;
         }
 
         /// <summary>Every table as it stands, written into a buffer of exactly that many.</summary>
-        public void FillTableSnapshots(FireReactionTableSnapshot[] into)
+        public void FillTableSnapshots(TableSnapshot[] into)
         {
             for (int t = 0; t < into.Length; t++)
             {
                 Flammable thing = things[objects.Count + t];
-                into[t] = new FireReactionTableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
+                into[t] = new TableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
                     geometry.TablePose(t));
             }
         }

@@ -7,7 +7,7 @@
     /// </summary>
     internal sealed class SimulationContext
     {
-        public SimulationContext(FireReactionScenarioData scenario, ulong seed)
+        public SimulationContext(ScenarioData scenario, ulong seed)
         {
             Scenario = scenario;
             Seed = seed;
@@ -20,7 +20,7 @@
         /// </summary>
         public readonly ulong Seed;
 
-        public readonly FireReactionScenarioData Scenario;
+        public readonly ScenarioData Scenario;
         public readonly CausalEventLog Events = new CausalEventLog();
 
         /// <summary>
@@ -29,7 +29,7 @@
         /// </summary>
         public Pcg32 Random;
 
-        /// <summary>The tick being processed; advanced only by FireReactionSimulation.Step.</summary>
+        /// <summary>The tick being processed; advanced only by Run.Step.</summary>
         public int Tick;
     }
 }

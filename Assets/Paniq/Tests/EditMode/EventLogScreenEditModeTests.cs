@@ -50,7 +50,7 @@ namespace Paniq.Tests.EditMode
             Assert.DoesNotThrow(() => log.Draw(null));
 
             log.Open();
-            Assert.DoesNotThrow(() => log.Draw((FireReactionSnapshot)null));
+            Assert.DoesNotThrow(() => log.Draw((RunSnapshot)null));
         }
     }
 }

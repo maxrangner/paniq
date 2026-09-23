@@ -6,7 +6,7 @@ namespace Paniq.Presentation
     /// <summary>Small helpers shared by the prototype's display classes. Presentation only.</summary>
     internal static class PresentationUtility
     {
-        public static float Metres(int millimetres) => millimetres / (float)FireReactionSimulation.MillimetresPerMetre;
+        public static float Metres(int millimetres) => millimetres / (float)Run.MillimetresPerMetre;
 
         /// <summary>
         /// Makes an object, and everything under it, show faintly through

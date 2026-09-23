@@ -56,7 +56,7 @@ namespace Paniq.Presentation
         /// purely to draw and describe the aim -- the run decides for itself
         /// who was actually caught when the card lands.
         /// </summary>
-        public void Show(LogicalPosition centre, int radiusMillimetres, FireReactionSnapshot snapshot, float time)
+        public void Show(LogicalPosition centre, int radiusMillimetres, RunSnapshot snapshot, float time)
         {
             float radius = Metres(radiusMillimetres);
             Vector3 middle = ToUnityPosition(centre) + Vector3.up * 0.05f;
@@ -67,7 +67,7 @@ namespace Paniq.Presentation
                 long radiusSquared = (long)radiusMillimetres * radiusMillimetres;
                 for (int i = 0; i < snapshot.Agents.Count; i++)
                 {
-                    FireReactionAgentSnapshot person = snapshot.Agents[i];
+                    AgentSnapshot person = snapshot.Agents[i];
                     if (person.Outcome == AgentTerminalOutcome.Unresolved &&
                         LogicalPosition.DistanceSquared(person.Position, centre) <= radiusSquared)
                     {

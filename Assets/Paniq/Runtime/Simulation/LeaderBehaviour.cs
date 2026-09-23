@@ -92,7 +92,7 @@ namespace Paniq.Simulation
 
             if (!TryOrderADoorBrokenDown(agent) && !TryOrderTheFireFought(agent))
             {
-                Rally(agent, FireReactionEventType.LeaderCalledPeopleOn, default);
+                Rally(agent, CausalEventType.LeaderCalledPeopleOn, default);
             }
 
             // Leaders lead by going: their own running is decided as usual.
@@ -145,11 +145,11 @@ namespace Paniq.Simulation
             if (!Obeys(breaker, leader))
             {
                 // They shout anyway; whoever it was simply does not take it on.
-                Rally(leader, FireReactionEventType.LeaderCalledPeopleOn, default);
+                Rally(leader, CausalEventType.LeaderCalledPeopleOn, default);
                 return true;
             }
 
-            ulong order = Rally(leader, FireReactionEventType.LeaderOrderedDoorBroken, doors.IdOf(door), breaker.Id);
+            ulong order = Rally(leader, CausalEventType.LeaderOrderedDoorBroken, doors.IdOf(door), breaker.Id);
 
             // Sent at that door: they stop trailing after the leader, or the
             // next thing they decide would be to follow them again and the
@@ -220,11 +220,11 @@ namespace Paniq.Simulation
 
             if (!Obeys(fighter, leader))
             {
-                Rally(leader, FireReactionEventType.LeaderCalledPeopleOn, default);
+                Rally(leader, CausalEventType.LeaderCalledPeopleOn, default);
                 return true;
             }
 
-            ulong order = Rally(leader, FireReactionEventType.LeaderOrderedFireFought, objects.IdOf(bottle), fighter.Id);
+            ulong order = Rally(leader, CausalEventType.LeaderOrderedFireFought, objects.IdOf(bottle), fighter.Id);
 
             // Sent for the bottle: they stop following the leader first, or the
             // next thing they decide would be to fall in behind them again.
@@ -244,7 +244,7 @@ namespace Paniq.Simulation
         /// A shout that gathers whoever is near: they follow this leader
         /// until they are out, down, or the leader stops being one.
         /// </summary>
-        private ulong Rally(Agent leader, FireReactionEventType eventType, SimulationId target, SimulationId ordered = default)
+        private ulong Rally(Agent leader, CausalEventType eventType, SimulationId target, SimulationId ordered = default)
         {
             ulong order = context.Events.Append(context.Tick, leader.Id, eventType, leader.Body.Position,
                 settings.RallyRangeMillimetres, 0, leader.Fear.ScaredEventId,

@@ -22,7 +22,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void BackgroundChatter_NeverEarnsASign()
         {
-            foreach (FireReactionEventType type in Enum.GetValues(typeof(FireReactionEventType)))
+            foreach (CausalEventType type in Enum.GetValues(typeof(CausalEventType)))
             {
                 if (EventStory.IsBackground(type))
                 {
@@ -33,17 +33,17 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>The moments worth interrupting somebody for.</summary>
-        [TestCase(FireReactionEventType.AgentCaughtFire)]
-        [TestCase(FireReactionEventType.AgentPassedOut)]
-        [TestCase(FireReactionEventType.AgentCrushed)]
-        [TestCase(FireReactionEventType.AgentGaveUpOnDoor)]
-        [TestCase(FireReactionEventType.AgentRescued)]
-        [TestCase(FireReactionEventType.DoorBlocked)]
-        [TestCase(FireReactionEventType.ObjectExploded)]
-        [TestCase(FireReactionEventType.AgentLookedForAWayOut)]
-        [TestCase(FireReactionEventType.AgentFoundADeadEnd)]
-        [TestCase(FireReactionEventType.AgentFoundTheWayOut)]
-        public void SomethingWorthSaying_EarnsASign(FireReactionEventType type)
+        [TestCase(CausalEventType.AgentCaughtFire)]
+        [TestCase(CausalEventType.AgentPassedOut)]
+        [TestCase(CausalEventType.AgentCrushed)]
+        [TestCase(CausalEventType.AgentGaveUpOnDoor)]
+        [TestCase(CausalEventType.AgentRescued)]
+        [TestCase(CausalEventType.DoorBlocked)]
+        [TestCase(CausalEventType.ObjectExploded)]
+        [TestCase(CausalEventType.AgentLookedForAWayOut)]
+        [TestCase(CausalEventType.AgentFoundADeadEnd)]
+        [TestCase(CausalEventType.AgentFoundTheWayOut)]
+        public void SomethingWorthSaying_EarnsASign(CausalEventType type)
         {
             Assert.That(EventSigns.EarnsASign(type), Is.True);
         }
@@ -52,11 +52,11 @@ namespace Paniq.Tests.EditMode
         /// Things the player can already see for themselves get no sign. A door
         /// swinging open is on the screen; there is nothing to explain.
         /// </summary>
-        [TestCase(FireReactionEventType.DoorOpened)]
-        [TestCase(FireReactionEventType.DoorClosed)]
-        [TestCase(FireReactionEventType.FireActivated)]
-        [TestCase(FireReactionEventType.AgentAlerted)]
-        public void SomethingAlreadyOnTheScreen_EarnsNoSign(FireReactionEventType type)
+        [TestCase(CausalEventType.DoorOpened)]
+        [TestCase(CausalEventType.DoorClosed)]
+        [TestCase(CausalEventType.FireActivated)]
+        [TestCase(CausalEventType.AgentAlerted)]
+        public void SomethingAlreadyOnTheScreen_EarnsNoSign(CausalEventType type)
         {
             Assert.That(EventSigns.EarnsASign(type), Is.False);
         }
@@ -69,16 +69,16 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void RescuesReadAsGoodNews_AndDisastersDoNot()
         {
-            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentRescued), Is.True);
-            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentDoused), Is.True);
-            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentShookAwake), Is.True);
-            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentFoundTheWayOut), Is.True);
+            Assert.That(EventSigns.IsGoodNews(CausalEventType.AgentRescued), Is.True);
+            Assert.That(EventSigns.IsGoodNews(CausalEventType.AgentDoused), Is.True);
+            Assert.That(EventSigns.IsGoodNews(CausalEventType.AgentShookAwake), Is.True);
+            Assert.That(EventSigns.IsGoodNews(CausalEventType.AgentFoundTheWayOut), Is.True);
 
-            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentCaughtFire), Is.False);
-            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentCrushed), Is.False);
-            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentLost), Is.False);
-            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentLookedForAWayOut), Is.False);
-            Assert.That(EventSigns.IsGoodNews(FireReactionEventType.AgentFoundADeadEnd), Is.False);
+            Assert.That(EventSigns.IsGoodNews(CausalEventType.AgentCaughtFire), Is.False);
+            Assert.That(EventSigns.IsGoodNews(CausalEventType.AgentCrushed), Is.False);
+            Assert.That(EventSigns.IsGoodNews(CausalEventType.AgentLost), Is.False);
+            Assert.That(EventSigns.IsGoodNews(CausalEventType.AgentLookedForAWayOut), Is.False);
+            Assert.That(EventSigns.IsGoodNews(CausalEventType.AgentFoundADeadEnd), Is.False);
         }
 
         /// <summary>
@@ -88,7 +88,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void EverythingCalledGoodNews_AlsoEarnsASign()
         {
-            foreach (FireReactionEventType type in Enum.GetValues(typeof(FireReactionEventType)))
+            foreach (CausalEventType type in Enum.GetValues(typeof(CausalEventType)))
             {
                 if (EventSigns.IsGoodNews(type))
                 {

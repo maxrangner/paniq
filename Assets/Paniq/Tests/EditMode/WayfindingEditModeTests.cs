@@ -19,12 +19,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class WayfindingEditModeTests
     {
-        private FireReactionScenario scenario;
+        private ScenarioAsset scenario;
 
         [SetUp]
         public void SetUp()
         {
-            scenario = FireReactionScenario.CreateDefault();
+            scenario = ScenarioAsset.CreateDefault();
         }
 
         [TearDown]
@@ -61,11 +61,11 @@ namespace Paniq.Tests.EditMode
                 return person;
             }
 
-            public int EventsOf(FireReactionEventType type) =>
+            public int EventsOf(CausalEventType type) =>
                 Context.Events.Events.Count(e => e.EventType == type);
         }
 
-        private Floor Build(FireReactionScenarioData data, params (LogicalPosition At, int Facing)[] people)
+        private Floor Build(ScenarioData data, params (LogicalPosition At, int Facing)[] people)
         {
             var floor = new Floor();
             floor.DoorStates = DoorSystem.CreateDoors(data);
@@ -142,7 +142,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TheDefaultMeeting_IsFiveVisitorsAndTheirHost()
         {
-            FireReactionAgentDefinition[] cast = PrototypeBuilding.DefaultAgents();
+            AgentDefinition[] cast = PrototypeBuilding.DefaultAgents();
             ulong[] visitors = cast.Where(a => a.Familiarity == AgentFamiliarity.Visitor)
                 .Select(a => a.AgentId.Value).OrderBy(id => id).ToArray();
 
@@ -154,7 +154,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void AFamiliarityThatIsNotOne_IsRefused()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
             data.Agents[0] = data.Agents[0].WithFamiliarity((AgentFamiliarity)7);
 
             Assert.Throws<InvalidOperationException>(() => data.Validate());
@@ -183,7 +183,7 @@ namespace Paniq.Tests.EditMode
             floor.Wayfinding.Look(visitor);
             Assert.That(visitor.Knowledge.Knows(wayOut), Is.True, "7.5 m off is in sight.");
             CausalEvent found = floor.Context.Events.Events.Single(
-                e => e.EventType == FireReactionEventType.AgentFoundTheWayOut);
+                e => e.EventType == CausalEventType.AgentFoundTheWayOut);
             Assert.That(found.SourceId, Is.EqualTo(visitor.Id));
             Assert.That((WayLearned)found.Strength, Is.EqualTo(WayLearned.Saw));
         }
@@ -241,11 +241,11 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void ASignPointingAwayFromEveryWayOut_TeachesNothing()
         {
-            FireReactionScenarioData data = scenario.ToRuntimeData();
+            ScenarioData data = scenario.ToRuntimeData();
 
             // In the middle of the office, pointing south: the only way out of
             // the office is north, through its door onto the corridor.
-            data.ExitSigns = new[] { new FireReactionExitSignDefinition(TheBuilding.Office, 180) };
+            data.ExitSigns = new[] { new ExitSignDefinition(TheBuilding.Office, 180) };
             Floor floor = Build(data, (TheBuilding.MeetingRoom, 0));
 
             Assert.That(floor.Wayfinding.WhatSignTeaches(0), Is.Empty);
@@ -273,7 +273,7 @@ namespace Paniq.Tests.EditMode
             Assert.That(visitor.Knowledge.Knows(floor.Door(TheBuilding.Archway)), Is.True,
                 "A sign tells them the whole way, not just the last door.");
             CausalEvent found = floor.Context.Events.Events.Single(
-                e => e.EventType == FireReactionEventType.AgentFoundTheWayOut);
+                e => e.EventType == CausalEventType.AgentFoundTheWayOut);
             Assert.That((WayLearned)found.Strength, Is.EqualTo(WayLearned.Sign));
             Assert.That(visitor.Intent.NextPanicDecisionTick, Is.EqualTo(floor.Context.Tick),
                 "Learning of a way out makes them think again at once.");
@@ -296,7 +296,7 @@ namespace Paniq.Tests.EditMode
             var byTheCorridorDoor = new LogicalPosition(6000, 9600);
             long line = IntegerMath.Distance(byTheCorridorDoor, new LogicalPosition(13000, 12000));
 
-            long CostOfTheShortcut(FireReactionScenarioData data)
+            long CostOfTheShortcut(ScenarioData data)
             {
                 Floor floor = Build(data, (byTheCorridorDoor, 0));
                 Agent visitor = floor.Visitor(0);
@@ -313,10 +313,10 @@ namespace Paniq.Tests.EditMode
             Assert.That(clear, Is.GreaterThan(line * 9 / 10).And.LessThan(line * 13 / 10),
                 "With the floor clear, the walk is about the straight line.");
 
-            FireReactionScenarioData blocked = scenario.ToRuntimeData();
+            ScenarioData blocked = scenario.ToRuntimeData();
             blocked.Tables = blocked.Tables.Concat(new[]
             {
-                new FireReactionTableDefinition(new SimulationId(4999UL), new LogicalPosition(7900, 10700), 9800, 1000),
+                new TableDefinition(new SimulationId(4999UL), new LogicalPosition(7900, 10700), 9800, 1000),
             }).ToArray();
             long round = CostOfTheShortcut(blocked);
             Assert.That(round, Is.GreaterThan(line * 3 / 2),
@@ -352,7 +352,7 @@ namespace Paniq.Tests.EditMode
             Agent host = floor.People[0];
             Agent client = floor.Visitor(1);
             Frighten(client);
-            ulong rally = floor.Context.Events.Append(0, host.Id, FireReactionEventType.LeaderCalledPeopleOn,
+            ulong rally = floor.Context.Events.Append(0, host.Id, CausalEventType.LeaderCalledPeopleOn,
                 host.Body.Position).EventId;
 
             floor.Wayfinding.Share(host, client, rally);
@@ -365,7 +365,7 @@ namespace Paniq.Tests.EditMode
             Assert.That(client.Knowledge.HasLookedOver(floor.Room(TheBuilding.Maintenance)), Is.True,
                 "Nor would they bother looking in a room the host knows is a cupboard.");
             CausalEvent told = floor.Context.Events.Events.Single(
-                e => e.EventType == FireReactionEventType.AgentFoundTheWayOut);
+                e => e.EventType == CausalEventType.AgentFoundTheWayOut);
             Assert.That((WayLearned)told.Strength, Is.EqualTo(WayLearned.Told));
             Assert.That(told.CausalParentEventId, Is.EqualTo(rally));
         }
@@ -390,7 +390,7 @@ namespace Paniq.Tests.EditMode
             Assert.That(nearby.Knowledge.Knows(wayOut), Is.True, "It opened in the room they are standing in.");
             Assert.That(faraway.Knowledge.Knows(wayOut), Is.False, "Two rooms and a shut door away, nobody hears it.");
             CausalEvent found = floor.Context.Events.Events.Single(
-                e => e.EventType == FireReactionEventType.AgentFoundTheWayOut);
+                e => e.EventType == CausalEventType.AgentFoundTheWayOut);
             Assert.That((WayLearned)found.Strength, Is.EqualTo(WayLearned.SawItOpen));
         }
 
@@ -405,14 +405,14 @@ namespace Paniq.Tests.EditMode
             floor.Wayfinding.Look(visitor);
             visitor.Knowledge.Searching = true;
             visitor.Knowledge.SearchEventId = floor.Context.Events.Append(0, visitor.Id,
-                FireReactionEventType.AgentLookedForAWayOut, visitor.Body.Position).EventId;
+                CausalEventType.AgentLookedForAWayOut, visitor.Body.Position).EventId;
 
             visitor.Body.MoveWithoutTellingTheCrowd(TheBuilding.Maintenance);
             floor.Wayfinding.Look(visitor);
 
             Assert.That(visitor.Knowledge.HasLookedOver(floor.Room(TheBuilding.Maintenance)), Is.True);
             CausalEvent deadEnd = floor.Context.Events.Events.Single(
-                e => e.EventType == FireReactionEventType.AgentFoundADeadEnd);
+                e => e.EventType == CausalEventType.AgentFoundADeadEnd);
             Assert.That(deadEnd.CausalParentEventId, Is.EqualTo(visitor.Knowledge.SearchEventId));
         }
 
@@ -430,7 +430,7 @@ namespace Paniq.Tests.EditMode
             floor.Wayfinding.Look(visitor);
 
             Assert.That(visitor.Knowledge.HasLookedOver(floor.Room(TheBuilding.Bathroom)), Is.True);
-            Assert.That(floor.EventsOf(FireReactionEventType.AgentFoundADeadEnd), Is.Zero);
+            Assert.That(floor.EventsOf(CausalEventType.AgentFoundADeadEnd), Is.Zero);
         }
 
         // ------------------------------------------------------------ searching
@@ -447,7 +447,7 @@ namespace Paniq.Tests.EditMode
             Assert.That(door, Is.EqualTo(floor.Door(TheBuilding.MeetingRoomDoor)));
             Assert.That(visitor.Doors.WayOutDoorIndex, Is.EqualTo(-1), "They know of no way out.");
             Assert.That(visitor.Knowledge.Searching, Is.True);
-            Assert.That(floor.EventsOf(FireReactionEventType.AgentLookedForAWayOut), Is.EqualTo(1));
+            Assert.That(floor.EventsOf(CausalEventType.AgentLookedForAWayOut), Is.EqualTo(1));
         }
 
         [Test]
@@ -509,7 +509,7 @@ namespace Paniq.Tests.EditMode
             floor.DoorChoice.ChooseExitDoor(visitor);
 
             Assert.That(visitor.Knowledge.HasSearchSpot, Is.False);
-            Assert.That(floor.EventsOf(FireReactionEventType.AgentLookedForAWayOut), Is.Zero,
+            Assert.That(floor.EventsOf(CausalEventType.AgentLookedForAWayOut), Is.Zero,
                 "With every room looked round there is nothing to search; they fall back to hiding.");
         }
     }

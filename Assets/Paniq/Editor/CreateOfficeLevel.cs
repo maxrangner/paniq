@@ -48,7 +48,7 @@ namespace Paniq.EditorTools
             serialized.FindProperty("hazardWaitsForTrigger").boolValue = true;
             serialized.FindProperty("targetSavedPercent").intValue = 75;
             serialized.FindProperty("scenario").objectReferenceValue =
-                AssetDatabase.LoadAssetAtPath<FireReactionScenario>(ScenarioPath);
+                AssetDatabase.LoadAssetAtPath<ScenarioAsset>(ScenarioPath);
             serialized.FindProperty("physicsFeel").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<PhysicsFeelPreset>(FeelPath);
             serialized.ApplyModifiedPropertiesWithoutUndo();
@@ -97,7 +97,7 @@ namespace Paniq.EditorTools
             int wired = 0;
             foreach (GameObject rootObject in scene.GetRootGameObjects())
             {
-                foreach (FireReactionRunner runner in rootObject.GetComponentsInChildren<FireReactionRunner>(true))
+                foreach (RunDriver runner in rootObject.GetComponentsInChildren<RunDriver>(true))
                 {
                     var serialized = new SerializedObject(runner);
                     serialized.FindProperty("level").objectReferenceValue = level;

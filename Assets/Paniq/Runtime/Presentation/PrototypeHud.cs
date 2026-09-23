@@ -26,8 +26,8 @@ namespace Paniq.Presentation
         private static readonly Color CardTooDear = new Color(0.25f, 0.1f, 0.1f, 0.7f);
 
         public static void Draw(
-            FireReactionSnapshot snapshot,
-            FireReactionScenarioData scenario,
+            RunSnapshot snapshot,
+            ScenarioData scenario,
             SimulationId? hoveredDoor,
             DoorState hoveredState,
             bool hoveredIsJammed = false)
@@ -45,7 +45,7 @@ namespace Paniq.Presentation
             }
             else
             {
-                fireText = $"FIRE IN {Mathf.Max(0f, (scenario.Fire.ActivationTick - snapshot.Tick) / (float)FireReactionSimulation.TicksPerSecond):0.00} s";
+                fireText = $"FIRE IN {Mathf.Max(0f, (scenario.Fire.ActivationTick - snapshot.Tick) / (float)Run.TicksPerSecond):0.00} s";
             }
 
             GUI.Label(new Rect(20f, 20f, 360f, 24f), $"Fire-reaction prototype  |  tick {snapshot.Tick}");
@@ -97,7 +97,7 @@ namespace Paniq.Presentation
         /// hand is highlighted, and the line above says what a click will do.
         /// </summary>
         public static void DrawCards(
-            FireReactionSnapshot snapshot, PlayerCommandType? selected, PlayerInput input, int peopleInTheCircle)
+            RunSnapshot snapshot, PlayerCommandType? selected, PlayerInput input, int peopleInTheCircle)
         {
             const float cardWidth = 210f;
             const float cardHeight = 34f;
@@ -191,7 +191,7 @@ namespace Paniq.Presentation
         /// this is where it belongs.
         /// </para>
         /// </summary>
-        public static void DrawPauseHelp(FireReactionSnapshot snapshot)
+        public static void DrawPauseHelp(RunSnapshot snapshot)
         {
             const float rowHeight = 18f;
             const float width = 620f;
@@ -263,7 +263,7 @@ namespace Paniq.Presentation
         /// One row per person, numbered like the labels over their heads, then
         /// <paramref name="footer"/>: which physics feel is in use, and so on.
         /// </summary>
-        public static void DrawStats(FireReactionSnapshot snapshot, string footer)
+        public static void DrawStats(RunSnapshot snapshot, string footer)
         {
             const float rowHeight = 20f;
             float width = 640f;
@@ -279,7 +279,7 @@ namespace Paniq.Presentation
             y += rowHeight;
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
-                FireReactionAgentSnapshot agent = snapshot.Agents[i];
+                AgentSnapshot agent = snapshot.Agents[i];
                 AgentTraitValues t = agent.Traits;
                 DrawRow(x, y, rowHeight, new[]
                 {
@@ -315,7 +315,7 @@ namespace Paniq.Presentation
             }
         }
 
-        private static string StateText(FireReactionAgentSnapshot agent)
+        private static string StateText(AgentSnapshot agent)
         {
             if (agent.Outcome == AgentTerminalOutcome.Lost)
             {

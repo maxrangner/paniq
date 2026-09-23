@@ -21,14 +21,14 @@ namespace Paniq.Tests.EditMode
         private static readonly SimulationId TheWayOut = TheBuilding.TheWayOut;
 
         /// <summary>Long enough to walk every room on the floor twice over.</summary>
-        private const int TwoMinutes = 2 * 60 * FireReactionSimulation.TicksPerSecond;
+        private const int TwoMinutes = 2 * 60 * Run.TicksPerSecond;
 
-        private FireReactionScenario scenario;
+        private ScenarioAsset scenario;
 
         [SetUp]
         public void SetUp()
         {
-            scenario = FireReactionScenario.CreateDefault();
+            scenario = ScenarioAsset.CreateDefault();
         }
 
         [TearDown]
@@ -44,7 +44,7 @@ namespace Paniq.Tests.EditMode
         /// stopping to help) that would make a test of where they walk pass or
         /// fail on luck.
         /// </summary>
-        private FireReactionScenarioData Floor(bool withSigns, params FireReactionAgentDefinition[] people)
+        private ScenarioData Floor(bool withSigns, params AgentDefinition[] people)
         {
             // These tests open the way out in their first two ticks, and a
             // round now opens with an empty purse, so without this the clicks
@@ -52,17 +52,17 @@ namespace Paniq.Tests.EditMode
             // nobody gets out of the building at all. This file was written
             // before the economy landed; it is a test of where people walk,
             // not of what the player can afford.
-            FireReactionScenarioData data =
+            ScenarioData data =
                 TheBuilding.WithThePlayerAbleToAct(TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData()));
             data.Agents = people;
             if (!withSigns)
             {
-                data.ExitSigns = Array.Empty<FireReactionExitSignDefinition>();
+                data.ExitSigns = Array.Empty<ExitSignDefinition>();
             }
 
-            data.PhysicsObjects = Array.Empty<FireReactionPhysicsObjectDefinition>();
-            data.Tables = Array.Empty<FireReactionTableDefinition>();
-            data.Alarms = Array.Empty<FireReactionAlarmDefinition>();
+            data.PhysicsObjects = Array.Empty<PhysicsObjectDefinition>();
+            data.Tables = Array.Empty<TableDefinition>();
+            data.Alarms = Array.Empty<AlarmDefinition>();
             data.Fire.ActivationTick = 1;
             data.Fire.SpreadMinimumTicks = 100000;
             data.Fire.SpreadMaximumTicks = 100000;
@@ -77,10 +77,10 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
-        private static FireReactionAgentDefinition Visitor(ulong id, int x, int z, CardinalDirection facing,
+        private static AgentDefinition Visitor(ulong id, int x, int z, CardinalDirection facing,
             AgentTraitValues traits)
         {
-            return new FireReactionAgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing, traits)
+            return new AgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing, traits)
                 .WithFamiliarity(AgentFamiliarity.Visitor);
         }
 
@@ -88,9 +88,9 @@ namespace Paniq.Tests.EditMode
         private static readonly AgentTraitValues Follower = new AgentTraitValues(5, 5, 2, 5, 0, 9, 1);
 
         /// <summary>Opens the way out, runs until the fire has started, and frightens everybody at once.</summary>
-        private static FireReactionSimulation Start(FireReactionScenarioData data)
+        private static Run Start(ScenarioData data)
         {
-            var simulation = new FireReactionSimulation(data);
+            var simulation = new Run(data);
             simulation.QueueCommand(PlayerCommandType.ClickDoor, TheWayOut, 1);
             simulation.QueueCommand(PlayerCommandType.ClickDoor, TheWayOut, 2);
             simulation.Step();
@@ -104,7 +104,7 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>Runs until everybody is out, or the time is up.</summary>
-        private static void RunUntilEverybodyIsOut(FireReactionSimulation simulation, int ticks)
+        private static void RunUntilEverybodyIsOut(Run simulation, int ticks)
         {
             for (int tick = 0; tick < ticks; tick++)
             {
@@ -123,7 +123,7 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        private static CausalEvent[] EventsOf(FireReactionSimulation simulation, FireReactionEventType type,
+        private static CausalEvent[] EventsOf(Run simulation, CausalEventType type,
             SimulationId who)
         {
             return simulation.EventLog.Events.Where(e => e.EventType == type && e.SourceId == who).ToArray();
@@ -138,12 +138,12 @@ namespace Paniq.Tests.EditMode
         public void AStrangerOnTheirOwn_WithNoSigns_LooksForTheWayOutAndFindsIt()
         {
             var who = new SimulationId(1UL);
-            FireReactionSimulation simulation = Start(Floor(false,
+            Run simulation = Start(Floor(false,
                 Visitor(1UL, -2000, 10500, CardinalDirection.South, AgentTraitValues.AllOrdinary)));
 
             RunUntilEverybodyIsOut(simulation, TwoMinutes);
 
-            Assert.That(EventsOf(simulation, FireReactionEventType.AgentLookedForAWayOut, who), Is.Not.Empty,
+            Assert.That(EventsOf(simulation, CausalEventType.AgentLookedForAWayOut, who), Is.Not.Empty,
                 "Knowing of no way out, they should have gone looking for one.");
             Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped),
                 "Two minutes is long enough to look in every room on the floor.");
@@ -157,12 +157,12 @@ namespace Paniq.Tests.EditMode
         public void ASign_ShowsAStrangerTheWay()
         {
             var who = new SimulationId(1UL);
-            FireReactionSimulation simulation = Start(Floor(true,
+            Run simulation = Start(Floor(true,
                 Visitor(1UL, 0, 8000, CardinalDirection.East, AgentTraitValues.AllOrdinary)));
 
             RunUntilEverybodyIsOut(simulation, TwoMinutes);
 
-            CausalEvent[] found = EventsOf(simulation, FireReactionEventType.AgentFoundTheWayOut, who);
+            CausalEvent[] found = EventsOf(simulation, CausalEventType.AgentFoundTheWayOut, who);
             Assert.That(found, Is.Not.Empty, "They never learned of the way out.");
             Assert.That((WayLearned)found[0].Strength, Is.EqualTo(WayLearned.Sign));
             Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped));
@@ -176,8 +176,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void AHost_ShowsTheirClientsTheWayOut()
         {
-            FireReactionSimulation simulation = Start(Floor(false,
-                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-2000, 11000),
+            Run simulation = Start(Floor(false,
+                new AgentDefinition(new SimulationId(1UL), new LogicalPosition(-2000, 11000),
                     CardinalDirection.South, new AgentTraitValues(6, 5, 7, 5, 1, 3, 9)),
                 Visitor(2UL, -3500, 12000, CardinalDirection.East, Follower),
                 Visitor(3UL, -500, 12000, CardinalDirection.West, Follower)));
@@ -186,7 +186,7 @@ namespace Paniq.Tests.EditMode
 
             foreach (ulong client in new[] { 2UL, 3UL })
             {
-                CausalEvent[] found = EventsOf(simulation, FireReactionEventType.AgentFoundTheWayOut,
+                CausalEvent[] found = EventsOf(simulation, CausalEventType.AgentFoundTheWayOut,
                     new SimulationId(client));
                 Assert.That(found.Any(e => (WayLearned)e.Strength == WayLearned.Told), Is.True,
                     $"Client {client} was never told the way.");
@@ -207,16 +207,16 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void SomebodyWhoWorksHere_NeverSearchesAndNeverLearns()
         {
-            FireReactionSimulation simulation = Start(Floor(true,
-                new FireReactionAgentDefinition(new SimulationId(1UL), new LogicalPosition(-2000, 10500),
+            Run simulation = Start(Floor(true,
+                new AgentDefinition(new SimulationId(1UL), new LogicalPosition(-2000, 10500),
                     CardinalDirection.South, AgentTraitValues.AllOrdinary)));
 
             RunUntilEverybodyIsOut(simulation, TwoMinutes);
 
             Assert.That(simulation.EventLog.Events.Any(e =>
-                    e.EventType == FireReactionEventType.AgentLookedForAWayOut ||
-                    e.EventType == FireReactionEventType.AgentFoundADeadEnd ||
-                    e.EventType == FireReactionEventType.AgentFoundTheWayOut),
+                    e.EventType == CausalEventType.AgentLookedForAWayOut ||
+                    e.EventType == CausalEventType.AgentFoundADeadEnd ||
+                    e.EventType == CausalEventType.AgentFoundTheWayOut),
                 Is.False);
             Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped));
         }

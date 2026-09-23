@@ -37,7 +37,7 @@ namespace Paniq.Simulation
         public const int RotationScale = 10000;
 
         private const float MetresPerUnit = 1f / (1000f * SubMillimetre);
-        private const float StepSeconds = 1f / FireReactionSimulation.TicksPerSecond;
+        private const float StepSeconds = 1f / Run.TicksPerSecond;
 
         /// <summary>
         /// How hard the engine works on each step. Fixed here rather than
@@ -953,7 +953,7 @@ namespace Paniq.Simulation
             rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
             rigidbody.solverIterations = SolverIterations;
             rigidbody.solverVelocityIterations = SolverVelocityIterations;
-            rigidbody.maxLinearVelocity = feel.MaximumSpeedMillimetresPerTick * 0.001f * FireReactionSimulation.TicksPerSecond;
+            rigidbody.maxLinearVelocity = feel.MaximumSpeedMillimetresPerTick * 0.001f * Run.TicksPerSecond;
             rigidbody.maxAngularVelocity = 30f;
             rigidbody.linearDamping = 0.05f;
             rigidbody.angularDamping = StandingAngularDamping;
@@ -1155,14 +1155,14 @@ namespace Paniq.Simulation
                 return;
             }
 
-            const float radiansPerDegreePerTick = Mathf.Deg2Rad * FireReactionSimulation.TicksPerSecond;
+            const float radiansPerDegreePerTick = Mathf.Deg2Rad * Run.TicksPerSecond;
             body.Rigidbody.angularVelocity = new Vector3(aboutX, aboutY, aboutZ) * radiansPerDegreePerTick;
             body.Rigidbody.WakeUp();
         }
 
         private static Vector3 VelocityInMetres(long vx, long vy, long vz)
         {
-            float scale = MetresPerUnit * FireReactionSimulation.TicksPerSecond;
+            float scale = MetresPerUnit * Run.TicksPerSecond;
             return new Vector3(vx * scale, vy * scale, vz * scale);
         }
 
@@ -1356,7 +1356,7 @@ namespace Paniq.Simulation
             Quaternion rotation = rigidbody.rotation;
             Vector3 velocity = rigidbody.isKinematic ? Vector3.zero : rigidbody.linearVelocity;
             Vector3 spin = rigidbody.isKinematic ? Vector3.zero : rigidbody.angularVelocity;
-            float perTick = 1f / (MetresPerUnit * FireReactionSimulation.TicksPerSecond);
+            float perTick = 1f / (MetresPerUnit * Run.TicksPerSecond);
 
             ref Reading reading = ref body.Reading;
             reading.X = Units(position.x);
@@ -1382,7 +1382,7 @@ namespace Paniq.Simulation
             reading.Heading = IntegerMath.HeadingOf(
                 (long)Math.Round(across.x * RotationScale), (long)Math.Round(across.z * RotationScale), reading.Heading);
             reading.UprightPercent = (int)Math.Round(up.y * 100f);
-            reading.SpinDegreesPerTick = (int)Math.Round(spin.magnitude * Mathf.Rad2Deg / FireReactionSimulation.TicksPerSecond);
+            reading.SpinDegreesPerTick = (int)Math.Round(spin.magnitude * Mathf.Rad2Deg / Run.TicksPerSecond);
             reading.Sleeping = !rigidbody.isKinematic && rigidbody.IsSleeping();
 
             float bottom = float.MaxValue;
@@ -1412,7 +1412,7 @@ namespace Paniq.Simulation
             }
 
             // Kilogram-metres per second to kilogram-millimetres per tick.
-            const float impulseScale = 1000f / FireReactionSimulation.TicksPerSecond;
+            const float impulseScale = 1000f / Run.TicksPerSecond;
             for (int h = 0; h < headers.Length; h++)
             {
                 ContactPairHeader header = headers[h];

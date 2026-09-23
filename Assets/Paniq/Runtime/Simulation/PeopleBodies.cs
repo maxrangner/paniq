@@ -189,7 +189,7 @@ namespace Paniq.Simulation
             // Slowing = grip * gravity, in millimetres per tick per tick; then
             // v * v = 2 * slowing * distance.
             double slowing = feel.PersonFloorGripPercent / 100.0 * 9.81 * feel.GravityPercent / 100.0 *
-                             1000.0 / (FireReactionSimulation.TicksPerSecond * FireReactionSimulation.TicksPerSecond);
+                             1000.0 / (Run.TicksPerSecond * Run.TicksPerSecond);
             return (int)Math.Round(Math.Sqrt(2.0 * Math.Max(0.0, slowing) * Math.Max(0, distanceMillimetres)));
         }
 

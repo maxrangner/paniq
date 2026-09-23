@@ -407,13 +407,17 @@ can be clicked, and a card already in your hand is put back down. Space again
 and it all carries on.
 
 **It ends when nobody is left to resolve.** That means every person is out of
-the building, dead, or alive somewhere the fire cannot get to — where "cannot
-get to" is worked out room by room, spreading from every burning room through
-every door that is open, broken or blasted, and held for five seconds so a
-round does not end in the lull before somebody shoulders a door open. Everyone
-still alive at that moment is written down as having **survived**, which counts
-as saved exactly as escaping does: barricading yourself into the storeroom is a
-way of living through a disaster, not an exploit.
+the building or dead — or the whole building has been doing nothing at all
+for long enough that there is plainly nothing left to wait for: nobody has got
+anywhere, nothing new has caught, no door has moved. A queue wedged in a
+doorway counts as something still happening, so a round never ends on top of
+a crush that has not cleared. It used to end the moment everybody left was in
+a room the fire could not reach; that stopped rounds while people were still
+walking to the door, and a shut door does not make a room permanently safe
+anyway. Everyone still alive at the end is written down as having
+**survived**, which counts as saved exactly as escaping does: barricading
+yourself into the storeroom is a way of living through a disaster, not an
+exploit.
 
 Then the scene freezes and a card gives the result — how many of the twenty
 were saved and what share that is, whether it cleared the 75% needed, how the
@@ -428,12 +432,14 @@ what happened out of sight. Both are planned and both are what would make a run
 ## The camera
 
 **W A S D** slide the view across the building, and W always moves it up the
-screen whichever corner you are looking from. **Q** and **E** swing a quarter
-turn to the next corner, snapping rather than sweeping, so there are four
-views. The **mouse wheel** zooms, and tilts as it goes: pulled out you look
-down on the building at the isometric angle, pushed in you look along the floor.
-The camera keeps working while the game is paused. The full description is in
-[look and controls](look-and-controls.md).
+screen whichever way you are looking. **Hold the right mouse button and drag**
+to swing the view to any angle at all; it stays where you let go. **Q** and
+**E** snap a quarter turn to the next corner view from wherever the view is
+now, so the four corners remain somewhere tidy to land. The **mouse wheel**
+zooms, and tilts as it goes: pulled out you look down on the building at the
+isometric angle, pushed in you look along the floor. A right *click* without a
+drag puts down the card in your hand. The camera keeps working while the game
+is paused. The full description is in [look and controls](look-and-controls.md).
 
 ## What the player can do
 

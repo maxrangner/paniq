@@ -16,7 +16,8 @@ namespace Paniq.Simulation
     /// collisions) and each bump becomes a push on the engine's body. Then
     /// the engine steps, and every hit it reports is judged here: a heavy
     /// thing flying into somebody staggers or floors them, a hard knock
-    /// smashes what was hit, a thing hurled at a table may smash the table.
+    /// smashes what was hit. Furniture (tables, chairs) is shoved and tipped
+    /// but never smashes.
     ///
     /// Objects are also items: a person can pick one up (it then touches
     /// nothing and is carried in front of them), set it down, drop it or
@@ -1433,8 +1434,8 @@ namespace Paniq.Simulation
         /// read back in ascending ID order, then every collision the engine
         /// reported is judged, in the sorted order it gives them. A thing
         /// flying into a person may stagger or floor them; two things meeting
-        /// hard enough smash what was hit; a thing slammed into a table may
-        /// smash the table. The bouncing itself has already happened.
+        /// hard enough smash what was hit (furniture never smashes). The
+        /// bouncing itself has already happened.
         /// </summary>
         public void AfterStep()
         {

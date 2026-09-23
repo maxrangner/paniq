@@ -200,10 +200,12 @@ namespace Paniq.Simulation
     /// <summary>
     /// A little green sign on the way out, and the way it points.
     /// <para>
-    /// For the player's eye only. People find their own way out by the
-    /// navigation grid and would do so if every sign were taken down; what the
-    /// signs fix is that a player looking at a corridor which Ts at one end
-    /// cannot otherwise tell which arm the door is up.
+    /// Read by two kinds of eye. The player's: a corridor which Ts at one end
+    /// gives no other clue which arm the door is up. And a stranger's: somebody
+    /// who does not know the building and can see a sign learns the way out
+    /// from it and leans their search the way it points
+    /// (<see cref="ExitSignBehaviour"/>). Staff who know the building never
+    /// need one, and would find the way with every sign taken down.
     /// </para>
     /// </summary>
     [Serializable]
@@ -528,7 +530,11 @@ namespace Paniq.Simulation
         /// <summary>The cable running from socket to socket and back to the fuse box.</summary>
         public PowerLineDefinition[] PowerLines = PrototypeBuilding.DefaultPowerLines();
 
-        /// <summary>The signs pointing the way out. Nothing in the run reads them.</summary>
+        /// <summary>
+        /// The signs pointing the way out. A stranger who can see one reads it
+        /// (<see cref="ExitSignBehaviour"/>, <see cref="WayfindingSystem"/>): it
+        /// teaches them the way, and it nudges which way they search.
+        /// </summary>
         public ExitSignDefinition[] ExitSigns = PrototypeBuilding.DefaultExitSigns();
 
         /// <summary>A deep copy: changing the copy never changes this one.</summary>

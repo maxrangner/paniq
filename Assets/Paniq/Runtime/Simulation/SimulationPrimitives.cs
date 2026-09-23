@@ -486,7 +486,7 @@ namespace Paniq.Simulation
         /// <summary>An alarm ringing, which is the noise everybody hears (source: the alarm).</summary>
         AlarmRang,
 
-        /// <summary>A chair or table smashed by something hitting it hard (source: the thing that broke, target: what hit it).</summary>
+        /// <summary>A loose thing smashed by something hitting it hard (source: the thing that broke, target: what hit it). Furniture never smashes.</summary>
         ObjectBroke,
 
         /// <summary>
@@ -704,7 +704,11 @@ namespace Paniq.Simulation
         /// <summary>A wall socket: it never moves and never burns, but it spits sparks and pops.</summary>
         WallSocket,
 
-        /// <summary>The heap a smashed table collapses into: still something to trip over, but nobody sits on it.</summary>
+        /// <summary>
+        /// The heap a smashed table would collapse into. Tables no longer smash,
+        /// so nothing becomes this in a run; the kind stays in the table so a
+        /// scenario that authored one still loads.
+        /// </summary>
         TableWreck,
 
         /// <summary>

@@ -42,11 +42,7 @@ namespace Paniq.Simulation
         /// <summary>How many of the door slots are really there; the rest are spare.</summary>
         private int placedCount;
 
-        /// <summary>
-        /// A table that has been smashed. It leaves wreckage on the floor but
-        /// stops being something people have to walk around, so the shape of the
-        /// room changes mid-run.
-        /// </summary>
+        /// <summary>The rooms as authored: rectangles that never overlap, in scenario order.</summary>
         private readonly LogicalBounds[] rooms;
         private readonly SimulationId[] roomIds;
 

@@ -396,7 +396,7 @@ namespace Paniq.Simulation
         /// is shoved, tipped and flipped by whatever hits it, as heavy as its
         /// weight makes it. To everything else it still reports as a table (a
         /// thing that meets it meets <see cref="StaticKind.Table"/>), so the
-        /// rules about tables -- what smashes one, what bounces off -- are the
+        /// rules about tables -- what bounces off one, what tips one -- are the
         /// same whether it stands still or not. Its origin is the middle of its
         /// underside.
         /// </summary>

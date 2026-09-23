@@ -840,24 +840,65 @@ namespace Paniq.Simulation
             return count;
         }
 
+        /// <summary>
+        /// A fresh copy of the run as it stands, for anybody who wants to keep
+        /// it (tests, tools). The display does not: it keeps two buffers from
+        /// <see cref="NewSnapshotBuffer"/> and fills them turn about with
+        /// <see cref="FillSnapshot"/>, so drawing allocates nothing a tick.
+        /// </summary>
         public FireReactionSnapshot GetSnapshot()
         {
-            var agentSnapshots = new FireReactionAgentSnapshot[agents.Length];
+            FireReactionSnapshot snapshot = NewSnapshotBuffer();
+            FillSnapshot(snapshot);
+            return snapshot;
+        }
+
+        /// <summary>An empty snapshot sized for this run, to be filled and filled again.</summary>
+        public FireReactionSnapshot NewSnapshotBuffer()
+        {
+            return new FireReactionSnapshot(agents.Length, geometry.DoorSlotCount, objects.Count, geometry.TableCount,
+                cardCosts ??= CardCosts(), doorClickCosts ??= DoorClickCosts());
+        }
+
+        /// <summary>Writes the run as it stands into a snapshot from <see cref="NewSnapshotBuffer"/>.</summary>
+        public void FillSnapshot(FireReactionSnapshot into)
+        {
+            FireReactionAgentSnapshot[] people = into.AgentBuffer;
             for (int i = 0; i < agents.Length; i++)
             {
-                agentSnapshots[i] = agents[i].ToSnapshot();
+                people[i] = agents[i].ToSnapshot();
             }
 
-            return new FireReactionSnapshot(
+            // Only the openings that are really there: a spare hole slot has no
+            // position to draw and nothing to say about it.
+            Prefix<FireReactionDoorSnapshot> openings = into.DoorBuffer;
+            openings.Resize(doors.Count);
+            for (int i = 0; i < doors.Count; i++)
+            {
+                openings.Items[i] = doors.GetSnapshot(i);
+            }
+
+            FireReactionPhysicsObjectSnapshot[] things = into.PhysicsObjectBuffer;
+            for (int i = 0; i < things.Length; i++)
+            {
+                things[i] = GetPhysicsObject(i);
+            }
+
+            flammables.FillTableSnapshots(into.TableBuffer);
+
+            Prefix<PlayerCommandType> held = into.HandBuffer;
+            held.Resize(deck.Hand.Count);
+            for (int i = 0; i < deck.Hand.Count; i++)
+            {
+                held.Items[i] = deck.Hand[i];
+            }
+
+            into.Fill(
                 context.Tick,
                 fire.Active,
                 fire.Origin,
                 context.Scenario.Fire.CellSizeMillimetres,
                 fire.GetCells(),
-                agentSnapshots,
-                doors.GetSnapshots(),
-                PhysicsObjectSnapshots(),
-                flammables.GetTableSnapshots(),
                 context.Events.View(),
                 CountClearOfFire(),
                 alarms.Ringing,
@@ -865,14 +906,15 @@ namespace Paniq.Simulation
                 context.Scenario.Influence.Maximum,
                 influence.Spent,
                 influence.Earned,
-                CardCosts(),
-                DoorClickCosts(),
-                TheHand(),
                 doors.BlastChargesRemaining,
                 power.Sparks(),
                 round.Phase,
                 context.Scenario.Round.TargetSavedPercent);
         }
+
+        /// <summary>The cost tables, worked out once: they are settings, and settings do not change in a run.</summary>
+        private int[] cardCosts;
+        private int[] doorClickCosts;
 
         /// <summary>What every command costs, by command type, for the display.</summary>
         private int[] CardCosts()
@@ -886,18 +928,6 @@ namespace Paniq.Simulation
             return costs;
         }
 
-        /// <summary>The cards the player is holding, copied for the display.</summary>
-        private PlayerCommandType[] TheHand()
-        {
-            var held = new PlayerCommandType[deck.Hand.Count];
-            for (int i = 0; i < held.Length; i++)
-            {
-                held[i] = deck.Hand[i];
-            }
-
-            return held;
-        }
-
         /// <summary>What a click costs on a door in each state, for the display.</summary>
         private int[] DoorClickCosts()
         {
@@ -908,17 +938,6 @@ namespace Paniq.Simulation
             }
 
             return costs;
-        }
-
-        private FireReactionPhysicsObjectSnapshot[] PhysicsObjectSnapshots()
-        {
-            var snapshots = new FireReactionPhysicsObjectSnapshot[objects.Count];
-            for (int i = 0; i < snapshots.Length; i++)
-            {
-                snapshots[i] = GetPhysicsObject(i);
-            }
-
-            return snapshots;
         }
     }
 }

@@ -433,14 +433,19 @@ namespace Paniq.Simulation
         public FireReactionTableSnapshot[] GetTableSnapshots()
         {
             var tables = new FireReactionTableSnapshot[geometry.TableCount];
-            for (int t = 0; t < tables.Length; t++)
+            FillTableSnapshots(tables);
+            return tables;
+        }
+
+        /// <summary>Every table as it stands, written into a buffer of exactly that many.</summary>
+        public void FillTableSnapshots(FireReactionTableSnapshot[] into)
+        {
+            for (int t = 0; t < into.Length; t++)
             {
                 Flammable thing = things[objects.Count + t];
-                tables[t] = new FireReactionTableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
+                into[t] = new FireReactionTableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
                     geometry.TablePose(t));
             }
-
-            return tables;
         }
 
         private static int HeatPercent(Flammable thing)

@@ -566,6 +566,25 @@ all thirteen replay fingerprints held.
 | **The runner that needed no editor is deleted** | `tools/RunEditModeTests.ps1`, `tools/Stubs/` and `tools/TestRunner/` (about 1,300 lines) are gone. `tools/CompileAgainstUnity.ps1` (compile only, no editor) and `tools/RunUnityTests.ps1` (the open editor's own runner) stay | Its own decision-log entry named the condition for retiring it -- "the simulation starts needing real engine types" -- and the physics engine met it: the stand-in threw for anything that builds a run, so nearly every test was skipped, while the workflow document still advertised "the whole suite in about twenty seconds". A harness that skips the suite is worse than none, because it looks like a check | Unity ships a test runner that tolerates an open editor; then the bridge could go instead |
 | The superseded movement rules are a history note | `docs/spatial-world-rules.md` keeps two lines saying what the sweep-and-refuse rule was and when the physics step replaced it, instead of the full rule and its worked examples | A hundred lines of rules marked "superseded" are a hundred lines a reader has to check are still superseded | -- |
 
+## Review refactor, phase 4a: the display fills two snapshots instead of building one a tick
+
+Chosen on 2026-09-23. Fourth phase of the review refactor; a restructure, and
+all thirteen replay fingerprints held.
+
+**What a player sees.** Nothing today. What it removes is a cause of hitches
+that would have arrived with a bigger crowd: every tick the run built a fresh
+copy of everything the display reads (people, doors, every loose thing twice,
+tables, the hand, the sparks, two cost tables), tens of kilobytes fifty times a
+second at a few hundred people, and the runtime pausing to tidy that memory is
+what turns into a stutter.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **Two snapshots, filled turn about** | `FireReactionSnapshot` is now a set of buffers sized once for a run, and `FireReactionSimulation.FillSnapshot` writes into one. `FireReactionRunner` keeps two, made by `NewSnapshotBuffer` for each run: the display blends from last tick's to this tick's, so the one it is not still reading is the one filled next. `GetSnapshot` still makes and fills a fresh one, for tests and tools that keep what they get | Drawing a tick now allocates nothing but the two small views over the append-only fire and event lists (which are prefixes of the run's own lists, not copies) | A third reader of live snapshots appears (a replay scrubber, say); it needs its own buffers, not the runner's |
+| Placed doors and the hand as prefixes | `Prefix<T>`, the first *n* items of a buffer sized for the most there could be (every door slot; sixteen cards), read as a list without copying or boxing | The number of placed doors grows when a hole is blown and the hand grows and shrinks; a fresh array per tick was the old answer | -- |
+| The cost tables once per run | What each card and each door click costs is worked out once, the first time a snapshot is asked for, not once a tick with a reflection call (`Enum.GetValues`) each | They are settings, and settings do not change in a run | A card's price ever changes mid-run; then the table is filled each tick again, still without reflection |
+| The stress profile measures the panic too | `StressProfiler` runs the panicking building (fire lit, everybody frightened) after the calm one, at 100, 200 and 500 people, so the standalone numbers cover the case that matters | The editor measurement of phase 2b exists; the built game is the number the budget is written against | Every stone that raises the crowd, as the quality checks already require |
+
 ## How decisions are made
 
 Paniq's owner is learning game development, so technical decisions must remain

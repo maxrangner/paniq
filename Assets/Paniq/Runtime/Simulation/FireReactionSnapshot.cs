@@ -397,31 +397,111 @@ namespace Paniq.Simulation
     /// burning cells only ever grow, so the snapshot holds a view of them as
     /// they were at this tick instead of a copy.
     /// </summary>
+    /// <summary>
+    /// The first <see cref="Count"/> items of an array, read-only, so a
+    /// snapshot can hand out "the doors that are placed" or "the cards in
+    /// hand" from a buffer sized for the most there could be, without
+    /// copying or boxing anything each time it is read.
+    /// </summary>
+    internal sealed class Prefix<T> : IReadOnlyList<T>
+    {
+        private T[] items;
+
+        public Prefix(int capacity)
+        {
+            items = new T[capacity];
+        }
+
+        public int Count { get; private set; }
+
+        public T[] Items => items;
+
+        public T this[int index]
+        {
+            get
+            {
+                if (index < 0 || index >= Count)
+                {
+                    throw new System.ArgumentOutOfRangeException(nameof(index));
+                }
+
+                return items[index];
+            }
+        }
+
+        /// <summary>Makes room for this many and says that many are in use; what is in them is the caller's to write.</summary>
+        public void Resize(int count)
+        {
+            if (count > items.Length)
+            {
+                items = new T[System.Math.Max(count, items.Length * 2)];
+            }
+
+            Count = count;
+        }
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            for (int i = 0; i < Count; i++)
+            {
+                yield return items[i];
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    /// <summary>
+    /// Everything the display needs to draw one tick, and nothing the rules
+    /// need. A snapshot is a set of buffers sized once for the run and
+    /// filled by <see cref="FireReactionSimulation.FillSnapshot"/>; the
+    /// display keeps two and fills them turn about, so drawing a tick
+    /// allocates nothing. <see cref="FireReactionSimulation.GetSnapshot"/>
+    /// makes and fills a fresh one for anybody who wants to keep it.
+    /// </summary>
     public sealed class FireReactionSnapshot
     {
         private readonly FireReactionAgentSnapshot[] agents;
-        private readonly IReadOnlyList<FireCellSnapshot> fireCells;
-        private readonly FireReactionDoorSnapshot[] doors;
+        private readonly Prefix<FireReactionDoorSnapshot> doors;
         private readonly FireReactionPhysicsObjectSnapshot[] physicsObjects;
         private readonly FireReactionTableSnapshot[] tables;
-        private readonly IReadOnlyList<CausalEvent> events;
+        private readonly Prefix<PlayerCommandType> hand;
+        private IReadOnlyList<FireCellSnapshot> fireCells = System.Array.Empty<FireCellSnapshot>();
+        private IReadOnlyList<CausalEvent> events = System.Array.Empty<CausalEvent>();
 
-        /// <summary>What each card costs, indexed by <see cref="PlayerCommandType"/>.</summary>
+        /// <summary>What each card costs, indexed by <see cref="PlayerCommandType"/>. Shared with the run; never written.</summary>
         private readonly int[] cardCosts;
 
-        /// <summary>What a door click costs, indexed by <see cref="DoorState"/>.</summary>
+        /// <summary>What a door click costs, indexed by <see cref="DoorState"/>. Shared with the run; never written.</summary>
         private readonly int[] doorClickCosts;
 
-        internal FireReactionSnapshot(
+        internal FireReactionSnapshot(int agentCount, int doorSlotCount, int objectCount, int tableCount,
+            int[] cardCosts, int[] doorClickCosts)
+        {
+            agents = new FireReactionAgentSnapshot[agentCount];
+            doors = new Prefix<FireReactionDoorSnapshot>(doorSlotCount);
+            physicsObjects = new FireReactionPhysicsObjectSnapshot[objectCount];
+            tables = new FireReactionTableSnapshot[tableCount];
+            hand = new Prefix<PlayerCommandType>(16);
+            this.cardCosts = cardCosts;
+            this.doorClickCosts = doorClickCosts;
+            PowerSparks = System.Array.Empty<FireReactionPowerSparkSnapshot>();
+        }
+
+        // The buffers the run writes into. Internal: the display only reads.
+        internal FireReactionAgentSnapshot[] AgentBuffer => agents;
+        internal FireReactionPhysicsObjectSnapshot[] PhysicsObjectBuffer => physicsObjects;
+        internal FireReactionTableSnapshot[] TableBuffer => tables;
+        internal Prefix<FireReactionDoorSnapshot> DoorBuffer => doors;
+        internal Prefix<PlayerCommandType> HandBuffer => hand;
+
+        /// <summary>The scalars and the views, written after the buffers are.</summary>
+        internal void Fill(
             int tick,
             bool fireActive,
             LogicalPosition fireOrigin,
             int fireCellSizeMillimetres,
             IReadOnlyList<FireCellSnapshot> fireCells,
-            FireReactionAgentSnapshot[] agents,
-            FireReactionDoorSnapshot[] doors,
-            FireReactionPhysicsObjectSnapshot[] physicsObjects,
-            FireReactionTableSnapshot[] tables,
             IReadOnlyList<CausalEvent> events,
             int clearOfFireCount,
             bool alarmsRinging,
@@ -429,62 +509,52 @@ namespace Paniq.Simulation
             int influenceMaximum,
             int influenceSpent,
             int influenceEarned,
-            int[] cardCosts,
-            int[] doorClickCosts,
-            PlayerCommandType[] hand,
             int blastChargesRemaining,
             IReadOnlyList<FireReactionPowerSparkSnapshot> powerSparks,
             RoundPhase roundPhase,
             int targetSavedPercent)
         {
-            RoundPhase = roundPhase;
-            TargetSavedPercent = targetSavedPercent;
-            BlastChargesRemaining = blastChargesRemaining;
-            PowerSparks = powerSparks;
-            AlarmsRinging = alarmsRinging;
-            Influence = influence;
-            InfluenceMaximum = influenceMaximum;
-            InfluenceSpent = influenceSpent;
-            InfluenceEarned = influenceEarned;
-            this.cardCosts = cardCosts;
-            this.doorClickCosts = doorClickCosts;
-            Hand = hand;
-            ClearOfFireCount = clearOfFireCount;
-            this.tables = tables;
-            this.doors = doors;
-            this.physicsObjects = physicsObjects;
             Tick = tick;
             FireActive = fireActive;
             FireOrigin = fireOrigin;
             FireCellSizeMillimetres = fireCellSizeMillimetres;
             this.fireCells = fireCells;
-            this.agents = agents;
             this.events = events;
+            ClearOfFireCount = clearOfFireCount;
+            AlarmsRinging = alarmsRinging;
+            Influence = influence;
+            InfluenceMaximum = influenceMaximum;
+            InfluenceSpent = influenceSpent;
+            InfluenceEarned = influenceEarned;
+            BlastChargesRemaining = blastChargesRemaining;
+            PowerSparks = powerSparks;
+            RoundPhase = roundPhase;
+            TargetSavedPercent = targetSavedPercent;
         }
 
-        public int Tick { get; }
+        public int Tick { get; private set; }
 
         /// <summary>People still in the building, but in a room with nothing burning in it.</summary>
-        public int ClearOfFireCount { get; }
+        public int ClearOfFireCount { get; private set; }
 
         /// <summary>Whether the fire alarms are ringing.</summary>
-        public bool AlarmsRinging { get; }
+        public bool AlarmsRinging { get; private set; }
 
         /// <summary>What the player has left to spend, and what they have spent and earned.</summary>
-        public int Influence { get; }
-        public int InfluenceMaximum { get; }
-        public int InfluenceSpent { get; }
-        public int InfluenceEarned { get; }
+        public int Influence { get; private set; }
+        public int InfluenceMaximum { get; private set; }
+        public int InfluenceSpent { get; private set; }
+        public int InfluenceEarned { get; private set; }
 
         /// <summary>
         /// The cards the player is holding, in the order the dead dealt them.
         /// Empty at the start of every round: nothing is bought, everything is
         /// dealt.
         /// </summary>
-        public IReadOnlyList<PlayerCommandType> Hand { get; }
+        public IReadOnlyList<PlayerCommandType> Hand => hand;
 
         /// <summary>How many sticks of TNT the player has left.</summary>
-        public int BlastChargesRemaining { get; }
+        public int BlastChargesRemaining { get; private set; }
 
         /// <summary>What a card costs, so the display can grey out what is out of reach.</summary>
         public int CostOf(PlayerCommandType card)
@@ -503,9 +573,9 @@ namespace Paniq.Simulation
             return doorClickCosts != null && index >= 0 && index < doorClickCosts.Length ? doorClickCosts[index] : 0;
         }
 
-        public bool FireActive { get; }
-        public LogicalPosition FireOrigin { get; }
-        public int FireCellSizeMillimetres { get; }
+        public bool FireActive { get; private set; }
+        public LogicalPosition FireOrigin { get; private set; }
+        public int FireCellSizeMillimetres { get; private set; }
         public IReadOnlyList<FireCellSnapshot> FireCells => fireCells;
 
         /// <summary>
@@ -513,7 +583,7 @@ namespace Paniq.Simulation
         /// draw it in the same place the rules have it. Empty when nothing is
         /// lit, which is most of a round.
         /// </summary>
-        public IReadOnlyList<FireReactionPowerSparkSnapshot> PowerSparks { get; }
+        public IReadOnlyList<FireReactionPowerSparkSnapshot> PowerSparks { get; private set; }
         public IReadOnlyList<FireReactionAgentSnapshot> Agents => agents;
         public IReadOnlyList<CausalEvent> Events => events;
         public IReadOnlyList<FireReactionDoorSnapshot> Doors => doors;
@@ -600,7 +670,7 @@ namespace Paniq.Simulation
         public int SurvivedCount => CountOutcome(AgentTerminalOutcome.Survived);
 
         /// <summary>Where the round has got to: before the event, during it, or finished.</summary>
-        public RoundPhase RoundPhase { get; }
+        public RoundPhase RoundPhase { get; private set; }
 
         /// <summary>Whether the player has set the disaster going yet.</summary>
         public bool EventTriggered => RoundPhase != RoundPhase.BeforeEvent;
@@ -623,7 +693,7 @@ namespace Paniq.Simulation
         public int RemainingCount => CrowdSize - SavedCount - LostCount;
 
         /// <summary>The share of the crowd that has to be saved to clear the level.</summary>
-        public int TargetSavedPercent { get; }
+        public int TargetSavedPercent { get; private set; }
 
         /// <summary>How many people that target works out to, rounded up.</summary>
         public int TargetSavedCount => (CrowdSize * TargetSavedPercent + 99) / 100;

@@ -35,6 +35,14 @@ namespace Paniq.Gameplay
         private FireReactionSnapshot current;
         private FireReactionSnapshot previous;
 
+        /// <summary>
+        /// Two snapshots filled turn about: the one the display is blending
+        /// from (last tick) and the one it is blending to (this tick). Made
+        /// afresh for each run, because they are sized for it.
+        /// </summary>
+        private readonly FireReactionSnapshot[] buffers = new FireReactionSnapshot[2];
+        private FireReactionSimulation buffersFor;
+
         /// <summary>The run. Read its <see cref="FireReactionSimulation.Scenario"/> for the values it actually uses.</summary>
         public FireReactionSimulation Simulation
         {
@@ -81,8 +89,31 @@ namespace Paniq.Gameplay
             }
         }
 
-        /// <summary>State after the latest tick, built at most once per tick.</summary>
-        public FireReactionSnapshot Snapshot => current ??= Simulation.GetSnapshot();
+        /// <summary>State after the latest tick, filled at most once per tick.</summary>
+        public FireReactionSnapshot Snapshot => current ??= FillSpareSnapshot();
+
+        /// <summary>
+        /// Fills whichever of the two buffers the display is not still
+        /// reading as last tick's state. Before there were two, every tick
+        /// built a fresh snapshot (a few kilobytes of arrays), and at a few
+        /// hundred people that is what turns into the runtime pausing to
+        /// tidy memory.
+        /// </summary>
+        private FireReactionSnapshot FillSpareSnapshot()
+        {
+            FireReactionSimulation run = Simulation;
+            if (!ReferenceEquals(buffersFor, run))
+            {
+                buffers[0] = run.NewSnapshotBuffer();
+                buffers[1] = run.NewSnapshotBuffer();
+                buffersFor = run;
+                previous = null;
+            }
+
+            FireReactionSnapshot spare = ReferenceEquals(previous, buffers[0]) ? buffers[1] : buffers[0];
+            run.FillSnapshot(spare);
+            return spare;
+        }
 
         /// <summary>State one tick earlier, so presentation can blend smoothly between ticks.</summary>
         public FireReactionSnapshot PreviousSnapshot => previous ?? Snapshot;

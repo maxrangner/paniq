@@ -67,6 +67,24 @@ namespace Paniq.Diagnostics
                 yield return null;
             }
 
+            report.AppendLine();
+            report.AppendLine("Simulation, stress building, fire lit and everybody frightened from the first tick (the number that matters; same budgets):");
+            foreach ((int people, int things) in Crowds)
+            {
+                string line;
+                try
+                {
+                    line = MeasureSimulation(template, people, things, panicking: true);
+                }
+                catch (Exception failure)
+                {
+                    line = $"  {people} people panicking, {things} boxes: FAILED - {failure.Message}";
+                }
+
+                report.AppendLine(line);
+                yield return null;
+            }
+
             Destroy(scenario);
             report.AppendLine();
 
@@ -153,10 +171,29 @@ namespace Paniq.Diagnostics
             }
         }
 
-        private static string MeasureSimulation(FireReactionScenarioData template, int people, int things)
+        private static string MeasureSimulation(FireReactionScenarioData template, int people, int things, bool panicking = false)
         {
-            using (var simulation = new FireReactionSimulation(StressBuilding.Build(template, people, things), 42UL))
+            FireReactionScenarioData data = StressBuilding.Build(template, people, things);
+            if (panicking)
             {
+                // The fire lit in the first room on the first tick, and
+                // everybody frightened at once: the whole window is a stampede,
+                // which is where the costs that grow with the crowd live.
+                data.Fire.ActivationTick = 1;
+                data.Fire.SpawnBounds = new LogicalBounds(3000, 3000, 3000, 3000);
+            }
+
+            using (var simulation = new FireReactionSimulation(data, 42UL))
+            {
+                if (panicking)
+                {
+                    simulation.Step();
+                    for (int i = 0; i < people; i++)
+                    {
+                        simulation.FrightenForTests(i);
+                    }
+                }
+
                 for (int tick = 0; tick < WarmUpTicks; tick++)
                 {
                     simulation.Step();
@@ -175,8 +212,8 @@ namespace Paniq.Diagnostics
                 whole.Stop();
                 double perTick = whole.Elapsed.TotalMilliseconds / MeasuredTicks;
                 double physics = (simulation.PhysicsStepTime - physicsBefore).TotalMilliseconds / MeasuredTicks;
-                return $"  {people,3} people, {things,4} boxes: {Format(perTick)} ms a tick, of which physics {Format(physics)} ms; " +
-                       $"slowest tick {Format(worst)} ms";
+                return $"  {people,3} people{(panicking ? " panicking" : "")}, {things,4} boxes: {Format(perTick)} ms a tick, " +
+                       $"of which physics {Format(physics)} ms; slowest tick {Format(worst)} ms";
             }
         }
 

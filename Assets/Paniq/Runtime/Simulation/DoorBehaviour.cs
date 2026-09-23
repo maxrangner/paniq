@@ -265,11 +265,14 @@ namespace Paniq.Simulation
         /// <summary>
         /// A visitor who knows of no way out looks for one. Two kinds of place
         /// are worth a look: the part of this room they have not seen yet, and
-        /// any room they know how to reach but have not looked round. Each is
-        /// scored like a way out -- the shorter walk, the way a sign they can
-        /// see points, clear of the danger, and a little for sticking with what
-        /// they already chose -- with a little noise. False when there is
-        /// nowhere left to look.
+        /// any room they know how to reach but have not looked round. The room
+        /// they are standing in comes first: having walked in to look round
+        /// it, they look round it before any other room is weighed, unless its
+        /// unseen corner is by the danger or cannot be reached. Otherwise each
+        /// place is scored like a way out -- the shorter walk, the way a sign
+        /// they can see points, clear of the danger, and a little for sticking
+        /// with what they already chose -- with a little noise. False when
+        /// there is nowhere left to look.
         /// <para>
         /// On the way, a door they were looking for turns up, or a sign, or a
         /// leader; any of those makes them think again at once (see
@@ -290,6 +293,7 @@ namespace Paniq.Simulation
             bool readASign = exitSigns.TryRead(agent, out int pointing);
             int danger = TraitEffects.DangerDistance(agent, context.Scenario);
             bool found = false;
+            bool lookHereFirst = false;
             long bestScore = long.MinValue;
 
             if (!knowledge.HasLookedOver(room))
@@ -321,9 +325,19 @@ namespace Paniq.Simulation
                 bestScore = score;
                 knowledge.HasSearchSpot = true;
                 knowledge.SearchSpot = spot;
+
+                // Without this, a room whose far corners are further off than
+                // the next room's door was left the moment it was entered, and
+                // from the corridor that same room was the nearest place
+                // unseen, so a stranger bounced through one doorway until the
+                // building burned down. Costing routes as real walks made that
+                // a certainty on the shipped floor; it had been a matter of luck.
+                lookHereFirst = !threats.AnyCloserThan(spot, danger) &&
+                                geometry.Routes.CanGetFromHereToThere(position, spot,
+                                    context.Scenario.World.OccupancyRadiusMillimetres);
             }
 
-            for (int r = 0; r < geometry.RoomCount; r++)
+            for (int r = 0; !lookHereFirst && r < geometry.RoomCount; r++)
             {
                 if (r == room || knowledge.HasLookedOver(r) ||
                     !geometry.TryFindKnownRoute(room, position, r, agent, out int first, out _, out long routeCost) ||

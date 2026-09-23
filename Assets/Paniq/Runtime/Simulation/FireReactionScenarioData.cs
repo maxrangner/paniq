@@ -459,9 +459,12 @@ namespace Paniq.Simulation
     public sealed class FireReactionScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "54";
+        public string ContentRevision = "55";
         public ulong DefaultSeed = 42UL;
 
+        // 43: a stranger who has walked into a room to look round it looks
+        // round it before weighing any other room, unless its unseen corner is
+        // by the danger or cannot be reached.
         // 41: people plan their escape only through doors they know. Visitors
         // look for a way out, and seeing a door, reading a sign, a door opening
         // beside them and a leader's shout all teach them one.
@@ -475,7 +478,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 42;
+        public int SimulationCompatibilityVersion = 43;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

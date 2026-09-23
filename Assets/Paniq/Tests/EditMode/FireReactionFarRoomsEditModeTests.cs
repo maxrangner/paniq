@@ -106,12 +106,12 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void AStepPulledBackFromOutsideTheFarRoom_StaysAtTheFarEnd()
         {
-            // The same fault seen through the rule that actually used it: a
-            // position being clamped back into walkable space must land in the
-            // room it is beside, not in room zero.
+            // The same fault seen through the rule that actually uses it: a
+            // spot being pulled back onto the floor (where a helper drags a
+            // casualty to) must land in the room it is beside, not in room zero.
             WorldGeometry geometry = TwoRoomsFarApart();
             var justOutside = new LogicalPosition(26000, 0);
-            LogicalPosition kept = geometry.ClampIntoWalkable(justOutside, -1, new LogicalPosition(30000, 0));
+            LogicalPosition kept = geometry.ClampIntoRoom(justOutside, new LogicalPosition(30000, 0));
             Assert.That(kept.X, Is.GreaterThan(6000),
                 $"The step was pulled back to x={kept.X}, which is in the first room at the other end of the building.");
         }

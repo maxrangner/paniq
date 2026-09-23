@@ -92,44 +92,16 @@ then use `-Reset` if the run never reports back.
 libraries without Unity running: a quick check that a change builds before
 handing it to the editor.
 
-### Running the edit-mode tests without Unity
+### The runner that needed no editor is gone
 
-The plain-.NET runner below still compiles and runs the simulation on its own.
-Every test that needs Unity's physics stops at once and is listed as
-**skipped**, never as passed, so today it mainly checks the scenario asset and
-the tests that need no physics:
-
-```powershell
-.\tools\RunEditModeTests.ps1                  # every edit-mode test, about 20 seconds
-.\tools\RunEditModeTests.ps1 -FingerprintsOnly # just the ten replay fingerprints
-.\tools\RunEditModeTests.ps1 -Filter Doors     # tests whose name contains "Doors"
-.\tools\RunEditModeTests.ps1 -Record           # re-record fingerprints, ready to paste
-```
-
-The script compiles the simulation, the edit-mode tests, a few small Unity
-stand-ins (`tools/Stubs`) and a reflection-driven runner (`tools/TestRunner`)
-with Unity's own bundled Roslyn compiler, and runs them on the installed .NET
-runtime. It needs the editor installed, not running.
-
-Use `-Record` only for a deliberate behaviour change: it prints the ten
-fingerprints as `[TestCase]` lines to paste into
-`ReplayFingerprintEditModeTests.cs`, which still has to be accompanied by the
-version bumps above.
-
-The fingerprints now need Unity's physics, so under this runner they are
-skipped and `-Record` has nothing to print. Re-record them in the editor
-instead: `tools\RunUnityTests.ps1 -Filter ReplayFingerprint` fails each changed
-case with its new number (`fingerprint is 0x...UL`), ready to paste.
-
-Two checks that cannot run outside the editor are covered another way by the
-script -- the fixed timestep is read from `ProjectSettings/TimeManager.asset`,
-and the saved scenario asset is compared with the code defaults by reading its
-YAML. Everything it genuinely cannot check is listed as skipped at the end of
-every run, never as passed.
-
-**This is a fast check, not a substitute for Unity's own runners.** Run the
-EditMode and PlayMode tests in the editor (`tools\RunUnityTests.ps1`) before
-calling a change verified in the engine.
+Until 2026-09-23 `tools/RunEditModeTests.ps1` compiled the simulation without
+Unity and ran the edit-mode tests in about twenty seconds. Once people and
+things became physical bodies, every test that builds a run needed the
+editor's physics engine, so nearly the whole suite was skipped under it and it
+was retired along with its stand-ins and its runner. The two checks it made
+its own way live in the editor's suite: the fixed timestep in
+`SimulationContractEditModeTests`, and the saved scenario asset matching the
+code defaults in `FireReactionSimulationEditModeTests`.
 
 ## Building a floor plan
 

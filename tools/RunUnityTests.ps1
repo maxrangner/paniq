@@ -97,7 +97,7 @@ $result = Join-Path $folder 'result.txt'
 $status = Join-Path $folder 'status.txt'
 
 if (-not (Test-Path (Join-Path $repository 'Temp\UnityLockfile'))) {
-    throw 'The Unity editor does not have this project open. Open it, or use tools\RunEditModeTests.ps1 for the tests that do not need Unity.'
+    throw 'The Unity editor does not have this project open. Open it: every test that builds a run needs the physics engine inside the editor.'
 }
 
 New-Item -ItemType Directory -Force -Path $folder | Out-Null

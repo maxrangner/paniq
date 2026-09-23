@@ -427,13 +427,6 @@ namespace Paniq.Simulation
             return index;
         }
 
-        /// <summary>A smashed table stops holding anything up: what stood on it falls.</summary>
-        public void RemoveTable(int index)
-        {
-            SetSolid(tables[index], false);
-            tableBodies[index].isKinematic = true;
-        }
-
         /// <summary>Whether the engine moved this table in the last step (a table at rest sleeps).</summary>
         public bool IsTableAwake(int index)
         {

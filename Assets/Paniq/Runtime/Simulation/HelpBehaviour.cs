@@ -321,7 +321,7 @@ namespace Paniq.Simulation
             }
 
             int away = IntegerMath.HeadingBetween(flames, agent.Body.Position, agent.Body.Heading);
-            agent.Intent.Target = geometry.ClampIntoWalkable(agent.Body.Position, -1,
+            agent.Intent.Target = geometry.ClampIntoRoom(agent.Body.Position,
                 agent.Body.Position + IntegerMath.Displacement(away, settings.DragAwayDistanceMillimetres));
         }
 

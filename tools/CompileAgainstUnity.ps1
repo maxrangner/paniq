@@ -7,8 +7,8 @@
     Uses the Roslyn compiler bundled with the installed editor and the same
     UnityEngine and UnityEditor reference assemblies Unity compiles against.
     It only compiles; nothing runs. Run the tests with
-    tools\RunUnityTests.ps1 (inside the open editor) or, for the tests that
-    do not need Unity, tools\RunEditModeTests.ps1.
+    tools\RunUnityTests.ps1, inside the open editor: every test that builds
+    a run needs the editor's physics engine.
 
     The assemblies mirror the project's: Paniq.Runtime, then the edit-mode
     tests and the editor code, each referencing the one before.

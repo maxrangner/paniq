@@ -96,7 +96,7 @@ cross a room.
 
 | What changed | What it means |
 | --- | --- |
-| Edit-mode tests run without closing Unity (`tools/RunEditModeTests.ps1`) | The whole suite in about twenty seconds, so a large change can be checked as it is made |
+| Edit-mode tests ran without closing Unity (`tools/RunEditModeTests.ps1`; retired 2026-09-23 once every test needed the physics engine) | At the time, the whole suite in about twenty seconds; today `tools/RunUnityTests.ps1` asks the open editor instead |
 | An index of who and what is standing where | "Who is near me" stops meaning "look at everyone"; the costs that grew with the square of the crowd are gone |
 | The floor drawn as 250 mm squares, with real clearance | A doorway too narrow to walk through is refused when the floor plan loads, instead of sealing a room in silence |
 | Flow fields | People find their way round furniture and across the building; a crowd of two hundred costs no more to steer than twenty |
@@ -294,6 +294,7 @@ Each phase is recorded here as it lands, with its decision-log entry.
 | --- | --- | --- |
 | 1. Afraid of a threat | The crowd asks `Threats`, never the fire by name; the fire is one `IThreat`. One binding pass replaces eleven setters. Every event type says what it pays the meter | The hunter stone below can be built as a second threat rather than by editing seventeen files. Nothing a player sees moved: all ten fingerprints held |
 | 2a. One map | A route between rooms costs what it is to walk, round the furniture, instead of the straight line from door to door. The fields people steer by and the graph they choose doors by now agree | Somebody choosing between two ways out picks the shorter walk, not the shorter line. This is the one review phase that changes a run: the versions were bumped and the recorded runs that moved were re-recorded. Testing it exposed a stranger bouncing through one doorway for ever, fixed in its own commit |
+| 3. Dead weight out | The movement rules from before the physics engine (`KeepObjectInRoom`, `ClipsDoorFrame`, `TableHit`, doorway strips, `IsWalkable`, `ClampIntoWalkable`, `PhysicsWorld.RemoveTable`) and the test runner that needed no editor are deleted; the one live use, where a helper drags a casualty to, is a ten-line `ClampIntoRoom` | Nothing a player sees. The world code is about a tenth shorter and no longer describes two ways of moving, one of them dead. All thirteen fingerprints held |
 | 2b. The index everywhere | Every question one person asks about the people or things near them reads the spatial index for that patch of floor instead of walking everybody. Rooms come from the navigation grid; IDs are looked up in one step. A panic measurement (fire lit, everybody frightened, up to 500 people) now exists next to the calm one | The cost of a panic no longer grows with the square of the crowd, which is what a larger level needs. Nothing a player sees moved: all ten fingerprints held and the measured runs end identically |
 
 ## Agreed direction for the next stones

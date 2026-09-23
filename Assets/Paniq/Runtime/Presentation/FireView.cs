@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
+using UnityEngine.Rendering;
 using static Paniq.Presentation.PresentationUtility;
 
 namespace Paniq.Presentation
@@ -10,23 +11,40 @@ namespace Paniq.Presentation
     /// that bob, spin, flicker and fade to embers, under a column of smoke
     /// and a few sparks of ember. Variation comes from a hash of the cell's
     /// grid position, never from the simulation's generator.
+    /// <para>
+    /// Nothing here is a scene object. Every tile and every flame cube is one
+    /// entry in a batch, and each batch is drawn with one call
+    /// (<see cref="Graphics.RenderMeshInstanced"/>); the frame cost of a fire
+    /// is then a few dozen calls however many squares burn, where it used to
+    /// be three or four objects per square, each moved and recoloured every
+    /// frame. Colour is shared by everything in a batch, so a flame's colour
+    /// is rounded to one of a few dozen steps; the flicker hides the steps.
+    /// </para>
     /// </summary>
     internal sealed class FireView
     {
         private static readonly Color FlameYellow = new Color(1f, 0.82f, 0.2f);
         private static readonly Color EmberRed = new Color(0.42f, 0.04f, 0.02f);
+        private static readonly Color ScorchRed = new Color(0.55f, 0.1f, 0.02f);
+        private static readonly Color WetGrey = new Color(0.12f, 0.13f, 0.16f);
+
+        /// <summary>How finely a flame's heat and age are stepped when it is put in a batch by colour.</summary>
+        private const int HeatSteps = 6;
+        private const int EmberSteps = 5;
+
+        /// <summary>How many instances one draw call may carry.</summary>
+        private const int InstancesPerCall = 1000;
 
         private sealed class CellView
         {
-            public Renderer Tile;
-            public Transform[] Cubes;
-            public Renderer[] Renderers;
-            public Vector3[] Offsets;
-            public float[] Sizes;
-            public float[] Seeds;
-            public float SpawnTime;
             public Vector3 Centre;
+            public float CellSize;
             public float HalfWidth;
+            public float SpawnTime;
+            public int CubeCount;
+            public readonly Vector3[] Offsets = new Vector3[3];
+            public readonly float[] Sizes = new float[3];
+            public readonly float[] Seeds = new float[3];
 
             /// <summary>The leftover fraction of a smoke particle, so the column is even at any frame rate.</summary>
             public float SmokeCarry;
@@ -35,26 +53,87 @@ namespace Paniq.Presentation
             public float OutSince = -1f;
         }
 
+        /// <summary>What <see cref="Graphics.RenderMeshInstanced"/> wants per instance.</summary>
+        private struct Instance
+        {
+            public Matrix4x4 objectToWorld;
+        }
+
+        /// <summary>Everything drawn in one colour this frame.</summary>
+        private sealed class Batch
+        {
+            public Instance[] Items = new Instance[64];
+            public int Count;
+            public readonly MaterialPropertyBlock Colour = new MaterialPropertyBlock();
+
+            public void Add(in Matrix4x4 transform)
+            {
+                if (Count == Items.Length)
+                {
+                    System.Array.Resize(ref Items, Items.Length * 2);
+                }
+
+                Items[Count++].objectToWorld = transform;
+            }
+        }
+
         private readonly PresentationMaterials materials;
         private readonly ParticleEffects effects;
-        private readonly Transform parent;
         private readonly List<CellView> cells = new List<CellView>();
+        private readonly Mesh cube;
+
+        /// <summary>Flames by colour step: ember age, then heat.</summary>
+        private readonly Batch[] flames = new Batch[EmberSteps * HeatSteps];
+
+        /// <summary>Burning tiles by colour step: ember age, then the slow pulse.</summary>
+        private readonly Batch[] tiles = new Batch[EmberSteps * 3];
+
+        /// <summary>Tiles that have been put out, by how far they have cooled.</summary>
+        private readonly Batch[] wetTiles = new Batch[4];
+
+        /// <summary>Every flame cube once more, for the orange glow through walls.</summary>
+        private readonly Batch throughWalls = new Batch();
+
+        /// <summary>Where the fire is, grown as it spreads, so the batches are never culled by mistake.</summary>
+        private Bounds extent;
+        private bool hasExtent;
 
         public FireView(PresentationMaterials materials, ParticleEffects effects, Transform parent)
         {
             this.materials = materials;
             this.effects = effects;
-            this.parent = parent;
+            _ = parent;
+            cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+            for (int i = 0; i < flames.Length; i++)
+            {
+                flames[i] = new Batch();
+            }
+
+            for (int i = 0; i < tiles.Length; i++)
+            {
+                tiles[i] = new Batch();
+            }
+
+            for (int i = 0; i < wetTiles.Length; i++)
+            {
+                wetTiles[i] = new Batch();
+            }
         }
+
+        /// <summary>How many squares are being drawn, and how many flame cubes: the check that a fire is on screen.</summary>
+        public int DrawnCellCount { get; private set; }
+        public int DrawnFlameCount { get; private set; }
 
         public void Update(FireReactionSnapshot snapshot, float time)
         {
             // Burning cells only ever get added, in ignition order.
             while (cells.Count < snapshot.FireCells.Count)
             {
-                cells.Add(CreateCell(snapshot.FireCells[cells.Count], cells.Count + 1, time));
+                cells.Add(CreateCell(snapshot.FireCells[cells.Count], time));
             }
 
+            ClearBatches();
+            int flameCount = 0;
             for (int i = 0; i < cells.Count; i++)
             {
                 // A square that has been put out: the flames drop away and a
@@ -65,9 +144,70 @@ namespace Paniq.Presentation
                     continue;
                 }
 
-                Animate(cells[i], time);
+                flameCount += Animate(cells[i], time);
                 effects.BurningFloor(cells[i].Centre, cells[i].HalfWidth, Time.deltaTime, ref cells[i].SmokeCarry);
             }
+
+            DrawnCellCount = cells.Count;
+            DrawnFlameCount = flameCount;
+            Draw();
+        }
+
+        private void ClearBatches()
+        {
+            for (int i = 0; i < flames.Length; i++)
+            {
+                flames[i].Count = 0;
+            }
+
+            for (int i = 0; i < tiles.Length; i++)
+            {
+                tiles[i].Count = 0;
+            }
+
+            for (int i = 0; i < wetTiles.Length; i++)
+            {
+                wetTiles[i].Count = 0;
+            }
+
+            throughWalls.Count = 0;
+        }
+
+        private CellView CreateCell(FireCellSnapshot cell, float time)
+        {
+            float cellSize = Metres(cell.Bounds.MaxX - cell.Bounds.MinX);
+            var view = new CellView
+            {
+                Centre = ToUnityPosition(cell.Centre),
+                CellSize = cellSize,
+                HalfWidth = cellSize * 0.4f,
+                SpawnTime = time,
+                CubeCount = Hash01(cell.CellX, cell.CellZ, 0) < 0.5f ? 2 : 3
+            };
+
+            float spread = cellSize * 0.28f;
+            for (int k = 0; k < view.CubeCount; k++)
+            {
+                view.Seeds[k] = Hash01(cell.CellX, cell.CellZ, k + 1);
+                view.Sizes[k] = Mathf.Lerp(0.15f, 0.35f, Hash01(cell.CellX, cell.CellZ, k + 11));
+                view.Offsets[k] = new Vector3(
+                    (Hash01(cell.CellX, cell.CellZ, k + 21) * 2f - 1f) * spread,
+                    0f,
+                    (Hash01(cell.CellX, cell.CellZ, k + 31) * 2f - 1f) * spread);
+            }
+
+            var around = new Bounds(view.Centre, new Vector3(cellSize + 2f, 3f, cellSize + 2f));
+            if (hasExtent)
+            {
+                extent.Encapsulate(around);
+            }
+            else
+            {
+                extent = around;
+                hasExtent = true;
+            }
+
+            return view;
         }
 
         /// <summary>A square someone has hosed down: cubes gone, a damp scorch mark left.</summary>
@@ -79,91 +219,143 @@ namespace Paniq.Presentation
             }
 
             float age = Mathf.Clamp01((time - view.OutSince) / 0.6f);
-            materials.SetColors(view.Tile, Color.Lerp(new Color(0.55f, 0.1f, 0.02f), new Color(0.12f, 0.13f, 0.16f), age),
-                Color.black);
-            for (int k = 0; k < view.Cubes.Length; k++)
+            int step = Mathf.Min(wetTiles.Length - 1, (int)(age * wetTiles.Length));
+            wetTiles[step].Add(TileTransform(view));
+
+            // The cubes shrink away over the same moment, in their ember colour.
+            float size = 0.12f * (1f - age);
+            if (size > 0.005f)
             {
-                view.Cubes[k].localScale = Vector3.one * Mathf.Max(0f, 0.12f * (1f - age));
+                for (int k = 0; k < view.CubeCount; k++)
+                {
+                    Matrix4x4 transform = Matrix4x4.TRS(
+                        view.Centre + view.Offsets[k] + Vector3.up * (size * 0.5f + 0.03f),
+                        Quaternion.identity, Vector3.one * size);
+                    flames[(EmberSteps - 1) * HeatSteps].Add(transform);
+                    throughWalls.Add(transform);
+                }
             }
         }
 
-        private CellView CreateCell(FireCellSnapshot cell, int number, float time)
+        private static Matrix4x4 TileTransform(CellView view)
         {
-            var root = new GameObject($"Fire cell {number} (read-only presentation)").transform;
-            root.SetParent(parent, false);
-            root.position = ToUnityPosition(cell.Centre);
-            float cellSize = Metres(cell.Bounds.MaxX - cell.Bounds.MinX);
-
-            // A dim glowing floor tile marks the exact square that burns.
-            GameObject tile = CreatePrimitive("Scorch", PrimitiveType.Cube, root, Vector3.zero,
-                new Vector3(cellSize * 0.96f, 0.02f, cellSize * 0.96f), materials.Fire);
-            tile.transform.localPosition = new Vector3(0f, 0.01f, 0f);
-
-            int cubeCount = Hash01(cell.CellX, cell.CellZ, 0) < 0.5f ? 2 : 3;
-            var view = new CellView
-            {
-                Tile = tile.GetComponent<Renderer>(),
-                Cubes = new Transform[cubeCount],
-                Renderers = new Renderer[cubeCount],
-                Offsets = new Vector3[cubeCount],
-                Sizes = new float[cubeCount],
-                Seeds = new float[cubeCount],
-                SpawnTime = time,
-                Centre = root.position,
-                HalfWidth = cellSize * 0.4f
-            };
-
-            float spread = cellSize * 0.28f;
-            for (int k = 0; k < cubeCount; k++)
-            {
-                GameObject cube = CreatePrimitive($"Flame {k + 1}", PrimitiveType.Cube, root, Vector3.zero, Vector3.one, materials.Fire);
-
-                // A fire in the next room glows through the wall, so nobody has
-                // to guess why a person with an extinguisher is heading that way.
-                ShowFireThroughWalls(cube, materials);
-                cube.transform.localPosition = Vector3.zero;
-                view.Cubes[k] = cube.transform;
-                view.Renderers[k] = cube.GetComponent<Renderer>();
-                view.Seeds[k] = Hash01(cell.CellX, cell.CellZ, k + 1);
-                view.Sizes[k] = Mathf.Lerp(0.15f, 0.35f, Hash01(cell.CellX, cell.CellZ, k + 11));
-                view.Offsets[k] = new Vector3(
-                    (Hash01(cell.CellX, cell.CellZ, k + 21) * 2f - 1f) * spread,
-                    0f,
-                    (Hash01(cell.CellX, cell.CellZ, k + 31) * 2f - 1f) * spread);
-            }
-
-            return view;
+            return Matrix4x4.TRS(view.Centre + new Vector3(0f, 0.01f, 0f), Quaternion.identity,
+                new Vector3(view.CellSize * 0.96f, 0.02f, view.CellSize * 0.96f));
         }
 
-        private void Animate(CellView view, float time)
+        /// <summary>Puts a burning square's tile and cubes into this frame's batches; how many cubes it drew.</summary>
+        private int Animate(CellView view, float time)
         {
             float age = time - view.SpawnTime;
             float pop = age < 0.4f ? EaseOutBack(age / 0.4f) : 1f;
             float ember = Mathf.Clamp01((age - 10f) / 20f);
+            int emberStep = Mathf.Min(EmberSteps - 1, (int)(ember * EmberSteps));
 
-            Color tileColor = Color.Lerp(new Color(0.55f, 0.1f, 0.02f), EmberRed * 0.6f, ember);
-            materials.SetColors(view.Tile, tileColor, tileColor * (0.7f + 0.15f * Mathf.Sin(time * 4f + view.Seeds[0] * 20f)));
+            float pulse = 0.5f + 0.5f * Mathf.Sin(time * 4f + view.Seeds[0] * 20f);
+            int pulseStep = Mathf.Min(2, (int)(pulse * 3f));
+            tiles[emberStep * 3 + pulseStep].Add(TileTransform(view));
 
-            for (int k = 0; k < view.Cubes.Length; k++)
+            for (int k = 0; k < view.CubeCount; k++)
             {
                 float seed = view.Seeds[k];
                 float flicker = 1f + 0.18f * Mathf.Sin(time * (7f + seed * 6f) + seed * 20f) +
                                 0.08f * Mathf.Sin(time * (13f + seed * 9f));
-                float size = view.Sizes[k] * pop * flicker * Mathf.Lerp(1f, 0.65f, ember);
+                float size = Mathf.Max(0.001f, view.Sizes[k] * pop * flicker * Mathf.Lerp(1f, 0.65f, ember));
                 float hover = (0.06f + 0.06f * seed) * (0.5f + 0.5f * Mathf.Sin(time * (3f + seed * 3f) + seed * 10f)) *
                               (1f - 0.7f * ember);
 
-                Transform cube = view.Cubes[k];
-                cube.localPosition = view.Offsets[k] + Vector3.up * (size * 0.5f + 0.03f + hover);
-                cube.localRotation = Quaternion.Euler(
-                    12f * Mathf.Sin(time * 2f + seed * 7f),
-                    time * (40f + seed * 80f) + seed * 360f,
-                    12f * Mathf.Cos(time * 2.3f + seed * 5f));
-                cube.localScale = Vector3.one * Mathf.Max(0.001f, size);
+                Matrix4x4 transform = Matrix4x4.TRS(
+                    view.Centre + view.Offsets[k] + Vector3.up * (size * 0.5f + 0.03f + hover),
+                    Quaternion.Euler(
+                        12f * Mathf.Sin(time * 2f + seed * 7f),
+                        time * (40f + seed * 80f) + seed * 360f,
+                        12f * Mathf.Cos(time * 2.3f + seed * 5f)),
+                    Vector3.one * size);
 
                 float heat = 0.5f + 0.5f * Mathf.Sin(time * (5f + seed * 5f) + seed * 30f);
-                Color color = Color.Lerp(Color.Lerp(PresentationMaterials.FlameRed, FlameYellow, heat), EmberRed, ember);
-                materials.SetColors(view.Renderers[k], color, color * Mathf.Lerp(2.2f, 0.6f, ember));
+                int heatStep = Mathf.Min(HeatSteps - 1, (int)(heat * HeatSteps));
+                flames[emberStep * HeatSteps + heatStep].Add(transform);
+                throughWalls.Add(transform);
+            }
+
+            return view.CubeCount;
+        }
+
+        /// <summary>One draw call per colour in use, plus the glow through walls.</summary>
+        private void Draw()
+        {
+            if (!hasExtent || cube == null || materials.Fire == null)
+            {
+                return;
+            }
+
+            var lit = new RenderParams(materials.Fire)
+            {
+                worldBounds = extent,
+                shadowCastingMode = ShadowCastingMode.Off,
+                receiveShadows = false,
+                lightProbeUsage = LightProbeUsage.Off,
+                reflectionProbeUsage = ReflectionProbeUsage.Off
+            };
+
+            for (int e = 0; e < EmberSteps; e++)
+            {
+                float ember = (e + 0.5f) / EmberSteps;
+                for (int h = 0; h < HeatSteps; h++)
+                {
+                    float heat = (h + 0.5f) / HeatSteps;
+                    Color color = Color.Lerp(Color.Lerp(PresentationMaterials.FlameRed, FlameYellow, heat), EmberRed, ember);
+                    DrawBatch(lit, flames[e * HeatSteps + h], color, color * Mathf.Lerp(2.2f, 0.6f, ember));
+                }
+
+                Color tileColor = Color.Lerp(ScorchRed, EmberRed * 0.6f, ember);
+                for (int p = 0; p < 3; p++)
+                {
+                    float pulse = (p + 0.5f) / 3f;
+                    DrawBatch(lit, tiles[e * 3 + p], tileColor, tileColor * (0.7f + 0.15f * (pulse * 2f - 1f)));
+                }
+            }
+
+            for (int w = 0; w < wetTiles.Length; w++)
+            {
+                float cooled = (w + 0.5f) / wetTiles.Length;
+                DrawBatch(lit, wetTiles[w], Color.Lerp(ScorchRed, WetGrey, cooled), Color.black);
+            }
+
+            // A fire in the next room glows through the wall, so nobody has
+            // to guess why a person with an extinguisher is heading that way.
+            if (materials.FireSeeThrough != null && throughWalls.Count > 0)
+            {
+                var glow = new RenderParams(materials.FireSeeThrough)
+                {
+                    worldBounds = extent,
+                    shadowCastingMode = ShadowCastingMode.Off,
+                    receiveShadows = false,
+                    lightProbeUsage = LightProbeUsage.Off,
+                    reflectionProbeUsage = ReflectionProbeUsage.Off
+                };
+                DrawInstances(glow, throughWalls);
+            }
+        }
+
+        private void DrawBatch(RenderParams lit, Batch batch, Color baseColor, Color emission)
+        {
+            if (batch.Count == 0)
+            {
+                return;
+            }
+
+            materials.FillColors(batch.Colour, baseColor, emission);
+            lit.matProps = batch.Colour;
+            DrawInstances(lit, batch);
+        }
+
+        private void DrawInstances(RenderParams parameters, Batch batch)
+        {
+            for (int start = 0; start < batch.Count; start += InstancesPerCall)
+            {
+                Graphics.RenderMeshInstanced(parameters, cube, 0, batch.Items,
+                    Mathf.Min(InstancesPerCall, batch.Count - start), start);
             }
         }
     }

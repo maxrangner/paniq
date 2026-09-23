@@ -70,10 +70,16 @@ namespace Paniq.Tests.PlayMode
             yield return null;
 
             Assert.That(runner.Snapshot.FireActive, Is.True);
-            GameObject fire = GameObject.Find("Fire cell 1 (read-only presentation)");
-            Assert.That(fire, Is.Not.Null);
-            Assert.That(fire.activeSelf, Is.True);
-            Assert.That(fire.transform.childCount, Is.GreaterThanOrEqualTo(3), "Expected a scorch tile plus flame cubes.");
+
+            // The fire is drawn in batches, not as scene objects, so the
+            // check is what the view says it drew this frame.
+            var presentation = Object.FindFirstObjectByType<Paniq.Presentation.FireReactionPrototypePresentation>();
+            Assert.That(presentation, Is.Not.Null);
+            Assert.That(presentation.FireForTests, Is.Not.Null);
+            Assert.That(presentation.FireForTests.DrawnCellCount, Is.GreaterThanOrEqualTo(1),
+                "Expected at least one burning square to be drawn.");
+            Assert.That(presentation.FireForTests.DrawnFlameCount, Is.GreaterThanOrEqualTo(2),
+                "Expected flame cubes over the first burning square.");
         }
 
         [UnityTest]

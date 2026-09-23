@@ -29,6 +29,9 @@ namespace Paniq.Presentation
         private AgentViews agents;
         private BoxViews boxes;
         private FireView fire;
+
+        /// <summary>The fire as drawn, so a test can check a blaze is on screen without hunting for scene objects.</summary>
+        internal FireView FireForTests => fire;
         private SoundRipples ripples;
         private SprayView spray;
         private NavigationGridView navigationGrid;

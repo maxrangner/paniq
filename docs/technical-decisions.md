@@ -585,6 +585,24 @@ what turns into a stutter.
 | The cost tables once per run | What each card and each door click costs is worked out once, the first time a snapshot is asked for, not once a tick with a reflection call (`Enum.GetValues`) each | They are settings, and settings do not change in a run | A card's price ever changes mid-run; then the table is filled each tick again, still without reflection |
 | The stress profile measures the panic too | `StressProfiler` runs the panicking building (fire lit, everybody frightened) after the calm one, at 100, 200 and 500 people, so the standalone numbers cover the case that matters | The editor measurement of phase 2b exists; the built game is the number the budget is written against | Every stone that raises the crowd, as the quality checks already require |
 
+## Review refactor, phase 4b: the fire is drawn in batches, not as objects
+
+Chosen on 2026-09-23. Presentation only: the rules did not change and no
+fingerprint could.
+
+**What a player sees.** The same fire: a dim scorched tile per burning square
+with two or three small cubes bobbing, spinning, flickering and fading to
+embers over it, and an orange glow where a blaze is behind a wall. What changes
+is what happens when a large floor is fully ablaze: the frame rate no longer
+falls off a cliff while the simulation is still fine.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **One draw call per colour, however many squares burn** | `FireView` keeps no scene objects. Every tile and flame cube is one entry in a batch, and each batch is drawn with `Graphics.RenderMeshInstanced` (Unity's way of drawing many copies of one mesh in one call; the built-in cube mesh, up to a thousand per call). A flame's colour is rounded to one of thirty steps (six of heat by five of age) and a tile's to one of fifteen, so a fire is at most a few dozen calls; the flicker hides the steps | The old view made a root, a tile and two or three cubes per square and moved, spun, scaled and recoloured each cube every frame. A 40 m by 30 m floor at 500 mm squares is 4,800 squares, so 15,000 to 20,000 objects when it all burns; the decision log of 2026-09-20 named "up to about 1,700 cubes is fine" and instanced drawing as the way past it | A flame needs a colour of its own (a blue chemical fire beside an orange one); then the fire material needs a shader with a per-instance colour, which the standard lit shader does not offer |
+| The glow through walls is a batch too | The see-through shader gained the two lines that let it draw batches (`multi_compile_instancing` and the instance ID), and the two fire materials allow instancing. The glow is one more call over every flame cube | Without it the fire would vanish from behind walls the moment it was batched | -- |
+| No shadows from flames | The batches cast and receive no shadows and take no light probes | The cubes are tiny and self-lit; a shadow from each was cost for nothing. The old cubes had Unity's defaults, so this is the one visible difference, and it is invisible | Playtesters miss a flicker on the floor around a fire; then a light, not shadows, is the answer |
+| The test asks the view what it drew | `BootstrapSceneFlowTests` used to look for a scene object called "Fire cell 1" with three children; it now asks `FireView.DrawnCellCount` and `DrawnFlameCount` through `FireReactionPrototypePresentation.FireForTests` | There are no such objects any more, and "what did you draw this frame" is the honest check | -- |
+
 ## How decisions are made
 
 Paniq's owner is learning game development, so technical decisions must remain

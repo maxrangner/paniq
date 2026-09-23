@@ -141,6 +141,15 @@ define its logical-world data.
 
 The fire-reaction prototype added these to the record above.
 
+**Feelings, not event names (decided 2026-09-24).** What a person does follows
+from their fear state, what alerted them, their temperament and their traits,
+applied to what they see, hear and touch. No rule in the crowd switches on an
+event type; the event log records why something happened, it does not tell
+anybody what to do. Further feelings the game vision names (anger, trust in a
+leader, curiosity) arrive as additional per-person state on this record, each
+with the first danger or card that needs it, never as a switch on a named
+event.
+
 **What they are holding.** A person may be authored already holding something
 (`CarriedObjectId` on the agent definition), and a thing held that way is marked
 as *theirs*: they keep hold of it while calm rather than tidying it away, and let

@@ -44,6 +44,36 @@ This is what makes the percentage saved dramatic rather than arithmetic: a
 person the player fails to save does not merely reduce the score, they may
 join the other side.
 
+## Decided: three things the finished game must be
+
+Stated by the owner on 2026-09-24, in these words, as the yardstick every
+foundation decision is measured against. Where the foundation stands against
+each is checked in [technical decisions](technical-decisions.md#alignment-with-the-three-requirements-for-the-finished-game-2026-09-24).
+
+1. **Very optimised for large crowds, each person with a lot of emergent
+   behaviour and events.** Large is a stated goal, not an open question: the
+   working budget is two hundred to five hundred people on a floor of thirty
+   to fifty rooms, and every system is measured against a panicking crowd of
+   that size before it is trusted. Emergence is not decoration: every person
+   decides for themselves from what they see, hear and touch, and every event
+   names its cause, so a chain of consequences can be read back.
+2. **Systems flexible for different dangers; a reaction is a feeling about a
+   situation, never a response to a named event.** A danger is content that
+   answers the crowd's questions (where is it, is it in my room, can I see it,
+   is it on my way, is it touching me, what does touching do). People react to
+   what those answers make them feel. Nothing in the crowd switches on an
+   event's name. Fear is the feeling that exists today; the others that drive
+   behaviour -- anger, trust in a leader, curiosity -- are named here so they
+   are built as feelings when a danger or a card first needs them, not as
+   special cases.
+3. **Handcrafted levels, with dynamic scenery and props, possibly on more than
+   one floor.** Levels are placed by hand and read into the run by a bake tool,
+   never generated. Scenery is not a backdrop: props are physical things that
+   are shoved, thrown, tipped, broken and burnt; tables move and the walkable
+   floor follows them; walls are blown through; doors break. Storeys are
+   prepared for now (every room and position may carry a storey number; a stair
+   is a kind of door between storeys) and built when a level asks.
+
 ## Decided: how a disaster is described
 
 Paniq does not commit to any particular disaster. Instead, every disaster is
@@ -193,7 +223,9 @@ stays a real-time panic rather than becoming turn-based.
 
 1. **Indirect control:** change what people are capable of, never where they go.
 2. **Autonomous crowd:** the crowd reacts to hazards, the environment, and each
-   other; it is not a collection of identical particles.
+   other; it is not a collection of identical particles. A reaction is a
+   feeling about a situation -- fear today; anger, trust and curiosity as they
+   are needed -- never a rule keyed to an event's name.
 3. **The crowd carries the disaster:** the people being rescued are also how the
    danger spreads.
 4. **Readable emergence:** simple, visible rules produce surprising chains with
@@ -238,8 +270,9 @@ treated as settled.
 - Audio design beyond the decision that sound replaces helper markers.
 - The models themselves, and the concept art that will pin them down; the
   style they sit in is settled in [look and controls](look-and-controls.md).
-- Crowd size and level size. (Influence numbers and the card list are settled
-  for now in [technical decisions](technical-decisions.md).)
+- Which feelings beyond fear arrive first, and with which danger or card.
+  (Crowd size and level size are decided above: large. Influence numbers and
+  the card list are settled for now in [technical decisions](technical-decisions.md).)
 - Relationships between people, and which information is hidden from the player.
 
 Locations and situations will vary; no single narrative setting is committed.

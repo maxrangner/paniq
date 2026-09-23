@@ -113,8 +113,11 @@ twenty people walking in straight lines used to.
 - **Rooms that are not rectangles**, and TNT cutting a real hole rather than
   installing a permanently-open door. The floor squares already handle any
   shape, so this is a change to how rooms are described rather than to how
-  anybody moves. Worth doing when a floor plan actually needs an L-shaped room,
-  a room inside a room, or stairs.
+  anybody moves. Worth doing when a floor plan actually needs an L-shaped room
+  or a room inside a room. Stairs are no longer the trigger: storeys are
+  prepared for by a storey number on rooms and positions, with a stair as a
+  kind of door between storeys (decided 2026-09-24, see the alignment section
+  of [technical decisions](technical-decisions.md)).
 - **Burst and Jobs on the movement loops.** The simulation stays plain C# so
   this remains possible. Worth doing when a measurement passes about 5 ms a
   tick, a quarter of the budget, with drawing still to pay for.
@@ -293,6 +296,23 @@ Each phase is recorded here as it lands, with its decision-log entry.
 | Phase | What changed | What it means for the game |
 | --- | --- | --- |
 | 1. Afraid of a threat | The crowd asks `Threats`, never the fire by name; the fire is one `IThreat`. One binding pass replaces eleven setters. Every event type says what it pays the meter | The hunter stone below can be built as a second threat rather than by editing seventeen files. Nothing a player sees moved: all thirteen fingerprints held |
+
+**Where that leaves the foundation.** Assessed on 2026-09-24, in full in the
+[decision log](technical-decisions.md#review-refactor-where-the-foundation-stands-afterwards).
+It is the right shape for the game these documents describe, proven by tests
+and fingerprints rather than by a watched round, and measured at 500 people in
+a small building rather than in a large one. The known weak points, each with
+what would expose it:
+
+- A route can name doors the feet do not walk, where the shortest walk cuts
+  through the room next door; a staged level with several ways round.
+- "Look round the room you walked into" means four corners in sight; a
+  warehouse-sized room.
+- Rooms are rectangles authored in C#; a large floor makes authoring the slow part.
+- People are about 25 scene objects each, unmeasured at 500; the frame rate on
+  a 500-person level.
+- Every performance number is an editor number; the standalone profile has not
+  been run since the panic case was added.
 | 2a. One map | A route between rooms costs what it is to walk, round the furniture, instead of the straight line from door to door. The fields people steer by and the graph they choose doors by now agree | Somebody choosing between two ways out picks the shorter walk, not the shorter line. This is the one review phase that changes a run: the versions were bumped and the recorded runs that moved were re-recorded. Testing it exposed a stranger bouncing through one doorway for ever, fixed in its own commit |
 | 6. The documents | The prototype note says what a round and the camera do now; the exit-sign comments say strangers read the signs; nine comments stop saying tables smash; the version list is a table | Nothing a player sees. The notes the owner reads match the game again |
 | 5. The rename | `FireReactionSimulation` is `Run`, `FireReactionSnapshot` is `RunSnapshot`, `FireReactionRunner` is `RunDriver`, `FireReactionEventType` is `CausalEventType`, and every other `FireReaction*` type drops the prefix; files moved with their `.meta` files so the scene and the asset still point at them | Nothing a player sees. The code now says it is the game, not a fire demo; a hunter written into it reads right |

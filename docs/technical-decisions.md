@@ -681,6 +681,82 @@ Chosen on 2026-09-23. Documentation and comments only.
 | The version list is a table | The replay compatibility row of the first table held every bump in one cell of about three thousand characters; it is now a version history table at the end of this document, newest first, and the row points to it | Unreadable as a cell, useful as a table | -- |
 | Thirteen fingerprints, not ten | The review refactor's own entries said "ten"; there have been thirteen recorded runs since the no-visitors cases were added. Older entries keep "ten" because that was the count when they were written | -- | -- |
 
+## Review refactor: where the foundation stands afterwards
+
+Written on 2026-09-24, after the six phases were merged into prototype 2, because
+the owner asked whether this is a foundation to stand on. It is an assessment,
+not a plan: what is solid and why, what still creaks and what would expose it,
+and what was and was not verified.
+
+**Verdict.** The foundation is now the right shape for the game the documents
+describe: one deterministic tick, a causal event log, a spatial index used
+everywhere, one map for "which door" and "how to walk there", a threat seam a
+new hazard plugs into, a display that allocates nothing a tick, and a fire that
+draws in batches. Two qualifications. It has been proven by tests, not by eyes:
+411 tests pass and every replay fingerprint held through every restructure, but
+no round has been watched on screen since the fire was batched and the route
+costs changed. And it has been measured at 500 people in a small building, not
+in a large one: steering and wayfinding, about 7 ms of the 12 ms a tick at 500
+people panicking in the editor, have never been profiled on a big floor.
+
+**What was verified.** Edit-mode (395) and play-mode (16) suites after every
+commit; thirteen replay fingerprints held through every restructure and were
+re-recorded once, for the walking-distance route costs; the panic measurement
+before and after the index work ends with identical crowds; the editor log shows
+no rendering complaints from the batched fire.
+
+**What was not verified.** A watched round; a floor larger than the shipped one;
+the standalone stress profile (every number in this document is an editor
+number); the look of the batched fire, beyond the play-mode test that it draws.
+
+### What is solid
+
+| Item | Why it can be built on | Proven by | Revisit when |
+| --- | --- | --- | --- |
+| Threats, not fire | Fear, perception, panic, doors, helping, barricading, the round clock and contact all ask `Threats`; a new hazard is a second `IThreat`, not an edit to seventeen files | `ThreatSeamEditModeTests`: a stationary threat frightens, is fled from, hurts and holds the round open, with no fire lit | A hazard needs a question the interface does not ask |
+| One map | Routes cost what the walk is and the feet steer by the same fields, so the door chosen and the door walked agree | `ARoute_CostsTheWalkRoundATable_NotTheLine`; three fingerprints moved and were re-recorded | Rooms stop being rectangles |
+| The index everywhere | No decision for one person reads the whole crowd; the cost is per person, not per crowd squared | All thirteen fingerprints held; the panic measurement ends identically | A question the index cannot bound |
+| Nothing allocated a tick, fire in batches, honest physics look-ups | The three things that would have turned a big level into a stutter are gone before the big level exists | Fingerprints held; play-mode fire test; buffers grow on demand | The people (about 25 objects each) need the same batching |
+| Names say what the code is | `Run`, `RunSnapshot`, `RunDriver`, `RunPresentation`, `ScenarioData`, `ScenarioAsset`, `CausalEventType` | Both suites after the rename | -- |
+| Every default is in this document | Each choice made on the owner's behalf has its reason and the condition for overturning it | This document | -- |
+
+### What still creaks
+
+| Item | What it is | What would expose it |
+| --- | --- | --- |
+| A route can name doors the feet do not walk | A leg costs the real walk even where the shortest walk cuts through the room next door. Cost and walk agree, which is the point, but a stranger's "known doors" plan can name a door they will not actually pass | A staged level with several ways round, and strangers in it |
+| "Look round the room you walked into" is one test deep | Right for rooms of the present size, and it is what a person does; but "looked round" means four corners in sight | A warehouse-sized room, where four corners are not "looked round" |
+| Rooms are rectangles | L and T shapes are two rectangles joined by an archway, and a floor is authored in C# (`PrototypeBuilding`) plus a scene bake | A large floor: the authoring, not the simulation, becomes the slow part |
+| People are about 25 scene objects each | Fine at 200 people; unmeasured at 500. The fire got batching; the people have not | The frame rate on a 500-person level |
+| The standalone stress numbers are stale | The profiler has the panic case, but the built player has not been run since; every number here is an editor number | The next stone that raises the crowd, which the quality checks already require to be profiled |
+| `TableWreck` is a kind nothing produces | Kept so an authored one still loads | -- |
+| A test helper called `Run(...)` hides the type `Run` | C# finds the enclosing class's method before the type; the compiler says "'Run' is a method, which is not valid in the given context" | Any new test with a helper called `Run`; call it `Advance` |
+
+## Alignment with the three requirements for the finished game (2026-09-24)
+
+The owner stated three requirements for the finished game (recorded in the
+[game vision](game-vision.md#decided-three-things-the-finished-game-must-be))
+and asked that the documents and the work line up with them. This is the check
+of the foundation against each, and the two decisions the check produced.
+
+### 1. Very optimised for large crowds, with a lot of emergent behaviour and events
+
+| Agrees | Partly | Not yet | Decided |
+| --- | --- | --- | --- |
+| One deterministic tick; a spatial index behind every per-person question; flow fields shared by everybody heading the same way, with a fixed per-tick budget; a display that allocates nothing a tick; fire drawn in batches; a causal event log where every event names its cause, which is what makes the chains readable and what the economy pays on. Measured at 500 people panicking in the editor: about 12 ms a tick, 5 of them physics | People are about 25 scene objects each (fine at 200, unmeasured at 500); steering and wayfinding have never been profiled on a large floor; every number is an editor number | -- | Large is the stated goal: 200 to 500 people on 30 to 50 rooms. The evidence gates for scale tooling (below, under "Deferred technology") stay: profile first, adopt only when the current approach blocks the intended scenario |
+
+### 2. Flexible for different dangers; a reaction is a feeling about a situation, never a response to a named event
+
+| Agrees | Partly | Not yet | Decided |
+| --- | --- | --- | --- |
+| Danger is generic: `IThreat` answers what a frightened person may ask of any danger and `Threats` answers across all of them. Fear changes (calm, alert, scared, freezing) come from perception (sight of a threat), sound (a noise with a position and a reach: a yell close enough to be understood alarms, a thud only turns heads, a bang frightens) and contact. None of these read an event's name: a bang frightens because of its reach, not because it is called "MicrowaveExploded". The event log records causes; it does not drive reactions. The economy (`InfluenceSystem.UproarTierOf`) keys on event types, which is right: it is the score, not the crowd | The inner life is one axis, fear, shaded by seven traits and a temperament. The panic options (flee, fight the fire, help, lead, sound the alarm, barricade) are a fixed list, and some are tools for one danger (extinguishers, flammables) and belong to it. Feelings spread one way only today: a yell alarms | Anger, trust in a leader, curiosity: none exists | **Feelings are named now and built as dangers need them.** The vision names them; each arrives as per-person state with the first danger or card that needs it, as its own stone. The rule is a design constraint above: no rule in the crowd may switch on an event type. Revisit if a danger cannot be expressed as answers to the threat questions plus a feeling; that is the signal to extend the interface, not to special-case the danger |
+
+### 3. Handcrafted levels with dynamic scenery and props, possibly on more than one floor
+
+| Agrees | Partly | Not yet | Decided |
+| --- | --- | --- | --- |
+| Levels are placed by hand (`PrototypeBuilding` in code, and the scene bake tool that reads placed objects into scenario data); the level asset and session exist. Props are physical bodies: shoved, thrown, tipped, broken, burnt. Tables are bodies too, and the walkable floor is redone when one is shoved. Walls are blown through; doors break | Rooms are rectangles, joined into L and T shapes by archways; authoring in C# will be the slow part of a large floor | Everything is one storey: a position is X and Z (`LogicalPosition`), rooms are flat rectangles, the navigation squares, the fire squares and the index are one layer, and the physics scene has one floor | **Storeys are prepared for now and built later.** From the next level onward, rooms and positions carry a storey number and a stair is a kind of door between storeys, while every level is still one storey. Stairs, lifts and falls between floors stay unbuilt until a level asks. Why now: a few days once, before a big level exists; a month afterwards, because it touches positions, rooms, both grids, physics and the display in one go. Revisit never; the trigger for building stairs is the first level that wants a second floor |
+
 ## How decisions are made
 
 Paniq's owner is learning game development, so technical decisions must remain
@@ -710,6 +786,10 @@ system is introduced.
 - Keep random choices tied to an explicit scenario seed.
 - Keep presentation separate from future gameplay/simulation decisions.
 - Prefer simple steering and authored obstacles before adding navigation.
+- A room or a position may carry a storey number; nothing new may assume the
+  building is one storey (decided 2026-09-24, see the alignment section).
+- A person reacts to a situation through a feeling; no rule in the crowd may
+  switch on an event type (decided 2026-09-24, see the alignment section).
 
 ## Deferred technology
 

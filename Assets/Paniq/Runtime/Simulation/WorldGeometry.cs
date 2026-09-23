@@ -398,6 +398,17 @@ namespace Paniq.Simulation
         /// <summary>The room a person's whole footprint is inside, or -1 (in a doorway, or out of the building).</summary>
         public int RoomAt(LogicalPosition position)
         {
+            // The square under the point already knows its room. Trusted only
+            // when the footprint really is inside that room: a square under a
+            // table is marked as no room, a wall that does not sit on a square
+            // edge can put a point in the room next door, and either way the
+            // rooms are then walked as they always were.
+            int guess = navigationGrid.RoomOfCell(navigationGrid.CellAt(position));
+            if (guess >= 0 && rooms[guess].ContainsCircle(position, radius))
+            {
+                return guess;
+            }
+
             for (int r = 0; r < rooms.Length; r++)
             {
                 if (rooms[r].ContainsCircle(position, radius))
@@ -407,6 +418,37 @@ namespace Paniq.Simulation
             }
 
             return -1;
+        }
+
+        /// <summary>
+        /// The patch of floor holding everybody who counts as being in a room:
+        /// the room itself, and its doorways, which for a way out reach the
+        /// doorway depth past the wall. What to ask the index for before the
+        /// exact "which room are they in" test.
+        /// </summary>
+        public LogicalBounds RoomAreaWithDoorways(int room)
+        {
+            // Somebody in a doorway is within a footprint and a hand of the wall
+            // line, or within the doorway depth of a way out; a spare body
+            // width on top costs nothing and covers a person shoved into a wall.
+            LogicalBounds b = rooms[room];
+            int reach = Math.Max(radius + 100, exits.DoorwayDepthMillimetres) + 2 * radius;
+            return new LogicalBounds(b.MinX - reach, b.MaxX + reach, b.MinZ - reach, b.MaxZ + reach);
+        }
+
+        /// <summary>
+        /// The patch of floor holding every point <see cref="IsInDoorway"/>
+        /// could say yes to, so a doorway can be checked for people by reading
+        /// the index rather than everybody.
+        /// </summary>
+        public LogicalBounds PersonDoorwaySearchArea(int door)
+        {
+            int along = doors[door].Width / 2 + radius;
+            int inside = radius + 100;
+            int outside = doorNeighbour[door] < 0 ? Math.Max(inside, exits.DoorwayDepthMillimetres) : inside;
+            LogicalPosition a = DoorPoint(door, -along, -inside);
+            LogicalPosition b = DoorPoint(door, along, outside);
+            return new LogicalBounds(Math.Min(a.X, b.X), Math.Max(a.X, b.X), Math.Min(a.Z, b.Z), Math.Max(a.Z, b.Z));
         }
 
         /// <summary>
@@ -462,10 +504,17 @@ namespace Paniq.Simulation
         /// <summary>The room a point is in, ignoring body size, or -1 (outside, or exactly on a wall line).</summary>
         public int RoomAtPoint(LogicalPosition point)
         {
+            // The square's own room first, trusted only when the point really
+            // is inside it; see RoomAt for why.
+            int guess = navigationGrid.RoomOfCell(navigationGrid.CellAt(point));
+            if (guess >= 0 && StrictlyInside(rooms[guess], point))
+            {
+                return guess;
+            }
+
             for (int r = 0; r < rooms.Length; r++)
             {
-                LogicalBounds b = rooms[r];
-                if (point.X > b.MinX && point.X < b.MaxX && point.Z > b.MinZ && point.Z < b.MaxZ)
+                if (StrictlyInside(rooms[r], point))
                 {
                     return r;
                 }
@@ -473,6 +522,9 @@ namespace Paniq.Simulation
 
             return -1;
         }
+
+        private static bool StrictlyInside(LogicalBounds b, LogicalPosition point) =>
+            point.X > b.MinX && point.X < b.MaxX && point.Z > b.MinZ && point.Z < b.MaxZ;
 
         /// <summary>The room the other side of a door from <paramref name="room"/>, or -1 for outside.</summary>
         public int RoomBeyond(int door, int room)

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Paniq.Simulation
 {
     /// <summary>
@@ -183,11 +185,13 @@ namespace Paniq.Simulation
             // walking in straight lines.
             FlowField walking = geometry.Routes.ReachFrom(leader.Body.Position, bodyRadius);
             int bottle = -1;
-            for (int i = 0; i < objects.Count; i++)
+            IReadOnlyList<int> bottles = objects.Equipment;
+            for (int b = 0; b < bottles.Count; b++)
             {
                 // A bottle anywhere somebody could be sent to, rather than
                 // only one in the room the leader is standing in.
-                if (!objects.IsEquipment(i) || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                int i = bottles[b];
+                if (objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
                 {
                     continue;
                 }
@@ -249,10 +253,10 @@ namespace Paniq.Simulation
 
             long range = settings.RallyRangeMillimetres;
             int room = geometry.RoomOf(leader);
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby near = crowd.Within(leader.Body.Position, range);
+            for (int c = 0; c < near.Count; c++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[near[c]];
                 // Somebody frozen with fear does not hear a shout; they
                 // have to be shaken (see HelpBehaviour).
                 if (other == leader || !other.IsParticipating ||
@@ -395,10 +399,10 @@ namespace Paniq.Simulation
             int room = geometry.RoomOf(leader);
             long best = (long)reach * reach;
             Agent found = null;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby near = crowd.Within(leader.Body.Position, reach);
+            for (int c = 0; c < near.Count; c++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[near[c]];
                 // Nobody frozen with fear, alight, off their feet, or
                 // already under somebody's orders.
                 if (other == leader || !other.IsParticipating || other.Burning.IsBurning ||

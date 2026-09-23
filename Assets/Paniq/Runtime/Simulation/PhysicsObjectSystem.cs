@@ -247,6 +247,11 @@ namespace Paniq.Simulation
                     (long)definition.InitialPosition.X * SubMillimetre,
                     (long)definition.InitialPosition.Z * SubMillimetre);
                 widestRadius = Math.Max(widestRadius, definition.RadiusMillimetres);
+                indexById[definition.ObjectId] = i;
+                if (kinds.Of(definition.Kind).IsEquipment)
+                {
+                    equipment.Add(i);
+                }
             }
 
             // Things are flung about, so the grid reaches well past the rooms.
@@ -423,20 +428,22 @@ namespace Paniq.Simulation
 
             FlingFrom(centre, kind.PopRadiusMillimetres, kind.PopSpeed, index, bang);
 
-            Agent[] people = crowd.All;
-            for (int i = 0; i < people.Length; i++)
+            using (Crowd.Nearby people = crowd.Within(centre, radius))
             {
-                Agent agent = people[i];
-                if (!agent.IsParticipating ||
-                    LogicalPosition.DistanceSquared(agent.Body.Position, centre) > radius * radius)
+                for (int c = 0; c < people.Count; c++)
                 {
-                    continue;
-                }
+                    Agent agent = crowd.All[people[c]];
+                    if (!agent.IsParticipating ||
+                        LogicalPosition.DistanceSquared(agent.Body.Position, centre) > radius * radius)
+                    {
+                        continue;
+                    }
 
-                int away = IntegerMath.HeadingBetween(centre, agent.Body.Position, agent.Body.Heading);
-                body.BlowOver(agent, away,
-                    kind.PopRadiusMillimetres / 3 * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
-                    context.Scenario.PhysicsFeel.BlastLiftPercent, bang);
+                    int away = IntegerMath.HeadingBetween(centre, agent.Body.Position, agent.Body.Heading);
+                    body.BlowOver(agent, away,
+                        kind.PopRadiusMillimetres / 3 * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
+                        context.Scenario.PhysicsFeel.BlastLiftPercent, bang);
+                }
             }
 
             fire.IgniteAround(centre, kind.PopRadiusMillimetres, kind.PopIgniteCells, bang);
@@ -464,18 +471,19 @@ namespace Paniq.Simulation
         public SimulationId IdOf(int index) => bodies[index].Id;
 
         /// <summary>The thing with this ID, or -1 if the run has no such thing.</summary>
-        public int IndexOf(SimulationId id)
-        {
-            for (int i = 0; i < bodies.Length; i++)
-            {
-                if (bodies[i].Id == id)
-                {
-                    return i;
-                }
-            }
+        public int IndexOf(SimulationId id) => indexById.TryGetValue(id, out int index) ? index : -1;
 
-            return -1;
-        }
+        /// <summary>Every thing by ID, built once.</summary>
+        private readonly Dictionary<SimulationId, int> indexById = new Dictionary<SimulationId, int>();
+
+        /// <summary>
+        /// The things that are equipment (extinguishers), in ascending order.
+        /// Everybody looking for a bottle used to walk every loose thing in the
+        /// building to find the few that are bottles.
+        /// </summary>
+        public IReadOnlyList<int> Equipment => equipment;
+
+        private readonly List<int> equipment = new List<int>();
 
         public PhysicsObjectKind KindOf(int index) => bodies[index].Kind;
 
@@ -1118,30 +1126,34 @@ namespace Paniq.Simulation
         {
             long reach = radius;
             long strength = (long)speed * feel.BlastStrengthPercent / 100L;
-            for (int b = 0; b < bodies.Length; b++)
+            using (Nearby near = Gather(UniformGridIndex.Around(centre, reach)))
             {
-                PhysicsBody thing = bodies[b];
-                if (b == exceptIndex || thing.Dormant || thing.HeldBy >= 0 || thing.OccupiedBy >= 0 || IsFixedInPlace(b))
+                for (int c = 0; c < near.Count; c++)
                 {
-                    continue;
-                }
+                    int b = near[c];
+                    PhysicsBody thing = bodies[b];
+                    if (b == exceptIndex || thing.Dormant || thing.HeldBy >= 0 || thing.OccupiedBy >= 0 || IsFixedInPlace(b))
+                    {
+                        continue;
+                    }
 
-                if (LogicalPosition.DistanceSquared(thing.Position, centre) > reach * reach)
-                {
-                    continue;
-                }
+                    if (LogicalPosition.DistanceSquared(thing.Position, centre) > reach * reach)
+                    {
+                        continue;
+                    }
 
-                int away = IntegerMath.HeadingBetween(centre, thing.Position, thing.Heading);
-                LogicalPosition velocity = IntegerMath.Displacement(away, (int)strength);
-                SetMotion(b,
-                    (long)velocity.X * SubMillimetre,
-                    strength * SubMillimetre * feel.BlastLiftPercent / 100L,
-                    (long)velocity.Z * SubMillimetre);
-                Tumble(b, away, (int)strength, BlastTumbleMultiplier);
-                thing.Thrown = true;
-                thing.LastPushEventId = causeEventId;
-                context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ItemThrown, thing.Position,
-                    speed, 0, causeEventId, thing.Id);
+                    int away = IntegerMath.HeadingBetween(centre, thing.Position, thing.Heading);
+                    LogicalPosition velocity = IntegerMath.Displacement(away, (int)strength);
+                    SetMotion(b,
+                        (long)velocity.X * SubMillimetre,
+                        strength * SubMillimetre * feel.BlastLiftPercent / 100L,
+                        (long)velocity.Z * SubMillimetre);
+                    Tumble(b, away, (int)strength, BlastTumbleMultiplier);
+                    thing.Thrown = true;
+                    thing.LastPushEventId = causeEventId;
+                    context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ItemThrown, thing.Position,
+                        speed, 0, causeEventId, thing.Id);
+                }
             }
 
             ShoveTablesFrom(centre, reach, strength, causeEventId);

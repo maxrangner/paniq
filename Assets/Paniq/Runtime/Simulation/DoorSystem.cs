@@ -109,6 +109,7 @@ namespace Paniq.Simulation
             for (int i = 0; i < blockedBy.Length; i++)
             {
                 blockedBy[i] = -1;
+                slotById[doors[i].Id] = i;
             }
         }
 
@@ -356,16 +357,14 @@ namespace Paniq.Simulation
         /// </summary>
         public int IndexOf(SimulationId id)
         {
-            for (int i = 0; i < Count; i++)
-            {
-                if (doors[i].Id == id)
-                {
-                    return i;
-                }
-            }
-
-            return -1;
+            // A spare slot is in the table too, and answers only once a hole
+            // has been placed in it: that is when it becomes an opening.
+            return slotById.TryGetValue(id, out int slot) && slot < Count ? slot : -1;
         }
+
+        /// <summary>Every slot by its ID, built once, so a click is not a walk down the list.</summary>
+        private readonly System.Collections.Generic.Dictionary<SimulationId, int> slotById =
+            new System.Collections.Generic.Dictionary<SimulationId, int>();
 
         /// <summary>
         /// The player's click, carried out by
@@ -403,12 +402,15 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using (Crowd.Nearby near = crowd.Gather(geometry.PersonDoorwaySearchArea(door)))
             {
-                if (agents[i] != ignore && agents[i].IsParticipating && geometry.IsInDoorway(door, agents[i].Body.Position))
+                for (int c = 0; c < near.Count; c++)
                 {
-                    return false;
+                    Agent other = crowd.All[near[c]];
+                    if (other != ignore && other.IsParticipating && geometry.IsInDoorway(door, other.Body.Position))
+                    {
+                        return false;
+                    }
                 }
             }
 

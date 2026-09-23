@@ -138,6 +138,69 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// The number that matters and was never measured: the same packed
+        /// building with everybody <em>frightened</em>. A calm crowd strolls;
+        /// a frightened one runs for the one way out, queues at doorways,
+        /// steps aside, helps, leads, shoves and catches fire, and that is
+        /// where the costs that grow with the square of the crowd live.
+        /// Everybody is frightened on the first tick and the fire is lit in
+        /// the first room, so the whole minute is a stampede.
+        /// </summary>
+        [TestCase(100, 200)]
+        [TestCase(200, 400)]
+        [TestCase(500, 1000)]
+        public void HowLongAPanickingBuildingTakes(int people, int things)
+        {
+            FireReactionScenario scenario = FireReactionScenario.CreateDefault();
+            try
+            {
+                FireReactionScenarioData data = StressBuilding.Build(scenario.ToRuntimeData(), people, things);
+                data.Fire.ActivationTick = 1;
+                data.Fire.SpawnBounds = new LogicalBounds(3000, 3000, 3000, 3000);
+                using (var simulation = new FireReactionSimulation(data, 42UL))
+                {
+                    simulation.Step();
+                    for (int i = 0; i < people; i++)
+                    {
+                        simulation.FrightenForTests(i);
+                    }
+
+                    for (int tick = 0; tick < 100; tick++)
+                    {
+                        simulation.Step();
+                    }
+
+                    TimeSpan physicsBefore = simulation.PhysicsStepTime;
+                    const int measured = 250;
+                    double worst = 0;
+                    Stopwatch stopwatch = Stopwatch.StartNew();
+                    for (int tick = 0; tick < measured; tick++)
+                    {
+                        long started = Stopwatch.GetTimestamp();
+                        simulation.Step();
+                        worst = Math.Max(worst, (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency);
+                    }
+
+                    stopwatch.Stop();
+                    double perTick = stopwatch.Elapsed.TotalMilliseconds / measured;
+                    double physics = (simulation.PhysicsStepTime - physicsBefore).TotalMilliseconds / measured;
+                    FireReactionSnapshot snapshot = simulation.GetSnapshot();
+                    TestContext.WriteLine(
+                        $"{people} people panicking, {things} boxes (editor): " +
+                        $"{perTick.ToString("0.00", CultureInfo.InvariantCulture)} ms a tick, of which physics " +
+                        $"{physics.ToString("0.00", CultureInfo.InvariantCulture)} ms; slowest tick " +
+                        $"{worst.ToString("0.00", CultureInfo.InvariantCulture)} ms; " +
+                        $"{snapshot.ScaredCount} scared, {snapshot.DownCount} down, {snapshot.BurningCount} alight, " +
+                        $"{snapshot.EscapedCount} out, {snapshot.LostCount} dead at the end");
+                }
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(scenario);
+            }
+        }
+
         /// <summary>How many of the crowd are still in the building and being simulated.</summary>
         private static int StillInside(FireReactionSimulation simulation, int people)
         {

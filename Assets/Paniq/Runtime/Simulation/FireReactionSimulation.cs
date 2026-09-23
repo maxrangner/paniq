@@ -444,29 +444,19 @@ namespace Paniq.Simulation
         /// </summary>
         public bool IsHeadingForWayOut(SimulationId id, int wayOutDoorIndex)
         {
-            for (int i = 0; i < agents.Length; i++)
-            {
-                if (agents[i].Id == id)
-                {
-                    return agents[i].Doors.WayOutDoorIndex == wayOutDoorIndex &&
-                           agents[i].Doors.ExitDoorIndex >= 0;
-                }
-            }
-
-            return false;
+            int i = crowd.IndexOf(id);
+            return i >= 0 && agents[i].Doors.WayOutDoorIndex == wayOutDoorIndex && agents[i].Doors.ExitDoorIndex >= 0;
         }
 
         public FireReactionAgentSnapshot GetAgent(SimulationId id)
         {
-            for (int i = 0; i < agents.Length; i++)
+            int i = crowd.IndexOf(id);
+            if (i < 0)
             {
-                if (agents[i].Id == id)
-                {
-                    return agents[i].ToSnapshot();
-                }
+                throw new KeyNotFoundException($"Unknown agent ID {id}.");
             }
 
-            throw new KeyNotFoundException($"Unknown agent ID {id}.");
+            return agents[i].ToSnapshot();
         }
 
         public FireReactionDoorSnapshot GetDoor(int index) => doors.GetSnapshot(index);

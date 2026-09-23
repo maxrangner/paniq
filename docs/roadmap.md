@@ -293,6 +293,7 @@ Each phase is recorded here as it lands, with its decision-log entry.
 | Phase | What changed | What it means for the game |
 | --- | --- | --- |
 | 1. Afraid of a threat | The crowd asks `Threats`, never the fire by name; the fire is one `IThreat`. One binding pass replaces eleven setters. Every event type says what it pays the meter | The hunter stone below can be built as a second threat rather than by editing seventeen files. Nothing a player sees moved: all ten fingerprints held |
+| 2b. The index everywhere | Every question one person asks about the people or things near them reads the spatial index for that patch of floor instead of walking everybody. Rooms come from the navigation grid; IDs are looked up in one step. A panic measurement (fire lit, everybody frightened, up to 500 people) now exists next to the calm one | The cost of a panic no longer grows with the square of the crowd, which is what a larger level needs. Nothing a player sees moved: all ten fingerprints held and the measured runs end identically |
 
 ## Agreed direction for the next stones
 

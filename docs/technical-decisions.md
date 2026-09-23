@@ -473,6 +473,44 @@ a restructure keeps all ten replay fingerprints.
 | A test double for a threat | `ThreatSeamEditModeTests.StationaryThreat`: a silent spot that trips whoever touches it. Five tests: noticed and blamed, run from, got by, watched by the round clock, started by the trigger, all with no fire lit | This is the roadmap's own check for the hunter stone: "the existing fire behaviour is unchanged by the generalisation, plus tests for chase and conversion" -- the first half now, the second when the hunter is built | Never |
 | Versions unchanged | `SimulationCompatibilityVersion` stays 42, `ContentRevision` stays 54 | Nothing a run produces moved; the fingerprints prove it | -- |
 
+## Review refactor, phase 2b: nobody reads the whole crowd to decide for one person
+
+Chosen on 2026-09-23. Second phase of the review refactor (the walking-distance
+route costs, phase 2a, are their own entry). A restructure: all ten replay
+fingerprints held, and the panic measurement below ends with the same number of
+people scared, down, alight, out and dead before and after, tick for tick.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **Every per-person question reads the index** | `SomebodyElseLinedUpAt`, `SomeoneComing`, `IsRoomFull`, `IsDoorwayClear`, `SomebodyBeyond`, `Rally`, `NearbyBest`, `TryStartSocialising`, `SprayOnce`, `SpreadFlames`, `Detonate`, `FlingFrom`, `BlastWall`, `OfferItToWhoeverCanSeeIt`, the barricade's `ChooseItem`, and the flammables' "burning people light things, burning things light people" all ask `Crowd.Within`/`Gather` or `PhysicsObjectSystem.Gather` for the patch of floor they care about and keep their own exact test. Two new areas in `WorldGeometry` say where to look: `PersonDoorwaySearchArea` (every point `IsInDoorway` could accept) and `RoomAreaWithDoorways` (a room plus its doorways) | Sixteen loops walked every person or every thing to answer a question about one person, and were asked once per person per tick in a panic: the cost grew with the square of the crowd exactly when the game is busiest. The index hands back candidates in ascending order, which is the order the old loops drew random numbers in, so the answers cannot move | A question the index cannot bound (the announcement of ways out still walks the crowd once per announcer; it is rare) |
+| Who is already helping, who is already wedging | `HelpBehaviour.helpedBy[person]` and `BarricadeBehaviour.barricaderOf[door]` remember the last person who set out, and are believed only while that person is still at it | The help table was rebuilt from the whole crowd every time anyone kind thought about helping, which is every tick while fleeing. Each door and each casualty has at most one taker at a time, because the only place a taker is set is right after the check | A second way to start helping or wedging is written; it must set the same entry |
+| Which room, from the grid | `RoomAt` and `RoomAtPoint` ask the navigation grid for the square's room first and trust it only when the footprint really is inside that room; otherwise the rooms are walked as before | Asked about ten times per person per tick over every room's rectangle. A square under a table is marked as no room, and a wall that does not sit on a square edge can put a point in the room next door, which is why the exact check stays | -- |
+| Things by ID, in one step | `Crowd`, `PhysicsObjectSystem` and `DoorSystem` keep a dictionary from ID to index, built once; `GetAgent(id)` and `IsHeadingForWayOut` use the crowd's. `PhysicsObjectSystem.Equipment` lists the extinguishers once, so a fetch is not a walk of every box | A click on a person or a thing walked the list; harmless at twenty, not at five hundred | -- |
+| No array per burning tick | `BurningBehaviour` keeps one buffer of who is alight | It made a fresh array every tick anybody burned | -- |
+| **The panic measurement exists** | `CrowdScaleMeasurements.HowLongAPanickingBuildingTakes`: the stress building with the fire lit in the first room and everybody frightened on the first tick, at 100, 200 and 500 people; reports the average tick, the physics share, the slowest tick and how the crowd ended | Every measurement before this was of a calm crowd; the review found the costs that grow with the square of the crowd live in the panic, and nothing measured it | Every stone that raises the crowd or the level size, as the quality checks already require |
+
+The numbers, in the editor, before and after this phase. The crowd ends the
+same way both times, which is the proof the answers did not move. The
+timings are within run-to-run noise: at these sizes the scans that were
+removed were not where the time went, and the phase is justified by what it
+removes (growth with the square of the crowd) rather than by a saving measured
+today. What remains outside physics, about 7 ms a tick at 500 people
+panicking, is steering and wayfinding, and is the next thing to profile when a
+larger level is authored.
+
+| Building | Before | After |
+| --- | --- | --- |
+| 100 people calm, 200 boxes | 1.59 ms a tick (physics 1.24) | 1.58 ms (physics 1.24) |
+| 200 people calm, 400 boxes | 2.77 ms (physics 1.96) | 2.78 ms (physics 1.97) |
+| 500 people calm, 1000 boxes | 10.37 ms (physics 4.76) | 10.29 ms (physics 4.74) |
+| 100 people panicking | 3.05 ms, slowest 6.73; 11 down, 13 alight, 0 dead | 3.02 ms, slowest 6.84; 11 down, 13 alight, 0 dead |
+| 200 people panicking | 7.54 ms, slowest 11.85; 28 down, 7 alight, 1 dead | 7.41 ms, slowest 9.39; 28 down, 7 alight, 1 dead |
+| 500 people panicking | 12.70 ms, slowest 16.33; 45 down, 4 alight, 4 out | 12.24 ms, slowest 16.10; 45 down, 4 alight, 4 out |
+
+At 50 ticks a second the simulation has 20 ms a tick before it cannot keep up
+at all, and it shares that with drawing; 500 people panicking in the editor
+keeps up, and a built game is faster than the editor.
+
 ## How decisions are made
 
 Paniq's owner is learning game development, so technical decisions must remain

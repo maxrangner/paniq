@@ -384,21 +384,23 @@ namespace Paniq.Simulation
             sound.Bang(default, command.Point, blast.BangHearingRadiusMillimetres, blast.BangAlarmRadiusMillimetres, blasted);
             objects.FlingFrom(command.Point, blast.ThrowRadiusMillimetres, blast.ThrowSpeedMillimetresPerTick, -1, blasted);
 
-            Agent[] people = crowd.All;
             long radius = blast.KnockDownRadiusMillimetres;
-            for (int i = 0; i < people.Length; i++)
+            using (Crowd.Nearby people = crowd.Within(command.Point, radius))
             {
-                Agent agent = people[i];
-                if (!agent.IsParticipating ||
-                    LogicalPosition.DistanceSquared(agent.Body.Position, command.Point) > radius * radius)
+                for (int c = 0; c < people.Count; c++)
                 {
-                    continue;
-                }
+                    Agent agent = crowd.All[people[c]];
+                    if (!agent.IsParticipating ||
+                        LogicalPosition.DistanceSquared(agent.Body.Position, command.Point) > radius * radius)
+                    {
+                        continue;
+                    }
 
-                int away = IntegerMath.HeadingBetween(command.Point, agent.Body.Position, agent.Body.Heading);
-                body.BlowOver(agent, away,
-                    blast.ShoveDistanceMillimetres * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
-                    context.Scenario.PhysicsFeel.BlastLiftPercent, blasted);
+                    int away = IntegerMath.HeadingBetween(command.Point, agent.Body.Position, agent.Body.Heading);
+                    body.BlowOver(agent, away,
+                        blast.ShoveDistanceMillimetres * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
+                        context.Scenario.PhysicsFeel.BlastLiftPercent, blasted);
+                }
             }
 
             return true;
@@ -431,10 +433,10 @@ namespace Paniq.Simulation
             ExtinguisherSettings settings = context.Scenario.Extinguishers;
             int room = geometry.RoomAtPoint(spot);
             long reach = settings.OfferedNoticeRangeMillimetres;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby near = crowd.Within(spot, reach);
+            for (int c = 0; c < near.Count; c++)
             {
-                Agent agent = agents[i];
+                Agent agent = crowd.All[near[c]];
                 if (!agent.IsParticipating || agent.Burning.IsBurning ||
                     geometry.RoomOf(agent) != room ||
                     LogicalPosition.DistanceSquared(agent.Body.Position, spot) > reach * reach)

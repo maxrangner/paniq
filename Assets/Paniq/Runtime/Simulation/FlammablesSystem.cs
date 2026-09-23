@@ -122,8 +122,12 @@ namespace Paniq.Simulation
 
             int tick = context.Tick;
 
-            // Burning people set alight whatever they touch.
+            // Burning people set alight whatever they touch: the loose things
+            // near them, read from the index, then the tables, which are few.
+            // Loose things come before tables in the list of things, so this
+            // is the order a walk of everything would have lit them in.
             Agent[] agents = crowd.All;
+            int touch = personRadius + settings.TouchGapMillimetres;
             for (int a = 0; a < agents.Length; a++)
             {
                 Agent agent = agents[a];
@@ -132,7 +136,20 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                for (int i = 0; i < things.Length; i++)
+                using (PhysicsObjectSystem.Nearby near = objects.Gather(
+                           UniformGridIndex.Around(agent.Body.Position, (long)touch + objects.WidestRadius)))
+                {
+                    for (int c = 0; c < near.Count; c++)
+                    {
+                        int i = near[c];
+                        if (things[i].State == ObjectBurnState.Intact && Touches(things[i], agent))
+                        {
+                            Ignite(things[i], agent.Burning.EventId);
+                        }
+                    }
+                }
+
+                for (int i = objects.Count; i < things.Length; i++)
                 {
                     if (things[i].State == ObjectBurnState.Intact && Touches(things[i], agent))
                     {
@@ -183,12 +200,19 @@ namespace Paniq.Simulation
 
                 LightTheFloor(thing);
 
-                // Anyone touching it catches fire.
-                for (int a = 0; a < agents.Length; a++)
+                // Anyone touching it catches fire: only the people near it,
+                // in ascending order as ever.
+                using (Crowd.Nearby near = thing.IsTable
+                           ? crowd.Gather(Grow(geometry.TableBounds(thing.Index), touch))
+                           : crowd.Within(objects.PositionOf(thing.Index), objects.RadiusOf(thing.Index) + (long)touch))
                 {
-                    if (agents[a].IsParticipating && !agents[a].Burning.IsBurning && Touches(thing, agents[a]))
+                    for (int c = 0; c < near.Count; c++)
                     {
-                        body.CatchFire(agents[a], thing.EventId);
+                        Agent agent = agents[near[c]];
+                        if (agent.IsParticipating && !agent.Burning.IsBurning && Touches(thing, agent))
+                        {
+                            body.CatchFire(agent, thing.EventId);
+                        }
                     }
                 }
             }

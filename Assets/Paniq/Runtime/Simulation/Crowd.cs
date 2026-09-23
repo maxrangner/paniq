@@ -54,6 +54,7 @@ namespace Paniq.Simulation
             for (int i = 0; i < agents.Length; i++)
             {
                 index.Place(i, agents[i].Body.Position);
+                indexById[agents[i].Id] = i;
             }
         }
 
@@ -73,18 +74,11 @@ namespace Paniq.Simulation
         }
 
         /// <summary>The person with this ID, or -1 if the run has no such person.</summary>
-        public int IndexOf(SimulationId id)
-        {
-            for (int i = 0; i < All.Length; i++)
-            {
-                if (All[i].Id == id)
-                {
-                    return i;
-                }
-            }
+        public int IndexOf(SimulationId id) => indexById.TryGetValue(id, out int index) ? index : -1;
 
-            return -1;
-        }
+        /// <summary>Everybody by ID, built once, so a command naming a person is not a walk down the crowd.</summary>
+        private readonly System.Collections.Generic.Dictionary<SimulationId, int> indexById =
+            new System.Collections.Generic.Dictionary<SimulationId, int>();
 
         /// <summary>
         /// The people who might be inside <paramref name="area"/>, in ascending

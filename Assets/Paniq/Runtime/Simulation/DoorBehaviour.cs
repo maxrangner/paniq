@@ -460,13 +460,21 @@ namespace Paniq.Simulation
             LogicalBounds b = geometry.RoomBounds(room);
             long space = settings.RefugeSpacePerPersonMillimetres;
             long capacity = (b.MaxX - b.MinX) / space * ((b.MaxZ - b.MinZ) / space);
-            Agent[] agents = crowd.All;
+
+            // Everybody who counts as being in the room stands inside it or in
+            // one of its doorways, and a doorway to the street reaches the
+            // doorway depth past the wall: so the room grown by that depth
+            // holds every candidate, and the index reads only those.
             int inside = 0;
-            for (int i = 0; i < agents.Length; i++)
+            using (Crowd.Nearby people = crowd.Gather(geometry.RoomAreaWithDoorways(room)))
             {
-                if (agents[i] != hopeful && agents[i].IsParticipating && geometry.RoomOf(agents[i]) == room)
+                for (int c = 0; c < people.Count; c++)
                 {
-                    inside++;
+                    Agent other = crowd.All[people[c]];
+                    if (other != hopeful && other.IsParticipating && geometry.RoomOf(other) == room)
+                    {
+                        inside++;
+                    }
                 }
             }
 
@@ -909,10 +917,10 @@ namespace Paniq.Simulation
         {
             long reach = settings.ApproachInsetMillimetres + context.Scenario.World.OccupancyRadiusMillimetres * 2L;
             LogicalPosition centre = geometry.DoorCentre(door);
-            Agent[] people = crowd.All;
-            for (int i = 0; i < people.Length; i++)
+            using Crowd.Nearby people = crowd.Within(centre, reach);
+            for (int c = 0; c < people.Count; c++)
             {
-                Agent other = people[i];
+                Agent other = crowd.All[people[c]];
                 if (other == agent || !other.IsParticipating || other.Body.State != AgentBodyState.Upright)
                 {
                     continue;
@@ -1228,10 +1236,10 @@ namespace Paniq.Simulation
         {
             long radius = settings.CloseApproachRadiusMillimetres;
             LogicalPosition doorCentre = geometry.DoorCentre(door);
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby people = crowd.Within(doorCentre, radius);
+            for (int c = 0; c < people.Count; c++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[people[c]];
                 if (other == closer || !other.IsParticipating ||
                     (closerRoom >= 0 && geometry.RoomAt(other.Body.Position) == closerRoom) ||
                     LogicalPosition.DistanceSquared(other.Body.Position, doorCentre) > radius * radius)

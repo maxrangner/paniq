@@ -24,8 +24,14 @@ namespace Paniq.Simulation
         private readonly HelpSettings settings;
         private readonly int radius;
 
-        /// <summary>Per person: somebody is already on their way to them. Reused every search.</summary>
-        private readonly bool[] alreadyBeingHelped;
+        /// <summary>
+        /// Per person: who last set out to help them (their index), or -1.
+        /// Read through <see cref="IsAlreadyBeingHelped"/>, which checks the
+        /// helper is still at it, so a stale entry is harmless. This used to
+        /// be a table of everybody rebuilt from the whole crowd every time
+        /// anybody kind thought about helping, which was every tick.
+        /// </summary>
+        private readonly int[] helpedBy;
 
         /// <summary>Everybody's physical body: somebody being dragged is hauled along the floor as one.</summary>
         private readonly PeopleBodies people;
@@ -53,7 +59,12 @@ namespace Paniq.Simulation
             this.objects = objects;
             this.locomotion = locomotion;
             this.people = people;
-            alreadyBeingHelped = new bool[crowd.All.Length];
+            helpedBy = new int[crowd.All.Length];
+            for (int i = 0; i < helpedBy.Length; i++)
+            {
+                helpedBy[i] = -1;
+            }
+
             settings = context.Scenario.Help;
             radius = context.Scenario.World.OccupancyRadiusMillimetres;
         }
@@ -109,7 +120,6 @@ namespace Paniq.Simulation
             }
 
             int danger = TraitEffects.DangerDistance(agent, context.Scenario);
-            MarkWhoIsAlreadyBeingHelped();
 
             // Nobody outside the longer of the two reaches can be chosen, so
             // only the people near enough are worth looking at.
@@ -123,7 +133,7 @@ namespace Paniq.Simulation
                 int i = candidates[c];
                 Agent other = crowd.All[i];
                 if (other == agent || !other.IsParticipating || other.Burning.IsBurning || i == agent.Help.GaveUpOnIndex ||
-                    alreadyBeingHelped[i] || threats.AnyCloserThan(other.Body.Position, danger))
+                    IsAlreadyBeingHelped(i) || threats.AnyCloserThan(other.Body.Position, danger))
                 {
                     continue;
                 }
@@ -149,6 +159,7 @@ namespace Paniq.Simulation
             }
 
             agent.Help.TargetIndex = best;
+            helpedBy[best] = agent.Index;
             agent.Help.WorkEndTick = 0;
             agent.Help.GiveUpTick = checked(context.Tick + settings.ReachTimeoutTicks);
             agent.Intent.Activity = bestIsShake ? AgentActivityState.ShakingAwake : AgentActivityState.Grabbing;
@@ -157,23 +168,22 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Who somebody is already seeing to, so that two people do not both
-        /// set off for the same casualty. Worked out once for the whole search
-        /// rather than once per candidate: nobody starts or stops helping while
-        /// the search runs, so the answer cannot change partway through it.
+        /// Whether somebody is already seeing to this person, so that two
+        /// people do not both set off for the same casualty. The last helper
+        /// to set out for them is remembered; they count only while they are
+        /// still in the run, still helping, and still helping this person,
+        /// which is exactly what a walk of the whole crowd used to establish.
         /// </summary>
-        private void MarkWhoIsAlreadyBeingHelped()
+        private bool IsAlreadyBeingHelped(int person)
         {
-            Array.Clear(alreadyBeingHelped, 0, alreadyBeingHelped.Length);
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            int helper = helpedBy[person];
+            if (helper < 0)
             {
-                Agent helper = agents[i];
-                if (helper.IsParticipating && IsHelping(helper) && helper.Help.TargetIndex >= 0)
-                {
-                    alreadyBeingHelped[helper.Help.TargetIndex] = true;
-                }
+                return false;
             }
+
+            Agent by = crowd.All[helper];
+            return by.IsParticipating && IsHelping(by) && by.Help.TargetIndex == person;
         }
 
         /// <summary>Running to the person in need, then shaking them, or getting a grip on them.</summary>

@@ -337,21 +337,23 @@ namespace Paniq.Simulation
             // blasted off their feet — including whoever was alight.
             flammables.DouseWithin(agent.Body.Position, settings.SprayRangeMillimetres, spray, agent.Body.Heading, Cone(agent));
 
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using (Crowd.Nearby near = crowd.Within(agent.Body.Position, settings.SprayRangeMillimetres))
             {
-                Agent other = agents[i];
-                if (other == agent || !other.IsParticipating || !InTheCone(agent, other.Body.Position))
+                for (int c = 0; c < near.Count; c++)
                 {
-                    continue;
-                }
+                    Agent other = crowd.All[near[c]];
+                    if (other == agent || !other.IsParticipating || !InTheCone(agent, other.Body.Position))
+                    {
+                        continue;
+                    }
 
-                if (other.Burning.IsBurning)
-                {
-                    body.PutOutPerson(other, spray);
-                }
+                    if (other.Burning.IsBurning)
+                    {
+                        body.PutOutPerson(other, spray);
+                    }
 
-                Blast(agent, other, spray);
+                    Blast(agent, other, spray);
+                }
             }
 
             Recoil(agent, spray);
@@ -466,9 +468,11 @@ namespace Paniq.Simulation
             long reach = settings.FetchRangeMillimetres;
             long bestDistance = reach * reach;
             int best = -1;
-            for (int i = 0; i < objects.Count; i++)
+            IReadOnlyList<int> bottles = objects.Equipment;
+            for (int b = 0; b < bottles.Count; b++)
             {
-                if (!objects.IsEquipment(i) || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                int i = bottles[b];
+                if (objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
                 {
                     continue;
                 }

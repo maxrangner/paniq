@@ -454,6 +454,25 @@ target and it missed by about fifty seconds; closing that would mean cutting
 into the liveliness tests, which the owner chose to keep and which are worth
 more than the time.
 
+## Review refactor, phase 1: afraid of a threat, not of the fire
+
+Chosen on 2026-09-23. The owner asked for a full review of the code against the
+game the docs describe and accepted its plan in full; the review is in the
+session's plan file and its findings are summarised in the
+[roadmap](roadmap.md). This is the first of six phases, and every phase that is
+a restructure keeps all ten replay fingerprints.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **The crowd fears a threat, not the fire** | `IThreat` (what a frightened person may ask of a danger: nearest part, in this room, closer than, in sight, on a route, touching, and what touching does) and `Threats` (every threat in the level, answered across all of them). The fire implements it. Fear, perception, panic, doors, helping, barricading, the round clock, the body's death cause and the physics read-back ask `Threats`; extinguishers, flammables, door scorching, the fire card and the fire-waking still ask `FireSystem` | Seventeen classes named the fire (129 references), and the roadmap's next stone -- a hunter -- names "afraid of the fire into afraid of a threat" as its real work. The seam is cheaper before the hunter than after. With one threat in the list every answer is the fire's own, so all ten fingerprints held | A threat that needs a question the interface does not ask; add it to the interface, not to the crowd |
+| The fire's signature is its burning-square count | `IThreat.Signature` for fire is exactly what the round clock watched before | Anything else would have moved the stall clock and with it a fingerprint | A hazard whose change is not a count |
+| Hearing is the threat's own | `IThreat.HeardWithinMillimetres`, 0 for a silent threat; the fire's is the old crackle radius | A hunter growls or is silent; that is the hunter's business | -- |
+| The trigger starts every threat | `Threats.RequestStart` asks each | One button sets the disaster going, whatever it is made of | A level wants threats that start on their own clocks after the trigger; that is a per-threat delay, not a second button |
+| One `Bind` pass instead of eleven setters | `Systems` names every system; a system built before something it needs implements `IBindable` and is handed the finished set once. `UseCrowd`, `UseBody`, `UsePeople`, `UsePower`, `UseObjects`, `UsePhysics`, `UseDoors`, `Use` and `Offer` are gone | Each new system was adding another setter and another ordering rule to a constructor that already has to protect the start-up random-draw order. Binding stores references only, so its order cannot move a run | A system needs something at construction that only exists later, which binding cannot give; then the construction order itself has to change |
+| Every event type says what it pays | `InfluenceSystem.UproarTierOf` names all 75 event types, and an event left out throws rather than paying nothing. `UproarTableEditModeTests` walks the enum | The switch had a silent default, so a new event landed in the wrong tier by omission and no test could tell | -- |
+| A test double for a threat | `ThreatSeamEditModeTests.StationaryThreat`: a silent spot that trips whoever touches it. Five tests: noticed and blamed, run from, got by, watched by the round clock, started by the trigger, all with no fire lit | This is the roadmap's own check for the hunter stone: "the existing fire behaviour is unchanged by the generalisation, plus tests for chase and conversion" -- the first half now, the second when the hunter is built | Never |
+| Versions unchanged | `SimulationCompatibilityVersion` stays 42, `ContentRevision` stays 54 | Nothing a run produces moved; the fingerprints prove it | -- |
+
 ## How decisions are made
 
 Paniq's owner is learning game development, so technical decisions must remain

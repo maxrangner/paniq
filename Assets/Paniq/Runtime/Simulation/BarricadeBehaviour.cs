@@ -19,7 +19,7 @@ namespace Paniq.Simulation
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
         private readonly DoorSystem doors;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly PhysicsObjectSystem objects;
         private readonly FlammablesSystem flammables;
         private readonly Locomotion locomotion;
@@ -31,7 +31,7 @@ namespace Paniq.Simulation
             Crowd crowd,
             WorldGeometry geometry,
             DoorSystem doors,
-            FireSystem fire,
+            Threats threats,
             PhysicsObjectSystem objects,
             FlammablesSystem flammables,
             Locomotion locomotion)
@@ -40,7 +40,7 @@ namespace Paniq.Simulation
             this.crowd = crowd;
             this.geometry = geometry;
             this.doors = doors;
-            this.fire = fire;
+            this.threats = threats;
             this.objects = objects;
             this.flammables = flammables;
             this.locomotion = locomotion;
@@ -88,7 +88,7 @@ namespace Paniq.Simulation
             }
 
             int room = geometry.RoomOf(agent);
-            if (room < 0 || fire.IsBurningInRoom(room))
+            if (room < 0 || threats.IsInRoom(room))
             {
                 // Their own room is alight: wedging its doors saves nobody.
                 return null;
@@ -142,7 +142,7 @@ namespace Paniq.Simulation
                 }
 
                 int beyondRoom = geometry.RoomBeyond(door, room);
-                bool flamesBeyond = beyondRoom >= 0 && fire.IsBurningInRoom(beyondRoom);
+                bool flamesBeyond = beyondRoom >= 0 && threats.IsInRoom(beyondRoom);
                 if (!nowhereLeftToGo && !flamesBeyond)
                 {
                     // Still hoping to walk out, and nothing is coming through
@@ -252,7 +252,7 @@ namespace Paniq.Simulation
                 agent.Burning.IsBurning || context.Tick >= agent.Barricade.GiveUpTick ||
                 agent.Body.BlockedTicks >= settings.BarricadeBlockedGiveUpTicks ||
                 geometry.IsDoorOpen(door) || doors.IsObstructed(door) ||
-                room < 0 || fire.IsBurningInRoom(room))
+                room < 0 || threats.IsInRoom(room))
             {
                 GiveUp(agent);
                 return null;

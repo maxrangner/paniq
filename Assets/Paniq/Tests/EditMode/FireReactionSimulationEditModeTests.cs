@@ -362,7 +362,7 @@ namespace Paniq.Tests.EditMode
                         }
                     }
 
-                    long actual = fire.NearestDistanceSquared(position, out LogicalPosition actualPoint, out int actualCell);
+                    long actual = fire.NearestCellDistanceSquared(position, out LogicalPosition actualPoint, out int actualCell);
                     Assert.That(actual, Is.EqualTo(expected), $"nearest distance from {position}");
                     Assert.That(actualPoint, Is.EqualTo(expectedPoint), $"nearest point from {position}");
                     Assert.That(fire.CellEventId(actualCell), Is.EqualTo(expectedEvent), $"nearest cell from {position}");

@@ -9,7 +9,7 @@ namespace Paniq.Simulation
     /// pinned against a wall: being blocked forces a new decision. Frozen
     /// people stand and stare until (or unless) they snap out of it.
     /// </summary>
-    internal sealed class PanicBehaviour
+    internal sealed class PanicBehaviour : IBindable
     {
         private readonly SimulationContext context;
 
@@ -17,7 +17,7 @@ namespace Paniq.Simulation
         private readonly int bodyRadius;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly FearSystem fear;
         private readonly SoundSystem sound;
         private readonly BodySystem body;
@@ -39,7 +39,7 @@ namespace Paniq.Simulation
             SimulationContext context,
             Crowd crowd,
             WorldGeometry geometry,
-            FireSystem fire,
+            Threats threats,
             FearSystem fear,
             SoundSystem sound,
             BodySystem body,
@@ -56,7 +56,7 @@ namespace Paniq.Simulation
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
-            this.fire = fire;
+            this.threats = threats;
             this.fear = fear;
             this.sound = sound;
             this.body = body;
@@ -66,11 +66,21 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// The things somebody might do instead of running, in priority order.
-        /// Wired up after construction, because each of them needs the others
-        /// around it.
+        /// What a frightened person might do instead of running, in the order
+        /// they consider it. The first that answers wins, so this list is the
+        /// priority order, and it is the only place it is written down.
+        /// Raising the alarm comes after helping so that somebody with an
+        /// unconscious person in front of them sees to them rather than
+        /// walking off to the bell; plenty of other people are free to hit it.
+        /// Bound once everything exists, because each needs the others.
         /// </summary>
-        public void Offer(params IPanicOption[] inPriorityOrder) => options = inPriorityOrder;
+        public void Bind(Systems systems)
+        {
+            options = new IPanicOption[]
+            {
+                systems.Leaders, systems.Extinguishers, systems.Help, systems.AlarmBehaviour, systems.Barricades
+            };
+        }
 
         /// <summary>
         /// This tick's panicked decision. Returns no intent when the person
@@ -80,7 +90,7 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             AgentIntent intent = agent.Intent;
-            long fireDistanceSquared = fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition firePoint);
+            long fireDistanceSquared = threats.NearestDistanceSquared(agent.Body.Position, out LogicalPosition firePoint, out _);
             long danger = TraitEffects.DangerDistance(agent, context.Scenario);
             bool inDanger = fireDistanceSquared < danger * danger;
             if (inDanger)
@@ -339,10 +349,10 @@ namespace Paniq.Simulation
                 LogicalPosition candidate = geometry.RandomInteriorPoint(room, settings.EscapeWallMarginMillimetres);
                 long score = context.Random.NextIntInclusive(0, settings.EscapeNoiseMillimetres);
 
-                long fireDistanceSquared = fire.NearestDistanceSquared(candidate);
+                long fireDistanceSquared = threats.NearestDistanceSquared(candidate, out _, out _);
                 score += fireDistanceSquared == long.MaxValue ? 20000L : IntegerMath.Sqrt(fireDistanceSquared);
 
-                if (fire.RoutePassesNear(position, candidate, settings.EscapeRouteClearanceMillimetres))
+                if (threats.RoutePassesNear(position, candidate, settings.EscapeRouteClearanceMillimetres))
                 {
                     score -= settings.EscapeRoutePenaltyMillimetres;
                 }

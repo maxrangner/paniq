@@ -21,6 +21,9 @@ namespace Paniq.Simulation
         private readonly SimulationContext context;
         private readonly Agent[] agents;
         private readonly FireSystem fire;
+
+        /// <summary>Everything the crowd is afraid of. Today that is the fire alone.</summary>
+        private readonly Threats threats;
         private readonly PowerSystem power;
         private readonly DoorSystem doors;
         private readonly PlayerCommandSystem playerCommands;
@@ -57,6 +60,9 @@ namespace Paniq.Simulation
         private readonly PhysicsWorld physics;
         private readonly PeopleBodies people;
 
+        /// <summary>Every system by name, for binding the ones built before what they need.</summary>
+        private readonly Systems systems;
+
         /// <summary>How many doorways the physics' walls were last built with, so a new blast hole rebuilds them.</summary>
         private int wallsBuiltForDoorways;
 
@@ -81,8 +87,9 @@ namespace Paniq.Simulation
             DoorRuntime[] doorStates = DoorSystem.CreateDoors(scenario);
             geometry = new WorldGeometry(context, doorStates);
             fire = new FireSystem(context, geometry);
+            threats = new Threats(fire);
             agents = CreateAgents(doorStates.Length, geometry);
-            fear = new FearSystem(context, fire);
+            fear = new FearSystem(context, threats);
             fear.DealTemperaments(agents);
 
             crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres, geometry.FireArea);
@@ -93,24 +100,21 @@ namespace Paniq.Simulation
             {
                 BuildTheBuildingInThePhysics();
                 doors = new DoorSystem(context, doorStates, geometry);
-                doors.UseCrowd(crowd);
                 playerCommands = new PlayerCommandSystem(context);
                 influence = new InfluenceSystem(context);
                 deck = new DeckSystem(context);
-                round = new RoundSystem(context, agents, geometry, fire);
-                var sound = new SoundSystem(context, crowd, fire, fear, geometry);
-                perception = new PerceptionSystem(context, fire, fear, sound);
-                body = new BodySystem(context, fire, sound, fear);
+                round = new RoundSystem(context, agents, geometry, threats);
+                var sound = new SoundSystem(context, crowd, threats, fear, geometry);
+                perception = new PerceptionSystem(context, threats, fear, sound);
+                body = new BodySystem(context, threats, sound, fear);
                 objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound, fire, physics);
-                people = new PeopleBodies(context, crowd, physics, fire, objects.Count);
-                people.UseBody(body);
-                body.UsePeople(people);
-                objects.UsePeople(people);
+                people = new PeopleBodies(context, crowd, physics, threats, objects.Count);
                 power = new PowerSystem(context, objects);
-                objects.UsePower(power);
                 collisions = new CollisionSystem(context, crowd, body, fear, sound, people);
-                doors.UseObjects(objects);
-                doors.UsePhysics(physics, people);
+
+                // The bodies enter the physics world here, loose things first
+                // and then the people, and the seating and possessions that
+                // follow draw no random numbers: see each method's note.
                 GiveOutStartingPossessions();
                 people.AddEveryone();
                 SeatPeopleWhoStartSeated();
@@ -121,11 +125,9 @@ namespace Paniq.Simulation
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
-                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, fire, sound, exitSigns, wayfinding);
-                doorBehaviour.UseObjects(objects);
-                help = new HelpBehaviour(context, crowd, geometry, fire, fear, body, objects, locomotion, people);
-                help.UseDoors(doors);
-                panic = new PanicBehaviour(context, crowd, geometry, fire, fear, sound, body, doorBehaviour, help, chairs,
+                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, threats, sound, exitSigns, wayfinding);
+                help = new HelpBehaviour(context, crowd, geometry, threats, fear, body, objects, locomotion, people);
+                panic = new PanicBehaviour(context, crowd, geometry, threats, fear, sound, body, doorBehaviour, help, chairs,
                     exitSigns, locomotion);
                 burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
                 extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
@@ -133,17 +135,23 @@ namespace Paniq.Simulation
                     wayfinding);
                 alarms = new AlarmSystem(context, sound, geometry);
                 alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion);
-                var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, fire, objects, flammables, locomotion);
+                var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, threats, objects, flammables, locomotion);
 
-                // What a frightened person might do instead of running, in the
-                // order they consider it. The first that answers wins, so this list
-                // is the priority order, and it is the only place it is written
-                // down. Raising the alarm comes after helping so that somebody with
-                // an unconscious person in front of them sees to them rather than
-                // walking off to the bell; plenty of other people are free to hit it.
-                panic.Offer(leaders, extinguishers, help, alarmBehaviour, barricades);
-                round.Use(flammables, doors);
-                playerCommands.Use(doors, fire, objects, crowd, influence, deck, sound, body, geometry, round, power);
+                // Everything exists: hand each system the ones built after it.
+                // Binding stores references only, so it cannot move a run.
+                systems = new Systems
+                {
+                    Context = context, Geometry = geometry, Crowd = crowd, Physics = physics, Fire = fire,
+                    Threats = threats, Power = power, Doors = doors, PlayerCommands = playerCommands,
+                    Influence = influence, Deck = deck, Round = round, Sound = sound, Fear = fear,
+                    Perception = perception, Body = body, Objects = objects, People = people,
+                    Collisions = collisions, Locomotion = locomotion, Flammables = flammables, Items = items,
+                    Chairs = chairs, Calm = calm, ExitSigns = exitSigns, Wayfinding = wayfinding,
+                    DoorBehaviour = doorBehaviour, Help = help, Panic = panic, Burning = burning,
+                    Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms,
+                    AlarmBehaviour = alarmBehaviour, Barricades = barricades
+                };
+                systems.BindAll();
             }
             catch
             {
@@ -500,6 +508,20 @@ namespace Paniq.Simulation
         /// <summary>The cable and the sparks on it, for a test to watch one travel.</summary>
         internal PowerSystem PowerForTests => power;
 
+        /// <summary>The run's shared state, for a test double that needs to write into the log.</summary>
+        internal SimulationContext ContextForTests => context;
+
+        /// <summary>Puts something other than fire into the world for the crowd to be afraid of. Before the first tick only.</summary>
+        internal void AddThreatForTests(IThreat threat)
+        {
+            if (context.Tick != 0)
+            {
+                throw new InvalidOperationException("A test threat has to be in the world before the first tick.");
+            }
+
+            threats.AddForTests(threat);
+        }
+
         /// <summary>Tests only: what touched what in the last physics step.</summary>
         internal IReadOnlyList<PhysicsWorld.Contact> ContactsForTests => physics.Contacts;
 
@@ -597,13 +619,13 @@ namespace Paniq.Simulation
         {
             context.Tick = checked(context.Tick + 1);
             playerCommands.Consume();
-            fire.Advance();
+            threats.Advance();
 
             // Phase 2 as well: a fuse burning along a wall toward a socket is
-            // hazard advancing on its own clock, exactly as the fire is. It
-            // goes after the fire so the fire's draws stay where they were.
+            // hazard advancing on its own clock, exactly as a threat is. It
+            // goes after the threats so the fire's draws stay where they were.
             power.Advance();
-            ResolveCurrentFireContact();
+            ResolveCurrentContact();
 
             for (int i = 0; i < agents.Length; i++)
             {
@@ -776,10 +798,10 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>Phase 3: anyone standing in fire catches fire.</summary>
-        private void ResolveCurrentFireContact()
+        /// <summary>Phase 3: anyone standing in a threat is got by it (in fire, they catch fire).</summary>
+        private void ResolveCurrentContact()
         {
-            if (!fire.Active)
+            if (!threats.AnyActive)
             {
                 return;
             }
@@ -787,15 +809,9 @@ namespace Paniq.Simulation
             for (int i = 0; i < agents.Length; i++)
             {
                 Agent agent = agents[i];
-                if (!agent.IsParticipating)
+                if (agent.IsParticipating)
                 {
-                    continue;
-                }
-
-                ulong cellEventId = fire.FindTouching(agent.Body.Position);
-                if (cellEventId != 0UL)
-                {
-                    body.CatchFire(agent, cellEventId);
+                    threats.ResolveContact(agent, body);
                 }
             }
         }
@@ -828,7 +844,7 @@ namespace Paniq.Simulation
                 }
 
                 int room = geometry.RoomAt(agent.Body.Position);
-                count += room >= 0 && !fire.IsBurningInRoom(room) ? 1 : 0;
+                count += room >= 0 && !threats.IsInRoom(room) ? 1 : 0;
             }
 
             return count;

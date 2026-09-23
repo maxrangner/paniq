@@ -281,6 +281,19 @@ read as a queue. The dead-end arm of the T is the other thing to watch: it
 exists to be a wrong turn, and whether anybody actually takes it is a question
 only playing it answers.
 
+## Foundations reviewed (2026-09-23)
+
+Not a stone. The owner asked for a full review of the code against the game
+these documents describe, and accepted its plan in full: six phases of
+refactoring on one branch, then merged back. The review's verdict was that the
+foundations are sound and that the prototype had outgrown two of its founding
+assumptions, "the hazard is the fire" and "twenty people in a small office".
+Each phase is recorded here as it lands, with its decision-log entry.
+
+| Phase | What changed | What it means for the game |
+| --- | --- | --- |
+| 1. Afraid of a threat | The crowd asks `Threats`, never the fire by name; the fire is one `IThreat`. One binding pass replaces eleven setters. Every event type says what it pays the meter | The hunter stone below can be built as a second threat rather than by editing seventeen files. Nothing a player sees moved: all ten fingerprints held |
+
 ## Agreed direction for the next stones
 
 Settled with the owner in a design review (see [game vision](game-vision.md)
@@ -321,16 +334,18 @@ a door they have never opened.
 2. **Layer:** system and behaviour.
 3. **Deliberately left out:** fiction, art, weapons, and any second hazard
    family. This stone is not a zombie scenario; it is a test.
-4. **Why this one:** the crowd's fear currently points at a grid of burning
+4. **Why this one:** the crowd's fear used to point at a grid of burning
    floor squares. A hunter is a threat that *moves and chooses*, which is the
-   hardest assumption in the current design. The real work of this stone is
-   generalising "afraid of the fire" into "afraid of a threat" — something at a
-   place, with a size, that can be noticed and that hurts on contact. Finding
-   that seam now, while the codebase is small, is worth more than a second
-   hazard that reuses everything.
-5. **How it is checked:** edit-mode tests that the existing fire behaviour is
-   unchanged by the generalisation, plus tests for chase and conversion. On
-   screen: the crowd flees a walking threat the same way it flees fire.
+   hardest assumption in the current design. The seam -- "afraid of a threat":
+   something at a place, with a size, that can be noticed and that hurts on
+   contact -- now exists (`IThreat`, built in the review refactor above), so
+   the work of this stone is the hunter itself: one that walks, picks a
+   target, and converts whoever it catches.
+5. **How it is checked:** the fire behaviour is already proven unchanged by
+   the generalisation (all ten fingerprints held), and a stationary test
+   threat already frightens, is fled from and hurts; this stone adds tests for
+   chase and conversion. On screen: the crowd flees a walking threat the same
+   way it flees fire.
 
 ### After that, in rough order
 

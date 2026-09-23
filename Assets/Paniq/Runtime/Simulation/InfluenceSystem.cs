@@ -20,6 +20,15 @@
     /// log still accounts for where the influence went.
     /// </para>
     /// </summary>
+    /// <summary>How much of a commotion one kind of event is, to the player's meter.</summary>
+    public enum UproarTier
+    {
+        Nothing,
+        Small,
+        Middling,
+        Big
+    }
+
     internal sealed class InfluenceSystem
     {
         private readonly InfluenceSettings settings;
@@ -125,22 +134,42 @@
             eventsRead = log.Count;
         }
 
+        /// <summary>What one thing happening is worth to the meter: nothing, or one of three sizes.</summary>
+        private int UproarValueOf(FireReactionEventType what)
+        {
+            switch (UproarTierOf(what))
+            {
+                case UproarTier.Big: return settings.UproarBig;
+                case UproarTier.Middling: return settings.UproarMiddling;
+                case UproarTier.Small: return settings.UproarSmall;
+                default: return 0;
+            }
+        }
+
         /// <summary>
-        /// What one thing happening is worth. Three sizes: somebody shouting or
-        /// tripping is small, somebody going down or a door coming off its
-        /// hinges is middling, and somebody catching fire or an appliance going
-        /// off is big.
+        /// Which size of commotion each kind of event is. Three sizes: somebody
+        /// shouting or tripping is small, somebody going down or a door coming
+        /// off its hinges is middling, and somebody catching fire or an
+        /// appliance going off is big.
         /// <para>
-        /// Four groups pay nothing, each for its own reason. A death deals a
-        /// card instead. Somebody escaping is already paid for by the head
-        /// count. The player's own cards would otherwise refund themselves. And
-        /// fire spreading square by square is left out because it fires dozens
-        /// of times a second in a room nobody is standing in: the fire pays
-        /// through what it does to people and things, not through its own
-        /// arithmetic.
+        /// Every event type is named here, including the ones that pay nothing,
+        /// and an event type left out is an error rather than a silent zero. It
+        /// used to be a switch with a default of nothing, so a new event landed
+        /// in the wrong tier by omission and no test could tell. A test now
+        /// walks every value of the enum through this.
+        /// </para>
+        /// <para>
+        /// The groups that pay nothing, each for its own reason. A death deals
+        /// a card instead. Somebody escaping is already paid for by the head
+        /// count. The player's own cards would otherwise refund themselves.
+        /// Fire spreading square by square fires dozens of times a second in a
+        /// room nobody is standing in: the fire pays through what it does to
+        /// people and things, not through its own arithmetic. Somebody thinking
+        /// (looking for a way out, finding one) is not a commotion. And the
+        /// rest are bookkeeping.
         /// </para>
         /// </summary>
-        private int UproarValueOf(FireReactionEventType what)
+        internal static UproarTier UproarTierOf(FireReactionEventType what)
         {
             switch (what)
             {
@@ -149,7 +178,7 @@
                 case FireReactionEventType.AgentCrushed:
                 case FireReactionEventType.ObjectExploded:
                 case FireReactionEventType.DoorBrokenDown:
-                    return settings.UproarBig;
+                    return UproarTier.Big;
 
                 case FireReactionEventType.AgentKnockedDown:
                 case FireReactionEventType.AgentShoved:
@@ -160,7 +189,7 @@
                 case FireReactionEventType.DoorBurntThrough:
                 case FireReactionEventType.BoxHitAgent:
                 case FireReactionEventType.AlarmPulled:
-                    return settings.UproarMiddling;
+                    return UproarTier.Middling;
 
                 case FireReactionEventType.AgentYelled:
                 case FireReactionEventType.AgentScared:
@@ -171,10 +200,74 @@
                 case FireReactionEventType.ObjectCaughtFire:
                 case FireReactionEventType.ItemThrown:
                 case FireReactionEventType.BoxBumped:
-                    return settings.UproarSmall;
+                    return UproarTier.Small;
+
+                // A death deals a card; the head count pays for an escape.
+                case FireReactionEventType.AgentLost:
+                case FireReactionEventType.AgentEscaped:
+                case FireReactionEventType.AgentRescued:
+                case FireReactionEventType.AgentSurvived:
+                case FireReactionEventType.CardDealt:
+
+                // The player's own doing.
+                case FireReactionEventType.PowerBeefcake:
+                case FireReactionEventType.PowerCourage:
+                case FireReactionEventType.PowerTerror:
+                case FireReactionEventType.PowerBastard:
+                case FireReactionEventType.PowerColdHeart:
+                case FireReactionEventType.PowerSpawnedFire:
+                case FireReactionEventType.PowerSpawnedExtinguisher:
+                case FireReactionEventType.PowerBlastedWall:
+                case FireReactionEventType.PowerPoppedFuseBox:
+                case FireReactionEventType.DoorUnlocked:
+                case FireReactionEventType.RoundEventTriggered:
+                case FireReactionEventType.RoundEnded:
+
+                // The hazard's own arithmetic.
+                case FireReactionEventType.FireActivated:
+                case FireReactionEventType.FireSpread:
+                case FireReactionEventType.FireDoused:
+                case FireReactionEventType.ObjectBurntOut:
+                case FireReactionEventType.PowerSparkStarted:
+                case FireReactionEventType.PowerSparkArrived:
+
+                // Somebody thinking, or somebody being told.
+                case FireReactionEventType.AgentAlerted:
+                case FireReactionEventType.AgentNoticedSound:
+                case FireReactionEventType.AgentUnfroze:
+                case FireReactionEventType.AgentLookedForAWayOut:
+                case FireReactionEventType.AgentFoundADeadEnd:
+                case FireReactionEventType.AgentFoundTheWayOut:
+                case FireReactionEventType.LeaderCalledPeopleOn:
+                case FireReactionEventType.LeaderOrderedDoorBroken:
+                case FireReactionEventType.LeaderOrderedFireFought:
+
+                // Bookkeeping: things happening quietly to people, things and doors.
+                case FireReactionEventType.AgentGotUp:
+                case FireReactionEventType.AgentCameTo:
+                case FireReactionEventType.AgentRolled:
+                case FireReactionEventType.AgentDoused:
+                case FireReactionEventType.AgentBlasted:
+                case FireReactionEventType.AgentShookAwake:
+                case FireReactionEventType.AgentDropped:
+                case FireReactionEventType.AgentTriedDoor:
+                case FireReactionEventType.AgentGaveUpOnDoor:
+                case FireReactionEventType.AgentTookExtinguisher:
+                case FireReactionEventType.ExtinguisherSprayed:
+                case FireReactionEventType.ExtinguisherEmptied:
+                case FireReactionEventType.ItemDropped:
+                case FireReactionEventType.BoxesCollided:
+                case FireReactionEventType.DoorOpened:
+                case FireReactionEventType.DoorClosed:
+                case FireReactionEventType.DoorLocked:
+                case FireReactionEventType.DoorBlocked:
+                case FireReactionEventType.DoorUnblocked:
+                case FireReactionEventType.AlarmRang:
+                    return UproarTier.Nothing;
 
                 default:
-                    return 0;
+                    throw new System.ArgumentOutOfRangeException(nameof(what),
+                        $"{what} has no uproar tier. Every event type must say what it pays, even if that is nothing.");
             }
         }
 

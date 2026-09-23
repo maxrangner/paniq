@@ -23,12 +23,12 @@ namespace Paniq.Simulation
     /// Everybody is handled in ascending ID order, so the engine is always
     /// given the same pushes in the same order.
     /// </summary>
-    internal sealed class PeopleBodies
+    internal sealed class PeopleBodies : IBindable
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
         private readonly PhysicsWorld world;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly PhysicsFeelSettings feel;
         private readonly int firstHandle;
         private readonly int radius;
@@ -84,12 +84,12 @@ namespace Paniq.Simulation
             Gone
         }
 
-        public PeopleBodies(SimulationContext context, Crowd crowd, PhysicsWorld world, FireSystem fire, int firstHandle)
+        public PeopleBodies(SimulationContext context, Crowd crowd, PhysicsWorld world, Threats threats, int firstHandle)
         {
             this.context = context;
             this.crowd = crowd;
             this.world = world;
-            this.fire = fire;
+            this.threats = threats;
             this.firstHandle = firstHandle;
             feel = context.Scenario.PhysicsFeel;
             radius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -115,8 +115,8 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>Wired up after construction, because the body system is built first.</summary>
-        public void UseBody(BodySystem bodySystem) => body = bodySystem;
+        /// <summary>The body system is built before this, so it is handed over once everything exists.</summary>
+        public void Bind(Systems systems) => body = systems.Body;
 
         /// <summary>How tall a person is to the physics, in millimetres: what a flying chair can hit.</summary>
         public const int HeightMillimetres = 1700;
@@ -594,13 +594,9 @@ namespace Paniq.Simulation
                     agent.Body.BlockedTicks = 0;
                 }
 
-                if (fire.Active && moved > 0L)
+                if (moved > 0L)
                 {
-                    ulong cellEventId = fire.FindTouchingSweep(from, to);
-                    if (cellEventId != 0UL)
-                    {
-                        body.CatchFire(agent, cellEventId);
-                    }
+                    threats.ResolveContactAlong(agent, from, to, body);
                 }
             }
         }

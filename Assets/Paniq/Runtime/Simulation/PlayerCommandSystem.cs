@@ -18,7 +18,7 @@ namespace Paniq.Simulation
     /// pointed, does nothing and costs nothing.
     /// </para>
     /// </summary>
-    internal sealed class PlayerCommandSystem
+    internal sealed class PlayerCommandSystem : IBindable
     {
         private readonly SimulationContext context;
         private readonly List<PlayerCommand> pending = new List<PlayerCommand>();
@@ -42,22 +42,20 @@ namespace Paniq.Simulation
             this.context = context;
         }
 
-        /// <summary>Wired up after construction, because these are all built after this system.</summary>
-        public void Use(DoorSystem doorSystem, FireSystem fireSystem, PhysicsObjectSystem physicsObjects, Crowd people,
-            InfluenceSystem influenceSystem, DeckSystem theDeck, SoundSystem soundSystem, BodySystem bodySystem,
-            WorldGeometry world, RoundSystem theRound, PowerSystem thePower)
+        /// <summary>Every system a command reaches into is built after this one, so they are handed over once everything exists.</summary>
+        public void Bind(Systems systems)
         {
-            round = theRound;
-            power = thePower;
-            doors = doorSystem;
-            fire = fireSystem;
-            objects = physicsObjects;
-            crowd = people;
-            influence = influenceSystem;
-            deck = theDeck;
-            sound = soundSystem;
-            body = bodySystem;
-            geometry = world;
+            round = systems.Round;
+            power = systems.Power;
+            doors = systems.Doors;
+            fire = systems.Fire;
+            objects = systems.Objects;
+            crowd = systems.Crowd;
+            influence = systems.Influence;
+            deck = systems.Deck;
+            sound = systems.Sound;
+            body = systems.Body;
+            geometry = systems.Geometry;
         }
 
         /// <summary>Every command queued so far, in sequence order.</summary>

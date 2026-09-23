@@ -116,17 +116,33 @@ a logged event, but no behaviour moves a body itself.
 The tick schedule is, in order:
 
 1. Consume commands assigned to this tick.
-2. Advance hazard state. The fire first, then the sparks crawling along the
-   building's power cable, which are hazard advancing on their own clock in
-   exactly the way the fire is. The fire keeps its place at the front of the
-   phase so that adding the cable left its random draws where they were.
-3. Resolve hazard contact at current positions.
+2. Advance hazard state. Every threat first, in the order the level lists
+   them (`Threats.Advance`; today that is the fire alone), then the sparks
+   crawling along the building's power cable, which are hazard advancing on
+   their own clock in exactly the way a threat is. The fire keeps its place at
+   the front of the phase so that adding the cable left its random draws where
+   they were.
+3. Resolve hazard contact at current positions: for each person in ascending
+   ID order, each threat in order says whether they are touching it and what
+   that does to them (the fire sets them alight).
 4. Make agent decisions, in ascending Agent ID order, then resolve what those
    decisions set in motion: standing up from chairs, following leaders,
    spraying, and helpers pulling the people they drag. Each person's turn
-   begins with what they notice: the fire, and then, for somebody who does not
-   know the building, the doors, signs and corners in sight
-   (`WayfindingSystem.Look`), which draws no random numbers.
+   begins with what they notice: any threat in sight or earshot, and then, for
+   somebody who does not know the building, the doors, signs and corners in
+   sight (`WayfindingSystem.Look`), which draws no random numbers.
+
+**Threats.** The crowd is afraid of *a threat*, never of the fire by name.
+`IThreat` is the whole of what a frightened person may ask of a danger: how
+far off its nearest part is, whether it is in a room, closer than a distance,
+in sight, on a route, being touched, and what touching it does. `Threats`
+holds every threat in the level and answers across all of them, ties to the
+threat listed first. Fear, perception, panic, doors, helping, barricading, the
+body's death cause, the physics read-back and the round clock ask `Threats`.
+Only things that are genuinely about fire (extinguishers, things catching,
+doors scorching, the player's fire card, waking retired squares) talk to
+`FireSystem` directly. A new family of danger is a new `IThreat`, not an edit
+to the crowd.
 5. Step the physics world once (see below).
 6. Judge what the step did, in the sorted contact order: loose things meeting
    people and other things (hits, breakages, smashed tables), then people

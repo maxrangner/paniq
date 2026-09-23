@@ -83,7 +83,7 @@ namespace Paniq.Simulation
     /// system is the only one that changes a door's state; the player's clicks
     /// reach it through <see cref="PlayerCommandSystem"/>.
     /// </summary>
-    internal sealed class DoorSystem
+    internal sealed class DoorSystem : IBindable
     {
         private readonly SimulationContext context;
         private readonly DoorRuntime[] doors;
@@ -258,11 +258,18 @@ namespace Paniq.Simulation
             return blasted;
         }
 
-        /// <summary>The people, needed to tell whether a doorway is clear. Set once, when the crowd exists.</summary>
-        public void UseCrowd(Crowd people) => crowd = people;
-
-        /// <summary>The loose things, needed to tell whether a doorway is wedged. Set once, when they exist.</summary>
-        public void UseObjects(PhysicsObjectSystem physicsObjects) => objects = physicsObjects;
+        /// <summary>
+        /// The people (is a doorway clear?), the loose things (is it wedged?)
+        /// and the bodies (is anybody lying across it?) are all built after the
+        /// doors, so they are handed over once everything exists.
+        /// </summary>
+        public void Bind(Systems systems)
+        {
+            crowd = systems.Crowd;
+            objects = systems.Objects;
+            physics = systems.Physics;
+            people = systems.People;
+        }
 
         /// <summary>The thing wedged in this doorway, or -1.</summary>
         public int ObstructionIn(int door) => blockedBy[door];
@@ -414,13 +421,6 @@ namespace Paniq.Simulation
 
         private PhysicsWorld physics;
         private PeopleBodies people;
-
-        /// <summary>Wired up after construction, because the bodies are built after the doors.</summary>
-        public void UsePhysics(PhysicsWorld world, PeopleBodies bodies)
-        {
-            physics = world;
-            people = bodies;
-        }
 
         /// <summary>
         /// Shuts an open door (it is then unlocked), if nobody is in the
@@ -583,7 +583,7 @@ namespace Paniq.Simulation
                 }
 
                 LogicalPosition centre = geometry.DoorCentre(door);
-                long gap = fire.NearestDistanceSquared(centre, out LogicalPosition flames, out int cell);
+                long gap = fire.NearestCellDistanceSquared(centre, out LogicalPosition flames, out int cell);
                 if (cell < 0 || gap > (long)reach * reach)
                 {
                     continue;

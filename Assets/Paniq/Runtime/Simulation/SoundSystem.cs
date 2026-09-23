@@ -14,16 +14,16 @@ namespace Paniq.Simulation
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly FearSystem fear;
         private readonly WorldGeometry geometry;
         private readonly HearingSettings settings;
 
-        public SoundSystem(SimulationContext context, Crowd crowd, FireSystem fire, FearSystem fear, WorldGeometry geometry)
+        public SoundSystem(SimulationContext context, Crowd crowd, Threats threats, FearSystem fear, WorldGeometry geometry)
         {
             this.context = context;
             this.crowd = crowd;
-            this.fire = fire;
+            this.threats = threats;
             this.fear = fear;
             this.geometry = geometry;
             settings = context.Scenario.Hearing;
@@ -118,19 +118,16 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>Fire crackles: a calm person near it but not looking at it turns to see what it is.</summary>
-        public void HearFire(Agent agent)
+        /// <summary>
+        /// A threat that makes a noise (fire crackles): a calm person near it
+        /// but not looking at it turns to see what it is. How far each threat
+        /// can be heard is the threat's own to say.
+        /// </summary>
+        public void HearThreats(Agent agent)
         {
-            long radius = settings.FireHearingRadiusMillimetres;
-            if (radius <= 0L)
+            if (threats.HeardNearby(agent.Body.Position, out LogicalPosition point, out ulong causeEventId))
             {
-                return;
-            }
-
-            long distanceSquared = fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition point, out int cell);
-            if (distanceSquared <= radius * radius)
-            {
-                Notice(agent, point, fire.CellEventId(cell));
+                Notice(agent, point, causeEventId);
             }
         }
 

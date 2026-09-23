@@ -24,7 +24,7 @@ namespace Paniq.Simulation
     /// instead of kicking it. A thrown item hits people harder than a sliding
     /// one, because it strikes the body, not the feet.
     /// </summary>
-    internal sealed class PhysicsObjectSystem
+    internal sealed class PhysicsObjectSystem : IBindable
     {
         /// <summary>Object positions and velocities are kept in hundredths of a millimetre.</summary>
         public const int SubMillimetre = PhysicsWorld.SubMillimetre;
@@ -380,14 +380,15 @@ namespace Paniq.Simulation
 
         public int Count => bodies.Length;
 
-        /// <summary>Wired up after construction, because people's bodies are built after the things'.</summary>
-        public void UsePeople(PeopleBodies bodies) => people = bodies;
-
         /// <summary>
-        /// Wired up after construction, because the cable is built from the
-        /// things and so cannot exist before them.
+        /// People's bodies are built after the things', and the cable is built
+        /// from the things, so both are handed over once everything exists.
         /// </summary>
-        public void UsePower(PowerSystem powerSystem) => power = powerSystem;
+        public void Bind(Systems systems)
+        {
+            people = systems.People;
+            power = systems.Power;
+        }
 
         /// <summary>
         /// Something electrical goes off: the bang, the fling, the people

@@ -11,12 +11,12 @@ namespace Paniq.Simulation
     /// they are dragging. The cruel never help. Helping stops when the helper
     /// is in danger, loses their footing, catches fire or gives up.
     /// </summary>
-    internal sealed class HelpBehaviour : IPanicOption
+    internal sealed class HelpBehaviour : IPanicOption, IBindable
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly FearSystem fear;
         private readonly BodySystem body;
         private readonly PhysicsObjectSystem objects;
@@ -37,7 +37,7 @@ namespace Paniq.Simulation
             SimulationContext context,
             Crowd crowd,
             WorldGeometry geometry,
-            FireSystem fire,
+            Threats threats,
             FearSystem fear,
             BodySystem body,
             PhysicsObjectSystem objects,
@@ -47,7 +47,7 @@ namespace Paniq.Simulation
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
-            this.fire = fire;
+            this.threats = threats;
             this.fear = fear;
             this.body = body;
             this.objects = objects;
@@ -123,7 +123,7 @@ namespace Paniq.Simulation
                 int i = candidates[c];
                 Agent other = crowd.All[i];
                 if (other == agent || !other.IsParticipating || other.Burning.IsBurning || i == agent.Help.GaveUpOnIndex ||
-                    alreadyBeingHelped[i] || fire.AnyCloserThan(other.Body.Position, danger))
+                    alreadyBeingHelped[i] || threats.AnyCloserThan(other.Body.Position, danger))
                 {
                     continue;
                 }
@@ -255,8 +255,8 @@ namespace Paniq.Simulation
             StopHelping(agent, false);
         }
 
-        /// <summary>Wired up after construction, because the doors are built after this behaviour.</summary>
-        public void UseDoors(DoorSystem doorSystem) => doors = doorSystem;
+        /// <summary>The doors are built after this behaviour, so they are handed over once everything exists.</summary>
+        public void Bind(Systems systems) => doors = systems.Doors;
 
         // ---------------------------------------------------------------- dragging
 
@@ -304,7 +304,7 @@ namespace Paniq.Simulation
             }
 
             agent.Doors.ExitDoorIndex = -1;
-            if (fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition flames) == long.MaxValue)
+            if (threats.NearestDistanceSquared(agent.Body.Position, out LogicalPosition flames, out _) == long.MaxValue)
             {
                 agent.Intent.Target = agent.Body.Position;
                 return;

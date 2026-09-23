@@ -88,13 +88,14 @@ namespace Paniq.Tests.EditMode
             }
 
             var fire = new FireSystem(floor.Context, floor.Geometry);
-            var fear = new FearSystem(floor.Context, fire);
-            var sound = new SoundSystem(floor.Context, crowd, fire, fear, floor.Geometry);
+            var threats = new Threats(fire);
+            var fear = new FearSystem(floor.Context, threats);
+            var sound = new SoundSystem(floor.Context, crowd, threats, fear, floor.Geometry);
             floor.Doors = new DoorSystem(floor.Context, floor.DoorStates, floor.Geometry);
-            floor.Doors.UseCrowd(crowd);
+            floor.Doors.Bind(new Systems { Crowd = crowd });
             floor.Signs = new ExitSignBehaviour(floor.Context, floor.Geometry);
             floor.Wayfinding = new WayfindingSystem(floor.Context, floor.Geometry, floor.Signs);
-            floor.DoorChoice = new DoorBehaviour(floor.Context, crowd, floor.Geometry, floor.Doors, fire, sound,
+            floor.DoorChoice = new DoorBehaviour(floor.Context, crowd, floor.Geometry, floor.Doors, threats, sound,
                 floor.Signs, floor.Wayfinding);
             return floor;
         }

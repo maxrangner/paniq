@@ -9,12 +9,12 @@
     internal sealed class FearSystem
     {
         private readonly SimulationContext context;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
 
-        public FearSystem(SimulationContext context, FireSystem fire)
+        public FearSystem(SimulationContext context, Threats threats)
         {
             this.context = context;
-            this.fire = fire;
+            this.threats = threats;
         }
 
         /// <summary>
@@ -81,7 +81,7 @@
                 agent.Id,
                 FireReactionEventType.AgentAlerted,
                 agent.Body.Position,
-                fire.BurningCount,
+                threats.Count,
                 agent.Fear.ReactionDelayTicks,
                 causalParentEventId);
             agent.Fear.AlertEventId = alert.EventId;
@@ -125,8 +125,8 @@
             }
         }
 
-        /// <summary>An alerted person now sees the fire for themselves.</summary>
-        public void PromoteAlertToVisual(Agent agent)
+        /// <summary>An alerted person now sees the danger for themselves; <paramref name="rootEventId"/> is what started the threat they saw.</summary>
+        public void PromoteAlertToVisual(Agent agent, ulong rootEventId)
         {
             agent.Fear.AlertSource = AgentAlertSource.Visual;
             BreakComposure(agent);
@@ -135,9 +135,9 @@
                 agent.Id,
                 FireReactionEventType.AgentAlerted,
                 agent.Body.Position,
-                fire.BurningCount,
+                threats.Count,
                 agent.Fear.ReactionDelayTicks,
-                fire.ActivationEventId);
+                rootEventId);
             agent.Fear.AlertEventId = alert.EventId;
         }
 
@@ -159,9 +159,9 @@
                 agent.Id,
                 FireReactionEventType.AgentScared,
                 agent.Body.Position,
-                fire.BurningCount,
+                threats.Count,
                 0,
-                agent.Fear.AlertEventId != 0UL ? agent.Fear.AlertEventId : fire.ActivationEventId);
+                agent.Fear.AlertEventId != 0UL ? agent.Fear.AlertEventId : threats.RootEventId);
             agent.Fear.ScaredEventId = scared.EventId;
 
             if (agent.Personality.Temperament == AgentPanicTemperament.Runner || agent.Fear.Composed)
@@ -207,7 +207,7 @@
         }
 
         /// <summary>
-        /// A startled person stops. If they saw the fire they turn to face
+        /// A startled person stops. If they saw the danger they turn to face
         /// it; if they were yelled at or bumped, they turn toward where that
         /// came from.
         /// </summary>
@@ -216,9 +216,9 @@
             agent.Intent.Activity = AgentActivityState.Reacting;
             int goalHeading = agent.Body.Heading;
             if (agent.Fear.AlertSource == AgentAlertSource.Visual &&
-                fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition firePoint) < long.MaxValue)
+                threats.NearestDistanceSquared(agent.Body.Position, out LogicalPosition dangerPoint, out _) < long.MaxValue)
             {
-                goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, firePoint, agent.Body.Heading);
+                goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, dangerPoint, agent.Body.Heading);
             }
             else if (agent.Hearing.HasSoundPoint)
             {

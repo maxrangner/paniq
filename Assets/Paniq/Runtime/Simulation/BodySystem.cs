@@ -7,10 +7,10 @@ namespace Paniq.Simulation
     /// the floor, getting up, and being caught by the fire. A body that is
     /// not upright makes no move but still takes up space.
     /// </summary>
-    internal sealed class BodySystem
+    internal sealed class BodySystem : IBindable
     {
         private readonly SimulationContext context;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly SoundSystem sound;
         private readonly FearSystem fear;
         private readonly FallSettings settings;
@@ -18,17 +18,17 @@ namespace Paniq.Simulation
         /// <summary>Everybody's physical body, which a shove or a blast pushes. Set once it exists.</summary>
         private PeopleBodies people;
 
-        public BodySystem(SimulationContext context, FireSystem fire, SoundSystem sound, FearSystem fear)
+        public BodySystem(SimulationContext context, Threats threats, SoundSystem sound, FearSystem fear)
         {
             this.context = context;
-            this.fire = fire;
+            this.threats = threats;
             this.sound = sound;
             this.fear = fear;
             settings = context.Scenario.Falls;
         }
 
-        /// <summary>Wired up after construction, because people's bodies are built after this system.</summary>
-        public void UsePeople(PeopleBodies bodies) => people = bodies;
+        /// <summary>People's bodies are built after this system, so they are handed over once everything exists.</summary>
+        public void Bind(Systems systems) => people = systems.People;
 
         /// <summary>
         /// Advances staggering, lying down and getting up. Returns true while
@@ -345,7 +345,7 @@ namespace Paniq.Simulation
                 agent.Id,
                 FireReactionEventType.AgentLost,
                 agent.Body.Position,
-                fire.BurningCount,
+                threats.Count,
                 0,
                 causeEventId);
 

@@ -185,19 +185,8 @@ namespace Paniq.Presentation
                 bool fallen = agent.BodyState == AgentBodyState.Fallen || agent.BodyState == AgentBodyState.Unconscious;
                 bool rising = agent.BodyState == AgentBodyState.GettingUp;
 
-                // Anybody not sitting stands at their full height. Set here as
-                // well as in the seated branch, because somebody knocked out of a
-                // chair goes from sitting to lying in one tick and would
-                // otherwise stay folded up on the floor.
-                bool seatedNow = agent.ActivityState == AgentActivityState.Sitting ||
-                                 agent.ActivityState == AgentActivityState.StandingUp;
-                if (!seatedNow)
-                {
-                    view.Transform.localScale = BodyScale;
-                }
-
                 // Where the top of their head is, so the icons above it follow
-                // them down onto a chair instead of hanging in the air.
+                // them up onto a chair instead of hanging at standing height.
                 float headHeight = BodyHalfHeight * 2f;
 
                 if (lost)
@@ -287,35 +276,24 @@ namespace Paniq.Presentation
                         lean += push * 20f;
                     }
 
-                    // Sitting: lowered onto the seat, and rising back out of
-                    // it as they stand, so the change reads as a movement.
-                    float seated = 0f;
-                    if (agent.ActivityState == AgentActivityState.Sitting)
-                    {
-                        seated = 1f;
-                        bounce = 0f;
-                        roll = 0f;
-                        twist = 0f;
-                    }
-                    else if (agent.ActivityState == AgentActivityState.StandingUp)
-                    {
-                        seated = 0.5f;
-                        bounce = 0f;
-                        roll = 0f;
-                        twist = 0f;
-                    }
-
-                    // Seated, the body sits up straight on the seat with its
-                    // legs folded away: it rests on the seat surface rather
-                    // than sinking through the floor, and it does not lean.
-                    // It used to drop its middle to 0.3 m, which put 200 mm of
-                    // a standing-height body below the floor line, and tip 12
-                    // degrees -- forward, into the table, though the comment
-                    // here claimed it leaned back into the chair.
+                    // Sitting: the same body, lifted onto the seat by however
+                    // far into the chair the simulation says they are, so
+                    // lowering onto it and rising from it read as one smooth
+                    // movement. Nothing else about the body changes -- no
+                    // lean, no squash, no folding: the owner's call. It used
+                    // to be scaled to 0.62 m tall at its full 0.5 m width,
+                    // and a capsule scaled unevenly flattens its rounded ends
+                    // into a blob. A seated head ends up about half a metre
+                    // above a standing one, which the owner chose over a
+                    // deformed body.
+                    float seated = Mathf.Lerp(previous.SeatedPercent, agent.SeatedPercent, blend) / 100f;
+                    float upright = 1f - seated;
+                    bounce *= upright;
+                    roll *= upright;
+                    twist *= upright;
+                    alertJump *= upright;
                     float middle = Mathf.Lerp(BodyHalfHeight, SeatedCentreHeight, seated);
-                    float halfHeight = Mathf.Lerp(BodyHalfHeight, SeatedHalfHeight, seated);
-                    headHeight = middle + halfHeight;
-                    view.Transform.localScale = new Vector3(BodyRadius * 2f, halfHeight, BodyRadius * 2f);
+                    headHeight = middle + BodyHalfHeight;
                     view.Transform.SetPositionAndRotation(
                         planar + shake + lunge + Vector3.up * (middle + bounce + alertJump),
                         Quaternion.Euler(lean, yaw + twist, roll));
@@ -479,17 +457,15 @@ namespace Paniq.Presentation
         private const float SeatSurfaceHeight = 0.475f;
 
         /// <summary>
-        /// Half the height of a seated body, in metres, so it is 0.62 m from
-        /// end to end: a standing body with its legs folded under it. The
-        /// chairs are drawn life size next to people drawn at about 60% of it,
-        /// so a seat comes up to a standing person's waist and a sitting head
-        /// ends up a little above a standing one. Shrinking the body far enough
-        /// to avoid that would make it wider than it is tall.
+        /// Where the middle of a seated body is, in metres: the standing body,
+        /// exactly as it is, with its bottom on the seat. The owner's decision
+        /// (2026-09-24): a seated person looks the same as a standing one and
+        /// is simply higher off the ground. The chairs are drawn life size
+        /// next to people drawn at about 60 % of it, so the head ends up about
+        /// half a metre above a standing head; folding or shrinking the body
+        /// to bring it down was tried twice and read as a blob both times.
         /// </summary>
-        private const float SeatedHalfHeight = 0.31f;
-
-        /// <summary>Where the middle of a seated body sits, in metres: resting on the seat.</summary>
-        private const float SeatedCentreHeight = SeatSurfaceHeight + SeatedHalfHeight;
+        private const float SeatedCentreHeight = SeatSurfaceHeight + BodyHalfHeight;
 
         /// <summary>
         /// How far a walking body rocks onto each foot in turn, in degrees.

@@ -165,7 +165,8 @@
                 Burning.IsBurning,
                 Leading.LedCount > 0,
                 Fear.Composed,
-                Body.Pose);
+                Body.Pose,
+                Sitting.SeatedPercent);
         }
     }
 
@@ -289,6 +290,9 @@
         public int SwerveOffset;
         public int SwerveEndTick;
         public int NextPanicDecisionTick;
+
+        /// <summary>When they may next heave a table out of their way; heaving one costs a moment.</summary>
+        public int NextTableHeaveTick;
 
         /// <summary>The soonest a cruel person will heave another person out of their way (not the door shoving in <see cref="AgentDoorMemory"/>).</summary>
         public int NextShoveTick;
@@ -544,6 +548,25 @@
         /// cut short how long they meant to sit.
         /// </summary>
         public int SitUntilTick;
+
+        /// <summary>
+        /// Where they are stepping to as they rise from the chair, chosen once
+        /// when they start to rise. It used to be worked out afresh every
+        /// tick from wherever they had got to, so it kept moving away from
+        /// them and they slid the better part of two metres backwards.
+        /// </summary>
+        public LogicalPosition StepTo;
+
+        /// <summary>
+        /// How far into the seat they are, nought to a hundred: nought on
+        /// their feet, a hundred sat down, and in between while lowering onto
+        /// it or rising from it. For the display, which draws the body that
+        /// much lower or higher; it decides nothing.
+        /// </summary>
+        public int SeatedPercent;
+
+        /// <summary>How far into the seat they were when a fright started them up out of it.</summary>
+        public int RisingFromPercent;
     }
 
     internal sealed class AgentHelp

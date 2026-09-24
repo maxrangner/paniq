@@ -133,6 +133,72 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// The meeting ends of its own accord at the minute mark, with nothing
+        /// having happened, and everybody gets up. This is the case the fright
+        /// fix above never covered: getting up on purpose worked its step-out
+        /// spot out afresh every tick from wherever the body had got to, so
+        /// the spot ran away from the body and all six slid backwards into
+        /// the walls, faster and faster, and were then put half a metre
+        /// further on in the tick they stood. Seed 42, about tick 3000.
+        /// </summary>
+        [Test]
+        public void WhenTheMeetingEndsOnItsOwn_EverybodyStepsBesideTheirChair()
+        {
+            ScenarioData data = DefaultData();
+            data.Fire.ActivationTick = int.MaxValue;
+            data.Round.HazardWaitsForTrigger = true;
+            var simulation = new Run(data);
+            var wasAt = new LogicalPosition[simulation.AgentCount];
+            var seat = new LogicalPosition[simulation.AgentCount];
+            var seated = new bool[simulation.AgentCount];
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                AgentSnapshot person = simulation.GetAgent(i);
+                wasAt[i] = person.Position;
+                seat[i] = person.Position;
+                seated[i] = person.ActivityState == AgentActivityState.Sitting &&
+                            AcrossTheCorridor(person.Position) && person.Position.X < 2000;
+            }
+
+            Assert.That(System.Array.FindAll(seated, s => s).Length, Is.EqualTo(6), "Six are in the meeting.");
+
+            // Through the end of the meeting and the moment it takes them to
+            // get up, then a little longer.
+            int until = data.Items.SeatedAtStartTicks + data.Items.SitPullTicks + data.Items.SitLowerTicks + 25;
+            for (int t = 0; t < until; t++)
+            {
+                simulation.Step();
+                for (int i = 0; i < simulation.AgentCount; i++)
+                {
+                    if (!seated[i])
+                    {
+                        continue;
+                    }
+
+                    LogicalPosition now = simulation.GetAgent(i).Position;
+                    long step = IntegerMath.Distance(wasAt[i], now);
+                    Assert.That(step, Is.LessThan(200L),
+                        $"Tick {simulation.Tick}: person {simulation.GetAgent(i).AgentId} crossed {step} mm in one tick: that is a teleport, not a step.");
+                    wasAt[i] = now;
+                }
+            }
+
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (!seated[i])
+                {
+                    continue;
+                }
+
+                AgentSnapshot person = simulation.GetAgent(i);
+                Assert.That(person.ActivityState, Is.Not.EqualTo(AgentActivityState.Sitting),
+                    $"Person {person.AgentId} is still sitting after the meeting ended.");
+                Assert.That(IntegerMath.Distance(seat[i], person.Position), Is.LessThan(1200L),
+                    $"Person {person.AgentId} got up and ended {IntegerMath.Distance(seat[i], person.Position)} mm from their seat: a step beside the chair, not a slide across the room.");
+            }
+        }
+
         [Test]
         public void EveryChair_FacesATableAndEveryLaptop_StandsOnOne()
         {

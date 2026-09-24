@@ -617,7 +617,14 @@ namespace Paniq.Simulation
         PowerBastard,
 
         /// <summary>Cold heart caught this person: their compassion is now at the bottom.</summary>
-        PowerColdHeart
+        PowerColdHeart,
+
+        /// <summary>
+        /// Somebody stuck behind a table in a panic heaved it out of their
+        /// way. Names the table; the strength is the change of speed it was
+        /// given, in millimetres per tick.
+        /// </summary>
+        TableHeaved
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>

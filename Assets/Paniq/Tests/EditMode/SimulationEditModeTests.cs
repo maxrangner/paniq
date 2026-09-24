@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("57"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(45));
+            Assert.That(data.ContentRevision, Is.EqualTo("60"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(48));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,

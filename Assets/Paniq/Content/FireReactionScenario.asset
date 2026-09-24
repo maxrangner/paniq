@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 57
+    ContentRevision: 60
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 45
+    SimulationCompatibilityVersion: 48
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -97,6 +97,7 @@ MonoBehaviour:
       PeopleAvoidPercent: 100
       WallAvoidPercent: 150
       ObjectAvoidPercent: 100
+      TableAvoidPercent: 150
     Panic:
       SpeedMinimum: 60
       SpeedMaximum: 110
@@ -134,6 +135,10 @@ MonoBehaviour:
       PeopleAvoidPercent: 50
       WallAvoidPercent: 200
       ObjectAvoidPercent: 20
+      TableAvoidPercent: 60
+      TableHeaveSpeedMillimetresPerTick: 80
+      TableHeaveLeastPercent: 25
+      TableHeaveRestTicks: 40
     Temperament:
       FreezeThenRunPercent: 30
       FreezeForeverPercent: 15
@@ -441,6 +446,7 @@ MonoBehaviour:
       SaveRangeMillimetres: 8000
       FetchTimeoutTicks: 1500
       FightTimeoutTicks: 1500
+      BlockedGiveUpTicks: 50
       DangerTolerancePercent: 50
       StandOffMillimetres: 2000
       SprayRangeMillimetres: 3000
@@ -484,7 +490,7 @@ MonoBehaviour:
       SitScootMillimetres: 120
       SitPullOutMillimetres: 300
       SitPullTicks: 12
-      SitLowerTicks: 10
+      SitLowerTicks: 25
       JumpUpKnockOverSpeed: 30
       FetchRangeMillimetres: 4000
       CarryMinimumDistanceMillimetres: 1500

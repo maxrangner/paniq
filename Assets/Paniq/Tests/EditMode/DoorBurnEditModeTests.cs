@@ -200,6 +200,43 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// A fire in the room behind the wall next to a door does not touch
+        /// the door. The storage closet is two metres deep and its only door
+        /// is in the wall opposite the bathroom, exactly two metres from it;
+        /// a bathroom fire against that shared wall used to be counted as
+        /// within reach of the closet door, through the wall, and burnt it
+        /// open from a room the door has nothing to do with. Seed 42.
+        /// </summary>
+        [Test]
+        public void AFireInTheRoomBehindTheWall_LeavesTheDoorAlone()
+        {
+            ScenarioData data = FireAgainstTheClosetDoor();
+
+            // The bathroom square against the closet's back wall: its nearest
+            // edge is 2000 mm from the closet door, the door's own reach.
+            data.Fire.SpawnBounds = new LogicalBounds(8250, 8250, 2500, 2500);
+            using (var simulation = new Run(data))
+            {
+                for (int t = 0; t < data.Exits.DoorBurnThroughTicks + 100; t++)
+                {
+                    simulation.Step();
+                }
+
+                bool burningInTheBathroom = false;
+                foreach (FireCellSnapshot cell in simulation.GetSnapshot().FireCells)
+                {
+                    burningInTheBathroom |= cell.Centre.X > 8000 && cell.Centre.X < 13000 &&
+                                            cell.Centre.Z > 1000 && cell.Centre.Z < 6000;
+                }
+
+                Assert.That(burningInTheBathroom, Is.True, "The fire should be burning in the bathroom.");
+                DoorSnapshot door = DoorOf(simulation, ClosetDoor);
+                Assert.That(door.State, Is.EqualTo(DoorState.Unlocked), "A wall stands between the flames and this door.");
+                Assert.That(door.ScorchPercent, Is.Zero, "Fire the other side of a wall cannot char a door.");
+            }
+        }
+
         /// <summary>A door nowhere near the flames is left alone however long the fire burns.</summary>
         [Test]
         public void ADoorAcrossTheBuilding_IsLeftAlone()

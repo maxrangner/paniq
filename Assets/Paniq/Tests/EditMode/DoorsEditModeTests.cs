@@ -927,6 +927,9 @@ namespace Paniq.Tests.EditMode
                         Assert.That(boxes, Does.Contain(record.TargetId),
                             $"{record.EventType} names the socket or fuse box at the far end.");
                         break;
+                    case CausalEventType.TableHeaved:
+                        Assert.That(record.HasTarget, Is.True, "A heave names the table.");
+                        break;
                     default:
                         Assert.That(record.HasTarget, Is.False, $"{record.EventType} should not name a target.");
                         break;

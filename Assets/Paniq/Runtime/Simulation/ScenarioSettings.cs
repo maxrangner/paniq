@@ -311,6 +311,13 @@ namespace Paniq.Simulation
         public int WallAvoidPercent = 150;
         public int ObjectAvoidPercent = 100;
 
+        /// <summary>
+        /// How hard a calm person keeps off the edge of a table: as hard as
+        /// off a wall. Somebody strolling round the office walks round the
+        /// desks.
+        /// </summary>
+        public int TableAvoidPercent = 150;
+
         public CalmSettings Clone() => (CalmSettings)MemberwiseClone();
 
         internal void Validate()
@@ -326,7 +333,8 @@ namespace Paniq.Simulation
                              WanderMaximumDegrees >= 0 && WanderMaximumDegrees <= 180, "strolling");
             Settings.Require(SocialStopDistanceMillimetres >= 0 &&
                              Settings.Range(SocialMinimumDistanceMillimetres, SocialMaximumDistanceMillimetres, 0), "socialising");
-            Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0, "calm steering weights");
+            Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0 &&
+                             TableAvoidPercent >= 0, "calm steering weights");
         }
     }
 
@@ -406,6 +414,31 @@ namespace Paniq.Simulation
         public int WallAvoidPercent = 200;
         public int ObjectAvoidPercent = 20;
 
+        /// <summary>
+        /// How hard a running person keeps off the edge of a table. Much less
+        /// than off a wall: a table is furniture, not brickwork, and a crowd
+        /// in a panic brushes past desks, bumps them and shoves them along.
+        /// Tables used to be kept off exactly like walls, so nobody ever
+        /// touched one and no table was ever seen to move.
+        /// </summary>
+        public int TableAvoidPercent = 60;
+
+        /// <summary>
+        /// The change of speed somebody stuck behind a table gives it when
+        /// they heave it out of their way, in millimetres per tick, for a
+        /// table as light as a blast's reference thing (20 kg). Applied at
+        /// the table's top edge, so a light desk goes over away from them and
+        /// a heavy one slides. Heavier tables get less, down to
+        /// <see cref="TableHeaveLeastPercent"/> of it.
+        /// </summary>
+        public int TableHeaveSpeedMillimetresPerTick = 80;
+
+        /// <summary>The least share of the heave the heaviest table gets, so even the meeting table shifts.</summary>
+        public int TableHeaveLeastPercent = 25;
+
+        /// <summary>How long after heaving a table somebody waits before heaving one again.</summary>
+        public int TableHeaveRestTicks = 40;
+
         public PanicSettings Clone() => (PanicSettings)MemberwiseClone();
 
         internal void Validate()
@@ -426,7 +459,10 @@ namespace Paniq.Simulation
                              EscapeRoutePenaltyMillimetres >= 0 && EscapeShortHopDistanceMillimetres >= 0 &&
                              EscapeShortHopPenaltyMillimetres >= 0 && EscapeTurnPenaltyPerDegree >= 0 &&
                              EscapeNoiseMillimetres >= 0 && TableRoutePenaltyMillimetres >= 0, "escape scoring");
-            Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0, "panic steering weights");
+            Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0 &&
+                             TableAvoidPercent >= 0, "panic steering weights");
+            Settings.Require(TableHeaveSpeedMillimetresPerTick >= 0 && Settings.Percent(TableHeaveLeastPercent) &&
+                             TableHeaveRestTicks >= 1, "heaving tables");
             Settings.Require(SignReadRangeMillimetres >= 0 && SignEscapeBonusMillimetres >= 0,
                 "exit sign reading");
         }
@@ -1068,6 +1104,14 @@ namespace Paniq.Simulation
         public int FightTimeoutTicks = 1500;
 
         /// <summary>
+        /// Getting nowhere for this long on the errand -- pressed against a
+        /// wall, a table or a crowd -- and they give it up. The comment above
+        /// promised this and nothing did it: somebody wedged stood there for
+        /// the whole thirty seconds.
+        /// </summary>
+        public int BlockedGiveUpTicks = 50;
+
+        /// <summary>
         /// How much of their usual keep-away distance from the flames someone
         /// with an extinguisher in their hands still keeps: the bottle makes
         /// them braver, up to a point.
@@ -1109,7 +1153,7 @@ namespace Paniq.Simulation
                 "noticing an extinguisher somebody put down");
             Settings.Require(FetchRangeMillimetres >= 0 && PickUpDistanceMillimetres > 0 && SaveRangeMillimetres >= 0,
                 "extinguisher distances");
-            Settings.Require(FetchTimeoutTicks > 0 && FightTimeoutTicks > 0, "extinguisher timeouts");
+            Settings.Require(FetchTimeoutTicks > 0 && FightTimeoutTicks > 0 && BlockedGiveUpTicks > 0, "extinguisher timeouts");
             Settings.Require(SprayRangeMillimetres > 0 && SprayConeDegrees > 0 && SprayConeDegrees <= 180 && CellsPerTick > 0 &&
                 StandOffMillimetres > 0 && StandOffMillimetres <= SprayRangeMillimetres, "the spray");
             Settings.Require(SweepDegrees >= 0 && SweepDegreesPerStrengthPoint >= 0, "the sweep");
@@ -1412,7 +1456,10 @@ namespace Paniq.Simulation
         /// </summary>
         public int SitPullOutMillimetres = 300;
         public int SitPullTicks = 12;
-        public int SitLowerTicks = 10;
+        // Half a second each way. It was a fifth, which had somebody cross
+        // half a metre of floor onto or off the seat in ten ticks: a lunge,
+        // not a sit.
+        public int SitLowerTicks = 25;
 
         /// <summary>
         /// How hard a chair somebody leapt out of is sent over backwards, in

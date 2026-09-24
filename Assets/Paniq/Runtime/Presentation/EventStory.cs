@@ -167,6 +167,7 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentRescued: return $"{who} dragged {whom} clear";
 
                 case CausalEventType.ItemThrown: return $"{who} flung {whom} away from them";
+                case CausalEventType.TableHeaved: return $"{who} heaved a table out of the way";
                 case CausalEventType.ItemDropped: return $"{who} dropped {whom}";
                 case CausalEventType.BoxBumped: return $"{whom} was knocked about";
                 case CausalEventType.BoxHitAgent: return $"{whom} was hit by something flying";

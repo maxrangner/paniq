@@ -255,6 +255,10 @@ namespace Paniq.Simulation
                     agent.Sitting.PhaseStartTick = tick;
                     agent.Sitting.Phase = SitPhase.Lowering;
                     agent.Sitting.OnIt = true;
+
+                    // The first step of the way down, so the display's lift
+                    // onto the seat is spread as evenly as the move itself.
+                    agent.Sitting.SeatedPercent = Percent(1, settings.SitLowerTicks);
                     agent.Intent.LookHeading = facing;
                     agent.Intent.ActivityEndTick = checked(tick + settings.SitLowerTicks + settings.SitPullTicks * 2);
                     agent.Body.Speed = 0;
@@ -286,6 +290,7 @@ namespace Paniq.Simulation
 
                         people.MoveSeated(agent, Part(agent.Sitting.MoveFrom, seat, lowered, settings.SitLowerTicks),
                             agent.Body.Heading);
+                        agent.Sitting.SeatedPercent = Percent(lowered + 1, settings.SitLowerTicks);
                         return tick < agent.Intent.ActivityEndTick || SettleIntoTheChair(agent, chair);
                     }
 
@@ -325,27 +330,82 @@ namespace Paniq.Simulation
 
                 objects.StopPulling(chair);
                 agent.Sitting.MoveFrom = agent.Body.Position;
+
+                // Chosen once, here, from the seat. It used to be worked out
+                // afresh every tick from wherever they had got to, a step
+                // further on each time, so the spot ran away from them: they
+                // slid the better part of two metres backwards, faster and
+                // faster, and were then put half a metre further on in the
+                // tick they stood -- six people at a meeting table, all at
+                // once, straight into the walls.
+                agent.Sitting.StepTo = ChooseStepOutSpot(agent, chair);
                 agent.Sitting.PhaseStartTick = tick;
                 agent.Sitting.Phase = SitPhase.Rising;
+                agent.Sitting.SeatedPercent = 100 - Percent(1, settings.SitLowerTicks);
                 return true;
             }
 
             int risen = tick - agent.Sitting.PhaseStartTick;
-            LogicalPosition stepTo = StepOutSpot(agent, chair, IntegerMath.NormalizeDegrees(facing + 180));
+            LogicalPosition stepTo = agent.Sitting.StepTo;
             if (risen < settings.SitLowerTicks)
             {
                 people.MoveSeated(agent, Part(agent.Sitting.MoveFrom, stepTo, risen, settings.SitLowerTicks),
                     agent.Body.Heading);
+                agent.Sitting.SeatedPercent = 100 - Percent(risen + 1, settings.SitLowerTicks);
                 return true;
             }
 
+            // The last part of the move took them to the spot already, so
+            // standing up leaves them exactly where they are.
             objects.StandUp(chair, 0, 0);
             people.LeaveChair(agent, stepTo);
             agent.Sitting.ChairIndex = -1;
             agent.Sitting.OnIt = false;
             agent.Sitting.Phase = SitPhase.None;
             agent.Sitting.PulledOutMillimetres = 0;
+            agent.Sitting.SeatedPercent = 0;
             return false;
+        }
+
+        /// <summary>
+        /// The whole of a move that is <paramref name="step"/> of <paramref name="steps"/> along, as a percentage.
+        /// </summary>
+        private static int Percent(int step, int steps)
+        {
+            return Math.Min(100, Math.Max(0, step * 100 / Math.Max(1, steps)));
+        }
+
+        /// <summary>
+        /// Where somebody rising from a chair steps to, chosen once as they
+        /// start to rise: beside the chair, the way they stood to pull it out,
+        /// left first and then right; failing that, anywhere a step clear of
+        /// it; failing that, where they sit.
+        /// </summary>
+        private LogicalPosition ChooseStepOutSpot(Agent agent, int chair)
+        {
+            LogicalPosition seat = objects.PositionOf(chair);
+            int facing = objects.HeadingOf(chair);
+            int away = IntegerMath.NormalizeDegrees(facing + 180);
+            int beside = objects.RadiusOf(chair) + bodyRadius + 150;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                LogicalPosition step = seat + IntegerMath.Displacement(IntegerMath.NormalizeDegrees(away + side * 75), beside);
+                if (IsClearToStepTo(agent, chair, step))
+                {
+                    return step;
+                }
+            }
+
+            return StepOutSpot(agent, chair, away);
+        }
+
+        /// <summary>Floor, not table, and nobody and nothing (bar their own chair) in the way of it.</summary>
+        private bool IsClearToStepTo(Agent agent, int chair, LogicalPosition step)
+        {
+            return geometry.RoomAt(step) >= 0 &&
+                   geometry.TableAt(step, bodyRadius) < 0 &&
+                   crowd.FindBlocking(agent, agent.Body.Position, step) == null &&
+                   objects.FindBlocking(agent.Body.Position, step, bodyRadius, chair) < 0;
         }
 
         /// <summary>Part of the way from one spot to another: <paramref name="step"/> of <paramref name="steps"/>.</summary>
@@ -368,6 +428,7 @@ namespace Paniq.Simulation
             agent.Body.Speed = 0;
             agent.Sitting.Phase = SitPhase.None;
             agent.Sitting.PulledOutMillimetres = 0;
+            agent.Sitting.SeatedPercent = 100;
             agent.Intent.Activity = AgentActivityState.Sitting;
 
             // They turn to face the way the chair faces, not the way they
@@ -420,6 +481,7 @@ namespace Paniq.Simulation
             agent.Sitting.PhaseStartTick = context.Tick;
             agent.Sitting.MoveFrom = agent.Body.Position;
             agent.Sitting.PulledOutMillimetres = 0;
+            agent.Sitting.RisingFromPercent = agent.Sitting.SeatedPercent;
         }
 
         /// <summary>
@@ -433,6 +495,11 @@ namespace Paniq.Simulation
         {
             if (context.Tick < agent.Intent.ActivityEndTick)
             {
+                // Coming up out of the seat over the whole of the moment it
+                // costs them, from however far down they were when it began.
+                int whole = agent.Intent.ActivityEndTick - agent.Sitting.PhaseStartTick;
+                int gone = context.Tick - agent.Sitting.PhaseStartTick + 1;
+                agent.Sitting.SeatedPercent = agent.Sitting.RisingFromPercent * Math.Max(0, whole - gone) / Math.Max(1, whole);
                 return true;
             }
 
@@ -534,26 +601,25 @@ namespace Paniq.Simulation
             agent.Sitting.OnIt = false;
             agent.Sitting.Phase = SitPhase.None;
             agent.Sitting.PulledOutMillimetres = 0;
+            agent.Sitting.SeatedPercent = 0;
         }
 
         /// <summary>
-        /// The spot one step clear of the seat, looked for in a fixed order so
-        /// a replay picks the same one: straight back first, then further and
-        /// further round. Their own spot when nowhere is clear.
+        /// The spot one step clear of where they sit, looked for in a fixed
+        /// order so a replay picks the same one: straight back first, then
+        /// further and further round. Their own spot when nowhere is clear.
+        /// Asked once, as they start to rise; never while they are moving.
         /// </summary>
         private LogicalPosition StepOutSpot(Agent agent, int chair, int away)
         {
-            int clearance = context.Scenario.World.OccupancyRadiusMillimetres + objects.RadiusOf(chair) + 50;
+            int clearance = bodyRadius + objects.RadiusOf(chair) + 50;
             for (int turn = 0; turn <= 180; turn += 45)
             {
                 for (int side = -1; side <= 1; side += 2)
                 {
                     int heading = IntegerMath.NormalizeDegrees(away + side * turn);
                     LogicalPosition step = agent.Body.Position + IntegerMath.Displacement(heading, clearance);
-                    if (geometry.RoomAt(step) >= 0 &&
-                        geometry.TableAt(step, context.Scenario.World.OccupancyRadiusMillimetres) < 0 &&
-                        crowd.FindBlocking(agent, agent.Body.Position, step) == null &&
-                        objects.FindBlocking(agent.Body.Position, step, context.Scenario.World.OccupancyRadiusMillimetres, chair) < 0)
+                    if (IsClearToStepTo(agent, chair, step))
                     {
                         return step;
                     }

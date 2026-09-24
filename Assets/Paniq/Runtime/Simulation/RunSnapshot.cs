@@ -57,9 +57,11 @@ namespace Paniq.Simulation
             bool isBurning,
             bool isLeading = false,
             bool isComposed = false,
-            BodyPose pose = default)
+            BodyPose pose = default,
+            int seatedPercent = 0)
         {
             Pose = pose;
+            SeatedPercent = seatedPercent;
             Traits = traits;
             IsBurning = isBurning;
             IsLeading = isLeading;
@@ -132,6 +134,14 @@ namespace Paniq.Simulation
 
         public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp ||
                               BodyState == AgentBodyState.Unconscious;
+
+        /// <summary>
+        /// How far into a chair they are, nought to a hundred: nought on their
+        /// feet, a hundred sat down, in between while lowering onto the seat
+        /// or rising from it. The display lifts the body onto the seat by this
+        /// much, so sitting down and getting up read as a movement.
+        /// </summary>
+        public int SeatedPercent { get; }
     }
 
     /// <summary>A door as the player sees it: where its gap is and whether it is locked, unlocked or open.</summary>

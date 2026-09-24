@@ -327,6 +327,7 @@ namespace Paniq.Simulation
                 people.SitIn(agent, chair, objects.PositionOf(chair), agent.Body.Heading);
                 agent.Sitting.ChairIndex = chair;
                 agent.Sitting.OnIt = true;
+                agent.Sitting.SeatedPercent = 100;
                 agent.Intent.Activity = AgentActivityState.Sitting;
                 agent.Intent.LookHeading = agent.Body.Heading;
                 agent.Intent.ActivityEndTick = context.Scenario.Items.SeatedAtStartTicks;
@@ -476,6 +477,23 @@ namespace Paniq.Simulation
 
         /// <summary>Throws a thing straight up at this many millimetres per tick.</summary>
         internal void TossObjectUpForTests(int index, int velocityY) => objects.Launch(index, 0, 0, velocityY);
+
+        /// <summary>Tests only: everything about what one person is doing and why, in one line, for a test that has to say what went wrong.</summary>
+        internal string DescribeForTests(int index)
+        {
+            Agent a = agents[index];
+            string searchSpot = a.Knowledge.HasSearchSpot ? a.Knowledge.SearchSpot.ToString() : "-";
+            return $"person {a.Id.Value}: fear={a.Fear.State} activity={a.Intent.Activity} body={a.Body.State} " +
+                   $"at={a.Body.Position} heading={a.Body.Heading} speed={a.Body.Speed} blocked={a.Body.BlockedTicks} " +
+                   $"target={a.Intent.Target} activityEnd={a.Intent.ActivityEndTick} nextDecision={a.Intent.NextPanicDecisionTick} " +
+                   $"exitDoor={a.Doors.ExitDoorIndex} wayOut={a.Doors.WayOutDoorIndex} room={a.Doors.CurrentRoom} " +
+                   $"knowsAll={a.Knowledge.KnowsEverything} searching={a.Knowledge.Searching} searchSpot={searchSpot} " +
+                   $"freezeEnd={a.Fear.FreezeEndTick} reactionEnd={a.Fear.ReactionEndTick} temperament={a.Personality.Temperament}";
+        }
+
+        /// <summary>Tests only: this person heaves this table the way they are facing, as a panicking person stuck behind it would.</summary>
+        internal void HeaveTableForTests(int agentIndex, int table) =>
+            objects.HeaveTable(agents[agentIndex], table, agents[agentIndex].Body.Heading, 0UL);
 
         /// <summary>Tests only: whether a straight walk between two points runs into a table that is still standing.</summary>
         internal bool RouteCrossesTableForTests(LogicalPosition from, LogicalPosition to) => geometry.RouteCrossesTable(from, to);

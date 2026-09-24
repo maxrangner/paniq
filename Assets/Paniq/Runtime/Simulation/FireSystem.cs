@@ -696,6 +696,61 @@ namespace Paniq.Simulation
             return nearest;
         }
 
+        /// <summary>
+        /// Squared distance to the nearest burning point that is in one of
+        /// two rooms, or long.MaxValue when nothing burns there. What a shut
+        /// door asks: the flames that can eat it are the ones on either side
+        /// of it, not the ones in the room next door behind a wall. Ties go
+        /// to the earliest-lit cell.
+        /// </summary>
+        public long NearestCellDistanceSquaredInRooms(LogicalPosition position, int roomA, int roomB,
+            out LogicalPosition nearestPoint, out int nearestCell)
+        {
+            long nearest = long.MaxValue;
+            ulong nearestEventId = 0UL;
+            nearestPoint = position;
+            nearestCell = -1;
+            for (int i = 0; i < burningCells.Count; i++)
+            {
+                int cell = burningCells[i];
+                int room = cellRooms[cell];
+                if (room != roomA && room != roomB)
+                {
+                    continue;
+                }
+
+                LogicalPosition point = CellBounds(cell).ClosestPoint(position);
+                long distance = LogicalPosition.DistanceSquared(position, point);
+                ulong eventId = cellEventIds[cell];
+                if (distance < nearest || (distance == nearest && eventId < nearestEventId))
+                {
+                    nearest = distance;
+                    nearestEventId = eventId;
+                    nearestPoint = point;
+                    nearestCell = cell;
+                }
+            }
+
+            return nearest;
+        }
+
+        /// <summary>True when some burning point in one of these two rooms is strictly closer than <paramref name="distance"/>.</summary>
+        public bool AnyCloserThanInRooms(LogicalPosition position, int distance, int roomA, int roomB)
+        {
+            long reachSquared = (long)distance * distance;
+            for (int i = 0; i < burningCells.Count; i++)
+            {
+                int cell = burningCells[i];
+                int room = cellRooms[cell];
+                if ((room == roomA || room == roomB) && CellBounds(cell).DistanceSquaredTo(position) < reachSquared)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private long NearestByCheckingEveryCell(LogicalPosition position, out LogicalPosition nearestPoint, out int nearestCell)
         {
             long nearest = long.MaxValue;

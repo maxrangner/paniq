@@ -153,6 +153,19 @@ namespace Paniq.Simulation
             return false;
         }
 
+        public bool AnyCloserThanInRooms(LogicalPosition position, int distance, int roomA, int roomB)
+        {
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (all[i].AnyCloserThanInRooms(position, distance, roomA, roomB))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public bool IsInRoom(int room)
         {
             for (int i = 0; i < all.Count; i++)

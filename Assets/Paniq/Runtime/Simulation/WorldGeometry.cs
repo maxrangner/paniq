@@ -1510,19 +1510,21 @@ namespace Paniq.Simulation
         /// <summary>
         /// Adds a push away from each wall of the room the person is in,
         /// within <paramref name="range"/>, weighted as a percentage of a
-        /// unit goal vector. The wall holding the door they are lined up with
-        /// does not push, so they can walk through it. Nothing pushes while
-        /// they are in a doorway.
+        /// unit goal vector, and away from each table's edge, weighted by
+        /// <paramref name="tablePercent"/>. The wall holding the door they are
+        /// lined up with does not push, so they can walk through it. Nothing
+        /// pushes while they are in a doorway.
         /// </summary>
         public void AddWallRepulsion(
             LogicalPosition position,
             int exitDoor,
             long range,
             int percent,
+            int tablePercent,
             ref long steerX,
             ref long steerZ)
         {
-            if (range <= 0L || percent <= 0)
+            if (range <= 0L || (percent <= 0 && tablePercent <= 0))
             {
                 return;
             }
@@ -1533,8 +1535,10 @@ namespace Paniq.Simulation
                 return;
             }
 
-            // Away from the nearest point of each nearby table, like a wall.
-            for (int t = 0; t < tables.Length; t++)
+            // Away from the nearest point of each nearby table. Tables used to
+            // push exactly as hard as walls, so a running crowd never touched
+            // one; now how hard is the caller's to say.
+            for (int t = 0; tablePercent > 0 && t < tables.Length; t++)
             {
                 LogicalPosition closest = tables[t].ClosestPoint(position);
                 long dx = (long)position.X - closest.X;
@@ -1545,9 +1549,14 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                long push = WallPush(distance - radius, range, percent);
+                long push = WallPush(distance - radius, range, tablePercent);
                 steerX += dx * push / distance;
                 steerZ += dz * push / distance;
+            }
+
+            if (percent <= 0)
+            {
+                return;
             }
 
             LogicalBounds b = rooms[room];

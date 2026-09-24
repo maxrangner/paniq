@@ -101,6 +101,9 @@ namespace Paniq.Tests.EditMode
             public bool AnyCloserThan(LogicalPosition position, int distance) =>
                 NearestDistanceSquared(position, out _, out _) < (long)distance * distance;
 
+            public bool AnyCloserThanInRooms(LogicalPosition position, int distance, int roomA, int roomB) =>
+                (room == roomA || room == roomB) && AnyCloserThan(position, distance);
+
             public bool IsInRoom(int r) => Active && r == room;
 
             public bool IsVisibleFrom(LogicalPosition eye, int heading, int range)

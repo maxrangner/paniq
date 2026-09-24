@@ -177,6 +177,163 @@ namespace Paniq.Tests.EditMode
             Assert.That(chairBumps, Is.GreaterThan(0), "Nobody ever kicked a chair.");
         }
 
+        /// <summary>How upright a table stands: 1 on its legs, 0 on its side, -1 on its back.</summary>
+        private static float Uprightness(TableSnapshot table)
+        {
+            if (!table.Pose.IsKnown)
+            {
+                return 1f;
+            }
+
+            var turn = new Quaternion(
+                table.Pose.RotationX / (float)BodyPose.RotationScale, table.Pose.RotationY / (float)BodyPose.RotationScale,
+                table.Pose.RotationZ / (float)BodyPose.RotationScale, table.Pose.RotationW / (float)BodyPose.RotationScale);
+            return (turn * Vector3.up).y;
+        }
+
+        /// <summary>The first table's index in the snapshot, by its ID.</summary>
+        private static int IndexOfTable(Run simulation, SimulationId tableId)
+        {
+            RunSnapshot snapshot = simulation.GetSnapshot();
+            for (int i = 0; i < snapshot.Tables.Count; i++)
+            {
+                if (snapshot.Tables[i].TableId == tableId)
+                {
+                    return i;
+                }
+            }
+
+            throw new KeyNotFoundException(tableId.ToString());
+        }
+
+        /// <summary>One person standing at the west edge of a table, facing it, with nothing else going on.</summary>
+        private ScenarioData OnePersonAtATable(SimulationId tableId, out int table)
+        {
+            ScenarioData data = DefaultData();
+            data.Fire.ActivationTick = int.MaxValue;
+            data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            TableDefinition authored = Array.Find(data.Tables, t => t.TableId == tableId);
+            var beside = new LogicalPosition(authored.Centre.X - authored.WidthMillimetres / 2 - 300, authored.Centre.Z);
+            data.Agents = new[]
+            {
+                new AgentDefinition(new SimulationId(1UL), beside, CardinalDirection.East, AgentTraitValues.AllOrdinary)
+            };
+            using (var probe = new Run(data))
+            {
+                table = IndexOfTable(probe, tableId);
+            }
+
+            return data;
+        }
+
+        /// <summary>
+        /// A heave at a desk sends it over. The push lands on the top edge
+        /// nearest the hands, so it tips away from whoever heaved it rather
+        /// than sliding off on its legs the way a blast shoves it.
+        /// </summary>
+        [Test]
+        public void AHeaveAtADesk_SendsItOver()
+        {
+            ScenarioData data = OnePersonAtATable(new SimulationId(4001UL), out int table);
+            using (var simulation = new Run(data))
+            {
+                simulation.Step();
+                Assert.That(Uprightness(simulation.GetSnapshot().Tables[table]), Is.GreaterThan(0.9f), "The desk starts on its legs.");
+                simulation.HeaveTableForTests(0, table);
+                float lowest = 1f;
+                for (int t = 0; t < 3 * Run.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                    lowest = Math.Min(lowest, Uprightness(simulation.GetSnapshot().Tables[table]));
+                }
+
+                Assert.That(lowest, Is.LessThan(0.7f), "A 21 kg desk heaved at its top edge should go over.");
+                bool logged = false;
+                foreach (CausalEvent record in simulation.EventLog.Events)
+                {
+                    logged |= record.EventType == CausalEventType.TableHeaved && record.TargetId == new SimulationId(4001UL);
+                }
+
+                Assert.That(logged, Is.True, "Heaving a table is something that happened, so it names the table in the log.");
+            }
+        }
+
+        /// <summary>
+        /// The same heave at the 135 kg meeting table shifts it and no more:
+        /// heavy tables get a smaller share of a heave, as they do of a blast,
+        /// so the meeting room's table stays a table you can hide behind.
+        /// </summary>
+        [Test]
+        public void AHeaveAtTheMeetingTable_ShiftsItWithoutTippingIt()
+        {
+            ScenarioData data = OnePersonAtATable(new SimulationId(4004UL), out int table);
+            using (var simulation = new Run(data))
+            {
+                simulation.Step();
+                LogicalBounds before = simulation.GetSnapshot().Tables[table].Bounds;
+                simulation.HeaveTableForTests(0, table);
+                float lowest = 1f;
+                for (int t = 0; t < 3 * Run.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                    lowest = Math.Min(lowest, Uprightness(simulation.GetSnapshot().Tables[table]));
+                }
+
+                LogicalBounds after = simulation.GetSnapshot().Tables[table].Bounds;
+                Assert.That(lowest, Is.GreaterThan(0.9f), "The meeting table is far too heavy for one heave to tip.");
+                Assert.That(after.MinX, Is.GreaterThan(before.MinX), "It should still have shifted along the floor.");
+                Assert.That(after.MinX - before.MinX, Is.LessThan(500), "Shifted, not sent across the room.");
+            }
+        }
+
+        /// <summary>
+        /// Somebody running from the fire with a desk across their way, and no
+        /// way round it, heaves it out of the way instead of grinding against
+        /// it. Tables used to be kept off exactly like walls and nobody ever
+        /// touched one, so no table was ever seen to move in a panic.
+        /// </summary>
+        [Test]
+        public void SomebodyStuckBehindADesk_HeavesItOutOfTheWay()
+        {
+            ScenarioData data = scenario.ToRuntimeData();
+            var room = new SimulationId(5001UL);
+
+            // A corridor barely wider than a desk, with the way out at the
+            // north end, a desk across the middle and the fire at the south end.
+            data.Rooms = new[] { new RoomDefinition(room, new LogicalBounds(-700, 700, -3000, 3000)) };
+            data.Doors = new[] { new DoorDefinition(new SimulationId(2001UL), room, WallSide.North, 0, 800, startsLocked: false) };
+            data.Tables = new[] { new TableDefinition(new SimulationId(4001UL), new LogicalPosition(0, 0), 1200, 700) };
+            data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.ExitSigns = new ExitSignDefinition[0];
+            data.Alarms = new AlarmDefinition[0];
+            data.PowerLines = new PowerLineDefinition[0];
+            data.Agents = new[]
+            {
+                new AgentDefinition(new SimulationId(1UL), new LogicalPosition(0, -1700), CardinalDirection.North,
+                    AgentTraitValues.AllOrdinary)
+            };
+            data.Fire.ActivationTick = 1;
+            data.Fire.SpawnBounds = new LogicalBounds(0, 0, -2400, -2400);
+            data.Fire.SpreadMinimumTicks = 1000000;
+            data.Fire.SpreadMaximumTicks = 1000000;
+            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Round.HazardWaitsForTrigger = false;
+            using (var simulation = new Run(data))
+            {
+                bool heaved = false;
+                for (int t = 0; t < 10 * Run.TicksPerSecond && !heaved; t++)
+                {
+                    simulation.Step();
+                    foreach (CausalEvent record in simulation.EventLog.Events)
+                    {
+                        heaved |= record.EventType == CausalEventType.TableHeaved;
+                    }
+                }
+
+                Assert.That(heaved, Is.True, "Stuck behind a desk with the fire behind them, they should have heaved it.");
+            }
+        }
+
         [Test]
         public void KickedChair_ShovesATableRatherThanGoingThroughIt()
         {

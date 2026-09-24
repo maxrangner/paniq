@@ -81,6 +81,19 @@ namespace Paniq.Editor
                 SessionState.SetBool(RefreshedKey, false);
             }
 
+            if (EditorApplication.isPlaying)
+            {
+                // A playtest left running would block every test. Nobody is
+                // here to stop it -- the script that asked is waiting on a
+                // file -- so it is stopped here, and the request keeps (it is
+                // in session state, which outlives the reload) until the
+                // editor is back in edit mode. It used to refuse instead, and
+                // the only way on was to close and reopen the editor.
+                WriteStatus("stopping play mode");
+                EditorApplication.isPlaying = false;
+                return;
+            }
+
             if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
 
             if (!SessionState.GetBool(RefreshedKey, false))
@@ -99,13 +112,6 @@ namespace Paniq.Editor
             {
                 string messages = File.Exists(CompileLogPath) ? File.ReadAllText(CompileLogPath) : string.Empty;
                 File.WriteAllText(ResultPath, "compile=failed\n" + messages + "done=" + id + "\n");
-                WriteStatus("idle");
-                return;
-            }
-
-            if (EditorApplication.isPlaying)
-            {
-                File.WriteAllText(ResultPath, "error=The editor is in play mode; stop it and try again.\ndone=" + id + "\n");
                 WriteStatus("idle");
                 return;
             }

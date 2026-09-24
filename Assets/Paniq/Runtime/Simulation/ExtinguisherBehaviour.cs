@@ -170,9 +170,15 @@ namespace Paniq.Simulation
             // flames than they otherwise would, but not in them.
             long nerve = TraitEffects.DangerDistance(agent, context.Scenario) * settings.DangerTolerancePercent / 100L;
             bool tooClose = agent.Carry.Holding ? fire.AnyCloserThan(agent.Body.Position, (int)nerve) : inDanger;
+            bool gettingNowhere = agent.Body.BlockedTicks >= settings.BlockedGiveUpTicks;
             if (item < 0 || tooClose || !agent.Body.IsOnTheirFeet || agent.Burning.IsBurning ||
-                tick >= agent.Intent.ActivityEndTick)
+                tick >= agent.Intent.ActivityEndTick || gettingNowhere)
             {
+                if (gettingNowhere && agent.Carry.Holding)
+                {
+                    items.PutDownWhereTheyStand(agent, agent.Fear.ScaredEventId);
+                }
+
                 GiveUp(agent);
                 return null;
             }
@@ -403,7 +409,13 @@ namespace Paniq.Simulation
         private MotorIntent Walk(Agent agent, LogicalPosition where, int speed)
         {
             agent.Intent.Target = where;
-            int heading = IntegerMath.HeadingBetween(agent.Body.Position, where, agent.Body.Heading);
+
+            // Round what is in the way. The bottle is chosen by how far it is
+            // to walk to it, which may be through two doorways, and this used
+            // to head straight at it: three people from the meeting stood
+            // nose to the wall between them and the cafeteria's extinguisher
+            // for as long as the errand lasted (seed 41).
+            int heading = geometry.Routes.HeadingToward(agent.Body.Position, where, bodyRadius, agent.Body.Heading);
             return new MotorIntent(heading, speed, agent.Personality.PanicTurnRate, context.Scenario.Panic.Acceleration);
         }
 

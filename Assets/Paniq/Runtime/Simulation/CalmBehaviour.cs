@@ -195,7 +195,8 @@ namespace Paniq.Simulation
             if (steer)
             {
                 goalHeading = locomotion.Steer(agent, goalHeading,
-                    settings.PeopleAvoidPercent, settings.WallAvoidPercent, settings.ObjectAvoidPercent);
+                    settings.PeopleAvoidPercent, settings.WallAvoidPercent, settings.ObjectAvoidPercent,
+                    tableAvoidPercent: settings.TableAvoidPercent);
             }
 
             return new MotorIntent(goalHeading, goalSpeed, turnRate, settings.Acceleration);

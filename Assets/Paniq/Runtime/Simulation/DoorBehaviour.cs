@@ -1185,8 +1185,12 @@ namespace Paniq.Simulation
                 return;
             }
 
+            // Flames on either side of the door, not flames behind the wall
+            // beside it.
             LogicalPosition doorCentre = geometry.DoorCentre(door);
-            bool flamesAtTheDoor = threats.AnyCloserThan(doorCentre, settings.FireAtDoorRadiusMillimetres);
+            int doorRoom = geometry.DoorRoom(door);
+            bool flamesAtTheDoor = threats.AnyCloserThanInRooms(doorCentre, settings.FireAtDoorRadiusMillimetres,
+                doorRoom, geometry.RoomBeyond(door, doorRoom));
             if (!flamesAtTheDoor && WouldCutOffTheirOwnWayOut(agent, room, door))
             {
                 // Getting out beats shutting the fire in. Nobody slams a door

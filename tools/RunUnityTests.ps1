@@ -9,7 +9,8 @@
     watches Temp/PaniqTestBridge/request.txt, compiles any changed code, runs
     the tests with Unity's own runner and writes the results back.
 
-    The editor must be open on this project and not in play mode. The first
+    The editor must be open on this project; a playtest left running is
+    stopped by the bridge before the tests start. The first
     time the bridge itself is added, click into the editor once so Unity
     compiles it; after that it picks up code changes by itself.
 

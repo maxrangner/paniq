@@ -15,10 +15,12 @@ namespace Paniq.Presentation
     /// up until they have driven the camera down there to look.
     /// </para>
     /// <para>
-    /// Drawn lying flat, a little above head height, rather than upright on the
-    /// wall. The view looks down on the building, so a flat sign reads at a
-    /// glance from any angle the camera can be swung to, and an upright one
-    /// would be edge-on half the time.
+    /// Drawn standing upright, a little above head height, the way a sign hangs
+    /// on a wall, with the arrow on both faces. They were laid flat for a while
+    /// so the camera, which looks down on the building, could read them from
+    /// any angle; the owner asked for them upright (2026-09-24), so that they
+    /// read as signs the people in the building are looking at, and accepted
+    /// that from some camera angles a sign is seen edge-on.
     /// </para>
     /// </summary>
     internal sealed class ExitSignView
@@ -55,19 +57,22 @@ namespace Paniq.Presentation
             var at = new GameObject($"Exit sign {index + 1}").transform;
             at.SetParent(root, false);
 
-            // Laid flat with its face upward, then turned so its local +X
-            // points the way out. The heading is a compass bearing clockwise
+            // Standing upright, turned so its local +X points the way out: the
+            // plate then lies along the way it points, like a sign on the wall
+            // beside a corridor. The heading is a compass bearing clockwise
             // from north, which is how every other direction in the run is
-            // written, and the extra quarter turn is what lines +X up with it.
+            // written, and the quarter turn is what lines +X up with it.
             at.SetPositionAndRotation(
                 ToUnityPosition(sign.At) + Vector3.up * Height,
-                Quaternion.Euler(-90f, sign.PointingDegrees - 90f, 0f));
+                Quaternion.Euler(0f, sign.PointingDegrees - 90f, 0f));
 
-            GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            // A thin slab rather than a flat quad, so that seen edge-on it is
+            // still a sliver of green rather than nothing at all.
+            GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
             plate.name = "Plate";
             Object.Destroy(plate.GetComponent<Collider>());
             plate.transform.SetParent(at, false);
-            plate.transform.localScale = new Vector3(0.9f, 0.34f, 1f);
+            plate.transform.localScale = new Vector3(0.9f, 0.34f, PlateThickness);
             Renderer plateRenderer = plate.GetComponent<Renderer>();
             plateRenderer.sharedMaterial = materials.Icon;
             plateRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -77,15 +82,24 @@ namespace Paniq.Presentation
             plateRenderer.SetPropertyBlock(block);
 
             // A chevron and a shaft, pointing along the sign's local +X --
-            // which the rotation above has aimed at the way out. The sign is
-            // laid flat, so its local +Z is world up: the arrow goes on that
-            // side to sit on top of the plate. It used to be at -0.02, which
-            // hung it underneath, and since plate and arrow share a
-            // transparent material the plate simply drew over it -- every sign
-            // read as a blank green rectangle.
-            var arrow = new GameObject("Arrow");
+            // which the rotation above has aimed at the way out -- on both
+            // faces of the plate, since the sign can be looked at from
+            // either side and an arrow pointing east points east from both.
+            BuildArrow(at, PlateThickness * 0.5f + ArrowStandOff, materials);
+            BuildArrow(at, -(PlateThickness * 0.5f + ArrowStandOff), materials);
+        }
+
+        /// <summary>How thick the plate is, in metres.</summary>
+        private const float PlateThickness = 0.02f;
+
+        /// <summary>How far off each face the arrow floats, in metres, so the plate does not draw over it.</summary>
+        private const float ArrowStandOff = 0.005f;
+
+        private static void BuildArrow(Transform at, float offset, PresentationMaterials materials)
+        {
+            var arrow = new GameObject(offset > 0f ? "Arrow" : "Arrow (back)");
             arrow.transform.SetParent(at, false);
-            arrow.transform.localPosition = new Vector3(0f, 0f, 0.02f);
+            arrow.transform.localPosition = new Vector3(0f, 0f, offset);
             LineRenderer line = arrow.AddComponent<LineRenderer>();
             line.useWorldSpace = false;
             line.alignment = LineAlignment.TransformZ;

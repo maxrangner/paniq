@@ -233,7 +233,7 @@ the ones worth keeping is a question only playing it answers.
 | Doorways with no door in them | System | The corridor turns a corner without a door in the middle of it. A room has always been a rectangle, so a corridor that turns is two of them, and until now two rooms could only be joined by a door -- which would have put a swinging door in the middle of a hallway. An **archway** is a doorway with nothing in it: permanently open, nothing to shut, and the fire walks straight through |
 | Bathroom stalls | Style | Three stalls off the bathroom, each its own little room with its own narrow door, the way the storage closet already hangs off the office |
 | The power runs through the walls | System | The sockets are joined by cable running through the walls, and every run ends at the main fuse box in the maintenance room. When the flames reach a socket it pops and the cable lights like a fuse on a stick of dynamite: a spark crawls along the wall to the next socket, which pops in turn, and so on down the line. When it reaches the fuse box, the box goes off harder than anything else in the building |
-| Signs to the way out | Style | Little green signs along the corridor with an arrow pointing the way to the actual exit, and one in each arm of the T -- including the dead end, because somebody who has run down it needs telling they have. They are drawn lying flat above head height rather than upright on a wall, because the view looks down on the building and an upright sign would be edge-on half the time |
+| Signs to the way out | Style | Little green signs along the corridor with an arrow pointing the way to the actual exit, and one in each arm of the T -- including the dead end, because somebody who has run down it needs telling they have. They were drawn lying flat above head height at first; since the playtest fixes of 2026-09-24 they stand upright, as the owner asked |
 | A card for the fuse box | System | A fifth card pops the fuse box yourself. The spark then runs the *other* way, out of the maintenance room and along the line of sockets. It is the far end of the floor from the way out, so it is a deliberate trip to the back of the building |
 | The fire could start anywhere | System | One run it starts among the desks, the next behind a bathroom stall door, the next by the cafeteria counter. It used to be drawn from one four-metre patch of carpet in the middle of the office, so the seed changed who panicked but never changed the problem. The corridor is deliberately left off the list: it is the one route the whole floor shares, and a fire starting in it would cut the building in half before the player had touched anything |
 | Getting out of a chair | System | People frightened out of a seat come up where they sat and then turn and run. They used to be shoved the better part of a metre straight backwards from the way they were facing in a single tick, and because everyone at the meeting table faces the table, the whole meeting appeared to float backwards into the walls the moment the alarm went |
@@ -283,6 +283,22 @@ one corridor to one door. That is the tension it is built for, but it may simply
 read as a queue. The dead-end arm of the T is the other thing to watch: it
 exists to be a wrong turn, and whether anybody actually takes it is a question
 only playing it answers.
+
+## Prototype 2: playtest fixes (2026-09-24)
+
+The owner played seeds 41 and 42 and listed seven things. Investigating them
+found that two were the same bug, and that the chair fix of 2026-09-23 had
+repaired only the frightened way out of a seat.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| Getting up from a chair on purpose | System | When a sit is over, somebody backs the chair out, rises, and steps beside it over half a second, and that is all. They used to slide the better part of two metres backwards, faster and faster, and then jump another half metre in the tick they stood -- and since everybody who starts the round seated gets up at the minute mark, the whole meeting room did it together, into the walls, on seed 42 |
+| Sitting down and getting up read as a movement | Style | The body lifts onto the seat over half a second and comes back down the same way, including when somebody leaps up in a fright. It used to pop onto the seat and pop off it |
+| A door burns from its own side | System | A shut door chars only when the flames are in one of the two rooms it opens onto. On seed 42 the bathroom fire used to burn open the storage closet's door through the wall between them, from a room that door has nothing to do with |
+| Tables shoved and tipped in a panic | System | A crowd running past desks brushes and bumps them along, and somebody wedged behind a desk with nowhere to go heaves it over, away from them. The meeting table is far too heavy to tip and only shifts. Tables used to be steered round exactly like walls, so nobody ever touched one, and only a blast could move one |
+| Nobody stands staring at a wall | System | On seed 41 people came out of the meeting into the corridor and stood nose to the wall. They were going for the cafeteria's fire extinguisher and walking straight at it through the wall between, and nothing made them give up. Fetching a bottle now goes round by the doors like every other errand, and a second of getting nowhere ends it. A test now watches every frightened person on seeds 41 and 42 for ten seconds of standing still |
+| Sitting looks like sitting | Style | A seated person is the standing person, untouched, lifted onto the flat of the chair. They were being squashed to two-thirds height at full width, which flattens a capsule's rounded ends into a blob. The owner's call: no leaning, no squashing, no deforming |
+| Signs stand up | Style | The green exit signs stand upright along the corridor like signs on a wall, with the arrow on both faces, instead of lying flat facing the sky. The owner's call |
 
 ## Foundations reviewed (2026-09-23)
 

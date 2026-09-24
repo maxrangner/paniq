@@ -1178,9 +1178,7 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                long massGrams = Math.Max(1000L,
-                    (long)(bounds.MaxX - bounds.MinX) * (bounds.MaxZ - bounds.MinZ) *
-                    context.Scenario.Flammables.TableMassGramsPerSquareMetre / 1000000L);
+                long massGrams = TableMassGrams(bounds);
                 long share = Math.Min(strength, strength * BlastReferenceMassGrams / massGrams);
                 int away = IntegerMath.HeadingBetween(centre, middle, 0);
                 LogicalPosition velocity = IntegerMath.Displacement(away, (int)share);
@@ -1200,6 +1198,37 @@ namespace Paniq.Simulation
         /// as heavy gets half of it.
         /// </summary>
         private const long BlastReferenceMassGrams = 20000L;
+
+        /// <summary>What a table weighs, as the physics was told: its top's area at the flammables' weight per square metre.</summary>
+        private long TableMassGrams(LogicalBounds bounds)
+        {
+            return Math.Max(1000L,
+                (long)(bounds.MaxX - bounds.MinX) * (bounds.MaxZ - bounds.MinZ) *
+                context.Scenario.Flammables.TableMassGramsPerSquareMetre / 1000000L);
+        }
+
+        /// <summary>
+        /// Somebody heaves a table out of their way: a change of speed the way
+        /// they are going, delivered at the table's top edge nearest them, so a
+        /// light desk goes over away from them and a heavy one slides. Shared
+        /// out by weight as a blast's shove is, but never below the panic
+        /// settings' least share, so even the meeting table shifts. Logged,
+        /// because a table going over is a commotion the round should pay for
+        /// and the story should tell.
+        /// </summary>
+        public void HeaveTable(Agent agent, int table, int heading, ulong causeEventId)
+        {
+            LogicalBounds bounds = geometry.TableBounds(table);
+            PanicSettings panic = context.Scenario.Panic;
+            long strength = (long)panic.TableHeaveSpeedMillimetresPerTick * feel.ThrowStrengthPercent / 100L;
+            long share = Math.Max(strength * panic.TableHeaveLeastPercent / 100L,
+                Math.Min(strength, strength * BlastReferenceMassGrams / TableMassGrams(bounds)));
+            LogicalPosition velocity = IntegerMath.Displacement(heading, (int)share);
+            LogicalPosition hands = bounds.ClosestPoint(agent.Body.Position);
+            world.HeaveTable(table, hands, (long)velocity.X * SubMillimetre, (long)velocity.Z * SubMillimetre);
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.TableHeaved, hands,
+                (int)share, 0, causeEventId, geometry.TableId(table));
+        }
 
         /// <summary>
         /// Sets a flung thing turning end over end, away from where it was

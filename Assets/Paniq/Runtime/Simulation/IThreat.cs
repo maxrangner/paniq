@@ -61,6 +61,13 @@ namespace Paniq.Simulation
         /// <summary>True when some part of the threat is strictly closer than this.</summary>
         bool AnyCloserThan(LogicalPosition position, int distance);
 
+        /// <summary>
+        /// True when some part of the threat that is in one of these two rooms
+        /// is strictly closer than this. What a door asks about the rooms it
+        /// joins, so that a fire behind the wall next to it does not count.
+        /// </summary>
+        bool AnyCloserThanInRooms(LogicalPosition position, int distance, int roomA, int roomB);
+
         /// <summary>True when the threat is in this room.</summary>
         bool IsInRoom(int room);
 

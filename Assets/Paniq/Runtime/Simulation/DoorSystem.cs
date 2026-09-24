@@ -584,8 +584,16 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                // Only flames in a room the door opens onto can reach it. It
+                // used to be any flames within reach in a straight line, wall
+                // or no wall: the storage closet is two metres deep, so a fire
+                // in the bathroom the other side of its back wall was exactly
+                // within reach of its door, and burnt it open from a room the
+                // door has nothing to do with.
                 LogicalPosition centre = geometry.DoorCentre(door);
-                long gap = fire.NearestCellDistanceSquared(centre, out LogicalPosition flames, out int cell);
+                int room = geometry.DoorRoom(door);
+                long gap = fire.NearestCellDistanceSquaredInRooms(centre, room, geometry.RoomBeyond(door, room),
+                    out LogicalPosition flames, out int cell);
                 if (cell < 0 || gap > (long)reach * reach)
                 {
                     continue;

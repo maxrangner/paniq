@@ -189,6 +189,7 @@
                 case CausalEventType.DoorBurntThrough:
                 case CausalEventType.BoxHitAgent:
                 case CausalEventType.AlarmPulled:
+                case CausalEventType.TableHeaved:
                     return UproarTier.Middling;
 
                 case CausalEventType.AgentYelled:

@@ -497,6 +497,30 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Heaves a table by hand: the same change of speed across the floor
+        /// (hundredths of a millimetre per tick), but delivered at a point on
+        /// its top edge -- the point over <paramref name="at"/>, which is where
+        /// the hands are -- rather than through its middle. Pushed at the top,
+        /// a light table goes over away from the push and a heavy one slides;
+        /// pushed through the middle, as a blast does, nothing ever tips. The
+        /// push is scaled by the table's weight so that the engine turns it as
+        /// a real shove of that strength would.
+        /// </summary>
+        public void HeaveTable(int index, LogicalPosition at, long vx, long vz)
+        {
+            Rigidbody rigidbody = tableBodies[index];
+            if (rigidbody.isKinematic)
+            {
+                return;
+            }
+
+            Vector3 hands = new Vector3(MetresFromMillimetres(at.X), rigidbody.position.y + tableSizes[index].y,
+                MetresFromMillimetres(at.Z));
+            rigidbody.AddForceAtPosition(VelocityInMetres(vx, 0L, vz) * rigidbody.mass, hands, ForceMode.Impulse);
+            rigidbody.WakeUp();
+        }
+
+        /// <summary>
         /// A plug filling a doorway, there while the door is shut. The door
         /// leaf itself is drawn by the display; to the physics a shut door is
         /// simply more wall.

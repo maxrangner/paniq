@@ -263,6 +263,96 @@ namespace Paniq.Tests.EditMode
                 "They should come up out of the seat where they sat, not a stride behind it.");
         }
 
+        /// <summary>
+        /// Getting up on purpose, when the sit is over, is a step beside the
+        /// chair and nothing more. The spot to step to used to be worked out
+        /// afresh every tick from wherever they had got to, so it ran away
+        /// from them: they slid the better part of two metres backwards,
+        /// faster and faster, and were then put half a metre further on in the
+        /// tick they stood. Six people at a meeting table did it together,
+        /// straight into the walls, at the minute mark when the meeting ends.
+        /// </summary>
+        [Test]
+        public void GettingUpOnPurpose_IsAStepBesideTheChairNotAGlide()
+        {
+            ScenarioData data = OnePersonOneChair();
+            data.Items.SitMinimumTicks = 50;
+            data.Items.SitMaximumTicks = 50;
+            var simulation = new Run(data);
+            for (int t = 0; t < 20 * Run.TicksPerSecond &&
+                            simulation.GetAgent(0).ActivityState != AgentActivityState.Sitting; t++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(simulation.GetAgent(0).ActivityState, Is.EqualTo(AgentActivityState.Sitting), "Nobody sat down.");
+            LogicalPosition seat = simulation.GetAgent(0).Position;
+            LogicalPosition previous = seat;
+            long longestStep = 0L;
+            for (int t = 0; t < 10 * Run.TicksPerSecond && OnTheChair(simulation); t++)
+            {
+                simulation.Step();
+                LogicalPosition now = simulation.GetAgent(0).Position;
+                longestStep = Math.Max(longestStep, IntegerMath.Distance(previous, now));
+                previous = now;
+            }
+
+            Assert.That(OnTheChair(simulation), Is.False, "They never got out of the chair.");
+            Assert.That(longestStep, Is.LessThan(200L),
+                "Nobody crosses 200 mm of floor in a fiftieth of a second. A jump that big is a teleport, not a step.");
+            Assert.That(IntegerMath.Distance(seat, simulation.GetAgent(0).Position), Is.LessThan(900L),
+                "Getting up is a step beside the chair, not a stride across the room.");
+        }
+
+        /// <summary>
+        /// The display lifts a body onto the seat by how far into the chair
+        /// the simulation says they are, so sitting down and getting up read
+        /// as a movement rather than a change. That number has to climb
+        /// steadily to a hundred and come steadily back down: any jump in it
+        /// is a body popping up or down on the screen.
+        /// </summary>
+        [Test]
+        public void HowFarIntoTheSeatTheyAre_ClimbsAndFallsSteadily()
+        {
+            ScenarioData data = OnePersonOneChair();
+            data.Items.SitMinimumTicks = 50;
+            data.Items.SitMaximumTicks = 50;
+            int steadiest = 100 / data.Items.SitLowerTicks + 1;
+            var simulation = new Run(data);
+            Assert.That(simulation.GetAgent(0).SeatedPercent, Is.Zero, "On their feet to begin with.");
+
+            int before = 0;
+            int biggestJump = 0;
+            bool everSat = false;
+            bool falling = false;
+            for (int t = 0; t < 30 * Run.TicksPerSecond; t++)
+            {
+                simulation.Step();
+                int now = simulation.GetAgent(0).SeatedPercent;
+                biggestJump = Math.Max(biggestJump, Math.Abs(now - before));
+                everSat |= now == 100;
+                if (now < before)
+                {
+                    falling = true;
+                }
+                else if (now > before)
+                {
+                    Assert.That(falling, Is.False, $"Tick {simulation.Tick}: they were rising from the seat and sank back into it.");
+                }
+
+                before = now;
+                if (everSat && now == 0)
+                {
+                    break;
+                }
+            }
+
+            Assert.That(everSat, Is.True, "They never got all the way into the chair.");
+            Assert.That(simulation.GetAgent(0).SeatedPercent, Is.Zero, "They never got all the way back out of it.");
+            Assert.That(biggestJump, Is.LessThanOrEqualTo(steadiest),
+                "Sitting down and getting up are spread evenly over the ticks they take; a bigger jump would draw as a pop.");
+        }
+
         [Test]
         public void SomeoneSittingWhenTheFireStarts_GetsUpBeforeTheyRun()
         {

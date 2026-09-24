@@ -76,11 +76,48 @@ namespace Paniq.Simulation
         /// </summary>
         public void Bind(Systems systems)
         {
+            objects = systems.Objects;
             options = new IPanicOption[]
             {
                 systems.Leaders, systems.Extinguishers, systems.Help, systems.AlarmBehaviour, systems.Barricades
             };
         }
+
+        /// <summary>The loose things and the tables, for heaving a table out of the way.</summary>
+        private PhysicsObjectSystem objects;
+
+        /// <summary>
+        /// Stuck with a table between them and where they are going: they
+        /// heave it out of the way, which sends a light one over and shifts a
+        /// heavy one. Self-preservation, so anybody does it, and it costs
+        /// them a moment before they can do it again. True when they did.
+        /// </summary>
+        private bool TryHeaveTable(Agent agent)
+        {
+            LogicalPosition position = agent.Body.Position;
+            LogicalPosition target = agent.Intent.Target;
+            if (objects == null || agent.Body.State != AgentBodyState.Upright || position.Equals(target) ||
+                context.Tick < agent.Intent.NextTableHeaveTick)
+            {
+                return false;
+            }
+
+            int heading = IntegerMath.HeadingBetween(position, target, agent.Body.Heading);
+            LogicalPosition ahead = position + IntegerMath.Displacement(heading, bodyRadius + ArmsReachMillimetres);
+            int table = geometry.TableAt(ahead, bodyRadius);
+            if (table < 0)
+            {
+                return false;
+            }
+
+            objects.HeaveTable(agent, table, heading, agent.Fear.ScaredEventId);
+            agent.Intent.NextTableHeaveTick = checked(context.Tick + settings.TableHeaveRestTicks);
+            agent.Body.BlockedTicks = 0;
+            return true;
+        }
+
+        /// <summary>How far in front of their body somebody's hands reach when they heave at a table.</summary>
+        private const int ArmsReachMillimetres = 300;
 
         /// <summary>
         /// This tick's panicked decision. Returns no intent when the person
@@ -203,9 +240,10 @@ namespace Paniq.Simulation
                        agent.Body.BlockedTicks < settings.BlockedGiveUpTicks * 2))
             {
                 // A thing in the way: grab it and throw it clear.
+                // A table in the way: heave it over or along.
                 // Wedged beside an open door: stand aside for whoever is lined up with it.
                 // Otherwise stuck in the crowd: if it was on the way to a door, try another one for a while.
-                if (!doorBehaviour.TryClearTheWay(agent) && !doorBehaviour.TryGiveWay(agent))
+                if (!doorBehaviour.TryClearTheWay(agent) && !TryHeaveTable(agent) && !doorBehaviour.TryGiveWay(agent))
                 {
                     doorBehaviour.AvoidCrowdedExit(agent);
                     DecideMove(agent, false);
@@ -259,7 +297,7 @@ namespace Paniq.Simulation
             }
 
             goalHeading = locomotion.Steer(agent, goalHeading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
-                settings.WallAvoidPercent, settings.ObjectAvoidPercent, followX, followZ);
+                settings.WallAvoidPercent, settings.ObjectAvoidPercent, followX, followZ, settings.TableAvoidPercent);
             return PanicIntent.WalkTowards(agent, goalHeading, settings);
         }
 

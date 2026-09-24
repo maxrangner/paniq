@@ -461,7 +461,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "57";
+        public string ContentRevision = "60";
         public ulong DefaultSeed = 42UL;
 
         // 45: a physics look-up (is this spot clear to stand or lie in, is
@@ -487,7 +487,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 45;
+        public int SimulationCompatibilityVersion = 48;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

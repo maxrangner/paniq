@@ -194,6 +194,7 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerSpawnedExtinguisher: return "you stood an extinguisher on the floor";
                 case CausalEventType.PowerBlastedWall: return "you blew a hole through a wall";
                 case CausalEventType.PowerPoppedFuseBox: return "you popped the fuse box";
+                case CausalEventType.PowerPulledAlarm: return "you pulled a fire alarm";
 
                 case CausalEventType.PowerSparkStarted:
                     return $"a spark set off along the cable from {Name(record.SourceId)} " +
@@ -202,7 +203,9 @@ namespace Paniq.Presentation
                     return $"the spark reached {Name(record.TargetId)}";
 
                 case CausalEventType.CardDealt:
-                    return $"{who} died, and dealt you {PlayerInput.NameOf((PlayerCommandType)record.Strength)}";
+                    return record.SourceId.Value == 0UL
+                        ? $"you were dealt {PlayerInput.NameOf((PlayerCommandType)record.Strength)} to start"
+                        : $"{who} died, and dealt you {PlayerInput.NameOf((PlayerCommandType)record.Strength)}";
 
                 case CausalEventType.RoundEnded: return $"the round ended with {record.Strength} saved";
 

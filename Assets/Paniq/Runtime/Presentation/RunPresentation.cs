@@ -67,6 +67,7 @@ namespace Paniq.Presentation
         private string startupError;
 
         private SimulationId? hoveredDoor;
+        private SimulationId? hoveredAlarm;
         private bool showStats;
         private int eventsSeen;
 
@@ -188,6 +189,7 @@ namespace Paniq.Presentation
                 runner.IsPaused || screens.CardIsUp || log.IsOpen,
                 cameraRig.IsTurningTheView);
             hoveredDoor = input.HoveredDoor;
+            hoveredAlarm = input.HoveredAlarm;
             Keyboard keyboard = Keyboard.current;
 
             // Escape closes the log. Taken before anything else reads the key,
@@ -285,7 +287,7 @@ namespace Paniq.Presentation
             {
                 PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, hoveredDoor,
                     hoveredDoor.HasValue ? room.StateOf(hoveredDoor.Value) : DoorState.Locked,
-                    hoveredDoor.HasValue && IsJammed(frameSnapshot, hoveredDoor.Value));
+                    hoveredDoor.HasValue && IsJammed(frameSnapshot, hoveredDoor.Value), hoveredAlarm);
                 screens.DrawStrip(frameSnapshot);
                 PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input, aimRing.PeopleInside);
                 if (runner.IsPaused)

@@ -95,6 +95,70 @@ namespace Paniq.Tests.EditMode
         /// <summary>Somebody kind, who will go for the alarm.</summary>
         private static AgentTraitValues Kind => new AgentTraitValues(5, 5, 6, 9, 0, 3);
 
+        // ---------------------------------------------------------- the player's pull
+
+        /// <summary>
+        /// The player pulls a fire alarm for thirty (the owner's call,
+        /// 2026-09-24): every bell in the building rings, the story names the
+        /// player as the root cause, and the purse is thirty lighter.
+        /// </summary>
+        [Test]
+        public void ThePlayer_CanPullAnAlarm_AndEveryBellRings()
+        {
+            ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
+            data.Influence.Starting = 30;
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
+                Advance(simulation, 1);
+
+                List<CausalEvent> pulled = EventsOfType(simulation, CausalEventType.PowerPulledAlarm);
+                Assert.That(pulled, Has.Count.EqualTo(1));
+                Assert.That(pulled[0].TargetId, Is.EqualTo(OfficeAlarm));
+                Assert.That(pulled[0].CausalParentEventId, Is.EqualTo(0UL), "The player is the root cause.");
+                List<CausalEvent> rang = EventsOfType(simulation, CausalEventType.AlarmRang);
+                Assert.That(rang, Has.Count.EqualTo(simulation.AlarmCount), "Every bell in the building.");
+                foreach (CausalEvent bell in rang)
+                {
+                    Assert.That(bell.CausalParentEventId, Is.EqualTo(pulled[0].EventId));
+                }
+
+                Assert.That(simulation.Influence, Is.EqualTo(0), "Thirty of the thirty.");
+                Assert.That(simulation.GetAgent(1).FearState, Is.Not.EqualTo(AgentFearState.Calm),
+                    "Somebody two rooms away heard the bell.");
+            }
+        }
+
+        [Test]
+        public void ThePlayer_TooPoorToPull_RingsNothingAndPaysNothing()
+        {
+            ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
+            data.Influence.Starting = 29;
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
+                Advance(simulation, 1);
+                Assert.That(EventsOfType(simulation, CausalEventType.PowerPulledAlarm), Is.Empty);
+                Assert.That(EventsOfType(simulation, CausalEventType.AlarmRang), Is.Empty);
+                Assert.That(simulation.Influence, Is.EqualTo(29));
+            }
+        }
+
+        [Test]
+        public void PullingAnAlarmThatIsAlreadyRinging_CostsNothing()
+        {
+            ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
+            data.Influence.Starting = 60;
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
+                simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 20);
+                Advance(simulation, 1);
+                Assert.That(EventsOfType(simulation, CausalEventType.PowerPulledAlarm), Has.Count.EqualTo(1));
+                Assert.That(simulation.Influence, Is.EqualTo(30), "The second pull did nothing and cost nothing.");
+            }
+        }
+
         /// <summary>Somebody selfish, who will not.</summary>
         private static AgentTraitValues Selfish => new AgentTraitValues(5, 5, 5, 1, 8, 5, 1);
 

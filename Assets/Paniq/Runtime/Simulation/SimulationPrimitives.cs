@@ -816,7 +816,13 @@ namespace Paniq.Simulation
         /// one side, they are carried on through it by the press. Target:
         /// the door. Cause: whatever put them down.
         /// </summary>
-        AgentCarriedThroughDoorway
+        AgentCarriedThroughDoorway,
+
+        /// <summary>
+        /// The player pulled a fire alarm. A root event: the bells that ring
+        /// name it as their cause. Target: the alarm.
+        /// </summary>
+        PowerPulledAlarm
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -1002,7 +1008,14 @@ namespace Paniq.Simulation
         /// the player's way of calling a cue, proven to work by a test, and
         /// nothing on the screen is wired to it yet.
         /// </summary>
-        CallHomeTime
+        CallHomeTime,
+
+        /// <summary>
+        /// The player pulls a fire alarm (the target is the alarm's ID). Not a
+        /// card: it is always on offer, priced like one, and does nothing for
+        /// nothing when the bells are already ringing.
+        /// </summary>
+        PullAlarm
     }
 
     /// <summary>

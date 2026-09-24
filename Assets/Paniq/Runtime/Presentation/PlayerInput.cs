@@ -58,6 +58,9 @@ namespace Paniq.Presentation
         /// <summary>The door under the pointer, for the hover highlight.</summary>
         public SimulationId? HoveredDoor { get; private set; }
 
+        /// <summary>The fire alarm under the pointer, for the hover line.</summary>
+        public SimulationId? HoveredAlarm { get; private set; }
+
         /// <summary>The person under the pointer while a person-card is picked.</summary>
         public SimulationId? HoveredPerson { get; private set; }
 
@@ -105,9 +108,10 @@ namespace Paniq.Presentation
                 case PlayerCommandType.PlayBastard: return "Bastard";
                 case PlayerCommandType.PlayColdHeart: return "Cold heart";
                 case PlayerCommandType.SpawnFire: return "Start a fire";
-                case PlayerCommandType.SpawnExtinguisher: return "Put down an extinguisher";
-                case PlayerCommandType.BlastWall: return "TNT: blow open a wall";
+                case PlayerCommandType.SpawnExtinguisher: return "Fire extinguisher";
+                case PlayerCommandType.BlastWall: return "TNT";
                 case PlayerCommandType.PopFuseBox: return "Pop the fuse box";
+                case PlayerCommandType.PullAlarm: return "Pull a fire alarm";
                 default: return card.ToString();
             }
         }
@@ -126,6 +130,7 @@ namespace Paniq.Presentation
             bool turningTheView = false)
         {
             HoveredDoor = null;
+            HoveredAlarm = null;
             HoveredPerson = null;
             HoveredSpot = null;
             Hand = snapshot != null ? snapshot.Hand : Array.Empty<PlayerCommandType>();
@@ -197,7 +202,25 @@ namespace Paniq.Presentation
             // Door leaves swing, so their colliders must be where they are drawn.
             Physics.SyncTransforms();
             Ray ray = camera.ScreenPointToRay(pointer);
-            if (!Physics.Raycast(ray, out RaycastHit hit, 200f) || !room.TryGetDoor(hit.collider, out SimulationId doorId))
+            if (!Physics.Raycast(ray, out RaycastHit hit, 200f))
+            {
+                return;
+            }
+
+            // A fire alarm is clicked like a door: pulled for a price, which
+            // the run decides (see PlayerCommandSystem).
+            if (room.TryGetAlarm(hit.collider, out SimulationId alarmId))
+            {
+                HoveredAlarm = alarmId;
+                if (clicked)
+                {
+                    runner.QueueAlarmPull(alarmId);
+                }
+
+                return;
+            }
+
+            if (!room.TryGetDoor(hit.collider, out SimulationId doorId))
             {
                 return;
             }

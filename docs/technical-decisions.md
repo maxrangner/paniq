@@ -1073,12 +1073,55 @@ reproduced with scratch tests before anything was changed (the pattern is
 | The jam in the opened exit | With the crowd gathered before the door opens: nobody out for the first fifteen seconds; 86 shoves, 20 knock-downs, 5 crushes and 4 knocked out cold within 2.5 m of the exit in 80 s. Four cruel people shove the weaker to the floor in the gap, and whoever is down inside the 1 m doorway plugs it. On the early-open case the bully locks the front door from outside with sixteen still inside; the strong break it down forty seconds later | A body down inside an open doorway with the crowd pressing on one side is hauled through it by the press (`DoorBehaviour.CarryTheFallenThroughDoorways`, `PeopleBodies.CarryToward`: the helpers' drag, but it moves a crumpled body too), at `CarryThroughSpeedMillimetresPerTick` 40 while anyone upright is within `CarryThroughRadiusMillimetres` 1000 on one side, and on out to the escape depth once past an exit's wall line. Seed 41, door opened at tick 1500: 2, 7, 15 out at 5, 10, 15 s (was 0, 0, 2); at 2400: 3, 9, 15 (was 8, 16, 18 -- that run had the door broken down early). The shoving itself is left as it is: it is the crush the game is about, and the owner's note was about getting through |
 | The bully locking the front door | Kept, by the owner's answer on locking. The story and the pop-up sign say who did it | Nothing |
 
+## Prototype 2 decision: three cards, thirty to start, and the alarm (2026-09-24)
+
+The owner asked for exactly this: "keep only cards: beefcake, tnt, add fire
+extinguisher", "have player start with one random card, and 30 activity
+points", and "fire alarms should be able to be pulled (clicked) for 30
+points". The extinguisher card already existed as `SpawnExtinguisher` (four
+spares stood anywhere the player clicks), so "add" meant keep it. Chosen on the
+owner's behalf:
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| What happens to the other six cards | They stay as commands (`PlayerCommandType` is append-only and part of the fingerprint) with their handlers and tests; only `DeckSystem.Deck` shrinks. A level puts them back through `InfluenceSettings.StartingHand` | Deleting them would be a refactor for its own sake, and a coward or saint card is still on the direction list | A card is wanted back, or the list is final |
+| The opening card | `InfluenceSettings.OpeningDrawCount` 1, drawn in the deck's constructor from the deck's own stream (sequence 55), logged as `CardDealt` at tick 0 with no source, so the story says "you were dealt X to start". Both finite cards are in supply at the start, so nothing is excluded from the draw | The owner said "random"; the deck's stream means the same seed opens the same and nothing else in the run moves | A level wants a chosen opening hand (it has `StartingHand` for that) |
+| "Activity points" | The influence meter as it is; nothing renamed | The owner's word for the meter in the note, not a request to rename it | The owner asks |
+| The alarm's price and rules | `PullAlarmCost` 30, paid only when the bells actually start; a pull on ringing bells is refused for free; a pull the player cannot afford does nothing. `PowerPulledAlarm` is a root event of the player's (uproar tier: nothing, like every Power event) and the bells name it as their cause | Priced like a card, it is the one move the opening thirty always buys | The alarm proves too strong an opening move (the seeds' hands-off numbers are in the decision above) |
+| Tests that count cards | `TheBuilding.WithThePlayerAbleToAct` sets `OpeningDrawCount` to nought; the economy tests that count a hand set it themselves | A test about playing two cards is not about the opening draw | Never |
+
+## Prototype 2: the Menu button and the alarm click (2026-09-24)
+
+The owner asked for a replay button top right "for quick reset to menu", and
+for alarms to be pullable by clicking. Chosen on their behalf:
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| What "menu" is | The start card: `LevelLoader.BackToTheStart(runner.Seed)`, which reloads the scene with the seed kept and the card up. There is no other menu | The start card already holds the level, the seed box and PLAY; it is what the owner returns to | A level select exists |
+| Where and when the button shows | A 110 × 30 IMGUI button at 20 px from the top-right corner, drawn by `RoundScreens.DrawStrip` whenever the round is not waiting to start (so on the end card too, not on the start card). The Tab stats table moved from y 20 to y 60 to sit under it | The corner the owner named; the start card is the menu, so the button would be pointless on it | Any HUD redesign |
+| How an alarm is clicked | `RoomView.CreateAlarm` gives the box a `BoxCollider` about 0.45 m across (2.5 × 2 × 2.5 in the box's own units), registered in `alarmByCollider`; `PlayerInput.UpdateDoors` tests for an alarm before a door and queues `RunDriver.QueueAlarmPull`. The hover line under the score says the price, "already ringing", or that the player cannot afford it | The drawn box is a hand's width, and a click on a hand's width from across the room is a miss | Alarms drawn bigger, or a general "click anything" picking pass |
+| No version bump | Nothing in the simulation moved: the command and its price were the previous commit | Presentation only | -- |
+
+## Prototype 2: cards that look like cards (2026-09-24)
+
+The owner asked for the playable cards to "look more like cards and more
+compact". Chosen on their behalf, all in `PrototypeHud.DrawCards`:
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| Shape and size | Portrait, 96 × 132 px with an 8 px gap, drawn with IMGUI rectangles and the white texture as before: a light edge, a dark face, a badge with the key top left, the name in bold, a one-line blurb, the price along the bottom | A shade under a playing card's 2:3, and six of them sit under the score strip at 1366 wide. No textures and no UI package, as the rest of the HUD | A real UI pass, or art for the cards |
+| What a picked-up card does | Lifts 10 px and turns blue (edge and badge) | The old row used colour alone; a lift reads as "in hand" at a glance | Never |
+| What an unaffordable card does | Dimmed red edge and face, pink ink, and the price line reads "30 (you have 12)" | The old row only tinted it; saying the shortfall answers the question the player has | Never |
+| The purse bar | Above the hand, as wide as it (at least 300 px), the hint line above that | It used to be a fixed 420 px beside a row that could be any width | Never |
+| Styles | Four `GUIStyle`s built from the skin on first use and kept | The skin only exists during a GUI event, and a style per frame would allocate | Never |
+
 ## Version history
 
 Every bump of `SimulationCompatibilityVersion` (the rules) and `ContentRevision` (the building) that the replay compatibility row of the first table used to list in one cell, newest first. The bumps from 27 to 42 are recorded in their own stones' sections above (search this document for "Versions").
 
 | Change | What moved |
 | --- | --- |
+| 63 → 64 and content 75 → 76 (2026-09-24) | the deck is three cards, a round opens with 30 and one card drawn from it, and the player can pull a fire alarm for 30. The opening draw shifts every later deal along the deck's stream, so the recorded runs that deal cards re-record; the rest hold. |
 | 62 → 63 and content 74 → 75 (2026-09-24) | somebody down inside an open doorway with the crowd pressing on them is carried on through it by the press instead of plugging it. All thirteen fingerprints re-recorded. |
 | 61 → 62 and content 73 → 74 (2026-09-24) | doors and the cornered: nobody shuts or wedges a door on somebody coming through it unless the flames are at it and they are callous; nobody shuts a door before their first thought about a way out; the way out through the heat is dashed for by the brave and the desperate and given up for a cooler hiding place by the rest; whoever carries an extinguisher runs. All thirteen fingerprints re-recorded. |
 | 60 → 61 and content 72 → 73 (2026-09-24) | fear and attention spread: seeing somebody bolt startles you, the first shout comes with the first stride and carries twice as far, a threat is seen twelve metres off through open doorways along the line of sight only, a fire is heard further as it grows and half as far through a wall, a person keeps several noises in mind, and somebody who hears a threat's noise from another room goes to look. All thirteen fingerprints re-recorded. |

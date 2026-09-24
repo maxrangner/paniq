@@ -137,6 +137,7 @@ namespace Paniq.Tests.EditMode
             data.Influence.Starting = 100000;
             data.Influence.Maximum = 100000;
             data.Influence.StartingHand = EveryCard();
+            data.Influence.OpeningDrawCount = 0;
             data.Influence.UproarSmall = 0;
             data.Influence.UproarMiddling = 0;
             data.Influence.UproarBig = 0;

@@ -66,6 +66,11 @@
                 case PlayerCommandType.PopFuseBox:
                     return settings.CardCost;
 
+                // Not a card, but priced like one: always on offer, and paid
+                // for only when the bells actually start.
+                case PlayerCommandType.PullAlarm:
+                    return settings.PullAlarmCost;
+
                 // A door click is priced by what the door is doing, not by the
                 // command, so it is asked for separately; setting the disaster
                 // going is the start button and is not spent on at all.
@@ -221,6 +226,7 @@
                 case CausalEventType.PowerSpawnedExtinguisher:
                 case CausalEventType.PowerBlastedWall:
                 case CausalEventType.PowerPoppedFuseBox:
+                case CausalEventType.PowerPulledAlarm:
                 case CausalEventType.DoorUnlocked:
                 case CausalEventType.RoundEventTriggered:
                 case CausalEventType.RoundEnded:

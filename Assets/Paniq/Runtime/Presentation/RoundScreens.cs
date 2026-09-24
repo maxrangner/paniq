@@ -49,6 +49,16 @@ namespace Paniq.Presentation
         /// <summary>The running score, the trigger and the pause button, along the top.</summary>
         public void DrawStrip(RunSnapshot snapshot)
         {
+            // Back to the start card, quick, from anywhere in the round or
+            // from the end card (the owner asked, 2026-09-24). The seed is
+            // kept, so the same day can be played again from the card, or a
+            // new one typed in.
+            if (!runner.IsWaitingToStart && GUI.Button(new Rect(Screen.width - 130f, 20f, 110f, 30f), "Menu"))
+            {
+                LevelLoader.BackToTheStart(runner.Seed);
+                return;
+            }
+
             var strip = new Rect(20f, 140f, 720f, 30f);
             GUI.color = StripBack;
             GUI.DrawTexture(strip, Texture2D.whiteTexture);

@@ -110,14 +110,52 @@ namespace Paniq.Simulation
                 return;
             }
 
-            Ringing = true;
             ulong pulled = context.Events.Append(context.Tick, puller.Id, CausalEventType.AlarmPulled,
                 positions[alarm], 0, 0, causeEventId, ids[alarm]).EventId;
+            Ring(pulled);
+        }
 
+        /// <summary>
+        /// The player pulls an alarm: a root event of the player's own, and
+        /// then every bell rings exactly as when a person pulls it. False when
+        /// the bells are already ringing or the alarms are off, in which case
+        /// nothing is written and nothing should be paid.
+        /// </summary>
+        public bool PullByPlayer(int alarm)
+        {
+            if (Ringing || !settings.Enabled)
+            {
+                return false;
+            }
+
+            ulong pulled = context.Events.Append(context.Tick, default, CausalEventType.PowerPulledAlarm,
+                positions[alarm], 0, 0, 0UL, ids[alarm]).EventId;
+            Ring(pulled);
+            return true;
+        }
+
+        /// <summary>Which alarm has this ID, or -1.</summary>
+        public int IndexOf(SimulationId id)
+        {
+            for (int i = 0; i < ids.Length; i++)
+            {
+                if (ids[i] == id)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>Every bell in the building rings, in alarm order, each heard by the people in ascending ID order as any other noise is.</summary>
+        private void Ring(ulong pulledEventId)
+        {
+            Ringing = true;
             for (int i = 0; i < ids.Length; i++)
             {
                 ulong rang = context.Events.Append(context.Tick, ids[i], CausalEventType.AlarmRang,
-                    positions[i], settings.BellHearingRadiusMillimetres, 0, pulled).EventId;
+                    positions[i], settings.BellHearingRadiusMillimetres, 0, pulledEventId).EventId;
                 sound.Bell(ids[i], positions[i], rang);
             }
         }

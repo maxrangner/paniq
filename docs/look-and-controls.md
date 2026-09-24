@@ -43,8 +43,9 @@ every zoom level.
 | **Hold right mouse button and drag** | swing the view to any angle at all; it stays where you let go |
 | **Q / E** | snap a quarter turn to the next corner view, from wherever the view is now |
 | **Mouse wheel** | zoom in and out, tilting the camera as described above |
-| **Left mouse button** | interact with the world under the pointer |
+| **Left mouse button** | interact with the world under the pointer: a door, a red fire alarm box (pulled for 30), or the floor a card is aimed at |
 | **Right click** (without dragging) | put down the card in hand |
+| **Menu** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
 
 Chosen on the owner's behalf:
 
@@ -66,7 +67,7 @@ Chosen on the owner's behalf:
 - The angles, zoom limits and how far the tilt travels are presentation values,
   chosen when the camera was built and listed below.
 
-Keys the prototype already uses, which these live alongside: **1–4** pick a
+Keys the prototype already uses, which these live alongside: **1–6** pick a
 card, **Tab** shows the table of everyone's traits, **G** paints the floor
 people can walk on, and **Space** pauses.
 

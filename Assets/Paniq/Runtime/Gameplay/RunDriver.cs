@@ -270,6 +270,12 @@ namespace Paniq.Gameplay
             Simulation.QueueCommand(PlayerCommandType.ClickDoor, doorId, Simulation.Tick + 1);
         }
 
+        /// <summary>The player pulling a fire alarm, queued for the next tick that has not started.</summary>
+        public void QueueAlarmPull(SimulationId alarmId)
+        {
+            Simulation.QueueCommand(PlayerCommandType.PullAlarm, alarmId, Simulation.Tick + 1);
+        }
+
         /// <summary>
         /// The player setting the disaster going, queued for the next tick that
         /// has not started. Only the first one does anything.

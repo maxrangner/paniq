@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 75
+    ContentRevision: 76
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 63
+    SimulationCompatibilityVersion: 64
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -740,10 +740,12 @@ MonoBehaviour:
       ReachMillimetres: 150
       ReachTimeoutTicks: 250
     Influence:
-      Starting: 0
+      Starting: 30
       PerPersonSaved: 15
       Maximum: 300
       StartingHand: 
+      OpeningDrawCount: 1
+      PullAlarmCost: 30
       CardPatchRadiusMillimetres: 1500
       CardCost: 30
       UproarSmall: 1

@@ -487,8 +487,10 @@ is paused. The full description is in [look and controls](look-and-controls.md).
 **Doors,** as before: click to unlock, again to open, again to close.
 
 **Influence and cards: the dead deal, the uproar pays.** A round opens with
-**nothing** — an empty purse and an empty bar — so the first thing you can do is
-watch.
+**thirty** and **one card**, drawn at random from the deck (the owner's call,
+2026-09-24; it used to open with nothing at all). Thirty is one move: a card,
+or a pull of a fire alarm. It is not enough to open the way out (80) before
+anybody is in trouble.
 
 The meter fills from the building being in uproar: somebody shouting, tripping,
 freezing or running into somebody else pays a little; a knockdown, a shove, a
@@ -499,8 +501,19 @@ building pays nothing, so you cannot act until things are going wrong.
 
 **Cards are not bought — they are dealt by the dead.** Every person the disaster
 kills puts one card, drawn at random, on your bar. A round nobody dies in leaves
-you with a full purse, an empty hand, and doors as your only move. Deaths pay in
-cards and not in influence, so the two currencies have one source each.
+you with a full purse, the one card you opened with, and doors as your other
+move. Deaths pay in cards and not in influence, so the two currencies have one
+source each. **The deck is three cards** (the owner's call, 2026-09-24):
+**Beefcake**, **TNT** and the **fire extinguisher**. The four trait cards, "start
+a fire" and "pop the fuse box" still exist as commands and a level may put them
+in its starting hand, but the office never deals them.
+
+**Fire alarms are yours to pull, for 30.** Click any red alarm box and every
+bell in the building rings, exactly as when a person hits one: everybody calm
+hears it, and the level-headed walk out rather than run. Pulling one that is
+already ringing does nothing and costs nothing. It is the one move always on
+offer from the first tick -- a player who has seen a fire nobody else has can
+raise the building before it knows.
 
 Every card costs **30**. A card you are not holding does nothing however rich
 you are; a card you cannot pay for does nothing either. **A card that catches
@@ -510,7 +523,9 @@ fault — which is why a circle is drawn on the floor under the pointer showing
 exactly the patch it will catch, brightening when somebody is standing in it.
 
 Press a number key to pick a card up, then click. Escape or a right click puts
-it back down.
+it back down. Point at a red alarm box and the line under the score says what
+pulling it costs; click and the bells ring. **Menu**, top right, goes straight
+back to the start card with the seed kept.
 
 The five **trait cards** are thrown at a patch of floor about a doorway and a
 half across — not at a chosen person — and slam one dial to the end of its scale
@@ -1123,10 +1138,15 @@ simulation's randomness; a hole leading outside gets the same strip of outside
 ground a door does. Explosions and blasts throw a large floor ring, and a shove
 makes the shover lunge. The office's later things (2026-09-24): a vending machine is a tall dark red cabinet with a pale glass front; a filing cabinet a grey-blue box with drawer lines; shelves a wooden frame with boards and blocks of books; the copier a big pale box on a castor strip; a whiteboard a white slab on a post over a wheeled base; a standing lamp a dark base, a thin post and a cream shade, and the shade that drops off it is a loose cream drum of its own; a robot vacuum a squat dark disc with a little light on top, which is drawn wherever the physics has it as it trundles about.
 
-**The player's own controls** are the card row along the bottom, the influence
-bar above it, and the line above that saying what a click will do. Clicking a
-place is worked out against the mathematical ground plane, so no collider is
-needed for it; door leaves remain the only colliders in the scene.
+**The player's own controls** are the hand along the bottom, the influence
+bar above it, and the line above that saying what a click will do. Since
+2026-09-24 the hand is drawn as portrait cards, 96 × 132 pixels, each with
+the key that picks it up in a badge, its name, a line on what it does and its
+price; a card the player cannot afford is dimmed red with the shortfall
+written on it, and the one in hand lifts and turns blue. They were 210 × 34
+bars of text. Clicking a place is worked out against the mathematical ground
+plane, so no collider is needed for it; door leaves and the fire alarm boxes
+are the only colliders in the scene.
 
 This prototype deliberately remains ordinary GameObjects and C# code. The next
 stone is chosen by the owner after playing it. Profile a standalone build

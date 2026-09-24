@@ -74,6 +74,9 @@ namespace Paniq.Tests.EditMode
             TheBuilding.FireAt(data, TheBuilding.Office);
             data.Fire.ActivationTick = 1;
 
+            // No opening card, so every card in hand was dealt by a death.
+            data.Influence.OpeningDrawCount = 0;
+
             // Nobody puts it out, and nobody hauls them clear.
             data.Extinguishers.FightMinimumBravery = AgentTraitValues.Maximum + 1;
             data.Extinguishers.SaveMinimumCompassion = AgentTraitValues.Maximum + 1;
@@ -88,14 +91,34 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
+        /// <summary>
+        /// A round opens with thirty and one card drawn from the three-card
+        /// deck (the owner's call, 2026-09-24). The same seed opens with the
+        /// same card; the draw comes from the deck's own stream, so it moves
+        /// nothing else in the run. It used to open with nothing at all.
+        /// </summary>
         [Test]
-        public void ARoundOpens_WithAnEmptyPurseAndAnEmptyHand()
+        public void ARoundOpens_WithThirtyAndOneOfTheThreeCards()
         {
             ScenarioData data = QuietRoom();
+            PlayerCommandType first;
             using (var simulation = new Run(data, 42UL))
             {
-                Assert.That(simulation.Influence, Is.EqualTo(0), "The player starts with nothing to spend.");
-                Assert.That(simulation.GetSnapshot().Hand, Is.Empty, "And nothing to spend it on.");
+                Assert.That(simulation.Influence, Is.EqualTo(30), "One move's worth to start.");
+                Assert.That(simulation.GetSnapshot().Hand, Has.Count.EqualTo(1), "And one card to spend it on.");
+                first = simulation.GetSnapshot().Hand[0];
+                Assert.That(first, Is.EqualTo(PlayerCommandType.PlayBeefcake)
+                    .Or.EqualTo(PlayerCommandType.BlastWall)
+                    .Or.EqualTo(PlayerCommandType.SpawnExtinguisher), "The deck is Beefcake, TNT and the fire extinguisher.");
+                List<CausalEvent> dealt = EventsOfType(simulation, CausalEventType.CardDealt);
+                Assert.That(dealt, Has.Count.EqualTo(1));
+                Assert.That(dealt[0].SourceId.Value, Is.EqualTo(0UL), "Dealt by nobody's death.");
+                Assert.That((PlayerCommandType)dealt[0].Strength, Is.EqualTo(first));
+            }
+
+            using (var again = new Run(QuietRoom(), 42UL))
+            {
+                Assert.That(again.GetSnapshot().Hand[0], Is.EqualTo(first), "The same seed opens with the same card.");
             }
         }
 
@@ -129,6 +152,7 @@ namespace Paniq.Tests.EditMode
             data.Influence.UproarMiddling = 0;
             data.Influence.UproarBig = 0;
             data.Influence.StartingHand = new[] { PlayerCommandType.SpawnFire, PlayerCommandType.SpawnFire };
+            data.Influence.OpeningDrawCount = 0;
 
             using (var simulation = new Run(data, 42UL))
             {
@@ -151,6 +175,7 @@ namespace Paniq.Tests.EditMode
             data.Influence.UproarMiddling = 0;
             data.Influence.UproarBig = 0;
             data.Influence.StartingHand = new[] { PlayerCommandType.SpawnFire, PlayerCommandType.SpawnFire };
+            data.Influence.OpeningDrawCount = 0;
 
             using (var simulation = new Run(data, 42UL))
             {
@@ -177,13 +202,13 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
             using (var simulation = new Run(data, 42UL))
             {
-                Assert.That(simulation.Influence, Is.EqualTo(0));
+                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting));
                 for (int tick = 0; tick < 1500; tick++)
                 {
                     simulation.Step();
                 }
 
-                Assert.That(simulation.Influence, Is.GreaterThan(0),
+                Assert.That(simulation.Influence, Is.GreaterThan(data.Influence.Starting),
                     "A building well alight should have paid the player something.");
             }
         }
@@ -233,7 +258,7 @@ namespace Paniq.Tests.EditMode
 
                 Assume.That(EventsOfType(simulation, CausalEventType.AgentLost), Is.Not.Empty,
                     "The floor is arranged so somebody burns.");
-                Assert.That(simulation.Influence, Is.EqualTo(0), "A death fills no meter.");
+                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting), "A death fills no meter.");
                 Assert.That(simulation.GetSnapshot().Hand, Is.Not.Empty, "It deals a card instead.");
             }
         }

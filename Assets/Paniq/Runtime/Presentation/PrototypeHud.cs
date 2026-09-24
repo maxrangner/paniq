@@ -24,13 +24,75 @@ namespace Paniq.Presentation
         private static readonly Color CardPicked = new Color(0.25f, 0.55f, 0.85f, 0.95f);
         private static readonly Color CardAffordable = new Color(0f, 0f, 0f, 0.7f);
         private static readonly Color CardTooDear = new Color(0.25f, 0.1f, 0.1f, 0.7f);
+        private static readonly Color CardEdge = new Color(0.85f, 0.82f, 0.7f, 0.9f);
+        private static readonly Color CardTooDearEdge = new Color(0.6f, 0.35f, 0.3f, 0.9f);
+        private static readonly Color CardFace = new Color(0.08f, 0.09f, 0.11f, 0.92f);
+        private static readonly Color CardTooDearFace = new Color(0.2f, 0.1f, 0.1f, 0.9f);
+        private static readonly Color Badge = new Color(0.95f, 0.9f, 0.7f, 1f);
+
+        /// <summary>
+        /// The hand's card size, in pixels: a portrait card, a shade under a
+        /// 2:3 playing card, small enough that six of them sit under the
+        /// strip on a laptop screen. They were 210 × 34 bars of text, which
+        /// the owner asked to look like cards and take less room.
+        /// </summary>
+        private const float CardWidth = 96f;
+        private const float CardHeight = 132f;
+        private const float CardGap = 8f;
+        private const float CardLift = 10f;
+
+        // IMGUI styles are made from the skin, which only exists while a GUI
+        // event is being handled, so they are built on first use and kept.
+        private static GUIStyle cardNameStyle;
+        private static GUIStyle cardBlurbStyle;
+        private static GUIStyle cardCostStyle;
+        private static GUIStyle badgeStyle;
+
+        private static GUIStyle CardNameStyle => cardNameStyle ??= new GUIStyle(GUI.skin.label)
+        {
+            fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = true, fontSize = 13
+        };
+
+        private static GUIStyle CardBlurbStyle => cardBlurbStyle ??= new GUIStyle(GUI.skin.label)
+        {
+            alignment = TextAnchor.UpperCenter, wordWrap = true, fontSize = 10
+        };
+
+        private static GUIStyle CardCostStyle => cardCostStyle ??= new GUIStyle(GUI.skin.label)
+        {
+            fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, fontSize = 14
+        };
+
+        private static GUIStyle BadgeStyle => badgeStyle ??= new GUIStyle(GUI.skin.label)
+        {
+            fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, fontSize = 12
+        };
+
+        /// <summary>One line under the card's name saying what it does, for a hand read at a glance.</summary>
+        private static string BlurbOf(PlayerCommandType card)
+        {
+            switch (card)
+            {
+                case PlayerCommandType.PlayBeefcake: return "strength 10 for everyone caught";
+                case PlayerCommandType.PlayCourage: return "fearless, everyone caught";
+                case PlayerCommandType.PlayTerror: return "the fear of God, everyone caught";
+                case PlayerCommandType.PlayBastard: return "turned nasty, everyone caught";
+                case PlayerCommandType.PlayColdHeart: return "cares for nobody, everyone caught";
+                case PlayerCommandType.SpawnFire: return "a fire where you click";
+                case PlayerCommandType.SpawnExtinguisher: return "a bottle where you click";
+                case PlayerCommandType.BlastWall: return "a hole through a wall";
+                case PlayerCommandType.PopFuseBox: return "the fuse box goes off";
+                default: return string.Empty;
+            }
+        }
 
         public static void Draw(
             RunSnapshot snapshot,
             ScenarioData scenario,
             SimulationId? hoveredDoor,
             DoorState hoveredState,
-            bool hoveredIsJammed = false)
+            bool hoveredIsJammed = false,
+            SimulationId? hoveredAlarm = null)
         {
             GUI.color = Color.white;
             string fireText;
@@ -73,6 +135,19 @@ namespace Paniq.Presentation
                 GUI.Label(new Rect(20f, 92f, 700f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
                 GUI.color = Color.white;
             }
+            else if (hoveredAlarm.HasValue)
+            {
+                // A fire alarm is priced like a card and refused for nothing
+                // once the bells are ringing; say which before the click.
+                int price = snapshot.CostOf(PlayerCommandType.PullAlarm);
+                bool affordable = snapshot.Influence >= price;
+                string action = snapshot.AlarmsRinging ? "already ringing"
+                    : !affordable ? $"NOT ENOUGH INFLUENCE - it costs {price}, and you have {snapshot.Influence}"
+                    : $"Click to pull it ({price}): every bell in the building rings";
+                GUI.color = affordable || snapshot.AlarmsRinging ? Color.white : new Color(1f, 0.7f, 0.6f);
+                GUI.Label(new Rect(20f, 92f, 700f, 24f), $"Fire alarm {hoveredAlarm.Value.Value}: {action}");
+                GUI.color = Color.white;
+            }
         }
 
         /// <summary>Which cards are thrown at a patch of crowd rather than at a place in the building.</summary>
@@ -92,20 +167,23 @@ namespace Paniq.Presentation
         }
 
         /// <summary>
-        /// The player's purse and their cards, along the bottom. A card they
-        /// cannot afford is dimmed red and cannot be picked up; the one in their
-        /// hand is highlighted, and the line above says what a click will do.
+        /// The player's purse and their cards, along the bottom: portrait
+        /// cards, each with its number, its name, a line on what it does and
+        /// its price. A card they cannot afford is dimmed red and cannot be
+        /// picked up; the one in their hand lifts and turns blue, and the line
+        /// above says what a click will do. They used to be wide bars of text
+        /// (the owner asked, 2026-09-24, for cards that look like cards and
+        /// take less room).
         /// </summary>
         public static void DrawCards(
             RunSnapshot snapshot, PlayerCommandType? selected, PlayerInput input, int peopleInTheCircle)
         {
-            const float cardWidth = 210f;
-            const float cardHeight = 34f;
-            const float gap = 8f;
             float bottom = Screen.height - 20f;
+            float handWidth = Mathf.Max(300f, snapshot.Hand.Count * (CardWidth + CardGap) - CardGap);
+            float cardsTop = bottom - CardHeight - CardLift;
 
-            // The purse.
-            var barArea = new Rect(20f, bottom - cardHeight - gap - 22f, cardWidth * 2f, 16f);
+            // The purse, above the hand and as wide as it.
+            var barArea = new Rect(20f, cardsTop - CardGap - 16f, handWidth, 16f);
             GUI.color = BarBack;
             GUI.DrawTexture(barArea, Texture2D.whiteTexture);
             GUI.color = BarFill;
@@ -117,15 +195,14 @@ namespace Paniq.Presentation
             GUI.Label(new Rect(barArea.x + barArea.width + 10f, barArea.y - 3f, 400f, 22f),
                 $"Influence {snapshot.Influence}   (spent {snapshot.InfluenceSpent}, taken in {snapshot.InfluenceEarned})");
 
-            // The hand. Empty at the start of every round: cards are not
-            // bought, they are dealt by whoever the building kills, so an empty
-            // bar is the game saying "nobody has died yet" rather than a
+            // The hand. One card at the start of a round and then only what
+            // the dead deal, so an empty bar is the game saying "you have
+            // played what you had and nobody has died since" rather than a
             // display that has not loaded.
             if (snapshot.Hand.Count == 0)
             {
                 GUI.color = new Color(0.75f, 0.75f, 0.75f);
-                GUI.Label(new Rect(20f, bottom - cardHeight + 7f, 700f, 22f),
-                    "No cards. The dead deal them.");
+                GUI.Label(new Rect(20f, bottom - 22f, 700f, 22f), "No cards left. The dead deal them.");
                 GUI.color = Color.white;
                 return;
             }
@@ -135,12 +212,32 @@ namespace Paniq.Presentation
                 PlayerCommandType card = snapshot.Hand[i];
                 int cost = snapshot.CostOf(card);
                 bool affordable = snapshot.Influence >= cost;
-                var area = new Rect(20f + i * (cardWidth + gap), bottom - cardHeight, cardWidth, cardHeight);
-                GUI.color = selected == card ? CardPicked : affordable ? CardAffordable : CardTooDear;
+                bool picked = selected == card;
+                var area = new Rect(20f + i * (CardWidth + CardGap), bottom - CardHeight - (picked ? CardLift : 0f),
+                    CardWidth, CardHeight);
+
+                // Edge and face.
+                GUI.color = picked ? CardPicked : affordable ? CardEdge : CardTooDearEdge;
                 GUI.DrawTexture(area, Texture2D.whiteTexture);
-                GUI.color = affordable ? Color.white : new Color(1f, 0.7f, 0.7f, 0.8f);
-                GUI.Label(new Rect(area.x + 8f, area.y + 7f, area.width - 16f, 22f),
-                    $"{i + 1}. {PlayerInput.NameOf(card)}  ({cost})");
+                GUI.color = affordable ? CardFace : CardTooDearFace;
+                GUI.DrawTexture(new Rect(area.x + 2f, area.y + 2f, area.width - 4f, area.height - 4f), Texture2D.whiteTexture);
+
+                // The key that picks it up, in a badge top left.
+                var badge = new Rect(area.x + 6f, area.y + 6f, 22f, 22f);
+                GUI.color = picked ? CardPicked : Badge;
+                GUI.DrawTexture(badge, Texture2D.whiteTexture);
+                GUI.color = picked ? Color.white : Color.black;
+                GUI.Label(badge, (i + 1).ToString(), BadgeStyle);
+
+                // Name, what it does, and the price.
+                Color ink = affordable ? Color.white : new Color(1f, 0.7f, 0.7f, 0.9f);
+                GUI.color = ink;
+                GUI.Label(new Rect(area.x + 6f, area.y + 32f, area.width - 12f, 44f), PlayerInput.NameOf(card), CardNameStyle);
+                GUI.color = affordable ? new Color(0.85f, 0.85f, 0.85f) : ink;
+                GUI.Label(new Rect(area.x + 6f, area.y + 76f, area.width - 12f, 32f), BlurbOf(card), CardBlurbStyle);
+                GUI.color = ink;
+                GUI.Label(new Rect(area.x, area.yMax - 24f, area.width, 20f), affordable ? cost.ToString() : $"{cost} (you have {snapshot.Influence})",
+                    affordable ? CardCostStyle : CardBlurbStyle);
             }
 
             // Only while a card is actually in hand: what it is waiting to be
@@ -176,7 +273,7 @@ namespace Paniq.Presentation
             }
 
             GUI.color = Color.white;
-            GUI.Label(new Rect(20f, bottom - cardHeight - gap - 44f, 900f, 22f), hint);
+            GUI.Label(new Rect(20f, barArea.y - 26f, 900f, 22f), hint);
         }
 
         /// <summary>
@@ -222,7 +319,8 @@ namespace Paniq.Presentation
                 ("Wheel", "zoom"),
                 ("Tab", "everyone's stats"),
                 ("G", "the floor people can walk on"),
-                ("Space", "start and stop the world")
+                ("Space", "start and stop the world"),
+                ("Menu", "the button top right: back to the start card, keeping the seed")
             };
 
             int rows = Math.Max(marks.Length, keys.Length);
@@ -268,7 +366,8 @@ namespace Paniq.Presentation
             const float rowHeight = 20f;
             float width = 640f;
             float height = rowHeight * (snapshot.Agents.Count + 3) + 12f;
-            var area = new Rect(Screen.width - width - 20f, 20f, width, height);
+            // Below the Menu button, which sits in the top-right corner.
+            var area = new Rect(Screen.width - width - 20f, 60f, width, height);
             GUI.color = new Color(0f, 0f, 0f, 0.75f);
             GUI.DrawTexture(area, Texture2D.whiteTexture);
             GUI.color = Color.white;

@@ -695,7 +695,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "75";
+        public string ContentRevision = "76";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -794,7 +794,10 @@ namespace Paniq.Simulation
         // carries an extinguisher runs.
         // 63: somebody down inside an open doorway with the crowd pressing on
         // them is carried on through it by the press instead of plugging it.
-        public int SimulationCompatibilityVersion = 63;
+        // 64: the deck is three cards (Beefcake, TNT, fire extinguisher), a
+        // round opens with 30 influence and one card drawn from it, and the
+        // player can pull a fire alarm for 30.
+        public int SimulationCompatibilityVersion = 64;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

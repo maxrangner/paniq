@@ -37,6 +37,7 @@ namespace Paniq.Simulation
         private RoundSystem round;
         private PowerSystem power;
         private CueSystem cues;
+        private AlarmSystem alarms;
 
         public PlayerCommandSystem(SimulationContext context)
         {
@@ -48,6 +49,7 @@ namespace Paniq.Simulation
         {
             round = systems.Round;
             power = systems.Power;
+            alarms = systems.Alarms;
             doors = systems.Doors;
             fire = systems.Fire;
             objects = systems.Objects;
@@ -97,6 +99,13 @@ namespace Paniq.Simulation
                     if (doors.IndexOf(targetId) < 0)
                     {
                         throw new ArgumentException($"Unknown door ID {targetId}.", nameof(targetId));
+                    }
+
+                    break;
+                case PlayerCommandType.PullAlarm:
+                    if (alarms.IndexOf(targetId) < 0)
+                    {
+                        throw new ArgumentException($"Unknown alarm ID {targetId}.", nameof(targetId));
                     }
 
                     break;
@@ -156,6 +165,27 @@ namespace Paniq.Simulation
                 }
 
                 if (doors.ClickDoor(door))
+                {
+                    influence.Spend(price);
+                }
+
+                return;
+            }
+
+            // Pulling a fire alarm is not a card either, but it is priced like
+            // one: paid for only when the bells actually start, and free (and
+            // pointless) once they are ringing. The owner's rule: 30, always
+            // on offer, so a player who sees a fire nobody else has can raise
+            // the building.
+            if (command.CommandType == PlayerCommandType.PullAlarm)
+            {
+                int price = influence.CostOf(PlayerCommandType.PullAlarm);
+                if (!influence.CanAfford(price))
+                {
+                    return;
+                }
+
+                if (alarms.PullByPlayer(alarms.IndexOf(command.TargetId)))
                 {
                     influence.Spend(price);
                 }

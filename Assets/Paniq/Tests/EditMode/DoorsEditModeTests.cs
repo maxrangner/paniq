@@ -877,6 +877,7 @@ namespace Paniq.Tests.EditMode
                             "Breaking names both what broke and what hit it.");
                         break;
                     case CausalEventType.AlarmPulled:
+                    case CausalEventType.PowerPulledAlarm:
                         Assert.That(alarms, Does.Contain(record.TargetId), "Raising the alarm names the alarm.");
                         break;
                     case CausalEventType.AgentShoved:

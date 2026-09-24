@@ -84,6 +84,44 @@ namespace Paniq.Tests.PlayMode
         /// camera, the floor under somebody's chest is nowhere near their
         /// feet, so the old rule could not have found them.
         /// </summary>
+        /// <summary>
+        /// The red alarm boxes are things the player can click (2026-09-24):
+        /// pointing straight at one from the opening camera has to land on
+        /// its collider, which is deliberately bigger than the box drawn.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator PointingAtAFireAlarm_HitsIt()
+        {
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return null;
+
+            Camera camera = Camera.main;
+            RunDriver runner = Object.FindObjectOfType<RunDriver>();
+            Assert.That(camera, Is.Not.Null);
+            Assert.That(runner, Is.Not.Null);
+            Physics.SyncTransforms();
+
+            int aimedAt = 0;
+            foreach (AlarmDefinition alarm in runner.Simulation.Scenario.Alarms)
+            {
+                Vector3 box = PresentationUtility.ToUnityPosition(alarm.Position) + Vector3.up * 1.1f;
+                Vector3 onScreen = camera.WorldToScreenPoint(box);
+                if (onScreen.z <= 0f || onScreen.x < 0f || onScreen.x > Screen.width ||
+                    onScreen.y < 0f || onScreen.y > Screen.height)
+                {
+                    continue;
+                }
+
+                aimedAt++;
+                Ray ray = camera.ScreenPointToRay(new Vector2(onScreen.x, onScreen.y));
+                Assert.That(Physics.Raycast(ray, out RaycastHit hit, 200f), Is.True, $"Nothing under the pointer at alarm {alarm.AlarmId}.");
+                Assert.That(hit.collider.gameObject.name, Does.StartWith("Fire alarm"),
+                    $"Pointing at alarm {alarm.AlarmId} hit {hit.collider.gameObject.name} instead.");
+            }
+
+            Assert.That(aimedAt, Is.GreaterThan(0), "At least one alarm should be on screen in the opening framing.");
+        }
+
         [UnityTest]
         public IEnumerator TheFloorUnderSomeonesChest_IsNowhereNearTheirFeet()
         {

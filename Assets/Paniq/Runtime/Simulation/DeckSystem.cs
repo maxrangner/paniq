@@ -4,8 +4,9 @@ namespace Paniq.Simulation
 {
     /// <summary>
     /// The cards the player is holding, and where they come from: the dead deal
-    /// them. The round opens with an empty hand, and every time somebody is
-    /// killed one card is drawn at random and put on the player's bar.
+    /// them. The round opens with one card drawn at random (the owner's call,
+    /// 2026-09-24: "start with one random card"), and every time somebody is
+    /// killed one more is drawn and put on the player's bar.
     /// <para>
     /// This is the other half of the purse (see <see cref="InfluenceSystem"/>).
     /// The uproar fills the meter and the dead deal the cards, so the two
@@ -27,15 +28,13 @@ namespace Paniq.Simulation
         /// </summary>
         private static readonly PlayerCommandType[] Deck =
         {
+            // Three cards, by the owner's choice (2026-09-24): Beefcake, TNT
+            // and the fire extinguisher. The trait cards, the fire and the
+            // fuse box still exist as commands, and a level that wants them
+            // deals them through its StartingHand; the office does not.
             PlayerCommandType.PlayBeefcake,
-            PlayerCommandType.PlayCourage,
-            PlayerCommandType.PlayTerror,
-            PlayerCommandType.PlayBastard,
-            PlayerCommandType.PlayColdHeart,
-            PlayerCommandType.SpawnFire,
-            PlayerCommandType.SpawnExtinguisher,
             PlayerCommandType.BlastWall,
-            PlayerCommandType.PopFuseBox
+            PlayerCommandType.SpawnExtinguisher
         };
 
         /// <summary>
@@ -70,6 +69,14 @@ namespace Paniq.Simulation
             {
                 hand.AddRange(opening);
             }
+
+            // The opening draw: from the deck's own stream, so it moves no
+            // other random number in the run, and written down as dealt by
+            // nobody. Both finite cards are still in supply at the start.
+            for (int i = 0; i < context.Scenario.Influence.OpeningDrawCount; i++)
+            {
+                Deal(default, default, 0UL, true, true);
+            }
         }
 
         /// <summary>What the player is holding, in the order it was dealt.</summary>
@@ -100,6 +107,16 @@ namespace Paniq.Simulation
         /// player is never handed a card that cannot be played.
         /// </summary>
         public void DealForDeath(
+            SimulationId who,
+            LogicalPosition where,
+            ulong deathEventId,
+            bool extinguishersLeft,
+            bool blastChargesLeft)
+        {
+            Deal(who, where, deathEventId, extinguishersLeft, blastChargesLeft);
+        }
+
+        private void Deal(
             SimulationId who,
             LogicalPosition where,
             ulong deathEventId,

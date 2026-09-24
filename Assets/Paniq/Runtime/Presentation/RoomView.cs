@@ -53,6 +53,7 @@ namespace Paniq.Presentation
         private readonly ScenarioData scenario;
         private readonly Dictionary<SimulationId, DoorView> doors = new Dictionary<SimulationId, DoorView>();
         private readonly Dictionary<Collider, SimulationId> doorByCollider = new Dictionary<Collider, SimulationId>();
+        private readonly Dictionary<Collider, SimulationId> alarmByCollider = new Dictionary<Collider, SimulationId>();
 
         private sealed class TableView
         {
@@ -141,6 +142,20 @@ namespace Paniq.Presentation
             var view = box.GetComponent<Renderer>();
             materials.SetColor(view, AlarmRestingColor);
             alarms.Add(view);
+
+            // The player can pull it (2026-09-24), so it needs a collider to
+            // click, and a bigger one than the box: the box is a hand's width,
+            // and a click on a hand's width from across the room is a miss.
+            // Half a metre about the box, in the box's own scaled units.
+            var handle = box.AddComponent<BoxCollider>();
+            handle.size = new Vector3(2.5f, 2f, 2.5f);
+            alarmByCollider.Add(handle, alarm.AlarmId);
+        }
+
+        /// <summary>Which fire alarm a clicked collider belongs to, if any.</summary>
+        public bool TryGetAlarm(Collider collider, out SimulationId alarmId)
+        {
+            return alarmByCollider.TryGetValue(collider, out alarmId);
         }
 
         /// <summary>Every bell flashes while the alarms are ringing.</summary>

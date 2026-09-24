@@ -1935,12 +1935,15 @@ namespace Paniq.Simulation
     public sealed class InfluenceSettings
     {
         /// <summary>
-        /// What the player starts the run with: nothing. The round opens with
-        /// an empty purse and an empty hand, so the first thing the player can
-        /// do is watch. The building has to get into trouble before there is
-        /// anything to spend, which is the whole shape of the game.
+        /// What the player starts the run with: thirty, which is one card or
+        /// one pull of a fire alarm (the owner's call, 2026-09-24: "start with
+        /// one random card, and 30 activity points"). It was nothing, so that
+        /// the building had to get into trouble before there was anything to
+        /// spend; thirty is one move before it does -- enough to raise the
+        /// alarm on a fire nobody else has seen, and not enough to open the
+        /// way out (80) before anybody is in trouble.
         /// </summary>
-        public int Starting = 0;
+        public int Starting = 30;
 
         /// <summary>Earned for each person who gets out alive, rescued or under their own steam.</summary>
         public int PerPersonSaved = 15;
@@ -1955,6 +1958,22 @@ namespace Paniq.Simulation
         /// -- or a test that needs a particular card in hand -- sets it here.
         /// </summary>
         public PlayerCommandType[] StartingHand = new PlayerCommandType[0];
+
+        /// <summary>
+        /// How many cards are drawn from the deck at the start, on top of
+        /// <see cref="StartingHand"/>: one, from the deck's own random stream,
+        /// so the same seed opens with the same card. The owner's call
+        /// (2026-09-24). A test that counts cards in hand sets it to nought.
+        /// </summary>
+        public int OpeningDrawCount = 1;
+
+        /// <summary>
+        /// What the player pays to pull a fire alarm: the price of a card, and
+        /// exactly the opening purse, so raising the building is the one move
+        /// always on offer from the first tick. Free (and pointless) once the
+        /// bells are ringing.
+        /// </summary>
+        public int PullAlarmCost = 30;
 
         /// <summary>
         /// How wide a patch a card thrown at the floor catches. About a
@@ -2021,7 +2040,7 @@ namespace Paniq.Simulation
         internal void Validate()
         {
             Settings.Require(Starting >= 0 && PerPersonSaved >= 0 && Maximum >= Starting, "influence");
-            Settings.Require(CardCost >= 0, "card costs");
+            Settings.Require(CardCost >= 0 && PullAlarmCost >= 0 && OpeningDrawCount >= 0, "card costs");
             Settings.Require(CardPatchRadiusMillimetres > 0, "how wide a card's patch is");
             Settings.Require(UproarSmall >= 0 && UproarMiddling >= 0 && UproarBig >= 0, "what the uproar pays");
             Settings.Require(UnlockDoorCost >= 0 && OpenDoorCost >= 0 && CloseDoorCost >= 0, "door costs");

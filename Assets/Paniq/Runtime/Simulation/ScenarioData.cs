@@ -558,9 +558,16 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "63";
+        public string ContentRevision = "64";
         public ulong DefaultSeed = 42UL;
 
+        // 52: a chair that will not come all the way out from the desk is sat
+        // on where it stopped, and one that will not slide all the way back in
+        // is settled where it is. Before this, the walk-to-the-chair timeout
+        // fired on the same tick either part would have made do, so the sitter
+        // dropped the chair and, already on the seat, kicked it over behind
+        // them; seen when two neighbours sat down at the same desk cluster.
+        // Every recorded replay fingerprint was re-recorded.
         // 51: the building has a day. The meeting ends by the level's
         // timetable rather than a sit timer, calm people go home, to the
         // toilet and over to talk, and every calm decision draws differently.
@@ -587,7 +594,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 51;
+        public int SimulationCompatibilityVersion = 52;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -146,19 +146,27 @@ namespace Paniq.Simulation
                     // not; only one they have not reached yet can be taken by
                     // somebody else first.
                     bool theirs = agent.Sitting.OnIt || agent.Sitting.Phase != SitPhase.None;
-                    if (chair < 0 || (!theirs && !objects.IsFreeChair(chair)) ||
+                    if (theirs)
+                    {
+                        // Pulling the chair out, lowering onto it, or riding it
+                        // in. Each part keeps its own time: a chair that will
+                        // not come all the way out (against a wall, or another
+                        // chair) is sat on where it stopped, and one that will
+                        // not slide all the way back in is settled where it is.
+                        // The timeout below is for the walk to it only; taken
+                        // here as well, it used to drop the chair on the very
+                        // tick either part would have made do, and kick it over
+                        // behind somebody already on the seat.
+                        return UpdateSittingDown(agent, chair, out goalHeading);
+                    }
+
+                    if (chair < 0 || !objects.IsFreeChair(chair) ||
                         tick >= agent.Intent.ActivityEndTick ||
-                        (!theirs && agent.Body.BlockedTicks > context.Scenario.Calm.BlockedGiveUpTicks))
+                        agent.Body.BlockedTicks > context.Scenario.Calm.BlockedGiveUpTicks)
                     {
                         // Somebody else got there first, or the way is blocked.
                         Forget(agent);
                         return false;
-                    }
-
-                    if (agent.Sitting.Phase != SitPhase.None)
-                    {
-                        // Pulling the chair out, lowering onto it, or riding it in.
-                        return UpdateSittingDown(agent, chair, out goalHeading);
                     }
 
                     LogicalPosition standBy = PullOutSpot(agent, chair);

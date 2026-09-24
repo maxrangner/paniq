@@ -1,4 +1,4 @@
-# Technical decisions
+﻿# Technical decisions
 
 ## Chosen foundation
 
@@ -727,12 +727,41 @@ sibling does, and the walking-about test keeps chats as short as the old
 a toilet trip or a chat on screen. The scene bake with a `Paniq > Cue` placed:
 the code compiles and mirrors the other bake steps, but no scene has one.
 
+## Prototype 2 fix: a chair that will not come all the way out is sat on anyway (2026-09-24)
+
+Found while the cue system was being reworked into steps, and fixed on its
+own before it.
+
+**What a player saw.** Somebody walking back to their desk took hold of their
+chair, pulled at it, and if it would not come all the way out from the desk --
+because the chair next to it was being pulled out at the same moment, or the
+desk behind stood too close -- let go of it, stood about, and tried again.
+When the pull did come out but the chair would not slide all the way back in,
+they got up off the seat and kicked the chair over behind them as though
+frightened, on a calm afternoon. Person 1019, sent home from the bathroom to
+the office, spent 34 seconds at their desk without managing to sit, while a
+neighbour pulled out the next chair along.
+
+The code always meant a chair that will not come all the way out to be sat on
+where it stopped, and one that will not slide all the way in to be settled
+where it is; both fallbacks were written. Neither could ever run: the timeout
+for the walk *to* the chair was tested first, on the same tick either fallback
+would have made do, and it dropped the chair instead. Being already on the
+seat when it fired is what made the chair go over.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **The walk's timeout is the walk's** | In `ChairBehaviour.UpdateSitting`, once somebody has hold of the chair (pulling it out, lowering onto it, or riding it in), each part of the sit keeps its own time and the walk-to-it timeout, chair-taken and blocked checks no longer apply. Each part already had a way of making do at its own timeout, and now reaches it | Sitting down is the calm half's commonest move, and the day about to be built on top has everybody going back to their desk several times an hour. A sit that fails one time in ten at a crowded desk cluster is a sit that fails on screen every minute | A chair that stops short leaves somebody sitting visibly away from the desk. Then shift them the last bit as the chair scoots in, which the seat-scoot code already knows how to do |
+| Versions | `SimulationCompatibilityVersion` 51 -> 52; `ContentRevision` 63 -> 64. Five of the thirteen recorded fingerprints re-recorded (seed 42 locked and opened, seed 46 opened, and both box runs); eight happen not to change | Whether a sit completes changes where people are for the rest of the run | Never |
+| Test | `ErrandsEditModeTests.SentHomeAcrossTheBuilding_SomebodyOpensTheDoorsOnTheWay_AndSitsOnTheirOwnChair` is the check that reached this path, and the trace that found it (somebody sent home from the bathroom, with their neighbour sitting down at the same time) is what it exercises | -- | -- |
+
 ## Version history
 
 Every bump of `SimulationCompatibilityVersion` (the rules) and `ContentRevision` (the building) that the replay compatibility row of the first table used to list in one cell, newest first. The bumps from 27 to 42 are recorded in their own stones' sections above (search this document for "Versions").
 
 | Change | What moved |
 | --- | --- |
+| 51 → 52 and content 63 → 64 (2026-09-24) | a chair that will not come all the way out is sat on where it stopped, and one that will not slide all the way back in is settled where it is, instead of being dropped or kicked over. Five of the thirteen fingerprints re-recorded; eight happen not to change. |
 | 50 → 51 and content 62 → 63 (2026-09-24) | the building has a day: the meeting ends by the timetable, calm people go home, to the toilet and over to talk, and every calm decision draws differently. All thirteen fingerprints re-recorded. |
 | 49 → 50 and content 61 → 62 (2026-09-24) | nobody reacts on the tick a thing happens: every reaction begins a few ticks late, and no two people finish being startled on the same tick. All thirteen fingerprints re-recorded. |
 | 48 → 49 and content 60 → 61 (2026-09-24) | every fixed length of time a person spends is jittered from the seed, and the meeting breaks up one person at a time. All thirteen fingerprints re-recorded. |

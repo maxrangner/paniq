@@ -61,6 +61,7 @@ namespace Paniq.EditorTools
             data.Agents = BakePeople(Find<PaniqPerson>(), problems);
             data.Alarms = BakeAlarms(Find<PaniqAlarm>(), problems);
             BakeFire(Find<PaniqFireStart>(), data, rooms, problems);
+            BakeCues(Find<PaniqCue>(), data, problems);
 
             if (problems.Count == 0)
             {
@@ -128,7 +129,8 @@ namespace Paniq.EditorTools
                 RectInt floor = rooms[i].Floor;
                 baked[i] = new RoomDefinition(
                     new SimulationId((ulong)rooms[i].RoomId),
-                    new LogicalBounds(floor.xMin, floor.xMax, floor.yMin, floor.yMax));
+                    new LogicalBounds(floor.xMin, floor.xMax, floor.yMin, floor.yMax),
+                    rooms[i].Use);
 
                 for (int other = 0; other < i; other++)
                 {
@@ -273,9 +275,69 @@ namespace Paniq.EditorTools
                     : new AgentDefinition(new SimulationId((ulong)person.AgentId), where, facing);
                 baked[i] = baked[i].WithFamiliarity(
                     person.Visitor ? AgentFamiliarity.Visitor : AgentFamiliarity.KnowsTheBuilding);
+
+                // Where they belong: a chair of theirs, or where they stand.
+                // The run refuses a home that is not a chair, so a prop that
+                // is not one is reported here, in the scene's own terms.
+                if (person.Home != null)
+                {
+                    if (person.Home.Kind != PhysicsObjectKind.Chair && person.Home.Kind != PhysicsObjectKind.OfficeChair)
+                    {
+                        problems.Add("Person " + person.name + "'s home is " + person.Home.name + ", which is not a chair.");
+                    }
+
+                    baked[i] = baked[i].WithHome(new SimulationId((ulong)person.Home.ObjectId));
+                }
+                else if (person.HomeIsWhereTheyStand)
+                {
+                    baked[i] = baked[i].WithHome(where);
+                }
             }
 
             return baked;
+        }
+
+        /// <summary>
+        /// The timetable, from the cues placed in the scene, in the order they
+        /// happen. A scene with none keeps the timetable the level already
+        /// has, the way it keeps its exit signs.
+        /// </summary>
+        private static void BakeCues(PaniqCue[] cues, ScenarioData data, List<string> problems)
+        {
+            if (cues.Length == 0)
+            {
+                return;
+            }
+
+            var baked = new List<ScheduledCue>();
+            foreach (PaniqCue cue in cues)
+            {
+                // What may be scheduled comes from the cue's own definition,
+                // the same rule the run checks: one that reaches a room or the
+                // whole building, and a room named only for the former.
+                CueDefinition definition = data.CueOf(cue.Kind);
+                if (!definition.IsSchedulable)
+                {
+                    problems.Add("Cue " + cue.name + " is a " + cue.Kind + ", which is somebody's own idea and cannot be scheduled.");
+                    continue;
+                }
+
+                bool inARoom = definition.Audience == CueAudience.Room;
+                if (inARoom && cue.Room == null)
+                {
+                    problems.Add("Cue " + cue.name + " happens in a room but does not say which.");
+                    continue;
+                }
+
+                baked.Add(new ScheduledCue(
+                    cue.Kind,
+                    Mathf.Max(1, Mathf.RoundToInt(cue.AtSeconds * Run.TicksPerSecond)),
+                    Mathf.Max(0, Mathf.RoundToInt(cue.SpreadSeconds * Run.TicksPerSecond)),
+                    inARoom ? new SimulationId((ulong)cue.Room.RoomId) : default));
+            }
+
+            baked.Sort((left, right) => left.AtTick.CompareTo(right.AtTick));
+            data.Timetable = baked.ToArray();
         }
 
         private static AlarmDefinition[] BakeAlarms(PaniqAlarm[] alarms, List<string> problems)

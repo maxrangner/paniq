@@ -36,6 +36,7 @@ namespace Paniq.Simulation
         private WorldGeometry geometry;
         private RoundSystem round;
         private PowerSystem power;
+        private CueSystem cues;
 
         public PlayerCommandSystem(SimulationContext context)
         {
@@ -56,6 +57,7 @@ namespace Paniq.Simulation
             sound = systems.Sound;
             body = systems.Body;
             geometry = systems.Geometry;
+            cues = systems.Cues;
         }
 
         /// <summary>Every command queued so far, in sequence order.</summary>
@@ -113,6 +115,7 @@ namespace Paniq.Simulation
                 case PlayerCommandType.BlastWall:
                 case PlayerCommandType.TriggerEvent:
                 case PlayerCommandType.PopFuseBox:
+                case PlayerCommandType.CallHomeTime:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(commandType), $"Unknown command type {commandType}.");
@@ -165,6 +168,16 @@ namespace Paniq.Simulation
             if (command.CommandType == PlayerCommandType.TriggerEvent)
             {
                 round.TriggerEvent();
+                return;
+            }
+
+            // Calling it a day is not a card either. The player is the cause,
+            // so it is a root event, and the cue it calls names it.
+            if (command.CommandType == PlayerCommandType.CallHomeTime)
+            {
+                ulong called = context.Events.Append(context.Tick, default, CausalEventType.PowerCalledHomeTime,
+                    geometry.FireArea.Centre).EventId;
+                cues.CallHomeTime(context.Scenario.Day.PlayerHomeTimeSpreadTicks, called);
                 return;
             }
 

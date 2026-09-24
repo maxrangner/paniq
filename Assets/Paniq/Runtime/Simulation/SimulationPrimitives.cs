@@ -355,7 +355,129 @@ namespace Paniq.Simulation
         Barricading,
 
         /// <summary>Heaving whatever is wedged in a doorway out of the way.</summary>
-        ShovingObstruction
+        ShovingObstruction,
+
+        /// <summary>
+        /// Walking somewhere with a purpose while calm -- home, to a stall, to
+        /// the way out, over to somebody -- or standing at a door on the way
+        /// (see <see cref="ErrandBehaviour"/>).
+        /// </summary>
+        RunningAnErrand,
+
+        /// <summary>Stood talking to somebody, facing them.</summary>
+        Chatting
+    }
+
+    /// <summary>
+    /// A small thing that happens in the building's day and changes what some
+    /// people want to do: the game's word for one of these, because "event"
+    /// already means a line in the causal log. Called by the Director from the
+    /// level's timetable, by a person as their own idea, or by the player.
+    /// Appended only: a kind's number is carried in the log.
+    /// </summary>
+    public enum CueKind
+    {
+        /// <summary>The meeting in a room breaks up: the host first, the rest one by one.</summary>
+        MeetingEnds,
+
+        /// <summary>The end of the working day: everybody packs up and leaves.</summary>
+        HomeTime,
+
+        /// <summary>Two people stop and talk.</summary>
+        Chat,
+
+        /// <summary>Somebody goes to the toilet.</summary>
+        ToiletTrip,
+
+        /// <summary>Somebody goes back to their own desk. Their own idea, and not written down: nobody else notices.</summary>
+        GoHome
+    }
+
+    /// <summary>Who a cue reaches. Which of these a cue has decides whether the timetable may call it.</summary>
+    public enum CueAudience
+    {
+        /// <summary>The person whose idea it was, and nobody else.</summary>
+        Self,
+
+        /// <summary>The person whose idea it was and the one person it is about.</summary>
+        Pair,
+
+        /// <summary>Everybody calm in the room it is called in.</summary>
+        Room,
+
+        /// <summary>Everybody calm in the building.</summary>
+        Building
+    }
+
+    /// <summary>Who speaks for a cue and takes it up first.</summary>
+    public enum CueHostRule
+    {
+        Nobody,
+
+        /// <summary>The seated person in the room with the most leadership, the lower ID on a tie; failing anybody seated, anybody calm in it.</summary>
+        SeatedWithMostLeadership
+    }
+
+    /// <summary>
+    /// One step of an errand: the vocabulary a cue's script is written in
+    /// (see <see cref="ErrandBehaviour"/>). Appended only: a step's number is
+    /// saved in the scenario.
+    /// </summary>
+    public enum ErrandStepKind
+    {
+        /// <summary>Walk to the place the step's target names, room to room, opening shut doors on the way and waiting at a locked one.</summary>
+        GoTo,
+
+        /// <summary>Sit on the chair the target names (their own), if there is one and they are near it. Skipped otherwise.</summary>
+        SitOn,
+
+        /// <summary>Stand for a while, drawn from the step's range.</summary>
+        StandFor,
+
+        /// <summary>Say something that is heard nearby. Takes no time.</summary>
+        Say,
+
+        /// <summary>Stand talking with the partner, a remark now and then, until the chat ends.</summary>
+        Talk,
+
+        /// <summary>Shut the door of the small room they are in (a stall). Takes no time.</summary>
+        ShutTheDoor,
+
+        /// <summary>Open the door of the small room they are in, which takes a moment; wait if it is locked.</summary>
+        OpenTheDoor,
+
+        /// <summary>Walk out of the building through the nearest way out, waiting at a locked one.</summary>
+        Leave
+    }
+
+    /// <summary>Where a step is aimed.</summary>
+    public enum ErrandTarget
+    {
+        None,
+
+        /// <summary>Their own chair or spot. A step aimed here is skipped by somebody with no home.</summary>
+        Home,
+
+        /// <summary>The nearest free toilet stall. An errand aimed here ends when there is none.</summary>
+        FreeStall,
+
+        /// <summary>The person the cue is about. An errand aimed here ends when they are gone.</summary>
+        Partner,
+
+        /// <summary>Their own chair or spot, or, for somebody with no home, where they stood when the errand began.</summary>
+        HomeOrWhereTheyStood
+    }
+
+    /// <summary>
+    /// What a room is for, where that changes what people do in it. Zero is
+    /// an ordinary room, so a room authored before this existed reads as one.
+    /// </summary>
+    public enum RoomUse
+    {
+        Ordinary,
+
+        /// <summary>A toilet stall: somebody goes in, shuts the door, and comes out a while later.</summary>
+        Stall
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>
@@ -632,7 +754,36 @@ namespace Paniq.Simulation
         /// nobody is knocked down and no floor is lit. The strength is how big
         /// the thing is, in millimetres, for drawing the flash.
         /// </summary>
-        ObjectPopped
+        ObjectPopped,
+
+        /// <summary>
+        /// A cue was called (see <see cref="CueKind"/>, carried as the
+        /// strength). Source: whoever called it -- the host who ended the
+        /// meeting, the person who went to the toilet or started the chat --
+        /// or nobody, for the Director's timetable and the player. Target: the
+        /// room it was called in, or the person it was called to. Cause: the
+        /// player's command, when it was theirs.
+        /// </summary>
+        CueCalled,
+
+        /// <summary>
+        /// A remark in a conversation, heard a little way off (source: the
+        /// speaker; strength: how far it carries; cause: the chat's cue).
+        /// Chatter: it is folded in the read-back and earns no sign.
+        /// </summary>
+        AgentSaid,
+
+        /// <summary>The player called it a day. A root event: the cue it calls names it as its cause.</summary>
+        PowerCalledHomeTime,
+
+        /// <summary>
+        /// Somebody cruel would not take up a cue: sat on when the meeting
+        /// ended, ignored home time, would not talk to whoever came over.
+        /// Strength is the <see cref="CueKind"/>; the target, for a chat,
+        /// is the person turned away. Its cause is the cue's line, or
+        /// nothing for a chat that was never written down.
+        /// </summary>
+        AgentIgnoredCue
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -810,7 +961,15 @@ namespace Paniq.Simulation
         PlayBastard,
 
         /// <summary>Cold heart: compassion to the bottom. They stop going back for anybody.</summary>
-        PlayColdHeart
+        PlayColdHeart,
+
+        /// <summary>
+        /// Call it a day: everybody in the building packs up and heads for the
+        /// way out. Not a card and it costs nothing, like the trigger: it is
+        /// the player's way of calling a cue, proven to work by a test, and
+        /// nothing on the screen is wired to it yet.
+        /// </summary>
+        CallHomeTime
     }
 
     /// <summary>

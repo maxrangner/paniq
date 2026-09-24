@@ -173,7 +173,7 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The meeting ends of its own accord at the minute mark, with nothing
+        /// The meeting ends by the timetable at the minute mark, with nothing
         /// having happened, and everybody gets up. This is the case the fright
         /// fix above never covered: getting up on purpose worked its step-out
         /// spot out afresh every tick from wherever the body had got to, so
@@ -187,6 +187,13 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             data.Fire.ActivationTick = int.MaxValue;
             data.Round.HazardWaitsForTrigger = true;
+
+            // Nobody contrary: this is about everybody getting up, one at a
+            // time; the cruel sitting on is its own test.
+            data.Day.CruelIgnoreCuePercent = 0;
+            Assert.That(data.Timetable.Length, Is.EqualTo(1), "The office's day holds one thing: the meeting ends.");
+            ScheduledCue meetingEnds = data.Timetable[0];
+            Assert.That(meetingEnds.Kind, Is.EqualTo(CueKind.MeetingEnds));
             var simulation = new Run(data);
             var wasAt = new LogicalPosition[simulation.AgentCount];
             var seat = new LogicalPosition[simulation.AgentCount];
@@ -202,9 +209,10 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(System.Array.FindAll(seated, s => s).Length, Is.EqualTo(6), "Six are in the meeting.");
 
-            // Through the end of the meeting, everybody's own while beyond it,
-            // and the moment it takes them to get up, then a little longer.
-            int until = data.Items.SeatedAtStartTicks + data.Items.SeatedAtStartSpreadTicks +
+            // Through the end of the meeting, everybody's own lag and their
+            // own share of the spread beyond it, and the moment it takes them
+            // to get up, then a little longer.
+            int until = meetingEnds.AtTick + meetingEnds.SpreadTicks + data.Perception.ReactionLagMaximumTicks +
                         data.Items.SitPullTicks + data.Items.SitLowerTicks + 25;
             var roseAt = new int[simulation.AgentCount];
             for (int t = 0; t < until; t++)
@@ -217,8 +225,10 @@ namespace Paniq.Tests.EditMode
                         continue;
                     }
 
+                    // Rising is standing up; turning in the chair to look at
+                    // the host saying it is over is not.
                     AgentSnapshot person = simulation.GetAgent(i);
-                    if (roseAt[i] == 0 && person.ActivityState != AgentActivityState.Sitting)
+                    if (roseAt[i] == 0 && person.ActivityState == AgentActivityState.StandingUp)
                     {
                         roseAt[i] = simulation.Tick;
                     }
@@ -261,11 +271,49 @@ namespace Paniq.Tests.EditMode
                     continue;
                 }
 
-                // Up at some point: a calm person may well have sat straight
-                // back down by now, which is what calm people do.
+                // Up, and the meeting ending is done with them. A visitor
+                // with no desk may well sit down again somewhere on their
+                // own account soon after, since a chair just left is not
+                // remembered (docs/cue-system.md, what comes next), and how
+                // soon is the dice's business; what they never do is sit
+                // back down as part of the meeting ending.
                 AgentSnapshot person = simulation.GetAgent(i);
-                Assert.That(roseAt[i], Is.GreaterThan(0), $"Person {person.AgentId} never got up after the meeting ended.");
+                Assert.That(person.ActivityState != AgentActivityState.Sitting || !simulation.AgentForTests(i).Errand.Has,
+                    Is.True, $"Person {person.AgentId} sat back down as part of the meeting ending: " + simulation.DescribeForTests(i));
             }
+
+            // The host ends it: the person at the table with the most
+            // leadership is the first on their feet, and the log says so.
+            int host = -1;
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (seated[i] && (host < 0 || simulation.GetAgent(i).Traits.Leadership > simulation.GetAgent(host).Traits.Leadership))
+                {
+                    host = i;
+                }
+            }
+
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (seated[i] && i != host)
+                {
+                    Assert.That(roseAt[host], Is.LessThan(roseAt[i]),
+                        $"The host (person {simulation.GetAgent(host).AgentId}) should be up before person {simulation.GetAgent(i).AgentId}.");
+                }
+            }
+
+            bool ended = false;
+            foreach (CausalEvent record in simulation.GetSnapshot().Events)
+            {
+                if (record.EventType == CausalEventType.CueCalled && (CueKind)record.Strength == CueKind.MeetingEnds)
+                {
+                    Assert.That(record.SourceId, Is.EqualTo(simulation.GetAgent(host).AgentId), "The host is written down as ending it.");
+                    Assert.That(record.Tick, Is.EqualTo(meetingEnds.AtTick), "On the tick the timetable says.");
+                    ended = true;
+                }
+            }
+
+            Assert.That(ended, Is.True, "The meeting ending is a line in the story.");
         }
 
         [Test]

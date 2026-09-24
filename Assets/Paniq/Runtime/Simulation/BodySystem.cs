@@ -319,6 +319,7 @@ namespace Paniq.Simulation
             agent.Intent.SocialPartnerIndex = -1;
             agent.Hearing.HasSoundPoint = false;
             agent.Doors.ExitDoorIndex = -1;
+            agent.Errand.Clear();
         }
 
         /// <summary>Burnt out: collapses and is lost. Returns true when it happened this tick.</summary>

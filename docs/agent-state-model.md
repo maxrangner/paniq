@@ -164,6 +164,15 @@ fourth fear state — which would have touched every check for "scared" in the
 simulation. It is cleared the moment the hazard stops being an abstraction: it
 reaches them, they are knocked about, or they see it for themselves.
 
+**Where they belong, and what they are doing about the day (2026-09-24).**
+`AgentHome` is where somebody belongs: the chair that is theirs, or a spot,
+set once from the authored definition and never changed. `AgentErrand` is the
+purpose a cue has given them and how far along it they are (kind, phase, when
+it starts, the room and door and partner it is about, its cause), written by
+`CueSystem` and `ErrandBehaviour`, and cleared the moment fear takes over. Both
+are prototype runtime state on this record, not fields of the neutral
+foundation; see [the cue system](cue-system.md).
+
 **Traits can be changed by the player.** The player's Beefcake card sets a
 person's strength to its maximum. Nothing else about them changes, and because
 traits are read through `TraitEffects` whenever they are used and never cached,

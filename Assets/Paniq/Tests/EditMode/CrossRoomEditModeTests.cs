@@ -48,6 +48,7 @@ namespace Paniq.Tests.EditMode
             data.Tables = new TableDefinition[0];
             data.Alarms = new AlarmDefinition[0];
             data.BlastHoles = new SimulationId[0];
+            data.Timetable = System.Array.Empty<ScheduledCue>();
             data.Rooms = new[]
             {
                 new RoomDefinition(WhereTheFireIs, new LogicalBounds(-6000, 6000, -6000, 6000)),

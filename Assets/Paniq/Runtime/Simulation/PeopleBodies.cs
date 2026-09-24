@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -583,15 +583,20 @@ namespace Paniq.Simulation
                 }
 
                 // Wanting to go somewhere and getting less than a third of the
-                // way is being stuck, whatever is in the way.
+                // way is being stuck, whatever is in the way. A tick that got
+                // somewhere forgives one stuck tick, not all of them: a crush
+                // that shoves somebody a hand's width sideways every few ticks
+                // used to wipe the count each time, so somebody pinned against
+                // a table by a jostling crowd never stayed "stuck" long enough
+                // to heave it or think again.
                 long moved = IntegerMath.Sqrt(LogicalPosition.DistanceSquared(from, to));
                 if (wanted[i] > 0 && moved * 3 < wanted[i])
                 {
                     agent.Body.BlockedTicks++;
                 }
-                else if (moved > 0L)
+                else if (moved > 0L && agent.Body.BlockedTicks > 0)
                 {
-                    agent.Body.BlockedTicks = 0;
+                    agent.Body.BlockedTicks--;
                 }
 
                 if (moved > 0L)

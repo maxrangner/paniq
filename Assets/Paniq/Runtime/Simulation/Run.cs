@@ -55,6 +55,11 @@ namespace Paniq.Simulation
         private readonly LeaderBehaviour leaders;
         private readonly AlarmSystem alarms;
         private readonly AlarmBehaviour alarmBehaviour;
+
+        /// <summary>The building's day: the cues, who carries them out, and the timetable that calls them.</summary>
+        private readonly CueSystem cues;
+        private readonly ErrandBehaviour errands;
+        private readonly DirectorSystem director;
         private readonly WorldGeometry geometry;
         private readonly Crowd crowd;
         private readonly PhysicsWorld physics;
@@ -118,11 +123,15 @@ namespace Paniq.Simulation
                 GiveOutStartingPossessions();
                 people.AddEveryone();
                 SeatPeopleWhoStartSeated();
+                RememberHomes();
                 locomotion = new Locomotion(context, crowd, geometry, objects);
                 flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
                 items = new ItemBehaviour(context, geometry, objects, flammables);
                 chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
-                calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs);
+                cues = new CueSystem(context, crowd, geometry);
+                errands = new ErrandBehaviour(context, crowd, geometry, objects, doors, chairs, sound, cues);
+                calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues);
+                director = new DirectorSystem(context, cues, geometry);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
                 doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, threats, sound, exitSigns, wayfinding);
@@ -149,7 +158,8 @@ namespace Paniq.Simulation
                     Chairs = chairs, Calm = calm, ExitSigns = exitSigns, Wayfinding = wayfinding,
                     DoorBehaviour = doorBehaviour, Help = help, Panic = panic, Burning = burning,
                     Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms,
-                    AlarmBehaviour = alarmBehaviour, Barricades = barricades
+                    AlarmBehaviour = alarmBehaviour, Barricades = barricades,
+                    Cues = cues, Errands = errands, Director = director
                 };
                 systems.BindAll();
             }
@@ -283,9 +293,9 @@ namespace Paniq.Simulation
         /// meeting already under way when the fire starts. Like
         /// <see cref="GiveOutStartingPossessions"/> this runs once the objects
         /// exist and draws no random numbers, so the start-up draw order is
-        /// untouched. How long they stay seated is a fixed stretch rather than
-        /// a drawn one, long enough that the meeting is still going when the
-        /// first shout goes up.
+        /// untouched. They stay seated until something gets them up -- the
+        /// level's timetable ending the meeting, or the fire -- rather than
+        /// for a while of their own.
         /// </summary>
         private void SeatPeopleWhoStartSeated()
         {
@@ -330,11 +340,47 @@ namespace Paniq.Simulation
                 agent.Sitting.SeatedPercent = 100;
                 agent.Intent.Activity = AgentActivityState.Sitting;
                 agent.Intent.LookHeading = agent.Body.Heading;
-                // Each for their own while, in ascending ID order: the meeting
-                // breaks up one person at a time, never all six on one tick.
-                agent.Intent.ActivityEndTick = checked(context.Scenario.Items.SeatedAtStartTicks +
-                    context.Random.NextIntInclusive(0, context.Scenario.Items.SeatedAtStartSpreadTicks));
-                agent.Sitting.SitUntilTick = agent.Intent.ActivityEndTick;
+
+                // Until told: the meeting breaks up when the timetable says
+                // (CueSystem.EndMeeting), the host first and the rest one at
+                // a time, never on one tick.
+                agent.Sitting.SitUntilTold = true;
+                agent.Intent.ActivityEndTick = int.MaxValue;
+                agent.Sitting.SitUntilTick = int.MaxValue;
+            }
+        }
+
+        /// <summary>
+        /// Tells everybody where they belong: the chair that is theirs, or a
+        /// spot. Draws nothing. Somebody with neither loiters wherever the day
+        /// leaves them, exactly as everybody did before anybody had a desk.
+        /// </summary>
+        private void RememberHomes()
+        {
+            AgentDefinition[] definitions = context.Scenario.Agents;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                for (int d = 0; d < definitions.Length; d++)
+                {
+                    if (definitions[d].AgentId != agent.Id)
+                    {
+                        continue;
+                    }
+
+                    AgentDefinition definition = definitions[d];
+                    if (definition.HasHomeChair)
+                    {
+                        agent.Home.Chair = objects.IndexOf(definition.HomeObjectId);
+                    }
+                    else if (definition.HasHomeSpot)
+                    {
+                        agent.Home.HasSpot = true;
+                        agent.Home.Spot = definition.HomeSpot;
+                    }
+
+                    break;
+                }
             }
         }
 
@@ -491,7 +537,9 @@ namespace Paniq.Simulation
                    $"target={a.Intent.Target} activityEnd={a.Intent.ActivityEndTick} nextDecision={a.Intent.NextPanicDecisionTick} " +
                    $"exitDoor={a.Doors.ExitDoorIndex} wayOut={a.Doors.WayOutDoorIndex} room={a.Doors.CurrentRoom} " +
                    $"knowsAll={a.Knowledge.KnowsEverything} searching={a.Knowledge.Searching} searchSpot={searchSpot} " +
-                   $"freezeEnd={a.Fear.FreezeEndTick} reactionEnd={a.Fear.ReactionEndTick} temperament={a.Personality.Temperament}";
+                   $"freezeEnd={a.Fear.FreezeEndTick} reactionEnd={a.Fear.ReactionEndTick} temperament={a.Personality.Temperament} " +
+                   $"errand={(a.Errand.Has ? a.Errand.Cue.ToString() : "none")}/step{a.Errand.Step}/{a.Errand.Phase} errandDoor={a.Errand.Door} errandRoom={a.Errand.Room} " +
+                   $"errandPlace={a.Errand.Place} errandUntil={a.Errand.UntilTick} errandEnded={a.Errand.EndedBecause} sitting={a.Sitting.OnIt}/{a.Sitting.ChairIndex}";
         }
 
         /// <summary>Tests only: this person heaves this table the way they are facing, as a panicking person stuck behind it would.</summary>
@@ -519,6 +567,15 @@ namespace Paniq.Simulation
         /// <summary>The cable and the sparks on it, for a test to watch one travel.</summary>
         internal PowerSystem PowerForTests => power;
 
+        /// <summary>The cues, for a test that calls one by hand rather than waiting for the timetable or the dice.</summary>
+        internal CueSystem CuesForTests => cues;
+
+        /// <summary>Tests only: what one person's errand is and how far along it is.</summary>
+        internal AgentErrand ErrandForTests(int index) => agents[index].Errand;
+
+        /// <summary>Tests only: a thud at a spot, so calm people near it turn to look.</summary>
+        internal void MakeANoiseForTests(LogicalPosition where) => systems.Sound.Thud(default, where, 0UL);
+
         /// <summary>The run's shared state, for a test double that needs to write into the log.</summary>
         internal SimulationContext ContextForTests => context;
 
@@ -538,6 +595,16 @@ namespace Paniq.Simulation
 
         /// <summary>How far any two solid things were pressed into each other during the last tick, in millimetres.</summary>
         public int DeepestPressMillimetres => physics.DeepestPressMillimetres;
+
+        /// <summary>Tests only: whether the deepest press of the last tick was a thing against the floor, rather than against a table, a wall, a door or another thing.</summary>
+        internal bool DeepestPressIsIntoTheFloorForTests
+        {
+            get
+            {
+                (_, int b, PhysicsWorld.StaticKind building) = physics.DeepestPressPair;
+                return b < 0 && building == PhysicsWorld.StaticKind.Floor;
+            }
+        }
 
         /// <summary>
         /// Tests only: the two things pressed deepest during the last tick, as
@@ -620,7 +687,8 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// One logical tick, in the simulation contract's order:
-        /// 1 player commands, 2 hazard, 3 hazard contact, 4 decisions
+        /// 1 player commands, 1½ the building's day (the Director's cues),
+        /// 2 hazard, 3 hazard contact, 4 decisions
         /// (ascending ID), 5 movement, 6 danger contact along accepted moves,
         /// flames jumping between people, and exits, 7 collisions (people,
         /// then objects), 8 the physics engine's step and every hit it reports,
@@ -630,6 +698,11 @@ namespace Paniq.Simulation
         {
             context.Tick = checked(context.Tick + 1);
             playerCommands.Consume();
+
+            // Phase 1½: what the building's day holds. A cue called here
+            // reaches people at their own reaction tick in phase 4, so nobody
+            // moves on the tick it is called.
+            director.Advance();
             threats.Advance();
 
             // Phase 2 as well: a fuse burning along a wall toward a socket is
@@ -769,9 +842,15 @@ namespace Paniq.Simulation
                 lost += outcome == AgentTerminalOutcome.Lost ? 1 : 0;
             }
 
-            for (int saved = escapedLastTick; saved < escaped; saved++)
+            // Only while the round is running: somebody who strolled out at
+            // home time before anything was wrong was never in danger, and
+            // the purse pays for people saved, not for people who left.
+            if (round.Phase == RoundPhase.Running)
             {
-                influence.CreditPersonSaved();
+                for (int saved = escapedLastTick; saved < escaped; saved++)
+                {
+                    influence.CreditPersonSaved();
+                }
             }
 
             escapedLastTick = escaped;

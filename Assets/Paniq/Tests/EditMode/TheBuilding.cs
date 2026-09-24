@@ -174,5 +174,33 @@ namespace Paniq.Tests.EditMode
         {
             data.Fire.SpawnBounds = new LogicalBounds(where.X, where.X, where.Z, where.Z);
         }
+
+        /// <summary>The building's day with a stall visit that lasts this long: the toilet trip's standing step, re-ranged.</summary>
+        public static ScenarioData WithToiletStay(ScenarioData data, int minimumTicks, int maximumTicks)
+        {
+            return WithStepRange(data, CueKind.ToiletTrip, ErrandStepKind.StandFor, minimumTicks, maximumTicks);
+        }
+
+        /// <summary>The building's day with chats that last this long: the chat's talking step, re-ranged.</summary>
+        public static ScenarioData WithChatLength(ScenarioData data, int minimumTicks, int maximumTicks)
+        {
+            return WithStepRange(data, CueKind.Chat, ErrandStepKind.Talk, minimumTicks, maximumTicks);
+        }
+
+        private static ScenarioData WithStepRange(ScenarioData data, CueKind kind, ErrandStepKind step, int minimumTicks, int maximumTicks)
+        {
+            CueDefinition cue = data.CueOf(kind);
+            var steps = (ErrandStep[])cue.Script.Clone();
+            for (int i = 0; i < steps.Length; i++)
+            {
+                if (steps[i].Kind == step)
+                {
+                    steps[i] = steps[i].WithTicks(minimumTicks, maximumTicks);
+                }
+            }
+
+            data.ReplaceCue(cue.WithScript(steps));
+            return data;
+        }
     }
 }

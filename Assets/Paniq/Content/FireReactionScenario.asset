@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 64
+    ContentRevision: 69
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 52
+    SimulationCompatibilityVersion: 57
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -684,8 +684,6 @@ MonoBehaviour:
       SitArrivalDistanceMillimetres: 600
       SitMinimumTicks: 250
       SitMaximumTicks: 1000
-      SeatedAtStartTicks: 3000
-      SeatedAtStartSpreadTicks: 400
       StandUpTicks: 40
       StandUpTicksPerNervousness: 2
       StandUpShoveSpeed: 8
@@ -774,6 +772,25 @@ MonoBehaviour:
       ThrowSpeedMillimetresPerTick: 90
       BangHearingRadiusMillimetres: 20000
       BangAlarmRadiusMillimetres: 12000
+    Day:
+      ToiletEveryTicks: 18000
+      GoHomeChancePercent: 10
+      AtHomeMillimetres: 1500
+      RemarkEveryMinimumTicks: 150
+      RemarkEveryMaximumTicks: 400
+      RemarkHearingRadiusMillimetres: 2500
+      ErrandTimeoutTicks: 3000
+      BlockedGiveUpTicks: 150
+      WaitAtLockedDoorTicks: 1500
+      PlayerHomeTimeSpreadTicks: 1500
+      DeskSitMinimumTicks: 1500
+      DeskSitMaximumTicks: 4500
+      HomeTimeRetryTicks: 1500
+      LockedDoorMemoryTicks: 3000
+      DoorHoldMillimetres: 2000
+      CruelIgnoreCuePercent: 50
+      CruelSitOnMinimumTicks: 500
+      CruelSitOnMaximumTicks: 1500
     Agents:
     - agentId:
         value: 1001
@@ -795,6 +812,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 3101
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1002
       initialPosition:
@@ -815,6 +838,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 3102
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1003
       initialPosition:
@@ -835,6 +864,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 3103
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1004
       initialPosition:
@@ -855,6 +890,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 3106
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1005
       initialPosition:
@@ -875,6 +916,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 3108
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1006
       initialPosition:
@@ -895,6 +942,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 3104
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1007
       initialPosition:
@@ -915,6 +968,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 3107
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1008
       initialPosition:
@@ -935,6 +994,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 3105
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1009
       initialPosition:
@@ -955,6 +1020,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 3241
       familiarity: 1
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1010
       initialPosition:
@@ -975,6 +1046,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 3242
       familiarity: 1
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1011
       initialPosition:
@@ -995,6 +1072,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 3243
       familiarity: 1
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1012
       initialPosition:
@@ -1015,6 +1098,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 3244
       familiarity: 1
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1013
       initialPosition:
@@ -1035,6 +1124,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 3245
       familiarity: 1
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1014
       initialPosition:
@@ -1055,6 +1150,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 3246
       familiarity: 0
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1015
       initialPosition:
@@ -1075,6 +1176,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 3247
       familiarity: 0
+      homeObjectId:
+        value: 3247
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1016
       initialPosition:
@@ -1095,6 +1202,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 3248
       familiarity: 0
+      homeObjectId:
+        value: 3248
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1017
       initialPosition:
@@ -1115,6 +1228,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1018
       initialPosition:
@@ -1135,6 +1254,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1019
       initialPosition:
@@ -1155,6 +1280,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     - agentId:
         value: 1020
       initialPosition:
@@ -1175,6 +1306,12 @@ MonoBehaviour:
       seatedOnObjectId:
         value: 0
       familiarity: 0
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     Doors:
     - doorId:
         value: 2002
@@ -2311,6 +2448,7 @@ MonoBehaviour:
         maxX: 6000
         minZ: -6000
         maxZ: 6000
+      use: 0
     - roomId:
         value: 5002
       bounds:
@@ -2318,6 +2456,7 @@ MonoBehaviour:
         maxX: 8000
         minZ: 1500
         maxZ: 3500
+      use: 0
     - roomId:
         value: 5003
       bounds:
@@ -2325,6 +2464,7 @@ MonoBehaviour:
         maxX: 13000
         minZ: 6000
         maxZ: 9000
+      use: 0
     - roomId:
         value: 5004
       bounds:
@@ -2332,6 +2472,7 @@ MonoBehaviour:
         maxX: 13000
         minZ: 9000
         maxZ: 17000
+      use: 0
     - roomId:
         value: 5005
       bounds:
@@ -2339,6 +2480,7 @@ MonoBehaviour:
         maxX: 2000
         minZ: 9000
         maxZ: 17000
+      use: 0
     - roomId:
         value: 5006
       bounds:
@@ -2346,6 +2488,7 @@ MonoBehaviour:
         maxX: 13000
         minZ: 1000
         maxZ: 6000
+      use: 0
     - roomId:
         value: 5007
       bounds:
@@ -2353,6 +2496,7 @@ MonoBehaviour:
         maxX: -6000
         minZ: 6000
         maxZ: 9000
+      use: 0
     - roomId:
         value: 5009
       bounds:
@@ -2360,6 +2504,7 @@ MonoBehaviour:
         maxX: 16000
         minZ: 2000
         maxZ: 17000
+      use: 0
     - roomId:
         value: 5011
       bounds:
@@ -2367,6 +2512,7 @@ MonoBehaviour:
         maxX: 9750
         minZ: -500
         maxZ: 1000
+      use: 1
     - roomId:
         value: 5012
       bounds:
@@ -2374,6 +2520,7 @@ MonoBehaviour:
         maxX: 11250
         minZ: -500
         maxZ: 1000
+      use: 1
     - roomId:
         value: 5013
       bounds:
@@ -2381,6 +2528,7 @@ MonoBehaviour:
         maxX: 12750
         minZ: -500
         maxZ: 1000
+      use: 1
     Alarms:
     - alarmId:
         value: 6001
@@ -2466,3 +2614,104 @@ MonoBehaviour:
         x: 14500
         z: 4000
       pointingDegrees: 0
+    Timetable:
+    - kind: 0
+      atTick: 3000
+      spreadTicks: 400
+      roomId:
+        value: 5005
+    Cues:
+    - kind: 0
+      audience: 2
+      host: 1
+      writtenDown: 1
+      hostScript:
+      - kind: 3
+        target: 0
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 0
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 1
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+      script:
+      - kind: 0
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 1
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+    - kind: 1
+      audience: 3
+      host: 0
+      writtenDown: 1
+      hostScript: []
+      script:
+      - kind: 7
+        target: 0
+        minimumTicks: 0
+        maximumTicks: 0
+    - kind: 2
+      audience: 1
+      host: 0
+      writtenDown: 1
+      hostScript: []
+      script:
+      - kind: 0
+        target: 3
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 4
+        target: 3
+        minimumTicks: 300
+        maximumTicks: 900
+    - kind: 3
+      audience: 0
+      host: 0
+      writtenDown: 1
+      hostScript: []
+      script:
+      - kind: 0
+        target: 2
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 5
+        target: 0
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 2
+        target: 0
+        minimumTicks: 500
+        maximumTicks: 1500
+      - kind: 6
+        target: 0
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 0
+        target: 4
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 1
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+    - kind: 4
+      audience: 0
+      host: 0
+      writtenDown: 0
+      hostScript: []
+      script:
+      - kind: 0
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 1
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0

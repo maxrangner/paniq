@@ -86,6 +86,7 @@ namespace Paniq.Tests.EditMode
             {
                 new DoorDefinition(OfficeWayOut, PrototypeBuilding.Office, WallSide.North, -2500, 1000, false)
             };
+            data.Timetable = System.Array.Empty<ScheduledCue>();
             data.Rooms = new[]
             {
                 new RoomDefinition(PrototypeBuilding.Office,

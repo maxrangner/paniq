@@ -32,6 +32,13 @@ namespace Paniq.Authoring
                  "reading the signs and following people who know.")]
         public bool Visitor;
 
+        [Tooltip("The chair that is theirs: they drift back to it over the day and go back to it when a meeting ends. " +
+                 "Leave it empty for somebody with no desk here.")]
+        public PaniqProp Home;
+
+        [Tooltip("Instead of a chair: where they stand is where they belong, and they drift back to it.")]
+        public bool HomeIsWhereTheyStand;
+
         private void OnDrawGizmos()
         {
             Gizmos.color = new Color(0.85f, 0.9f, 0.95f);

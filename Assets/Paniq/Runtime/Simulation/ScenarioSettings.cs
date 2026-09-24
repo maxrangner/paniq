@@ -1575,22 +1575,6 @@ namespace Paniq.Simulation
         public int SitMinimumTicks = 250;
         public int SitMaximumTicks = 1000;
 
-        /// <summary>
-        /// How long somebody who starts the run already seated stays put before
-        /// they would get up of their own accord. A minute of ticks: longer
-        /// than any recorded run, so a meeting that is under way when the fire
-        /// starts breaks up because of the fire and nothing else.
-        /// </summary>
-        public int SeatedAtStartTicks = 3000;
-
-        /// <summary>
-        /// How far beyond <see cref="SeatedAtStartTicks"/> each person who
-        /// starts seated may sit on, drawn per person from the seed: the
-        /// meeting breaks up over eight seconds, one person at a time, rather
-        /// than all six rising on one tick in unison.
-        /// </summary>
-        public int SeatedAtStartSpreadTicks = 400;
-
         /// <summary>Getting out of a chair: this long, less a little for the nervous.</summary>
         public int StandUpTicks = 40;
         public int StandUpTicksPerNervousness = 2;
@@ -1669,7 +1653,6 @@ namespace Paniq.Simulation
             Settings.Require(DropNervousness >= 0 && HurlMinimumStrength >= 0 && EvilAimMinimum >= 0 && AimRangeMillimetres >= 0 &&
                              ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1 &&
                              PanicThrowSpreadDegrees >= 0 && PanicThrowSpreadDegrees <= 180, "throwing");
-            Settings.Require(SeatedAtStartTicks > 0 && SeatedAtStartSpreadTicks >= 0, "how long people who start seated stay seated");
             Settings.Require(SitScootMillimetres >= 0 && SitPullOutMillimetres >= 0 && SitPullTicks >= 1 &&
                              SitLowerTicks >= 1 && JumpUpKnockOverSpeed >= 0, "sitting down");
         }
@@ -1990,6 +1973,153 @@ namespace Paniq.Simulation
                              GrabTicks >= 1 && DragSpeedBase >= 0 && DragSpeedPerStrength >= 0 && DragGapMillimetres >= 0 &&
                              DragAwayDistanceMillimetres >= 0 && DragGiveUpBlockedTicks >= 1, "dragging");
             Settings.Require(ReachMillimetres >= 0 && ReachTimeoutTicks >= 1, "reaching someone");
+        }
+    }
+
+    /// <summary>
+    /// The building's day: the small things calm people do because a cue
+    /// told them to or because they thought of it themselves (see
+    /// <see cref="CueSystem"/> and <see cref="ErrandBehaviour"/>). What the
+    /// day actually holds -- when the meeting ends, whether there is a home
+    /// time -- is the level's timetable, not a setting.
+    /// </summary>
+    [Serializable]
+    public sealed class DaySettings
+    {
+        /// <summary>
+        /// How often one person needs the toilet: about this many ticks
+        /// between trips, each person's next drawn from the seed, and their
+        /// first anywhere inside the first stretch so the whole office does
+        /// not go at once. Six minutes: in a twenty-person office that is a
+        /// trip every twenty seconds or so somewhere on the floor, one or two
+        /// people in the bathroom at a time. A chance per decision was tried
+        /// first and sent people every few seconds, because a calm person
+        /// decides something every few seconds. Nought means nobody ever goes,
+        /// which a test about two people in one room wants.
+        /// </summary>
+        public int ToiletEveryTicks = 18000;
+
+        /// <summary>
+        /// How often a calm person who has a desk and is not at it decides
+        /// to go back to it. This is what keeps an office reading as an
+        /// office: people drift back to their own chairs between strolls
+        /// and chats rather than wandering the corridor all day.
+        /// </summary>
+        public int GoHomeChancePercent = 10;
+
+        /// <summary>Within this distance of their spot, or on their chair, somebody counts as at home.</summary>
+        public int AtHomeMillimetres = 1500;
+
+        /// <summary>How often somebody talking says something, drawn from this range.</summary>
+        public int RemarkEveryMinimumTicks = 150;
+        public int RemarkEveryMaximumTicks = 400;
+
+        /// <summary>
+        /// How far the first thing each of them says carries. Quiet: within a
+        /// couple of metres people glance over as the talking starts, and
+        /// nobody further off hears a thing. What follows is only written
+        /// down, so a chat beside somebody's desk does not hold their head
+        /// turned all afternoon. A remark alarms nobody, whatever it says.
+        /// </summary>
+        public int RemarkHearingRadiusMillimetres = 2500;
+
+        /// <summary>
+        /// A walk that has taken this long is given up on: a person who
+        /// cannot get where they were going goes back to loitering rather
+        /// than pressing at a wall all day.
+        /// </summary>
+        public int ErrandTimeoutTicks = 3000;
+
+        /// <summary>
+        /// Somebody on an errand who has been stuck this long gives it up.
+        /// Three seconds: a stroll gives up after less than half a second,
+        /// because a stroll has no purpose, and an errand walker who borrowed
+        /// that patience dropped a toilet trip the first time they had to
+        /// wait behind somebody in the office. Somebody leaving the building
+        /// never gives up for being stuck: a queue at the front door is the
+        /// point of them.
+        /// </summary>
+        public int BlockedGiveUpTicks = 150;
+
+        /// <summary>
+        /// How long somebody leaving stands at a locked way out before they
+        /// give up and go back to their day. Long: a queue at the front door
+        /// at home time is exactly the sort of thing worth watching.
+        /// </summary>
+        public int WaitAtLockedDoorTicks = 1500;
+
+        /// <summary>
+        /// When the player calls it a day, how far apart people take it up:
+        /// the building empties over about half a minute, never all at once.
+        /// A timetable's home time carries its own spread.
+        /// </summary>
+        public int PlayerHomeTimeSpreadTicks = 1500;
+
+        /// <summary>
+        /// How long somebody sits at their own desk before getting up for a
+        /// stroll, a chat or the toilet: half a minute to a minute and a
+        /// half. The ordinary sit (five to twenty seconds) is for a chair
+        /// that is not theirs; at their own desk it had people popping up and
+        /// down like a fairground game.
+        /// </summary>
+        public int DeskSitMinimumTicks = 1500;
+        public int DeskSitMaximumTicks = 4500;
+
+        /// <summary>
+        /// Home time stands until everybody is out. Somebody who gave up on
+        /// it -- stood at a locked way out until they tired of it, or found
+        /// no route -- waits about this long, jittered, before taking it up
+        /// again, so a way out unlocked a minute later still empties the
+        /// building.
+        /// </summary>
+        public int HomeTimeRetryTicks = 1500;
+
+        /// <summary>
+        /// How long somebody remembers a door they stood at that would not
+        /// open, and routes round it. A minute: long enough that the story
+        /// is not one line of "tried the door" after another from somebody
+        /// shut in a stall, short enough that a door unlocked is found again.
+        /// </summary>
+        public int LockedDoorMemoryTicks = 3000;
+
+        /// <summary>
+        /// A door somebody opened themselves is shut behind them once they
+        /// are through, unless somebody else is within this distance of it
+        /// and may be on their way through too.
+        /// </summary>
+        public int DoorHoldMillimetres = 2000;
+
+        /// <summary>
+        /// How often somebody cruel enough to defy a leader
+        /// (<see cref="LeadershipSettings.DefiantMinimumEvil"/>) defies a cue
+        /// that has a person behind it: sits on when the host ends the
+        /// meeting, will not talk to whoever came over. Half the time: the
+        /// cruel are contrary, not deaf, and a refusal is a line in the
+        /// story. A cue with nobody behind it (home time, by the clock) is
+        /// nobody's to defy.
+        /// </summary>
+        public int CruelIgnoreCuePercent = 50;
+
+        /// <summary>
+        /// How long somebody who sat on when the meeting ended sits on for,
+        /// drawn from this range: ten to thirty seconds, after which they
+        /// get up like everybody else. Contrary, not glued to the chair.
+        /// </summary>
+        public int CruelSitOnMinimumTicks = 500;
+        public int CruelSitOnMaximumTicks = 1500;
+
+        public DaySettings Clone() => (DaySettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(ToiletEveryTicks >= 0 && Settings.Percent(GoHomeChancePercent), "day chances");
+            Settings.Require(Settings.Range(RemarkEveryMinimumTicks, RemarkEveryMaximumTicks, 1), "remarks");
+            Settings.Require(RemarkHearingRadiusMillimetres >= 0 && AtHomeMillimetres >= 0, "remark reach and home");
+            Settings.Require(ErrandTimeoutTicks >= 1 && BlockedGiveUpTicks >= 1 && WaitAtLockedDoorTicks >= 0 &&
+                             PlayerHomeTimeSpreadTicks >= 0, "errand timing");
+            Settings.Require(Settings.Range(DeskSitMinimumTicks, DeskSitMaximumTicks, 1) && HomeTimeRetryTicks >= 1 &&
+                             LockedDoorMemoryTicks >= 0 && DoorHoldMillimetres >= 0, "desk sits, home time and doors");
+            Settings.Require(Settings.Percent(CruelIgnoreCuePercent) && Settings.Range(CruelSitOnMinimumTicks, CruelSitOnMaximumTicks, 0), "ignoring cues");
         }
     }
 

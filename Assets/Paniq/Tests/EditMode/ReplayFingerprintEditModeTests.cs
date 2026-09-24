@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0x49B42643D5AD1178UL)]
-        [TestCase(42UL, true, 0x9E4BD7A9C67BCF5BUL)]
-        [TestCase(40UL, false, 0x305766F9D5B192E5UL)]
-        [TestCase(40UL, true, 0xAEE0989B5A97EFF8UL)]
-        [TestCase(46UL, false, 0x0589B48D3191CE9FUL)]
-        [TestCase(46UL, true, 0xA31DF32598E18628UL)]
+        [TestCase(42UL, false, 0x5F3649490F6A0410UL)]
+        [TestCase(42UL, true, 0x67D264B29CF2855BUL)]
+        [TestCase(40UL, false, 0x8DA5058280CC7122UL)]
+        [TestCase(40UL, true, 0xC5EF50BF01667A36UL)]
+        [TestCase(46UL, false, 0xBD12FBBBBD896BA1UL)]
+        [TestCase(46UL, true, 0x11EDE82A9D6C5197UL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
         /// well as by their own tests, so the whole command path is covered by
         /// replay. This run waits to be triggered, as a played level does.
         /// </summary>
-        [TestCase(42UL, 0x0C9C335132A5D075UL)]
-        [TestCase(40UL, 0xB942394094EF3A54UL)]
+        [TestCase(42UL, 0x9FF8608A7892829AUL)]
+        [TestCase(40UL, 0x49D9B644C6579B92UL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -59,8 +59,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0x8F9CE3392741D5C3UL)]
-        [TestCase(40UL, 0xEC3EAD92CD8195C0UL)]
+        [TestCase(42UL, 0x621467497806B872UL)]
+        [TestCase(40UL, 0x151A10068A6C0F3AUL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -94,6 +94,15 @@ namespace Paniq.Tests.EditMode
         /// re-recorded again.
         /// </para>
         /// <para>
+        /// They were re-recorded a second time when the building got a day
+        /// (2026-09-24): the meeting ends by the timetable instead of a sit
+        /// timer, calm people go home, to the toilet and over to talk, and
+        /// every calm decision draws differently, for staff exactly as for
+        /// strangers. That is a change to how everybody behaves and has
+        /// nothing to do with wayfinding; a calm visitor asks the way like
+        /// anybody else. From here the rule above holds again.
+        /// </para>
+        /// <para>
         /// Three cases, not ten, and on the seeds where it means something. It
         /// used to run seeds 40, 42 and 46, where the meeting room is never
         /// frightened inside the minute: the visitors never looked for
@@ -105,9 +114,9 @@ namespace Paniq.Tests.EditMode
         /// staff against a floor with strangers on it.
         /// </para>
         /// </summary>
-        [TestCase(41UL, RecordedRun.DoorsLocked, 0x32734715286596DCUL)]
-        [TestCase(41UL, RecordedRun.DoorsOpened, 0x9F4B9F4D5FDCBDAEUL)]
-        [TestCase(42UL, RecordedRun.CardsPlayed, 0xBF3D7CBE9E12F15AUL)]
+        [TestCase(41UL, RecordedRun.DoorsLocked, 0x11CB2C22B196ACB9UL)]
+        [TestCase(41UL, RecordedRun.DoorsOpened, 0xE0F6756615853482UL)]
+        [TestCase(42UL, RecordedRun.CardsPlayed, 0x01AF57301C0600E6UL)]
         public void WithNoVisitors_TheFloorReplaysExactlyAsItDidBefore(ulong seed, RecordedRun run, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();

@@ -194,6 +194,19 @@ simulation layer. It draws every choice from the scenario seed, reads only
 simulation state, and never reads the camera or anything else the player's
 screen knows. See [simulation contract](simulation-contract.md).
 
+## Decided: the building has a day
+
+Decided with the owner on 2026-09-24. The calm half of a level is not people
+killing time: it is a working day, with small things happening in it. A
+meeting ends and the host gets up first. Somebody goes to the toilet. Two
+people stop and chat. At the end of the day everybody packs up and heads for
+the door. These small events are **cues**, called by the Director from the
+level's timetable, by the people themselves, or by the player, and every one
+of them is carried out with the same walking, doors, chairs and sounds the
+disaster uses, so that the two halves of the game are one simulation. The
+Director's timetable is the first thing a future event editor edits. The
+foundation is [the cue system](cue-system.md).
+
 ## Decided: structure — a shelf of dioramas
 
 - Each level is a small, self-contained scene — a diorama. Played together they

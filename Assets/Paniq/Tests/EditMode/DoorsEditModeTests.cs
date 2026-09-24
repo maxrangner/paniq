@@ -220,10 +220,13 @@ namespace Paniq.Tests.EditMode
                             // Somebody tries a door because they are frightened.
                             // Catching fire is its own reason to be frightened,
                             // and somebody alight rattling a locked handle is
-                            // the same behaviour with a worse cause.
+                            // the same behaviour with a worse cause. Or, calm,
+                            // because the day sent them through it: a toilet
+                            // trip, home time.
                             Assert.That(simulation.EventLog.Get(record.CausalParentEventId).EventType,
                                 Is.EqualTo(CausalEventType.AgentScared)
-                                    .Or.EqualTo(CausalEventType.AgentCaughtFire));
+                                    .Or.EqualTo(CausalEventType.AgentCaughtFire)
+                                    .Or.EqualTo(CausalEventType.CueCalled));
                             break;
                         case CausalEventType.AgentForcedDoor:
                         case CausalEventType.AgentGaveUpOnDoor:
@@ -938,6 +941,13 @@ namespace Paniq.Tests.EditMode
                         break;
                     case CausalEventType.TableHeaved:
                         Assert.That(record.HasTarget, Is.True, "A heave names the table.");
+                        break;
+                    case CausalEventType.CueCalled:
+                        // A cue names the room it was called in or the person
+                        // it was called to, or nothing for the whole building.
+                        Assert.That(!record.HasTarget || agents.Contains(record.TargetId) ||
+                                    System.Array.Exists(simulation.Scenario.Rooms, room => room.RoomId == record.TargetId),
+                            Is.True, "A cue names a room, a person, or nobody.");
                         break;
                     default:
                         Assert.That(record.HasTarget, Is.False, $"{record.EventType} should not name a target.");

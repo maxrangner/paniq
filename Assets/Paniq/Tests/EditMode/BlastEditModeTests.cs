@@ -310,6 +310,7 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = QuietOffice();
             var west = new SimulationId(5101UL);
             var east = new SimulationId(5102UL);
+            data.Timetable = System.Array.Empty<ScheduledCue>();
             data.Rooms = new[]
             {
                 new RoomDefinition(west, new LogicalBounds(-6000, 0, -6000, 6000)),

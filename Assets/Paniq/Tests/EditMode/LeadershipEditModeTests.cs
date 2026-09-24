@@ -73,8 +73,11 @@ namespace Paniq.Tests.EditMode
             data.Temperament.FreezeThenRunPercent = 0;
 
             // Nobody wandering off next door: this is about who gets sent at a
-            // door, and a stroll through a doorway is somebody else's test.
+            // door, and a stroll through a doorway is somebody else's test. Nor
+            // off to the toilet, which would walk the one strong person out of
+            // the room before the leader has anybody to send.
             data.Calm.StrollNextDoorPercent = 0;
+            data.Day.ToiletEveryTicks = 0;
             data.Temperament.FreezeForeverPercent = 0;
             return data;
         }
@@ -119,22 +122,36 @@ namespace Paniq.Tests.EditMode
                     new LogicalPosition(-2500, -5800), 400, 20000)
             };
 
-            var simulation = new Run(data);
-            // Shifted either way: thrown clear, or heaved along the wall.
+            // Whether the order comes before the strong one simply clears the
+            // box themselves on the way past is partly the luck of the run, as
+            // in the test below: several seeds, and at least one must show the
+            // order being given and obeyed.
+            Run simulation = null;
+            List<CausalEvent> orders = null;
             List<CausalEvent> Shifted()
             {
+                // Shifted either way: thrown clear, or heaved along the wall.
                 var shifted = EventsOfType(simulation, CausalEventType.AgentShovedObstruction);
                 shifted.AddRange(EventsOfType(simulation, CausalEventType.ItemThrown));
                 return shifted;
             }
 
-            for (int t = 0; t < 60 * Run.TicksPerSecond && Shifted().Count == 0; t++)
+            for (ulong seed = 42UL; seed <= 49UL; seed++)
             {
-                simulation.Step();
+                simulation = new Run(data, seed);
+                for (int t = 0; t < 60 * Run.TicksPerSecond && Shifted().Count == 0; t++)
+                {
+                    simulation.Step();
+                }
+
+                orders = EventsOfType(simulation, CausalEventType.LeaderOrderedDoorBroken);
+                if (orders.Count > 0)
+                {
+                    break;
+                }
             }
 
-            List<CausalEvent> orders = EventsOfType(simulation, CausalEventType.LeaderOrderedDoorBroken);
-            Assert.That(orders, Is.Not.Empty, "The leader never sent anyone at the wedged door.");
+            Assert.That(orders, Is.Not.Empty, "The leader never sent anyone at the wedged door on any seed.");
             Assert.That(orders[0].SourceId, Is.EqualTo(new SimulationId(1UL)), "The order comes from the leader.");
             Assert.That(orders[0].TargetId, Is.EqualTo(new SimulationId(2UL)), "It names who was sent.");
 

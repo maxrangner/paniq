@@ -44,6 +44,35 @@ namespace Paniq.Simulation
                 settings.YellAlarmRadiusMillimetres, yell.EventId);
         }
 
+        /// <summary>
+        /// A remark in a conversation: quiet, heard a little way off, alarming
+        /// nobody. Neighbours glance over at the talking when it starts (a
+        /// remark that is <paramref name="heard"/>); the rest of it is
+        /// neither heard nor written down, or the whole office would spend
+        /// the day staring at the two people talking beside them and the
+        /// story would read "person 3 said something" forty times. The person
+        /// being talked to never turns to wonder what the voice was, because
+        /// it is them being talked to.
+        /// </summary>
+        public void Say(Agent speaker, ulong causalParentEventId, bool heard)
+        {
+            if (!heard)
+            {
+                return;
+            }
+
+            int reach = context.Scenario.Day.RemarkHearingRadiusMillimetres;
+            CausalEvent said = context.Events.Append(
+                context.Tick,
+                speaker.Id,
+                CausalEventType.AgentSaid,
+                speaker.Body.Position,
+                reach,
+                0,
+                causalParentEventId);
+            Emit(speaker.Id, speaker.Body.Position, reach, 0, said.EventId, AgentAlertSource.Yell, speaker);
+        }
+
         /// <summary>A collision, trip, shove or box hit: heard up to the thud reach, alarming no one.</summary>
         public void Thud(SimulationId sourceId, LogicalPosition position, ulong soundEventId)
         {
@@ -83,7 +112,8 @@ namespace Paniq.Simulation
             int hearingRadius,
             int alarmRadius,
             ulong soundEventId,
-            AgentAlertSource alertSource = AgentAlertSource.Yell)
+            AgentAlertSource alertSource = AgentAlertSource.Yell,
+            Agent speaker = null)
         {
             int sourceRoom = geometry.RoomAtPoint(position);
 
@@ -97,7 +127,8 @@ namespace Paniq.Simulation
                 Agent listener = crowd.All[listeners[i]];
                 if (listener.Id == sourceId ||
                     !listener.IsParticipating ||
-                    listener.Fear.State != AgentFearState.Calm)
+                    listener.Fear.State != AgentFearState.Calm ||
+                    (speaker != null && InTheSameChat(speaker, listener)))
                 {
                     continue;
                 }
@@ -129,6 +160,13 @@ namespace Paniq.Simulation
             {
                 Notice(agent, point, causeEventId);
             }
+        }
+
+        /// <summary>Talking to each other, from either side: neither turns to wonder what the other's voice was.</summary>
+        private static bool InTheSameChat(Agent a, Agent b)
+        {
+            return (a.Errand.Has && a.Errand.PartnerIndex == b.Index) ||
+                   (b.Errand.Has && b.Errand.PartnerIndex == a.Index);
         }
 
         /// <summary>A calm person drops what they were doing to look toward a noise.</summary>

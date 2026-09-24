@@ -206,7 +206,10 @@ in the chair; if what they see frightens them, getting out of it costs them a
 moment, and the nervous are quicker out than the placid. Laptops stand on the
 desks and the meeting table, and boxes stand in stacked pairs: while a thing
 rests on another it is in nobody's way, and it drops to the floor beside its
-support the moment anything lifts, throws or smashes what holds it up.
+support the moment anything lifts, throws or smashes what holds it up. The
+meeting ends when the level's timetable says (the minute mark), the host
+first; that, and the rest of the calm day -- desks, toilet trips, chats -- is
+[the cue system](cue-system.md).
 
 People try to save themselves wherever they can. They pick a way **out of the
 building** — scored by the whole walk there, including crossing the last room —

@@ -1,3 +1,4 @@
+using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Authoring
@@ -19,6 +20,10 @@ namespace Paniq.Authoring
         // inspector is reliable with these and IDs never come near the
         // limit. The simulation takes them unsigned.
         public long RoomId = 5001L;
+
+        [Tooltip("What the room is for, where that changes what people do in it: a toilet stall is somewhere " +
+                 "people go in, shut the door, and come out of a while later.")]
+        public RoomUse Use = RoomUse.Ordinary;
 
         /// <summary>The floor this room covers, in whole millimetres.</summary>
         public RectInt Floor

@@ -184,7 +184,25 @@ That is three commits — controls, game, visuals — not one, and not five.
 ## Quality checks
 
 - Add or update relevant edit-mode and play-mode tests with behavior changes.
-- Run the available Unity tests before claiming validation passed.
+- **Checking work runs in two gears.** After every edit, run
+  `tools/CompileAgainstUnity.ps1`: it needs no editor and answers in seconds.
+  While iterating, once a step has a claim worth checking (a behaviour is in,
+  not a file saved), run `tools/RunUnityTests.ps1 -Filter` with the names of
+  the areas touched, for example `-Filter Doors,ClosingDoors`. The table in
+  [`docs/development-workflow.md`](docs/development-workflow.md#which-tests-cover-what)
+  says which names cover the areas whose tests are not named after their
+  code, and `ReplayFingerprint` joins the list whenever simulation code
+  changed.
+- **The full run guards every commit.** Before the commits of a task, on the
+  tree that will be committed, and after any change to shared simulation code
+  (the run itself, the systems, the physics world, navigation), run
+  `tools/RunUnityTests.ps1 -All`. "Validation passed" means that run passed;
+  a targeted run is reported as a targeted check, naming what ran. Do not run
+  the full suite between the steps of one task: it re-proves what the step
+  could not have touched, at three minutes a time.
+- A new test that plays a whole run (3,000 ticks, a minute of game time) says
+  in its commit why a shorter one would not do. `-Slowest 10` shows what the
+  suite already pays for.
 - Record standalone-build profiling results before adopting any scale tooling,
   and whenever a prototype stone noticeably raises the number of people or
   visual objects on screen.

@@ -248,6 +248,7 @@
                 case CausalEventType.CueCalled:
                 case CausalEventType.AgentSaid:
                 case CausalEventType.PowerCalledHomeTime:
+                case CausalEventType.AgentIgnoredCue:
 
                 // Bookkeeping: things happening quietly to people, things and doors.
                 case CausalEventType.AgentGotUp:

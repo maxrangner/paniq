@@ -216,6 +216,15 @@ namespace Paniq.Presentation
 
                 case CausalEventType.AgentSaid: return $"{who} said something";
                 case CausalEventType.PowerCalledHomeTime: return "you called it a day";
+                case CausalEventType.AgentIgnoredCue:
+                    switch ((CueKind)record.Strength)
+                    {
+                        case CueKind.MeetingEnds: return $"{who} sat on when the meeting ended";
+                        case CueKind.HomeTime: return $"{who} ignored home time";
+                        case CueKind.Chat: return $"{who} would not talk to {whom}";
+                        default: return $"{who} ignored {(CueKind)record.Strength}";
+                    }
+
                 default: return record.EventType.ToString();
             }
         }

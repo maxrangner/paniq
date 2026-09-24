@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("67"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(55));
+            Assert.That(data.ContentRevision, Is.EqualTo("68"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(56));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -941,10 +941,12 @@ namespace Paniq.Tests.EditMode
             for (int i = 1; i < simulation.EventLog.Count; i++)
             {
                 CausalEvent record = simulation.EventLog.Events[i];
-                if (record.EventType == CausalEventType.CueCalled && !record.HasCausalParent)
+                if ((record.EventType == CausalEventType.CueCalled || record.EventType == CausalEventType.AgentIgnoredCue) &&
+                    !record.HasCausalParent)
                 {
                     // Somebody's own idea -- a chat, a toilet trip -- has no
-                    // cause but them, and is a root of its own like the fire.
+                    // cause but them, and is a root of its own like the fire;
+                    // so is turning down a chat that was never written down.
                     continue;
                 }
 

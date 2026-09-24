@@ -325,16 +325,23 @@ the host walking the visitors out; a home-time card and button; and a
 "lunch ends" line on the timetable for the two who start seated in the
 cafeteria. All named in the [cue system](cue-system.md) note.
 
-**Reviewed the same day, and fixed in two more commits on the branch.** The
-review found the delivery half right and the execution half hand-written per
-cue, and four rules the day claimed and did not keep. An errand is now a list
-of steps from a script that is data on the scenario, so a new cue is a new
-list rather than new code; and the day keeps its own rules: a cue never
-changes what somebody is doing on the tick it is called, no two people take
-one up on the same tick, home time stands until everybody is out, doors get
-shut behind people, nobody sits in somebody else's chair, and a visitor walks
-back from the toilet to where they stood. Details in
-[technical decisions](technical-decisions.md).
+**Reviewed the same day, and followed by three more commits on the branch.**
+The review found the delivery half right and the execution half hand-written
+per cue, four rules the day claimed and did not keep, and a list of things
+that read as clockwork. An errand is now a list of steps from a script that
+is data on the scenario, so a new cue is a new list rather than new code; the
+day keeps its own rules (a cue never changes what somebody is doing on the
+tick it is called, no two people take one up on the same tick, home time
+stands until everybody is out, doors get shut behind people, nobody sits in
+somebody else's chair, a visitor walks back from the toilet to where they
+stood); and people read less like clockwork (the host says something as the
+meeting ends and heads turn before anybody rises, both walk to a chat and it
+ends one at a time, errand walks wander, the cruel are contrary and the
+story says so). Details in [technical decisions](technical-decisions.md);
+the agreed direction from here -- ambient object cues, social texture,
+return to calm, the reactive Director, visuals for the day, meetings as
+gatherings -- is the "What comes next" list in
+[the cue system](cue-system.md).
 
 **One thing to watch at the next playtest.** Whether the calm half now reads
 as a day or as a fidget: people opening doors to go to the toilet, chats

@@ -268,6 +268,7 @@ namespace Paniq.Tests.EditMode
             {
                 int a = IndexOf(simulation, 1005UL);
                 int b = IndexOf(simulation, 1006UL);
+                LogicalPosition bStood = simulation.GetAgent(b).Position;
                 Assert.That(simulation.CuesForTests.StartChat(simulation.AgentForTests(a), simulation.AgentForTests(b)), Is.True);
 
                 bool talking = false;
@@ -280,6 +281,8 @@ namespace Paniq.Tests.EditMode
                 }
 
                 Assert.That(talking, Is.True, "Both should be stood talking: " + simulation.DescribeForTests(a) + " / " + simulation.DescribeForTests(b));
+                Assert.That(IntegerMath.Distance(bStood, simulation.GetAgent(b).Position), Is.GreaterThan(500L),
+                    "The one hailed walks over too; they meet in the middle rather than one being summoned.");
 
                 // A few seconds of talk: close, facing, and saying things. One
                 // of them may be glancing at a noise on the tick we look, which

@@ -1980,6 +1980,25 @@ namespace Paniq.Simulation
         /// </summary>
         public int DoorHoldMillimetres = 2000;
 
+        /// <summary>
+        /// How often somebody cruel enough to defy a leader
+        /// (<see cref="LeadershipSettings.DefiantMinimumEvil"/>) defies a cue
+        /// that has a person behind it: sits on when the host ends the
+        /// meeting, will not talk to whoever came over. Half the time: the
+        /// cruel are contrary, not deaf, and a refusal is a line in the
+        /// story. A cue with nobody behind it (home time, by the clock) is
+        /// nobody's to defy.
+        /// </summary>
+        public int CruelIgnoreCuePercent = 50;
+
+        /// <summary>
+        /// How long somebody who sat on when the meeting ended sits on for,
+        /// drawn from this range: ten to thirty seconds, after which they
+        /// get up like everybody else. Contrary, not glued to the chair.
+        /// </summary>
+        public int CruelSitOnMinimumTicks = 500;
+        public int CruelSitOnMaximumTicks = 1500;
+
         public DaySettings Clone() => (DaySettings)MemberwiseClone();
 
         internal void Validate()
@@ -1991,6 +2010,7 @@ namespace Paniq.Simulation
                              PlayerHomeTimeSpreadTicks >= 0, "errand timing");
             Settings.Require(Settings.Range(DeskSitMinimumTicks, DeskSitMaximumTicks, 1) && HomeTimeRetryTicks >= 1 &&
                              LockedDoorMemoryTicks >= 0 && DoorHoldMillimetres >= 0, "desk sits, home time and doors");
+            Settings.Require(Settings.Percent(CruelIgnoreCuePercent) && Settings.Range(CruelSitOnMinimumTicks, CruelSitOnMaximumTicks, 0), "ignoring cues");
         }
     }
 

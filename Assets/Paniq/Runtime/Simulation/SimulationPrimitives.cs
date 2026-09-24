@@ -766,7 +766,16 @@ namespace Paniq.Simulation
         AgentSaid,
 
         /// <summary>The player called it a day. A root event: the cue it calls names it as its cause.</summary>
-        PowerCalledHomeTime
+        PowerCalledHomeTime,
+
+        /// <summary>
+        /// Somebody cruel would not take up a cue: sat on when the meeting
+        /// ended, ignored home time, would not talk to whoever came over.
+        /// Strength is the <see cref="CueKind"/>; the target, for a chat,
+        /// is the person turned away. Its cause is the cue's line, or
+        /// nothing for a chat that was never written down.
+        /// </summary>
+        AgentIgnoredCue
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>

@@ -78,6 +78,7 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = CalmDay();
             const int at = 200;
             data.Timetable = new[] { new ScheduledCue(CueKind.MeetingEnds, at, 400, PrototypeBuilding.MeetingRoom) };
+            data.Day.CruelIgnoreCuePercent = 0;
             using (var simulation = new Run(data))
             {
                 Advance(simulation, at);
@@ -212,6 +213,7 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = CalmDay();
             const int at = 200;
             data.Timetable = new[] { new ScheduledCue(CueKind.MeetingEnds, at, 0, PrototypeBuilding.MeetingRoom) };
+            data.Day.CruelIgnoreCuePercent = 0;
             using (var simulation = new Run(data))
             {
                 Advance(simulation, at);
@@ -254,11 +256,14 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = CalmDay();
             const int at = 100;
             data.Timetable = new[] { new ScheduledCue(CueKind.MeetingEnds, at, 0, PrototypeBuilding.Cafeteria) };
+            data.Day.CruelIgnoreCuePercent = 0;
             using (var simulation = new Run(data))
             {
                 int a = IndexOf(simulation, 1015UL);
                 int b = IndexOf(simulation, 1016UL);
-                Advance(simulation, at + data.Perception.ReactionLagMaximumTicks + 10);
+
+                // Their own lag, and a glance at the host's remark first.
+                Advance(simulation, at + data.Perception.ReactionLagMaximumTicks + 100);
                 foreach (int i in new[] { a, b })
                 {
                     Agent person = simulation.AgentForTests(i);
@@ -276,6 +281,161 @@ namespace Paniq.Tests.EditMode
                 }
 
                 Assert.That(aUp && bUp, Is.True, "Both get up within a couple of minutes and go about their day.");
+            }
+        }
+
+        [Test]
+        public void TheHost_SaysSomethingAsTheMeetingEnds_BeforeAnybodyRises()
+        {
+            ScenarioData data = CalmDay();
+            const int at = 200;
+            data.Timetable = new[] { new ScheduledCue(CueKind.MeetingEnds, at, 400, PrototypeBuilding.MeetingRoom) };
+            data.Day.CruelIgnoreCuePercent = 0;
+            using (var simulation = new Run(data))
+            {
+                int host = IndexOf(simulation, 1014UL);
+                var seatedAtTheMeeting = new System.Collections.Generic.List<int>();
+                for (int i = 0; i < simulation.AgentCount; i++)
+                {
+                    AgentSnapshot person = simulation.GetAgent(i);
+                    if (person.ActivityState == AgentActivityState.Sitting && person.Position.Z > 9000 && person.Position.X < 2000 && i != host)
+                    {
+                        seatedAtTheMeeting.Add(i);
+                    }
+                }
+
+                Assert.That(seatedAtTheMeeting.Count, Is.EqualTo(5), "Five visitors round the table, and the host.");
+
+                int firstRise = int.MaxValue;
+                for (int t = 0; t < at + 400 + data.Perception.ReactionLagMaximumTicks + 160; t++)
+                {
+                    simulation.Step();
+                    foreach (int i in seatedAtTheMeeting)
+                    {
+                        // Turning in the chair to look at the host is not rising.
+                        if (simulation.GetAgent(i).ActivityState == AgentActivityState.StandingUp)
+                        {
+                            firstRise = System.Math.Min(firstRise, simulation.Tick);
+                        }
+                    }
+                }
+
+                Assert.That(firstRise, Is.LessThan(int.MaxValue), "The visitors got up.");
+                ulong cue = 0UL;
+                int said = -1;
+                foreach (CausalEvent record in simulation.GetSnapshot().Events)
+                {
+                    if (record.EventType == CausalEventType.CueCalled && (CueKind)record.Strength == CueKind.MeetingEnds)
+                    {
+                        cue = record.EventId;
+                    }
+
+                    if (record.EventType == CausalEventType.AgentSaid && record.SourceId == simulation.GetAgent(host).AgentId &&
+                        record.CausalParentEventId == cue && said < 0)
+                    {
+                        said = record.Tick;
+                    }
+                }
+
+                Assert.That(said, Is.GreaterThan(at), "The host says something as the meeting ends, and it is written down as part of it.");
+                Assert.That(said, Is.LessThan(firstRise), "The room hears the host before anybody else is on their feet.");
+            }
+        }
+
+        [Test]
+        public void AChat_EndsOnePersonAtATime()
+        {
+            ScenarioData data = CalmDay();
+            TheBuilding.WithChatLength(data, 300, 300);
+            data.Day.CruelIgnoreCuePercent = 0;
+            using (var simulation = new Run(data))
+            {
+                int a = IndexOf(simulation, 1005UL);
+                int b = IndexOf(simulation, 1006UL);
+                Assert.That(simulation.CuesForTests.StartChat(simulation.AgentForTests(a), simulation.AgentForTests(b)), Is.True);
+                int aEnded = -1;
+                int bEnded = -1;
+                for (int t = 0; t < 40 * Run.TicksPerSecond && (aEnded < 0 || bEnded < 0); t++)
+                {
+                    simulation.Step();
+                    AgentErrand one = simulation.ErrandForTests(a);
+                    AgentErrand other = simulation.ErrandForTests(b);
+                    if (aEnded < 0 && !(one.Has && one.Cue == CueKind.Chat))
+                    {
+                        aEnded = simulation.Tick;
+                    }
+
+                    if (bEnded < 0 && !(other.Has && other.Cue == CueKind.Chat))
+                    {
+                        bEnded = simulation.Tick;
+                    }
+                }
+
+                Assert.That(aEnded, Is.GreaterThan(0).And.LessThan(40 * Run.TicksPerSecond), "The chat ended for the one whose idea it was.");
+                Assert.That(bEnded, Is.GreaterThan(aEnded), "The other notices a moment later: they never turn away on the same tick.");
+                Assert.That(bEnded - aEnded, Is.LessThanOrEqualTo(data.Perception.ReactionLagMaximumTicks + 2));
+            }
+        }
+
+        [Test]
+        public void TheCruel_MayIgnoreACue_AndTheStorySaysSo()
+        {
+            ScenarioData data = CalmDay();
+            const int at = 200;
+            data.Timetable = new[] { new ScheduledCue(CueKind.MeetingEnds, at, 0, PrototypeBuilding.MeetingRoom) };
+            data.Day.CruelIgnoreCuePercent = 100;
+            using (var simulation = new Run(data))
+            {
+                Advance(simulation, at);
+                int defiant = data.Leadership.DefiantMinimumEvil;
+                ulong cue = 0UL;
+                var ignored = new System.Collections.Generic.HashSet<ulong>();
+                foreach (CausalEvent record in simulation.GetSnapshot().Events)
+                {
+                    if (record.EventType == CausalEventType.CueCalled && (CueKind)record.Strength == CueKind.MeetingEnds)
+                    {
+                        cue = record.EventId;
+                    }
+
+                    if (record.EventType == CausalEventType.AgentIgnoredCue && (CueKind)record.Strength == CueKind.MeetingEnds)
+                    {
+                        Assert.That(record.CausalParentEventId, Is.EqualTo(cue), "Blamed on the meeting ending.");
+                        ignored.Add(record.SourceId.Value);
+                    }
+                }
+
+                int cruel = 0;
+                for (int i = 0; i < simulation.AgentCount; i++)
+                {
+                    AgentSnapshot person = simulation.GetAgent(i);
+                    bool atTheMeeting = person.Position.Z > 9000 && person.Position.X < 2000 && person.ActivityState == AgentActivityState.Sitting;
+                    if (!atTheMeeting || person.AgentId.Value == 1014UL)
+                    {
+                        continue;
+                    }
+
+                    AgentErrand errand = simulation.ErrandForTests(i);
+                    Assert.That(errand.Has && errand.Cue == CueKind.MeetingEnds, Is.True, $"Person {person.AgentId} is handed it either way.");
+                    int promptly = at + data.Perception.ReactionLagMaximumTicks + 20;
+                    if (person.Traits.Evil >= defiant)
+                    {
+                        cruel++;
+                        Assert.That(errand.StartTick, Is.GreaterThan(promptly + data.Day.CruelSitOnMinimumTicks - 20),
+                            $"Person {person.AgentId} is cruel enough to sit on, and the chance is certain.");
+                        Assert.That(ignored.Contains(person.AgentId.Value), Is.True, "And the story says so.");
+                    }
+                    else
+                    {
+                        Assert.That(errand.StartTick, Is.LessThanOrEqualTo(promptly), $"Person {person.AgentId} takes it up like anybody.");
+                        Assert.That(ignored.Contains(person.AgentId.Value), Is.False);
+                    }
+                }
+
+                Assert.That(cruel, Is.GreaterThan(0), "Somebody at the meeting is cruel enough to test this with.");
+                var story = new Paniq.Presentation.EventStory(simulation.GetSnapshot());
+                var refusal = new CausalEvent(1UL, 10, new SimulationId(1013UL), CausalEventType.AgentIgnoredCue, default,
+                    (int)CueKind.Chat, 0, 0UL, new SimulationId(1002UL));
+                Assert.That(story.Describe(refusal), Does.Contain("would not talk to"));
             }
         }
 

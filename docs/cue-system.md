@@ -96,6 +96,14 @@ scenario, the Director and the bake tool alike.
   toilet trip, a wander back to their desk are not offered to them. A
   person's own idea, on the other hand, is never handed to somebody who
   already has something waiting on them.
+- **The cruel are contrary.** Somebody cruel enough to defy a leader defies
+  a cue with a person behind it half the time (`DaySettings.CruelIgnoreCuePercent`):
+  sits on for a while when the host ends the meeting, will not talk to
+  whoever came over. A cue from the clock (home time) is nobody's to defy.
+  Every refusal is a line in the story (`CausalEventType.AgentIgnoredCue`).
+- **A walk with a purpose still wanders.** An errand's last leg carries the
+  same wander a stroll does, fading out as the place gets close; doorways
+  are approached straight.
 - **One random stream.** The Director and the cues draw from the run's
   generator in processing order, like every behaviour. Their draws depend on
   simulation state alone, so a replay of a seed reproduces the day.
@@ -124,10 +132,10 @@ a partner who has gone) ends.
 
 | Cue | Script, as shipped on the office level |
 | --- | --- |
-| The meeting ends | go to your own chair or spot, sit on it. The host follows the same script first. Somebody with no home (a visitor) gets up and loiters. Somebody already in their own chair (the two at the cafeteria table, when the cue reaches their room) sits on for a while of their own and then goes about their day |
+| The meeting ends | go to your own chair or spot, sit on it. The host's own script is *say something, go home, sit*: the remark is made from the chair, the table glances at the host, and the host is the first up. Somebody with no home (a visitor) gets up and loiters. Somebody already in their own chair (the two at the cafeteria table, when the cue reaches their room) sits on for a while of their own and then goes about their day. Somebody cruel may sit on for ten to thirty seconds first, which is a line in the story |
 | Back to my desk | the same script, as a person's own idea |
 | Toilet trip | go to the nearest free stall (a room whose `Use` is `Stall`), opening doors on the way; shut its door; stand for ten to thirty seconds; open the door; go home, or, having no home, back to where they stood; sit |
-| Chat | go to the partner; talk for six to eighteen seconds. The one whose idea it was walks over; the other is hailed and turns to face them, a few ticks late. The first thing each says is heard nearby (`SoundSystem.Say`) and neighbours glance over; the rest is neither heard nor written down; it ends when the chat's time is up, or the other is gone or knocked down |
+| Chat | go to the partner; talk for six to eighteen seconds. Both walk and meet in the middle, the one hailed a few ticks late. The first thing each says is heard nearby (`SoundSystem.Say`) and neighbours glance over; the rest is neither heard nor written down. It ends when the one whose idea it was has had enough, and for the other a moment later, or when either is gone or knocked down. Nobody starts a chat from a doorway or with somebody stood in one, and somebody cruel may refuse one outright ("person 8 would not talk to person 5") |
 | Home time | leave: the way out that is the shortest walk, worked out again in every new room; each door on the route opened if shut, waited at if locked or wedged; through the way out and gone |
 
 Every "go to" walks room to room, opening the doors on the way, and every
@@ -198,22 +206,70 @@ All of it is plain data on the scenario, editable in Unity's Inspector today:
   remembered, and how near somebody must be for a door to be left open for
   them.
 
-## Deliberately left for later
+## What comes next
 
-- **The reactive Director.** Reading how the run is going and adding or
-  easing pressure. The seam is `DirectorSystem`; it reads simulation state
-  and the seed only.
-- **Cues after the disaster starts.** Nobody returns to calm today, so an
-  errand never outlives a fright. A "fire drill" or "carry on working" cue
-  during a round waits for calm to be something a person can come back to.
-- **A third person joining a chat**, and refusing a cue by trait (the
-  bastard who keeps the meeting going).
-- **The host walking the visitors out** at home time, with the leader's rally.
-- **A home-time card and button.** The command exists and is tested; the card
-  in the deck and the button on the screen are a small later change.
-- **"Lunch ends" on the timetable.** The two people at the cafeteria table
-  start seated and nothing on this level's timetable gets them up, so they
-  sit through the calm half until something frightens them. The
-  meeting-ending cue in their room now does get them up (they sit on for a
-  while of their own, then go about their day); it is one timetable line if
-  they read as statues.
+The cue system was reviewed the day it was built (2026-09-24), against the
+three requirements for the finished game and with the goal of dynamic,
+random interactions that feel alive and human. The three commits the review
+asked for are in (an errand is a list of steps; the day keeps its own rules;
+people, not clockwork). What follows is the agreed direction from here, in
+the order it pays off, with a rough size and the reason for the order. None
+of it is started; each is a stone of its own.
+
+1. **Ambient object cues** (about half a day). A phone rings on a desk and
+   three heads turn; a tray drops in the cafeteria. A *sound at a point*
+   step on a seeded schedule, using the thud the sound system already has.
+   The office reacts to things, not only to each other: the cheapest big
+   win for "alive", and the first cue whose source is a thing rather than a
+   person, which the editor will want.
+2. **Social texture from the step vocabulary** (days). A greeting as two
+   people pass (a head turn without stopping, which needs a look heading
+   the body does not follow); a third person joining a chat (a small pooled
+   chat record instead of one partner index); two people walking together
+   (a calm *follow* step, built from the leader's follow); the host walking
+   the visitors out at home time. Each is a new list of steps plus at most
+   one new step kind.
+3. **Return to calm** (one to two weeks; the big one). Fear is one way today:
+   nobody who has been frightened ever comes back. Somebody alarmed by a
+   distant shout who sees nothing should settle back, wary; after a small
+   fire is put out the office should drift back to its desks and talk about
+   it; the day should resume. Needed for a large level where one wing
+   panics and another works on, for "back to work" and "fire drill" cues,
+   and for everything below. Touches `FearSystem`, `PanicBehaviour` and the
+   round clock, and is the wall behind every later cue.
+4. **The reactive Director** (three to five days, after 3). Reads the count
+   of the frightened, the rooms cut off, the burning squares; picks from a
+   menu of cues with cooldowns, seeded. A quiet run gets a second problem in
+   a far wing; a massacre gets a breather. `DirectorSystem` is the seam; it
+   reads simulation state and the seed only, never the player's screen.
+5. **Visuals for the day** (a visuals commit). A pip over whoever speaks and
+   heads turning to them; a home-time button, so the player's path to it
+   can be seen; chats that are not two statues. Nothing here decides
+   anything in the simulation.
+6. **Meetings as gatherings.** A meeting is a record (room, host, members),
+   so *call a meeting* exists as a cue and the timetable can hold a whole
+   day: meeting at nine, lunch at twelve, home at five.
+
+Smaller things noted along the way, none started:
+
+- **Same-tick glances.** Everybody who hears a remark or a thud glances on
+  the same tick; the owner's rule that nothing happens to a whole group on
+  one tick is not yet applied to glances at a noise.
+- **A chair just left.** A visitor risen from the meeting may sit straight
+  back down in the nearest free chair a few seconds later.
+- **The day at scale.** The stress building has no timetable and no homes,
+  so the day has never been timed at two or five hundred people; the first
+  home time in a big building builds a route field per door side outside
+  the eight-per-tick budget, a one-off spike, unmeasured. Give the stress
+  building homes and a timetable and time the first home-time tick.
+- **Storeys.** Nothing in the day mentions a storey; the radius queries it
+  added (remarks, chat candidates, the stall fallback) will each need a
+  storey filter when a level asks, like everything else.
+- **A home-time card and button.** The command exists and is tested; the
+  card in the deck and the button on the screen are a small later change.
+- **"Lunch ends" on the timetable.** The two at the cafeteria table sit
+  through the calm half unless the meeting-ending cue reaches their room;
+  it is one timetable line if they read as statues.
+- **Cues after the disaster starts.** Waits for return to calm (3): a "fire
+  drill" or "carry on working" cue during a round needs calm to be
+  something a person can come back to.

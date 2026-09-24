@@ -192,6 +192,13 @@ namespace Paniq.Simulation
                 return 0UL;
             }
 
+            if (Refuses(partner, cue, initiator, 0UL))
+            {
+                // Turned away: nothing was said, and the initiator thinks of
+                // something else to do.
+                return 0UL;
+            }
+
             ulong line = WriteDown(cue, initiator, initiator.Body.Position, partner.Id, causeEventId);
             int endTick = checked(context.Tick + TogetherLength(cue));
 
@@ -250,6 +257,14 @@ namespace Paniq.Simulation
                 }
 
                 int start = Math.Max(context.ReactionTick(), checked(hostStart + 1));
+                if (Refuses(person, cue, host, line))
+                {
+                    // Contrary: they sit on for a while of their own, and
+                    // take it up after that like everybody else.
+                    DaySettings day = context.Scenario.Day;
+                    start = checked(start + context.Random.NextIntInclusive(day.CruelSitOnMinimumTicks, day.CruelSitOnMaximumTicks));
+                }
+
                 Hand(person, cue.Kind, false, Staggered(checked(start + context.Random.NextIntInclusive(0, spreadTicks))), line);
             }
 
@@ -284,6 +299,38 @@ namespace Paniq.Simulation
             }
 
             return line;
+        }
+
+        /// <summary>
+        /// The first free tick at or after <paramref name="tick"/> for
+        /// somebody taking up a cue late (a glance at a noise held them past
+        /// their own tick): still nobody rises on the same tick as anybody
+        /// else.
+        /// </summary>
+        public int ReserveStart(int tick) => Staggered(tick);
+
+        /// <summary>
+        /// Whether this person defies the cue: the cruel, half the time, the
+        /// same people who defy a leader, and only a cue with a person
+        /// behind it (the host, whoever came over for a chat) -- a cue from
+        /// the clock is nobody's to defy. Only somebody cruel draws, so
+        /// nobody else's numbers move. A refusal is a line in the story,
+        /// blamed on the cue's line; the person a chat was about is its
+        /// target, so the story can say who was turned away.
+        /// </summary>
+        private bool Refuses(Agent person, CueDefinition cue, Agent caller, ulong line)
+        {
+            DaySettings day = context.Scenario.Day;
+            if (caller == null || person == caller ||
+                person.Traits.Evil < context.Scenario.Leadership.DefiantMinimumEvil ||
+                !context.Random.NextPercent(day.CruelIgnoreCuePercent))
+            {
+                return false;
+            }
+
+            context.Events.Append(context.Tick, person.Id, CausalEventType.AgentIgnoredCue, person.Body.Position,
+                (int)cue.Kind, 0, line, caller != null ? caller.Id : default);
+            return true;
         }
 
         /// <summary>The cue's line in the story, if it gets one: source is whoever called or hosts it, target the room or the person it is about.</summary>

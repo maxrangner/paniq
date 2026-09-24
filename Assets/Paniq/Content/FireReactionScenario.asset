@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 67
+    ContentRevision: 68
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 55
+    SimulationCompatibilityVersion: 56
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -591,6 +591,9 @@ MonoBehaviour:
       HomeTimeRetryTicks: 1500
       LockedDoorMemoryTicks: 3000
       DoorHoldMillimetres: 2000
+      CruelIgnoreCuePercent: 50
+      CruelSitOnMinimumTicks: 500
+      CruelSitOnMaximumTicks: 1500
     Agents:
     - agentId:
         value: 1001
@@ -2099,7 +2102,19 @@ MonoBehaviour:
       audience: 2
       host: 1
       writtenDown: 1
-      hostScript: []
+      hostScript:
+      - kind: 3
+        target: 0
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 0
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 1
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
       script:
       - kind: 0
         target: 1

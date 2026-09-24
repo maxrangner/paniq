@@ -135,9 +135,16 @@
 
             return new[]
             {
-                // The host is up first; everybody goes back to their desk, or,
-                // having none on this floor, gets up and loiters.
-                new CueDefinition(CueKind.MeetingEnds, CueAudience.Room, CueHostRule.SeatedWithMostLeadership, true, goHome),
+                // The host says so and is up first; everybody goes back to
+                // their desk, or, having none on this floor, gets up and
+                // loiters.
+                new CueDefinition(CueKind.MeetingEnds, CueAudience.Room, CueHostRule.SeatedWithMostLeadership, true, goHome,
+                    new[]
+                    {
+                        new ErrandStep(ErrandStepKind.Say),
+                        new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.Home),
+                        new ErrandStep(ErrandStepKind.SitOn, ErrandTarget.Home)
+                    }),
 
                 // Everybody packs up and leaves.
                 new CueDefinition(CueKind.HomeTime, CueAudience.Building, CueHostRule.Nobody, true,

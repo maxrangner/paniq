@@ -187,6 +187,10 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             data.Fire.ActivationTick = int.MaxValue;
             data.Round.HazardWaitsForTrigger = true;
+
+            // Nobody contrary: this is about everybody getting up, one at a
+            // time; the cruel sitting on is its own test.
+            data.Day.CruelIgnoreCuePercent = 0;
             Assert.That(data.Timetable.Length, Is.EqualTo(1), "The office's day holds one thing: the meeting ends.");
             ScheduledCue meetingEnds = data.Timetable[0];
             Assert.That(meetingEnds.Kind, Is.EqualTo(CueKind.MeetingEnds));
@@ -221,8 +225,10 @@ namespace Paniq.Tests.EditMode
                         continue;
                     }
 
+                    // Rising is standing up; turning in the chair to look at
+                    // the host saying it is over is not.
                     AgentSnapshot person = simulation.GetAgent(i);
-                    if (roseAt[i] == 0 && person.ActivityState != AgentActivityState.Sitting)
+                    if (roseAt[i] == 0 && person.ActivityState == AgentActivityState.StandingUp)
                     {
                         roseAt[i] = simulation.Tick;
                     }

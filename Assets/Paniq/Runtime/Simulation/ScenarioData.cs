@@ -680,9 +680,15 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "67";
+        public string ContentRevision = "68";
         public ulong DefaultSeed = 42UL;
 
+        // 56: people, not clockwork. The host says something as the meeting
+        // ends, before anybody rises; both people in a chat walk and meet in
+        // the middle; a chat ends one person at a time; nobody starts a chat
+        // in a doorway or with somebody stood in one; a walk with a purpose
+        // wanders a little; and the cruel ignore a cue half the time, which
+        // is a line in the story. Fingerprints re-recorded.
         // 55: the day keeps its own rules. A cue never changes what somebody
         // is doing on the tick it is called (somebody mid-errand finishes it
         // first); no two people take a cue up on the same tick; home time
@@ -740,7 +746,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 55;
+        public int SimulationCompatibilityVersion = 56;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

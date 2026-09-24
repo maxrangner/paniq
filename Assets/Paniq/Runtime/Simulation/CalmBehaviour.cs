@@ -69,9 +69,12 @@ namespace Paniq.Simulation
                     if (tick >= intent.ActivityEndTick || agent.Body.BlockedTicks > settings.BlockedGiveUpTicks)
                     {
                         agent.Hearing.HasSoundPoint = false;
-                        if (agent.Sitting.OnIt && !ErrandBehaviour.IsDue(agent, tick))
+                        if (agent.Sitting.OnIt)
                         {
-                            // Looked round from the chair and saw nothing: back to the table.
+                            // Looked round from the chair and saw nothing: back
+                            // to the table. An errand whose time has come takes
+                            // them out of the chair on the next tick, at a tick
+                            // of its own, rather than from here.
                             chairs.ResumeSitting(agent);
                             goalHeading = agent.Intent.LookHeading;
                             break;
@@ -237,6 +240,14 @@ namespace Paniq.Simulation
         {
             if (errands.TryResume(agent))
             {
+                return;
+            }
+
+            if (agent.Sitting.OnIt && agent.Intent.Activity == AgentActivityState.Sitting)
+            {
+                // The errand ended with them sat in their own chair for a
+                // while of their own (told to go home when already there):
+                // that is what they are doing now, not a cue to stand up.
                 return;
             }
 
@@ -496,6 +507,11 @@ namespace Paniq.Simulation
             long maximumSquared = (long)settings.SocialMaximumDistanceMillimetres * settings.SocialMaximumDistanceMillimetres;
             Agent[] agents = crowd.All;
             int room = geometry.RoomOf(agent);
+            if (geometry.RoomAt(agent.Body.Position) < 0)
+            {
+                // Stood in a doorway: nobody starts a chat there, or in one.
+                return false;
+            }
 
             // Only the people near enough to be worth walking over to, in the
             // same ascending order a walk of everybody would visit them in.
@@ -533,14 +549,16 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Somebody worth going over to: calm, in the same room, neither on an
-        /// errand nor in a chair, and neither on top of them nor across the floor.
+        /// Somebody worth going over to: calm, in the same room and not stood
+        /// in its doorway (a chat in a doorway blocks it for everybody),
+        /// neither on an errand nor in a chair, and neither on top of them
+        /// nor across the floor.
         /// </summary>
         private bool IsChatCandidate(Agent agent, Agent other, int room, long minimumSquared, long maximumSquared)
         {
             if (other == agent || !CueSystem.CanTakeUpACue(other) || other.Errand.Has ||
                 other.Sitting.OnIt || !ErrandBehaviour.IsInterruptible(other.Intent.Activity) ||
-                geometry.RoomOf(other) != room)
+                geometry.RoomOf(other) != room || geometry.RoomAt(other.Body.Position) < 0)
             {
                 return false;
             }

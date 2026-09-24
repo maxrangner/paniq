@@ -184,9 +184,24 @@ namespace Paniq.Simulation
         public bool StartIfDue(Agent agent)
         {
             AgentErrand errand = agent.Errand;
-            if (!errand.Pending || context.Tick < errand.StartTick || !IsInterruptible(agent.Intent.Activity))
+            int tick = context.Tick;
+            if (!errand.Pending || tick < errand.StartTick || !IsInterruptible(agent.Intent.Activity))
             {
                 return false;
+            }
+
+            if (tick > errand.StartTick)
+            {
+                // Late -- a glance at a noise held them past their own tick,
+                // which the whole room shares when the host speaks -- so they
+                // take a tick nobody else is taking, rather than all rising
+                // together the moment the glance ends.
+                int start = cues.ReserveStart(tick);
+                if (start > tick)
+                {
+                    errand.StartTick = start;
+                    return false;
+                }
             }
 
             return Begin(agent);
@@ -203,7 +218,9 @@ namespace Paniq.Simulation
             AgentErrand errand = agent.Errand;
             if (errand.Pending)
             {
-                return context.Tick >= errand.StartTick && Begin(agent);
+                // Not begun yet: the same door as every start, so a late one
+                // takes a tick of its own.
+                return StartIfDue(agent);
             }
 
             if (!errand.Active)
@@ -277,15 +294,26 @@ namespace Paniq.Simulation
                 return Finish(agent, "already home");
             }
 
+            // Anything the script has them say first is said from where they
+            // are, seated or not: "that's all for today" comes before the
+            // chair goes back, and the room hears it before anybody rises.
+            ErrandStep[] script = ScriptOf(errand);
+            int first = 0;
+            while (first < script.Length && script[first].Kind == ErrandStepKind.Say)
+            {
+                sound.Say(agent, errand.CauseEventId, true);
+                first++;
+            }
+
             if (agent.Sitting.OnIt)
             {
                 chairs.StartStandingUp(agent);
-                errand.Step = 0;
+                errand.Step = first;
                 errand.Phase = ErrandPhase.GettingUp;
                 return true;
             }
 
-            return BeginStep(agent, 0);
+            return BeginStep(agent, first);
         }
 
         /// <summary>Whether the script does nothing but send them home.</summary>
@@ -424,13 +452,9 @@ namespace Paniq.Simulation
                         return Finish(agent, "partner gone");
                     }
 
-                    if (!errand.IsHost && partner.Errand.Active && partner.Errand.PartnerIndex == agent.Index)
-                    {
-                        // They were hailed: the other one is coming over, and
-                        // they turn to face them and wait.
-                        return BeginStep(agent, errand.Step + 1);
-                    }
-
+                    // Both walk, and meet in the middle: the one hailed used
+                    // to stand and wait to be walked up to from six metres
+                    // off, which read as a summons rather than a chat.
                     errand.Room = geometry.RoomOf(partner);
                     errand.Place = partner.Body.Position;
                     errand.ArriveWithin = calm.SocialStopDistanceMillimetres;
@@ -451,7 +475,31 @@ namespace Paniq.Simulation
             errand.UntilTick = checked(context.Tick + context.Jittered(settings.ErrandTimeoutTicks));
             agent.Intent.Activity = AgentActivityState.RunningAnErrand;
             agent.Body.BlockedTicks = 0;
+            StartWandering(agent);
             return true;
+        }
+
+        /// <summary>
+        /// A walk with a purpose still wanders a little, as a stroll does:
+        /// dead straight lines read as clockwork. The offset is redrawn every
+        /// second or so and fades out as the place gets close, so arriving
+        /// looks deliberate; doorways are approached straight.
+        /// </summary>
+        private void StartWandering(Agent agent)
+        {
+            agent.Intent.WanderOffset = context.Random.NextIntInclusive(-calm.WanderMaximumDegrees, calm.WanderMaximumDegrees);
+            agent.Intent.NextWanderTick = checked(context.Tick + context.Random.NextIntInclusive(25, 60));
+        }
+
+        private int Wander(Agent agent, long distance)
+        {
+            AgentIntent intent = agent.Intent;
+            if (context.Tick >= intent.NextWanderTick)
+            {
+                StartWandering(agent);
+            }
+
+            return distance < 1200 ? intent.WanderOffset / 2 : intent.WanderOffset;
         }
 
         /// <summary>Their chair or spot: near enough a chair for the chair behaviour to take them the rest of the way, or on a spot.</summary>
@@ -639,7 +687,8 @@ namespace Paniq.Simulation
                 return Advance(agent);
             }
 
-            goalHeading = geometry.Routes.HeadingToward(agent.Body.Position, errand.Place, bodyRadius, agent.Body.Heading);
+            goalHeading = geometry.Routes.HeadingToward(agent.Body.Position, errand.Place, bodyRadius, agent.Body.Heading) +
+                          Wander(agent, distance);
             goalSpeed = Pace(agent, distance);
             return true;
         }
@@ -938,7 +987,11 @@ namespace Paniq.Simulation
         {
             AgentErrand errand = agent.Errand;
             errand.Phase = ErrandPhase.Talking;
-            errand.UntilTick = errand.ChatEndTick;
+
+            // The one whose idea it was has had enough at the drawn end; the
+            // other notices a moment later, like anything else, so the two
+            // never turn away on the same tick. The long stop is a backstop.
+            errand.UntilTick = errand.IsHost ? errand.ChatEndTick : checked(errand.ChatEndTick + settings.ErrandTimeoutTicks);
             agent.Intent.Activity = AgentActivityState.Chatting;
             agent.Body.BlockedTicks = 0;
             errand.NextRemarkTick = checked(context.Tick + context.Random.NextIntInclusive(

@@ -852,12 +852,47 @@ reads "person 3 said something" forty times a chat.
 | Versions | `SimulationCompatibilityVersion` 54 -> 55; `ContentRevision` 66 -> 67. Ten of the thirteen recorded fingerprints re-recorded; three (seed 40 cards, and the two seed 41 "no visitors" runs) happen not to change | Nearly every row changes where somebody is a minute in | Never |
 | Tests | `CuesEditModeTests`: home time called mid-chat changes nothing on that tick and is taken up when the chat is over; a cue with no spread reaches no two people on the same tick; the meeting ending gets up somebody seated in their own chair. `ErrandsEditModeTests`: home time with the way out unlocked late still empties the building, without trying the handle all day; somebody sent home shuts the office door behind them. The meeting-room test now allows a visitor to sit down again some seconds after rising | -- | -- |
 
+## Prototype 2: people, not clockwork (2026-09-24)
+
+The third of the three commits the owner approved from the cue system's
+review: the things that read as clockwork on screen, each a small change on
+top of the step vocabulary, and most of the visible payoff of the review.
+
+**What a player sees.** The meeting ends with the host saying something;
+heads turn to the host, and then people rise one at a time. Two people who
+are going to talk both walk and meet in the middle, instead of one standing
+and waiting to be walked up to from six metres off, and when the chat is
+over one turns away and the other a moment later. Nobody starts a chat in a
+doorway. A walk to the bathroom or back to a desk wanders a little, like a
+stroll, instead of running dead straight. And the cruel are contrary: half
+the time the villain sits on when the host ends the meeting, or will not
+talk to whoever came over, and the story says so.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **The host says something as the meeting ends** | The meeting-ending cue's host script is *say, go home, sit*; `ErrandBehaviour.Begin` says anything a script begins with from where they are, seated or not, before the chair goes back. The remark is heard within the usual radius, so the table glances at the host, and the rest rise after | The meeting rose in silence with nothing to tell the watcher why. This is the "feeling, not event" form of an announcement: the room hears the host, then people get up | The remark wants words on screen |
+| **A late start still takes a tick of its own** | `ErrandBehaviour.StartIfDue`, when somebody is past their start tick (a glance at the host held them), asks `CueSystem.ReserveStart` for the first free tick from now; the resume after a glance goes through the same door | With the whole table glancing at the host on one tick, everybody's reserved ticks had passed by the time the glances ended, and they rose together the moment they did | Never |
+| **Both walk to a chat** | The one hailed walks too (`ErrandBehaviour.BeginGoTo`, partner target); each stops within the social stop distance of the other | The hailed one stood and waited to be walked up to from up to six metres, which read as a summons | A chat where one is busy at a desk and the other comes to them (a knock on the door): then a flag on the step |
+| **A chat ends one person at a time** | `StartTalking`: only the one whose idea it was ends at the drawn tick; the other notices a moment later (their own reaction lag), with a long backstop | Both turned away on the same tick | Never |
+| **No chats in doorways** | `CalmBehaviour.TryStartChat` starts none from a doorway, and `IsChatCandidate` skips anybody stood in one (`RoomAt` is -1 there) | Somebody hailed in a doorway stopped in it for the chat and blocked it for everybody | Never |
+| **Errand walks wander** | The last leg of an errand walk (inside the room, not the approach to a door) carries the same wander offset a stroll does, redrawn every second or so and halved near the place (`ErrandBehaviour.Wander`) | Errand walks were dead straight; strolls wander, and the difference read as clockwork | A walk that must be straight (a leader's follow) |
+| **The cruel are contrary** | `CueSystem.Refuses`: somebody cruel enough to defy a leader (`LeadershipSettings.DefiantMinimumEvil`) defies a cue with a person behind it `DaySettings.CruelIgnoreCuePercent` (**50**) of the time. Sat on when the host ends the meeting: they take it up `CruelSitOnMinimumTicks`–`CruelSitOnMaximumTicks` (**500**–**1500**) later. Will not talk: the chat never happens and the initiator thinks of something else. A cue from the clock (home time) is nobody's to defy. Only the cruel draw, so nobody else's numbers move. Each refusal is `CausalEventType.AgentIgnoredCue`, a line in the story ("person 13 sat on when the meeting ended", "person 8 would not talk to person 5"), blamed on the cue's line; a refused chat that was never written down is a root of its own | Cues bypassed traits: the cruel obeyed home time as readily as anyone, nobody ever refused a chat. `LeaderBehaviour.Obeys` was the shape to reuse, and a refusal is a story line | A refusal that changes the other person (the host trying again, the initiator offended) |
+| Versions | `SimulationCompatibilityVersion` 55 -> 56; `ContentRevision` 67 -> 68. All thirteen recorded fingerprints re-recorded | Every row changes where people are and what the log says | Never |
+| Tests | `CuesEditModeTests`: the host says something as the meeting ends, before anybody rises; a chat ends one person at a time; the cruel may ignore a cue and the story says so (and the line reads back as words). `ErrandsEditModeTests`: the hailed partner walks over too. The meeting tests count only standing up as rising (turning in the chair to look at the host is not), and pin the contrary chance to nought where they are about everybody getting up. Not covered by a test of its own: no chats in doorways, and the wander on errand walks (both are exercised by the suite, neither asserted) | -- | -- |
+
+**Found on the way, left for later.** Everybody who hears a remark glances
+on the same tick (`SoundSystem.Notice` is immediate for every listener),
+which is the owner's same-tick rule broken for glances at a noise; a
+visitor risen from the meeting may sit straight back down in the nearest
+chair a few seconds later, since a chair just left is not remembered.
+
 ## Version history
 
 Every bump of `SimulationCompatibilityVersion` (the rules) and `ContentRevision` (the building) that the replay compatibility row of the first table used to list in one cell, newest first. The bumps from 27 to 42 are recorded in their own stones' sections above (search this document for "Versions").
 
 | Change | What moved |
 | --- | --- |
+| 55 → 56 and content 67 → 68 (2026-09-24) | people, not clockwork: the host says something as the meeting ends, both walk to a chat and it ends one at a time, no chats in doorways, errand walks wander, and the cruel are contrary. All thirteen fingerprints re-recorded. |
 | 54 → 55 and content 66 → 67 (2026-09-24) | the day keeps its own rules: a cue never changes what somebody is doing on the tick it is called, no two people take one up on the same tick, home time stands until everybody is out, doors are shut behind, nobody sits in somebody else's chair, desk sits are longer, a locked door is remembered, only a heard remark is written down. Ten of the thirteen fingerprints re-recorded; three happen not to change. |
 | 53 → 54 and content 65 → 66 (2026-09-24) | an errand is a list of steps from a cue's script, a person keeps hold of a chair through a glance and waits for one still sliding, and the host of a room cue is up first. Six of the thirteen fingerprints re-recorded; seven happen not to change. |
 | 52 → 53 and content 64 → 65 (2026-09-24) | a tick that got somewhere forgives one stuck tick instead of wiping the count, so a jostling crush no longer counts as getting somewhere; and a round the hazard started on its own blames its end on the hazard's start. Eleven of the thirteen fingerprints re-recorded; two happen not to change. |

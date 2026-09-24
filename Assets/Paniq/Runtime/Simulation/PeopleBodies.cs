@@ -106,6 +106,7 @@ namespace Paniq.Simulation
             squeezedTicks = new int[count];
             pullTo = new LogicalPosition[count];
             pullSpeed = new int[count];
+            carried = new bool[count];
             leavingChair = new int[count];
             for (int i = 0; i < count; i++)
             {
@@ -202,6 +203,21 @@ namespace Paniq.Simulation
             pullTo[agent.Index] = spot;
             pullSpeed[agent.Index] = Math.Max(0, speed);
         }
+
+        /// <summary>
+        /// The same haul, but by the press of a crowd rather than a helper's
+        /// arms: it moves somebody crumpled where they stood as well as
+        /// somebody lying flat, because a crowd shoving a body through a
+        /// doorway does not care which way it fell.
+        /// </summary>
+        public void CarryToward(Agent agent, LogicalPosition spot, int speed)
+        {
+            PullToward(agent, spot, speed);
+            carried[agent.Index] = true;
+        }
+
+        /// <summary>Whether this tick's pull is the crowd's carry, which moves a crumpled body too.</summary>
+        private readonly bool[] carried;
 
         /// <summary>
         /// Sits somebody in a chair: they are put on it, held there, and pass
@@ -347,7 +363,7 @@ namespace Paniq.Simulation
 
                 if (down)
                 {
-                    if (pose[i] == Pose.Lying)
+                    if (pose[i] == Pose.Lying || carried[i])
                     {
                         Pull(agent, handle);
                     }
@@ -355,11 +371,13 @@ namespace Paniq.Simulation
                     {
                         // Crumpled where they stood: no push of their own, and
                         // anybody dragging them hauls a dead weight that will
-                        // not come.
+                        // not come. The press of a crowd is another matter
+                        // (see CarryToward).
                         pullSpeed[i] = -1;
                         world.SetGrip(handle, feel.PersonFloorGripPercent, 10);
                     }
 
+                    carried[i] = false;
                     continue;
                 }
 

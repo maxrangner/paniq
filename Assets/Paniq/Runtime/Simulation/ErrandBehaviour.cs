@@ -431,6 +431,19 @@ namespace Paniq.Simulation
 
                     break;
 
+                case ErrandTarget.TheNoise:
+                    // Toward where they heard it, stopping well short: by then
+                    // they have seen what it was, or there was nothing to see.
+                    errand.Destination = agent.Hearing.NoiseToLookAt;
+                    errand.Room = geometry.RoomStoodIn(errand.Destination);
+                    errand.ArriveWithin = context.Scenario.Hearing.GoAndLookStopMillimetres;
+                    if (errand.Room < 0)
+                    {
+                        return Finish(agent, "noise from nowhere");
+                    }
+
+                    break;
+
                 case ErrandTarget.FreeStall:
                     int stall = FindFreeStall(agent, out int stallDoor);
                     if (stall < 0)

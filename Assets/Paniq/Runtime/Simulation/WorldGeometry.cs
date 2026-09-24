@@ -580,6 +580,82 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Whether a straight line of sight runs from a spot in one room to a
+        /// spot in another: the same room; or through the gap of an open
+        /// doorway (an archway counts) joining the two; or through two such
+        /// gaps with one room between, the way somebody in the meeting room
+        /// sees across the corridor into the office when both doors stand
+        /// open. Walls hide everything else, including the room beyond an
+        /// open door when the line does not pass through the door itself.
+        /// A spot in no room (a doorway) sees and is seen freely.
+        /// </summary>
+        public bool CanSeeBetween(int eyeRoom, LogicalPosition eye, int targetRoom, LogicalPosition target)
+        {
+            if (eyeRoom < 0 || targetRoom < 0 || eyeRoom == targetRoom)
+            {
+                return true;
+            }
+
+            int[] first = roomDoors[eyeRoom];
+            for (int i = 0; i < first.Length; i++)
+            {
+                int door = first[i];
+                if (!IsDoorOpen(door) || !SightCrossesDoorway(door, eye, target))
+                {
+                    continue;
+                }
+
+                int between = RoomBeyond(door, eyeRoom);
+                if (between == targetRoom)
+                {
+                    return true;
+                }
+
+                if (between < 0)
+                {
+                    continue;
+                }
+
+                int[] second = roomDoors[between];
+                for (int j = 0; j < second.Length; j++)
+                {
+                    int next = second[j];
+                    if (next != door && IsDoorOpen(next) && RoomBeyond(next, between) == targetRoom &&
+                        SightCrossesDoorway(next, eye, target))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether the straight line from one point to the other crosses this door's wall inside the door's gap.</summary>
+        private bool SightCrossesDoorway(int door, LogicalPosition a, LogicalPosition b)
+        {
+            DoorRuntime d = doors[door];
+            LogicalPosition centre = DoorCentre(door);
+            bool wallRunsAlongX = d.Side == WallSide.North || d.Side == WallSide.South;
+            long wall = wallRunsAlongX ? centre.Z : centre.X;
+            long aAcross = wallRunsAlongX ? a.Z : a.X;
+            long bAcross = wallRunsAlongX ? b.Z : b.X;
+            long aAlong = wallRunsAlongX ? a.X : a.Z;
+            long bAlong = wallRunsAlongX ? b.X : b.Z;
+            long fromA = aAcross - wall;
+            long fromB = bAcross - wall;
+            if ((fromA > 0L && fromB > 0L) || (fromA < 0L && fromB < 0L) || (fromA == 0L && fromB == 0L))
+            {
+                // Both on one side of the wall, or both on the wall line.
+                return false;
+            }
+
+            long crossingAlong = aAlong + (bAlong - aAlong) * (wall - aAcross) / (bAcross - aAcross);
+            long gapCentre = wallRunsAlongX ? centre.X : centre.Z;
+            return Math.Abs(crossingAlong - gapCentre) <= d.Width / 2;
+        }
+
+        /// <summary>
         /// Whether fire may jump between two neighbouring grid cells in
         /// different rooms: only through the open door between them, where
         /// the edge the cells share lies across the door gap.

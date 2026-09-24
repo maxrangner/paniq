@@ -85,9 +85,10 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             var simulation = new Run(data);
             // Four rooms onto the corridor, the closet, the cafeteria's
-            // shortcut, the maintenance room, three stalls, the archway where
-            // the corridor Ts, and the one way out.
-            Assert.That(simulation.DoorCount, Is.EqualTo(12));
+            // shortcut, the meeting room's door into the cafeteria, the
+            // maintenance room, three stalls, the archway where the corridor
+            // Ts, and the one way out.
+            Assert.That(simulation.DoorCount, Is.EqualTo(13));
             var sides = new HashSet<WallSide>();
             int locked = 0;
             for (int i = 0; i < simulation.DoorCount; i++)
@@ -746,70 +747,62 @@ namespace Paniq.Tests.EditMode
             return RunnerByTheWayOut(DefaultData(), forceChancePercent, AgentTraitValues.AllOrdinary);
         }
 
+        /// <summary>
+        /// Somebody knocked down inside the open way out, with three people
+        /// pressed up against them from inside the office: the press carries
+        /// them on through the doorway and out, an escape on their back. They
+        /// used to lie in the gap as a plug -- on seed 41 the opened exit
+        /// stood blocked for fifteen seconds by the people the cruel had
+        /// shoved to the floor in it. The three are calm and stand where they
+        /// are for the whole test, so the press is steady; frightened people
+        /// give a blocked doorway up within a second and go elsewhere.
+        /// </summary>
         [Test]
-        public void RunnerAtALockedDoor_ForcesItInVainUntilItIsUnlocked()
+        public void SomebodyDownInTheDoorway_IsCarriedThroughByThePress()
         {
-            var simulation = new Run(RunnerByTheWayOut(100));
-            CausalEvent firstShove = default;
-            for (int t = 0; t < 5 * Run.TicksPerSecond; t++)
+            ScenarioData data = RunnerByTheWayOut(DefaultData(), 0, AgentTraitValues.AllOrdinary);
+            data.Agents = new[]
             {
-                simulation.Step();
-                List<CausalEvent> shoves = EventsOfType(simulation, CausalEventType.AgentForcedDoor);
-                if (shoves.Count > 0)
+                new AgentDefinition(new SimulationId(1UL), new LogicalPosition(-2500, -5700), CardinalDirection.South, AgentTraitValues.AllOrdinary),
+                new AgentDefinition(new SimulationId(2UL), new LogicalPosition(-2500, -5100), CardinalDirection.South, AgentTraitValues.AllOrdinary),
+                new AgentDefinition(new SimulationId(3UL), new LogicalPosition(-1950, -5250), CardinalDirection.South, AgentTraitValues.AllOrdinary),
+                new AgentDefinition(new SimulationId(4UL), new LogicalPosition(-3050, -5250), CardinalDirection.South, AgentTraitValues.AllOrdinary)
+            };
+            data.Tables = new TableDefinition[0];
+            data.Fire.ActivationTick = 100000;
+            data.Calm.DecisionMinimumTicks = 5000;
+            data.Calm.DecisionMaximumTicks = 5000;
+            data.Falls.KnockdownMinimumTicks = 600;
+            data.Falls.KnockdownMaximumTicks = 600;
+            using (var simulation = new Run(data, 7UL))
+            {
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, 1);
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, 2);
+                for (int t = 0; t < 5; t++)
                 {
-                    firstShove = shoves[0];
-                    break;
-                }
-            }
-
-            Assert.That(firstShove.EventId, Is.Not.EqualTo(0UL), "The runner never tried to force the locked door.");
-            CausalEvent tried = simulation.EventLog.Get(firstShove.CausalParentEventId);
-            Assert.That(tried.EventType, Is.EqualTo(CausalEventType.AgentTriedDoor));
-            Assert.That(tried.Position, Is.EqualTo(Door(simulation, OfficeWayOut).Centre));
-            Assert.That(simulation.GetAgent(0).ActivityState, Is.EqualTo(AgentActivityState.ForcingDoor));
-            Assert.That(Door(simulation, OfficeWayOut).State, Is.EqualTo(DoorState.Locked), "Forcing must never work.");
-
-            // The player unlocks it mid-shove: the runner gets it open at once and leaves.
-            Click(simulation, OfficeWayOut);
-            for (int t = 0; t < 3 * Run.TicksPerSecond &&
-                            simulation.GetAgent(0).Outcome != AgentTerminalOutcome.Escaped; t++)
-            {
-                simulation.Step();
-            }
-
-            Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped));
-            List<CausalEvent> opened = EventsOfType(simulation, CausalEventType.DoorOpened);
-            Assert.That(opened, Has.Count.EqualTo(1));
-            Assert.That(opened[0].CausalParentEventId, Is.EqualTo(tried.EventId), "The runner, not the player, opened it.");
-            CausalEvent escape = EventsOfType(simulation, CausalEventType.AgentEscaped)[0];
-            Assert.That(escape.CausalParentEventId, Is.EqualTo(opened[0].EventId));
-        }
-
-        [Test]
-        public void RunnerAtALockedDoor_CanGiveUpAndLookForAnotherWay()
-        {
-            var simulation = new Run(RunnerByTheWayOut(0));
-            LogicalPosition doorCentre = Door(simulation, OfficeWayOut).Centre;
-            int gaveUpTick = -1;
-            long farthest = 0L;
-            for (int t = 0; t < 8 * Run.TicksPerSecond; t++)
-            {
-                simulation.Step();
-                if (gaveUpTick < 0 && EventsOfType(simulation, CausalEventType.AgentGaveUpOnDoor).Count > 0)
-                {
-                    gaveUpTick = simulation.Tick;
+                    simulation.Step();
                 }
 
-                if (gaveUpTick >= 0)
-                {
-                    farthest = Math.Max(farthest, LogicalPosition.DistanceSquared(simulation.GetAgent(0).Position, doorCentre));
-                }
-            }
+                // Down in the doorway for a long while.
+                Agent fallen = simulation.AgentForTests(0);
+                fallen.Body.State = AgentBodyState.Fallen;
+                fallen.Body.EndTick = simulation.Tick + 600;
 
-            Assert.That(gaveUpTick, Is.GreaterThan(0), "The runner never gave up on the locked door.");
-            Assert.That(EventsOfType(simulation, CausalEventType.AgentForcedDoor), Is.Empty);
-            Assert.That(farthest, Is.GreaterThan(2000L * 2000L), "After giving up the runner stayed at the locked door.");
-            Assert.That(simulation.GetAgent(0).Outcome, Is.Not.EqualTo(AgentTerminalOutcome.Escaped));
+                var trace = new System.Text.StringBuilder();
+                for (int t = 0; t < 10 * Run.TicksPerSecond && simulation.GetAgent(0).Outcome != AgentTerminalOutcome.Escaped; t++)
+                {
+                    simulation.Step();
+                    if (t % 10 == 0 && t < 200)
+                    {
+                        trace.Append($"t={simulation.Tick} fallen at {simulation.GetAgent(0).Position} {simulation.GetAgent(0).BodyState} carried={fallen.Doors.CarriedThroughDoor}; ");
+                    }
+                }
+
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentCarriedThroughDoorway), Is.Not.Empty,
+                    "The press should have carried them through. " + trace);
+                Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped),
+                    $"Carried out through the way out; instead at {simulation.GetAgent(0).Position}. " + trace);
+            }
         }
 
         // ---------------------------------------------------------------- event targets
@@ -911,6 +904,11 @@ namespace Paniq.Tests.EditMode
                         break;
                     case CausalEventType.AgentEscaped:
                         Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, "An escape names the door used.");
+                        break;
+                    case CausalEventType.AgentDashedThroughHeat:
+                    case CausalEventType.AgentHidFromTheHeat:
+                    case CausalEventType.AgentCarriedThroughDoorway:
+                        Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, $"{record.EventType} names the door.");
                         break;
                     case CausalEventType.AgentShookAwake:
                     case CausalEventType.AgentGrabbed:

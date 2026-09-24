@@ -695,7 +695,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "71";
+        public string ContentRevision = "75";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -776,7 +776,25 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 59;
+        // 60: the office floor, second pass: every prop against a wall faces
+        // the room (its collision box turns with it), the meeting room has a
+        // door straight into the cafeteria, and the closet runs north to the
+        // corridor wall with two shelves in it. Routes and knocks change.
+        // 61: fear and attention spread: seeing somebody bolt startles you
+        // (the brave look first), the first shout comes with the first stride
+        // and every shout carries twice as far, a threat is seen twelve metres
+        // off and through open doorways along the line of sight only, a fire
+        // is heard further as it grows and half as far through a wall, a
+        // person keeps several noises in mind, and somebody who hears a
+        // threat's noise from another room goes to look (the GoAndLook cue).
+        // 62: doors and the cornered: nobody shuts a door on somebody coming
+        // through it unless the flames are at it and they are callous; the
+        // way out through the heat is dashed for by the brave and the
+        // desperate and given up for a hiding place by the rest; whoever
+        // carries an extinguisher runs.
+        // 63: somebody down inside an open doorway with the crowd pressing on
+        // them is carried on through it by the press instead of plugging it.
+        public int SimulationCompatibilityVersion = 63;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

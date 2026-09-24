@@ -99,6 +99,7 @@
             agent.Intent.Activity = AgentActivityState.Reacting;
             agent.Intent.SocialPartnerIndex = -1;
             agent.Hearing.HasSoundPoint = false;
+            agent.Hearing.ClearPending();
 
             // Whatever the day had them doing is over: fear has its own rules.
             agent.Errand.Clear();
@@ -224,23 +225,28 @@
         }
 
         /// <summary>
-        /// Snapping out of a freeze: log it, start running, and shout straight
-        /// away. The cause is their own freeze running out, or someone shaking them.
+        /// Snapping out of a freeze: log it, start running, and shout as soon
+        /// as anybody does. The cause is their own freeze running out, or someone shaking them.
         /// </summary>
         public void Unfreeze(Agent agent, ulong causalParentEventId = 0UL)
         {
             context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentUnfroze, agent.Body.Position, 0, 0,
                 causalParentEventId != 0UL ? causalParentEventId : agent.Fear.FrozeEventId);
             StartFleeing(agent);
-            agent.Fear.NextShoutTick = context.Tick;
         }
 
+        /// <summary>
+        /// Running. The first shout comes with the first stride, a few ticks
+        /// late like every reaction, and the next ones at their own interval:
+        /// it used to come two to five seconds in, which spread a fright
+        /// round a meeting table one seat at a time.
+        /// </summary>
         private void StartFleeing(Agent agent)
         {
             agent.Intent.Activity = AgentActivityState.Fleeing;
             agent.Doors.HasLookedForAWayOut = false;
             context.ThinkAgainSoon(agent.Intent);
-            agent.Fear.NextShoutTick = checked(context.Tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
+            agent.Fear.NextShoutTick = context.ReactionTick();
         }
 
         /// <summary>

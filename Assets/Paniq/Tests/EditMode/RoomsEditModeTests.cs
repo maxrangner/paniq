@@ -96,7 +96,7 @@ namespace Paniq.Tests.EditMode
                 "Office, closet, corridor, cafeteria, meeting room, bathroom, maintenance,\n"
                 + "the crossbar of the T, and three bathroom stalls.");
             LogicalBounds b = data.Rooms[1].Bounds;
-            Assert.That((b.MaxX - b.MinX) * (long)(b.MaxZ - b.MinZ), Is.EqualTo(4000000L), "2 × 2 m: room for two or three.");
+            Assert.That((b.MaxX - b.MinX) * (long)(b.MaxZ - b.MinZ), Is.EqualTo(9000000L), "2 × 4.5 m: a storeroom, not a cupboard.");
 
             // Its door is an inside door: shut, but not locked.
             DoorDefinition door = Array.Find(data.Doors, d => d.DoorId == ClosetDoor);
@@ -137,7 +137,7 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
             }
 
-            Assert.That(BurningInCloset(simulation, data), Is.EqualTo(16), "The whole closet should burn.");
+            Assert.That(BurningInCloset(simulation, data), Is.EqualTo(36), "The whole closet should burn.");
 
             // The first side-room square was lit from the main-room square right next to it, through the door gap.
             FireCellSnapshot first = default;
@@ -214,7 +214,11 @@ namespace Paniq.Tests.EditMode
             data.Fire.SpreadMaximumTicks = 5000;
             data.Hearing.FireHearingRadiusMillimetres = 0;
 
-            // Person 2 sees the fire and yells from 2 m away: within 2.5 m, but not within the muffled 1.25 m.
+            // The rule under test is that a shut door halves a yell's reach,
+            // not the reach itself (a shipped shout alarms six metres): the
+            // alarm reach is pinned so that person 2, yelling from 2 m away,
+            // is within it but not within the muffled half of it.
+            data.Hearing.YellAlarmRadiusMillimetres = 2500;
             var simulation = new Run(data);
             for (int t = 0; t < 30; t++)
             {

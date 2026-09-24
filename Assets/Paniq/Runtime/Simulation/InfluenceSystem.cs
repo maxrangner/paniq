@@ -240,6 +240,9 @@
                 case CausalEventType.AgentLookedForAWayOut:
                 case CausalEventType.AgentFoundADeadEnd:
                 case CausalEventType.AgentFoundTheWayOut:
+                case CausalEventType.AgentDashedThroughHeat:
+                case CausalEventType.AgentHidFromTheHeat:
+                case CausalEventType.AgentCarriedThroughDoorway:
                 case CausalEventType.LeaderCalledPeopleOn:
                 case CausalEventType.LeaderOrderedDoorBroken:
                 case CausalEventType.LeaderOrderedFireFought:

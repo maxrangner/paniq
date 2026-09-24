@@ -149,6 +149,9 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentTriedDoor: return $"{who} tried a door and it would not open";
                 case CausalEventType.AgentForcedDoor: return $"{who} threw a shoulder at a door";
                 case CausalEventType.AgentGaveUpOnDoor: return $"{who} gave up on a door";
+                case CausalEventType.AgentDashedThroughHeat: return $"{who} ran for it through the heat";
+                case CausalEventType.AgentHidFromTheHeat: return $"{who} would not go through the heat and looked for somewhere to hide";
+                case CausalEventType.AgentCarriedThroughDoorway: return $"{who}, down in the doorway, was carried through it by the crush";
                 case CausalEventType.AgentBarricadedDoor: return $"{who} wedged something against {whom}";
                 case CausalEventType.AgentShovedObstruction: return $"{who} heaved {whom} out of a doorway";
 
@@ -212,6 +215,7 @@ namespace Paniq.Presentation
                         case CueKind.Chat: return $"{who} and {whom} had a chat";
                         case CueKind.ToiletTrip: return $"{who} went to the toilet";
                         case CueKind.GoHome: return $"{who} went back to their desk";
+                        case CueKind.GoAndLook: return $"{who} went to see what the noise was";
                         default: return $"{who} called {(CueKind)record.Strength}";
                     }
 

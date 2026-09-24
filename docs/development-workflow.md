@@ -142,15 +142,15 @@ word is the feature's name. These are the ones that are not:
 | `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding` |
 | `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting` |
 | `TraitEffects` | `Traits,TraitCards` |
-| `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade` |
+| `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered` |
 | `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
+| `PerceptionSystem`, `SoundSystem` (what a person sees and hears) | `Perception,Hearing,Simulation` |
 
-`FearSystem`, `PerceptionSystem`, `PanicBehaviour`, `CalmBehaviour`,
-`Locomotion`, `SoundSystem`, `Crowd` and the causal event log have no tests of
-their own; they are checked only through whole runs. A change there means
-`ReplayFingerprint` in the small gear and the full run before the commit,
-without exception. When a test file is added or renamed, this table is
-updated in the same commit.
+`FearSystem`, `PanicBehaviour`, `CalmBehaviour`, `Locomotion`, `Crowd` and
+the causal event log have no tests of their own; they are checked only
+through whole runs. A change there means `ReplayFingerprint` in the small
+gear and the full run before the commit, without exception. When a test file
+is added or renamed, this table is updated in the same commit.
 
 ### The runner that needed no editor is gone
 

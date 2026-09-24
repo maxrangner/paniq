@@ -243,15 +243,15 @@ namespace Paniq.Simulation
             int heading = geometry.Routes.HeadingToward(agent.Body.Position, target, bodyRadius, agent.Body.Heading);
 
             // Once the trigger is down they keep it down while the jet still
-            // reaches; otherwise they close to arm's length first, at a run
-            // if they are chasing somebody who is alight.
+            // reaches; otherwise they close to arm's length first, at a run:
+            // a frightened person with a bottle in a burning building does
+            // not stroll (the owner watched one do so on seed 41).
             bool spraying = agent.Intent.Activity == AgentActivityState.Spraying;
             long closeEnough = spraying ? settings.SprayRangeMillimetres : settings.StandOffMillimetres;
             if (distance > closeEnough)
             {
                 agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
-                return Walk(agent, target,
-                    burningPerson >= 0 ? agent.Personality.PanicSpeed : agent.Personality.CalmSpeed);
+                return Walk(agent, target, agent.Personality.PanicSpeed);
             }
 
             if (!spraying)

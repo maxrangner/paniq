@@ -209,30 +209,36 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Whether a calm person here hears a threat close by: the first that
-        /// is within its own hearing reach, with the point to turn toward and
-        /// the event that made the noise.
+        /// Whether a calm person here hears a threat close by: the nearest
+        /// that is within its own hearing reach, with the point to turn
+        /// toward, the event that made the noise, and how far the noise
+        /// carries (its loudness, as far as a listener is concerned).
         /// </summary>
-        public bool HeardNearby(LogicalPosition position, out LogicalPosition point, out ulong causeEventId)
+        public bool HeardNearby(LogicalPosition position, out LogicalPosition point, out ulong causeEventId, out long reach)
         {
+            point = position;
+            causeEventId = 0UL;
+            reach = 0L;
+            long nearest = long.MaxValue;
             for (int i = 0; i < all.Count; i++)
             {
-                long reach = all[i].HeardWithinMillimetres;
-                if (reach <= 0L)
+                long heardWithin = all[i].HeardWithinMillimetres;
+                if (heardWithin <= 0L)
                 {
                     continue;
                 }
 
-                long distance = all[i].NearestDistanceSquared(position, out point, out causeEventId);
-                if (distance <= reach * reach)
+                long distance = all[i].NearestDistanceSquared(position, out LogicalPosition at, out ulong cause);
+                if (distance <= heardWithin * heardWithin && distance < nearest)
                 {
-                    return true;
+                    nearest = distance;
+                    point = at;
+                    causeEventId = cause;
+                    reach = heardWithin;
                 }
             }
 
-            point = position;
-            causeEventId = 0UL;
-            return false;
+            return nearest < long.MaxValue;
         }
 
         /// <summary>Phase 3: whatever this person is standing in gets them, threat by threat.</summary>

@@ -158,6 +158,7 @@ namespace Paniq.Simulation
             agent.Knowledge.HasSearchSpot = false;
             int best = -1;
             int bestWayOut = -1;
+            bool bestIsThroughTheHeat = false;
             long bestScore = long.MinValue;
             for (int d = 0; d < doors.Count; d++)
             {
@@ -221,15 +222,21 @@ namespace Paniq.Simulation
                 }
 
                 score -= RoutePenalties(agent, position, next);
-                if (threats.AnyCloserThan(approach, TraitEffects.DangerDistance(agent, context.Scenario)))
+
+                // Through the heat: the flames are at the door they would
+                // walk at now, or in the room beyond it.
+                LogicalPosition nextApproach = first < 0 ? approach : ApproachPoint(next, room);
+                int into = geometry.RoomBeyond(next, room);
+                bool throughTheHeat = threats.AnyCloserThan(nextApproach, TraitEffects.DangerDistance(agent, context.Scenario)) ||
+                                      (into >= 0 && threats.IsInRoom(into));
+                if (throughTheHeat)
                 {
                     score -= settings.InFirePenaltyMillimetres;
                 }
 
-                // Nobody walks into the next room, or all the way to a
-                // door in a far room, while that room is alight.
-                int into = geometry.RoomBeyond(next, room);
-                if ((into >= 0 && threats.IsInRoom(into)) || threats.IsInRoom(geometry.DoorRoom(d)))
+                // Nobody walks all the way to a door in a far room while that
+                // room is alight.
+                if (threats.IsInRoom(geometry.DoorRoom(d)))
                 {
                     score -= settings.InFirePenaltyMillimetres;
                 }
@@ -239,13 +246,38 @@ namespace Paniq.Simulation
                     bestScore = score;
                     best = next;
                     bestWayOut = d;
+                    bestIsThroughTheHeat = throughTheHeat;
                 }
+            }
+
+            if (best >= 0 && bestIsThroughTheHeat && !DecidesToDash(agent, room, position, best))
+            {
+                // Too hot for them: that door is given up for a while, and
+                // what follows is the same as for somebody with no way out
+                // left -- somewhere they have not looked, or somewhere to
+                // hide. A shut door in a dead end buys the time the player
+                // may still turn into a rescue.
+                agent.Doors.AvoidUntilTick[best] = checked(context.Tick + context.Random.NextIntInclusive(
+                    settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
+                if (agent.Doors.HidFromHeatAtDoor != best)
+                {
+                    agent.Doors.HidFromHeatAtDoor = best;
+                    context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentHidFromTheHeat, position, 0, 0,
+                        agent.Fear.ScaredEventId, doors.IdOf(best));
+                }
+
+                best = -1;
             }
 
             if (best >= 0)
             {
                 agent.Doors.WayOutDoorIndex = bestWayOut;
                 agent.Knowledge.Searching = false;
+                if (!bestIsThroughTheHeat)
+                {
+                    agent.Doors.HidFromHeatAtDoor = -1;
+                }
+
                 return best;
             }
 
@@ -257,11 +289,94 @@ namespace Paniq.Simulation
                 return search;
             }
 
-            // Every way out has been tried and would not open, and there is
-            // nowhere left to look: get into whichever room is furthest from
-            // the flames instead.
-            return ChooseRefugeDoor(agent, room, position);
+            // Every way out has been tried and would not open, or is too hot
+            // to go for, and there is nowhere left to look: get into whichever
+            // room is furthest from the flames instead -- unless the walk to
+            // it crosses burning floor, in which case they keep clear of the
+            // flames where they are. They used to head for a stall through the
+            // fire, bolt back from the heat, pick the stall again, and so on
+            // until it reached them.
+            int refuge = ChooseRefugeDoor(agent, room, position);
+            if (refuge >= 0 && !FloorIsClear(position, ApproachPoint(refuge, room)))
+            {
+                return -1;
+            }
+
+            return refuge;
         }
+
+        /// <summary>
+        /// The way out is through the heat. Whether they run for it: the floor
+        /// between here and the door has to be walkable (no burning square
+        /// within the escape clearance of the straight line), and they have to
+        /// be brave enough -- or standing in a room that is itself alight,
+        /// where staying is the worse bet. A dash lasts a few seconds and is
+        /// then decided again; while it lasts they neither bolt from the
+        /// flames at their danger distance nor abandon the door for the heat
+        /// at it. The owner's choice (2026-09-24): dash past or hide, by
+        /// bravery.
+        /// </summary>
+        private bool DecidesToDash(Agent agent, int room, LogicalPosition position, int door)
+        {
+            int tick = context.Tick;
+            if (tick < agent.Doors.DashingUntilTick)
+            {
+                // Already running for it: keep going while the choice stands.
+                return true;
+            }
+
+            if (!FloorIsClear(position, ApproachPoint(door, room)))
+            {
+                // Across burning floor: nobody, however brave or desperate.
+                return false;
+            }
+
+            bool nerve = agent.Traits.Bravery >= settings.DashMinimumBravery || threats.IsInRoom(room);
+            if (!nerve && CoolRefugeIsReachable(agent, room, position))
+            {
+                // Not brave enough, and there is somewhere to hide that is not
+                // through the heat: they hide.
+                return false;
+            }
+
+            agent.Doors.DashingUntilTick = checked(tick + context.Jittered(settings.DashTicks));
+            agent.Doors.HidFromHeatAtDoor = -1;
+            context.Events.Append(tick, agent.Id, CausalEventType.AgentDashedThroughHeat, position, 0, 0,
+                agent.Fear.ScaredEventId, doors.IdOf(door));
+            return true;
+        }
+
+        /// <summary>Whether a straight walk from here to there keeps off burning floor: no burning square within the dash clearance of the line, or of the spot itself.</summary>
+        private bool FloorIsClear(LogicalPosition from, LogicalPosition to)
+        {
+            int clearance = settings.DashClearanceMillimetres;
+            return !threats.AnyCloserThan(to, clearance) && !threats.RoutePassesNear(from, to, clearance);
+        }
+
+        /// <summary>
+        /// Whether somebody timid has somewhere to hide that is not itself
+        /// through the heat: the refuge they would pick, with its approach
+        /// outside their danger distance and the walk to it clear of that
+        /// too. Staying where they are counts, when their own room is not
+        /// alight. With no such place, hiding means shuttling at the edge of
+        /// the heat until it reaches them, and running for the door is the
+        /// better bet -- the desperate dash the owner asked for.
+        /// </summary>
+        private bool CoolRefugeIsReachable(Agent agent, int room, LogicalPosition position)
+        {
+            int refuge = ChooseRefugeDoor(agent, room, position);
+            if (refuge < 0)
+            {
+                return !threats.IsInRoom(room);
+            }
+
+            LogicalPosition approach = ApproachPoint(refuge, room);
+            int danger = TraitEffects.DangerDistance(agent, context.Scenario);
+            return !threats.AnyCloserThan(approach, danger) && !threats.RoutePassesNear(position, approach, danger);
+        }
+
+        /// <summary>Whether they are, right now, running for a way out through the heat.</summary>
+        public bool IsDashing(Agent agent) => context.Tick < agent.Doors.DashingUntilTick;
 
         /// <summary>
         /// A visitor who knows of no way out looks for one. Two kinds of place
@@ -1101,7 +1216,122 @@ namespace Paniq.Simulation
         /// <see cref="ConsiderShuttingAgainstFire"/>'s business, not spite.
         /// </summary>
         /// <summary>The objects are built after this behaviour, so they are handed over once everything exists.</summary>
-        public void Bind(Systems systems) => objects = systems.Objects;
+        public void Bind(Systems systems)
+        {
+            objects = systems.Objects;
+            people = systems.People;
+        }
+
+        /// <summary>Everybody's physical body, for hauling somebody down in a doorway through it. Bound after construction like the objects.</summary>
+        private PeopleBodies people;
+
+        /// <summary>
+        /// Phase 6, before room changes: somebody down inside an open doorway
+        /// with the crowd pressing on them from one side is carried on
+        /// through it by the press, rather than lying in the gap as a plug
+        /// that nobody can pass. Out through the way out, that is an escape
+        /// on their back. Nobody decides this; it is what a crowd does to a
+        /// body in its way.
+        /// </summary>
+        public void CarryTheFallenThroughDoorways()
+        {
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                if (!agent.IsParticipating)
+                {
+                    continue;
+                }
+
+                bool down = agent.Body.State == AgentBodyState.Fallen || agent.Body.State == AgentBodyState.Unconscious;
+                if (!down)
+                {
+                    agent.Doors.CarriedThroughDoor = -1;
+                    continue;
+                }
+
+                int door = OpenDoorwayLyingIn(agent.Body.Position);
+                if (door < 0)
+                {
+                    continue;
+                }
+
+                int pressSide = SideOfThePress(agent, door);
+                if (pressSide == 0)
+                {
+                    if (!geometry.DoorLeadsOutside(door) || geometry.SideOf(door, agent.Body.Position) <= 0)
+                    {
+                        continue;
+                    }
+
+                    // Already out through the wall line of a way out: the flow
+                    // behind them keeps coming, and they slide on out.
+                    pressSide = -1;
+                }
+
+                if (agent.Doors.CarriedThroughDoor != door)
+                {
+                    agent.Doors.CarriedThroughDoor = door;
+                    context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentCarriedThroughDoorway, agent.Body.Position,
+                        0, 0, agent.Body.EventId, doors.IdOf(door));
+                }
+
+                // Straight on through the gap, away from the press: hauled
+                // toward a point beyond the wall on the far side, the way a
+                // helper's drag hauls somebody, until they are out of the gap.
+                LogicalPosition through = geometry.DoorPoint(door, 0, pressSide < 0 ? settings.CarryThroughRadiusMillimetres * 2
+                    : -settings.CarryThroughRadiusMillimetres * 2);
+                people.CarryToward(agent, through, settings.CarryThroughSpeedMillimetresPerTick);
+            }
+        }
+
+        /// <summary>The open doorway this spot lies in, or -1.</summary>
+        private int OpenDoorwayLyingIn(LogicalPosition position)
+        {
+            for (int door = 0; door < doors.Count; door++)
+            {
+                if (geometry.IsDoorOpen(door) && geometry.IsInDoorway(door, position))
+                {
+                    return door;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Which side of the door the crowd is pressing from: +1 for beyond
+        /// the door's own room, -1 for inside it, 0 for nobody upright near
+        /// enough on either side, or as many on each.
+        /// </summary>
+        private int SideOfThePress(Agent fallen, int door)
+        {
+            long radius = settings.CarryThroughRadiusMillimetres;
+            int beyond = 0;
+            int inside = 0;
+            using Crowd.Nearby people = crowd.Within(fallen.Body.Position, radius);
+            for (int c = 0; c < people.Count; c++)
+            {
+                Agent other = crowd.All[people[c]];
+                if (other == fallen || !other.IsParticipating || other.Body.State != AgentBodyState.Upright ||
+                    LogicalPosition.DistanceSquared(other.Body.Position, fallen.Body.Position) > radius * radius)
+                {
+                    continue;
+                }
+
+                if (geometry.SideOf(door, other.Body.Position) > 0)
+                {
+                    beyond++;
+                }
+                else
+                {
+                    inside++;
+                }
+            }
+
+            return beyond == inside ? 0 : beyond > inside ? 1 : -1;
+        }
 
         public void ConsiderSlammingBehind(Agent agent, int door, int previousRoom, ulong causeEventId)
         {
@@ -1168,9 +1398,12 @@ namespace Paniq.Simulation
         /// <summary>
         /// A door with fire beyond it, and they are standing in a room that is
         /// not alight: anyone shuts that, cruel or not, because it is the fire
-        /// they are shutting out and not the people. The kind hold it open
-        /// while somebody is still coming through — but not once the flames are
-        /// right at the door.
+        /// they are shutting out and not the people. Nobody shuts it while
+        /// somebody is still coming through -- except, once the flames are
+        /// right at the door, somebody callous enough to weigh their own skin
+        /// above the person behind them. Shutting a door on people is a
+        /// selfish thing, so it takes a selfish person (the owner's rule,
+        /// 2026-09-24); it used to take compassion 7 to hold a door at all.
         /// </summary>
         public void ConsiderShuttingAgainstFire(Agent agent, int door, ulong causeEventId)
         {
@@ -1192,7 +1425,8 @@ namespace Paniq.Simulation
             int doorRoom = geometry.DoorRoom(door);
             bool flamesAtTheDoor = threats.AnyCloserThanInRooms(doorCentre, settings.FireAtDoorRadiusMillimetres,
                 doorRoom, geometry.RoomBeyond(door, doorRoom));
-            if (!flamesAtTheDoor && WouldCutOffTheirOwnWayOut(agent, room, door))
+            if (WouldCutOffTheirOwnWayOut(agent, room, door) &&
+                (!flamesAtTheDoor || IsDashing(agent) || !agent.Doors.HasLookedForAWayOut))
             {
                 // Getting out beats shutting the fire in. Nobody slams a door
                 // they are about to run through: they used to stop on the way
@@ -1200,16 +1434,18 @@ namespace Paniq.Simulation
                 // as a way out, and then wander.
                 //
                 // Once the flames are actually at the door that route is gone
-                // anyway, so shutting it costs them nothing and may save them:
-                // that is the case this deliberately lets through.
+                // for anybody who is not running for it: shutting it costs them
+                // nothing and may save them, and that is the case this lets
+                // through. Somebody dashing for it through the heat, and
+                // somebody who has not yet decided whether to, keep it.
                 return;
             }
 
-            if (!flamesAtTheDoor &&
-                agent.Traits.Compassion >= settings.CompassionHoldMinimum &&
-                SomeoneComing(agent, door, room))
+            if (SomeoneComing(agent, door, room) &&
+                (!flamesAtTheDoor || agent.Traits.Compassion > settings.CallousCompassionMaximum))
             {
-                // Holding it for whoever is still coming through.
+                // Holding it for whoever is still coming through. Only the
+                // callous pull it shut on them once the flames are at it.
                 return;
             }
 

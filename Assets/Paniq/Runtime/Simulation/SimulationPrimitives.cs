@@ -298,7 +298,10 @@ namespace Paniq.Simulation
         Bumped,
 
         /// <summary>A fire alarm went off. Appended only.</summary>
-        Alarm
+        Alarm,
+
+        /// <summary>They saw somebody bolt: leap up, or run, frightened. Appended only.</summary>
+        SawSomeoneRun
     }
 
     /// <summary>What an agent is currently choosing to do. Calm and panic activities are separate.</summary>
@@ -390,7 +393,10 @@ namespace Paniq.Simulation
         ToiletTrip,
 
         /// <summary>Somebody goes back to their own desk. Their own idea, and not written down: nobody else notices.</summary>
-        GoHome
+        GoHome,
+
+        /// <summary>Somebody has heard a threat's noise from another room and goes to see what it is. Their own idea.</summary>
+        GoAndLook
     }
 
     /// <summary>Who a cue reaches. Which of these a cue has decides whether the timetable may call it.</summary>
@@ -465,7 +471,10 @@ namespace Paniq.Simulation
         Partner,
 
         /// <summary>Their own chair or spot, or, for somebody with no home, where they stood when the errand began.</summary>
-        HomeOrWhereTheyStood
+        HomeOrWhereTheyStood,
+
+        /// <summary>The noise they went to look at: where they heard it come from, stopped short of.</summary>
+        TheNoise
     }
 
     /// <summary>
@@ -783,7 +792,31 @@ namespace Paniq.Simulation
         /// is the person turned away. Its cause is the cue's line, or
         /// nothing for a chat that was never written down.
         /// </summary>
-        AgentIgnoredCue
+        AgentIgnoredCue,
+
+        /// <summary>
+        /// Their only way out is through the heat and they ran for it: the
+        /// door's approach is inside their danger distance, or the room
+        /// beyond it is alight, but the floor there is still walkable, and
+        /// they are brave enough, or their own room is burning. Target: the
+        /// door run for. Cause: their fright.
+        /// </summary>
+        AgentDashedThroughHeat,
+
+        /// <summary>
+        /// Their only way out is through the heat and they would not risk it
+        /// -- not brave enough, or the route crosses burning floor -- so they
+        /// gave that door up for a while and looked for somewhere to hide.
+        /// Target: the door given up. Cause: their fright.
+        /// </summary>
+        AgentHidFromTheHeat,
+
+        /// <summary>
+        /// Down inside an open doorway with the crowd pressing on them from
+        /// one side, they are carried on through it by the press. Target:
+        /// the door. Cause: whatever put them down.
+        /// </summary>
+        AgentCarriedThroughDoorway
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>

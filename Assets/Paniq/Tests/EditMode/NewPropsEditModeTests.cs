@@ -148,7 +148,7 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(counts[PhysicsObjectKind.VendingMachine], Is.EqualTo(1));
             Assert.That(counts[PhysicsObjectKind.Cabinet], Is.EqualTo(3));
-            Assert.That(counts[PhysicsObjectKind.Shelves], Is.EqualTo(2));
+            Assert.That(counts[PhysicsObjectKind.Shelves], Is.EqualTo(4));
             Assert.That(counts[PhysicsObjectKind.CopyMachine], Is.EqualTo(2));
             Assert.That(counts[PhysicsObjectKind.Whiteboard], Is.EqualTo(2));
             Assert.That(counts[PhysicsObjectKind.StandingLamp], Is.EqualTo(2));

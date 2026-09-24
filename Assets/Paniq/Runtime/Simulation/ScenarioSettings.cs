@@ -44,8 +44,32 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class PerceptionSettings
     {
-        public int VisionRangeMillimetres = 3000;
+        /// <summary>
+        /// How far somebody sees a threat, in their own room or through an
+        /// open doorway along their line of sight. Twelve metres is the long
+        /// side of the meeting room and most of the corridor: a fire in the
+        /// room you are in is seen, and a fire beyond an open door is seen
+        /// when the door is between you and it. It was three metres, which
+        /// let a fire burn at the far end of the same room unseen
+        /// (2026-09-24, the owner's second playtest).
+        /// </summary>
+        public int VisionRangeMillimetres = 12000;
         public int MaximumReactionDelayTicks = 20;
+
+        /// <summary>
+        /// How far off somebody sees a person bolt: a frightened person on
+        /// their feet and running, or leaping up out of a chair, in the
+        /// watcher's own room or through an open doorway. Fear spreads by
+        /// sight as well as by voice: in a meeting the person opposite
+        /// leaping up is what makes you look, before you know why.
+        /// </summary>
+        public int BoltSightRangeMillimetres = 8000;
+
+        /// <summary>A frightened person moving at least this fast (millimetres a tick) is plainly running, not edging away; a calm walk is 20 to 32.</summary>
+        public int BoltSpeedMinimum = 40;
+
+        /// <summary>This brave or braver: seeing somebody bolt makes you look, not run. Everybody else is startled by it.</summary>
+        public int BraveLookFirstMinimum = 7;
 
         /// <summary>
         /// No two people finish being startled on the same tick. Whoever
@@ -88,6 +112,7 @@ namespace Paniq.Simulation
             Settings.Require(Settings.Range(ReactionLagMinimumTicks, ReactionLagMaximumTicks, 1), "reaction lag");
             Settings.Require(VisionRangeMillimetres > 0 && MaximumReactionDelayTicks >= 0 && DoorSightRangeMillimetres >= 0,
                 "perception");
+            Settings.Require(BoltSightRangeMillimetres >= 0 && BoltSpeedMinimum >= 0 && BraveLookFirstMinimum >= 0, "seeing somebody bolt");
         }
     }
 
@@ -531,13 +556,29 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class HearingSettings
     {
-        /// <summary>Calm people this close to a yell understand it and are alarmed.</summary>
-        public int YellAlarmRadiusMillimetres = 2500;
+        /// <summary>
+        /// Calm people this close to a yell understand it and are alarmed.
+        /// Every yell is a frightened person's (calm people talk, they do not
+        /// yell), so this is the reach of a panic shout: six metres, the
+        /// width of a room, halved by a shut door. It was two and a half,
+        /// which spread a fright round a meeting table one seat at a time.
+        /// </summary>
+        public int YellAlarmRadiusMillimetres = 6000;
 
         /// <summary>Calm people this close to a yell only hear it and turn to look.</summary>
-        public int YellHearingRadiusMillimetres = 6000;
+        public int YellHearingRadiusMillimetres = 12000;
 
+        /// <summary>
+        /// How far a fire is heard when it is one square of floor. It is heard
+        /// further as it grows, by <see cref="FireHearingPerCellMillimetres"/>
+        /// a burning square up to <see cref="FireHearingMaximumMillimetres"/>:
+        /// a bathroom ablaze roars, and a roar carries. Through a wall or a
+        /// shut door it carries half as far, like every noise.
+        /// </summary>
         public int FireHearingRadiusMillimetres = 3500;
+        public int FireHearingPerCellMillimetres = 50;
+        public int FireHearingMaximumMillimetres = 15000;
+
         public int BumpSoundRadiusMillimetres = 3000;
         public int InvestigateMinimumTicks = 50;
         public int InvestigateMaximumTicks = 125;
@@ -551,6 +592,28 @@ namespace Paniq.Simulation
         /// <summary>They only edge closer while facing the noise within this many degrees.</summary>
         public int InvestigateCreepMaximumTurn = 30;
 
+        /// <summary>
+        /// A person keeps a few noises in their head at once. While they are
+        /// looking toward one, a threat's own noise (fire crackling) or a
+        /// louder noise nearer to them takes over; anything else waits, and
+        /// is looked at next if it is still this fresh when they finish.
+        /// </summary>
+        public int PendingNoiseFreshTicks = 300;
+
+        /// <summary>
+        /// Somebody who has heard a threat's noise from another room and seen
+        /// nothing goes to look: they walk toward the noise, opening doors on
+        /// the way, and stop this far short of it -- by then they have seen
+        /// what it was, or they have not and go back to their day.
+        /// </summary>
+        public int GoAndLookStopMillimetres = 2500;
+
+        /// <summary>The very nervous do not go and look; they stay where they are and keep glancing.</summary>
+        public int GoAndLookNervousnessMaximum = 7;
+
+        /// <summary>Having gone to look once, how long before the same person would go again.</summary>
+        public int GoAndLookAgainTicks = 900;
+
         public HearingSettings Clone() => (HearingSettings)MemberwiseClone();
 
         internal void Validate()
@@ -560,6 +623,10 @@ namespace Paniq.Simulation
                              Settings.Range(InvestigateMinimumTicks, InvestigateMaximumTicks, 1), "hearing");
             Settings.Require(InvestigateCreepDelayTicks >= 0 && InvestigateCreepDistanceMillimetres >= 0 &&
                              InvestigateCreepMaximumTurn >= 0 && InvestigateCreepMaximumTurn <= 180, "investigating");
+            Settings.Require(FireHearingPerCellMillimetres >= 0 && FireHearingMaximumMillimetres >= FireHearingRadiusMillimetres,
+                "a fire heard as it grows");
+            Settings.Require(PendingNoiseFreshTicks >= 0 && GoAndLookStopMillimetres >= 0 && GoAndLookNervousnessMaximum >= 0 &&
+                             GoAndLookAgainTicks >= 1, "going to look");
         }
     }
 
@@ -745,8 +812,53 @@ namespace Paniq.Simulation
         /// <summary>This evil: turn the key as well, so nobody can follow.</summary>
         public int EvilLockMinimum = 9;
 
-        /// <summary>This compassionate: hold a door open for someone coming, even with fire in the room beyond.</summary>
-        public int CompassionHoldMinimum = 7;
+        /// <summary>
+        /// This callous or worse: with the flames already at the door, they
+        /// pull it shut on somebody still coming through. Everybody else
+        /// holds a door for whoever is coming, flames or no flames; shutting
+        /// one on people is a selfish thing, so it takes a selfish person
+        /// (the owner's rule, 2026-09-24). Compassion used to have to be 7 or
+        /// more to hold a door at all, which left most of the office shutting
+        /// doors in each other's faces.
+        /// </summary>
+        public int CallousCompassionMaximum = 3;
+
+        /// <summary>
+        /// The way out is through the heat -- its approach is inside their
+        /// danger distance, or the room beyond it is alight -- and the floor
+        /// there is still walkable. This brave or braver runs for it; the
+        /// rest, and anyone whose route crosses burning floor, give that door
+        /// up and hide in the nearest dead end. Somebody whose own room is
+        /// alight runs for it whatever their nerve, because staying is worse.
+        /// The owner's choice (2026-09-24): "dash past or hide, by bravery".
+        /// </summary>
+        public int DashMinimumBravery = 5;
+
+        /// <summary>How long a dash lasts before the choice is made again: three seconds, jittered.</summary>
+        public int DashTicks = 150;
+
+        /// <summary>
+        /// "Across burning floor" means a straight walk that passes within
+        /// this of a burning square, or ends within it. Half a metre: a
+        /// square is half a metre across and a person a quarter, so this is
+        /// the line past which the walk is through the flames rather than
+        /// past them. Nobody dashes across burning floor, however brave.
+        /// </summary>
+        public int DashClearanceMillimetres = 500;
+
+        /// <summary>
+        /// Somebody down inside an open doorway with the crowd pressing on
+        /// them from one side is carried on through it by the press rather
+        /// than lying in the gap as a plug: anyone upright within this of
+        /// them on one side counts as pressing, and while it lasts they are
+        /// hauled toward the other side at this speed (millimetres a tick;
+        /// 40 is two metres a second, the pace of a body shoved along a
+        /// floor). Out through the way out, that is an escape on their back.
+        /// On seed 41 the opened exit stood blocked for fifteen seconds by
+        /// the people the cruel had shoved to the floor in it (2026-09-24).
+        /// </summary>
+        public int CarryThroughRadiusMillimetres = 1000;
+        public int CarryThroughSpeedMillimetresPerTick = 40;
 
         public ExitSettings Clone() => (ExitSettings)MemberwiseClone();
 
@@ -777,8 +889,10 @@ namespace Paniq.Simulation
             Settings.Require(DoorStrength >= 1 && DoorBurnThroughTicks >= 1, "door strength");
             Settings.Require(CloseReachMillimetres >= 0 && CloseApproachRadiusMillimetres >= 0 &&
                              FireAtDoorRadiusMillimetres >= 0 && EvilCloseMinimum >= 0 &&
-                             CompassionHoldMinimum >= 0 && EvilLockMinimum >= EvilCloseMinimum,
+                             CallousCompassionMaximum >= 0 && EvilLockMinimum >= EvilCloseMinimum,
                 "closing doors");
+            Settings.Require(DashMinimumBravery >= 0 && DashTicks >= 1 && DashClearanceMillimetres >= 0, "dashing through the heat");
+            Settings.Require(CarryThroughRadiusMillimetres >= 0 && CarryThroughSpeedMillimetresPerTick >= 0, "carried through a doorway");
         }
     }
 

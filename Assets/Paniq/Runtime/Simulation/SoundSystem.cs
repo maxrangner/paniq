@@ -9,6 +9,12 @@ namespace Paniq.Simulation
     /// and panicking people ignore noises. Noises are delivered the moment
     /// they are made, to listeners in ascending ID order. A closed door
     /// between rooms muffles a noise to half its reach.
+    /// <para>
+    /// A person keeps more than one noise in their head. While they look
+    /// toward one, a threat's own noise (fire crackling) or a louder noise
+    /// nearer to them takes over; the rest wait, and are looked at in turn
+    /// while they are still fresh (<see cref="AgentHearing"/>).
+    /// </para>
     /// </summary>
     internal sealed class SoundSystem
     {
@@ -144,7 +150,7 @@ namespace Paniq.Simulation
                 }
                 else if (distanceSquared <= hearing * hearing)
                 {
-                    Notice(listener, position, soundEventId);
+                    Notice(listener, position, soundEventId, hearing, false, sourceRoom);
                 }
             }
         }
@@ -152,14 +158,75 @@ namespace Paniq.Simulation
         /// <summary>
         /// A threat that makes a noise (fire crackles): a calm person near it
         /// but not looking at it turns to see what it is. How far each threat
-        /// can be heard is the threat's own to say.
+        /// can be heard is the threat's own to say; through a wall or a shut
+        /// door it carries half as far, like every other noise.
         /// </summary>
         public void HearThreats(Agent agent)
         {
-            if (threats.HeardNearby(agent.Body.Position, out LogicalPosition point, out ulong causeEventId))
+            if (!threats.HeardNearby(agent.Body.Position, out LogicalPosition point, out ulong causeEventId, out long reach))
             {
-                Notice(agent, point, causeEventId);
+                return;
             }
+
+            int sourceRoom = geometry.RoomAtPoint(point);
+            if (!geometry.RoomsOpenToEachOther(sourceRoom, geometry.RoomAtPoint(agent.Body.Position)))
+            {
+                long muffled = reach / 2;
+                if (LogicalPosition.DistanceSquared(agent.Body.Position, point) > muffled * muffled)
+                {
+                    return;
+                }
+            }
+
+            Notice(agent, point, causeEventId, reach, true, sourceRoom);
+        }
+
+        /// <summary>
+        /// Something seen rather than heard that turns a calm head the same
+        /// way: somebody bolting across the room. The brave look before they
+        /// run.
+        /// </summary>
+        public void LookToward(Agent agent, LogicalPosition point, ulong causeEventId)
+        {
+            Notice(agent, point, causeEventId, settings.YellHearingRadiusMillimetres, false, geometry.RoomAtPoint(point));
+        }
+
+        /// <summary>
+        /// Done looking toward one noise: the freshest of the ones that
+        /// waited, a threat's first, is looked at next, a few ticks late like
+        /// every reaction. False when nothing fresh is waiting.
+        /// </summary>
+        public bool TakeUpAPendingNoise(Agent agent)
+        {
+            AgentHearing hearing = agent.Hearing;
+            int tick = context.Tick;
+            int pick = -1;
+            for (int i = 0; i < hearing.PendingCount; i++)
+            {
+                HeardNoise noise = hearing.Pending[i];
+                if (tick - noise.Tick > settings.PendingNoiseFreshTicks)
+                {
+                    continue;
+                }
+
+                if (pick < 0 || (noise.IsAThreat && !hearing.Pending[pick].IsAThreat) ||
+                    (noise.IsAThreat == hearing.Pending[pick].IsAThreat && noise.Tick > hearing.Pending[pick].Tick))
+                {
+                    pick = i;
+                }
+            }
+
+            if (pick < 0)
+            {
+                hearing.ClearPending();
+                return false;
+            }
+
+            HeardNoise next = hearing.Pending[pick];
+            hearing.Pending[pick] = hearing.Pending[hearing.PendingCount - 1];
+            hearing.PendingCount--;
+            Begin(agent, next.Point, next.EventId, next.Loudness, next.IsAThreat, next.Room);
+            return true;
         }
 
         /// <summary>Talking to each other, from either side: neither turns to wonder what the other's voice was.</summary>
@@ -169,22 +236,114 @@ namespace Paniq.Simulation
                    (b.Errand.Has && b.Errand.PartnerIndex == a.Index);
         }
 
-        /// <summary>A calm person drops what they were doing to look toward a noise.</summary>
-        private void Notice(Agent agent, LogicalPosition point, ulong soundEventId)
+        /// <summary>How close two noises have to be to count as the same one, in millimetres.</summary>
+        private const long SameNoiseMillimetres = 1000L;
+
+        /// <summary>
+        /// A calm person hears something. Doing nothing in particular, they
+        /// drop it to look toward the noise. Already looking toward another:
+        /// the same noise again changes nothing; a threat's noise, or a
+        /// louder one nearer to them, takes over and the other waits; any
+        /// other noise waits its turn.
+        /// </summary>
+        private void Notice(Agent agent, LogicalPosition point, ulong soundEventId, long loudness, bool isAThreat, int sourceRoom)
         {
+            AgentHearing hearing = agent.Hearing;
+            if (isAThreat && agent.Errand.Active && agent.Errand.Cue == CueKind.GoAndLook)
+            {
+                // Already on their way to see what it is.
+                return;
+            }
+
+            if (agent.Intent.Activity != AgentActivityState.Investigating && hearing.HasLookedAtAnything &&
+                context.Tick - hearing.LastLookedTick <= settings.PendingNoiseFreshTicks &&
+                LogicalPosition.DistanceSquared(point, hearing.LastLookedPoint) <= SameNoiseMillimetres * SameNoiseMillimetres)
+            {
+                // They looked at that a moment ago. A fire crackling in the
+                // next room used to turn the same head every couple of
+                // seconds for as long as it burned, which is not attention,
+                // it is a twitch -- and it cut short every errand they began.
+                return;
+            }
+
+            if (agent.Intent.Activity == AgentActivityState.Investigating && hearing.HasSoundPoint)
+            {
+                if (LogicalPosition.DistanceSquared(point, hearing.SoundPoint) <= SameNoiseMillimetres * SameNoiseMillimetres)
+                {
+                    hearing.SoundIsAThreat |= isAThreat;
+                    return;
+                }
+
+                bool takesOver = (isAThreat && !hearing.SoundIsAThreat) ||
+                                 (isAThreat == hearing.SoundIsAThreat && loudness > hearing.SoundLoudness &&
+                                  LogicalPosition.DistanceSquared(agent.Body.Position, point) <
+                                  LogicalPosition.DistanceSquared(agent.Body.Position, hearing.SoundPoint));
+                if (!takesOver)
+                {
+                    Remember(hearing, point, soundEventId, loudness, isAThreat, sourceRoom, context.Tick);
+                    return;
+                }
+
+                // The one they were looking at is not forgotten: it waits.
+                Remember(hearing, hearing.SoundPoint, hearing.SoundEventId, hearing.SoundLoudness, hearing.SoundIsAThreat,
+                    hearing.SoundRoom, context.Tick);
+            }
+
+            Begin(agent, point, soundEventId, loudness, isAThreat, sourceRoom);
+        }
+
+        /// <summary>Starts looking toward a noise, a few ticks late like every reaction: they finish the step they were taking before their head comes round.</summary>
+        private void Begin(Agent agent, LogicalPosition point, ulong soundEventId, long loudness, bool isAThreat, int sourceRoom)
+        {
+            AgentHearing hearing = agent.Hearing;
             agent.Intent.Activity = AgentActivityState.Investigating;
             agent.Intent.SocialPartnerIndex = -1;
             agent.Body.BlockedTicks = 0;
-            agent.Hearing.SoundPoint = point;
-            agent.Hearing.HasSoundPoint = true;
-
-            // A few ticks late, like every reaction: they finish the step
-            // they were taking before their head comes round.
-            agent.Hearing.InvestigateStartTick = context.ReactionTick();
+            hearing.SoundPoint = point;
+            hearing.HasSoundPoint = true;
+            hearing.SoundEventId = soundEventId;
+            hearing.SoundIsAThreat = isAThreat;
+            hearing.SoundRoom = sourceRoom;
+            hearing.SoundLoudness = loudness;
+            hearing.LastLookedPoint = point;
+            hearing.LastLookedTick = context.Tick;
+            hearing.HasLookedAtAnything = true;
+            hearing.InvestigateStartTick = context.ReactionTick();
             agent.Intent.ActivityEndTick = checked(context.Tick + context.Random.NextIntInclusive(
                 settings.InvestigateMinimumTicks,
                 settings.InvestigateMaximumTicks));
             context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentNoticedSound, point, 0, 0, soundEventId);
+        }
+
+        /// <summary>Puts a noise aside to be looked at later. One already waiting nearby stands for it; when there is no room, the oldest goes.</summary>
+        private static void Remember(AgentHearing hearing, LogicalPosition point, ulong eventId, long loudness, bool isAThreat, int room, int tick)
+        {
+            int oldest = -1;
+            for (int i = 0; i < hearing.PendingCount; i++)
+            {
+                if (LogicalPosition.DistanceSquared(point, hearing.Pending[i].Point) <= SameNoiseMillimetres * SameNoiseMillimetres)
+                {
+                    hearing.Pending[i].Tick = tick;
+                    hearing.Pending[i].IsAThreat |= isAThreat;
+                    return;
+                }
+
+                if (oldest < 0 || hearing.Pending[i].Tick < hearing.Pending[oldest].Tick)
+                {
+                    oldest = i;
+                }
+            }
+
+            int slot = hearing.PendingCount < AgentHearing.PendingCapacity ? hearing.PendingCount++ : oldest;
+            hearing.Pending[slot] = new HeardNoise
+            {
+                Point = point,
+                EventId = eventId,
+                Tick = tick,
+                Loudness = loudness,
+                IsAThreat = isAThreat,
+                Room = room
+            };
         }
     }
 }

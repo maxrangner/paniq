@@ -14,8 +14,9 @@ namespace Paniq.Tests.EditMode
     /// it instead of all of them.
     /// </para>
     /// <para>
-    /// The open office and the storage closet are deliberately unchanged from
-    /// prototype 1, so tests that only ever used the office need nothing from
+    /// The open office is deliberately unchanged from prototype 1, and the
+    /// storage closet keeps its door and its old floor (it grew north on
+    /// 2026-09-24), so tests that only ever used the office need nothing from
     /// here.
     /// </para>
     /// </summary>
@@ -30,7 +31,7 @@ namespace Paniq.Tests.EditMode
         /// <summary>Just inside the office, below its door onto the corridor.</summary>
         public static readonly LogicalPosition OfficeByItsDoor = new LogicalPosition(0, 5000);
 
-        /// <summary>The storage closet off the office's east wall. Unchanged from prototype 1.</summary>
+        /// <summary>The storage closet off the office's east wall, on the floor it has had since prototype 1.</summary>
         public static readonly LogicalPosition Closet = new LogicalPosition(7000, 2500);
 
         /// <summary>The middle of the long corridor every room opens onto.</summary>
@@ -76,6 +77,9 @@ namespace Paniq.Tests.EditMode
 
         /// <summary>The meeting room's door onto the corridor.</summary>
         public static readonly SimulationId MeetingRoomDoor = new SimulationId(2006UL);
+
+        /// <summary>The meeting room's second door, straight into the cafeteria.</summary>
+        public static readonly SimulationId MeetingRoomToCafeteria = new SimulationId(2017UL);
 
         /// <summary>The cafeteria's door onto the corridor.</summary>
         public static readonly SimulationId CafeteriaDoor = new SimulationId(2011UL);

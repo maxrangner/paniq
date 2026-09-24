@@ -118,13 +118,14 @@ namespace Paniq.Tests.EditMode
         /// fire just outside it, and another person out in the office walking
         /// toward the closet.
         /// </summary>
-        private Run InTheClosetWithSomeoneOutside(AgentTraitValues insider, int outsiderX = 4500)
+        private Run InTheClosetWithSomeoneOutside(AgentTraitValues insider, int outsiderX = 4500,
+            CardinalDirection outsiderFacing = CardinalDirection.East)
         {
             ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
                 new AgentDefinition(new SimulationId(1UL), new LogicalPosition(7000, 2500), CardinalDirection.West, insider),
-                new AgentDefinition(new SimulationId(2UL), new LogicalPosition(outsiderX, 2500), CardinalDirection.East,
+                new AgentDefinition(new SimulationId(2UL), new LogicalPosition(outsiderX, 2500), outsiderFacing,
                     AgentTraitValues.AllOrdinary)
             };
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
@@ -150,21 +151,55 @@ namespace Paniq.Tests.EditMode
             return simulation;
         }
 
-        [Test]
-        public void AnyoneInTheCloset_ShutsTheDoorWhenTheFireIsRightOutsideIt()
+        /// <summary>
+        /// The flames are right at the closet door and somebody is still
+        /// coming toward it. Shutting a door on a person is a selfish thing,
+        /// so it takes a selfish person: the callous pull it shut and save
+        /// themselves; everybody else holds it. (Anyone used to shut it once
+        /// the flames were at the door, kind or not.)
+        /// </summary>
+        [TestCase(9, false)]
+        [TestCase(5, false)]
+        [TestCase(2, true)]
+        public void WithTheFlamesAtTheDoorAndSomeoneComing_OnlyTheCallousShutIt(int compassion, bool expectShut)
         {
-            // Kind and unafraid: they would hold it open if the flames were not at the door.
-            Run simulation = InTheClosetWithSomeoneOutside(new AgentTraitValues(5, 5, 9, 9, 0, 1));
+            // The one outside has their back to the flames and stays put, so
+            // they are "somebody coming" for the whole of the test; facing the
+            // fire they would see it, run, and leave nobody to hold the door
+            // for. The one inside is timid: anyone brave would run for it
+            // through the heat and keep the door for that, which is the
+            // cornered rule (CorneredEditModeTests), not this one.
+            Run simulation = InTheClosetWithSomeoneOutside(new AgentTraitValues(5, 5, 2, compassion, 0, 1),
+                outsiderFacing: CardinalDirection.West);
             for (int t = 0; t < 5 * Run.TicksPerSecond &&
                             EventsOfType(simulation, CausalEventType.DoorClosed).Count == 0; t++)
             {
                 simulation.Step();
             }
 
-            Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Unlocked), "Shut against the flames, but not locked.");
             List<CausalEvent> closed = EventsOfType(simulation, CausalEventType.DoorClosed);
-            Assert.That(closed, Is.Not.Empty, "Nobody shut the door on the fire.");
-            Assert.That(closed[0].SourceId, Is.EqualTo(new SimulationId(1UL)));
+            if (expectShut)
+            {
+                Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Unlocked), "Shut against the flames, but not locked.");
+                Assert.That(closed, Is.Not.Empty, "The callous shut the door to save their own skin.");
+                Assert.That(closed[0].SourceId, Is.EqualTo(new SimulationId(1UL)));
+            }
+            else
+            {
+                Assert.That(closed, Is.Empty, $"Compassion {compassion} holds the door for somebody coming, flames or no flames.");
+                Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Open));
+            }
+        }
+
+        /// <summary>An ordinary person leaving a burning room holds the door for whoever is coming behind them. It used to take compassion 7.</summary>
+        [Test]
+        public void OrdinaryEscaper_HoldsTheDoorOpenForSomeoneComingBehind()
+        {
+            Run simulation = EscapingWithSomeoneBehind(AgentTraitValues.AllOrdinary, Nearby);
+            RunUntilEscaped(simulation);
+            Assert.That(EventsOfType(simulation, CausalEventType.DoorClosed), Is.Empty,
+                "Nobody shuts a door with someone coming; only the cruel do that.");
+            Assert.That(StateOf(simulation, OfficeWayOut), Is.EqualTo(DoorState.Open));
         }
 
         /// <summary>
@@ -381,13 +416,16 @@ namespace Paniq.Tests.EditMode
 
         /// <summary>
         /// The other side of the same rule, and the mechanic the owner liked:
-        /// with the flames already at the only door, that route is gone, and
-        /// pulling it shut is the best thing left to do.
+        /// with the flames already at the only door, that route is gone for
+        /// anybody who will not run through the heat, and pulling it shut is
+        /// the best thing left to do. (The brave run for it instead and keep
+        /// the door: CorneredEditModeTests.)
         /// </summary>
         [Test]
         public void WithTheFlamesAtTheOnlyDoor_TheyShutItAnyway()
         {
-            Run simulation = InTheClosetWithSomeoneOutside(AgentTraitValues.AllOrdinary);
+            // Nobody coming: the other person is away across the office.
+            Run simulation = InTheClosetWithSomeoneOutside(new AgentTraitValues(5, 5, 2, 5, 2, 5), outsiderX: -4000);
             for (int t = 0; t < 10 * Run.TicksPerSecond &&
                             EventsOfType(simulation, CausalEventType.DoorClosed).Count == 0; t++)
             {

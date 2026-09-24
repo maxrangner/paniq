@@ -998,12 +998,91 @@ writing them to disk.
 | Versions | Unchanged. The write was a no-op, so no run changes and every recorded fingerprint stays | -- | -- |
 | Test | `SittingEditModeTests.SomebodySittingDown_DrawsNoComplaintFromThePhysicsEngine` listens on `Application.logMessageReceived` through a sit-down, because Unity's runner fails a test on an error but not on a warning. It failed before the fix and passes after | -- | -- |
 
+## Prototype 2: the office floor, second pass (2026-09-24)
+
+The owner's second playtest of seeds 41 and 42 listed nineteen things; the
+building ones were props all facing the same way, a door between the meeting
+room and the cafeteria, a bigger closet, and "no doors locked apart from the
+exit". Asked how literal the last one was, the owner said they meant none
+locked from the start, and that if a locked door is the bully's doing it
+stays. Only the way out starts locked, so nothing changed there. The rest was
+chosen on the owner's behalf:
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| Which way a prop faces | A prop's facing is the wall at its back: its front (drawers, glass, shelves) is drawn on its -Z side and turns to face the room. Every helper that places a wall prop takes a facing; the corridor copier and the office's north-wall shelves keep north | The owner saw shelves standing side-on to their wall. One rule, written once, beats a note per prop | A prop that has no front, or one meant to stand free in a room |
+| Where the new door goes | Door 2017, in the meeting room's east wall at z 14000, 1 m wide, unlocked: the stretch of that wall clear of the meeting table, the bookshelves and the cafeteria's table. ID 2017 keeps every existing door's index | The owner asked for the door; the place is the only clear metre of that wall | The meeting room or the cafeteria is refurnished |
+| How the closet grows | North to the corridor wall (2 × 4.5 m), keeping its door and its old floor, with two shelves of stores along its east wall | "Expand" left the size open. North is the only side with empty floor behind it that costs no other room anything, and keeping the old floor inside keeps the dozens of tests that name spots in it | A floor plan that wants the closet to open onto the corridor as well |
+| A test made honest | The closet test for "nobody shuts a door they are about to run through" frightens its person by hand and names the closet door. It used to pass because a calm stroll in a two-metre closet ended in the office | Growing the closet exposed it; the fix it then found is its own commit | Never |
+
+## Prototype 2: fear and attention spread (2026-09-24)
+
+Four of the owner's second-playtest notes were about noticing: the meeting
+rose one seat at a time, shouts did not carry, nobody saw past three metres
+or through a doorway, and the bathroom pair looked at the wrong noise.
+Reproducing them showed why it mattered: whenever the fire starts outside the
+open office, everybody in the other rooms stays calm until the flames reach
+them, and on seeds 40 and 42 all twenty die with the way out standing open.
+Asked how fright should spread, the owner chose *seeing someone bolt startles
+you*. The rest was chosen on their behalf:
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| Seeing somebody bolt | A frightened person running (40 mm a tick or more) or leaping out of a chair, within 8 m and along a line of sight, startles whoever sees them (`AgentAlertSource.SawSomeoneRun`), each after their own reaction lag and staggered; bravery 7 or more turns to look instead | The owner's choice; the cheapest true thing about a room full of people | A curiosity or trust feeling replaces bravery as the gate |
+| The first shout | Comes with the first stride, at the reaction lag (2 to 8 ticks), then at the old interval | The old two to five seconds was the whole reason a table rose seat by seat | Never |
+| Shout reach | Understood 6 m off, heard 12 m, halved by a shut door (was 2.5 / 6) | Six metres is a room; the owner asked for shouts that travel | A level with rooms much bigger than these |
+| Sight | 12 m (was 3), and through open doorways only along the line of sight, one or two hops (`WorldGeometry.CanSeeBetween`); the wall beside an open door hides | The owner asked to see the room and through doors; the old rule saw through walls next to a door | A room bigger than 12 m across, or a threat that hides |
+| A fire is heard as it grows | 3.5 m for one square plus 50 mm a square, at most 15 m; half that through a wall or a shut door (`IThreat.HeardWithinMillimetres`, `SoundSystem.HearThreats`) | One square crackles, a room roars; a whole floor hearing a bathroom fire through the walls at full reach would be too much | A smoke model, which is what people really notice through a door |
+| Several noises | Up to three pending per person; a threat's noise or a louder-and-nearer one takes over, the rest wait 300 ticks; the same noise within 1 m and 300 ticks turns no head twice | The owner asked for awareness of several sources; the twitch of re-noticing the same fire every second cut short every errand | Never |
+| Going to look | A person's own cue (`CueKind.GoAndLook`, `ErrandTarget.TheNoise`): toward the noise, doors opened, stop 2.5 m short, a moment's look; not nervousness 8+, not with a cue pending, not again for 900 ticks | Not on the list, but without it nothing in the list reaches a room whose door is shut, and that is every room on seeds 40 and 42 | A smoke model; or a level where curiosity should get people killed less often |
+| Cost | At 500 panicking people in the stress building: 14.98 ms a tick before, 15.58 after (editor); calm 200 people 1.46 before, 1.43 after. Within run-to-run noise, so no cache | Measured with `CrowdScaleMeasurements` on both trees | A measurement past about 2 ms for perception alone |
+
+## Prototype 2: doors and the cornered (2026-09-24)
+
+The owner's notes: doors shut on people behind them ("closing a door should
+be rare unless no one is behind, or a calculated risk to save themselves --
+selfish or evil, so it should match personality"), workers who would not go
+into a dead end even with the danger blocking the only right way ("they
+should still want to save themselves"), the bathroom pair on seed 42 who
+rarely got out, and an extinguisher carrier strolling toward the fire. Asked
+what a worker should do with the flames between them and the only door, the
+owner chose *dash past or hide, by bravery*. Defaults chosen on their behalf:
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| Who shuts a door on somebody coming | Nobody, except the callous (`CallousCompassionMaximum` 3) once the flames are at the door; the same gate for wedging a door shut. The cruel (evil 8+) slam and 9+ lock as before | The owner's rule: shutting a door on people is selfish, so it takes a selfish person; compassion 7 as the bar for holding one left most people shutting doors in faces | A trust or anger feeling that changes who holds a door |
+| When to dash | The way out is through the heat (approach inside the danger distance, or the next room alight) and the floor to it is clear (`DashClearanceMillimetres` 500: no burning square within half a metre of the straight walk or the spot), and either bravery is 5 or more (`DashMinimumBravery`), or their own room is alight, or no refuge is reachable outside their danger distance | The owner's choice; the desperation clauses came from seed 42, where a timid person's only refuge was also past the flames and hiding meant shuttling to death | A route search that walks round a fire rather than a straight-line test |
+| How long a dash holds | `DashTicks` 150, jittered, then decided again; while it holds, the danger distance neither turns them back nor makes them abandon the door, and the door they dash for is not shut against the fire | Three seconds is a doorway and a stride; deciding again keeps a dash from becoming a walk into a fire that has grown | Never |
+| Where to hide | The room furthest from the flames they can reach (as before), but only if the walk to it does not cross burning floor; otherwise they keep clear of the flames where they are | Heading for a stall through the fire, bolting back, and heading for it again was the shuttle the owner watched | A route search round the fire |
+| A door not yet decided about | Somebody frightened shuts no door before their first thought about a way out, and none they are dashing for, even with flames at it | The flames-at-the-door rule used to slam the closet door on the tick of the fright, before dash or hide was ever chosen | Never |
+| The carrier's pace | Panic speed to the flames, not walking pace | Seed 41, the owner's note | Never |
+| What it did to the recorded seeds (door opened 12 s after the trigger, 100 s watched) | 41: 18 saved / 2 lost (was 14 / 6 before this and the fear stone; 15 / 5 at the start of the day). 42: 12 / 5 (was 1 / 16; 0 / 20 at the start). 40: 5 / 15 (was 3 / 17; 0 / 20). 46: 3 / 17 (was 3 / 17; 2 / 18) | The bathroom fire on 40 and the cafeteria fire on 46 still cut the corridor before most people know; they are the seeds the player's alarm is for | The alarm the player can pull (next stone) |
+
+## Prototype 2: the seed 41 exit, diagnosed (2026-09-24)
+
+Two of the owner's seed 41 notes were "why stuck?" questions: a crowd stood
+at a closed corridor door, and people with a very hard time getting through
+the opened exit, one of them apparently stuck in the door. Both were
+reproduced with scratch tests before anything was changed (the pattern is
+`CorridorStarersEditModeTests`: a whole run watched every second, and
+`Run.DescribeForTests` for whoever misbehaves).
+
+| Item | Finding | What was done |
+| --- | --- | --- |
+| The crowd at a shut corridor door | Not reproduced. Four seeds × three trigger times × way out locked or opened, watching for anybody frightened within 2.5 m of a shut, unlocked inner door for ten seconds: nobody. The waits found were at the locked way out (correct: the player's door) and at inner doors the bully had locked (the owner keeps him) | Nothing; reported. The corridor changed under the fear and door stones anyway |
+| The jam in the opened exit | With the crowd gathered before the door opens: nobody out for the first fifteen seconds; 86 shoves, 20 knock-downs, 5 crushes and 4 knocked out cold within 2.5 m of the exit in 80 s. Four cruel people shove the weaker to the floor in the gap, and whoever is down inside the 1 m doorway plugs it. On the early-open case the bully locks the front door from outside with sixteen still inside; the strong break it down forty seconds later | A body down inside an open doorway with the crowd pressing on one side is hauled through it by the press (`DoorBehaviour.CarryTheFallenThroughDoorways`, `PeopleBodies.CarryToward`: the helpers' drag, but it moves a crumpled body too), at `CarryThroughSpeedMillimetresPerTick` 40 while anyone upright is within `CarryThroughRadiusMillimetres` 1000 on one side, and on out to the escape depth once past an exit's wall line. Seed 41, door opened at tick 1500: 2, 7, 15 out at 5, 10, 15 s (was 0, 0, 2); at 2400: 3, 9, 15 (was 8, 16, 18 -- that run had the door broken down early). The shoving itself is left as it is: it is the crush the game is about, and the owner's note was about getting through |
+| The bully locking the front door | Kept, by the owner's answer on locking. The story and the pop-up sign say who did it | Nothing |
+
 ## Version history
 
 Every bump of `SimulationCompatibilityVersion` (the rules) and `ContentRevision` (the building) that the replay compatibility row of the first table used to list in one cell, newest first. The bumps from 27 to 42 are recorded in their own stones' sections above (search this document for "Versions").
 
 | Change | What moved |
 | --- | --- |
+| 62 → 63 and content 74 → 75 (2026-09-24) | somebody down inside an open doorway with the crowd pressing on them is carried on through it by the press instead of plugging it. All thirteen fingerprints re-recorded. |
+| 61 → 62 and content 73 → 74 (2026-09-24) | doors and the cornered: nobody shuts or wedges a door on somebody coming through it unless the flames are at it and they are callous; nobody shuts a door before their first thought about a way out; the way out through the heat is dashed for by the brave and the desperate and given up for a cooler hiding place by the rest; whoever carries an extinguisher runs. All thirteen fingerprints re-recorded. |
+| 60 → 61 and content 72 → 73 (2026-09-24) | fear and attention spread: seeing somebody bolt startles you, the first shout comes with the first stride and carries twice as far, a threat is seen twelve metres off through open doorways along the line of sight only, a fire is heard further as it grows and half as far through a wall, a person keeps several noises in mind, and somebody who hears a threat's noise from another room goes to look. All thirteen fingerprints re-recorded. |
+| 59 → 60 and content 71 → 72 (2026-09-24) | the office floor, second pass: wall props face the room (their collision boxes turn with them), the meeting room has a door straight into the cafeteria, and the closet runs north to the corridor wall with two shelves in it. All thirteen fingerprints re-recorded. |
 | 58 → 59 and content 70 → 71 (2026-09-24) | a door strolled through is forgotten: somebody on an errand may walk through any open doorway whatever door they last strolled through, and a stroll's door is forgotten when the stroll ends, so nobody sent home circles in front of the open way out. None of the thirteen recorded fingerprints happens to change: no recorded run has somebody on an errand through a doorway with a stroll's door still remembered. |
 | 57 → 58 and content 69 → 70 (2026-09-24) | pressed against a table is not cut off: somebody standing on floor too tight for a body follows the route from the nearest square a route reaches, instead of pointing straight through the table and heaving at it. Eleven of the thirteen fingerprints re-recorded; two (seed 42 opened, and the seed 42 box run) happen not to change. |
 | 56 → 57 and content 68 → 69 (2026-09-24) | the day and the rest of the office merged. On its own branch the office work counted 50 → 52 and content 62 → 64 (the two rows marked *office branch* below) while the day counted 50 → 56; together the rules are one number again. All thirteen fingerprints re-recorded. |

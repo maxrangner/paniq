@@ -283,6 +283,8 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentLookedForAWayOut: return "which way?";
                 case CausalEventType.AgentFoundADeadEnd: return "dead end!";
                 case CausalEventType.AgentFoundTheWayOut: return "this way!";
+                case CausalEventType.AgentDashedThroughHeat: return "going for it!";
+                case CausalEventType.AgentHidFromTheHeat: return "too hot!";
                 default: return null;
             }
         }

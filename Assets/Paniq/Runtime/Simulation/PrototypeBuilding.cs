@@ -27,11 +27,13 @@
     /// office.
     /// </para>
     /// <para>
-    /// <b>Two things are held still on purpose.</b> The open office keeps its
-    /// old rectangle and stays the first room, and the storage closet keeps
-    /// its old rectangle and its door. Dozens of tests name places inside
-    /// them by coordinate, and moving them would have meant rewriting tests
-    /// that have nothing to do with the shape of the building.
+    /// <b>Held still on purpose.</b> The open office keeps its old rectangle
+    /// and stays the first room, and the storage closet keeps its door and
+    /// its old floor. Dozens of tests name places inside them by coordinate,
+    /// and moving them would have meant rewriting tests that have nothing to
+    /// do with the shape of the building. The closet grew north to the
+    /// corridor wall on 2026-09-24 (the owner asked for a bigger one); every
+    /// place a test names in it is still inside it.
     /// </para>
     /// </summary>
     internal static class PrototypeBuilding
@@ -39,7 +41,7 @@
         /// <summary>The open-plan office. The first room, and unchanged since prototype 1.</summary>
         public static readonly SimulationId Office = new SimulationId(5001UL);
 
-        /// <summary>The storage closet off the office's east wall. Also unchanged.</summary>
+        /// <summary>The storage closet off the office's east wall: 2 m wide and, since 2026-09-24, 4.5 m long.</summary>
         public static readonly SimulationId Closet = new SimulationId(5002UL);
 
         /// <summary>
@@ -81,9 +83,11 @@
         {
             return new[]
             {
-                // Unchanged from prototype 1, and deliberately so.
+                // The office is unchanged from prototype 1, and deliberately
+                // so. The closet keeps its door and its old floor (z 1500 to
+                // 3500) and runs on north to the corridor wall.
                 new RoomDefinition(Office, new LogicalBounds(-6000, 6000, -6000, 6000)),
-                new RoomDefinition(Closet, new LogicalBounds(6000, 8000, 1500, 3500)),
+                new RoomDefinition(Closet, new LogicalBounds(6000, 8000, 1500, 6000)),
 
                 new RoomDefinition(Corridor, new LogicalBounds(-6000, 13000, 6000, 9000)),
                 new RoomDefinition(Cafeteria, new LogicalBounds(2000, 13000, 9000, 17000)),
@@ -173,7 +177,17 @@
                     }),
 
                 // Back to their own desk: their own idea, and nobody else's business.
-                new CueDefinition(CueKind.GoHome, CueAudience.Self, CueHostRule.Nobody, false, goHome)
+                new CueDefinition(CueKind.GoHome, CueAudience.Self, CueHostRule.Nobody, false, goHome),
+
+                // Off to see what that noise was: toward it, through whatever
+                // doors are in the way, a moment's look, and back to the day
+                // -- unless what they see frightens them, which ends it.
+                new CueDefinition(CueKind.GoAndLook, CueAudience.Self, CueHostRule.Nobody, true,
+                    new[]
+                    {
+                        new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.TheNoise),
+                        new ErrandStep(ErrandStepKind.StandFor, ErrandTarget.None, 50, 150)
+                    })
             };
         }
 
@@ -281,6 +295,12 @@
                 // The four rooms onto the corridor.
                 new DoorDefinition(new SimulationId(2005UL), Office, WallSide.North, 0, 1000, false),
                 new DoorDefinition(new SimulationId(2006UL), MeetingRoom, WallSide.South, -2000, 1000, false),
+
+                // The meeting room's second door, straight into the cafeteria
+                // (the owner asked for it, 2026-09-24). From the meeting table
+                // it is now shorter to leave through the cafeteria and its
+                // shortcut than down the corridor to the T.
+                new DoorDefinition(new SimulationId(2017UL), MeetingRoom, WallSide.East, 14000, 1000, false),
                 new DoorDefinition(new SimulationId(2011UL), Cafeteria, WallSide.South, 6000, 1000, false),
                 new DoorDefinition(new SimulationId(2012UL), Bathroom, WallSide.North, 10500, 1000, false),
 
@@ -489,15 +509,15 @@
                 // Electrical things, which go off when the flames reach them.
                 // The microwaves are a bank of them along the cafeteria's far
                 // wall, which is what a cafeteria has.
-                Microwave(3261UL, 12600, 9600),
-                Microwave(3262UL, 12600, 10400),
-                WallSocket(3271UL, -5800, -4000),
-                WallSocket(3272UL, 5800, 4000),
-                WallSocket(3273UL, 12800, 10000),
+                Microwave(3261UL, 12600, 9600, East),
+                Microwave(3262UL, 12600, 10400, East),
+                WallSocket(3271UL, -5800, -4000, West),
+                WallSocket(3272UL, 5800, 4000, East),
+                WallSocket(3273UL, 12800, 10000, East),
 
                 // The floor's main fuse box, on the maintenance room wall, as
                 // far from the way out as the building goes.
-                MainFuseBox(3281UL, -7500, 6500),
+                MainFuseBox(3281UL, -7500, 6500, South),
 
                 // Four spares the player can stand anywhere with a card. They
                 // are nowhere at all until then.
@@ -509,35 +529,41 @@
                 // The rest of the office (2026-09-24). Everything below is
                 // knocked about by the physics like the rest: the tall things
                 // go over, the things on castors roll, and it all burns.
+                // Every prop against a wall faces the room: its facing is the
+                // wall at its back (they all used to face north, so the ones
+                // on the east and west walls stood side-on to them).
 
                 // A vending machine against the cafeteria's east wall, past
                 // the microwaves.
-                VendingMachine(3401UL, 12600, 15500),
+                VendingMachine(3401UL, 12600, 15500, East),
 
                 // Filing cabinets against the office walls, and one in the
                 // maintenance room beside the fuse box.
                 // Never beside where somebody starts: a cabinet going over on
                 // top of a person standing between it and the wall pushed them
                 // through the wall (seed 40).
-                Cabinet(3411UL, -5700, 4700),
-                Cabinet(3412UL, 5700, -1200),
-                Cabinet(3413UL, -8700, 8600),
+                Cabinet(3411UL, -5700, 4700, West),
+                Cabinet(3412UL, 5700, -1200, East),
+                Cabinet(3413UL, -8700, 8600, West),
 
                 // Shelves of files on the office's north wall, clear of its
-                // door, and of books on the meeting room's east wall.
+                // door, of books on the meeting room's east wall, and two of
+                // stores along the closet's east wall.
                 Shelves(3421UL, -1500, 5550),
-                Shelves(3422UL, 1550, 10500),
+                Shelves(3422UL, 1550, 10500, East),
+                Shelves(3423UL, 7550, 4200, East),
+                Shelves(3424UL, 7550, 5300, East),
 
                 // The copier against the office's east wall, and another
                 // parked in the corridor by the cafeteria door, which a crowd
                 // will shove along in front of it.
-                CopyMachine(3431UL, 5500, -2000),
+                CopyMachine(3431UL, 5500, -2000, East),
                 CopyMachine(3432UL, 8000, 8550),
 
                 // Whiteboards on wheels: one at the head of the meeting table,
                 // one in the office.
-                Whiteboard(3441UL, -5400, 13000),
-                Whiteboard(3442UL, 2500, -5400),
+                Whiteboard(3441UL, -5400, 13000, West),
+                Whiteboard(3442UL, 2500, -5400, South),
 
                 // Standing lamps in a meeting room corner and a cafeteria
                 // corner, each with its shade, which is nowhere until the lamp
@@ -573,7 +599,12 @@
             };
         }
 
-        /// <summary>Which way a chair faces, which is the way whoever sits on it looks.</summary>
+        /// <summary>
+        /// Which way a thing faces: for a chair, the way whoever sits on it
+        /// looks; for anything that stands against a wall, the wall at its
+        /// back (every prop's front is drawn on its -Z side, so it faces the
+        /// room when its facing is the wall).
+        /// </summary>
         private const int North = 0;
         private const int East = 90;
         private const int South = 180;
@@ -683,27 +714,30 @@
         }
 
         /// <summary>A microwave on a counter: heavy, and it goes off with a bang.</summary>
-        private static PhysicsObjectDefinition Microwave(ulong id, int x, int z)
+        private static PhysicsObjectDefinition Microwave(ulong id, int x, int z, int facing = North)
         {
             return new PhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.Microwave, new LogicalPosition(x, z), 450, 14000);
+                new SimulationId(id), PhysicsObjectKind.Microwave, new LogicalPosition(x, z), 450, 14000,
+                initialFacingDegrees: facing);
         }
 
         /// <summary>
         /// The main fuse box: bolted to the wall like a socket, and the biggest
         /// bang in the building when the spark reaches it.
         /// </summary>
-        private static PhysicsObjectDefinition MainFuseBox(ulong id, int x, int z)
+        private static PhysicsObjectDefinition MainFuseBox(ulong id, int x, int z, int facing = North)
         {
             return new PhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.FuseBox, new LogicalPosition(x, z), 600, 90000);
+                new SimulationId(id), PhysicsObjectKind.FuseBox, new LogicalPosition(x, z), 600, 90000,
+                initialFacingDegrees: facing);
         }
 
         /// <summary>A wall socket: it never shifts, but it pops.</summary>
-        private static PhysicsObjectDefinition WallSocket(ulong id, int x, int z)
+        private static PhysicsObjectDefinition WallSocket(ulong id, int x, int z, int facing = North)
         {
             return new PhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.WallSocket, new LogicalPosition(x, z), 160, 60000);
+                new SimulationId(id), PhysicsObjectKind.WallSocket, new LogicalPosition(x, z), 160, 60000,
+                initialFacingDegrees: facing);
         }
 
         private static PhysicsObjectDefinition Briefcase(ulong id, int x, int z)
@@ -713,20 +747,22 @@
         }
 
         /// <summary>A vending machine: 0.7 m square, 1.8 m tall and 160 kg; only a blast tips it.</summary>
-        private static PhysicsObjectDefinition VendingMachine(ulong id, int x, int z)
+        private static PhysicsObjectDefinition VendingMachine(ulong id, int x, int z, int facing = North)
         {
             return new PhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.VendingMachine, new LogicalPosition(x, z), 700, 160000);
+                new SimulationId(id), PhysicsObjectKind.VendingMachine, new LogicalPosition(x, z), 700, 160000,
+                initialFacingDegrees: facing);
         }
 
         /// <summary>A filing cabinet: half a metre square, chest high, 60 kg of steel and paper.</summary>
-        private static PhysicsObjectDefinition Cabinet(ulong id, int x, int z)
+        private static PhysicsObjectDefinition Cabinet(ulong id, int x, int z, int facing = North)
         {
             return new PhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.Cabinet, new LogicalPosition(x, z), 500, 60000);
+                new SimulationId(id), PhysicsObjectKind.Cabinet, new LogicalPosition(x, z), 500, 60000,
+                initialFacingDegrees: facing);
         }
 
-        /// <summary>Shelves: 0.9 m wide, 1.8 m tall, shallow, 45 kg with the books on them. They face +Z.</summary>
+        /// <summary>Shelves: 0.9 m wide, 1.8 m tall, shallow, 45 kg with the books on them. Their back is at +Z, so the facing is the wall they stand against.</summary>
         private static PhysicsObjectDefinition Shelves(ulong id, int x, int z, int facing = North)
         {
             return new PhysicsObjectDefinition(
@@ -735,13 +771,14 @@
         }
 
         /// <summary>The copier: 0.8 m across, waist high, 100 kg, on castors (see the kind's friction).</summary>
-        private static PhysicsObjectDefinition CopyMachine(ulong id, int x, int z)
+        private static PhysicsObjectDefinition CopyMachine(ulong id, int x, int z, int facing = North)
         {
             return new PhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.CopyMachine, new LogicalPosition(x, z), 800, 100000);
+                new SimulationId(id), PhysicsObjectKind.CopyMachine, new LogicalPosition(x, z), 800, 100000,
+                initialFacingDegrees: facing);
         }
 
-        /// <summary>A whiteboard on wheels: a metre wide (the widest a thing may be), 15 kg, and it faces +Z.</summary>
+        /// <summary>A whiteboard on wheels: a metre wide (the widest a thing may be), 15 kg; its board lies across the facing.</summary>
         private static PhysicsObjectDefinition Whiteboard(ulong id, int x, int z, int facing = North)
         {
             return new PhysicsObjectDefinition(

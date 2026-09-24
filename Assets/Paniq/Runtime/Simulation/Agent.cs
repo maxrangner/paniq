@@ -319,11 +319,58 @@
         public bool SetOnAWayOut;
     }
 
+    /// <summary>
+    /// What a person has heard and not yet looked at. The noise they are
+    /// looking toward now is <see cref="SoundPoint"/>; a few more wait their
+    /// turn in <see cref="Pending"/>, so somebody turned toward a thud in the
+    /// next room still hears the fire crackling behind the door, and looks
+    /// at that next (or at once, since a threat's noise beats a thud).
+    /// </summary>
     internal sealed class AgentHearing
     {
         public LogicalPosition SoundPoint;
         public bool HasSoundPoint;
         public int InvestigateStartTick;
+
+        /// <summary>The event that made the noise being looked toward, for whatever it leads to to name as its cause.</summary>
+        public ulong SoundEventId;
+
+        /// <summary>Whether the noise being looked toward is a threat's own (fire crackling) rather than a thud or a voice.</summary>
+        public bool SoundIsAThreat;
+
+        /// <summary>The room the noise came from, or -1.</summary>
+        public int SoundRoom = -1;
+
+        /// <summary>How far the noise carried, which stands for how loud it was.</summary>
+        public long SoundLoudness;
+
+        public const int PendingCapacity = 3;
+        public readonly HeardNoise[] Pending = new HeardNoise[PendingCapacity];
+        public int PendingCount;
+
+        /// <summary>Where the threat noise they last went to look at came from, for the errand that walks them toward it.</summary>
+        public LogicalPosition NoiseToLookAt;
+
+        /// <summary>The soonest they would go and look at a noise again.</summary>
+        public int NextGoAndLookTick;
+
+        /// <summary>The last noise they turned to look at, and when: the same noise again, soon after, turns no head a second time.</summary>
+        public LogicalPosition LastLookedPoint;
+        public bool HasLookedAtAnything;
+        public int LastLookedTick;
+
+        public void ClearPending() => PendingCount = 0;
+    }
+
+    /// <summary>One noise waiting to be looked at.</summary>
+    internal struct HeardNoise
+    {
+        public LogicalPosition Point;
+        public ulong EventId;
+        public int Tick;
+        public long Loudness;
+        public bool IsAThreat;
+        public int Room;
     }
 
     internal sealed class AgentDoorMemory
@@ -356,6 +403,19 @@
         /// decision would have chosen.
         /// </summary>
         public bool HasLookedForAWayOut;
+
+        /// <summary>
+        /// Until when they are running for a way out through the heat: while
+        /// this holds they do not bolt away from the flames at their danger
+        /// distance and do not abandon a door for the heat at it.
+        /// </summary>
+        public int DashingUntilTick;
+
+        /// <summary>The door they last gave up as too hot to reach, or -1: so the giving up is written down once, not every decision.</summary>
+        public int HidFromHeatAtDoor = -1;
+
+        /// <summary>The doorway the press is carrying them through while they are down, or -1: so it is written down once per fall.</summary>
+        public int CarriedThroughDoor = -1;
 
         /// <summary>The room they are heading at that door from, so approach and target points work from either side.</summary>
         public int ApproachRoom = -1;

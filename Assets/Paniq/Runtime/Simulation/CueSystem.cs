@@ -161,6 +161,9 @@ namespace Paniq.Simulation
         /// <summary>Somebody's own idea: back to their desk. False when a cue is already waiting on them.</summary>
         public bool SendHome(Agent person) => Call(CueKind.GoHome, person, -1, null, 0, 0UL) != 0UL;
 
+        /// <summary>Somebody's own idea: to go and see what that noise was. Its cause is the noise they heard. False when a cue is already waiting on them.</summary>
+        public bool GoAndLook(Agent person) => Call(CueKind.GoAndLook, person, -1, null, 0, person.Hearing.SoundEventId) != 0UL;
+
         /// <summary>
         /// A person's own idea: they alone, now, because nobody waits for
         /// their own idea. Not while a cue is waiting on them: what the

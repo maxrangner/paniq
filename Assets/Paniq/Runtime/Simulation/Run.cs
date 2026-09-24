@@ -110,7 +110,7 @@ namespace Paniq.Simulation
                 deck = new DeckSystem(context);
                 round = new RoundSystem(context, agents, geometry, threats);
                 var sound = new SoundSystem(context, crowd, threats, fear, geometry);
-                perception = new PerceptionSystem(context, threats, fear, sound);
+                perception = new PerceptionSystem(context, threats, fear, sound, crowd, geometry);
                 body = new BodySystem(context, threats, sound, fear);
                 objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound, fire, physics);
                 people = new PeopleBodies(context, crowd, physics, threats, objects.Count);
@@ -130,7 +130,7 @@ namespace Paniq.Simulation
                 chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
                 cues = new CueSystem(context, crowd, geometry);
                 errands = new ErrandBehaviour(context, crowd, geometry, objects, doors, chairs, sound, cues);
-                calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues);
+                calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues, sound);
                 director = new DirectorSystem(context, cues, geometry);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
@@ -792,6 +792,7 @@ namespace Paniq.Simulation
             items.FollowCarriers(agents);
             burning.RollToPutItOut();
             burning.SpreadFlames();
+            doorBehaviour.CarryTheFallenThroughDoorways();
             doorBehaviour.ResolveRoomChangesAndEscapes();
             help.ResolveRescues(agents);
             flammables.Update();

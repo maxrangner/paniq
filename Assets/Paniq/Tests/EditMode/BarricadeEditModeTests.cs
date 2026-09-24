@@ -312,9 +312,11 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void AFrightenedShelterer_WedgesTheDoorAgainstTheFire()
         {
-            // Very nervous, so they reach for something to jam the door with.
+            // Very nervous, so they reach for something to jam the door with;
+            // and not brave enough to run for it through the heat, which is
+            // what a braver person would do instead of sheltering at all.
             Run simulation = Sheltering(
-                ShelteringWithTheFireNextDoor(new AgentTraitValues(5, 5, 5, 3, 0, 10)));
+                ShelteringWithTheFireNextDoor(new AgentTraitValues(5, 5, 3, 3, 0, 10)));
             for (int t = 0; t < 30 * Run.TicksPerSecond &&
                             EventsOfType(simulation, CausalEventType.AgentBarricadedDoor).Count == 0; t++)
             {
@@ -350,7 +352,7 @@ namespace Paniq.Tests.EditMode
             // normally throws whatever they are holding, which would undo the
             // barricade before it was ever set down.
             Run simulation = Sheltering(
-                ShelteringWithTheFireNextDoor(new AgentTraitValues(5, 5, 5, 3, 0, 10)));
+                ShelteringWithTheFireNextDoor(new AgentTraitValues(5, 5, 3, 3, 0, 10)));
             for (int t = 0; t < 30 * Run.TicksPerSecond &&
                             EventsOfType(simulation, CausalEventType.AgentBarricadedDoor).Count == 0; t++)
             {

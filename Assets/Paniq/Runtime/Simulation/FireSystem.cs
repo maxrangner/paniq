@@ -110,8 +110,20 @@ namespace Paniq.Simulation
         /// </summary>
         long IThreat.Signature => burningCells.Count;
 
-        /// <summary>Fire crackles: a calm person this close turns to see what it is.</summary>
-        int IThreat.HeardWithinMillimetres => context.Scenario.Hearing.FireHearingRadiusMillimetres;
+        /// <summary>
+        /// Fire crackles: a calm person this close turns to see what it is.
+        /// A bigger fire is heard further, up to a ceiling: one square of
+        /// floor crackles, a room ablaze roars.
+        /// </summary>
+        int IThreat.HeardWithinMillimetres
+        {
+            get
+            {
+                HearingSettings hearing = context.Scenario.Hearing;
+                long reach = hearing.FireHearingRadiusMillimetres + (long)burningCells.Count * hearing.FireHearingPerCellMillimetres;
+                return (int)Math.Min(reach, hearing.FireHearingMaximumMillimetres);
+            }
+        }
 
         bool IThreat.IsInRoom(int room) => IsBurningInRoom(room);
 
@@ -845,12 +857,13 @@ namespace Paniq.Simulation
         {
             long rangeSquared = (long)range * range;
             LogicalPosition direction = IntegerMath.Direction(heading);
+            int eyeRoom = geometry.RoomAtPoint(eye);
             CellRange cells = CellsWithin(eye, range);
             if (burningCells.Count <= cells.Count)
             {
                 for (int i = 0; i < burningCells.Count; i++)
                 {
-                    if (CellIsVisible(burningCells[i], eye, direction, rangeSquared))
+                    if (CellIsVisible(burningCells[i], eyeRoom, eye, direction, rangeSquared))
                     {
                         return true;
                     }
@@ -864,7 +877,7 @@ namespace Paniq.Simulation
                 for (int column = cells.FirstColumn; column <= cells.LastColumn; column++)
                 {
                     int cell = row * gridColumns + column;
-                    if (cellEventIds[cell] != 0UL && CellIsVisible(cell, eye, direction, rangeSquared))
+                    if (cellEventIds[cell] != 0UL && CellIsVisible(cell, eyeRoom, eye, direction, rangeSquared))
                     {
                         return true;
                     }
@@ -880,14 +893,17 @@ namespace Paniq.Simulation
             return room < 0 || cellRooms[cell] == room || geometry.RoomsOpenToEachOther(room, cellRooms[cell]);
         }
 
-        /// <summary>The nearest point, centre or a corner of the cell lies inside the vision cone, and no wall is in the way.</summary>
-        private bool CellIsVisible(int cell, LogicalPosition eye, LogicalPosition direction, long rangeSquared)
+        /// <summary>
+        /// The nearest point, centre or a corner of the cell lies inside the
+        /// vision cone, and the line of sight to it runs through open
+        /// doorways only: the same room, or through the gap of an open door
+        /// between the rooms (see <see cref="WorldGeometry.CanSeeBetween"/>).
+        /// It used to be "the same room, or any room joined to it by an open
+        /// door", which saw through the wall beside the door as readily as
+        /// through the door.
+        /// </summary>
+        private bool CellIsVisible(int cell, int eyeRoom, LogicalPosition eye, LogicalPosition direction, long rangeSquared)
         {
-            if (!Reaches(geometry.RoomAtPoint(eye), cell))
-            {
-                return false;
-            }
-
             LogicalBounds bounds = CellBounds(cell);
             LogicalPosition closest = bounds.ClosestPoint(eye);
             if (LogicalPosition.DistanceSquared(eye, closest) > rangeSquared)
@@ -895,12 +911,13 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            return InVisionCone(eye, direction, closest, rangeSquared) ||
-                   InVisionCone(eye, direction, bounds.Centre, rangeSquared) ||
-                   InVisionCone(eye, direction, new LogicalPosition(bounds.MinX, bounds.MinZ), rangeSquared) ||
-                   InVisionCone(eye, direction, new LogicalPosition(bounds.MaxX, bounds.MinZ), rangeSquared) ||
-                   InVisionCone(eye, direction, new LogicalPosition(bounds.MinX, bounds.MaxZ), rangeSquared) ||
-                   InVisionCone(eye, direction, new LogicalPosition(bounds.MaxX, bounds.MaxZ), rangeSquared);
+            bool inCone = InVisionCone(eye, direction, closest, rangeSquared) ||
+                          InVisionCone(eye, direction, bounds.Centre, rangeSquared) ||
+                          InVisionCone(eye, direction, new LogicalPosition(bounds.MinX, bounds.MinZ), rangeSquared) ||
+                          InVisionCone(eye, direction, new LogicalPosition(bounds.MaxX, bounds.MinZ), rangeSquared) ||
+                          InVisionCone(eye, direction, new LogicalPosition(bounds.MinX, bounds.MaxZ), rangeSquared) ||
+                          InVisionCone(eye, direction, new LogicalPosition(bounds.MaxX, bounds.MaxZ), rangeSquared);
+            return inCone && geometry.CanSeeBetween(eyeRoom, eye, cellRooms[cell], closest);
         }
 
         /// <summary>The grid cells that could hold a point within <paramref name="reach"/> of a position (a few extra are fine).</summary>

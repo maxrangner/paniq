@@ -14,16 +14,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 71
+    ContentRevision: 75
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 59
+    SimulationCompatibilityVersion: 63
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
       TimingJitterPercent: 20
     Perception:
-      VisionRangeMillimetres: 3000
+      VisionRangeMillimetres: 12000
       MaximumReactionDelayTicks: 20
+      BoltSightRangeMillimetres: 8000
+      BoltSpeedMinimum: 40
+      BraveLookFirstMinimum: 7
       StartleStaggerTicks: 3
       ReactionLagMinimumTicks: 2
       ReactionLagMaximumTicks: 8
@@ -149,15 +152,21 @@ MonoBehaviour:
       FreezeMinimumTicks: 100
       FreezeMaximumTicks: 300
     Hearing:
-      YellAlarmRadiusMillimetres: 2500
-      YellHearingRadiusMillimetres: 6000
+      YellAlarmRadiusMillimetres: 6000
+      YellHearingRadiusMillimetres: 12000
       FireHearingRadiusMillimetres: 3500
+      FireHearingPerCellMillimetres: 50
+      FireHearingMaximumMillimetres: 15000
       BumpSoundRadiusMillimetres: 3000
       InvestigateMinimumTicks: 50
       InvestigateMaximumTicks: 125
       InvestigateCreepDelayTicks: 25
       InvestigateCreepDistanceMillimetres: 2000
       InvestigateCreepMaximumTurn: 30
+      PendingNoiseFreshTicks: 300
+      GoAndLookStopMillimetres: 2500
+      GoAndLookNervousnessMaximum: 7
+      GoAndLookAgainTicks: 900
     Falls:
       BumpMinimumSpeed: 50
       KnockdownClosingSpeed: 100
@@ -227,7 +236,12 @@ MonoBehaviour:
       FireAtDoorRadiusMillimetres: 2000
       EvilCloseMinimum: 8
       EvilLockMinimum: 9
-      CompassionHoldMinimum: 7
+      CallousCompassionMaximum: 3
+      DashMinimumBravery: 5
+      DashTicks: 150
+      DashClearanceMillimetres: 500
+      CarryThroughRadiusMillimetres: 1000
+      CarryThroughSpeedMillimetresPerTick: 40
     ObjectPhysics:
       AgentMassGrams: 70000
       Friction: 157
@@ -1341,6 +1355,15 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
     - doorId:
+        value: 2017
+      roomId:
+        value: 5005
+      side: 1
+      centreAlongWallMillimetres: 14000
+      widthMillimetres: 1000
+      startsLocked: 0
+      isOpening: 0
+    - doorId:
         value: 2011
       roomId:
         value: 5004
@@ -2068,7 +2091,7 @@ MonoBehaviour:
       sizeMillimetres: 450
       massGrams: 14000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 90
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2081,7 +2104,7 @@ MonoBehaviour:
       sizeMillimetres: 450
       massGrams: 14000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 90
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2094,7 +2117,7 @@ MonoBehaviour:
       sizeMillimetres: 160
       massGrams: 60000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 270
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2107,7 +2130,7 @@ MonoBehaviour:
       sizeMillimetres: 160
       massGrams: 60000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 90
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2120,7 +2143,7 @@ MonoBehaviour:
       sizeMillimetres: 160
       massGrams: 60000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 90
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2133,7 +2156,7 @@ MonoBehaviour:
       sizeMillimetres: 600
       massGrams: 90000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 180
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2198,7 +2221,7 @@ MonoBehaviour:
       sizeMillimetres: 700
       massGrams: 160000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 90
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2211,7 +2234,7 @@ MonoBehaviour:
       sizeMillimetres: 500
       massGrams: 60000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 270
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2224,7 +2247,7 @@ MonoBehaviour:
       sizeMillimetres: 500
       massGrams: 60000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 90
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2237,7 +2260,7 @@ MonoBehaviour:
       sizeMillimetres: 500
       massGrams: 60000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 270
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2263,7 +2286,33 @@ MonoBehaviour:
       sizeMillimetres: 900
       massGrams: 45000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3423
+      kind: 15
+      initialPosition:
+        x: 7550
+        z: 4200
+      sizeMillimetres: 900
+      massGrams: 45000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3424
+      kind: 15
+      initialPosition:
+        x: 7550
+        z: 5300
+      sizeMillimetres: 900
+      massGrams: 45000
+      startsDormant: 0
+      initialFacingDegrees: 90
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2276,7 +2325,7 @@ MonoBehaviour:
       sizeMillimetres: 800
       massGrams: 100000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 90
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2302,7 +2351,7 @@ MonoBehaviour:
       sizeMillimetres: 1000
       massGrams: 15000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 270
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2315,7 +2364,7 @@ MonoBehaviour:
       sizeMillimetres: 1000
       massGrams: 15000
       startsDormant: 0
-      initialFacingDegrees: 0
+      initialFacingDegrees: 180
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2455,7 +2504,7 @@ MonoBehaviour:
         minX: 6000
         maxX: 8000
         minZ: 1500
-        maxZ: 3500
+        maxZ: 6000
       use: 0
     - roomId:
         value: 5003
@@ -2715,3 +2764,17 @@ MonoBehaviour:
         target: 1
         minimumTicks: 0
         maximumTicks: 0
+    - kind: 5
+      audience: 0
+      host: 0
+      writtenDown: 1
+      hostScript: []
+      script:
+      - kind: 0
+        target: 5
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 2
+        target: 0
+        minimumTicks: 50
+        maximumTicks: 150

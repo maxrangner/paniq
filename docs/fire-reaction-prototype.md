@@ -10,7 +10,7 @@ hazard, and leave an explainable causal event trail.
 ## Experience
 
 The `FireReactionPrototype` scene shows a small office floor plan: a 12 m by
-12 m open-plan office with a door in each wall, a 2 m storage closet and a 3 m
+12 m open-plan office with a door in each wall, a 2 × 4.5 m storage closet and a 3 m
 corridor behind its east wall, and a smaller 10 m by 9 m meeting room beyond
 that. Twenty people (capsules) share it, ten in each big room. The office holds
 three wooden desks with chairs pulled up to them and a laptop on each, cardboard
@@ -89,11 +89,18 @@ that are already burning, into an irregular blob, and fills the room in about
 **People notice things.** A big red `!` pops up over anyone who notices
 something. Someone who sees the fire stops, turns to face it and yells: three
 sound-wave arcs appear beside their head, and a faint ring spreads across the
-floor showing how far the yell carries. Calm people within 2.5 m understand
-the yell and are alarmed; calm people up to 6 m away only hear it and turn to
-look, with a yellow `?`. Fire crackles too: someone within 3.5 m with their
-back to it turns around, and if it is still out of sight they edge toward it
-until they see it.
+floor showing how far the yell carries. Calm people within 6 m understand
+the yell and are alarmed; calm people up to 12 m away only hear it and turn to
+look, with a yellow `?`. A shut door halves both. Fire crackles too: someone
+within 3.5 m of one burning square with their back to it turns around, and a
+fire is heard further as it grows (50 mm more a square, up to 15 m; half that
+through a wall or a shut door). If it is still out of sight they edge toward
+it until they see it -- and if it is in another room, they go and look: to the
+door, open it, and there it is (the go-and-look cue, since 2026-09-24). Fear
+spreads by sight as well: anyone who sees a frightened person leap up or run,
+within 8 m and along a line of sight, is startled by that alone; the brave
+look up first. Since 2026-09-24 the first shout comes with the first stride
+rather than two to five seconds in, and people see 12 m rather than 3.
 
 **People panic in different ways.** In a room of ten, the most fearful are dealt:
 - five **runners**, who sprint at 3.5–5 m/s and shout every 2–5 s;
@@ -184,7 +191,7 @@ for half a second to a second so whoever is lined up can go first, instead of
 two people jamming the doorway shoulder to shoulder.
 
 **The building is rooms joined by doors.** The 12 × 12 m open-plan office is
-where the fire starts. Behind its east wall are a 2 × 2 m storage closet and a
+where the fire starts. Behind its east wall are a 2 × 4.5 m storage closet and a
 3 m wide corridor; the corridor leads to a 10 × 9 m meeting room. Ten people
 start in the office and ten in the meeting room, where they cannot see the fire
 and only learn of it from the shouting. There is one door in an outside wall
@@ -218,7 +225,7 @@ room that is alight, or across one to reach a door on its far side. Only
 once every way out has been tried and would not open do they make for whichever
 room is furthest from the flames instead — but not into a room that already
 holds as many people as there is floor for (about one person per square
-metre, so four in the closet). The counter shows how many are in a room with
+metre, so nine in the closet). The counter shows how many are in a room with
 no fire in it. Being in a room is not escaping.
 
 The fire can only get from one room to the next through an open (or broken)
@@ -227,17 +234,48 @@ muffles noises to half their reach.
 
 **Slamming the door behind them is a villain's move.** Shutting the door you
 have just come through, as you leave a room or the building, is something only
-the cruel do: evil 7+ shut it whoever is running up behind, and only a body in
+the cruel do: evil 8+ shut it whoever is running up behind, and only a body in
 the doorway stops them. Evil 9+ turn the key as well, so nobody can follow.
 Everybody else leaves it open for the people behind them.
 
 Shutting a door because there is **fire on the other side of it** is a
 different act, and anybody does it — it is the flames they are shutting out,
 not the people. Somebody standing in a room that is not alight, within 2 m of
-an open door with fire in the room beyond, pulls it shut. The kind (compassion
-7+) hold it for somebody still coming, unless the flames are within 2 m of the
-door itself, at which point everybody shuts it. A closed door can be opened
-again by anyone who reaches it (unless it was locked) or by the player.
+an open door with fire in the room beyond, pulls it shut -- but never while
+somebody is still coming through it. Shutting a door on a person is a selfish
+thing, so it takes a selfish person: once the flames are within 2 m of the
+door itself, only the callous (compassion 3 or less) pull it shut on whoever
+is coming; everybody else holds it (the owner's rule, 2026-09-24; it used to
+take compassion 7 to hold a door at all). Nobody shuts the door they are
+about to run through, nor one they have not yet decided about, nor one they
+are dashing for through the heat. A closed door can be opened again by anyone
+who reaches it (unless it was locked) or by the player.
+
+**Dash past or hide.** When the only way out is through the heat -- the
+flames within a person's danger distance of the door's approach, or the room
+beyond the door alight -- they choose once, and again every few seconds. If
+the floor between them and the door is walkable (no burning square within
+half a metre of the straight walk, or of the spot itself), the brave (bravery
+5+) run for it, and so does anyone whose own room is alight or who has
+nowhere cooler to hide; while they run they neither bolt from the heat at
+their danger distance nor abandon the door for it (`AgentDashedThroughHeat`,
+sign "going for it!"). Everybody else gives that door up for a while and
+makes for the room furthest from the flames that they can reach without
+crossing burning floor -- a stall, the closet -- and, once inside, shuts its
+door (`AgentHidFromTheHeat`, sign "too hot!"). With nowhere like that, they
+keep clear of the flames where they are. People used to shuttle at the edge
+of the heat, running back from it and picking the same door again, until it
+reached them: the bathroom pair on seed 42 died like that with the door
+three metres away. The owner's choice, 2026-09-24. Whoever carries an
+extinguisher toward the flames runs, too; they used to stroll.
+
+**Carried through the doorway.** Somebody down inside an open doorway --
+knocked down, crushed, out cold -- with the crowd pressing on them from one
+side is hauled on through it by the press at about two metres a second, and
+once out through the wall line of a way out slides on to the escape depth:
+an escape on their back (`AgentCarriedThroughDoorway`). They used to lie in
+the gap as a plug nobody could pass, which is what held the seed 41 exit
+shut for fifteen seconds after the player opened it.
 
 **Helping each other.** A runner who is compassionate (6+), not too timid
 (bravery 4+) and not cruel (evil 4 or less) and who is within 4 m of someone
@@ -573,22 +611,38 @@ The other four are aimed at the building:
   its `AgentCaughtFire`). So the log traces every death through a chain of
   burning people and squares back to the first spark.
 - **Vision.** Agents do not use a proximity fear radius. They have a forward
-  90-degree vision cone with a 3 m range around their current heading. A calm
+  90-degree vision cone with a 12 m range around their current heading. A calm
   agent becomes alert when the nearest point, centre, or a corner of any
-  burning cell lies inside that cone. It yells and receives a seeded 0–20 tick
-  reaction delay before panicking. Agents alerted by a yell or a bump receive
-  their own delay without pretending they have seen the fire, and turn toward
-  where the noise came from; they can promote to a visual alert when the fire
-  enters their cone. The `AgentScared` event's parent is the agent's own alert.
+  burning cell lies inside that cone and the line of sight to it runs through
+  open doorways only: the same room, or through the gap of an open door
+  between the two rooms, or through two such gaps with one room between
+  (`WorldGeometry.CanSeeBetween`); the wall beside an open door hides as much
+  as any other wall. It yells and receives a seeded 0–20 tick reaction delay
+  before panicking. Agents alerted by a yell, a bump or the sight of somebody
+  bolting (`AgentAlertSource.SawSomeoneRun`: a frightened person running at
+  40 mm a tick or more, or leaping out of a chair, within 8 m along a line of
+  sight) receive their own delay without pretending they have seen the fire,
+  and turn toward where it came from; they can promote to a visual alert when
+  the fire enters their cone. Somebody with bravery 7 or more who sees a
+  person bolt turns to look instead of taking fright. The `AgentScared`
+  event's parent is the agent's own alert.
 - **Sound.** A sound is data: a position, a hearing reach, an optional alarm
   reach, and the event that made it. It is delivered at once to every other
   calm participating agent in ascending ID order. Inside the alarm reach the
   listener becomes alert (`Yell`); inside the hearing reach it starts
   `Investigating` and logs `AgentNoticedSound`, whose parent is the sound's
-  event. Yells reach 6 m (alarm 2.5 m); collision and trip thuds reach 3 m
-  (no alarm). Fire is a continuous sound: each tick a calm, non-investigating
-  agent that cannot see the fire but is within 3.5 m of a burning cell notices
-  it, with that cell's ignition event as parent. Investigating lasts a seeded
+  event. Yells reach 12 m (alarm 6 m); collision and trip thuds reach 3 m
+  (no alarm). Fire is a continuous sound: each tick a calm agent that cannot
+  see the fire but is within its hearing reach of a burning cell (3.5 m for
+  one square, 50 mm more a square, at most 15 m, and half that through a wall
+  or a shut door) notices it, with that cell's ignition event as parent. A
+  person keeps up to three noises in mind (`AgentHearing.Pending`): while
+  looking toward one, a threat's noise or a louder noise nearer to them takes
+  over and the other waits; the rest are looked at in turn while they are
+  fresher than 300 ticks; the same noise again within 300 ticks of looking at
+  it turns no head. Somebody who has looked toward a threat's noise from
+  another room and seen nothing starts the go-and-look cue (see
+  [the cue system](cue-system.md)). Investigating lasts a seeded
   50–125 ticks: turn toward the point at the panic turn rate and, after 25
   ticks, if facing it within 30° and more than 2 m away, walk toward it at
   half calm pace.

@@ -94,6 +94,33 @@ namespace Paniq.Tests.EditMode
                 Is.EqualTo(CausalEventType.ExtinguisherSprayed), "Putting a square out traces back to the spray.");
         }
 
+        /// <summary>
+        /// Somebody carrying a bottle to the flames runs, as a frightened
+        /// person does. They used to walk at a stroll (the owner watched one
+        /// on seed 41), because only a burning person was worth running for.
+        /// </summary>
+        [Test]
+        public void TheCarrier_RunsToTheFlames()
+        {
+            ScenarioData data = BraveWithAnExtinguisher(Brave());
+            data.Fire.SpawnBounds = new LogicalBounds(3000, 3000, 0, 0);
+            var simulation = new Run(data);
+            int fastest = 0;
+            bool holding = false;
+            for (int t = 0; t < 20 * Run.TicksPerSecond &&
+                            EventsOfType(simulation, CausalEventType.ExtinguisherSprayed).Count == 0; t++)
+            {
+                simulation.Step();
+                holding |= EventsOfType(simulation, CausalEventType.AgentTookExtinguisher).Count > 0;
+                int speed = simulation.GetAgent(0).SpeedMillimetresPerTick;
+                fastest = holding && speed > fastest ? speed : fastest;
+            }
+
+            Assert.That(holding, Is.True, "Nobody picked the extinguisher up.");
+            Assert.That(fastest, Is.GreaterThan(simulation.GetAgent(0).CalmSpeedMillimetresPerTick),
+                "A frightened person with a bottle runs to the flames rather than strolling.");
+        }
+
         [Test]
         public void ADousedSquare_StaysOutAndWillNotCatchAgainForAWhile()
         {

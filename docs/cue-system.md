@@ -55,7 +55,7 @@ door if it is locked. All of it goes into the story on the end card.
 | Caller | How | Today |
 | --- | --- | --- |
 | The Director | `DirectorSystem.Advance` walks `ScenarioData.Timetable` and calls each entry once, on its tick | The office's timetable holds one thing: the meeting ends at the minute mark, spread over eight seconds |
-| A person | a band of the same dice roll every calm person makes when choosing what to do next (`CalmBehaviour.ChooseActivity`) | a toilet trip, a chat, going back to their desk |
+| A person | a band of the same dice roll every calm person makes when choosing what to do next (`CalmBehaviour.ChooseActivity`); or, for going to look, the end of a glance toward a threat's noise from another room (`CalmBehaviour.TryGoAndLook`) | a toilet trip, a chat, going back to their desk, going to see what that noise was |
 | The player | `PlayerCommandType.CallHomeTime`, free like the trigger, consumed before the hand is consulted; logged as `PowerCalledHomeTime`, the root cause of the cue it calls | home time for the whole building; nothing on the screen is wired to it yet |
 
 Whoever calls it, a cue ends in `CueSystem`, which reads the cue's
@@ -137,6 +137,7 @@ a partner who has gone) ends.
 | Toilet trip | go to the nearest free stall (a room whose `Use` is `Stall`), opening doors on the way; shut its door; stand for ten to thirty seconds; open the door; go home, or, having no home, back to where they stood; sit |
 | Chat | go to the partner; talk for six to eighteen seconds. Both walk and meet in the middle, the one hailed a few ticks late. The first thing each says is heard nearby (`SoundSystem.Say`) and neighbours glance over; the rest is neither heard nor written down. It ends when the one whose idea it was has had enough, and for the other a moment later, or when either is gone or knocked down. Nobody starts a chat from a doorway or with somebody stood in one, and somebody cruel may refuse one outright ("person 8 would not talk to person 5") |
 | Home time | leave: the way out that is the shortest walk, worked out again in every new room; each door on the route opened if shut, waited at if locked or wedged; through the way out and gone |
+| Go and look | go toward where the noise came from (`ErrandTarget.TheNoise`), opening doors on the way, and stop 2.5 m short of it; stand for one to three seconds. Somebody's own idea, after they have looked toward a threat's noise (fire crackling) from another room and seen nothing; not the very nervous (nervousness 8 or more), not somebody with a cue waiting on them, and not again for about eighteen seconds. What they usually see when the door opens is the fire, which frightens them and ends the errand, and the shout that follows tells the room. Without it a bathroom ablaze was heard by eighteen people who sat on at their desks until it reached them (seeds 40 and 42, 2026-09-24) |
 
 Every "go to" walks room to room, opening the doors on the way, and every
 step gives up if it is going nowhere: stuck for `DaySettings.BlockedGiveUpTicks`

@@ -172,8 +172,10 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                // The kind will not seal a door with somebody still coming.
-                if (agent.Traits.Compassion >= context.Scenario.Exits.CompassionHoldMinimum &&
+                // Nobody seals a door with somebody still coming, except the
+                // callous: the same rule as shutting one (the owner's,
+                // 2026-09-24).
+                if (agent.Traits.Compassion > context.Scenario.Exits.CallousCompassionMaximum &&
                     SomebodyBeyond(agent, door, room))
                 {
                     continue;

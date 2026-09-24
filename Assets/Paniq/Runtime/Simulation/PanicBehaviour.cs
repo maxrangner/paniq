@@ -198,11 +198,16 @@ namespace Paniq.Simulation
                 doorBehaviour.ConsiderClosingAgainstFire(agent, room);
             }
 
+            // Running for a way out through the heat: the flames at their
+            // danger distance neither turn them back nor make them abandon
+            // the door.
+            bool dashing = doorBehaviour.IsDashing(agent);
+
             if (DoorBehaviour.IsAtDoor(agent))
             {
                 // Worked out first: giving up forgets which door this was.
                 MotorIntent faceDoor = doorBehaviour.FaceDoor(agent);
-                if (doorBehaviour.UpdateAttempt(agent, inDanger))
+                if (doorBehaviour.UpdateAttempt(agent, inDanger && !dashing))
                 {
                     return faceDoor;
                 }
@@ -279,7 +284,7 @@ namespace Paniq.Simulation
             int goalHeading;
             bool nearExit = doorBehaviour.IsNearExit(agent, context.Scenario.Exits.NoSwerveDistanceMillimetres);
             int swerve = tick < intent.SwerveEndTick && !nearExit && !eager ? intent.SwerveOffset : 0;
-            if (inDanger && fireDistanceSquared > 0L && !leaving)
+            if (inDanger && fireDistanceSquared > 0L && !leaving && !dashing)
             {
                 // Too close: run directly away from the nearest flames.
                 goalHeading = IntegerMath.HeadingBetween(firePoint, agent.Body.Position, agent.Body.Heading) + swerve / 2;

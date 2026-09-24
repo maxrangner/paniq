@@ -26,6 +26,7 @@ namespace Paniq.Simulation
         private readonly ChairBehaviour chairs;
         private readonly ErrandBehaviour errands;
         private readonly CueSystem cues;
+        private readonly SoundSystem sound;
         private readonly CalmSettings settings;
 
         public CalmBehaviour(
@@ -36,7 +37,8 @@ namespace Paniq.Simulation
             ItemBehaviour items,
             ChairBehaviour chairs,
             ErrandBehaviour errands,
-            CueSystem cues)
+            CueSystem cues,
+            SoundSystem sound)
         {
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -47,6 +49,7 @@ namespace Paniq.Simulation
             this.chairs = chairs;
             this.errands = errands;
             this.cues = cues;
+            this.sound = sound;
             settings = context.Scenario.Calm;
         }
 
@@ -68,6 +71,19 @@ namespace Paniq.Simulation
                 case AgentActivityState.Investigating:
                     if (tick >= intent.ActivityEndTick || agent.Body.BlockedTicks > settings.BlockedGiveUpTicks)
                     {
+                        if (TryGoAndLook(agent))
+                        {
+                            // Off to see what it was; the errand steers from here.
+                            break;
+                        }
+
+                        if (sound.TakeUpAPendingNoise(agent))
+                        {
+                            // Something else they heard meanwhile: that next.
+                            goalHeading = agent.Body.Heading;
+                            break;
+                        }
+
                         agent.Hearing.HasSoundPoint = false;
                         if (agent.Sitting.OnIt)
                         {
@@ -378,6 +394,43 @@ namespace Paniq.Simulation
             }
 
             agent.Home.NextToiletTick = checked(tick + context.Jittered(every));
+            return errands.StartIfDue(agent);
+        }
+
+        /// <summary>
+        /// Their own idea: a threat's noise (fire crackling) from another
+        /// room, looked toward and nothing seen -- so they go and look. They
+        /// walk toward where it came from, opening doors on the way, and stop
+        /// short of it; by then they have seen it, or they have not and go
+        /// back to their day. The very nervous stay put and keep glancing,
+        /// and nobody with a cue waiting on them goes. This is what lets a
+        /// fire behind a shut door be found before it comes through the door:
+        /// without it a bathroom ablaze was heard by eighteen people who sat
+        /// on at their desks until it reached them.
+        /// </summary>
+        private bool TryGoAndLook(Agent agent)
+        {
+            AgentHearing hearing = agent.Hearing;
+            HearingSettings rules = context.Scenario.Hearing;
+            int tick = context.Tick;
+            if (!hearing.HasSoundPoint || !hearing.SoundIsAThreat || hearing.SoundRoom < 0 ||
+                hearing.SoundRoom == geometry.RoomOf(agent) || tick < hearing.NextGoAndLookTick ||
+                agent.Traits.Nervousness > rules.GoAndLookNervousnessMaximum ||
+                agent.Errand.Has || cues.IsHomeTime)
+            {
+                return false;
+            }
+
+            hearing.NextGoAndLookTick = checked(tick + context.Jittered(rules.GoAndLookAgainTicks));
+            hearing.NoiseToLookAt = hearing.SoundPoint;
+            if (!cues.GoAndLook(agent))
+            {
+                return false;
+            }
+
+            // The glance is over, so the errand may take them now.
+            agent.Intent.Activity = AgentActivityState.Standing;
+            hearing.HasSoundPoint = false;
             return errands.StartIfDue(agent);
         }
 

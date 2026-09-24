@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("71"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(59));
+            Assert.That(data.ContentRevision, Is.EqualTo("75"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(63));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -991,6 +991,11 @@ namespace Paniq.Tests.EditMode
         public void Yells_AlarmNearbyAndTurnHeadsFurtherAway()
         {
             ScenarioData data = DefaultData();
+            // The one who sees the fire yells; one listener is four metres
+            // off and one two metres off, both facing away from the flames so
+            // only the yell reaches them. The rule under test is the two
+            // reaches of a yell, not their size, so the alarm reach is pinned
+            // between the two listeners (a shipped shout alarms six metres).
             data.Agents = new[]
             {
                 Agent(1UL, 0, 0, CardinalDirection.East),
@@ -999,6 +1004,7 @@ namespace Paniq.Tests.EditMode
             };
             data.Fire.ActivationTick = 1;
             data.Perception.MaximumReactionDelayTicks = 0;
+            data.Hearing.YellAlarmRadiusMillimetres = 2500;
             data.Fire.SpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
 
             var simulation = new Run(data);

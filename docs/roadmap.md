@@ -18,6 +18,7 @@ scene: it is the stone of *game*, and its first five stones are listed below.
 | [Agent state model](agent-state-model.md) | The minimum record each person needs |
 | [Causal event log](causal-event-log.md) | How cause-and-effect events are kept and inspected |
 | [Movement and spatial-world rules](spatial-world-rules.md) | Positions, room bounds, occupancy, and movement resolution |
+| [The cue system](cue-system.md) | The building's day: cues, the errands people run for them, the Director and the timetable a future event editor edits |
 
 ## Prototype 1: the stones laid (finished)
 
@@ -301,6 +302,34 @@ repaired only the frightened way out of a seat.
 | Signs stand up | Style | The green exit signs stand upright along the corridor like signs on a wall, with the arrow on both faces, instead of lying flat facing the sky. The owner's call |
 | Nobody moves in unison | System | Nobody reacts on the tick a thing happens: a bell, a door swinging open, a shout, a leader's call, a shove -- everyone answers a few ticks late, each their own few. Six people startled by the same bell come up out of their chairs one after another, never all at once. The meeting also breaks up one person at a time over about eight seconds when it ends on its own, and every moment anybody spends on anything -- getting up, trying a door, pressing an alarm -- takes its own slightly different time. The owner's rule: nothing in the game happens to a whole group on exactly the same tick. It is now a rule in the working agreements, so a new timer that skips it is a bug |
 
+## Prototype 2: the building has a day (2026-09-24)
+
+The owner asked for the groundwork of an event system: small events set off
+by a director, by the people themselves or by the player, built out of the
+systems that already exist so that emergent behaviour falls out, tying in the
+leader, and prepared for a future event editor. One commit, on
+`feat/cue-system`; the foundation note is [the cue system](cue-system.md).
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| The meeting ends because the day says so | System | The meeting still breaks up at the minute mark, but by the level's timetable rather than a timer on six chairs: the host -- the person at the table with the most leadership -- is up first, and the rest follow one at a time. The story says "person 14 ended the meeting" |
+| People have desks | Behaviour | The eight office workers each have a desk chair that is theirs and drift back to it between strolls and chats, so the open office reads as an office and not a waiting room. Somebody sent home from across the building opens every door on the way; calm people never opened a door before |
+| Toilet trips | Behaviour | Now and then somebody walks to the bathroom, goes into a free stall, shuts the door, stays a while, opens it and comes back to their desk. If the fire starts meanwhile they come out into it. The story says "person 3 went to the toilet" |
+| Chats | Behaviour | Two people stop and talk face to face; the people beside them glance up as it starts, and a fright ends it for both. It used to be one-sided: somebody walked over and stood near somebody who never knew. The story says "person 6 and person 9 had a chat" |
+| Home time | System | The end of the working day, which nothing on this level calls yet: everybody packs up and heads for the way out, each in their own time, and queues at the front door if it is locked. Proven in tests; the player's command for it exists with nothing on the screen wired to it |
+
+**What this deliberately left out.** The reactive Director that watches the
+run and adds or eases pressure; cues after the disaster has started (nobody
+returns to calm yet); a third person joining a chat; refusing a cue by trait;
+the host walking the visitors out; a home-time card and button; and a
+"lunch ends" for the two who start seated in the cafeteria, who sit until
+something frightens them. All named in the [cue system](cue-system.md) note.
+
+**One thing to watch at the next playtest.** Whether the calm half now reads
+as a day or as a fidget: people opening doors to go to the toilet, chats
+starting up beside desks, the office filling its own chairs. The numbers are
+all in `DaySettings`.
+
 ## Foundations reviewed (2026-09-23)
 
 Not a stone. The owner asked for a full review of the code against the game
@@ -400,7 +429,9 @@ a door they have never opened.
 - ~~**Cards you throw into the crowd.**~~ Built, alongside the economy that
   deals them. What is left of the idea is the other direction of each dial (a
   *coward* card, a *saint* card) and cards for speed and leadership.
-- **The Director.** The background system that adds and eases pressure.
+- **The Director.** The background system that adds and eases pressure. Its
+  seam exists (`DirectorSystem`, which today calls the level's timetable; see
+  [the cue system](cue-system.md)); the reactive part is still to build.
 - **Zombies**, rather than the generic hunter below: the vision's *contagious
   plus hunting* mix. The owner chose the fiction; the work is still the seam
   between "afraid of the fire" and "afraid of a threat".

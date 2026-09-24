@@ -102,6 +102,7 @@ namespace Paniq.Tests.EditMode
 
             data.Rooms = rooms.ToArray();
             data.Doors = doors.ToArray();
+            data.Timetable = System.Array.Empty<ScheduledCue>();
             data.Fire.SpawnBounds = new LogicalBounds(1000, 1000, 1000, 1000);
             data.Fire.ActivationTick = 50;
             data.Agents = new[]
@@ -146,6 +147,7 @@ namespace Paniq.Tests.EditMode
 
             data.Rooms = rooms.ToArray();
             data.Doors = doors.ToArray();
+            data.Timetable = System.Array.Empty<ScheduledCue>();
             data.Fire.SpawnBounds = new LogicalBounds(1000, 1000, 1000, 1000);
             data.Fire.ActivationTick = int.MaxValue;
             data.Agents = new[]
@@ -193,6 +195,7 @@ namespace Paniq.Tests.EditMode
             data.Tables = new TableDefinition[0];
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
             data.Alarms = new AlarmDefinition[0];
+            data.Timetable = System.Array.Empty<ScheduledCue>();
             data.Rooms = new[]
             {
                 new RoomDefinition(new SimulationId(52001UL), new LogicalBounds(-6000, 6000, -6000, 6000)),

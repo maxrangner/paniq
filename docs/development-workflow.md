@@ -121,7 +121,14 @@ can now lay one out by dragging things around in the scene.
    (a box, a chair, an extinguisher), **Paniq > Person** for people,
    **Paniq > Alarm** for alarms, and exactly one **Paniq > Fire Start** for
    where the fire begins.
-6. Run **Paniq > Bake Scenario From Scene**.
+6. Give the building a day, if you want one (see
+   [the cue system](cue-system.md)): on a **Person**, drag the chair that is
+   theirs into *Home*, or tick *home is where they stand*; on a **Room**, set
+   *Use* to *Stall* for a toilet stall; and add a **Paniq > Cue** for each
+   thing on the timetable -- the meeting that ends (inside its room, with the
+   room dragged in) or home time (anywhere). A scene with no cue keeps the
+   timetable the level already has.
+7. Run **Paniq > Bake Scenario From Scene**.
 
 The baker rounds everything to whole millimetres, and rooms to the size of a
 navigation square, because a run only repeats exactly if every number in it is

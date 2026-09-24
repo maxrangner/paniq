@@ -99,6 +99,9 @@
             agent.Intent.Activity = AgentActivityState.Reacting;
             agent.Intent.SocialPartnerIndex = -1;
             agent.Hearing.HasSoundPoint = false;
+
+            // Whatever the day had them doing is over: fear has its own rules.
+            agent.Errand.Clear();
             // Their own lag before anything at all, then their own seeded
             // reaction delay on top, then a tick nobody else finishes on.
             agent.Fear.ReactionDelayTicks = Staggered(tick, context.ReactionLag() + context.Random.NextIntInclusive(0,
@@ -182,6 +185,11 @@
 
             int tick = context.Tick;
             agent.Fear.State = AgentFearState.Scared;
+
+            // Whatever the day had them doing is over: fear has its own rules.
+            // Cleared here as well as on the way into being alert, because a
+            // test frightens somebody straight to scared.
+            agent.Errand.Clear();
             CausalEvent scared = context.Events.Append(
                 tick,
                 agent.Id,

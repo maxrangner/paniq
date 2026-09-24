@@ -24,6 +24,8 @@
     /// <item><see cref="Leading"/>: who they are following, and what they were told to do.</item>
     /// <item><see cref="Alarm"/>: the fire alarm they are going to hit, if any.</item>
     /// <item><see cref="Barricade"/>: the door they are wedging something against, if any.</item>
+    /// <item><see cref="Home"/>: where they belong in the building, if anywhere.</item>
+    /// <item><see cref="Errand"/>: the purpose a cue has given them, and how far along it they are (<see cref="ErrandBehaviour"/>).</item>
     /// </list>
     /// </summary>
     internal sealed class Agent
@@ -77,6 +79,8 @@
         public readonly AgentLeading Leading = new AgentLeading();
         public readonly AgentAlarm Alarm = new AgentAlarm();
         public readonly AgentBarricade Barricade = new AgentBarricade();
+        public readonly AgentHome Home = new AgentHome();
+        public readonly AgentErrand Errand = new AgentErrand();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -137,6 +141,7 @@
                     case AgentActivityState.FetchingBarricade:
                     case AgentActivityState.CarryingBarricade:
                     case AgentActivityState.Following:
+                    case AgentActivityState.RunningAnErrand:
                         return true;
                     default:
                         return false;
@@ -570,6 +575,158 @@
 
         /// <summary>How far into the seat they were when a fright started them up out of it.</summary>
         public int RisingFromPercent;
+
+        /// <summary>
+        /// They stay in the chair until something tells them to get up -- a
+        /// meeting under way when the run starts -- rather than for a drawn
+        /// while. <see cref="SitUntilTick"/> is the end of time while this holds.
+        /// </summary>
+        public bool SitUntilTold;
+    }
+
+    /// <summary>
+    /// Where somebody belongs in the building: their desk chair, or a spot
+    /// they stand at. Authored per person; somebody with neither (a visitor,
+    /// say) simply loiters wherever the day leaves them.
+    /// </summary>
+    internal sealed class AgentHome
+    {
+        /// <summary>The chair (physical-object index) that is theirs, or -1.</summary>
+        public int Chair = -1;
+
+        public bool HasSpot;
+        public LogicalPosition Spot;
+
+        public bool Exists => Chair >= 0 || HasSpot;
+
+        /// <summary>
+        /// When they next need the toilet, or 0 before their first is drawn.
+        /// Kept here with the rest of what is theirs about the building's
+        /// day, rather than on the errand, which is cleared.
+        /// </summary>
+        public int NextToiletTick;
+    }
+
+    /// <summary>What one person has been given to do by a cue (see <see cref="CueSystem"/>).</summary>
+    internal enum ErrandKind
+    {
+        None,
+
+        /// <summary>Back to their own chair or spot, and sit down if it is a chair.</summary>
+        GoHome,
+
+        /// <summary>Walk calmly to the way out, open it if it is shut, wait beside it if it is locked, and leave.</summary>
+        LeaveTheBuilding,
+
+        /// <summary>Into a free stall, door shut, a while, door open, and back.</summary>
+        VisitTheToilet,
+
+        /// <summary>Over to somebody and a talk with them, or being talked to.</summary>
+        ChatWith
+    }
+
+    /// <summary>How far along an errand somebody is. Kept so a glance at a noise resumes where it left off rather than starting over.</summary>
+    internal enum ErrandPhase
+    {
+        /// <summary>Handed to them, not yet taken up: waits for <see cref="AgentErrand.StartTick"/>.</summary>
+        NotStarted,
+
+        /// <summary>Out of the chair they were in first.</summary>
+        GettingUp,
+
+        /// <summary>On the way somewhere.</summary>
+        Walking,
+
+        /// <summary>In the stall for a while.</summary>
+        Staying,
+
+        /// <summary>Pushing a shut door open, which takes a moment.</summary>
+        OpeningTheDoor,
+
+        /// <summary>Stood at a door that will not open, waiting for it to.</summary>
+        WaitingAtTheDoor,
+
+        /// <summary>Stood talking, or waiting for the person who hailed them to arrive.</summary>
+        Talking,
+
+        /// <summary>Handed over to the chair behaviour for the last few steps and the sit itself.</summary>
+        SittingDown
+    }
+
+    /// <summary>
+    /// The errand this person is on, if any: a purpose with a place, handed
+    /// to them by a cue and carried out by <see cref="ErrandBehaviour"/> with
+    /// the calm behaviours that already exist. Fixed fields, nothing
+    /// allocated; cleared whenever fear takes over.
+    /// </summary>
+    internal sealed class AgentErrand
+    {
+        public ErrandKind Kind;
+        public ErrandPhase Phase;
+
+        /// <summary>When they take it up: their own reaction tick, plus their share of the cue's spread.</summary>
+        public int StartTick;
+
+        /// <summary>When the current phase gives up or ends, by the clock.</summary>
+        public int UntilTick;
+
+        /// <summary>The room it is about (a stall), or -1.</summary>
+        public int Room = -1;
+
+        /// <summary>The door it is about (a stall door, the next door on the way out), or -1.</summary>
+        public int Door = -1;
+
+        /// <summary>The way out at the far end of the route, or -1.</summary>
+        public int WayOutDoor = -1;
+
+        /// <summary>The room the route was worked out from, so a new room means a new route.</summary>
+        public int ApproachRoom = -1;
+
+        /// <summary>The person (agent index) they are talking to, or -1. Not <see cref="AgentIntent.SocialPartnerIndex"/>, which every distraction clears.</summary>
+        public int PartnerIndex = -1;
+
+        /// <summary>Where they are walking to.</summary>
+        public LogicalPosition Place;
+
+        /// <summary>The cue that set them on it, for everything that follows to name its cause.</summary>
+        public ulong CauseEventId;
+
+        /// <summary>When they next say something, while talking.</summary>
+        public int NextRemarkTick;
+
+        /// <summary>How many things they have said in this chat. The first is heard; the rest are only written down.</summary>
+        public int Remarks;
+
+        /// <summary>The purpose is served (the stall visited) and what is left is the door and the way back.</summary>
+        public bool Done;
+
+        /// <summary>The thing the errand is about (a stall's door), or -1.</summary>
+        public int Object = -1;
+
+        /// <summary>Handed to them and not yet taken up.</summary>
+        public bool Pending => Kind != ErrandKind.None && Phase == ErrandPhase.NotStarted;
+
+        /// <summary>Taken up and not yet done.</summary>
+        public bool Active => Kind != ErrandKind.None && Phase != ErrandPhase.NotStarted;
+
+        public void Clear()
+        {
+            Kind = ErrandKind.None;
+            Phase = ErrandPhase.NotStarted;
+            StartTick = 0;
+            UntilTick = 0;
+            Room = -1;
+            Door = -1;
+            WayOutDoor = -1;
+            ApproachRoom = -1;
+            PartnerIndex = -1;
+            Place = default;
+            CauseEventId = 0UL;
+            NextRemarkTick = 0;
+            Remarks = 0;
+            Done = false;
+            Object = -1;
+        }
     }
 
     internal sealed class AgentHelp

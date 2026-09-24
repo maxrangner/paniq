@@ -4,11 +4,14 @@ namespace Paniq.Simulation
 {
     /// <summary>
     /// Calm "loitering": each person makes their own small decisions every
-    /// few seconds - stroll somewhere, stand, look around, or wander over to
-    /// stand near someone - using the seeded generator and their own seeded
+    /// few seconds - stroll somewhere, stand, look around, or go over and
+    /// talk to someone - using the seeded generator and their own seeded
     /// pace and turn rate. Also turning toward, and edging toward, a noise,
     /// now and then tidying an item away (see <see cref="ItemBehaviour"/>),
-    /// and now and then sitting down on a chair (see <see cref="ChairBehaviour"/>).
+    /// now and then sitting down on a chair (see <see cref="ChairBehaviour"/>),
+    /// and the errands the building's day hands out -- back to their desk,
+    /// to the toilet, home at the end of the day (see <see cref="ErrandBehaviour"/>
+    /// and <see cref="CueSystem"/>).
     /// </summary>
     internal sealed class CalmBehaviour
     {
@@ -21,6 +24,8 @@ namespace Paniq.Simulation
         private readonly Locomotion locomotion;
         private readonly ItemBehaviour items;
         private readonly ChairBehaviour chairs;
+        private readonly ErrandBehaviour errands;
+        private readonly CueSystem cues;
         private readonly CalmSettings settings;
 
         public CalmBehaviour(
@@ -29,7 +34,9 @@ namespace Paniq.Simulation
             WorldGeometry geometry,
             Locomotion locomotion,
             ItemBehaviour items,
-            ChairBehaviour chairs)
+            ChairBehaviour chairs,
+            ErrandBehaviour errands,
+            CueSystem cues)
         {
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -38,6 +45,8 @@ namespace Paniq.Simulation
             this.locomotion = locomotion;
             this.items = items;
             this.chairs = chairs;
+            this.errands = errands;
+            this.cues = cues;
             settings = context.Scenario.Calm;
         }
 
@@ -50,13 +59,17 @@ namespace Paniq.Simulation
             int turnRate = agent.Personality.CalmTurnRate;
             bool steer = false;
 
+            // An errand whose time has come cuts short whatever loitering
+            // they were doing; what it leaves them doing is decided below.
+            errands.StartIfDue(agent);
+
             switch (intent.Activity)
             {
                 case AgentActivityState.Investigating:
                     if (tick >= intent.ActivityEndTick || agent.Body.BlockedTicks > settings.BlockedGiveUpTicks)
                     {
                         agent.Hearing.HasSoundPoint = false;
-                        if (agent.Sitting.OnIt)
+                        if (agent.Sitting.OnIt && !ErrandBehaviour.IsDue(agent, tick))
                         {
                             // Looked round from the chair and saw nothing: back to the table.
                             chairs.ResumeSitting(agent);
@@ -64,7 +77,7 @@ namespace Paniq.Simulation
                             break;
                         }
 
-                        ChooseActivity(agent, true);
+                        ChooseNext(agent, true);
                         break;
                     }
 
@@ -75,14 +88,9 @@ namespace Paniq.Simulation
                     break;
 
                 case AgentActivityState.Standing:
-                    if (TryGetPartner(agent, out Agent standingPartner))
-                    {
-                        goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, standingPartner.Body.Position, agent.Body.Heading);
-                    }
-
                     if (tick >= intent.ActivityEndTick)
                     {
-                        ChooseActivity(agent, false);
+                        ChooseNext(agent, false);
                     }
 
                     break;
@@ -97,7 +105,7 @@ namespace Paniq.Simulation
                         }
                         else
                         {
-                            ChooseActivity(agent, false);
+                            ChooseNext(agent, false);
                         }
                     }
 
@@ -109,7 +117,7 @@ namespace Paniq.Simulation
                     if (distance < settings.StrollArrivalDistanceMillimetres || tick >= intent.ActivityEndTick ||
                         agent.Body.BlockedTicks > settings.BlockedGiveUpTicks)
                     {
-                        ChooseActivity(agent, true);
+                        ChooseNext(agent, true);
                         break;
                     }
 
@@ -132,33 +140,16 @@ namespace Paniq.Simulation
                     break;
                 }
 
-                case AgentActivityState.Socialising:
-                {
-                    if (!TryGetPartner(agent, out Agent partner) ||
-                        tick >= intent.ActivityEndTick || agent.Body.BlockedTicks > settings.BlockedGiveUpTicks)
+                case AgentActivityState.RunningAnErrand:
+                case AgentActivityState.Chatting:
+                    if (errands.Update(agent, out goalHeading, out goalSpeed))
                     {
-                        intent.SocialPartnerIndex = -1;
-                        ChooseActivity(agent, true);
+                        steer = goalSpeed > 0;
                         break;
                     }
 
-                    long distance = IntegerMath.Distance(agent.Body.Position, partner.Body.Position);
-                    if (distance <= settings.SocialStopDistanceMillimetres)
-                    {
-                        // Arrived: stand and face them for a while.
-                        intent.Activity = AgentActivityState.Standing;
-                        intent.ActivityEndTick = checked(tick + context.Random.NextIntInclusive(150, 400));
-                        break;
-                    }
-
-                    int calmSpeed = agent.Personality.CalmSpeed;
-                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, partner.Body.Position, agent.Body.Heading);
-                    goalSpeed = distance < settings.SocialStopDistanceMillimetres + settings.StrollSlowdownDistanceMillimetres
-                        ? Math.Max(calmSpeed / 3, calmSpeed / 2)
-                        : calmSpeed;
-                    steer = true;
+                    ChooseNext(agent, true);
                     break;
-                }
 
                 case AgentActivityState.GoingToSit:
                 case AgentActivityState.Sitting:
@@ -169,7 +160,7 @@ namespace Paniq.Simulation
                         break;
                     }
 
-                    ChooseActivity(agent, true);
+                    ChooseNext(agent, true);
                     break;
 
                 case AgentActivityState.FetchingItem:
@@ -182,13 +173,13 @@ namespace Paniq.Simulation
                         break;
                     }
 
-                    ChooseActivity(agent, true);
+                    ChooseNext(agent, true);
                     break;
 
                 default:
                     // Coming back to calm from another state is not possible
                     // in this prototype, but choose afresh if it ever happens.
-                    ChooseActivity(agent, false);
+                    ChooseNext(agent, false);
                     break;
             }
 
@@ -221,8 +212,9 @@ namespace Paniq.Simulation
             goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, agent.Hearing.SoundPoint, agent.Body.Heading);
 
             // From a chair they only turn to look; nobody edges off across the
-            // room while still sitting in it.
-            if (agent.Sitting.OnIt)
+            // room while still sitting in it. Nor from a stall, a door they
+            // are waiting at, or a conversation.
+            if (agent.Sitting.OnIt || ErrandBehaviour.IsStayingPut(agent))
             {
                 return;
             }
@@ -234,6 +226,21 @@ namespace Paniq.Simulation
             {
                 goalSpeed = agent.Personality.CalmSpeed / 2;
             }
+        }
+
+        /// <summary>
+        /// Whatever they were doing is over. An errand they are on, or one
+        /// whose time has come, takes precedence; otherwise they choose for
+        /// themselves.
+        /// </summary>
+        private void ChooseNext(Agent agent, bool justMoved)
+        {
+            if (errands.TryResume(agent))
+            {
+                return;
+            }
+
+            ChooseActivity(agent, justMoved);
         }
 
         private void ChooseActivity(Agent agent, bool justMoved)
@@ -256,14 +263,37 @@ namespace Paniq.Simulation
             }
 
             agent.Intent.SocialPartnerIndex = -1;
-            if (roll < context.Scenario.Items.TidyChancePercent && items.TryStartTidying(agent))
+
+            // One roll decides everything, in bands: tidying takes the lowest,
+            // sitting the one above it, then a toilet trip, then going back
+            // to their own desk. Each band falls through to the next when
+            // there is nothing to do it with -- no chair free, no stall free.
+            int band = context.Scenario.Items.TidyChancePercent;
+            if (roll < band && items.TryStartTidying(agent))
             {
                 return;
             }
 
-            // The same roll decides both, so sitting takes the band just above tidying.
-            if (roll < context.Scenario.Items.TidyChancePercent + context.Scenario.Items.SitChancePercent &&
-                chairs.TryStartSitting(agent))
+            band += context.Scenario.Items.SitChancePercent;
+            if (roll < band && chairs.TryStartSitting(agent))
+            {
+                return;
+            }
+
+            // Somebody with a cue waiting on them -- home time in a moment --
+            // has no ideas of their own until it is done: what the building
+            // asks beats what they thought of.
+            bool free = agent.Errand.Kind == ErrandKind.None;
+
+            // Not a band of the roll: a person needs the toilet when their own
+            // clock says, however often they happen to be deciding things.
+            if (free && TryStartToiletTrip(agent))
+            {
+                return;
+            }
+
+            band += context.Scenario.Day.GoHomeChancePercent;
+            if (roll < band && free && TryGoHome(agent))
             {
                 return;
             }
@@ -274,7 +304,7 @@ namespace Paniq.Simulation
             }
             else if (roll < 75)
             {
-                if (!TryStartSocialising(agent))
+                if (!free || !TryStartChat(agent))
                 {
                     StartStroll(agent);
                 }
@@ -287,6 +317,55 @@ namespace Paniq.Simulation
             {
                 StartStroll(agent);
             }
+        }
+
+        /// <summary>
+        /// Their own idea: to the toilet, when their own clock says and given
+        /// a free stall to go to. The first time is drawn anywhere inside the
+        /// first stretch, so the office does not all go at once; a trip that
+        /// cannot happen yet (every stall taken, hands full) waits a little
+        /// and is tried again.
+        /// </summary>
+        private bool TryStartToiletTrip(Agent agent)
+        {
+            int every = context.Scenario.Day.ToiletEveryTicks;
+            if (every <= 0)
+            {
+                return false;
+            }
+
+            int tick = context.Tick;
+            if (agent.Home.NextToiletTick == 0)
+            {
+                agent.Home.NextToiletTick = checked(tick + 1 + context.Random.NextIntInclusive(0, every));
+                return false;
+            }
+
+            if (tick < agent.Home.NextToiletTick)
+            {
+                return false;
+            }
+
+            if (agent.Carry.ItemIndex >= 0 || errands.FindFreeStall(agent, out _) < 0 || !cues.StartToiletTrip(agent))
+            {
+                // In a little while, then.
+                agent.Home.NextToiletTick = checked(tick + context.Jittered(context.Scenario.Calm.StrollTimeoutTicks));
+                return false;
+            }
+
+            agent.Home.NextToiletTick = checked(tick + context.Jittered(every));
+            return errands.StartIfDue(agent);
+        }
+
+        /// <summary>Their own idea: back to their desk, if they have one and are not at it.</summary>
+        private bool TryGoHome(Agent agent)
+        {
+            if (!agent.Home.Exists || errands.IsAtHome(agent))
+            {
+                return false;
+            }
+
+            return cues.SendHome(agent) && errands.StartIfDue(agent);
         }
 
         private void StartStanding(Agent agent)
@@ -395,11 +474,18 @@ namespace Paniq.Simulation
             return geometry.RoomBeyond(chosen, here);
         }
 
-        private bool TryStartSocialising(Agent agent)
+        /// <summary>
+        /// Their own idea: over to somebody in the same room who is free to
+        /// be talked to, for a chat. This used to be one-sided -- walk over
+        /// and stand near somebody who never knew -- and is now a cue that
+        /// both of them take up (<see cref="CueSystem.StartChat"/>).
+        /// </summary>
+        private bool TryStartChat(Agent agent)
         {
             long minimumSquared = (long)settings.SocialMinimumDistanceMillimetres * settings.SocialMinimumDistanceMillimetres;
             long maximumSquared = (long)settings.SocialMaximumDistanceMillimetres * settings.SocialMaximumDistanceMillimetres;
             Agent[] agents = crowd.All;
+            int room = geometry.RoomOf(agent);
 
             // Only the people near enough to be worth walking over to, in the
             // same ascending order a walk of everybody would visit them in.
@@ -407,7 +493,7 @@ namespace Paniq.Simulation
             int candidateCount = 0;
             for (int c = 0; c < near.Count; c++)
             {
-                if (IsSocialCandidate(agent, agents[near[c]], minimumSquared, maximumSquared))
+                if (IsChatCandidate(agent, agents[near[c]], room, minimumSquared, maximumSquared))
                 {
                     candidateCount++;
                 }
@@ -422,51 +508,35 @@ namespace Paniq.Simulation
             for (int c = 0; c < near.Count; c++)
             {
                 int i = near[c];
-                if (!IsSocialCandidate(agent, agents[i], minimumSquared, maximumSquared))
+                if (!IsChatCandidate(agent, agents[i], room, minimumSquared, maximumSquared))
                 {
                     continue;
                 }
 
                 if (pick-- == 0)
                 {
-                    agent.Intent.SocialPartnerIndex = i;
-                    agent.Intent.Activity = AgentActivityState.Socialising;
-                    agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.SocialTimeoutTicks));
-                    return true;
+                    return cues.StartChat(agent, agents[i]) && errands.StartIfDue(agent);
                 }
             }
 
             return false;
         }
 
-        private static bool IsSocialCandidate(Agent agent, Agent other, long minimumSquared, long maximumSquared)
+        /// <summary>
+        /// Somebody worth going over to: calm, in the same room, neither on an
+        /// errand nor in a chair, and neither on top of them nor across the floor.
+        /// </summary>
+        private bool IsChatCandidate(Agent agent, Agent other, int room, long minimumSquared, long maximumSquared)
         {
-            if (other == agent || !other.IsParticipating || other.Fear.State != AgentFearState.Calm)
+            if (other == agent || !CueSystem.CanTakeUpACue(other) || other.Errand.Kind != ErrandKind.None ||
+                other.Sitting.OnIt || !ErrandBehaviour.IsInterruptible(other.Intent.Activity) ||
+                geometry.RoomOf(other) != room)
             {
                 return false;
             }
 
             long distanceSquared = LogicalPosition.DistanceSquared(agent.Body.Position, other.Body.Position);
             return distanceSquared >= minimumSquared && distanceSquared <= maximumSquared;
-        }
-
-        private bool TryGetPartner(Agent agent, out Agent partner)
-        {
-            partner = null;
-            if (agent.Intent.SocialPartnerIndex < 0)
-            {
-                return false;
-            }
-
-            Agent candidate = crowd.All[agent.Intent.SocialPartnerIndex];
-            if (!candidate.IsParticipating || candidate.Fear.State != AgentFearState.Calm)
-            {
-                agent.Intent.SocialPartnerIndex = -1;
-                return false;
-            }
-
-            partner = candidate;
-            return true;
         }
     }
 }

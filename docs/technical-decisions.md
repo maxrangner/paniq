@@ -663,12 +663,77 @@ on their behalf.
 | Nobody reacts on the tick a thing happens (**owner**) | `SimulationContext.ReactionLag`: every reaction to the world begins a few ticks late, drawn per person and per occasion from the seed (`PerceptionSettings.ReactionLagMinimumTicks` 2 to `ReactionLagMaximumTicks` 8). It is applied at every "think again now" -- a door swinging open, a leader's order, getting up, being shoved, giving something up, learning a way out -- at the start of being startled (before the seeded reaction delay), at a calm person's turn toward a noise, and at falling in behind a leader. On top of that no two people finish being startled on the same tick: `FearSystem.Staggered` puts the later one in ID order off by `StartleStaggerTicks` (3) until the tick is theirs alone | The owner's words: "All behavior in the game should never be a reaction of a tick. Always add a small tick offset to make the reactions more human." Reaction delays already ranged from nought upward, which let two of six draw nought and rise together the tick the bell rang; a door opening had everybody in the room think again on that very tick; a call had followers turn on the tick it was made. Two to eight ticks is four to sixteen hundredths of a second, which reads as people and not as a delay | A reaction that must be instant for the rules to work, which would be an exception named here |
 | The test bridge stops a playtest | `TestBridge` leaves play mode itself when a request arrives, keeping the request until the editor is back, instead of refusing | A playtest left running blocked every test, and the only way on was to close and reopen the editor. Nobody is at the keyboard when a script asks | Never |
 
+## Prototype 2 decision: the building has a day (2026-09-24)
+
+The owner asked for the groundwork of an event system -- small events set off
+by a director, by the people themselves or by the player, dynamic, built out
+of what exists, tying in the leader, prepared for a future event editor -- and
+accepted the plan in full ("I accept it all"), on a new branch off prototype 2
+with as few commits as possible. The design is the foundation note
+[the cue system](cue-system.md). Everything below was chosen on the owner's
+behalf.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| The word is *cue* | A small event in the building's day is a `CueKind` and is logged as `CausalEventType.CueCalled`; what one person does about it is an `AgentErrand`; the timetable walker is `DirectorSystem` | "Event" already means a line in the causal log, and the owner's request used it for both. A stage play gives cues; the cast acts on them | Never; a rename is cheap if a better word turns up |
+| Cues are delivered like a leader's shout | `CueSystem` writes the cue down once and hands every calm, upright person in its audience a pending errand that starts at their own reaction tick plus their own seeded share of the cue's spread | It is the shape leaders already use (an event naming the person, a record on them, their own decisions from there), so the feelings rule holds: no rule in the crowd switches on an event type, and nobody moves on the tick a cue is called | A cue that must reach somebody frightened, which would be a feeling (trust) rather than a cue |
+| The host ends the meeting | `CueSystem.HostOf`: the seated person in the room with the most leadership, lowest ID on a tie, is the cue's source and takes it up with no spread | The owner asked that the leader tie in. A meeting is ended by whoever runs it, and the read-back can say who | A later cue wants a different host rule (the loudest, the most senior); it is one function |
+| Errands open doors | A calm person on an errand walks room to room, opens a shut door on the way after `Exits.DoorOpenTicks`, and waits at one that is locked or wedged for `DaySettings.WaitAtLockedDoorTicks` (1500) before giving up | A shut door was a wall to anybody not frightened, so the whole calm day happened inside one room and no errand could cross the building. The wait is what makes a queue at a locked front door | Playtesters see people give up at a locked door too soon or too late; it is one number |
+| An errand is more patient than a stroll | `DaySettings.BlockedGiveUpTicks` (150): stuck for three seconds, an errand walker gives up; a stroll gives up after `Calm.BlockedGiveUpTicks` (20) | Found by a trace: a toilet trip borrowed the stroll's patience and was dropped the first time its walker had to wait behind somebody in the office | Errand walkers seen pressing at each other for seconds; it is one number |
+| A calm person asks the way | Errand routes use `TryFindRoute` (every door), not the known-doors route, so a visitor leaves at home time like anybody else | A visitor who does not know the floor is walked to the door by the people who do, in life; only a frightened person has to find it alone | A cue is wanted where not knowing the way matters (a drill) |
+| Home time is not on the office's timetable | `PrototypeBuilding.DefaultTimetable` holds only the meeting ending at tick 3000, spread 400 | The level opens calm with no clock and the way out locked; home time would have the whole office queueing at a locked door before the player has pressed anything, which changes the level rather than furnishing it | The owner wants it; it is one timetable line, and the round rules around it (people who left before the fire count as saved) are tested |
+| The player path is plumbing, not a card | `PlayerCommandType.CallHomeTime`, free like the trigger, logged as `PowerCalledHomeTime` (the root cause of the cue); no card in the deck, nothing on the screen | The owner asked for the player as a caller; the command proves the path. A card is a small later change to the deck and the HUD, and a product decision about mischief | The owner wants a "Home time" card |
+| The purse pays only during the round | `Run.SettleThePurseAndTheHand` credits an escape only while `RoundPhase.Running` | Somebody who strolled out at home time before anything was wrong was never in danger; paying for them would let a player fill the purse by emptying the building first. They still count as saved on the card: they are out | A level where leaving before the disaster should score differently |
+| A cruel person going home may slam the door | `ConsiderSlammingBehind` has no fear check and is left alone | It is the villain's move the roadmap already promises. On a level with home time, one bastard out first can lock everybody in, which is the game | Playtesters find it unfair rather than funny |
+| Only the first remark is heard | `SoundSystem.Say` emits a sound (`DaySettings.RemarkHearingRadiusMillimetres`, 2500, alarming nobody) for the first thing each person in a chat says; the rest are logged as chatter and heard by nobody | Every remark heard had the whole office turn to stare at the two people talking beside them, all afternoon, and errand walkers stopping every few seconds. People look up when a conversation starts and then ignore it | Audio arrives and wants every remark as a sound; the log already has them |
+| A toilet trip is a clock, not a dice roll | `DaySettings.ToiletEveryTicks` (18000, six minutes): each person's next trip is drawn from the seed, the first anywhere in the first stretch, and nought means nobody goes | A chance per decision was tried first at 3 % and sent people every few seconds, because a calm person decides something every few seconds: twenty people, three stalls, a constant procession, and the one strong person walked out of a leadership test's room. How often somebody needs the toilet is a rate, not a share of their decisions | Playtesters never see a trip in a round (raise the rate) or see the bathroom queue (lower it); one number |
+| Chats are in one room, between free people | `IsChatCandidate`: calm, same room, not seated, not on an errand, between 1.5 and 6 m | Somebody would otherwise open a door to go and chat to a person in the corridor, and the old one-sided version walked at walls | A chat across a doorway is wanted |
+| Own ideas wait for a cue | A person with a cue waiting on them is offered no toilet trip, chat or wander home until it is done | Found by a test: four people missed home time because their own dice handed them a chat or a toilet trip in the seconds before they took it up | Never |
+| Everybody who starts seated sits until told | `AgentSitting.SitUntilTold`; the sit-length draw is skipped; the two at the cafeteria table sit through the calm half | The meeting must break up by the timetable and nothing else, and the start-up draw order stays untouched. The cafeteria pair used to rise at the minute mark with the meeting | They read as statues; a "lunch ends" is one timetable line |
+| Tidying is not interruptible; sitting on purpose is | `ErrandBehaviour.IsInterruptible` | An interrupted carry drops the box unlogged; a person in a chair can be got up | A cue should interrupt a carry (a fire drill) |
+| A glance resumes the errand | `CalmBehaviour.ChooseNext` asks `ErrandBehaviour.TryResume` before choosing afresh; a chair handed over to the chair behaviour is kept as `ErrandPhase.SittingDown` | Found by a trace: a thud beside somebody walking home dropped the errand, and a remark beside somebody walking to their chair dropped the chair | Never; a glance forgetting the errand is a bug |
+| Homes are chairs, or spots | `AgentDefinition.HomeObjectId` (a chair, one person each) or `HomeSpot` (inside a room), zero meaning none; `DaySettings.GoHomeChancePercent` (10) sends somebody with a home back to it | The office's eight desk chairs are assigned by hand in `PrototypeBuilding`; visitors and the host have none and loiter | A level wants a home that is a desk without a chair, a counter, a post |
+| Rooms have a use | `RoomDefinition.Use` (`Ordinary`, `Stall`), zero meaning ordinary; the three bathroom stalls are stalls | A toilet trip needs somewhere to go; the bake tool and the Inspector carry it | A level wants a kitchen, a lift lobby, a stage |
+| The timetable is data | `ScenarioData.Timetable` of `ScheduledCue` (kind, tick, spread, room), validated; `Paniq > Cue` in a scene, baked in tick order; a scene with none keeps the level's | This is the whole of the tie-in to a future event editor: it edits this list. It is editable in the Inspector today | The editor wants conditions ("when the fire reaches the corridor"), which is the reactive Director |
+| Phase 1½ | `DirectorSystem.Advance` runs after the player's commands and before the hazards | A cue's effect lands at each person's reaction tick in phase 4, so nothing moves on the tick a cue is called, and the fire's draws stay where they were | Never |
+| Measured, not just asserted | `CrowdScaleMeasurements.HowLongASecondOfSimulationTakes`, editor numbers, ms per tick, base branch → this branch: 20 people 0.371 → 0.342; 50 people 0.594 → 0.542; 100 people 0.986 → 0.834; 200 people 1.534 → 1.224 | The quality checks ask for a measurement whenever a stone changes what the crowd does. The day costs nothing measurable; it is slightly cheaper, most likely because two people stood talking cost less to steer than two people walking. The measurement's crowd has no homes and no timetable, so only chats and toilet trips show in it | The next stone that raises the crowd |
+| Versions 50 → 51, content 62 → 63 | All thirteen fingerprints re-recorded, including the three "no visitors" cases, whose comment says why | Every calm decision draws differently and the seated-at-start draw is gone | -- |
+| The press watch ignores the floor | `PressWatch` (a test helper) no longer counts a thing pressed into the floor; `Run.DeepestPressIsIntoTheFloorForTests` says which pair was deepest | On seed 45 a burning office chair, bumped by two people fleeing the meeting, wedged itself tilted in the meeting room's doorway with a leg 81 mm into the floor for the rest of the run. The watch is for things passing into tables, walls, doors and each other; nobody sees a leg 81 mm into the carpet, and a chair wedged in a doorway is what doorways are for. A physics creak surfaced by the dice, not caused by the day; noted here so it is not lost | A thing seen resting visibly sunk into the floor in play |
+
+**What was verified.** The cue and errand suites (14 tests: the Director
+calls a timetable entry once on its tick; the meeting ending reaches the six
+in the room and nobody on the tick it is called; the player's home time is a
+root event and the cue names it; a bad timetable and a bad home are refused;
+every new event type reads back as words; somebody sent home across the
+building opens the doors on the way and sits on their own chair; a toilet trip
+shuts the stall door, stays, opens it and comes back to the desk; a fright in
+the stall drops the errand; a chat has both facing, a neighbour glancing, the
+partners not glancing at each other, and ends a moment after one is
+frightened; home time through an open way out gets everybody out calmly, each
+in their own time, with the purse unpaid and no round begun, and the trigger
+then ends the round on the spot; home time at a locked way out is a queue and
+nobody panics; a glance at a noise interrupts an errand which then carries
+on), the meeting room, sitting and calm-behaviour suites, and the thirteen
+fingerprints re-recorded. The full suites at the commit: 423 edit-mode tests
+and 16 play-mode tests pass, the 14 explicit measurements skipped as always.
+Six older tests had their premises brought up to date rather than their
+rules: buildings of their own clear the office's timetable, a door tried by a
+calm errand has the cue as its cause, a cue may name a room or a person, a
+person's own idea is a root cause, the leader test tries several seeds as its
+sibling does, and the walking-about test keeps chats as short as the old
+"walk over and stand" was and strips homes so the cafeteria pair walk too.
+
+**What was not verified.** A watched round in the editor: nobody has yet seen
+a toilet trip or a chat on screen. The scene bake with a `Paniq > Cue` placed:
+the code compiles and mirrors the other bake steps, but no scene has one.
+
 ## Version history
 
 Every bump of `SimulationCompatibilityVersion` (the rules) and `ContentRevision` (the building) that the replay compatibility row of the first table used to list in one cell, newest first. The bumps from 27 to 42 are recorded in their own stones' sections above (search this document for "Versions").
 
 | Change | What moved |
 | --- | --- |
+| 50 → 51 and content 62 → 63 (2026-09-24) | the building has a day: the meeting ends by the timetable, calm people go home, to the toilet and over to talk, and every calm decision draws differently. All thirteen fingerprints re-recorded. |
 | 49 → 50 and content 61 → 62 (2026-09-24) | nobody reacts on the tick a thing happens: every reaction begins a few ticks late, and no two people finish being startled on the same tick. All thirteen fingerprints re-recorded. |
 | 48 → 49 and content 60 → 61 (2026-09-24) | every fixed length of time a person spends is jittered from the seed, and the meeting breaks up one person at a time. All thirteen fingerprints re-recorded. |
 | 47 → 48 and content 59 → 60 (2026-09-24) | fetching an extinguisher goes round the walls, and a fetcher getting nowhere gives up. Four of the thirteen fingerprints re-recorded; nine happen not to change. |

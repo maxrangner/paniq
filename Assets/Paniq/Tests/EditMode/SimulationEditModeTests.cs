@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("62"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(50));
+            Assert.That(data.ContentRevision, Is.EqualTo("63"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(51));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -267,7 +267,10 @@ namespace Paniq.Tests.EditMode
         {
             foreach (DoorSnapshot door in snapshot.Doors)
             {
-                if (LogicalPosition.DistanceSquared(position, door.Centre) < 1000L * 1000L)
+                // As wide as the opening is: somebody passing the edge of the
+                // corridor's 2.4 m archway is in it, not out of the building.
+                long reach = Math.Max(1000L, door.WidthMillimetres / 2L + 400L);
+                if (LogicalPosition.DistanceSquared(position, door.Centre) < reach * reach)
                 {
                     return true;
                 }
@@ -555,11 +558,34 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             data.Fire.ActivationTick = int.MaxValue;
 
-            // Nobody sits down here: this is about how people walk about, and
-            // sitting is covered by its own tests. The meeting that starts
-            // seated breaks up at once, so they walk about like everyone else.
+            // Nobody sits down here, goes home to a chair or off to the
+            // toilet: this is about how people walk about, and those are
+            // covered by their own tests. The meeting that starts seated
+            // breaks up at once, so they walk about like everyone else.
             data.Items.SitChancePercent = 0;
-            data.Items.SeatedAtStartTicks = 1;
+            data.Day.GoHomeChancePercent = 0;
+            data.Day.ToiletEveryTicks = 0;
+
+            // Chats as short as the old "walk over and stand near somebody"
+            // was: a person stood talking for a quarter of a minute is not
+            // walking about, and this is a test of walking about.
+            data.Day.ChatMinimumTicks = 150;
+            data.Day.ChatMaximumTicks = 400;
+
+            // Everybody who starts seated -- the meeting, and the two at the
+            // cafeteria table -- is got up at once, so they walk about too.
+            // Nobody has a desk to drift back to: the two in the cafeteria sit
+            // on their own chairs, and "the meeting is over" leaves somebody
+            // who is already at their desk where they are.
+            data.Timetable = new[]
+            {
+                new ScheduledCue(CueKind.MeetingEnds, 1, 0, PrototypeBuilding.MeetingRoom),
+                new ScheduledCue(CueKind.MeetingEnds, 1, 0, PrototypeBuilding.Cafeteria)
+            };
+            for (int i = 0; i < data.Agents.Length; i++)
+            {
+                data.Agents[i] = data.Agents[i].WithHome(default(SimulationId));
+            }
             var simulation = new Run(data);
             int count = simulation.AgentCount;
             var paused = new bool[count];
@@ -605,7 +631,7 @@ namespace Paniq.Tests.EditMode
                     // pinned against one while trying to get somewhere.
                     bool standingOnPurpose = agent.ActivityState == AgentActivityState.Standing ||
                                              agent.ActivityState == AgentActivityState.LookingAround ||
-                                             agent.ActivityState == AgentActivityState.Socialising;
+                                             agent.ActivityState == AgentActivityState.Chatting;
                     LogicalBounds room = RoomHolding(data, agent.Position);
                     int gap = Math.Min(
                         Math.Min(agent.Position.X - room.MinX, room.MaxX - agent.Position.X),
@@ -630,7 +656,7 @@ namespace Paniq.Tests.EditMode
                 AgentActivityState.Standing,
                 AgentActivityState.LookingAround,
                 AgentActivityState.Strolling,
-                AgentActivityState.Socialising
+                AgentActivityState.Chatting
             }));
         }
 
@@ -915,8 +941,15 @@ namespace Paniq.Tests.EditMode
             Assert.That(lostEvents, Is.EqualTo(simulation.GetSnapshot().LostCount));
             for (int i = 1; i < simulation.EventLog.Count; i++)
             {
-                Assert.That(simulation.EventLog.Events[i].HasCausalParent, Is.True,
-                    $"Event {i} ({simulation.EventLog.Events[i].EventType}) has no cause.");
+                CausalEvent record = simulation.EventLog.Events[i];
+                if (record.EventType == CausalEventType.CueCalled && !record.HasCausalParent)
+                {
+                    // Somebody's own idea -- a chat, a toilet trip -- has no
+                    // cause but them, and is a root of its own like the fire.
+                    continue;
+                }
+
+                Assert.That(record.HasCausalParent, Is.True, $"Event {i} ({record.EventType}) has no cause.");
             }
         }
 

@@ -1,0 +1,429 @@
+using System.Collections.Generic;
+using NUnit.Framework;
+using Paniq.Gameplay;
+using Paniq.Simulation;
+
+namespace Paniq.Tests.EditMode
+{
+    /// <summary>
+    /// Errands: what a calm person does about a cue, carried out with the
+    /// behaviours that already exist. Going home to their own chair through
+    /// the doors on the way, a toilet trip behind a shut stall door, a chat
+    /// that neighbours glance at and a fright ends, and home time -- the
+    /// building leaving calmly through an open way out, or queueing at a
+    /// locked one.
+    /// </summary>
+    public sealed class ErrandsEditModeTests
+    {
+        /// <summary>Person 1001's own desk chair, in the office.</summary>
+        private static readonly SimulationId OfficeChair = new SimulationId(3101UL);
+
+        private ScenarioAsset scenario;
+
+        [SetUp]
+        public void SetUp()
+        {
+            scenario = ScenarioAsset.CreateDefault();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            UnityEngine.Object.DestroyImmediate(scenario);
+        }
+
+        /// <summary>A calm day: the hazard waits to be triggered and nobody presses anything.</summary>
+        private ScenarioData CalmDay()
+        {
+            ScenarioData data = scenario.ToRuntimeData();
+            data.Fire.ActivationTick = int.MaxValue;
+            data.Round.HazardWaitsForTrigger = true;
+            return data;
+        }
+
+        private static void Advance(Run simulation, int ticks)
+        {
+            for (int t = 0; t < ticks; t++)
+            {
+                simulation.Step();
+            }
+        }
+
+        private static int IndexOf(Run simulation, ulong agentId)
+        {
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (simulation.GetAgent(i).AgentId.Value == agentId)
+                {
+                    return i;
+                }
+            }
+
+            Assert.Fail($"No person {agentId}.");
+            return -1;
+        }
+
+        private static int ChairIndexOf(Run simulation, SimulationId chairId)
+        {
+            for (int i = 0; i < simulation.PhysicsObjectCount; i++)
+            {
+                if (simulation.GetPhysicsObject(i).ObjectId == chairId)
+                {
+                    return i;
+                }
+            }
+
+            Assert.Fail($"No chair {chairId}.");
+            return -1;
+        }
+
+        private static bool IsInAStall(LogicalPosition where)
+        {
+            // The three stalls hang off the bathroom's south wall.
+            return where.X >= 8250 && where.X <= 12750 && where.Z >= -500 && where.Z <= 1000;
+        }
+
+        private static DoorState StateOf(Run simulation, SimulationId doorId)
+        {
+            RunSnapshot snapshot = simulation.GetSnapshot();
+            for (int i = 0; i < snapshot.Doors.Count; i++)
+            {
+                if (snapshot.Doors[i].DoorId == doorId)
+                {
+                    return snapshot.Doors[i].State;
+                }
+            }
+
+            Assert.Fail($"No door {doorId}.");
+            return DoorState.Locked;
+        }
+
+        [Test]
+        public void SentHomeAcrossTheBuilding_SomebodyOpensTheDoorsOnTheWay_AndSitsOnTheirOwnChair()
+        {
+            ScenarioData data = CalmDay();
+
+            // Person 1019 stands in the bathroom; their desk chair is 1001's,
+            // in the office, three doors away. 1001 loses it so it is nobody
+            // else's.
+            data.Agents[0] = data.Agents[0].WithHome(default(SimulationId));
+            data.Agents[18] = data.Agents[18].WithHome(OfficeChair);
+            using (var simulation = new Run(data))
+            {
+                int person = IndexOf(simulation, 1019UL);
+                int chair = ChairIndexOf(simulation, OfficeChair);
+                simulation.CuesForTests.SendHome(simulation.AgentForTests(person));
+
+                bool seated = false;
+                for (int t = 0; t < 90 * Run.TicksPerSecond && !seated; t++)
+                {
+                    simulation.Step();
+                    Assert.That(simulation.GetAgent(person).FearState, Is.EqualTo(AgentFearState.Calm), "Nothing frightens them.");
+                    Agent agent = simulation.AgentForTests(person);
+                    seated = agent.Sitting.OnIt && agent.Sitting.ChairIndex == chair &&
+                             agent.Intent.Activity == AgentActivityState.Sitting;
+                }
+
+                Assert.That(seated, Is.True, "They should be sitting on their own chair: " + simulation.DescribeForTests(person));
+                Assert.That(StateOf(simulation, TheBuilding.BathroomDoor), Is.EqualTo(DoorState.Open), "They opened the bathroom door on the way.");
+                Assert.That(StateOf(simulation, TheBuilding.OfficeDoor), Is.EqualTo(DoorState.Open), "And the office door.");
+            }
+        }
+
+        [Test]
+        public void AToiletTrip_ShutsTheStallDoor_StaysAWhile_AndComesBackToTheirDesk()
+        {
+            ScenarioData data = CalmDay();
+            data.Day.ToiletEveryTicks = 0;
+            data.Day.ToiletStayMinimumTicks = 100;
+            data.Day.ToiletStayMaximumTicks = 150;
+
+            // Nobody else takes a fancy to 1001's chair while they are away;
+            // somebody's chair being taken is its own thing, not this test's.
+            data.Items.SitChancePercent = 0;
+            using (var simulation = new Run(data))
+            {
+                int person = IndexOf(simulation, 1001UL);
+                int chair = ChairIndexOf(simulation, OfficeChair);
+                simulation.CuesForTests.StartToiletTrip(simulation.AgentForTests(person));
+
+                int wentIn = 0;
+                int cameOut = 0;
+                int seated = 0;
+                for (int t = 0; t < 120 * Run.TicksPerSecond && seated == 0; t++)
+                {
+                    simulation.Step();
+                    Agent agent = simulation.AgentForTests(person);
+                    bool inside = IsInAStall(agent.Body.Position);
+                    if (wentIn == 0 && inside)
+                    {
+                        wentIn = simulation.Tick;
+                    }
+
+                    if (wentIn > 0 && cameOut == 0 && !inside)
+                    {
+                        cameOut = simulation.Tick;
+                    }
+
+                    if (cameOut > 0 && agent.Sitting.OnIt && agent.Sitting.ChairIndex == chair &&
+                        agent.Intent.Activity == AgentActivityState.Sitting)
+                    {
+                        seated = simulation.Tick;
+                    }
+                }
+
+                Assert.That(wentIn, Is.GreaterThan(0), "They never reached a stall: " + simulation.DescribeForTests(person));
+                Assert.That(cameOut, Is.GreaterThan(wentIn + 100), "They should stay a while with the door shut.");
+                Assert.That(seated, Is.GreaterThan(cameOut), "And come back to their own chair: " + simulation.DescribeForTests(person));
+
+                bool shut = false;
+                bool opened = false;
+                bool cue = false;
+                foreach (CausalEvent record in simulation.GetSnapshot().Events)
+                {
+                    if (record.SourceId.Value != 1001UL)
+                    {
+                        continue;
+                    }
+
+                    bool aStallDoor = record.TargetId.Value >= 2013UL && record.TargetId.Value <= 2015UL;
+                    shut |= record.EventType == CausalEventType.DoorClosed && aStallDoor && record.Tick >= wentIn && record.Tick < cameOut;
+                    cue |= record.EventType == CausalEventType.CueCalled && (CueKind)record.Strength == CueKind.ToiletTrip;
+                }
+
+                foreach (CausalEvent record in simulation.GetSnapshot().Events)
+                {
+                    bool aStallDoor = record.SourceId.Value >= 2013UL && record.SourceId.Value <= 2015UL;
+                    opened |= record.EventType == CausalEventType.DoorOpened && aStallDoor && record.Tick > wentIn + 100;
+                }
+
+                Assert.That(cue, Is.True, "Going to the toilet is a line in the story.");
+                Assert.That(shut, Is.True, "They shut the stall door behind them.");
+                Assert.That(opened, Is.True, "And opened it again to come out.");
+            }
+        }
+
+        [Test]
+        public void FrightenedInTheStall_TheErrandIsDropped()
+        {
+            ScenarioData data = CalmDay();
+            data.Day.ToiletEveryTicks = 0;
+            data.Day.ToiletStayMinimumTicks = 3000;
+            data.Day.ToiletStayMaximumTicks = 3000;
+            using (var simulation = new Run(data))
+            {
+                int person = IndexOf(simulation, 1019UL);
+                simulation.CuesForTests.StartToiletTrip(simulation.AgentForTests(person));
+                bool staying = false;
+                for (int t = 0; t < 60 * Run.TicksPerSecond && !staying; t++)
+                {
+                    simulation.Step();
+                    staying = simulation.ErrandForTests(person).Phase == ErrandPhase.Staying;
+                }
+
+                Assert.That(staying, Is.True, "They should be in the stall: " + simulation.DescribeForTests(person));
+                simulation.FrightenForTests(person);
+                Assert.That(simulation.ErrandForTests(person).Kind, Is.EqualTo(ErrandKind.None), "Fear has its own rules; the errand is gone.");
+                Advance(simulation, 5);
+                Assert.That(simulation.GetAgent(person).FearState, Is.Not.EqualTo(AgentFearState.Calm));
+            }
+        }
+
+        [Test]
+        public void AChat_HasBothFacingEachOther_ANeighbourGlancing_AndEndsWhenOneIsFrightened()
+        {
+            ScenarioData data = CalmDay();
+            data.Day.ChatMinimumTicks = 1500;
+            data.Day.ChatMaximumTicks = 1500;
+
+            // Loud enough that the rest of the office is sure to look over.
+            data.Day.RemarkHearingRadiusMillimetres = 6000;
+            using (var simulation = new Run(data))
+            {
+                int a = IndexOf(simulation, 1005UL);
+                int b = IndexOf(simulation, 1006UL);
+                Assert.That(simulation.CuesForTests.StartChat(simulation.AgentForTests(a), simulation.AgentForTests(b)), Is.True);
+
+                bool talking = false;
+                for (int t = 0; t < 20 * Run.TicksPerSecond && !talking; t++)
+                {
+                    simulation.Step();
+                    talking = simulation.GetAgent(a).ActivityState == AgentActivityState.Chatting &&
+                              simulation.GetAgent(b).ActivityState == AgentActivityState.Chatting &&
+                              simulation.GetAgent(a).SpeedMillimetresPerTick == 0;
+                }
+
+                Assert.That(talking, Is.True, "Both should be stood talking: " + simulation.DescribeForTests(a) + " / " + simulation.DescribeForTests(b));
+
+                // A few seconds of talk: close, facing, and saying things.
+                Advance(simulation, 6 * Run.TicksPerSecond);
+                AgentSnapshot one = simulation.GetAgent(a);
+                AgentSnapshot other = simulation.GetAgent(b);
+                Assert.That(one.ActivityState, Is.EqualTo(AgentActivityState.Chatting));
+                Assert.That(other.ActivityState, Is.EqualTo(AgentActivityState.Chatting));
+                Assert.That(IntegerMath.Distance(one.Position, other.Position),
+                    Is.LessThanOrEqualTo(data.Calm.SocialStopDistanceMillimetres + 400), "Within arm's reach of each other.");
+                int oneToOther = IntegerMath.HeadingBetween(one.Position, other.Position, one.HeadingDegrees);
+                int otherToOne = IntegerMath.HeadingBetween(other.Position, one.Position, other.HeadingDegrees);
+                Assert.That(System.Math.Abs(IntegerMath.SignedAngleDifference(one.HeadingDegrees, oneToOther)), Is.LessThan(35), "Facing each other.");
+                Assert.That(System.Math.Abs(IntegerMath.SignedAngleDifference(other.HeadingDegrees, otherToOne)), Is.LessThan(35), "Facing each other.");
+
+                var remarks = new HashSet<ulong>();
+                int glances = 0;
+                bool partnersGlanced = false;
+                var speakers = new HashSet<ulong>();
+                foreach (CausalEvent record in simulation.GetSnapshot().Events)
+                {
+                    // Other people chat too; only this pair's remarks count.
+                    if (record.EventType == CausalEventType.AgentSaid &&
+                        (record.SourceId.Value == 1005UL || record.SourceId.Value == 1006UL))
+                    {
+                        remarks.Add(record.EventId);
+                        speakers.Add(record.SourceId.Value);
+                    }
+
+                    if (record.EventType == CausalEventType.AgentNoticedSound && remarks.Contains(record.CausalParentEventId))
+                    {
+                        glances++;
+                        partnersGlanced |= record.SourceId.Value == 1005UL || record.SourceId.Value == 1006UL;
+                    }
+                }
+
+                Assert.That(speakers.Count, Is.EqualTo(2), "Both of them said something.");
+                Assert.That(glances, Is.GreaterThan(0), "Somebody nearby glanced over at the talking.");
+                Assert.That(partnersGlanced, Is.False, "The two talking do not wonder what each other's voice was.");
+
+                // One of them is frightened: the other notices a moment later
+                // and the chat is over for both.
+                simulation.FrightenForTests(a);
+                Assert.That(simulation.ErrandForTests(a).Kind, Is.EqualTo(ErrandKind.None));
+                Advance(simulation, data.Perception.ReactionLagMaximumTicks + 2);
+                Assert.That(simulation.GetAgent(b).ActivityState, Is.Not.EqualTo(AgentActivityState.Chatting),
+                    "Nobody stands talking to somebody who has run off screaming: " + simulation.DescribeForTests(b));
+                Assert.That(simulation.ErrandForTests(b).Kind, Is.EqualTo(ErrandKind.None));
+            }
+        }
+
+        [Test]
+        public void HomeTime_WithTheWayOutOpen_EverybodyLeavesCalmly_AndNobodyIsPaidFor()
+        {
+            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(CalmDay());
+
+            // Nobody cruel enough to slam the front door behind them: that is
+            // its own thing to watch, not this test's.
+            data.Exits.EvilCloseMinimum = 11;
+            data.Exits.EvilLockMinimum = 11;
+            using (var simulation = new Run(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, 5);
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, 6);
+                simulation.QueueCommand(PlayerCommandType.CallHomeTime, default(SimulationId), 10);
+
+                var setOff = new Dictionary<int, int>();
+                int escaped = 0;
+                for (int t = 0; t < 150 * Run.TicksPerSecond && escaped < simulation.AgentCount; t++)
+                {
+                    simulation.Step();
+                    escaped = 0;
+                    for (int i = 0; i < simulation.AgentCount; i++)
+                    {
+                        AgentSnapshot person = simulation.GetAgent(i);
+                        escaped += person.Outcome == AgentTerminalOutcome.Escaped ? 1 : 0;
+                        if (person.Participation == AgentParticipation.Participating)
+                        {
+                            Assert.That(person.FearState, Is.EqualTo(AgentFearState.Calm),
+                                $"Tick {simulation.Tick}: person {person.AgentId} is frightened on a calm day.");
+                        }
+
+                        if (!setOff.ContainsKey(i) && person.ActivityState == AgentActivityState.RunningAnErrand)
+                        {
+                            setOff[i] = simulation.Tick;
+                        }
+                    }
+                }
+
+                Assert.That(escaped, Is.EqualTo(simulation.AgentCount), "Everybody, visitors included, is out of the building.");
+                Assert.That(new HashSet<int>(setOff.Values).Count, Is.GreaterThanOrEqualTo(5),
+                    "People set off each in their own time, never the whole building at once.");
+                Assert.That(simulation.Phase, Is.EqualTo(RoundPhase.BeforeEvent), "Nothing has gone wrong, so no round has begun, let alone ended.");
+                Assert.That(simulation.InfluenceEarned, Is.Zero, "The purse pays for people saved, not for people who went home.");
+
+                // Setting the disaster off on an empty building ends the round
+                // on the spot, with everybody accounted for.
+                simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), simulation.Tick + 1);
+                Advance(simulation, 3);
+                Assert.That(simulation.Phase, Is.EqualTo(RoundPhase.Over));
+            }
+        }
+
+        [Test]
+        public void HomeTime_WithTheWayOutLocked_AQueueFormsAndNobodyPanics()
+        {
+            ScenarioData data = CalmDay();
+            data.Day.PlayerHomeTimeSpreadTicks = 200;
+            using (var simulation = new Run(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.CallHomeTime, default(SimulationId), 10);
+                Advance(simulation, 50 * Run.TicksPerSecond);
+
+                int atTheDoor = 0;
+                for (int i = 0; i < simulation.AgentCount; i++)
+                {
+                    AgentSnapshot person = simulation.GetAgent(i);
+                    Assert.That(person.Outcome, Is.Not.EqualTo(AgentTerminalOutcome.Escaped), "The way out is locked.");
+                    Assert.That(person.FearState, Is.EqualTo(AgentFearState.Calm), $"Person {person.AgentId} is frightened on a calm day.");
+                    atTheDoor += IntegerMath.Distance(person.Position, TheBuilding.InsideTheWayOut) <= 5000 ? 1 : 0;
+                }
+
+                Assert.That(atTheDoor, Is.GreaterThanOrEqualTo(8), "A queue at the locked front door.");
+
+                bool tried = false;
+                foreach (CausalEvent record in simulation.GetSnapshot().Events)
+                {
+                    tried |= record.EventType == CausalEventType.AgentTriedDoor && record.TargetId == TheBuilding.TheWayOut;
+                }
+
+                Assert.That(tried, Is.True, "Somebody tried the handle, which is worth a line in the story.");
+            }
+        }
+
+        [Test]
+        public void AGlanceAtANoise_InterruptsAnErrand_WhichThenCarriesOn()
+        {
+            ScenarioData data = CalmDay();
+            data.Agents[0] = data.Agents[0].WithHome(default(SimulationId));
+            data.Agents[18] = data.Agents[18].WithHome(OfficeChair);
+            using (var simulation = new Run(data))
+            {
+                int person = IndexOf(simulation, 1019UL);
+                int chair = ChairIndexOf(simulation, OfficeChair);
+                simulation.CuesForTests.SendHome(simulation.AgentForTests(person));
+
+                // A few seconds into the walk, a thud right beside them.
+                bool walking = false;
+                for (int t = 0; t < 10 * Run.TicksPerSecond && !walking; t++)
+                {
+                    simulation.Step();
+                    walking = simulation.GetAgent(person).ActivityState == AgentActivityState.RunningAnErrand &&
+                              simulation.GetAgent(person).SpeedMillimetresPerTick > 0;
+                }
+
+                Assert.That(walking, Is.True, simulation.DescribeForTests(person));
+                LogicalPosition beside = simulation.GetAgent(person).Position + new LogicalPosition(1000, 0);
+                simulation.MakeANoiseForTests(beside);
+                Assert.That(simulation.GetAgent(person).ActivityState, Is.EqualTo(AgentActivityState.Investigating), "They turn to look.");
+                Assert.That(simulation.ErrandForTests(person).Kind, Is.EqualTo(ErrandKind.GoHome), "But the errand is not forgotten.");
+
+                bool seated = false;
+                for (int t = 0; t < 90 * Run.TicksPerSecond && !seated; t++)
+                {
+                    simulation.Step();
+                    Agent agent = simulation.AgentForTests(person);
+                    seated = agent.Sitting.OnIt && agent.Sitting.ChairIndex == chair;
+                }
+
+                Assert.That(seated, Is.True, "They carry on home after the glance: " + simulation.DescribeForTests(person));
+            }
+        }
+    }
+}

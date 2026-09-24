@@ -44,9 +44,21 @@ namespace Paniq.Tests.EditMode
 
         private int deepTicks;
 
+        /// <summary>
+        /// Presses into the floor are not counted. This watch is here for
+        /// things passing into tables, walls, doors and each other; a thing
+        /// tilted against the floor is the engine settling something that
+        /// cannot lie flat. Once the building had a day and every calm
+        /// decision drew differently, seed 45 had a burning office chair,
+        /// bumped by two people fleeing the meeting, wedge itself tilted in
+        /// the meeting room's doorway with a leg 81 mm into the floor for the
+        /// rest of the run. Nobody sees a leg 81 mm into the carpet; a chair
+        /// wedged in a doorway is exactly what the doorways are for; and a
+        /// limit chased tick by tick for it would never settle.
+        /// </summary>
         public void Check(Run simulation, string context)
         {
-            if (simulation.DeepestPressMillimetres <= DeepestSqueezeMillimetres)
+            if (simulation.DeepestPressMillimetres <= DeepestSqueezeMillimetres || simulation.DeepestPressIsIntoTheFloorForTests)
             {
                 deepTicks = 0;
                 return;

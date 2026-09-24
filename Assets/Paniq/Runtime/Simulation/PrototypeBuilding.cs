@@ -96,9 +96,27 @@
                 // south wall. Small, but a person is half a metre across and
                 // the navigation squares are a quarter of one, so there is
                 // real room to stand and turn round inside each.
-                new RoomDefinition(StallOne, new LogicalBounds(8250, 9750, -500, 1000)),
-                new RoomDefinition(StallTwo, new LogicalBounds(9750, 11250, -500, 1000)),
-                new RoomDefinition(StallThree, new LogicalBounds(11250, 12750, -500, 1000))
+                new RoomDefinition(StallOne, new LogicalBounds(8250, 9750, -500, 1000), RoomUse.Stall),
+                new RoomDefinition(StallTwo, new LogicalBounds(9750, 11250, -500, 1000), RoomUse.Stall),
+                new RoomDefinition(StallThree, new LogicalBounds(11250, 12750, -500, 1000), RoomUse.Stall)
+            };
+        }
+
+        /// <summary>
+        /// What this building's day holds: the meeting breaks up at the minute
+        /// mark, over about eight seconds, one person at a time. A minute is
+        /// longer than any recorded run, so a meeting under way when the fire
+        /// starts breaks up because of the fire and nothing else. There is no
+        /// home time on this floor: the way out starts locked and the round
+        /// opens calm with no clock, so the whole office queueing at the front
+        /// door before the player has pressed anything would change the level
+        /// rather than furnish it.
+        /// </summary>
+        public static ScheduledCue[] DefaultTimetable()
+        {
+            return new[]
+            {
+                new ScheduledCue(CueKind.MeetingEnds, 3000, 400, MeetingRoom)
             };
         }
 
@@ -248,20 +266,27 @@
         /// them out; left alone, they have the signs, their eyes and each
         /// other. Everybody else works on this floor and knows it.
         /// </para>
+        /// <para>
+        /// The eight in the office each have a desk chair that is theirs, and
+        /// the two sitting in the cafeteria have their cafeteria chairs: over
+        /// the day they drift back to them (<see cref="ErrandBehaviour"/>).
+        /// The visitors and their host have no home on this floor and loiter
+        /// once the meeting is over.
+        /// </para>
         /// </summary>
         public static AgentDefinition[] DefaultAgents()
         {
             return new[]
             {
-                // The open-plan office, on their feet.
-                Agent(1001UL, -5000, -5000, CardinalDirection.North, 5, 5, 5, 5, 2, 5, 4), // ordinary
-                Agent(1002UL, 0, -5000, CardinalDirection.East, 9, 6, 6, 3, 6, 3, 3, 3251UL), // the brute, briefcase in hand
-                Agent(1003UL, 5000, -5000, CardinalDirection.West, 8, 6, 8, 8, 1, 3, 8), // the hero
-                Agent(1004UL, -5000, 0, CardinalDirection.East, 4, 4, 7, 9, 0, 4, 5, 3221UL), // the saint, bag over her shoulder
-                Agent(1005UL, 900, 0, CardinalDirection.South, 6, 6, 5, 1, 8, 4, 6), // the villain
-                Agent(1006UL, 5000, 0, CardinalDirection.North, 3, 5, 1, 5, 2, 10, 1), // the nervous wreck
-                Agent(1007UL, -5000, 5000, CardinalDirection.South, 5, 10, 5, 5, 3, 6, 4), // the sprinter
-                Agent(1008UL, 0, 5000, CardinalDirection.West, 7, 5, 4, 2, 9, 5, 5), // the bully
+                // The open-plan office, on their feet, each beside their own desk chair.
+                Agent(1001UL, -5000, -5000, CardinalDirection.North, 5, 5, 5, 5, 2, 5, 4).WithHome(new SimulationId(3101UL)), // ordinary
+                Agent(1002UL, 0, -5000, CardinalDirection.East, 9, 6, 6, 3, 6, 3, 3, 3251UL).WithHome(new SimulationId(3102UL)), // the brute, briefcase in hand
+                Agent(1003UL, 5000, -5000, CardinalDirection.West, 8, 6, 8, 8, 1, 3, 8).WithHome(new SimulationId(3103UL)), // the hero
+                Agent(1004UL, -5000, 0, CardinalDirection.East, 4, 4, 7, 9, 0, 4, 5, 3221UL).WithHome(new SimulationId(3106UL)), // the saint, bag over her shoulder
+                Agent(1005UL, 900, 0, CardinalDirection.South, 6, 6, 5, 1, 8, 4, 6).WithHome(new SimulationId(3108UL)), // the villain
+                Agent(1006UL, 5000, 0, CardinalDirection.North, 3, 5, 1, 5, 2, 10, 1).WithHome(new SimulationId(3104UL)), // the nervous wreck
+                Agent(1007UL, -5000, 5000, CardinalDirection.South, 5, 10, 5, 5, 3, 6, 4).WithHome(new SimulationId(3107UL)), // the sprinter
+                Agent(1008UL, 0, 5000, CardinalDirection.West, 7, 5, 4, 2, 9, 5, 5).WithHome(new SimulationId(3105UL)), // the bully
 
                 // The meeting room: a meeting already under way, six of them
                 // round the long table. None can see the fire wherever it
@@ -274,9 +299,9 @@
                 Seated(1013UL, -2000, 12100, North, 7, 8, 8, 4, 7, 2, 6, 3245UL).WithFamiliarity(AgentFamiliarity.Visitor), // the chancer
                 Seated(1014UL, -400, 12100, North, 6, 5, 7, 9, 1, 3, 9, 3246UL), // the other hero, and the host
 
-                // The cafeteria: two at a table, two on their feet.
-                Seated(1015UL, 5000, 13000, South, 5, 5, 4, 5, 4, 6, 4, 3247UL), // ordinary
-                Seated(1016UL, 5000, 11000, North, 8, 6, 6, 2, 8, 4, 6, 3248UL), // the other bully
+                // The cafeteria: two at a table, whose chairs those are, two on their feet.
+                Seated(1015UL, 5000, 13000, South, 5, 5, 4, 5, 4, 6, 4, 3247UL).WithHome(new SimulationId(3247UL)), // ordinary
+                Seated(1016UL, 5000, 11000, North, 8, 6, 6, 2, 8, 4, 6, 3248UL).WithHome(new SimulationId(3248UL)), // the other bully
                 Agent(1017UL, 9500, 15000, CardinalDirection.West, 4, 9, 5, 6, 2, 6, 3), // the runner
                 Agent(1018UL, 11000, 10500, CardinalDirection.North, 3, 4, 2, 4, 3, 8, 2), // the coward
 

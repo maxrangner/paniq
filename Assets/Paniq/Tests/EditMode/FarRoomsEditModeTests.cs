@@ -48,6 +48,7 @@ namespace Paniq.Tests.EditMode
             data.Alarms = new AlarmDefinition[0];
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
             data.BlastHoles = new SimulationId[0];
+            data.Timetable = System.Array.Empty<ScheduledCue>();
             data.Rooms = new[]
             {
                 new RoomDefinition(NearRoom, new LogicalBounds(-6000, 6000, -6000, 6000)),

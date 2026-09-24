@@ -68,6 +68,7 @@ namespace Paniq.Presentation
                 case CausalEventType.AlarmRang:
                 case CausalEventType.ObjectBurntOut:
                 case CausalEventType.PowerSparkArrived:
+                case CausalEventType.AgentSaid:
                     return true;
                 default:
                     return false;
@@ -200,6 +201,20 @@ namespace Paniq.Presentation
                     return $"{who} died, and dealt you {PlayerInput.NameOf((PlayerCommandType)record.Strength)}";
 
                 case CausalEventType.RoundEnded: return $"the round ended with {record.Strength} saved";
+
+                case CausalEventType.CueCalled:
+                    switch ((CueKind)record.Strength)
+                    {
+                        case CueKind.MeetingEnds:
+                            return record.SourceId.Value == 0UL ? "the meeting ended" : $"{who} ended the meeting";
+                        case CueKind.HomeTime: return "it was home time";
+                        case CueKind.Chat: return $"{who} and {whom} had a chat";
+                        case CueKind.ToiletTrip: return $"{who} went to the toilet";
+                        default: return $"{who} called {(CueKind)record.Strength}";
+                    }
+
+                case CausalEventType.AgentSaid: return $"{who} said something";
+                case CausalEventType.PowerCalledHomeTime: return "you called it a day";
                 default: return record.EventType.ToString();
             }
         }

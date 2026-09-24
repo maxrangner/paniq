@@ -243,6 +243,12 @@
                 case CausalEventType.LeaderOrderedDoorBroken:
                 case CausalEventType.LeaderOrderedFireFought:
 
+                // The building's day: a cue called, a remark made, the player
+                // calling it a day. Calm life is not uproar.
+                case CausalEventType.CueCalled:
+                case CausalEventType.AgentSaid:
+                case CausalEventType.PowerCalledHomeTime:
+
                 // Bookkeeping: things happening quietly to people, things and doors.
                 case CausalEventType.AgentGotUp:
                 case CausalEventType.AgentCameTo:

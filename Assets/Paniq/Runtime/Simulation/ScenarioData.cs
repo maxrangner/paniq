@@ -25,6 +25,17 @@ namespace Paniq.Simulation
         /// </summary>
         [UnityEngine.SerializeField] private AgentFamiliarity familiarity;
 
+        /// <summary>
+        /// Where they belong: the chair that is theirs, or a spot they stand
+        /// at, or neither. Declared after familiarity so it sits after it in
+        /// the saved asset; zero -- what anybody authored before it existed
+        /// reads back as -- means they have no home and loiter as they always
+        /// did. The spot needs its own flag because the origin is a real place.
+        /// </summary>
+        [UnityEngine.SerializeField] private SimulationId homeObjectId;
+        [UnityEngine.SerializeField] private bool hasHomeSpot;
+        [UnityEngine.SerializeField] private LogicalPosition homeSpot;
+
         public AgentDefinition(SimulationId agentId, LogicalPosition initialPosition)
             : this(agentId, initialPosition, CardinalDirection.North)
         {
@@ -44,6 +55,9 @@ namespace Paniq.Simulation
             carriedObjectId = default;
             seatedOnObjectId = default;
             familiarity = default;
+            homeObjectId = default;
+            hasHomeSpot = false;
+            homeSpot = default;
         }
 
         /// <summary>A person with an authored personality.</summary>
@@ -61,6 +75,9 @@ namespace Paniq.Simulation
             carriedObjectId = default;
             seatedOnObjectId = default;
             familiarity = default;
+            homeObjectId = default;
+            hasHomeSpot = false;
+            homeSpot = default;
         }
 
         /// <summary>
@@ -84,6 +101,9 @@ namespace Paniq.Simulation
             this.carriedObjectId = carriedObjectId;
             this.seatedOnObjectId = seatedOnObjectId;
             familiarity = default;
+            homeObjectId = default;
+            hasHomeSpot = false;
+            homeSpot = default;
         }
 
         public SimulationId AgentId => agentId;
@@ -116,6 +136,36 @@ namespace Paniq.Simulation
         {
             AgentDefinition copy = this;
             copy.familiarity = value;
+            return copy;
+        }
+
+        /// <summary>The chair that is theirs, if any: where they go back to when a cue sends them home.</summary>
+        public SimulationId HomeObjectId => homeObjectId;
+
+        public bool HasHomeChair => homeObjectId.Value != 0UL;
+
+        /// <summary>A spot that is theirs, for somebody whose place has no chair.</summary>
+        public bool HasHomeSpot => hasHomeSpot;
+
+        public LogicalPosition HomeSpot => homeSpot;
+
+        /// <summary>The same person, with this chair as their own.</summary>
+        public AgentDefinition WithHome(SimulationId chair)
+        {
+            AgentDefinition copy = this;
+            copy.homeObjectId = chair;
+            copy.hasHomeSpot = false;
+            copy.homeSpot = default;
+            return copy;
+        }
+
+        /// <summary>The same person, with this spot as their own.</summary>
+        public AgentDefinition WithHome(LogicalPosition spot)
+        {
+            AgentDefinition copy = this;
+            copy.homeObjectId = default;
+            copy.hasHomeSpot = true;
+            copy.homeSpot = spot;
             return copy;
         }
     }
@@ -224,6 +274,48 @@ namespace Paniq.Simulation
 
         /// <summary>Which way it points: a compass bearing clockwise from north, like every other heading.</summary>
         public int PointingDegrees => pointingDegrees;
+    }
+
+    /// <summary>
+    /// One entry in the level's timetable: a cue the Director calls on a
+    /// tick. This is the data a future event editor edits; today it is
+    /// written in <see cref="PrototypeBuilding"/> or set in the Inspector.
+    /// <para>
+    /// The spread is how far apart the people it reaches take it up, each
+    /// drawing their own share of it from the seed, so a meeting breaks up
+    /// one person at a time rather than all at once. The room is only for a
+    /// cue that happens in one (the meeting ending); a building-wide cue
+    /// (home time) leaves it at nothing.
+    /// </para>
+    /// </summary>
+    [Serializable]
+    public struct ScheduledCue
+    {
+        [UnityEngine.SerializeField] private CueKind kind;
+        [UnityEngine.SerializeField] private int atTick;
+        [UnityEngine.SerializeField] private int spreadTicks;
+        [UnityEngine.SerializeField] private SimulationId roomId;
+
+        public ScheduledCue(CueKind kind, int atTick, int spreadTicks, SimulationId roomId = default)
+        {
+            this.kind = kind;
+            this.atTick = atTick;
+            this.spreadTicks = spreadTicks;
+            this.roomId = roomId;
+        }
+
+        public CueKind Kind => kind;
+
+        /// <summary>The tick the Director calls it on.</summary>
+        public int AtTick => atTick;
+
+        /// <summary>How many ticks apart, at most, the people it reaches take it up.</summary>
+        public int SpreadTicks => spreadTicks;
+
+        /// <summary>The room it happens in, for a cue that happens in one; the default ID otherwise.</summary>
+        public SimulationId RoomId => roomId;
+
+        public bool NamesARoom => roomId.Value != 0UL;
     }
 
     /// <summary>
@@ -410,14 +502,19 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private SimulationId roomId;
         [UnityEngine.SerializeField] private LogicalBounds bounds;
 
-        public RoomDefinition(SimulationId roomId, LogicalBounds bounds)
+        /// <summary>What the room is for, where that changes what people do in it. Zero is an ordinary room.</summary>
+        [UnityEngine.SerializeField] private RoomUse use;
+
+        public RoomDefinition(SimulationId roomId, LogicalBounds bounds, RoomUse use = RoomUse.Ordinary)
         {
             this.roomId = roomId;
             this.bounds = bounds;
+            this.use = use;
         }
 
         public SimulationId RoomId => roomId;
         public LogicalBounds Bounds => bounds;
+        public RoomUse Use => use;
     }
 
     /// <summary>
@@ -461,9 +558,12 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "62";
+        public string ContentRevision = "63";
         public ulong DefaultSeed = 42UL;
 
+        // 51: the building has a day. The meeting ends by the level's
+        // timetable rather than a sit timer, calm people go home, to the
+        // toilet and over to talk, and every calm decision draws differently.
         // 45: a physics look-up (is this spot clear to stand or lie in, is
         // anybody in this doorway, is the building between these two spots)
         // that finds more than its buffer holds asks again with more room,
@@ -487,7 +587,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 50;
+        public int SimulationCompatibilityVersion = 51;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -513,6 +613,7 @@ namespace Paniq.Simulation
         public AlarmSettings Alarm = new AlarmSettings();
         public BlockadeSettings Blockades = new BlockadeSettings();
         public BlastSettings Blast = new BlastSettings();
+        public DaySettings Day = new DaySettings();
 
         public AgentDefinition[] Agents = PrototypeBuilding.DefaultAgents();
         public DoorDefinition[] Doors = PrototypeBuilding.DefaultDoors();
@@ -536,6 +637,13 @@ namespace Paniq.Simulation
         /// teaches them the way, and it nudges which way they search.
         /// </summary>
         public ExitSignDefinition[] ExitSigns = PrototypeBuilding.DefaultExitSigns();
+
+        /// <summary>
+        /// What the building's day holds: the cues the Director calls, each on
+        /// its tick (<see cref="DirectorSystem"/>). Empty is a day in which
+        /// nothing is scheduled and people only follow their own ideas.
+        /// </summary>
+        public ScheduledCue[] Timetable = PrototypeBuilding.DefaultTimetable();
 
         /// <summary>A deep copy: changing the copy never changes this one.</summary>
         public ScenarioData Clone()
@@ -565,6 +673,7 @@ namespace Paniq.Simulation
             copy.Alarm = Alarm?.Clone();
             copy.Blockades = Blockades?.Clone();
             copy.Blast = Blast?.Clone();
+            copy.Day = Day?.Clone();
             copy.Agents = (AgentDefinition[])Agents?.Clone();
             copy.Doors = (DoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (PhysicsObjectDefinition[])PhysicsObjects?.Clone();
@@ -574,6 +683,7 @@ namespace Paniq.Simulation
             copy.BlastHoles = (SimulationId[])BlastHoles?.Clone();
             copy.PowerLines = (PowerLineDefinition[])PowerLines?.Clone();
             copy.ExitSigns = (ExitSignDefinition[])ExitSigns?.Clone();
+            copy.Timetable = (ScheduledCue[])Timetable?.Clone();
             return copy;
         }
 
@@ -593,7 +703,7 @@ namespace Paniq.Simulation
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
                 ObjectPhysics == null || PhysicsFeel == null || Traits == null || Flammables == null || Items == null || Help == null ||
                 Influence == null || Alarm == null || Blockades == null || Blast == null ||
-                Extinguishers == null || Leadership == null)
+                Extinguishers == null || Leadership == null || Day == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -622,6 +732,7 @@ namespace Paniq.Simulation
             Blockades.Validate();
             Blast.Validate();
             Power.Validate();
+            Day.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");
@@ -675,6 +786,8 @@ namespace Paniq.Simulation
                     ValidateStartingSeat(agent);
                 }
 
+                ValidateHome(agent, radius);
+
                 for (int previous = 0; previous < i; previous++)
                 {
                     long distanceSquared = LogicalPosition.DistanceSquared(
@@ -698,6 +811,92 @@ namespace Paniq.Simulation
             ValidateAlarms(ids);
             ValidateBlastHoles(ids);
             ValidatePowerLines();
+            ValidateTimetable(roomIds);
+        }
+
+        /// <summary>
+        /// The timetable: every entry a kind the Director can call, on a tick
+        /// of the run, with a room only where the cue happens in one and that
+        /// room a room the building has. A chat or a toilet trip cannot be
+        /// scheduled: those are a person's own idea.
+        /// </summary>
+        private void ValidateTimetable(HashSet<SimulationId> roomIds)
+        {
+            Timetable ??= Array.Empty<ScheduledCue>();
+            for (int i = 0; i < Timetable.Length; i++)
+            {
+                ScheduledCue cue = Timetable[i];
+                if (!Enum.IsDefined(typeof(CueKind), cue.Kind))
+                {
+                    throw new InvalidOperationException($"Timetable entry {i} has an unknown kind of cue.");
+                }
+
+                if (cue.AtTick < 1 || cue.SpreadTicks < 0)
+                {
+                    throw new InvalidOperationException($"Timetable entry {i} ({cue.Kind}) needs a tick of at least 1 and a spread of at least 0.");
+                }
+
+                switch (cue.Kind)
+                {
+                    case CueKind.MeetingEnds:
+                        if (!roomIds.Contains(cue.RoomId))
+                        {
+                            throw new InvalidOperationException(
+                                $"Timetable entry {i} ends a meeting in room {cue.RoomId}, which the building does not have.");
+                        }
+
+                        break;
+                    case CueKind.HomeTime:
+                        if (cue.NamesARoom)
+                        {
+                            throw new InvalidOperationException($"Timetable entry {i}: home time is for the whole building, not a room.");
+                        }
+
+                        break;
+                    default:
+                        throw new InvalidOperationException(
+                            $"Timetable entry {i}: {cue.Kind} is somebody's own idea and cannot be scheduled.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Somebody's home, if they have one, is a real chair that is nobody
+        /// else's, or a spot inside a room.
+        /// </summary>
+        private void ValidateHome(AgentDefinition agent, int radius)
+        {
+            if (agent.HasHomeChair)
+            {
+                int chair = Array.FindIndex(PhysicsObjects ?? Array.Empty<PhysicsObjectDefinition>(),
+                    o => o.ObjectId == agent.HomeObjectId);
+                if (chair < 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Agent {agent.AgentId}'s home is {agent.HomeObjectId}, which is not in the scenario.");
+                }
+
+                PhysicsObjectKind kind = PhysicsObjects[chair].Kind;
+                if (kind != PhysicsObjectKind.Chair && kind != PhysicsObjectKind.OfficeChair)
+                {
+                    throw new InvalidOperationException(
+                        $"Agent {agent.AgentId}'s home is {agent.HomeObjectId}, which is not a chair.");
+                }
+
+                for (int a = 0; a < Agents.Length; a++)
+                {
+                    if (Agents[a].AgentId != agent.AgentId && Agents[a].HomeObjectId == agent.HomeObjectId)
+                    {
+                        throw new InvalidOperationException(
+                            $"Agents {Agents[a].AgentId} and {agent.AgentId} both call chair {agent.HomeObjectId} home.");
+                    }
+                }
+            }
+
+            if (agent.HasHomeSpot && RoomHolding(agent.HomeSpot, radius) < 0)
+            {
+                throw new InvalidOperationException($"Agent {agent.AgentId}'s home spot is outside every room.");
+            }
         }
 
         /// <summary>

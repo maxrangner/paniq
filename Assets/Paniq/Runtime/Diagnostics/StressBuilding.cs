@@ -82,6 +82,10 @@ namespace Paniq.Diagnostics
             data.Rooms = rooms.ToArray();
             data.Doors = doors.ToArray();
 
+            // A building of its own has a day of its own: the office's
+            // timetable names a room this grid does not have.
+            data.Timetable = System.Array.Empty<ScheduledCue>();
+
             // Spots on a lattice through every room, handed out in turn: a
             // person, then two boxes, and so on, so both are spread evenly.
             var spots = new List<LogicalPosition>();

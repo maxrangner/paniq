@@ -355,7 +355,51 @@ namespace Paniq.Simulation
         Barricading,
 
         /// <summary>Heaving whatever is wedged in a doorway out of the way.</summary>
-        ShovingObstruction
+        ShovingObstruction,
+
+        /// <summary>
+        /// Walking somewhere with a purpose while calm -- home, to a stall, to
+        /// the way out, over to somebody -- or standing at a door on the way
+        /// (see <see cref="ErrandBehaviour"/>).
+        /// </summary>
+        RunningAnErrand,
+
+        /// <summary>Stood talking to somebody, facing them.</summary>
+        Chatting
+    }
+
+    /// <summary>
+    /// A small thing that happens in the building's day and changes what some
+    /// people want to do: the game's word for one of these, because "event"
+    /// already means a line in the causal log. Called by the Director from the
+    /// level's timetable, by a person as their own idea, or by the player.
+    /// Appended only: a kind's number is carried in the log.
+    /// </summary>
+    public enum CueKind
+    {
+        /// <summary>The meeting in a room breaks up: the host first, the rest one by one.</summary>
+        MeetingEnds,
+
+        /// <summary>The end of the working day: everybody packs up and leaves.</summary>
+        HomeTime,
+
+        /// <summary>Two people stop and talk.</summary>
+        Chat,
+
+        /// <summary>Somebody goes to the toilet.</summary>
+        ToiletTrip
+    }
+
+    /// <summary>
+    /// What a room is for, where that changes what people do in it. Zero is
+    /// an ordinary room, so a room authored before this existed reads as one.
+    /// </summary>
+    public enum RoomUse
+    {
+        Ordinary,
+
+        /// <summary>A toilet stall: somebody goes in, shuts the door, and comes out a while later.</summary>
+        Stall
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>
@@ -624,7 +668,27 @@ namespace Paniq.Simulation
         /// way. Names the table; the strength is the change of speed it was
         /// given, in millimetres per tick.
         /// </summary>
-        TableHeaved
+        TableHeaved,
+
+        /// <summary>
+        /// A cue was called (see <see cref="CueKind"/>, carried as the
+        /// strength). Source: whoever called it -- the host who ended the
+        /// meeting, the person who went to the toilet or started the chat --
+        /// or nobody, for the Director's timetable and the player. Target: the
+        /// room it was called in, or the person it was called to. Cause: the
+        /// player's command, when it was theirs.
+        /// </summary>
+        CueCalled,
+
+        /// <summary>
+        /// A remark in a conversation, heard a little way off (source: the
+        /// speaker; strength: how far it carries; cause: the chat's cue).
+        /// Chatter: it is folded in the read-back and earns no sign.
+        /// </summary>
+        AgentSaid,
+
+        /// <summary>The player called it a day. A root event: the cue it calls names it as its cause.</summary>
+        PowerCalledHomeTime
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -778,7 +842,15 @@ namespace Paniq.Simulation
         PlayBastard,
 
         /// <summary>Cold heart: compassion to the bottom. They stop going back for anybody.</summary>
-        PlayColdHeart
+        PlayColdHeart,
+
+        /// <summary>
+        /// Call it a day: everybody in the building packs up and heads for the
+        /// way out. Not a card and it costs nothing, like the trigger: it is
+        /// the player's way of calling a cue, proven to work by a test, and
+        /// nothing on the screen is wired to it yet.
+        /// </summary>
+        CallHomeTime
     }
 
     /// <summary>

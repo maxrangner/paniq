@@ -102,10 +102,28 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            agent.Sitting.ChairIndex = best;
+            return TryStartSittingOn(agent, best, false);
+        }
+
+        /// <summary>
+        /// Walks over to this chair in particular and sits on it: somebody's
+        /// own desk chair, at the end of an errand. Their own bag in their
+        /// hand is no bar to it. False when the chair is not free.
+        /// <paramref name="untilTold"/> keeps them in it until a cue gets
+        /// them up, instead of for a drawn while.
+        /// </summary>
+        public bool TryStartSittingOn(Agent agent, int chair, bool untilTold)
+        {
+            if (chair < 0 || !objects.IsFreeChair(chair) || (agent.Carry.ItemIndex >= 0 && !agent.Carry.OwnsIt))
+            {
+                return false;
+            }
+
+            agent.Sitting.ChairIndex = chair;
             agent.Sitting.OnIt = false;
+            agent.Sitting.SitUntilTold = untilTold;
             agent.Intent.Activity = AgentActivityState.GoingToSit;
-            agent.Intent.Target = objects.PositionOf(best);
+            agent.Intent.Target = objects.PositionOf(chair);
             agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(context.Scenario.Calm.StrollTimeoutTicks));
             return true;
         }
@@ -364,6 +382,7 @@ namespace Paniq.Simulation
             agent.Sitting.Phase = SitPhase.None;
             agent.Sitting.PulledOutMillimetres = 0;
             agent.Sitting.SeatedPercent = 0;
+            agent.Sitting.SitUntilTold = false;
             return false;
         }
 
@@ -436,8 +455,13 @@ namespace Paniq.Simulation
             // somebody looking at the table. They swivel round at their usual
             // turning pace while sitting; nobody snaps round in one go.
             agent.Intent.LookHeading = objects.HeadingOf(chair);
-            agent.Intent.ActivityEndTick = checked(context.Tick + context.Random.NextIntInclusive(
-                settings.SitMinimumTicks, settings.SitMaximumTicks));
+
+            // Until told, for somebody a cue will get up (a meeting under
+            // way); otherwise for a while of their own. The draw is skipped
+            // rather than made and ignored, so it cannot move anybody else's.
+            agent.Intent.ActivityEndTick = agent.Sitting.SitUntilTold
+                ? int.MaxValue
+                : checked(context.Tick + context.Random.NextIntInclusive(settings.SitMinimumTicks, settings.SitMaximumTicks));
             agent.Sitting.SitUntilTick = agent.Intent.ActivityEndTick;
             return true;
         }
@@ -602,6 +626,7 @@ namespace Paniq.Simulation
             agent.Sitting.Phase = SitPhase.None;
             agent.Sitting.PulledOutMillimetres = 0;
             agent.Sitting.SeatedPercent = 0;
+            agent.Sitting.SitUntilTold = false;
         }
 
         /// <summary>

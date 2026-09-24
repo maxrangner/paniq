@@ -57,6 +57,9 @@ namespace Paniq.Simulation
         public AlarmSystem Alarms;
         public AlarmBehaviour AlarmBehaviour;
         public BarricadeBehaviour Barricades;
+        public CueSystem Cues;
+        public DirectorSystem Director;
+        public ErrandBehaviour Errands;
 
         /// <summary>Hands every system that asked for it the finished set, in a fixed order.</summary>
         public void BindAll()

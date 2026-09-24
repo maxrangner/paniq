@@ -127,6 +127,12 @@ a logged event, but no behaviour moves a body itself.
 The tick schedule is, in order:
 
 1. Consume commands assigned to this tick.
+   1½. The building's day: the Director calls every cue on the level's
+   timetable whose tick has come (`DirectorSystem.Advance`; see
+   [the cue system](cue-system.md)). A cue only hands people a pending
+   errand that begins at their own reaction tick in phase 4, so nothing
+   moves on the tick a cue is called, and the hazard's draws below stay
+   where they were.
 2. Advance hazard state. Every threat first, in the order the level lists
    them (`Threats.Advance`; today that is the fire alone), then the sparks
    crawling along the building's power cable, which are hazard advancing on

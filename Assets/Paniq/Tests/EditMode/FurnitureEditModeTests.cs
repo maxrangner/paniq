@@ -301,6 +301,7 @@ namespace Paniq.Tests.EditMode
             // A corridor barely wider than a desk, with the way out at the
             // north end, a desk across the middle and the fire at the south end.
             data.Rooms = new[] { new RoomDefinition(room, new LogicalBounds(-700, 700, -3000, 3000)) };
+            data.Timetable = System.Array.Empty<ScheduledCue>();
             data.Doors = new[] { new DoorDefinition(new SimulationId(2001UL), room, WallSide.North, 0, 800, startsLocked: false) };
             data.Tables = new[] { new TableDefinition(new SimulationId(4001UL), new LogicalPosition(0, 0), 1200, 700) };
             data.PhysicsObjects = new PhysicsObjectDefinition[0];

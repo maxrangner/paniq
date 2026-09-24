@@ -129,7 +129,7 @@ namespace Paniq.Simulation
                 items = new ItemBehaviour(context, geometry, objects, flammables);
                 chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
                 cues = new CueSystem(context, crowd, geometry);
-                errands = new ErrandBehaviour(context, crowd, geometry, objects, doors, chairs, sound);
+                errands = new ErrandBehaviour(context, crowd, geometry, objects, doors, chairs, sound, cues);
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues);
                 director = new DirectorSystem(context, cues, geometry);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
@@ -538,8 +538,8 @@ namespace Paniq.Simulation
                    $"exitDoor={a.Doors.ExitDoorIndex} wayOut={a.Doors.WayOutDoorIndex} room={a.Doors.CurrentRoom} " +
                    $"knowsAll={a.Knowledge.KnowsEverything} searching={a.Knowledge.Searching} searchSpot={searchSpot} " +
                    $"freezeEnd={a.Fear.FreezeEndTick} reactionEnd={a.Fear.ReactionEndTick} temperament={a.Personality.Temperament} " +
-                   $"errand={a.Errand.Kind}/{a.Errand.Phase} errandDoor={a.Errand.Door} errandRoom={a.Errand.Room} " +
-                   $"errandPlace={a.Errand.Place} errandUntil={a.Errand.UntilTick} sitting={a.Sitting.OnIt}/{a.Sitting.ChairIndex}";
+                   $"errand={(a.Errand.Has ? a.Errand.Cue.ToString() : "none")}/step{a.Errand.Step}/{a.Errand.Phase} errandDoor={a.Errand.Door} errandRoom={a.Errand.Room} " +
+                   $"errandPlace={a.Errand.Place} errandUntil={a.Errand.UntilTick} errandEnded={a.Errand.EndedBecause} sitting={a.Sitting.OnIt}/{a.Sitting.ChairIndex}";
         }
 
         /// <summary>Tests only: this person heaves this table the way they are facing, as a panicking person stuck behind it would.</summary>

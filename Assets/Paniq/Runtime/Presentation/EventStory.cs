@@ -210,6 +210,7 @@ namespace Paniq.Presentation
                         case CueKind.HomeTime: return "it was home time";
                         case CueKind.Chat: return $"{who} and {whom} had a chat";
                         case CueKind.ToiletTrip: return $"{who} went to the toilet";
+                        case CueKind.GoHome: return $"{who} went back to their desk";
                         default: return $"{who} called {(CueKind)record.Strength}";
                     }
 

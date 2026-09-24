@@ -319,6 +319,128 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
+    /// One step of what a person does about a cue: a kind, where it is aimed,
+    /// and a range of ticks for the steps that take a while. A cue's script
+    /// is a list of these, and that list is what a future event editor edits.
+    /// </summary>
+    [Serializable]
+    public struct ErrandStep
+    {
+        [UnityEngine.SerializeField] private ErrandStepKind kind;
+        [UnityEngine.SerializeField] private ErrandTarget target;
+        [UnityEngine.SerializeField] private int minimumTicks;
+        [UnityEngine.SerializeField] private int maximumTicks;
+
+        public ErrandStep(ErrandStepKind kind, ErrandTarget target = ErrandTarget.None, int minimumTicks = 0, int maximumTicks = 0)
+        {
+            this.kind = kind;
+            this.target = target;
+            this.minimumTicks = minimumTicks;
+            this.maximumTicks = maximumTicks;
+        }
+
+        public ErrandStepKind Kind => kind;
+        public ErrandTarget Target => target;
+
+        /// <summary>For a step that takes a while: how long, drawn from this range. Nought to nought means until something else ends it.</summary>
+        public int MinimumTicks => minimumTicks;
+
+        public int MaximumTicks => maximumTicks;
+
+        /// <summary>The same step with another range.</summary>
+        public ErrandStep WithTicks(int minimum, int maximum)
+        {
+            return new ErrandStep(kind, target, minimum, maximum);
+        }
+    }
+
+    /// <summary>
+    /// What a cue is: who it reaches, who speaks for it, and what the people
+    /// it reaches do about it, step by step. One per <see cref="CueKind"/>
+    /// in a scenario. The kind is the cue's name in the log and in the
+    /// editor; everything else about it is this data.
+    /// </summary>
+    [Serializable]
+    public struct CueDefinition
+    {
+        [UnityEngine.SerializeField] private CueKind kind;
+        [UnityEngine.SerializeField] private CueAudience audience;
+        [UnityEngine.SerializeField] private CueHostRule host;
+        [UnityEngine.SerializeField] private bool writtenDown;
+        [UnityEngine.SerializeField] private ErrandStep[] hostScript;
+        [UnityEngine.SerializeField] private ErrandStep[] script;
+
+        public CueDefinition(CueKind kind, CueAudience audience, CueHostRule host, bool writtenDown,
+            ErrandStep[] script, ErrandStep[] hostScript = null)
+        {
+            this.kind = kind;
+            this.audience = audience;
+            this.host = host;
+            this.writtenDown = writtenDown;
+            this.script = script ?? Array.Empty<ErrandStep>();
+            this.hostScript = hostScript ?? Array.Empty<ErrandStep>();
+        }
+
+        public CueKind Kind => kind;
+        public CueAudience Audience => audience;
+        public CueHostRule Host => host;
+
+        /// <summary>Whether calling it is a line in the story. A person's own small idea need not be.</summary>
+        public bool WrittenDown => writtenDown;
+
+        /// <summary>What everybody the cue reaches does about it.</summary>
+        public ErrandStep[] Script => script;
+
+        /// <summary>What the host does about it, when the cue has one; empty means the same as everybody else.</summary>
+        public ErrandStep[] HostScript => hostScript;
+
+        /// <summary>The timetable may call a cue that reaches a room or the whole building; a person's own idea it may not.</summary>
+        public bool IsSchedulable => audience == CueAudience.Room || audience == CueAudience.Building;
+
+        /// <summary>The same cue with another script.</summary>
+        public CueDefinition WithScript(ErrandStep[] steps)
+        {
+            return new CueDefinition(kind, audience, host, writtenDown, steps, hostScript);
+        }
+
+        // Arrays inside: compared step by step, so an asset written from the
+        // code compares equal to the code (see PowerLineDefinition).
+        public override bool Equals(object obj)
+        {
+            return obj is CueDefinition other && kind == other.kind && audience == other.audience && host == other.host &&
+                   writtenDown == other.writtenDown && SameSteps(script, other.script) && SameSteps(hostScript, other.hostScript);
+        }
+
+        private static bool SameSteps(ErrandStep[] a, ErrandStep[] b)
+        {
+            a ??= Array.Empty<ErrandStep>();
+            b ??= Array.Empty<ErrandStep>();
+            if (a.Length != b.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (!a[i].Equals(b[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public override int GetHashCode()
+        {
+            int hash = ((int)kind * 397) ^ (int)audience;
+            hash = (hash * 397) ^ (int)host;
+            hash = (hash * 397) ^ (script?.Length ?? 0);
+            return (hash * 397) ^ (hostScript?.Length ?? 0);
+        }
+    }
+
+    /// <summary>
     /// One run of cable between two electrical things, as a line of corners in
     /// whole millimetres following the walls.
     /// <para>
@@ -558,9 +680,13 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "65";
+        public string ContentRevision = "66";
         public ulong DefaultSeed = 42UL;
 
+        // 54: an errand is a list of steps from a cue's script (data on the
+        // scenario), a person keeps hold of a chair through a glance and
+        // waits for one that is still sliding, and the host of a room cue is
+        // up first; six of thirteen fingerprints.
         // 53: a tick that got somewhere forgives one stuck tick instead of
         // wiping the count. A crush that shoves somebody a hand's width
         // sideways every few ticks no longer counts as getting somewhere, so
@@ -602,7 +728,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 53;
+        public int SimulationCompatibilityVersion = 54;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -660,6 +786,42 @@ namespace Paniq.Simulation
         /// </summary>
         public ScheduledCue[] Timetable = PrototypeBuilding.DefaultTimetable();
 
+        /// <summary>
+        /// What each kind of cue is: who it reaches and what they do about
+        /// it, step by step (<see cref="CueDefinition"/>). One per kind. The
+        /// timetable and people's own ideas call these by kind.
+        /// </summary>
+        public CueDefinition[] Cues = PrototypeBuilding.DefaultCues();
+
+        /// <summary>The definition of this kind of cue. Validation guarantees there is one of each.</summary>
+        public CueDefinition CueOf(CueKind kind)
+        {
+            for (int i = 0; i < Cues.Length; i++)
+            {
+                if (Cues[i].Kind == kind)
+                {
+                    return Cues[i];
+                }
+            }
+
+            throw new InvalidOperationException($"This scenario has no definition of the {kind} cue.");
+        }
+
+        /// <summary>Replaces the definition of one kind of cue, for a test that wants a shorter stay or a longer chat.</summary>
+        public void ReplaceCue(CueDefinition definition)
+        {
+            for (int i = 0; i < Cues.Length; i++)
+            {
+                if (Cues[i].Kind == definition.Kind)
+                {
+                    Cues[i] = definition;
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException($"This scenario has no definition of the {definition.Kind} cue to replace.");
+        }
+
         /// <summary>A deep copy: changing the copy never changes this one.</summary>
         public ScenarioData Clone()
         {
@@ -699,6 +861,7 @@ namespace Paniq.Simulation
             copy.PowerLines = (PowerLineDefinition[])PowerLines?.Clone();
             copy.ExitSigns = (ExitSignDefinition[])ExitSigns?.Clone();
             copy.Timetable = (ScheduledCue[])Timetable?.Clone();
+            copy.Cues = (CueDefinition[])Cues?.Clone();
             return copy;
         }
 
@@ -826,14 +989,94 @@ namespace Paniq.Simulation
             ValidateAlarms(ids);
             ValidateBlastHoles(ids);
             ValidatePowerLines();
+            ValidateCues();
             ValidateTimetable(roomIds);
         }
 
         /// <summary>
-        /// The timetable: every entry a kind the Director can call, on a tick
-        /// of the run, with a room only where the cue happens in one and that
-        /// room a room the building has. A chat or a toilet trip cannot be
-        /// scheduled: those are a person's own idea.
+        /// One definition of every kind of cue, each with a script the errand
+        /// behaviour can carry out: known steps and targets, ranges the right
+        /// way round, a partner only for a cue about a pair, a host only for a
+        /// cue in a room.
+        /// </summary>
+        private void ValidateCues()
+        {
+            Cues ??= Array.Empty<CueDefinition>();
+            foreach (CueKind kind in Enum.GetValues(typeof(CueKind)))
+            {
+                int found = 0;
+                for (int i = 0; i < Cues.Length; i++)
+                {
+                    found += Cues[i].Kind == kind ? 1 : 0;
+                }
+
+                if (found != 1)
+                {
+                    throw new InvalidOperationException($"A scenario needs exactly one definition of the {kind} cue; this one has {found}.");
+                }
+            }
+
+            for (int i = 0; i < Cues.Length; i++)
+            {
+                CueDefinition cue = Cues[i];
+                if (!Enum.IsDefined(typeof(CueAudience), cue.Audience) || !Enum.IsDefined(typeof(CueHostRule), cue.Host))
+                {
+                    throw new InvalidOperationException($"The {cue.Kind} cue has an unknown audience or host rule.");
+                }
+
+                if (cue.Host != CueHostRule.Nobody && cue.Audience != CueAudience.Room)
+                {
+                    throw new InvalidOperationException($"The {cue.Kind} cue has a host, and only a cue in a room has one.");
+                }
+
+                ValidateScript(cue, cue.Script, "script");
+                ValidateScript(cue, cue.HostScript, "host script");
+            }
+        }
+
+        private static void ValidateScript(CueDefinition cue, ErrandStep[] steps, string which)
+        {
+            for (int s = 0; s < (steps?.Length ?? 0); s++)
+            {
+                ErrandStep step = steps[s];
+                if (!Enum.IsDefined(typeof(ErrandStepKind), step.Kind) || !Enum.IsDefined(typeof(ErrandTarget), step.Target))
+                {
+                    throw new InvalidOperationException($"The {cue.Kind} cue's {which}, step {s}, has an unknown kind or target.");
+                }
+
+                if (step.MinimumTicks < 0 || step.MaximumTicks < step.MinimumTicks)
+                {
+                    throw new InvalidOperationException($"The {cue.Kind} cue's {which}, step {s}, has its range the wrong way round.");
+                }
+
+                if (step.Target == ErrandTarget.Partner && cue.Audience != CueAudience.Pair)
+                {
+                    throw new InvalidOperationException($"The {cue.Kind} cue's {which}, step {s}, is aimed at a partner, and only a cue about a pair has one.");
+                }
+
+                bool needsATarget = step.Kind == ErrandStepKind.GoTo || step.Kind == ErrandStepKind.SitOn;
+                if (needsATarget && step.Target == ErrandTarget.None)
+                {
+                    throw new InvalidOperationException($"The {cue.Kind} cue's {which}, step {s}, goes nowhere.");
+                }
+
+                if (step.Kind == ErrandStepKind.StandFor && step.MaximumTicks < 1)
+                {
+                    throw new InvalidOperationException($"The {cue.Kind} cue's {which}, step {s}, stands for no time at all.");
+                }
+
+                if (step.Kind == ErrandStepKind.Talk && cue.Audience != CueAudience.Pair)
+                {
+                    throw new InvalidOperationException($"The {cue.Kind} cue's {which}, step {s}, talks to nobody.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// The timetable: every entry a kind the Director can call (one that
+        /// reaches a room or the whole building), on a tick of the run, with a
+        /// room only where the cue happens in one and that room a room the
+        /// building has.
         /// </summary>
         private void ValidateTimetable(HashSet<SimulationId> roomIds)
         {
@@ -851,26 +1094,22 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Timetable entry {i} ({cue.Kind}) needs a tick of at least 1 and a spread of at least 0.");
                 }
 
-                switch (cue.Kind)
+                CueDefinition definition = CueOf(cue.Kind);
+                if (!definition.IsSchedulable)
                 {
-                    case CueKind.MeetingEnds:
-                        if (!roomIds.Contains(cue.RoomId))
-                        {
-                            throw new InvalidOperationException(
-                                $"Timetable entry {i} ends a meeting in room {cue.RoomId}, which the building does not have.");
-                        }
+                    throw new InvalidOperationException(
+                        $"Timetable entry {i}: {cue.Kind} is somebody's own idea and cannot be scheduled.");
+                }
 
-                        break;
-                    case CueKind.HomeTime:
-                        if (cue.NamesARoom)
-                        {
-                            throw new InvalidOperationException($"Timetable entry {i}: home time is for the whole building, not a room.");
-                        }
+                if (definition.Audience == CueAudience.Room && !roomIds.Contains(cue.RoomId))
+                {
+                    throw new InvalidOperationException(
+                        $"Timetable entry {i} calls {cue.Kind} in room {cue.RoomId}, which the building does not have.");
+                }
 
-                        break;
-                    default:
-                        throw new InvalidOperationException(
-                            $"Timetable entry {i}: {cue.Kind} is somebody's own idea and cannot be scheduled.");
+                if (definition.Audience == CueAudience.Building && cue.NamesARoom)
+                {
+                    throw new InvalidOperationException($"Timetable entry {i}: {cue.Kind} is for the whole building, not a room.");
                 }
             }
         }

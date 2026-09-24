@@ -27,15 +27,24 @@ door if it is locked. All of it goes into the story on the end card.
 ## Three words
 
 - A **cue** is one of these small events: *the meeting ends*, *home time*, *a
-  chat*, *a toilet trip*. The word is chosen because "event" already means a
-  line in the causal log. A cue is written into the log once
-  (`CausalEventType.CueCalled`, with the kind as its strength) and then
-  reaches people.
-- An **errand** is what one person does about a cue: a purpose with a place.
-  Go home, leave the building, visit the toilet, talk to somebody. An errand
-  is carried out with the behaviours that already exist: the route fields for
-  the walk, the door system for the doors on the way, the chair behaviour for
-  the sit at the end, the sound system for a remark.
+  chat*, *a toilet trip*, *back to my desk*. The word is chosen because
+  "event" already means a line in the causal log. A cue is written into the
+  log once (`CausalEventType.CueCalled`, with the kind as its strength) and
+  then reaches people. What a cue *is* -- who it reaches, who speaks for it,
+  and what they do about it -- is data on the scenario (`CueDefinition`, one
+  per `CueKind`), not code.
+- An **errand** is what one person does about a cue: the cue's **script**,
+  a short list of **steps** from a fixed vocabulary, carried out one at a
+  time. The steps are: go to (their own chair or spot, the nearest free
+  stall, the person the cue is about, or home or where they stood), sit on
+  (their own chair), stand for a while, say something, talk, shut the door
+  of the small room they are in, open it, and leave the building. The toilet
+  trip, for instance, is *go to a free stall, shut the door, stand for ten to
+  thirty seconds, open the door, go home, sit on your chair*. Every step is
+  carried out with the behaviours that already exist: the route fields for
+  the walk, the door system for the doors on the way, the chair behaviour
+  for the sit, the sound system for a remark. A new cue is a new list, not
+  new code, and the list is what a future event editor edits.
 - The **Director** is the background system that calls cues from the level's
   **timetable**. Today the timetable is all it does; the reactive Director of
   the [game vision](game-vision.md), which adds and eases pressure by watching
@@ -49,9 +58,12 @@ door if it is locked. All of it goes into the story on the end card.
 | A person | a band of the same dice roll every calm person makes when choosing what to do next (`CalmBehaviour.ChooseActivity`) | a toilet trip, a chat, going back to their desk |
 | The player | `PlayerCommandType.CallHomeTime`, free like the trigger, consumed before the hand is consulted; logged as `PowerCalledHomeTime`, the root cause of the cue it calls | home time for the whole building; nothing on the screen is wired to it yet |
 
-Whoever calls it, a cue ends in `CueSystem`, which decides its audience (a
-room, the whole building, one person, a pair) and hands every calm, upright
-person in it a pending errand.
+Whoever calls it, a cue ends in `CueSystem`, which reads the cue's
+definition for its audience (the caller alone, the caller and one other
+person, a room, the whole building) and hands every calm, upright person in
+it a pending errand. Only a cue that reaches a room or the whole building may
+be on the timetable; the rule is the definition's, checked once, in the
+scenario, the Director and the bake tool alike.
 
 ## The rules a cue obeys
 
@@ -89,16 +101,26 @@ cues use: calling a meeting, walking the visitors out, a fire drill.
 
 ## How an errand is carried out
 
-`AgentErrand` is a fixed record on each person: the kind, the phase, when it
-starts, when the current phase gives up, the room and door it is about, the
-partner, the place, the cause. Nothing is allocated.
+`AgentErrand` is a fixed record on each person: which cue, which step of its
+script, the phase of that step, when it starts, when the current phase gives
+up, the room and door it is about, the partner, the place, the cause. Nothing
+is allocated. `ErrandBehaviour` begins each step in turn; a step that does
+not apply to this person (sit on your chair, for somebody with none) is
+skipped, and an errand aimed at something that is not there (a free stall,
+a partner who has gone) ends.
 
-| Errand | Steps |
+| Cue | Script, as shipped on the office level |
 | --- | --- |
-| Go home | out of whatever chair they are in; walk to their own chair or spot, room to room; near it, the chair behaviour takes over and seats them. Somebody with no home (a visitor) gets up and loiters |
-| Visit the toilet | the nearest free stall by walking distance (a room whose `Use` is `Stall`); walk there, opening doors on the way; shut the stall door; stay a drawn while; open it; then home, or loiter |
-| Chat | the one whose idea it was walks over; the other is hailed and turns to face them, a few ticks late; both stand talking; the first thing each says is heard nearby (`SoundSystem.Say`) and neighbours glance over; the rest is only written down; it ends when either has had enough or the other is gone |
-| Leave the building | the way out that is the shortest walk, worked out again in every new room; walk to each door on the route, open it if it is shut, wait beside it if it is locked or wedged; through the way out and gone |
+| The meeting ends | go to your own chair or spot, sit on it. The host follows the same script first. Somebody with no home (a visitor) gets up and loiters |
+| Back to my desk | the same script, as a person's own idea |
+| Toilet trip | go to the nearest free stall (a room whose `Use` is `Stall`), opening doors on the way; shut its door; stand for ten to thirty seconds; open the door; go home; sit |
+| Chat | go to the partner; talk for six to eighteen seconds. The one whose idea it was walks over; the other is hailed and turns to face them, a few ticks late. The first thing each says is heard nearby (`SoundSystem.Say`) and neighbours glance over; the rest is only written down; it ends when the chat's time is up or the other is gone |
+| Home time | leave: the way out that is the shortest walk, worked out again in every new room; each door on the route opened if shut, waited at if locked or wedged; through the way out and gone |
+
+Every "go to" walks room to room, opening the doors on the way, and every
+step gives up if it is going nowhere: stuck for `DaySettings.BlockedGiveUpTicks`
+(three seconds; somebody leaving never gives up for being stuck, a queue is
+the point of them) or past `DaySettings.ErrandTimeoutTicks`.
 
 Two things make this different from the calm behaviour before it:
 
@@ -129,6 +151,10 @@ lists it.
 
 All of it is plain data on the scenario, editable in Unity's Inspector today:
 
+- `ScenarioData.Cues`: one `CueDefinition` per kind -- audience, host rule,
+  whether it is written down, and the script of steps (`ErrandStep`: kind,
+  target, a range of ticks). Change the toilet trip's stay, give the meeting
+  end a speech, or write a new cue's steps here.
 - `ScenarioData.Timetable`: a list of `ScheduledCue` (kind, tick, spread,
   room). A scene can place `Paniq > Cue` components instead, and the bake
   tool writes them into the timetable; a scene with none keeps the timetable

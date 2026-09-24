@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
@@ -99,7 +99,7 @@ namespace Paniq.Tests.EditMode
                 for (int i = 0; i < simulation.AgentCount; i++)
                 {
                     AgentErrand errand = simulation.ErrandForTests(i);
-                    if (errand.Kind != ErrandKind.GoHome || errand.CauseEventId != cue)
+                    if (!errand.Has || errand.Cue != CueKind.MeetingEnds || errand.CauseEventId != cue)
                     {
                         continue;
                     }
@@ -149,7 +149,7 @@ namespace Paniq.Tests.EditMode
                 for (int i = 0; i < simulation.AgentCount; i++)
                 {
                     AgentErrand errand = simulation.ErrandForTests(i);
-                    Assert.That(errand.Kind, Is.EqualTo(ErrandKind.LeaveTheBuilding),
+                    Assert.That(errand.Has && errand.Cue == CueKind.HomeTime, Is.True,
                         $"Person {simulation.GetAgent(i).AgentId} was not told it was home time.");
                     Assert.That(errand.CauseEventId, Is.EqualTo(cue));
                     Assert.That(errand.StartTick, Is.GreaterThan(5), "Nobody reacts on the tick a thing happens.");

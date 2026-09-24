@@ -121,6 +121,54 @@
         }
 
         /// <summary>
+        /// What each kind of cue is, as a script of steps (see
+        /// <see cref="ErrandStepKind"/>). These are content: a level may say
+        /// its meeting ends with a speech, or its toilet trips take longer.
+        /// </summary>
+        public static CueDefinition[] DefaultCues()
+        {
+            ErrandStep[] goHome =
+            {
+                new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.Home),
+                new ErrandStep(ErrandStepKind.SitOn, ErrandTarget.Home)
+            };
+
+            return new[]
+            {
+                // The host is up first; everybody goes back to their desk, or,
+                // having none on this floor, gets up and loiters.
+                new CueDefinition(CueKind.MeetingEnds, CueAudience.Room, CueHostRule.SeatedWithMostLeadership, true, goHome),
+
+                // Everybody packs up and leaves.
+                new CueDefinition(CueKind.HomeTime, CueAudience.Building, CueHostRule.Nobody, true,
+                    new[] { new ErrandStep(ErrandStepKind.Leave) }),
+
+                // Over to the other person and a talk, six to eighteen seconds.
+                new CueDefinition(CueKind.Chat, CueAudience.Pair, CueHostRule.Nobody, true,
+                    new[]
+                    {
+                        new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.Partner),
+                        new ErrandStep(ErrandStepKind.Talk, ErrandTarget.Partner, 300, 900)
+                    }),
+
+                // Into a free stall, door shut, ten to thirty seconds, door open, and back.
+                new CueDefinition(CueKind.ToiletTrip, CueAudience.Self, CueHostRule.Nobody, true,
+                    new[]
+                    {
+                        new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.FreeStall),
+                        new ErrandStep(ErrandStepKind.ShutTheDoor),
+                        new ErrandStep(ErrandStepKind.StandFor, ErrandTarget.None, 500, 1500),
+                        new ErrandStep(ErrandStepKind.OpenTheDoor),
+                        new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.Home),
+                        new ErrandStep(ErrandStepKind.SitOn, ErrandTarget.Home)
+                    }),
+
+                // Back to their own desk: their own idea, and nobody else's business.
+                new CueDefinition(CueKind.GoHome, CueAudience.Self, CueHostRule.Nobody, false, goHome)
+            };
+        }
+
+        /// <summary>
         /// The signs pointing the way out: three down the corridor pointing
         /// east toward the T, and one in each arm of the T pointing north at
         /// the door. The south arm gets one too, because somebody who has run

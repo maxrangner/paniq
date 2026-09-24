@@ -312,15 +312,20 @@ namespace Paniq.EditorTools
             var baked = new List<ScheduledCue>();
             foreach (PaniqCue cue in cues)
             {
-                if (cue.Kind != CueKind.MeetingEnds && cue.Kind != CueKind.HomeTime)
+                // What may be scheduled comes from the cue's own definition,
+                // the same rule the run checks: one that reaches a room or the
+                // whole building, and a room named only for the former.
+                CueDefinition definition = data.CueOf(cue.Kind);
+                if (!definition.IsSchedulable)
                 {
                     problems.Add("Cue " + cue.name + " is a " + cue.Kind + ", which is somebody's own idea and cannot be scheduled.");
                     continue;
                 }
 
-                if (cue.Kind == CueKind.MeetingEnds && cue.Room == null)
+                bool inARoom = definition.Audience == CueAudience.Room;
+                if (inARoom && cue.Room == null)
                 {
-                    problems.Add("Cue " + cue.name + " ends a meeting but does not say in which room.");
+                    problems.Add("Cue " + cue.name + " happens in a room but does not say which.");
                     continue;
                 }
 
@@ -328,7 +333,7 @@ namespace Paniq.EditorTools
                     cue.Kind,
                     Mathf.Max(1, Mathf.RoundToInt(cue.AtSeconds * Run.TicksPerSecond)),
                     Mathf.Max(0, Mathf.RoundToInt(cue.SpreadSeconds * Run.TicksPerSecond)),
-                    cue.Kind == CueKind.MeetingEnds ? new SimulationId((ulong)cue.Room.RoomId) : default));
+                    inARoom ? new SimulationId((ulong)cue.Room.RoomId) : default));
             }
 
             baked.Sort((left, right) => left.AtTick.CompareTo(right.AtTick));

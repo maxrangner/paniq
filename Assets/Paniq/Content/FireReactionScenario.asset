@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 65
+    ContentRevision: 66
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 53
+    SimulationCompatibilityVersion: 54
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -577,12 +577,8 @@ MonoBehaviour:
       BangAlarmRadiusMillimetres: 12000
     Day:
       ToiletEveryTicks: 18000
-      ToiletStayMinimumTicks: 500
-      ToiletStayMaximumTicks: 1500
       GoHomeChancePercent: 10
       AtHomeMillimetres: 1500
-      ChatMinimumTicks: 300
-      ChatMaximumTicks: 900
       RemarkEveryMinimumTicks: 150
       RemarkEveryMaximumTicks: 400
       RemarkHearingRadiusMillimetres: 2500
@@ -2093,3 +2089,86 @@ MonoBehaviour:
       spreadTicks: 400
       roomId:
         value: 5005
+    Cues:
+    - kind: 0
+      audience: 2
+      host: 1
+      writtenDown: 1
+      hostScript: []
+      script:
+      - kind: 0
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 1
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+    - kind: 1
+      audience: 3
+      host: 0
+      writtenDown: 1
+      hostScript: []
+      script:
+      - kind: 7
+        target: 0
+        minimumTicks: 0
+        maximumTicks: 0
+    - kind: 2
+      audience: 1
+      host: 0
+      writtenDown: 1
+      hostScript: []
+      script:
+      - kind: 0
+        target: 3
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 4
+        target: 3
+        minimumTicks: 300
+        maximumTicks: 900
+    - kind: 3
+      audience: 0
+      host: 0
+      writtenDown: 1
+      hostScript: []
+      script:
+      - kind: 0
+        target: 2
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 5
+        target: 0
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 2
+        target: 0
+        minimumTicks: 500
+        maximumTicks: 1500
+      - kind: 6
+        target: 0
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 0
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 1
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+    - kind: 4
+      audience: 0
+      host: 0
+      writtenDown: 0
+      hostScript: []
+      script:
+      - kind: 0
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0
+      - kind: 1
+        target: 1
+        minimumTicks: 0
+        maximumTicks: 0

@@ -1890,10 +1890,6 @@ namespace Paniq.Simulation
         /// </summary>
         public int ToiletEveryTicks = 18000;
 
-        /// <summary>How long they stay in the stall with the door shut. Drawn from this range, as sits and freezes are.</summary>
-        public int ToiletStayMinimumTicks = 500;
-        public int ToiletStayMaximumTicks = 1500;
-
         /// <summary>
         /// How often a calm person who has a desk and is not at it decides
         /// to go back to it. This is what keeps an office reading as an
@@ -1904,10 +1900,6 @@ namespace Paniq.Simulation
 
         /// <summary>Within this distance of their spot, or on their chair, somebody counts as at home.</summary>
         public int AtHomeMillimetres = 1500;
-
-        /// <summary>How long two people talk for, drawn from this range.</summary>
-        public int ChatMinimumTicks = 300;
-        public int ChatMaximumTicks = 900;
 
         /// <summary>How often somebody talking says something, drawn from this range.</summary>
         public int RemarkEveryMinimumTicks = 150;
@@ -1959,8 +1951,6 @@ namespace Paniq.Simulation
         internal void Validate()
         {
             Settings.Require(ToiletEveryTicks >= 0 && Settings.Percent(GoHomeChancePercent), "day chances");
-            Settings.Require(Settings.Range(ToiletStayMinimumTicks, ToiletStayMaximumTicks, 1), "toilet stay");
-            Settings.Require(Settings.Range(ChatMinimumTicks, ChatMaximumTicks, 1), "chat length");
             Settings.Require(Settings.Range(RemarkEveryMinimumTicks, RemarkEveryMaximumTicks, 1), "remarks");
             Settings.Require(RemarkHearingRadiusMillimetres >= 0 && AtHomeMillimetres >= 0, "remark reach and home");
             Settings.Require(ErrandTimeoutTicks >= 1 && BlockedGiveUpTicks >= 1 && WaitAtLockedDoorTicks >= 0 &&

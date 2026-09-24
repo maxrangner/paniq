@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
@@ -32,12 +32,24 @@ namespace Paniq.Tests.EditMode
             UnityEngine.Object.DestroyImmediate(scenario);
         }
 
-        /// <summary>A calm day: the hazard waits to be triggered and nobody presses anything.</summary>
+        /// <summary>
+        /// A calm day: the hazard waits to be triggered and nobody presses
+        /// anything. Nobody cruel enough to shut and lock a door behind them
+        /// either: the bully strolling through the office door and locking
+        /// it locks everybody in the corridor out, which is the game, and its
+        /// own thing to watch, not what these errands are about.
+        /// </summary>
         private ScenarioData CalmDay()
         {
             ScenarioData data = scenario.ToRuntimeData();
             data.Fire.ActivationTick = int.MaxValue;
             data.Round.HazardWaitsForTrigger = true;
+            data.Exits.EvilCloseMinimum = 11;
+            data.Exits.EvilLockMinimum = 11;
+
+            // And nobody takes a fancy to somebody else's desk chair while
+            // they are away from it: a chair found taken is its own thing.
+            data.Items.SitChancePercent = 0;
             return data;
         }
 
@@ -135,12 +147,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = CalmDay();
             data.Day.ToiletEveryTicks = 0;
-            data.Day.ToiletStayMinimumTicks = 100;
-            data.Day.ToiletStayMaximumTicks = 150;
-
-            // Nobody else takes a fancy to 1001's chair while they are away;
-            // somebody's chair being taken is its own thing, not this test's.
-            data.Items.SitChancePercent = 0;
+            TheBuilding.WithToiletStay(data, 100, 150);
             using (var simulation = new Run(data))
             {
                 int person = IndexOf(simulation, 1001UL);
@@ -208,8 +215,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = CalmDay();
             data.Day.ToiletEveryTicks = 0;
-            data.Day.ToiletStayMinimumTicks = 3000;
-            data.Day.ToiletStayMaximumTicks = 3000;
+            TheBuilding.WithToiletStay(data, 3000, 3000);
             using (var simulation = new Run(data))
             {
                 int person = IndexOf(simulation, 1019UL);
@@ -218,12 +224,12 @@ namespace Paniq.Tests.EditMode
                 for (int t = 0; t < 60 * Run.TicksPerSecond && !staying; t++)
                 {
                     simulation.Step();
-                    staying = simulation.ErrandForTests(person).Phase == ErrandPhase.Staying;
+                    staying = simulation.ErrandForTests(person).Phase == ErrandPhase.Standing;
                 }
 
                 Assert.That(staying, Is.True, "They should be in the stall: " + simulation.DescribeForTests(person));
                 simulation.FrightenForTests(person);
-                Assert.That(simulation.ErrandForTests(person).Kind, Is.EqualTo(ErrandKind.None), "Fear has its own rules; the errand is gone.");
+                Assert.That(simulation.ErrandForTests(person).Has, Is.False, "Fear has its own rules; the errand is gone.");
                 Advance(simulation, 5);
                 Assert.That(simulation.GetAgent(person).FearState, Is.Not.EqualTo(AgentFearState.Calm));
             }
@@ -233,11 +239,13 @@ namespace Paniq.Tests.EditMode
         public void AChat_HasBothFacingEachOther_ANeighbourGlancing_AndEndsWhenOneIsFrightened()
         {
             ScenarioData data = CalmDay();
-            data.Day.ChatMinimumTicks = 1500;
-            data.Day.ChatMaximumTicks = 1500;
+            TheBuilding.WithChatLength(data, 1500, 1500);
 
-            // Loud enough that the rest of the office is sure to look over.
+            // Loud enough that the rest of the office is sure to look over,
+            // and talkative enough that both have spoken inside a few seconds.
             data.Day.RemarkHearingRadiusMillimetres = 6000;
+            data.Day.RemarkEveryMinimumTicks = 50;
+            data.Day.RemarkEveryMaximumTicks = 100;
             using (var simulation = new Run(data))
             {
                 int a = IndexOf(simulation, 1005UL);
@@ -255,12 +263,14 @@ namespace Paniq.Tests.EditMode
 
                 Assert.That(talking, Is.True, "Both should be stood talking: " + simulation.DescribeForTests(a) + " / " + simulation.DescribeForTests(b));
 
-                // A few seconds of talk: close, facing, and saying things.
+                // A few seconds of talk: close, facing, and saying things. One
+                // of them may be glancing at a noise on the tick we look, which
+                // is a glance mid-chat, not the end of it: the chat itself holds.
                 Advance(simulation, 6 * Run.TicksPerSecond);
                 AgentSnapshot one = simulation.GetAgent(a);
                 AgentSnapshot other = simulation.GetAgent(b);
-                Assert.That(one.ActivityState, Is.EqualTo(AgentActivityState.Chatting));
-                Assert.That(other.ActivityState, Is.EqualTo(AgentActivityState.Chatting));
+                Assert.That(simulation.ErrandForTests(a).Phase, Is.EqualTo(ErrandPhase.Talking), simulation.DescribeForTests(a));
+                Assert.That(simulation.ErrandForTests(b).Phase, Is.EqualTo(ErrandPhase.Talking), simulation.DescribeForTests(b));
                 Assert.That(IntegerMath.Distance(one.Position, other.Position),
                     Is.LessThanOrEqualTo(data.Calm.SocialStopDistanceMillimetres + 400), "Within arm's reach of each other.");
                 int oneToOther = IntegerMath.HeadingBetween(one.Position, other.Position, one.HeadingDegrees);
@@ -296,11 +306,11 @@ namespace Paniq.Tests.EditMode
                 // One of them is frightened: the other notices a moment later
                 // and the chat is over for both.
                 simulation.FrightenForTests(a);
-                Assert.That(simulation.ErrandForTests(a).Kind, Is.EqualTo(ErrandKind.None));
+                Assert.That(simulation.ErrandForTests(a).Has, Is.False);
                 Advance(simulation, data.Perception.ReactionLagMaximumTicks + 2);
                 Assert.That(simulation.GetAgent(b).ActivityState, Is.Not.EqualTo(AgentActivityState.Chatting),
                     "Nobody stands talking to somebody who has run off screaming: " + simulation.DescribeForTests(b));
-                Assert.That(simulation.ErrandForTests(b).Kind, Is.EqualTo(ErrandKind.None));
+                Assert.That(simulation.ErrandForTests(b).Has, Is.False);
             }
         }
 
@@ -308,11 +318,6 @@ namespace Paniq.Tests.EditMode
         public void HomeTime_WithTheWayOutOpen_EverybodyLeavesCalmly_AndNobodyIsPaidFor()
         {
             ScenarioData data = TheBuilding.WithThePlayerAbleToAct(CalmDay());
-
-            // Nobody cruel enough to slam the front door behind them: that is
-            // its own thing to watch, not this test's.
-            data.Exits.EvilCloseMinimum = 11;
-            data.Exits.EvilLockMinimum = 11;
             using (var simulation = new Run(data))
             {
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, 5);
@@ -412,7 +417,7 @@ namespace Paniq.Tests.EditMode
                 LogicalPosition beside = simulation.GetAgent(person).Position + new LogicalPosition(1000, 0);
                 simulation.MakeANoiseForTests(beside);
                 Assert.That(simulation.GetAgent(person).ActivityState, Is.EqualTo(AgentActivityState.Investigating), "They turn to look.");
-                Assert.That(simulation.ErrandForTests(person).Kind, Is.EqualTo(ErrandKind.GoHome), "But the errand is not forgotten.");
+                Assert.That(simulation.ErrandForTests(person).Has && simulation.ErrandForTests(person).Cue == CueKind.GoHome, Is.True, "But the errand is not forgotten.");
 
                 bool seated = false;
                 for (int t = 0; t < 90 * Run.TicksPerSecond && !seated; t++)

@@ -1,3 +1,5 @@
+﻿using System;
+
 namespace Paniq.Simulation
 {
     /// <summary>
@@ -6,6 +8,13 @@ namespace Paniq.Simulation
     /// somebody starts a chat, somebody goes to the toilet. A cue is called
     /// by the Director from the level's timetable, by a person as their own
     /// idea, or by the player; whoever calls it, it ends here.
+    /// <para>
+    /// What a cue <em>is</em> -- who it reaches, who speaks for it, and what
+    /// they do about it step by step -- is data on the scenario
+    /// (<see cref="CueDefinition"/>), one per <see cref="CueKind"/>. This
+    /// system only works out the audience and hands each person the cue;
+    /// <see cref="ErrandBehaviour"/> carries the script out.
+    /// </para>
     /// <para>
     /// A cue is delivered the way a leader's shout is, never by reaching into
     /// heads: it is written into the log once, and every calm person in its
@@ -16,10 +25,9 @@ namespace Paniq.Simulation
     /// rules, and nothing here switches on an event's name.
     /// </para>
     /// <para>
-    /// The leader's part: a meeting is ended by its <em>host</em>, the seated
-    /// person in the room with the most leadership, who is the cue's source
-    /// and the first on their feet. Later cues -- calling a meeting, walking
-    /// the visitors out, a fire drill -- use the same host rule.
+    /// The leader's part: a cue in a room may have a <em>host</em>, the seated
+    /// person in the room with the most leadership, who is the cue's source,
+    /// follows the host script, and is the first on their feet.
     /// </para>
     /// </summary>
     internal sealed class CueSystem
@@ -27,28 +35,139 @@ namespace Paniq.Simulation
         private readonly SimulationContext context;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
-        private readonly DaySettings settings;
+
+        /// <summary>Every kind's definition, by kind, looked up once.</summary>
+        private readonly CueDefinition[] definitions;
 
         public CueSystem(SimulationContext context, Crowd crowd, WorldGeometry geometry)
         {
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
-            settings = context.Scenario.Day;
+            definitions = new CueDefinition[System.Enum.GetValues(typeof(CueKind)).Length];
+            for (int i = 0; i < definitions.Length; i++)
+            {
+                definitions[i] = context.Scenario.CueOf((CueKind)i);
+            }
+        }
+
+        public CueDefinition DefinitionOf(CueKind kind) => definitions[(int)kind];
+
+        /// <summary>
+        /// Calls a cue. Who it reaches follows its definition: the caller
+        /// alone, the caller and the person it is about, everybody calm in
+        /// <paramref name="room"/>, or everybody calm in the building. Returns
+        /// the cue's line in the story, or 0 when nothing was called (a chat
+        /// with somebody who is not free, an idea somebody with a cue waiting
+        /// on them may not have).
+        /// </summary>
+        public ulong Call(CueKind kind, Agent caller, int room, Agent partner, int spreadTicks, ulong causeEventId)
+        {
+            CueDefinition cue = definitions[(int)kind];
+            switch (cue.Audience)
+            {
+                case CueAudience.Self:
+                    return CallForOne(cue, caller, causeEventId);
+                case CueAudience.Pair:
+                    return CallForTwo(cue, caller, partner, causeEventId);
+                case CueAudience.Room:
+                    return CallInRoom(cue, room, spreadTicks, causeEventId);
+                default:
+                    return CallInBuilding(cue, spreadTicks, causeEventId);
+            }
+        }
+
+        /// <summary>The meeting in this room is over: the host says so and is up first; everybody else follows, each their own while later.</summary>
+        public ulong EndMeeting(int room, int spreadTicks, ulong causeEventId) =>
+            Call(CueKind.MeetingEnds, null, room, null, spreadTicks, causeEventId);
+
+        /// <summary>The end of the working day: everybody calm in the building packs up and heads for the way out, each their own while later.</summary>
+        public ulong CallHomeTime(int spreadTicks, ulong causeEventId) =>
+            Call(CueKind.HomeTime, null, -1, null, spreadTicks, causeEventId);
+
+        /// <summary>Somebody's own idea: over to somebody for a talk. False when either is not free.</summary>
+        public bool StartChat(Agent initiator, Agent partner) =>
+            Call(CueKind.Chat, initiator, -1, partner, 0, 0UL) != 0UL;
+
+        /// <summary>Somebody's own idea: to the toilet. False when a cue is already waiting on them.</summary>
+        public bool StartToiletTrip(Agent person) => Call(CueKind.ToiletTrip, person, -1, null, 0, 0UL) != 0UL;
+
+        /// <summary>Somebody's own idea: back to their desk. False when a cue is already waiting on them.</summary>
+        public bool SendHome(Agent person) => Call(CueKind.GoHome, person, -1, null, 0, 0UL) != 0UL;
+
+        /// <summary>
+        /// A person's own idea: they alone, now, because nobody waits for
+        /// their own idea. Not while a cue is waiting on them: what the
+        /// building asks beats what they thought of.
+        /// </summary>
+        private ulong CallForOne(CueDefinition cue, Agent person, ulong causeEventId)
+        {
+            if (person.Errand.Has)
+            {
+                return 0UL;
+            }
+
+            ulong line = WriteDown(cue, person, person.Body.Position, default, causeEventId);
+            Hand(person, cue.Kind, true, context.Tick, line);
+            return line == 0UL ? ulong.MaxValue : line;
         }
 
         /// <summary>
-        /// The meeting in this room is over. The host says so and is up first;
-        /// everybody else calm in the room follows, each their own while
-        /// later, spread over <paramref name="spreadTicks"/>.
+        /// A person's own idea about another person: their own part starts
+        /// now; the other is hailed and takes it up a few ticks late, like
+        /// every reaction. The length of what they do together (a chat) is
+        /// drawn here, before either is handed it, and held by the one whose
+        /// idea it was.
         /// </summary>
-        public ulong EndMeeting(int room, int spreadTicks, ulong causeEventId)
+        private ulong CallForTwo(CueDefinition cue, Agent initiator, Agent partner, ulong causeEventId)
         {
-            Agent host = HostOf(room);
-            LogicalPosition where = host != null ? host.Body.Position : geometry.RoomBounds(room).Centre;
-            ulong cue = context.Events.Append(context.Tick, host != null ? host.Id : default, CausalEventType.CueCalled,
-                where, (int)CueKind.MeetingEnds, 0, causeEventId, geometry.RoomId(room)).EventId;
+            if (initiator.Errand.Has || partner.Errand.Has || !CanTakeUpACue(partner))
+            {
+                return 0UL;
+            }
 
+            ulong line = WriteDown(cue, initiator, initiator.Body.Position, partner.Id, causeEventId);
+            int endTick = checked(context.Tick + TogetherLength(cue));
+
+            Hand(initiator, cue.Kind, true, context.Tick, line);
+            initiator.Errand.PartnerIndex = partner.Index;
+            initiator.Errand.ChatEndTick = endTick;
+            Hand(partner, cue.Kind, false, context.ReactionTick(), line);
+            partner.Errand.PartnerIndex = initiator.Index;
+            partner.Errand.ChatEndTick = endTick;
+            return line == 0UL ? ulong.MaxValue : line;
+        }
+
+        /// <summary>How long the two of them are together: the range of the script's talk step, drawn from the seed.</summary>
+        private int TogetherLength(CueDefinition cue)
+        {
+            ErrandStep[] script = cue.Script;
+            for (int s = 0; s < script.Length; s++)
+            {
+                if (script[s].Kind == ErrandStepKind.Talk)
+                {
+                    return context.Random.NextIntInclusive(script[s].MinimumTicks, script[s].MaximumTicks);
+                }
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// A cue in a room: the host, if the cue has one, says so and takes it
+        /// up with no spread; everybody else calm in the room follows, each
+        /// their own while later, spread over <paramref name="spreadTicks"/>.
+        /// </summary>
+        private ulong CallInRoom(CueDefinition cue, int room, int spreadTicks, ulong causeEventId)
+        {
+            Agent host = cue.Host == CueHostRule.SeatedWithMostLeadership ? HostOf(room) : null;
+            LogicalPosition where = host != null ? host.Body.Position : geometry.RoomBounds(room).Centre;
+            ulong line = WriteDown(cue, host, where, geometry.RoomId(room), causeEventId);
+
+            // The host is up first, whatever everybody else's own lag and
+            // spread come to: nobody in the room beats the person who called
+            // it, by at least a tick.
+            int hostStart = host != null ? context.ReactionTick() : context.Tick;
             using Crowd.Nearby inRoom = crowd.Gather(geometry.RoomBounds(room));
             for (int c = 0; c < inRoom.Count; c++)
             {
@@ -58,23 +177,23 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                int offset = person == host ? 0 : context.Random.NextIntInclusive(0, spreadTicks);
-                Hand(person, ErrandKind.GoHome, checked(context.ReactionTick() + offset), cue);
+                if (person == host)
+                {
+                    Hand(person, cue.Kind, true, hostStart, line);
+                    continue;
+                }
+
+                int start = Math.Max(context.ReactionTick(), checked(hostStart + 1));
+                Hand(person, cue.Kind, false, checked(start + context.Random.NextIntInclusive(0, spreadTicks)), line);
             }
 
-            return cue;
+            return line;
         }
 
-        /// <summary>
-        /// The end of the working day. Everybody calm in the building packs up
-        /// and heads for the way out, each their own while later, spread over
-        /// <paramref name="spreadTicks"/>. Nobody announces it: people look at
-        /// the clock for themselves.
-        /// </summary>
-        public ulong CallHomeTime(int spreadTicks, ulong causeEventId)
+        /// <summary>A cue for the whole building: everybody calm, each their own while later. Nobody announces it: people look at the clock for themselves.</summary>
+        private ulong CallInBuilding(CueDefinition cue, int spreadTicks, ulong causeEventId)
         {
-            ulong cue = context.Events.Append(context.Tick, default, CausalEventType.CueCalled,
-                geometry.FireArea.Centre, (int)CueKind.HomeTime, 0, causeEventId).EventId;
+            ulong line = WriteDown(cue, null, geometry.FireArea.Centre, default, causeEventId);
             Agent[] agents = crowd.All;
             for (int i = 0; i < agents.Length; i++)
             {
@@ -84,71 +203,22 @@ namespace Paniq.Simulation
                 }
 
                 int offset = context.Random.NextIntInclusive(0, spreadTicks);
-                Hand(agents[i], ErrandKind.LeaveTheBuilding, checked(context.ReactionTick() + offset), cue);
+                Hand(agents[i], cue.Kind, false, checked(context.ReactionTick() + offset), line);
             }
 
-            return cue;
+            return line;
         }
 
-        /// <summary>
-        /// Somebody's own idea: they go over to somebody and talk to them. The
-        /// other person is hailed and turns to face them, a few ticks late like
-        /// every reaction; the two of them talk until one of them has had
-        /// enough or something frightens either. False when the other person
-        /// is not free to be talked to.
-        /// </summary>
-        public bool StartChat(Agent initiator, Agent partner)
+        /// <summary>The cue's line in the story, if it gets one: source is whoever called or hosts it, target the room or the person it is about.</summary>
+        private ulong WriteDown(CueDefinition cue, Agent source, LogicalPosition where, SimulationId target, ulong causeEventId)
         {
-            if (!CanTakeUpACue(partner) || partner.Errand.Kind != ErrandKind.None || initiator.Errand.Kind != ErrandKind.None)
+            if (!cue.WrittenDown)
             {
-                return false;
+                return 0UL;
             }
 
-            ulong cue = context.Events.Append(context.Tick, initiator.Id, CausalEventType.CueCalled,
-                initiator.Body.Position, (int)CueKind.Chat, 0, 0UL, partner.Id).EventId;
-            int until = checked(context.Tick + context.Random.NextIntInclusive(settings.ChatMinimumTicks, settings.ChatMaximumTicks));
-
-            // Their own idea starts now; being hailed is a reaction and starts late.
-            Hand(initiator, ErrandKind.ChatWith, context.Tick, cue);
-            initiator.Errand.PartnerIndex = partner.Index;
-            initiator.Errand.UntilTick = until;
-            Hand(partner, ErrandKind.ChatWith, context.ReactionTick(), cue);
-            partner.Errand.PartnerIndex = initiator.Index;
-            partner.Errand.UntilTick = until;
-            return true;
-        }
-
-        /// <summary>
-        /// Somebody's own idea: they go to the toilet. Starts now, because
-        /// nobody waits for their own idea. Not while a cue is waiting on
-        /// them: what the building asks beats what they thought of.
-        /// </summary>
-        public bool StartToiletTrip(Agent person)
-        {
-            if (person.Errand.Kind != ErrandKind.None)
-            {
-                return false;
-            }
-
-            ulong cue = context.Events.Append(context.Tick, person.Id, CausalEventType.CueCalled,
-                person.Body.Position, (int)CueKind.ToiletTrip).EventId;
-            Hand(person, ErrandKind.VisitTheToilet, context.Tick, cue);
-            return true;
-        }
-
-        /// <summary>
-        /// Somebody's own idea: back to their desk. Not a cue anybody else
-        /// notices, so it is not logged; and not while a cue is waiting on them.
-        /// </summary>
-        public bool SendHome(Agent person)
-        {
-            if (person.Errand.Kind != ErrandKind.None)
-            {
-                return false;
-            }
-
-            Hand(person, ErrandKind.GoHome, context.Tick, 0UL);
-            return true;
+            return context.Events.Append(context.Tick, source != null ? source.Id : default, CausalEventType.CueCalled,
+                where, (int)cue.Kind, 0, causeEventId, target).EventId;
         }
 
         /// <summary>
@@ -194,14 +264,16 @@ namespace Paniq.Simulation
         /// a cue from outside beats a person's own plans, the way home time
         /// beats a chat.
         /// </summary>
-        private static void Hand(Agent person, ErrandKind kind, int startTick, ulong causeEventId)
+        private static void Hand(Agent person, CueKind kind, bool isHost, int startTick, ulong causeEventId)
         {
             AgentErrand errand = person.Errand;
             errand.Clear();
-            errand.Kind = kind;
-            errand.Phase = ErrandPhase.NotStarted;
+            errand.Has = true;
+            errand.Cue = kind;
+            errand.IsHost = isHost;
             errand.StartTick = startTick;
             errand.CauseEventId = causeEventId;
+            errand.Origin = person.Body.Position;
         }
     }
 }

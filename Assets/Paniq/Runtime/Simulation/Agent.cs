@@ -607,44 +607,26 @@
         public int NextToiletTick;
     }
 
-    /// <summary>What one person has been given to do by a cue (see <see cref="CueSystem"/>).</summary>
-    internal enum ErrandKind
-    {
-        None,
-
-        /// <summary>Back to their own chair or spot, and sit down if it is a chair.</summary>
-        GoHome,
-
-        /// <summary>Walk calmly to the way out, open it if it is shut, wait beside it if it is locked, and leave.</summary>
-        LeaveTheBuilding,
-
-        /// <summary>Into a free stall, door shut, a while, door open, and back.</summary>
-        VisitTheToilet,
-
-        /// <summary>Over to somebody and a talk with them, or being talked to.</summary>
-        ChatWith
-    }
-
-    /// <summary>How far along an errand somebody is. Kept so a glance at a noise resumes where it left off rather than starting over.</summary>
+    /// <summary>How far along the current step of an errand somebody is, so a glance at a noise resumes where it left off.</summary>
     internal enum ErrandPhase
     {
         /// <summary>Handed to them, not yet taken up: waits for <see cref="AgentErrand.StartTick"/>.</summary>
         NotStarted,
 
-        /// <summary>Out of the chair they were in first.</summary>
+        /// <summary>Out of the chair they were in before the first step.</summary>
         GettingUp,
 
         /// <summary>On the way somewhere.</summary>
         Walking,
-
-        /// <summary>In the stall for a while.</summary>
-        Staying,
 
         /// <summary>Pushing a shut door open, which takes a moment.</summary>
         OpeningTheDoor,
 
         /// <summary>Stood at a door that will not open, waiting for it to.</summary>
         WaitingAtTheDoor,
+
+        /// <summary>Stood still for a while.</summary>
+        Standing,
 
         /// <summary>Stood talking, or waiting for the person who hailed them to arrive.</summary>
         Talking,
@@ -654,14 +636,25 @@
     }
 
     /// <summary>
-    /// The errand this person is on, if any: a purpose with a place, handed
-    /// to them by a cue and carried out by <see cref="ErrandBehaviour"/> with
-    /// the calm behaviours that already exist. Fixed fields, nothing
-    /// allocated; cleared whenever fear takes over.
+    /// The errand this person is on, if any: a cue's script being carried
+    /// out step by step by <see cref="ErrandBehaviour"/>, with the scratch
+    /// the current step needs. Fixed fields, nothing allocated; cleared
+    /// whenever fear takes over.
     /// </summary>
     internal sealed class AgentErrand
     {
-        public ErrandKind Kind;
+        /// <summary>Whether there is an errand at all: pending or under way.</summary>
+        public bool Has;
+
+        /// <summary>Which cue's script they are carrying out.</summary>
+        public CueKind Cue;
+
+        /// <summary>Whether they are the one whose idea the cue was, which is the one who follows its host script and whose chat has an end.</summary>
+        public bool IsHost;
+
+        /// <summary>The step of the script they are on, or -1 before the first.</summary>
+        public int Step = -1;
+
         public ErrandPhase Phase;
 
         /// <summary>When they take it up: their own reaction tick, plus their share of the cue's spread.</summary>
@@ -670,11 +663,17 @@
         /// <summary>When the current phase gives up or ends, by the clock.</summary>
         public int UntilTick;
 
-        /// <summary>The room it is about (a stall), or -1.</summary>
+        /// <summary>For a chat, when it ends, drawn when it was called; only the one whose idea it was holds an end.</summary>
+        public int ChatEndTick;
+
+        /// <summary>The room the current step is about (a stall), or -1.</summary>
         public int Room = -1;
 
-        /// <summary>The door it is about (a stall door, the next door on the way out), or -1.</summary>
+        /// <summary>The door the walk is about next, or -1.</summary>
         public int Door = -1;
+
+        /// <summary>The door of the small room the errand is about (a stall door), or -1.</summary>
+        public int Object = -1;
 
         /// <summary>The way out at the far end of the route, or -1.</summary>
         public int WayOutDoor = -1;
@@ -682,11 +681,26 @@
         /// <summary>The room the route was worked out from, so a new room means a new route.</summary>
         public int ApproachRoom = -1;
 
-        /// <summary>The person (agent index) they are talking to, or -1. Not <see cref="AgentIntent.SocialPartnerIndex"/>, which every distraction clears.</summary>
+        /// <summary>The person (agent index) the cue is about, or -1. Not <see cref="AgentIntent.SocialPartnerIndex"/>, which every distraction clears.</summary>
         public int PartnerIndex = -1;
 
-        /// <summary>Where they are walking to.</summary>
+        /// <summary>Where the current step is walking to right now: the next door on the way, or the destination itself on the last leg.</summary>
         public LogicalPosition Place;
+
+        /// <summary>Where the current step is walking to in the end.</summary>
+        public LogicalPosition Destination;
+
+        /// <summary>How near the place counts as arriving, for the current step.</summary>
+        public int ArriveWithin;
+
+        /// <summary>A moment's wait after which the current step is begun again rather than the next one (a chair still sliding).</summary>
+        public bool RetryStep;
+
+        /// <summary>How many times the current step has been begun again.</summary>
+        public int Tries;
+
+        /// <summary>Where they stood when the errand began, for a script that sends them back there.</summary>
+        public LogicalPosition Origin;
 
         /// <summary>The cue that set them on it, for everything that follows to name its cause.</summary>
         public ulong CauseEventId;
@@ -697,35 +711,55 @@
         /// <summary>How many things they have said in this chat. The first is heard; the rest are only written down.</summary>
         public int Remarks;
 
-        /// <summary>The purpose is served (the stall visited) and what is left is the door and the way back.</summary>
-        public bool Done;
-
-        /// <summary>The thing the errand is about (a stall's door), or -1.</summary>
-        public int Object = -1;
+        /// <summary>Why the last errand ended, for the debug line and for tests; decides nothing.</summary>
+        public string EndedBecause = "";
 
         /// <summary>Handed to them and not yet taken up.</summary>
-        public bool Pending => Kind != ErrandKind.None && Phase == ErrandPhase.NotStarted;
+        public bool Pending => Has && Step < 0;
 
         /// <summary>Taken up and not yet done.</summary>
-        public bool Active => Kind != ErrandKind.None && Phase != ErrandPhase.NotStarted;
+        public bool Active => Has && Step >= 0;
 
         public void Clear()
         {
-            Kind = ErrandKind.None;
+            Has = false;
+            Cue = default;
+            IsHost = false;
+            Step = -1;
             Phase = ErrandPhase.NotStarted;
             StartTick = 0;
             UntilTick = 0;
+            ChatEndTick = 0;
             Room = -1;
             Door = -1;
+            Object = -1;
             WayOutDoor = -1;
             ApproachRoom = -1;
             PartnerIndex = -1;
             Place = default;
+            Destination = default;
+            ArriveWithin = 0;
+            RetryStep = false;
+            Tries = 0;
+            Origin = default;
             CauseEventId = 0UL;
             NextRemarkTick = 0;
             Remarks = 0;
-            Done = false;
-            Object = -1;
+        }
+
+        /// <summary>The scratch of one step, wiped between steps; what the errand is about stays.</summary>
+        public void ClearStep()
+        {
+            Phase = ErrandPhase.NotStarted;
+            UntilTick = 0;
+            Door = -1;
+            WayOutDoor = -1;
+            ApproachRoom = -1;
+            Place = default;
+            Destination = default;
+            ArriveWithin = 0;
+            RetryStep = false;
+            NextRemarkTick = 0;
         }
     }
 

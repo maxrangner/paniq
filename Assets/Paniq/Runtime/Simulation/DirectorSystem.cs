@@ -48,21 +48,15 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// A timetable entry is a cue that reaches a room or the whole
+        /// building; the scenario refuses any other kind, so which it is
+        /// comes from the cue's own definition rather than a list kept here.
+        /// </summary>
         private void Call(ScheduledCue cue)
         {
-            switch (cue.Kind)
-            {
-                case CueKind.MeetingEnds:
-                    cues.EndMeeting(RoomIndexOf(cue.RoomId), cue.SpreadTicks, 0UL);
-                    break;
-                case CueKind.HomeTime:
-                    cues.CallHomeTime(cue.SpreadTicks, 0UL);
-                    break;
-                default:
-                    // The scenario refuses a timetable that schedules anything
-                    // else: a chat and a toilet trip are a person's own idea.
-                    throw new System.InvalidOperationException($"The timetable cannot call {cue.Kind}.");
-            }
+            int room = cues.DefinitionOf(cue.Kind).Audience == CueAudience.Room ? RoomIndexOf(cue.RoomId) : -1;
+            cues.Call(cue.Kind, null, room, null, cue.SpreadTicks, 0UL);
         }
 
         private int RoomIndexOf(SimulationId roomId)

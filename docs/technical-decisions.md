@@ -754,7 +754,6 @@ seat when it fired is what made the chair go over.
 | **The walk's timeout is the walk's** | In `ChairBehaviour.UpdateSitting`, once somebody has hold of the chair (pulling it out, lowering onto it, or riding it in), each part of the sit keeps its own time and the walk-to-it timeout, chair-taken and blocked checks no longer apply. Each part already had a way of making do at its own timeout, and now reaches it | Sitting down is the calm half's commonest move, and the day about to be built on top has everybody going back to their desk several times an hour. A sit that fails one time in ten at a crowded desk cluster is a sit that fails on screen every minute | A chair that stops short leaves somebody sitting visibly away from the desk. Then shift them the last bit as the chair scoots in, which the seat-scoot code already knows how to do |
 | Versions | `SimulationCompatibilityVersion` 51 -> 52; `ContentRevision` 63 -> 64. Five of the thirteen recorded fingerprints re-recorded (seed 42 locked and opened, seed 46 opened, and both box runs); eight happen not to change | Whether a sit completes changes where people are for the rest of the run | Never |
 | Test | `ErrandsEditModeTests.SentHomeAcrossTheBuilding_SomebodyOpensTheDoorsOnTheWay_AndSitsOnTheirOwnChair` is the check that reached this path, and the trace that found it (somebody sent home from the bathroom, with their neighbour sitting down at the same time) is what it exercises | -- | -- |
-
 ## Prototype 2 fix: being shoved about is not getting anywhere (2026-09-24)
 
 Found while the cue system was being reworked into steps, and fixed on its
@@ -778,12 +777,47 @@ it just short of the line.
 | Versions | `SimulationCompatibilityVersion` 52 -> 53; `ContentRevision` 64 -> 65. Eleven of the thirteen recorded fingerprints re-recorded; two (seed 42 locked, and the seed 40 box run) happen not to change | When somebody counts as stuck changes what they do next for the rest of a run | Never |
 | Test | `CorridorStarersEditModeTests.NobodyFrightened_StandsStaringAtAWall` (seed 41, trigger 300, way out opened) is the check that reached this path | -- | -- |
 
+## Prototype 2 decision: the cue system reviewed, and an errand is a list of steps (2026-09-24)
+
+The owner asked, the same day the cue system was built, whether it expands
+within the project's rules, what should change now, and what the next
+simulation steps are, the goal being dynamic, random interactions that feel
+alive and human. The review (mine and an independent reviewer's, in
+`C:\Users\max\.claude\plans\prepp-for-event-system-squishy-rossum.md`)
+found the delivery half right and the execution half hand-written per kind:
+adding a cue touched eight files and three drifting lists of "what may be
+scheduled", and of the ten cues likely next, two fit, three half fit and five
+fought the shape. The owner approved the "now" part: three commits, of which
+this is the first.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| An errand is a list of steps | `ErrandStepKind` (go to, sit on, stand for, say, talk, shut the door, open the door, leave) with `ErrandTarget` (home, a free stall, the partner, home or where they stood); `ErrandBehaviour` begins each step in turn, skips one that does not apply, and ends an errand aimed at something that is not there | The walker (room to room, doors on the way, waiting at a locked one, resuming after a glance) was the reusable four fifths of every errand; the per-kind fifth was where every new cue would be hand-written. At four kinds and fourteen tests it was a refactor; at ten it would have been a rewrite | A cue needs a step the vocabulary lacks (follow a person, pick something up, linger in a room): add the step, not a kind |
+| A cue's behaviour is data | `CueDefinition` (kind, audience, host rule, written down, script, host script), one per kind in `ScenarioData.Cues`; validated: every kind once, every step known, ranges the right way round, a partner only for a pair, a host only for a room | This is what a future event editor edits: what a cue does, not only when. `TheBuilding.WithToiletStay` and `WithChatLength` show a test changing a script | The editor wants to add kinds without code, which wants a name instead of the `CueKind` enum as identity |
+| One rule for what the timetable may call | `CueDefinition.IsSchedulable` (a cue that reaches a room or the building); the scenario, the Director and the bake tool all ask it | Three copies of the list would have drifted | Never |
+| A chair is kept through a glance, and a sliding one is waited for | `TryResume` hands a person whose own chair is still theirs back to the chair behaviour; `BeginSitOn` waits a moment (up to three times) for a chair nobody is on that is still sliding or on its back | Found by a trace: a thud beside somebody walking to their chair dropped the chair, and a chair still sliding from their own pull was "not free" | Never |
+| The host is up first, whatever the spread | `CueSystem.CallInRoom` starts everybody else in the room no earlier than a tick after the host, on top of their own reaction lag and drawn spread. Before, the host had a spread of nought but the same lag draw as everybody else, so somebody else with a shorter lag and a spread of one or two rose first, which the meeting-room test caught once the draws moved | "The host says so and is up first" is what the cue promises; the test asserted it and the code only made it likely | A cue with no host, or one where the host is meant to be last (the host walking the visitors out) |
+| Six of thirteen fingerprints re-recorded; versions 53 → 54, content 65 → 66 | The port keeps the draws in order (seven fingerprints held, including two of the three "no visitors" cases); the six that moved are the two chair improvements and the host rule above | An honest refactor says which behaviour it changed | -- |
+
+**Deliberately left for the next two commits** (approved together with this
+one): the fixes the review found (a cue must not change what somebody is
+doing on the tick it is called; a cue can get up somebody seated in their own
+chair; home time persists so an unlocked door empties the building; cue
+take-up reserves ticks; a chat partner must be upright; a locked stall is
+remembered; home time is not positioned on the fire; doors are shut behind;
+own-chair-only sitting; visitors walk back where they came from; longer desk
+sits; only heard remarks logged; stall claims in one step) and the changes
+that make people read as people (the host says something at the meeting end;
+the hailed partner walks too; chats end one person at a time; doorway hails
+excluded; wander on errand walks; traits gate what somebody takes up).
+
 ## Version history
 
 Every bump of `SimulationCompatibilityVersion` (the rules) and `ContentRevision` (the building) that the replay compatibility row of the first table used to list in one cell, newest first. The bumps from 27 to 42 are recorded in their own stones' sections above (search this document for "Versions").
 
 | Change | What moved |
 | --- | --- |
+| 53 → 54 and content 65 → 66 (2026-09-24) | an errand is a list of steps from a cue's script, a person keeps hold of a chair through a glance and waits for one still sliding, and the host of a room cue is up first. Six of the thirteen fingerprints re-recorded; seven happen not to change. |
 | 52 → 53 and content 64 → 65 (2026-09-24) | a tick that got somewhere forgives one stuck tick instead of wiping the count, so a jostling crush no longer counts as getting somewhere; and a round the hazard started on its own blames its end on the hazard's start. Eleven of the thirteen fingerprints re-recorded; two happen not to change. |
 | 51 → 52 and content 63 → 64 (2026-09-24) | a chair that will not come all the way out is sat on where it stopped, and one that will not slide all the way back in is settled where it is, instead of being dropped or kicked over. Five of the thirteen fingerprints re-recorded; eight happen not to change. |
 | 50 → 51 and content 62 → 63 (2026-09-24) | the building has a day: the meeting ends by the timetable, calm people go home, to the toilet and over to talk, and every calm decision draws differently. All thirteen fingerprints re-recorded. |

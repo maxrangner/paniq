@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("65"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(53));
+            Assert.That(data.ContentRevision, Is.EqualTo("66"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(54));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -569,8 +569,7 @@ namespace Paniq.Tests.EditMode
             // Chats as short as the old "walk over and stand near somebody"
             // was: a person stood talking for a quarter of a minute is not
             // walking about, and this is a test of walking about.
-            data.Day.ChatMinimumTicks = 150;
-            data.Day.ChatMaximumTicks = 400;
+            TheBuilding.WithChatLength(data, 150, 400);
 
             // Everybody who starts seated -- the meeting, and the two at the
             // cafeteria table -- is got up at once, so they walk about too.

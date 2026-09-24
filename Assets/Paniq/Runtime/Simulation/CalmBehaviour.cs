@@ -283,7 +283,7 @@ namespace Paniq.Simulation
             // Somebody with a cue waiting on them -- home time in a moment --
             // has no ideas of their own until it is done: what the building
             // asks beats what they thought of.
-            bool free = agent.Errand.Kind == ErrandKind.None;
+            bool free = !agent.Errand.Has;
 
             // Not a band of the roll: a person needs the toilet when their own
             // clock says, however often they happen to be deciding things.
@@ -528,7 +528,7 @@ namespace Paniq.Simulation
         /// </summary>
         private bool IsChatCandidate(Agent agent, Agent other, int room, long minimumSquared, long maximumSquared)
         {
-            if (other == agent || !CueSystem.CanTakeUpACue(other) || other.Errand.Kind != ErrandKind.None ||
+            if (other == agent || !CueSystem.CanTakeUpACue(other) || other.Errand.Has ||
                 other.Sitting.OnIt || !ErrandBehaviour.IsInterruptible(other.Intent.Activity) ||
                 geometry.RoomOf(other) != room)
             {

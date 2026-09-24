@@ -387,7 +387,85 @@ namespace Paniq.Simulation
         Chat,
 
         /// <summary>Somebody goes to the toilet.</summary>
-        ToiletTrip
+        ToiletTrip,
+
+        /// <summary>Somebody goes back to their own desk. Their own idea, and not written down: nobody else notices.</summary>
+        GoHome
+    }
+
+    /// <summary>Who a cue reaches. Which of these a cue has decides whether the timetable may call it.</summary>
+    public enum CueAudience
+    {
+        /// <summary>The person whose idea it was, and nobody else.</summary>
+        Self,
+
+        /// <summary>The person whose idea it was and the one person it is about.</summary>
+        Pair,
+
+        /// <summary>Everybody calm in the room it is called in.</summary>
+        Room,
+
+        /// <summary>Everybody calm in the building.</summary>
+        Building
+    }
+
+    /// <summary>Who speaks for a cue and takes it up first.</summary>
+    public enum CueHostRule
+    {
+        Nobody,
+
+        /// <summary>The seated person in the room with the most leadership, the lower ID on a tie; failing anybody seated, anybody calm in it.</summary>
+        SeatedWithMostLeadership
+    }
+
+    /// <summary>
+    /// One step of an errand: the vocabulary a cue's script is written in
+    /// (see <see cref="ErrandBehaviour"/>). Appended only: a step's number is
+    /// saved in the scenario.
+    /// </summary>
+    public enum ErrandStepKind
+    {
+        /// <summary>Walk to the place the step's target names, room to room, opening shut doors on the way and waiting at a locked one.</summary>
+        GoTo,
+
+        /// <summary>Sit on the chair the target names (their own), if there is one and they are near it. Skipped otherwise.</summary>
+        SitOn,
+
+        /// <summary>Stand for a while, drawn from the step's range.</summary>
+        StandFor,
+
+        /// <summary>Say something that is heard nearby. Takes no time.</summary>
+        Say,
+
+        /// <summary>Stand talking with the partner, a remark now and then, until the chat ends.</summary>
+        Talk,
+
+        /// <summary>Shut the door of the small room they are in (a stall). Takes no time.</summary>
+        ShutTheDoor,
+
+        /// <summary>Open the door of the small room they are in, which takes a moment; wait if it is locked.</summary>
+        OpenTheDoor,
+
+        /// <summary>Walk out of the building through the nearest way out, waiting at a locked one.</summary>
+        Leave
+    }
+
+    /// <summary>Where a step is aimed.</summary>
+    public enum ErrandTarget
+    {
+        None,
+
+        /// <summary>Their own chair or spot. A step aimed here is skipped by somebody with no home.</summary>
+        Home,
+
+        /// <summary>The nearest free toilet stall. An errand aimed here ends when there is none.</summary>
+        FreeStall,
+
+        /// <summary>The person the cue is about. An errand aimed here ends when they are gone.</summary>
+        Partner,
+
+        /// <summary>Their own chair or spot, or, for somebody with no home, where they stood when the errand began.</summary>
+        HomeOrWhereTheyStood
     }
 
     /// <summary>

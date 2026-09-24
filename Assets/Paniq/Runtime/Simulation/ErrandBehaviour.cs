@@ -1,19 +1,21 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
     /// <summary>
     /// Errands: what a calm person does about a cue (see
-    /// <see cref="CueSystem"/>). Going home to their own chair, going to the
-    /// toilet, leaving the building at home time, going over to somebody for
-    /// a chat. None of it is new movement: an errand is a purpose with a
-    /// place, and it is carried out with what already exists -- the route
-    /// fields for the walk, the door system for the doors on the way, the
-    /// chair behaviour for the sit at the end, and a quiet remark through the
-    /// sound system so that neighbours glance over at the talking.
+    /// <see cref="CueSystem"/>), carried out step by step from the cue's
+    /// script (<see cref="CueDefinition"/>, <see cref="ErrandStepKind"/>).
+    /// Going home to their own chair, going to the toilet, leaving the
+    /// building at home time, going over to somebody for a chat. None of it
+    /// is new movement: a step is a purpose with a place, and it is carried
+    /// out with what already exists -- the route fields for the walk, the
+    /// door system for the doors on the way, the chair behaviour for the sit
+    /// at the end, and a quiet remark through the sound system so that
+    /// neighbours glance over at the talking.
     /// <para>
     /// A calm person's day used to happen inside one room, because a shut
-    /// door was a wall to anybody who was not frightened. An errand opens the
+    /// door was a wall to anybody who was not frightened. A walk opens the
     /// doors on its way, the way a frightened person does, and waits at one
     /// that will not open. That is what puts a queue at the front door at
     /// home time, and somebody behind a shut stall door when the fire starts.
@@ -21,7 +23,7 @@ namespace Paniq.Simulation
     /// <para>
     /// Only ever consulted by <see cref="CalmBehaviour"/>: fear takes over
     /// exactly as it takes over any calm activity, and the errand is cleared
-    /// on the way. A glance at a noise interrupts an errand and
+    /// on the way. A glance at a noise interrupts a step and
     /// <see cref="TryResume"/> carries it on where it left off.
     /// </para>
     /// </summary>
@@ -37,6 +39,7 @@ namespace Paniq.Simulation
         private readonly DoorSystem doors;
         private readonly ChairBehaviour chairs;
         private readonly SoundSystem sound;
+        private readonly CueSystem cues;
         private readonly DaySettings settings;
         private readonly CalmSettings calm;
         private readonly ExitSettings exits;
@@ -48,7 +51,8 @@ namespace Paniq.Simulation
             PhysicsObjectSystem objects,
             DoorSystem doors,
             ChairBehaviour chairs,
-            SoundSystem sound)
+            SoundSystem sound,
+            CueSystem cues)
         {
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -58,6 +62,7 @@ namespace Paniq.Simulation
             this.doors = doors;
             this.chairs = chairs;
             this.sound = sound;
+            this.cues = cues;
             settings = context.Scenario.Day;
             calm = context.Scenario.Calm;
             exits = context.Scenario.Exits;
@@ -102,7 +107,7 @@ namespace Paniq.Simulation
 
             switch (agent.Errand.Phase)
             {
-                case ErrandPhase.Staying:
+                case ErrandPhase.Standing:
                 case ErrandPhase.OpeningTheDoor:
                 case ErrandPhase.WaitingAtTheDoor:
                 case ErrandPhase.Talking:
@@ -151,23 +156,25 @@ namespace Paniq.Simulation
             {
                 // The chair behaviour had them and has let go: a glance at a
                 // noise took them off the seat, or somebody else got to the
-                // chair first. On the seat already, that is the errand done
-                // and they settle back; otherwise they go for it again, and
-                // if it is taken they stand about near it, as people do.
+                // chair first. On the seat already, that is the step done and
+                // they settle back; otherwise they go for it again, and if it
+                // is taken they stand about near it, as people do.
                 if (agent.Sitting.OnIt)
                 {
-                    errand.Clear();
+                    Advance(agent);
                     chairs.ResumeSitting(agent);
                     return true;
                 }
 
-                if (chairs.TryStartSittingOn(agent, agent.Home.Chair, false))
+                if (agent.Sitting.ChairIndex == agent.Home.Chair && agent.Sitting.ChairIndex >= 0)
                 {
+                    // Still theirs -- they had hold of it, or were on their
+                    // way -- so the chair behaviour simply carries on.
+                    agent.Intent.Activity = AgentActivityState.GoingToSit;
                     return true;
                 }
 
-                errand.Clear();
-                return false;
+                return BeginStep(agent, errand.Step);
             }
 
             if (agent.Sitting.OnIt)
@@ -182,11 +189,11 @@ namespace Paniq.Simulation
             switch (errand.Phase)
             {
                 case ErrandPhase.GettingUp:
-                    return BeginWalking(agent);
+                    return BeginStep(agent, errand.Step);
                 case ErrandPhase.Walking:
                 case ErrandPhase.OpeningTheDoor:
                 case ErrandPhase.WaitingAtTheDoor:
-                case ErrandPhase.Staying:
+                case ErrandPhase.Standing:
                     agent.Intent.Activity = AgentActivityState.RunningAnErrand;
                     agent.Body.BlockedTicks = 0;
                     return true;
@@ -194,105 +201,255 @@ namespace Paniq.Simulation
                     agent.Intent.Activity = AgentActivityState.Chatting;
                     return true;
                 default:
-                    errand.Clear();
-                    return false;
+                    return Finish(agent, "phase " + errand.Phase + " in TryResume");
             }
         }
 
-        /// <summary>Takes up a pending errand: out of the chair first if they are in one, else straight to it.</summary>
+        /// <summary>Takes up a pending errand: out of the chair first if they are in one, else straight to the first step.</summary>
         private bool Begin(Agent agent)
         {
             AgentErrand errand = agent.Errand;
-            if (errand.Kind == ErrandKind.GoHome && agent.Sitting.OnIt && agent.Sitting.ChairIndex == agent.Home.Chair)
+            if (agent.Sitting.OnIt && agent.Sitting.ChairIndex == agent.Home.Chair && SendsThemHome(errand))
             {
                 // Already in their own chair: nothing to do.
-                errand.Clear();
-                return false;
+                return Finish(agent, "already home");
             }
 
             if (agent.Sitting.OnIt)
             {
                 chairs.StartStandingUp(agent);
+                errand.Step = 0;
                 errand.Phase = ErrandPhase.GettingUp;
                 return true;
             }
 
-            return BeginWalking(agent);
+            return BeginStep(agent, 0);
+        }
+
+        /// <summary>Whether the script does nothing but send them home.</summary>
+        private bool SendsThemHome(AgentErrand errand)
+        {
+            ErrandStep[] script = ScriptOf(errand);
+            return script.Length > 0 && script[0].Kind == ErrandStepKind.GoTo && script[0].Target == ErrandTarget.Home;
+        }
+
+        private ErrandStep[] ScriptOf(AgentErrand errand)
+        {
+            CueDefinition cue = cues.DefinitionOf(errand.Cue);
+            return errand.IsHost && cue.HostScript.Length > 0 ? cue.HostScript : cue.Script;
+        }
+
+        // ---------------------------------------------------------------- the steps
+
+        /// <summary>Starts a step of the script. A step that takes no time, or that does not apply to this person, goes straight on to the next.</summary>
+        private bool BeginStep(Agent agent, int index)
+        {
+            AgentErrand errand = agent.Errand;
+            ErrandStep[] script = ScriptOf(errand);
+            errand.ClearStep();
+            errand.Step = index;
+            if (index >= script.Length)
+            {
+                return Finish(agent, "done");
+            }
+
+            int tick = context.Tick;
+            ErrandStep step = script[index];
+            switch (step.Kind)
+            {
+                case ErrandStepKind.GoTo:
+                    return BeginGoTo(agent, step);
+
+                case ErrandStepKind.SitOn:
+                    return BeginSitOn(agent);
+
+                case ErrandStepKind.StandFor:
+                    errand.Phase = ErrandPhase.Standing;
+                    errand.UntilTick = checked(tick + context.Random.NextIntInclusive(step.MinimumTicks, step.MaximumTicks));
+                    agent.Intent.LookHeading = agent.Body.Heading;
+                    agent.Intent.Activity = AgentActivityState.RunningAnErrand;
+                    return true;
+
+                case ErrandStepKind.Say:
+                    sound.Say(agent, errand.CauseEventId, true);
+                    return BeginStep(agent, index + 1);
+
+                case ErrandStepKind.Talk:
+                    StartTalking(agent);
+                    return true;
+
+                case ErrandStepKind.ShutTheDoor:
+                    if (errand.Object >= 0)
+                    {
+                        doors.TryClose(errand.Object, agent.Id, errand.CauseEventId, agent);
+                    }
+
+                    return BeginStep(agent, index + 1);
+
+                case ErrandStepKind.OpenTheDoor:
+                    if (errand.Object < 0 || geometry.IsDoorOpen(errand.Object))
+                    {
+                        return BeginStep(agent, index + 1);
+                    }
+
+                    errand.Door = errand.Object;
+                    agent.Intent.Activity = AgentActivityState.RunningAnErrand;
+                    return TryTheDoor(agent);
+
+                case ErrandStepKind.Leave:
+                    errand.Phase = ErrandPhase.Walking;
+                    errand.UntilTick = checked(tick + context.Jittered(settings.ErrandTimeoutTicks));
+                    agent.Intent.Activity = AgentActivityState.RunningAnErrand;
+                    agent.Body.BlockedTicks = 0;
+                    return true;
+
+                default:
+                    return Finish(agent, "unknown step");
+            }
         }
 
         /// <summary>
-        /// On their feet and setting off. Somebody hailed for a chat does not
-        /// set off anywhere: they turn to whoever hailed them and wait.
+        /// Where a walk is aimed, worked out as it starts. Somebody with no
+        /// home skips a step aimed at one; an errand aimed at a stall or a
+        /// person that is not there is over.
         /// </summary>
-        private bool BeginWalking(Agent agent)
+        private bool BeginGoTo(Agent agent, ErrandStep step)
         {
             AgentErrand errand = agent.Errand;
-            int tick = context.Tick;
-            errand.Phase = ErrandPhase.Walking;
-            errand.Door = -1;
-            errand.ApproachRoom = -1;
-            if (errand.Kind != ErrandKind.ChatWith)
+            switch (step.Target)
             {
-                // A chat's end was drawn when it was called, and the walk over
-                // to the other person is part of it, so it keeps that.
-                errand.UntilTick = checked(tick + context.Jittered(settings.ErrandTimeoutTicks));
-            }
-
-            agent.Intent.Activity = AgentActivityState.RunningAnErrand;
-            agent.Body.BlockedTicks = 0;
-
-            switch (errand.Kind)
-            {
-                case ErrandKind.GoHome:
+                case ErrandTarget.Home:
                     if (!agent.Home.Exists)
                     {
-                        // Up, and nowhere in particular to go: the meeting is
-                        // over for a visitor, say. They loiter as they always did.
-                        errand.Clear();
-                        return false;
+                        return BeginStep(agent, errand.Step + 1);
                     }
 
-                    errand.Place = HomePlace(agent);
-                    errand.Room = geometry.RoomStoodIn(errand.Place);
-                    return true;
+                    AimAtHome(agent);
+                    break;
 
-                case ErrandKind.VisitTheToilet:
+                case ErrandTarget.HomeOrWhereTheyStood:
+                    if (agent.Home.Exists)
+                    {
+                        AimAtHome(agent);
+                    }
+                    else
+                    {
+                        errand.Destination = errand.Origin;
+                        errand.Room = geometry.RoomStoodIn(errand.Destination);
+                        errand.ArriveWithin = calm.StrollArrivalDistanceMillimetres;
+                    }
+
+                    break;
+
+                case ErrandTarget.FreeStall:
                     int stall = FindFreeStall(agent, out int stallDoor);
                     if (stall < 0)
                     {
-                        errand.Clear();
-                        return false;
+                        return Finish(agent, "no free stall");
                     }
 
                     errand.Room = stall;
                     errand.Object = stallDoor;
-                    errand.Place = geometry.RoomBounds(stall).Centre;
-                    return true;
+                    errand.Destination = geometry.RoomBounds(stall).Centre;
+                    errand.ArriveWithin = 0;
+                    break;
 
-                case ErrandKind.LeaveTheBuilding:
-                    return true;
-
-                case ErrandKind.ChatWith:
+                case ErrandTarget.Partner:
                     Agent partner = PartnerOf(agent);
                     if (partner == null)
                     {
-                        errand.Clear();
-                        return false;
+                        return Finish(agent, "partner gone");
                     }
 
-                    if (partner.Errand.Active && partner.Errand.PartnerIndex == agent.Index && partner.Errand.Kind == ErrandKind.ChatWith)
+                    if (!errand.IsHost && partner.Errand.Active && partner.Errand.PartnerIndex == agent.Index)
                     {
-                        // They were hailed: the other one is coming over.
-                        StartTalking(agent);
+                        // They were hailed: the other one is coming over, and
+                        // they turn to face them and wait.
+                        return BeginStep(agent, errand.Step + 1);
                     }
 
                     errand.Room = geometry.RoomOf(partner);
+                    errand.Place = partner.Body.Position;
+                    errand.ArriveWithin = calm.SocialStopDistanceMillimetres;
+
+                    // The walk over is part of the chat and ends when it does:
+                    // no timeout of its own, and no draw for one.
+                    errand.Phase = ErrandPhase.Walking;
+                    errand.UntilTick = errand.ChatEndTick;
+                    agent.Intent.Activity = AgentActivityState.RunningAnErrand;
+                    agent.Body.BlockedTicks = 0;
                     return true;
 
                 default:
-                    errand.Clear();
-                    return false;
+                    return Finish(agent, "unknown target");
             }
+
+            errand.Phase = ErrandPhase.Walking;
+            errand.UntilTick = checked(context.Tick + context.Jittered(settings.ErrandTimeoutTicks));
+            agent.Intent.Activity = AgentActivityState.RunningAnErrand;
+            agent.Body.BlockedTicks = 0;
+            return true;
+        }
+
+        /// <summary>Their chair or spot: near enough a chair for the chair behaviour to take them the rest of the way, or on a spot.</summary>
+        private void AimAtHome(Agent agent)
+        {
+            AgentErrand errand = agent.Errand;
+            errand.Destination = HomePlace(agent);
+            errand.Room = geometry.RoomStoodIn(errand.Destination);
+            errand.ArriveWithin = agent.Home.Chair >= 0
+                ? context.Scenario.Items.SitSearchDistanceMillimetres
+                : calm.StrollArrivalDistanceMillimetres;
+        }
+
+        /// <summary>
+        /// Their own chair, if they have one and are near it: the chair
+        /// behaviour takes them the rest of the way and seats them. If
+        /// somebody else is in it they stand about near it, which is what
+        /// people do; either way the errand ends with the sit.
+        /// </summary>
+        private bool BeginSitOn(Agent agent)
+        {
+            AgentErrand errand = agent.Errand;
+            int chair = agent.Home.Chair;
+
+            // Only somebody nowhere near it skips the sit: the walk before
+            // this step brings them within the chair behaviour's own reach,
+            // and a chair nudged a hand's width since the walk was aimed must
+            // not lose them the sit on the very tick they arrive.
+            if (chair < 0 ||
+                IntegerMath.Distance(agent.Body.Position, objects.PositionOf(chair)) > 2L * context.Scenario.Items.SitSearchDistanceMillimetres)
+            {
+                return BeginStep(agent, errand.Step + 1);
+            }
+
+            if (chairs.TryStartSittingOn(agent, chair, false))
+            {
+                errand.Phase = ErrandPhase.SittingDown;
+                return true;
+            }
+
+            if (objects.OccupantOf(chair) < 0 && errand.Tries < 3)
+            {
+                // Nobody is on it, but it is not to be sat on right now -- still
+                // sliding from somebody's knock, or on its back: a moment, and
+                // another look.
+                errand.Tries++;
+                errand.RetryStep = true;
+                errand.Phase = ErrandPhase.Standing;
+                errand.UntilTick = checked(context.Tick + context.Jittered(context.Scenario.Items.SitPullTicks * 2));
+                agent.Intent.LookHeading = agent.Body.Heading;
+                agent.Intent.Activity = AgentActivityState.RunningAnErrand;
+                return true;
+            }
+
+            return BeginStep(agent, errand.Step + 1);
+        }
+
+        /// <summary>The step is done: on to the next, or the errand is over.</summary>
+        private bool Advance(Agent agent)
+        {
+            return BeginStep(agent, agent.Errand.Step + 1);
         }
 
         // ---------------------------------------------------------------- carrying out
@@ -321,13 +478,18 @@ namespace Paniq.Simulation
                     return OpenTheDoor(agent, out goalHeading);
                 case ErrandPhase.WaitingAtTheDoor:
                     return WaitAtTheDoor(agent, out goalHeading);
-                case ErrandPhase.Staying:
-                    return Stay(agent, out goalHeading);
+                case ErrandPhase.Standing:
+                    goalHeading = agent.Intent.LookHeading;
+                    if (context.Tick < errand.UntilTick)
+                    {
+                        return true;
+                    }
+
+                    return errand.RetryStep ? BeginStep(agent, errand.Step) : Advance(agent);
                 case ErrandPhase.Talking:
                     return Talk(agent, out goalHeading);
                 default:
-                    errand.Clear();
-                    return false;
+                    return Finish(agent, "phase " + errand.Phase + " in Update");
             }
         }
 
@@ -341,39 +503,40 @@ namespace Paniq.Simulation
             int tick = context.Tick;
             goalHeading = agent.Body.Heading;
             goalSpeed = 0;
+            ErrandStep step = ScriptOf(errand)[errand.Step];
+            bool leaving = step.Kind == ErrandStepKind.Leave;
 
             if (tick >= errand.UntilTick)
             {
-                return GiveUp(agent);
+                return GiveUp(agent, "walk timed out");
             }
 
             // Somebody leaving may be stuck in a queue for a long time, and
             // that is the point of them; everybody else gives up on a walk
             // that is going nowhere, with more patience than a stroll has.
-            if (errand.Kind != ErrandKind.LeaveTheBuilding && agent.Body.BlockedTicks > settings.BlockedGiveUpTicks)
+            if (!leaving && agent.Body.BlockedTicks > settings.BlockedGiveUpTicks)
             {
-                return GiveUp(agent);
+                return GiveUp(agent, "stuck");
             }
 
-            if (errand.Kind == ErrandKind.ChatWith)
+            if (step.Target == ErrandTarget.Partner)
             {
                 Agent partner = PartnerOf(agent);
                 if (partner == null || geometry.RoomOf(partner) != geometry.RoomOf(agent))
                 {
-                    return End(agent);
+                    return Finish(agent, "partner gone or left the room");
                 }
 
                 errand.Place = partner.Body.Position;
                 long gap = IntegerMath.Distance(agent.Body.Position, errand.Place);
-                if (gap <= calm.SocialStopDistanceMillimetres)
+                if (gap <= errand.ArriveWithin)
                 {
-                    StartTalking(agent);
                     goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, errand.Place, agent.Body.Heading);
-                    return true;
+                    return Advance(agent);
                 }
 
                 goalHeading = geometry.Routes.HeadingToward(agent.Body.Position, errand.Place, bodyRadius, agent.Body.Heading);
-                goalSpeed = Pace(agent, gap - calm.SocialStopDistanceMillimetres);
+                goalSpeed = Pace(agent, gap - errand.ArriveWithin);
                 return true;
             }
 
@@ -383,9 +546,9 @@ namespace Paniq.Simulation
             if (room >= 0 && room != errand.ApproachRoom)
             {
                 errand.ApproachRoom = room;
-                if (!ChooseNextDoor(agent, room))
+                if (!(leaving ? ChooseWayOut(agent, room) : ChooseNextDoor(agent, room)))
                 {
-                    return GiveUp(agent);
+                    return GiveUp(agent, "no route");
                 }
             }
 
@@ -394,54 +557,18 @@ namespace Paniq.Simulation
                 return StepThroughTheDoor(agent, out goalHeading, out goalSpeed);
             }
 
-            // In the room it is in: the last leg.
+            // In the room it is in: the last leg, to the destination itself
+            // rather than to the door they came in by. A chair is aimed at
+            // where it stands now; it may have been nudged since they set off.
+            bool aChair = agent.Home.Chair >= 0 &&
+                          (step.Target == ErrandTarget.Home || step.Target == ErrandTarget.HomeOrWhereTheyStood);
+            errand.Place = aChair ? objects.PositionOf(agent.Home.Chair) : errand.Destination;
             long distance = IntegerMath.Distance(agent.Body.Position, errand.Place);
-            switch (errand.Kind)
+            bool arrived = step.Target == ErrandTarget.FreeStall ? room == errand.Room : distance <= errand.ArriveWithin;
+            if (arrived)
             {
-                case ErrandKind.GoHome:
-                    if (agent.Home.Chair >= 0)
-                    {
-                        if (distance > context.Scenario.Items.SitSearchDistanceMillimetres)
-                        {
-                            break;
-                        }
-
-                        // Near enough: the chair behaviour takes them the rest
-                        // of the way and seats them. If somebody else is in
-                        // their chair they stand about near it, which is what
-                        // people do.
-                        if (chairs.TryStartSittingOn(agent, agent.Home.Chair, false))
-                        {
-                            errand.Phase = ErrandPhase.SittingDown;
-                            return true;
-                        }
-
-                        errand.Clear();
-                        return false;
-                    }
-
-                    if (distance < calm.StrollArrivalDistanceMillimetres)
-                    {
-                        errand.Clear();
-                        return false;
-                    }
-
-                    break;
-
-                case ErrandKind.VisitTheToilet:
-                    if (room == errand.Room)
-                    {
-                        // In: the door shut behind them, if nobody is in it,
-                        // and a while on their own.
-                        doors.TryClose(errand.Object, agent.Id, errand.CauseEventId, agent);
-                        errand.Phase = ErrandPhase.Staying;
-                        errand.UntilTick = checked(tick + context.Random.NextIntInclusive(
-                            settings.ToiletStayMinimumTicks, settings.ToiletStayMaximumTicks));
-                        agent.Intent.LookHeading = agent.Body.Heading;
-                        return true;
-                    }
-
-                    break;
+                agent.Intent.LookHeading = agent.Body.Heading;
+                return Advance(agent);
             }
 
             goalHeading = geometry.Routes.HeadingToward(agent.Body.Position, errand.Place, bodyRadius, agent.Body.Heading);
@@ -451,20 +578,13 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// The next door on the way from this room, or none when the place is
-        /// in this room. Somebody leaving asks for the whole route to the
-        /// nearest way out; everybody else for the route to the room their
-        /// place is in. A calm person <em>asks</em> the way -- a visitor who
+        /// in this room. A calm person <em>asks</em> the way -- a visitor who
         /// does not know the floor is walked to the door like anybody else --
         /// so the route uses every door, not only the ones they know.
         /// </summary>
         private bool ChooseNextDoor(Agent agent, int room)
         {
             AgentErrand errand = agent.Errand;
-            if (errand.Kind == ErrandKind.LeaveTheBuilding)
-            {
-                return ChooseWayOut(agent, room);
-            }
-
             if (errand.Room < 0 || errand.Room == room)
             {
                 errand.Door = -1;
@@ -559,6 +679,18 @@ namespace Paniq.Simulation
             }
 
             goalHeading = FaceTheDoor(agent, door);
+            return TryTheDoor(agent);
+        }
+
+        /// <summary>
+        /// At a shut door: a push at it if it is merely shut, which takes a
+        /// moment; otherwise (locked, or something wedged in it) they try the
+        /// handle, which is worth a line in the story, and wait for it.
+        /// </summary>
+        private bool TryTheDoor(Agent agent)
+        {
+            AgentErrand errand = agent.Errand;
+            int door = errand.Door;
             if (doors.StateOf(door) == DoorState.Unlocked && !doors.IsObstructed(door))
             {
                 errand.Phase = ErrandPhase.OpeningTheDoor;
@@ -566,8 +698,6 @@ namespace Paniq.Simulation
                 return true;
             }
 
-            // Locked, or something wedged in it. They try the handle, which
-            // is worth a line in the story, and wait for it.
             context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentTriedDoor, agent.Body.Position,
                 0, 0, errand.CauseEventId, doors.IdOf(door));
             errand.Phase = ErrandPhase.WaitingAtTheDoor;
@@ -618,19 +748,20 @@ namespace Paniq.Simulation
                 return true;
             }
 
-            return context.Tick >= errand.UntilTick ? GiveUp(agent) : true;
+            return context.Tick >= errand.UntilTick ? GiveUp(agent, "door never opened") : true;
         }
 
         /// <summary>
-        /// The door is open. Coming out of the stall, that was the last thing
-        /// to do there, and they head home; otherwise the walk goes on.
+        /// The door is open. If opening it was the step (the stall door, from
+        /// the inside) that step is done; otherwise it was a door on the way,
+        /// and the walk goes on.
         /// </summary>
         private bool CarryOnThroughTheDoor(Agent agent)
         {
             AgentErrand errand = agent.Errand;
-            if (errand.Done)
+            if (ScriptOf(errand)[errand.Step].Kind == ErrandStepKind.OpenTheDoor)
             {
-                return GoHomeOrFinish(agent);
+                return Advance(agent);
             }
 
             errand.Phase = ErrandPhase.Walking;
@@ -638,59 +769,9 @@ namespace Paniq.Simulation
             return true;
         }
 
-        /// <summary>In the stall, door shut, for a while; then the door again, from the inside.</summary>
-        private bool Stay(Agent agent, out int goalHeading)
-        {
-            AgentErrand errand = agent.Errand;
-            goalHeading = agent.Intent.LookHeading;
-            if (context.Tick < errand.UntilTick)
-            {
-                return true;
-            }
-
-            errand.Done = true;
-            errand.Door = errand.Object;
-            if (geometry.IsDoorOpen(errand.Door))
-            {
-                return GoHomeOrFinish(agent);
-            }
-
-            if (doors.StateOf(errand.Door) == DoorState.Unlocked && !doors.IsObstructed(errand.Door))
-            {
-                errand.Phase = ErrandPhase.OpeningTheDoor;
-                errand.UntilTick = checked(context.Tick + context.Jittered(exits.DoorOpenTicks));
-                return true;
-            }
-
-            // Somebody has locked them in. Worth a line, and then they wait
-            // for whoever did it to think better of it.
-            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentTriedDoor, agent.Body.Position,
-                0, 0, errand.CauseEventId, doors.IdOf(errand.Door));
-            errand.Phase = ErrandPhase.WaitingAtTheDoor;
-            errand.UntilTick = checked(context.Tick + context.Jittered(settings.WaitAtLockedDoorTicks));
-            return true;
-        }
-
-        /// <summary>The purpose is served: back to their own chair if they have one, else the errand is over.</summary>
-        private bool GoHomeOrFinish(Agent agent)
-        {
-            AgentErrand errand = agent.Errand;
-            if (!agent.Home.Exists)
-            {
-                errand.Clear();
-                return false;
-            }
-
-            ulong cause = errand.CauseEventId;
-            errand.Clear();
-            errand.Kind = ErrandKind.GoHome;
-            errand.CauseEventId = cause;
-            return BeginWalking(agent);
-        }
-
         // ---------------------------------------------------------------- talking
 
-        /// <summary>Stood facing the other one, talking. Ends when either has had enough, or the other is gone.</summary>
+        /// <summary>Stood facing the other one, talking. Ends when the one whose idea it was has had enough, or the other is gone.</summary>
         private bool Talk(Agent agent, out int goalHeading)
         {
             AgentErrand errand = agent.Errand;
@@ -707,12 +788,12 @@ namespace Paniq.Simulation
                     errand.UntilTick = Math.Min(errand.UntilTick, context.ReactionTick());
                 }
 
-                return tick >= errand.UntilTick ? End(agent) : true;
+                return tick >= errand.UntilTick ? Finish(agent, "partner gone") : true;
             }
 
             if (tick >= errand.UntilTick)
             {
-                return End(agent);
+                return Finish(agent, "chat over");
             }
 
             goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, partner.Body.Position, agent.Body.Heading);
@@ -735,13 +816,14 @@ namespace Paniq.Simulation
         {
             AgentErrand errand = agent.Errand;
             errand.Phase = ErrandPhase.Talking;
+            errand.UntilTick = errand.ChatEndTick;
             agent.Intent.Activity = AgentActivityState.Chatting;
             agent.Body.BlockedTicks = 0;
             errand.NextRemarkTick = checked(context.Tick + context.Random.NextIntInclusive(
                 settings.RemarkEveryMinimumTicks, settings.RemarkEveryMaximumTicks));
         }
 
-        /// <summary>The person they are talking to, if that person is still in the chat with them.</summary>
+        /// <summary>The person the cue is about, if that person is still in it with them.</summary>
         private Agent PartnerOf(Agent agent)
         {
             int index = agent.Errand.PartnerIndex;
@@ -752,7 +834,7 @@ namespace Paniq.Simulation
 
             Agent partner = crowd.All[index];
             bool still = partner.IsParticipating && partner.Fear.State == AgentFearState.Calm &&
-                         partner.Errand.Kind == ErrandKind.ChatWith && partner.Errand.PartnerIndex == agent.Index;
+                         partner.Errand.Has && partner.Errand.PartnerIndex == agent.Index;
             return still ? partner : null;
         }
 
@@ -841,8 +923,7 @@ namespace Paniq.Simulation
             Agent[] agents = crowd.All;
             for (int i = 0; i < agents.Length; i++)
             {
-                if (agents[i].IsParticipating && agents[i].Errand.Kind == ErrandKind.VisitTheToilet &&
-                    agents[i].Errand.Room == stall)
+                if (agents[i].IsParticipating && agents[i].Errand.Has && agents[i].Errand.Room == stall)
                 {
                     return false;
                 }
@@ -868,16 +949,17 @@ namespace Paniq.Simulation
             return speed;
         }
 
-        private static bool GiveUp(Agent agent)
+        /// <summary>The errand is over, done or given up: they choose for themselves from here. The reason is kept for the debug line.</summary>
+        private static bool Finish(Agent agent, string because)
         {
             agent.Errand.Clear();
+            agent.Errand.EndedBecause = because;
             return false;
         }
 
-        private static bool End(Agent agent)
+        private static bool GiveUp(Agent agent, string because)
         {
-            agent.Errand.Clear();
-            return false;
+            return Finish(agent, because);
         }
     }
 }

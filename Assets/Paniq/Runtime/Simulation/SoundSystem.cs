@@ -162,8 +162,8 @@ namespace Paniq.Simulation
         /// <summary>Talking to each other, from either side: neither turns to wonder what the other's voice was.</summary>
         private static bool InTheSameChat(Agent a, Agent b)
         {
-            return (a.Errand.Kind == ErrandKind.ChatWith && a.Errand.PartnerIndex == b.Index) ||
-                   (b.Errand.Kind == ErrandKind.ChatWith && b.Errand.PartnerIndex == a.Index);
+            return (a.Errand.Has && a.Errand.PartnerIndex == b.Index) ||
+                   (b.Errand.Has && b.Errand.PartnerIndex == a.Index);
         }
 
         /// <summary>A calm person drops what they were doing to look toward a noise.</summary>

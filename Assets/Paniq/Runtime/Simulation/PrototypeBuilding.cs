@@ -151,7 +151,9 @@
                         new ErrandStep(ErrandStepKind.Talk, ErrandTarget.Partner, 300, 900)
                     }),
 
-                // Into a free stall, door shut, ten to thirty seconds, door open, and back.
+                // Into a free stall, door shut, ten to thirty seconds, door
+                // open, and back: to their desk, or, having none on this
+                // floor, to where they were standing.
                 new CueDefinition(CueKind.ToiletTrip, CueAudience.Self, CueHostRule.Nobody, true,
                     new[]
                     {
@@ -159,7 +161,7 @@
                         new ErrandStep(ErrandStepKind.ShutTheDoor),
                         new ErrandStep(ErrandStepKind.StandFor, ErrandTarget.None, 500, 1500),
                         new ErrandStep(ErrandStepKind.OpenTheDoor),
-                        new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.Home),
+                        new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.HomeOrWhereTheyStood),
                         new ErrandStep(ErrandStepKind.SitOn, ErrandTarget.Home)
                     }),
 

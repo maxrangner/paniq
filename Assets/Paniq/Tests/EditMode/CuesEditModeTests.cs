@@ -162,6 +162,138 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
+        public void HomeTimeCalledMidChat_ChangesNothingOnThatTick_AndIsTakenUpWhenTheChatIsOver()
+        {
+            ScenarioData data = CalmDay();
+            TheBuilding.WithChatLength(data, 600, 600);
+            using (var simulation = new Run(data))
+            {
+                int a = IndexOf(simulation, 1005UL);
+                int b = IndexOf(simulation, 1006UL);
+                Assert.That(simulation.CuesForTests.StartChat(simulation.AgentForTests(a), simulation.AgentForTests(b)), Is.True);
+                bool talking = false;
+                for (int t = 0; t < 20 * Run.TicksPerSecond && !talking; t++)
+                {
+                    simulation.Step();
+                    talking = simulation.GetAgent(a).ActivityState == AgentActivityState.Chatting &&
+                              simulation.GetAgent(b).ActivityState == AgentActivityState.Chatting;
+                }
+
+                Assert.That(talking, Is.True, "Both should be stood talking: " + simulation.DescribeForTests(a));
+
+                // Home time, called in the middle of their chat: nothing about
+                // the chat changes on that tick, or the next; the cue waits.
+                simulation.CuesForTests.CallHomeTime(0, 0UL);
+                Advance(simulation, 2);
+                foreach (int i in new[] { a, b })
+                {
+                    Assert.That(simulation.GetAgent(i).ActivityState, Is.EqualTo(AgentActivityState.Chatting), simulation.DescribeForTests(i));
+                    AgentErrand errand = simulation.ErrandForTests(i);
+                    Assert.That(errand.Cue, Is.EqualTo(CueKind.Chat), "Still on the chat: " + simulation.DescribeForTests(i));
+                    Assert.That(errand.Next.Has && errand.Next.Cue == CueKind.HomeTime, Is.True, "Home time waits its turn.");
+                }
+
+                // The chat runs its course, and then they take home time up.
+                bool goingHome = false;
+                for (int t = 0; t < 40 * Run.TicksPerSecond && !goingHome; t++)
+                {
+                    simulation.Step();
+                    goingHome = simulation.ErrandForTests(a).Cue == CueKind.HomeTime && simulation.ErrandForTests(a).Has &&
+                                simulation.ErrandForTests(b).Cue == CueKind.HomeTime && simulation.ErrandForTests(b).Has;
+                }
+
+                Assert.That(goingHome, Is.True, "Once the chat is over, both go home: " + simulation.DescribeForTests(a) + " / " + simulation.DescribeForTests(b));
+            }
+        }
+
+        [Test]
+        public void ACueWithNoSpread_StillReachesNoTwoPeopleOnTheSameTick()
+        {
+            ScenarioData data = CalmDay();
+            const int at = 200;
+            data.Timetable = new[] { new ScheduledCue(CueKind.MeetingEnds, at, 0, PrototypeBuilding.MeetingRoom) };
+            using (var simulation = new Run(data))
+            {
+                Advance(simulation, at);
+                var startTicks = new System.Collections.Generic.HashSet<int>();
+                int reached = 0;
+                int hostStart = int.MaxValue;
+                int othersEarliest = int.MaxValue;
+                for (int i = 0; i < simulation.AgentCount; i++)
+                {
+                    AgentErrand errand = simulation.ErrandForTests(i);
+                    if (!errand.Has || errand.Cue != CueKind.MeetingEnds)
+                    {
+                        continue;
+                    }
+
+                    reached++;
+                    Assert.That(startTicks.Add(errand.StartTick), Is.True,
+                        $"Two people would get up on tick {errand.StartTick}: nothing happens to a whole group on one tick, spread or no spread.");
+                    if (errand.IsHost)
+                    {
+                        hostStart = errand.StartTick;
+                    }
+                    else
+                    {
+                        othersEarliest = System.Math.Min(othersEarliest, errand.StartTick);
+                    }
+                }
+
+                Assert.That(reached, Is.EqualTo(6));
+                Assert.That(hostStart, Is.LessThan(othersEarliest), "The host is up before anybody else, whatever their lags come to.");
+            }
+        }
+
+        [Test]
+        public void TheMeetingEnding_GetsUpSomebodySeatedInTheirOwnChair()
+        {
+            // The two at the cafeteria table sit in their own chairs until
+            // told. "Lunch is over" is the meeting-ending cue in their room:
+            // nowhere to walk to, but the sit is theirs now, and it ends.
+            ScenarioData data = CalmDay();
+            const int at = 100;
+            data.Timetable = new[] { new ScheduledCue(CueKind.MeetingEnds, at, 0, PrototypeBuilding.Cafeteria) };
+            using (var simulation = new Run(data))
+            {
+                int a = IndexOf(simulation, 1015UL);
+                int b = IndexOf(simulation, 1016UL);
+                Advance(simulation, at + data.Perception.ReactionLagMaximumTicks + 10);
+                foreach (int i in new[] { a, b })
+                {
+                    Agent person = simulation.AgentForTests(i);
+                    Assert.That(person.Sitting.OnIt, Is.True, "Still in their own chair for now: " + simulation.DescribeForTests(i));
+                    Assert.That(person.Sitting.SitUntilTold, Is.False, "But no longer until told: " + simulation.DescribeForTests(i));
+                }
+
+                bool aUp = false;
+                bool bUp = false;
+                for (int t = 0; t < 120 * Run.TicksPerSecond && !(aUp && bUp); t++)
+                {
+                    simulation.Step();
+                    aUp |= !simulation.AgentForTests(a).Sitting.OnIt;
+                    bUp |= !simulation.AgentForTests(b).Sitting.OnIt;
+                }
+
+                Assert.That(aUp && bUp, Is.True, "Both get up within a couple of minutes and go about their day.");
+            }
+        }
+
+        private static int IndexOf(Run simulation, ulong agentId)
+        {
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (simulation.GetAgent(i).AgentId == new SimulationId(agentId))
+                {
+                    return i;
+                }
+            }
+
+            Assert.Fail($"No person {agentId}.");
+            return -1;
+        }
+
+        [Test]
         public void ATimetableEntry_NamingARoomTheBuildingLacks_IsRefused()
         {
             ScenarioData data = CalmDay();

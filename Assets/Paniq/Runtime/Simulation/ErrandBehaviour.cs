@@ -44,6 +44,21 @@ namespace Paniq.Simulation
         private readonly CalmSettings calm;
         private readonly ExitSettings exits;
 
+        /// <summary>
+        /// Per room: who (agent index) last set off for it as a stall, or -1.
+        /// A claim holds while that person's errand is still about the
+        /// stall, so asking is one look rather than a walk of the crowd.
+        /// </summary>
+        private readonly int[] stallClaim;
+
+        /// <summary>
+        /// How often one person needs the toilet on this floor: the day's
+        /// figure, stretched when that many people at that rate would keep
+        /// the floor's stalls more than half full, so a big crowd with three
+        /// stalls does not queue for them all afternoon.
+        /// </summary>
+        public int ToiletEveryTicks { get; }
+
         public ErrandBehaviour(
             SimulationContext context,
             Crowd crowd,
@@ -66,6 +81,50 @@ namespace Paniq.Simulation
             settings = context.Scenario.Day;
             calm = context.Scenario.Calm;
             exits = context.Scenario.Exits;
+            stallClaim = new int[geometry.RoomCount];
+            for (int r = 0; r < stallClaim.Length; r++)
+            {
+                stallClaim[r] = -1;
+            }
+
+            ToiletEveryTicks = ToiletRate();
+        }
+
+        /// <summary>
+        /// The toilet rate the stalls can keep up with: at most half of them
+        /// in use on average, with a stay at its longest, or the day's own
+        /// figure when that is slower already. Nought (nobody goes) stays
+        /// nought; a floor with no stall never sends anybody.
+        /// </summary>
+        private int ToiletRate()
+        {
+            int every = settings.ToiletEveryTicks;
+            if (every <= 0)
+            {
+                return 0;
+            }
+
+            int stalls = 0;
+            RoomDefinition[] rooms = context.Scenario.Rooms;
+            for (int r = 0; r < rooms.Length; r++)
+            {
+                stalls += rooms[r].Use == RoomUse.Stall ? 1 : 0;
+            }
+
+            if (stalls == 0)
+            {
+                return 0;
+            }
+
+            int stay = 0;
+            ErrandStep[] script = cues.DefinitionOf(CueKind.ToiletTrip).Script;
+            for (int s = 0; s < script.Length; s++)
+            {
+                stay += script[s].Kind == ErrandStepKind.StandFor ? script[s].MaximumTicks : 0;
+            }
+
+            long needed = 2L * context.Scenario.Agents.Length * stay / stalls;
+            return (int)Math.Min(int.MaxValue, Math.Max(every, needed));
         }
 
         // ---------------------------------------------------------------- taking up
@@ -211,7 +270,10 @@ namespace Paniq.Simulation
             AgentErrand errand = agent.Errand;
             if (agent.Sitting.OnIt && agent.Sitting.ChairIndex == agent.Home.Chair && SendsThemHome(errand))
             {
-                // Already in their own chair: nothing to do.
+                // Already in their own chair: nowhere to walk to, but whatever
+                // held them in it (a meeting, a lunch) is over, so they sit on
+                // for a while of their own and then go about their day.
+                chairs.SitForAWhile(agent);
                 return Finish(agent, "already home");
             }
 
@@ -348,6 +410,7 @@ namespace Paniq.Simulation
                         return Finish(agent, "no free stall");
                     }
 
+                    stallClaim[stall] = agent.Index;
                     errand.Room = stall;
                     errand.Object = stallDoor;
                     errand.Destination = geometry.RoomBounds(stall).Centre;
@@ -540,6 +603,11 @@ namespace Paniq.Simulation
                 return true;
             }
 
+            if (errand.OpenedDoor >= 0)
+            {
+                ShutTheDoorBehindThem(agent);
+            }
+
             // A new room means a new next door: the route is worked out again
             // from wherever they have got to.
             int room = geometry.RoomAt(agent.Body.Position);
@@ -574,6 +642,43 @@ namespace Paniq.Simulation
             goalHeading = geometry.Routes.HeadingToward(agent.Body.Position, errand.Place, bodyRadius, agent.Body.Heading);
             goalSpeed = Pace(agent, distance);
             return true;
+        }
+
+        /// <summary>
+        /// A door they opened themselves, once they are a stride through it:
+        /// shut behind them, unless somebody else is near it and may be on
+        /// their way through, in which case it is left, as people do. Doors
+        /// used to drift open one by one until every door on the floor stood
+        /// open, which changes how a fire and a noise travel.
+        /// </summary>
+        private void ShutTheDoorBehindThem(Agent agent)
+        {
+            AgentErrand errand = agent.Errand;
+            int door = errand.OpenedDoor;
+            if (geometry.SideOf(door, agent.Body.Position) == errand.OpenedFromSide ||
+                IntegerMath.Distance(agent.Body.Position, geometry.DoorCentre(door)) < bodyRadius * 3)
+            {
+                return;
+            }
+
+            errand.OpenedDoor = -1;
+            errand.OpenedFromSide = 0;
+            if (!geometry.IsDoorOpen(door))
+            {
+                return;
+            }
+
+            using Crowd.Nearby near = crowd.Within(geometry.DoorCentre(door), settings.DoorHoldMillimetres);
+            for (int c = 0; c < near.Count; c++)
+            {
+                Agent other = crowd.All[near[c]];
+                if (other != agent && other.IsParticipating)
+                {
+                    return;
+                }
+            }
+
+            doors.TryClose(door, agent.Id, errand.CauseEventId, agent);
         }
 
         /// <summary>
@@ -715,9 +820,17 @@ namespace Paniq.Simulation
                 return true;
             }
 
-            if (geometry.IsDoorOpen(errand.Door) ||
-                doors.Open(errand.Door, errand.CauseEventId, geometry.SideOf(errand.Door, agent.Body.Position)))
+            if (geometry.IsDoorOpen(errand.Door))
             {
+                return CarryOnThroughTheDoor(agent);
+            }
+
+            int side = geometry.SideOf(errand.Door, agent.Body.Position);
+            if (doors.Open(errand.Door, errand.CauseEventId, side))
+            {
+                // Theirs to shut behind them once they are through.
+                errand.OpenedDoor = errand.Door;
+                errand.OpenedFromSide = side;
                 return CarryOnThroughTheDoor(agent);
             }
 
@@ -748,7 +861,16 @@ namespace Paniq.Simulation
                 return true;
             }
 
-            return context.Tick >= errand.UntilTick ? GiveUp(agent, "door never opened") : true;
+            if (context.Tick < errand.UntilTick)
+            {
+                return true;
+            }
+
+            // Found locked: they stop counting on it for a while, so the next
+            // errand is not routed through it a moment later and the story
+            // does not fill with them trying the same handle.
+            agent.Doors.AvoidUntilTick[errand.Door] = checked(context.Tick + context.Jittered(settings.LockedDoorMemoryTicks));
+            return GiveUp(agent, "door never opened");
         }
 
         /// <summary>
@@ -833,7 +955,7 @@ namespace Paniq.Simulation
             }
 
             Agent partner = crowd.All[index];
-            bool still = partner.IsParticipating && partner.Fear.State == AgentFearState.Calm &&
+            bool still = partner.IsParticipating && partner.Fear.State == AgentFearState.Calm && partner.Body.IsOnTheirFeet &&
                          partner.Errand.Has && partner.Errand.PartnerIndex == agent.Index;
             return still ? partner : null;
         }
@@ -907,7 +1029,7 @@ namespace Paniq.Simulation
             return best;
         }
 
-        /// <summary>Nobody in it, and nobody on their way to it.</summary>
+        /// <summary>Nobody in it, and nobody on their way to it: the last claim on it, if it still holds.</summary>
         private bool IsStallFree(int stall)
         {
             using Crowd.Nearby inside = crowd.Gather(geometry.RoomBounds(stall));
@@ -920,10 +1042,11 @@ namespace Paniq.Simulation
                 }
             }
 
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            int claim = stallClaim[stall];
+            if (claim >= 0)
             {
-                if (agents[i].IsParticipating && agents[i].Errand.Has && agents[i].Errand.Room == stall)
+                Agent claimant = crowd.All[claim];
+                if (claimant.IsParticipating && claimant.Errand.Has && claimant.Errand.Room == stall)
                 {
                     return false;
                 }
@@ -949,15 +1072,38 @@ namespace Paniq.Simulation
             return speed;
         }
 
-        /// <summary>The errand is over, done or given up: they choose for themselves from here. The reason is kept for the debug line.</summary>
-        private static bool Finish(Agent agent, string because)
+        /// <summary>
+        /// The errand is over, done or given up: they choose for themselves
+        /// from here, unless a cue arrived while they were busy, which they
+        /// take up next. Home time given up on (a locked way out, no route)
+        /// stands: they try again in a while. The reason is kept for the
+        /// debug line.
+        /// </summary>
+        private bool Finish(Agent agent, string because)
         {
-            agent.Errand.Clear();
-            agent.Errand.EndedBecause = because;
+            AgentErrand errand = agent.Errand;
+            if (errand.Has && errand.Cue == CueKind.HomeTime)
+            {
+                agent.Home.NextHomeTryTick = checked(context.Tick + context.Jittered(settings.HomeTimeRetryTicks));
+            }
+
+            PendingCue next = errand.Next;
+            errand.Clear();
+            errand.EndedBecause = because;
+            if (next.Has)
+            {
+                errand.Has = true;
+                errand.Cue = next.Cue;
+                errand.IsHost = next.IsHost;
+                errand.StartTick = next.StartTick;
+                errand.CauseEventId = next.CauseEventId;
+                errand.Origin = agent.Body.Position;
+            }
+
             return false;
         }
 
-        private static bool GiveUp(Agent agent, string because)
+        private bool GiveUp(Agent agent, string because)
         {
             return Finish(agent, because);
         }

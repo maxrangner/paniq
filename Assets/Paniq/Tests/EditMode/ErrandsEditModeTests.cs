@@ -127,6 +127,8 @@ namespace Paniq.Tests.EditMode
                 simulation.CuesForTests.SendHome(simulation.AgentForTests(person));
 
                 bool seated = false;
+                bool bathroomDoorOpened = false;
+                bool officeDoorOpened = false;
                 for (int t = 0; t < 90 * Run.TicksPerSecond && !seated; t++)
                 {
                     simulation.Step();
@@ -134,11 +136,27 @@ namespace Paniq.Tests.EditMode
                     Agent agent = simulation.AgentForTests(person);
                     seated = agent.Sitting.OnIt && agent.Sitting.ChairIndex == chair &&
                              agent.Intent.Activity == AgentActivityState.Sitting;
+                    bathroomDoorOpened |= StateOf(simulation, TheBuilding.BathroomDoor) == DoorState.Open;
+                    officeDoorOpened |= StateOf(simulation, TheBuilding.OfficeDoor) == DoorState.Open;
                 }
 
                 Assert.That(seated, Is.True, "They should be sitting on their own chair: " + simulation.DescribeForTests(person));
-                Assert.That(StateOf(simulation, TheBuilding.BathroomDoor), Is.EqualTo(DoorState.Open), "They opened the bathroom door on the way.");
-                Assert.That(StateOf(simulation, TheBuilding.OfficeDoor), Is.EqualTo(DoorState.Open), "And the office door.");
+
+                // They opened both doors on the way, and shut the office door
+                // behind them once through, nobody being near it. (The
+                // bathroom door may stay open: the two standing in the
+                // bathroom are near enough that it is left for them.)
+                Assert.That(bathroomDoorOpened, Is.True, "They opened the bathroom door on the way.");
+                Assert.That(officeDoorOpened, Is.True, "And the office door.");
+                bool shutBehindThem = false;
+                foreach (CausalEvent record in simulation.GetSnapshot().Events)
+                {
+                    shutBehindThem |= record.EventType == CausalEventType.DoorClosed && record.SourceId.Value == 1019UL &&
+                                      record.TargetId == TheBuilding.OfficeDoor;
+                }
+
+                Assert.That(shutBehindThem, Is.True, "And shut the office door behind them.");
+                Assert.That(StateOf(simulation, TheBuilding.OfficeDoor), Is.EqualTo(DoorState.Unlocked), "Shut, not locked.");
             }
         }
 
@@ -389,6 +407,60 @@ namespace Paniq.Tests.EditMode
                 }
 
                 Assert.That(tried, Is.True, "Somebody tried the handle, which is worth a line in the story.");
+            }
+        }
+
+        [Test]
+        public void HomeTime_WithTheWayOutUnlockedLate_StillEmptiesTheBuilding_WithoutTryingTheHandleAllDay()
+        {
+            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(CalmDay());
+            data.Day.PlayerHomeTimeSpreadTicks = 200;
+            using (var simulation = new Run(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.CallHomeTime, default(SimulationId), 10);
+
+                // The front of the queue gives up on the locked door after
+                // half a minute; the player opens it a little after that.
+                int opened = 45 * Run.TicksPerSecond;
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, opened);
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, opened + 1);
+
+                int escaped = 0;
+                for (int t = 0; t < 200 * Run.TicksPerSecond && escaped < simulation.AgentCount; t++)
+                {
+                    simulation.Step();
+                    escaped = 0;
+                    for (int i = 0; i < simulation.AgentCount; i++)
+                    {
+                        AgentSnapshot person = simulation.GetAgent(i);
+                        escaped += person.Outcome == AgentTerminalOutcome.Escaped ? 1 : 0;
+                        if (person.Participation == AgentParticipation.Participating)
+                        {
+                            Assert.That(person.FearState, Is.EqualTo(AgentFearState.Calm),
+                                $"Tick {simulation.Tick}: person {person.AgentId} is frightened on a calm day.");
+                        }
+                    }
+                }
+
+                string left = "";
+                for (int i = 0; i < simulation.AgentCount; i++)
+                {
+                    if (simulation.GetAgent(i).Outcome != AgentTerminalOutcome.Escaped)
+                    {
+                        left += simulation.DescribeForTests(i) + "\n";
+                    }
+                }
+
+                Assert.That(escaped, Is.EqualTo(simulation.AgentCount), "Home time stands: everybody who gave up on the locked door tries again and gets out.\n" + left);
+
+                int tried = 0;
+                foreach (CausalEvent record in simulation.GetSnapshot().Events)
+                {
+                    tried += record.EventType == CausalEventType.AgentTriedDoor && record.TargetId == TheBuilding.TheWayOut ? 1 : 0;
+                }
+
+                Assert.That(tried, Is.LessThanOrEqualTo(2 * simulation.AgentCount),
+                    "A door found locked is remembered for a while, not tried again every few seconds.");
             }
         }
 

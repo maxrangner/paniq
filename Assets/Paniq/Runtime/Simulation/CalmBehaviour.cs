@@ -283,7 +283,17 @@ namespace Paniq.Simulation
             // Somebody with a cue waiting on them -- home time in a moment --
             // has no ideas of their own until it is done: what the building
             // asks beats what they thought of.
-            bool free = !agent.Errand.Has;
+            // Home time stands until they are out: somebody who was busy when
+            // it was called, or gave up on a locked way out, takes it up
+            // again, after a pause of their own; and until then nobody has
+            // ideas of their own (the toilet, a chat, their desk) either.
+            if (!agent.Errand.Has && cues.IsHomeTime && context.Tick >= agent.Home.NextHomeTryTick && cues.RemindOfHomeTime(agent))
+            {
+                StartStanding(agent);
+                return;
+            }
+
+            bool free = !agent.Errand.Has && !cues.IsHomeTime;
 
             // Not a band of the roll: a person needs the toilet when their own
             // clock says, however often they happen to be deciding things.
@@ -328,7 +338,7 @@ namespace Paniq.Simulation
         /// </summary>
         private bool TryStartToiletTrip(Agent agent)
         {
-            int every = context.Scenario.Day.ToiletEveryTicks;
+            int every = errands.ToiletEveryTicks;
             if (every <= 0)
             {
                 return false;

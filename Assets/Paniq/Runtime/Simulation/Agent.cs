@@ -605,6 +605,12 @@
         /// day, rather than on the errand, which is cleared.
         /// </summary>
         public int NextToiletTick;
+
+        /// <summary>
+        /// When they may next take up home time, after giving up on it (a
+        /// locked way out, no route): home time stands until they are out.
+        /// </summary>
+        public int NextHomeTryTick;
     }
 
     /// <summary>How far along the current step of an errand somebody is, so a glance at a noise resumes where it left off.</summary>
@@ -633,6 +639,20 @@
 
         /// <summary>Handed over to the chair behaviour for the last few steps and the sit itself.</summary>
         SittingDown
+    }
+
+    /// <summary>
+    /// A cue handed to somebody in the middle of an errand, kept until that
+    /// errand ends: a cue never changes what somebody is doing on the tick
+    /// it is called, so home time called mid-chat waits for the chat.
+    /// </summary>
+    internal struct PendingCue
+    {
+        public bool Has;
+        public CueKind Cue;
+        public bool IsHost;
+        public int StartTick;
+        public ulong CauseEventId;
     }
 
     /// <summary>
@@ -714,6 +734,15 @@
         /// <summary>Why the last errand ended, for the debug line and for tests; decides nothing.</summary>
         public string EndedBecause = "";
 
+        /// <summary>A cue that arrived while this errand was under way, taken up when it ends.</summary>
+        public PendingCue Next;
+
+        /// <summary>A door they opened themselves on the way, to shut behind them once through; -1 for none.</summary>
+        public int OpenedDoor = -1;
+
+        /// <summary>Which side of <see cref="OpenedDoor"/> they opened it from, so "through" is the other side.</summary>
+        public int OpenedFromSide;
+
         /// <summary>Handed to them and not yet taken up.</summary>
         public bool Pending => Has && Step < 0;
 
@@ -723,6 +752,9 @@
         public void Clear()
         {
             Has = false;
+            Next = default;
+            OpenedDoor = -1;
+            OpenedFromSide = 0;
             Cue = default;
             IsHost = false;
             Step = -1;
@@ -760,6 +792,8 @@
             ArriveWithin = 0;
             RetryStep = false;
             NextRemarkTick = 0;
+            OpenedDoor = -1;
+            OpenedFromSide = 0;
         }
     }
 

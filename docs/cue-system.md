@@ -69,9 +69,20 @@ scenario, the Director and the bake tool alike.
 
 - **Nobody moves on the tick a cue is called.** Every person in the audience
   takes it up at their own reaction tick (`SimulationContext.ReactionTick`),
-  plus their own seeded share of the cue's *spread*. A meeting breaks up one
-  person at a time; the building empties over half a minute. The owner's rule
-  from the playtest fixes holds: nothing happens to a whole group on one tick.
+  plus their own seeded share of the cue's *spread*, on a tick nobody else
+  takes one up on (`CueSystem.Staggered` reserves them, as fear reserves
+  reaction ticks). A meeting breaks up one person at a time even with no
+  spread; the building empties over half a minute. The owner's rule from the
+  playtest fixes holds: nothing happens to a whole group on one tick.
+- **A cue never changes what somebody is doing on the tick it is called.**
+  Somebody in the middle of an errand -- talking, in the stall, walking to
+  their desk -- finishes it, and takes the new cue up when it ends
+  (`AgentErrand.Next`). Home time called mid-chat waits for the chat.
+- **Home time stands.** It is a state of the day (`CueSystem.IsHomeTime`),
+  not a moment: whoever gave up on a locked way out, or was busy, is handed
+  it again after a pause of their own (`AgentHome.NextHomeTryTick`), and
+  until they are out nobody has ideas of their own. A front door unlocked a
+  minute late still empties the building.
 - **A reaction is a feeling, never a response to a named event.** People take
   up an errand because they were in a cue's audience, exactly as somebody
   ordered by a leader takes up the order: a record on them, a cause, and their
@@ -82,7 +93,9 @@ scenario, the Director and the bake tool alike.
   Nobody frightened is ever in a cue's audience.
 - **A cue from outside beats a person's own idea.** Somebody with home time
   waiting on them has no ideas of their own until it is done; a chat, a
-  toilet trip, a wander back to their desk are not offered to them.
+  toilet trip, a wander back to their desk are not offered to them. A
+  person's own idea, on the other hand, is never handed to somebody who
+  already has something waiting on them.
 - **One random stream.** The Director and the cues draw from the run's
   generator in processing order, like every behaviour. Their draws depend on
   simulation state alone, so a replay of a seed reproduces the day.
@@ -111,16 +124,26 @@ a partner who has gone) ends.
 
 | Cue | Script, as shipped on the office level |
 | --- | --- |
-| The meeting ends | go to your own chair or spot, sit on it. The host follows the same script first. Somebody with no home (a visitor) gets up and loiters |
+| The meeting ends | go to your own chair or spot, sit on it. The host follows the same script first. Somebody with no home (a visitor) gets up and loiters. Somebody already in their own chair (the two at the cafeteria table, when the cue reaches their room) sits on for a while of their own and then goes about their day |
 | Back to my desk | the same script, as a person's own idea |
-| Toilet trip | go to the nearest free stall (a room whose `Use` is `Stall`), opening doors on the way; shut its door; stand for ten to thirty seconds; open the door; go home; sit |
-| Chat | go to the partner; talk for six to eighteen seconds. The one whose idea it was walks over; the other is hailed and turns to face them, a few ticks late. The first thing each says is heard nearby (`SoundSystem.Say`) and neighbours glance over; the rest is only written down; it ends when the chat's time is up or the other is gone |
+| Toilet trip | go to the nearest free stall (a room whose `Use` is `Stall`), opening doors on the way; shut its door; stand for ten to thirty seconds; open the door; go home, or, having no home, back to where they stood; sit |
+| Chat | go to the partner; talk for six to eighteen seconds. The one whose idea it was walks over; the other is hailed and turns to face them, a few ticks late. The first thing each says is heard nearby (`SoundSystem.Say`) and neighbours glance over; the rest is neither heard nor written down; it ends when the chat's time is up, or the other is gone or knocked down |
 | Home time | leave: the way out that is the shortest walk, worked out again in every new room; each door on the route opened if shut, waited at if locked or wedged; through the way out and gone |
 
 Every "go to" walks room to room, opening the doors on the way, and every
 step gives up if it is going nowhere: stuck for `DaySettings.BlockedGiveUpTicks`
 (three seconds; somebody leaving never gives up for being stuck, a queue is
-the point of them) or past `DaySettings.ErrandTimeoutTicks`.
+the point of them) or past `DaySettings.ErrandTimeoutTicks`. A door somebody
+opened themselves is shut behind them once they are through, unless somebody
+else is near it (`DaySettings.DoorHoldMillimetres`), so the floor does not
+end up all open doors. A door stood at that would not open is remembered for
+about a minute (`DaySettings.LockedDoorMemoryTicks`) and routed round.
+
+The sit at the end of an errand is in their own chair, and only in it:
+somebody with a desk chair never sits anywhere else, nobody sits in somebody
+else's, and a sit at one's own desk lasts half a minute to a minute and a
+half (`DaySettings.DeskSitMinimumTicks` / `DeskSitMaximumTicks`) rather than
+the five to twenty seconds of a chair that is not theirs.
 
 Two things make this different from the calm behaviour before it:
 
@@ -167,9 +190,13 @@ All of it is plain data on the scenario, editable in Unity's Inspector today:
 - `DaySettings`: how often a person needs the toilet (a clock per person,
   about six minutes between trips, not a dice roll: a calm person decides
   something every few seconds, and a chance per decision sent the whole
-  office to the bathroom), how often somebody drifts back to their desk, how
-  long a chat lasts, how far a remark carries, how long a leaver waits at a
-  locked door.
+  office to the bathroom; stretched on a floor whose stalls could not keep
+  up with the crowd at that rate, so they are on average at most half full),
+  how often somebody drifts back to their desk, how long a desk sit lasts,
+  how far a remark carries, how long a leaver waits at a locked door and
+  how long before they try home time again, how long a locked door is
+  remembered, and how near somebody must be for a door to be left open for
+  them.
 
 ## Deliberately left for later
 
@@ -184,7 +211,9 @@ All of it is plain data on the scenario, editable in Unity's Inspector today:
 - **The host walking the visitors out** at home time, with the leader's rally.
 - **A home-time card and button.** The command exists and is tested; the card
   in the deck and the button on the screen are a small later change.
-- **Sitting until told, for everybody who starts seated.** The two people at
-  the cafeteria table start seated and nothing on this level's timetable gets
-  them up, so they sit through the calm half until something frightens them.
-  A "lunch ends" cue is one timetable line if they read as statues.
+- **"Lunch ends" on the timetable.** The two people at the cafeteria table
+  start seated and nothing on this level's timetable gets them up, so they
+  sit through the calm half until something frightens them. The
+  meeting-ending cue in their room now does get them up (they sit on for a
+  while of their own, then go about their day); it is one timetable line if
+  they read as statues.

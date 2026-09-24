@@ -322,8 +322,19 @@ leader, and prepared for a future event editor. One commit, on
 run and adds or eases pressure; cues after the disaster has started (nobody
 returns to calm yet); a third person joining a chat; refusing a cue by trait;
 the host walking the visitors out; a home-time card and button; and a
-"lunch ends" for the two who start seated in the cafeteria, who sit until
-something frightens them. All named in the [cue system](cue-system.md) note.
+"lunch ends" line on the timetable for the two who start seated in the
+cafeteria. All named in the [cue system](cue-system.md) note.
+
+**Reviewed the same day, and fixed in two more commits on the branch.** The
+review found the delivery half right and the execution half hand-written per
+cue, and four rules the day claimed and did not keep. An errand is now a list
+of steps from a script that is data on the scenario, so a new cue is a new
+list rather than new code; and the day keeps its own rules: a cue never
+changes what somebody is doing on the tick it is called, no two people take
+one up on the same tick, home time stands until everybody is out, doors get
+shut behind people, nobody sits in somebody else's chair, and a visitor walks
+back from the toilet to where they stood. Details in
+[technical decisions](technical-decisions.md).
 
 **One thing to watch at the next playtest.** Whether the calm half now reads
 as a day or as a fidget: people opening doors to go to the toilet, chats

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
@@ -39,6 +40,20 @@ namespace Paniq.Simulation
         /// <summary>Every kind's definition, by kind, looked up once.</summary>
         private readonly CueDefinition[] definitions;
 
+        /// <summary>
+        /// The ticks on which somebody already takes up a cue, so no two
+        /// people take one up on the same tick: the owner's rule that nothing
+        /// happens to a whole group on one tick, kept the way fear keeps it
+        /// for reactions. Ticks gone by are forgotten as they pass.
+        /// </summary>
+        private readonly HashSet<int> startsTaken = new HashSet<int>();
+
+        /// <summary>The middle of the floor, where a cue for the whole building is written down as happening.</summary>
+        private readonly LogicalPosition buildingCentre;
+
+        /// <summary>The line home time was written on, for everybody who takes it up late.</summary>
+        private ulong homeTimeLine;
+
         public CueSystem(SimulationContext context, Crowd crowd, WorldGeometry geometry)
         {
             this.context = context;
@@ -49,9 +64,60 @@ namespace Paniq.Simulation
             {
                 definitions[i] = context.Scenario.CueOf((CueKind)i);
             }
+
+            LogicalBounds floor = geometry.RoomBounds(0);
+            for (int r = 1; r < geometry.RoomCount; r++)
+            {
+                LogicalBounds room = geometry.RoomBounds(r);
+                floor = new LogicalBounds(Math.Min(floor.MinX, room.MinX), Math.Max(floor.MaxX, room.MaxX),
+                    Math.Min(floor.MinZ, room.MinZ), Math.Max(floor.MaxZ, room.MaxZ));
+            }
+
+            buildingCentre = floor.Centre;
         }
 
         public CueDefinition DefinitionOf(CueKind kind) => definitions[(int)kind];
+
+        /// <summary>The tick home time was called on, or -1: it stands from then until everybody is out.</summary>
+        public int HomeTimeTick { get; private set; } = -1;
+
+        public bool IsHomeTime => HomeTimeTick >= 0;
+
+        /// <summary>
+        /// Home time again, for somebody who was busy when it was called or
+        /// gave up on the way out: the same cue, the same line in the story,
+        /// taken up at their own reaction tick. False when they are not free
+        /// to.
+        /// </summary>
+        public bool RemindOfHomeTime(Agent person)
+        {
+            if (!IsHomeTime || person.Errand.Has || !CanTakeUpACue(person))
+            {
+                return false;
+            }
+
+            Hand(person, CueKind.HomeTime, false, Staggered(context.ReactionTick()), homeTimeLine);
+            return true;
+        }
+
+        /// <summary>
+        /// The first free tick at or after <paramref name="start"/>: nobody
+        /// takes up a cue on a tick somebody else already does. Processing
+        /// order decides who waits, so a replay agrees, and no random number
+        /// is drawn.
+        /// </summary>
+        private int Staggered(int start)
+        {
+            int tick = context.Tick;
+            startsTaken.RemoveWhere(taken => taken < tick);
+            int stagger = context.Scenario.Perception.StartleStaggerTicks;
+            while (!startsTaken.Add(start))
+            {
+                start = checked(start + stagger);
+            }
+
+            return start;
+        }
 
         /// <summary>
         /// Calls a cue. Who it reaches follows its definition: the caller
@@ -184,16 +250,21 @@ namespace Paniq.Simulation
                 }
 
                 int start = Math.Max(context.ReactionTick(), checked(hostStart + 1));
-                Hand(person, cue.Kind, false, checked(start + context.Random.NextIntInclusive(0, spreadTicks)), line);
+                Hand(person, cue.Kind, false, Staggered(checked(start + context.Random.NextIntInclusive(0, spreadTicks))), line);
             }
 
             return line;
         }
 
-        /// <summary>A cue for the whole building: everybody calm, each their own while later. Nobody announces it: people look at the clock for themselves.</summary>
+        /// <summary>
+        /// A cue for the whole building: everybody calm, each their own while
+        /// later. Nobody announces it: people look at the clock for
+        /// themselves. Home time is remembered as a state of the day, not a
+        /// moment, so whoever gives up on the way out tries again.
+        /// </summary>
         private ulong CallInBuilding(CueDefinition cue, int spreadTicks, ulong causeEventId)
         {
-            ulong line = WriteDown(cue, null, geometry.FireArea.Centre, default, causeEventId);
+            ulong line = WriteDown(cue, null, buildingCentre, default, causeEventId);
             Agent[] agents = crowd.All;
             for (int i = 0; i < agents.Length; i++)
             {
@@ -203,7 +274,13 @@ namespace Paniq.Simulation
                 }
 
                 int offset = context.Random.NextIntInclusive(0, spreadTicks);
-                Hand(agents[i], cue.Kind, false, checked(context.ReactionTick() + offset), line);
+                Hand(agents[i], cue.Kind, false, Staggered(checked(context.ReactionTick() + offset)), line);
+            }
+
+            if (cue.Kind == CueKind.HomeTime && !IsHomeTime)
+            {
+                HomeTimeTick = context.Tick;
+                homeTimeLine = line;
             }
 
             return line;
@@ -242,7 +319,8 @@ namespace Paniq.Simulation
                 bool seated = person.Sitting.OnIt;
                 if (host == null ||
                     (seated && !hostSeated) ||
-                    (seated == hostSeated && person.Traits.Leadership > host.Traits.Leadership))
+                    (seated == hostSeated && (person.Traits.Leadership > host.Traits.Leadership ||
+                                              (person.Traits.Leadership == host.Traits.Leadership && person.Id.Value < host.Id.Value))))
                 {
                     host = person;
                     hostSeated = seated;
@@ -260,13 +338,24 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Hands somebody a pending errand, replacing whatever they had in mind:
-        /// a cue from outside beats a person's own plans, the way home time
-        /// beats a chat.
+        /// Hands somebody a pending errand, replacing whatever they had in
+        /// mind: a cue from outside beats a person's own plans. Somebody in
+        /// the middle of an errand finishes it first, and takes this one up
+        /// when it ends: home time called mid-chat waits for the chat, so a
+        /// cue never changes what somebody is doing on the tick it is called.
         /// </summary>
         private static void Hand(Agent person, CueKind kind, bool isHost, int startTick, ulong causeEventId)
         {
             AgentErrand errand = person.Errand;
+            if (errand.Active)
+            {
+                errand.Next = new PendingCue
+                {
+                    Has = true, Cue = kind, IsHost = isHost, StartTick = startTick, CauseEventId = causeEventId
+                };
+                return;
+            }
+
             errand.Clear();
             errand.Has = true;
             errand.Cue = kind;

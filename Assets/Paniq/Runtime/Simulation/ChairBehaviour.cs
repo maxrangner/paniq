@@ -37,6 +37,55 @@ namespace Paniq.Simulation
             settings = context.Scenario.Items;
         }
 
+        /// <summary>Per chair: whether it is somebody's own desk chair, which nobody else sits in. Learnt on first asking.</summary>
+        private bool[] somebodysOwn;
+
+        private bool IsSomebodysOwn(int chair)
+        {
+            if (somebodysOwn == null)
+            {
+                somebodysOwn = new bool[objects.Count];
+                Agent[] agents = crowd.All;
+                for (int i = 0; i < agents.Length; i++)
+                {
+                    if (agents[i].Home.Chair >= 0)
+                    {
+                        somebodysOwn[agents[i].Home.Chair] = true;
+                    }
+                }
+            }
+
+            return somebodysOwn[chair];
+        }
+
+        /// <summary>
+        /// How long a sit lasts: at their own desk, the day's longer range;
+        /// anywhere else, the ordinary one. Somebody at their own desk used to
+        /// pop up again after the same five to twenty seconds as a stranger
+        /// on a cafeteria chair.
+        /// </summary>
+        private int SitLength(Agent agent, int chair)
+        {
+            DaySettings day = context.Scenario.Day;
+            return chair >= 0 && chair == agent.Home.Chair
+                ? context.Random.NextIntInclusive(day.DeskSitMinimumTicks, day.DeskSitMaximumTicks)
+                : context.Random.NextIntInclusive(settings.SitMinimumTicks, settings.SitMaximumTicks);
+        }
+
+        /// <summary>
+        /// Whatever held them in their chair (a meeting, a lunch) is over:
+        /// they sit on for a while of their own and then get up and go about
+        /// their day, instead of sitting until something frightens them.
+        /// </summary>
+        public void SitForAWhile(Agent agent)
+        {
+            agent.Sitting.SitUntilTold = false;
+            agent.Intent.Activity = AgentActivityState.Sitting;
+            agent.Intent.LookHeading = objects.HeadingOf(agent.Sitting.ChairIndex);
+            agent.Intent.ActivityEndTick = checked(context.Tick + SitLength(agent, agent.Sitting.ChairIndex));
+            agent.Sitting.SitUntilTick = agent.Intent.ActivityEndTick;
+        }
+
         public static bool IsSitting(Agent agent)
         {
             AgentActivityState activity = agent.Intent.Activity;
@@ -66,12 +115,32 @@ namespace Paniq.Simulation
             // because walking to one anywhere else meant walking at the wall
             // between.
             FlowField walking = geometry.Routes.ReachFrom(agent.Body.Position, bodyRadius);
+
+            // Somebody with a desk chair of their own sits in it and nowhere
+            // else, and nobody sits in somebody else's: it used to be musical
+            // chairs, with the owner coming back to find their chair taken
+            // and standing about beside it.
+            if (agent.Home.Chair >= 0)
+            {
+                int own = agent.Home.Chair;
+                LogicalPosition seat = objects.PositionOf(own);
+                if (!objects.IsFreeChair(own) || (walking == null && geometry.RoomAtPoint(seat) != room))
+                {
+                    return false;
+                }
+
+                long walk = walking == null
+                    ? IntegerMath.Distance(agent.Body.Position, seat)
+                    : geometry.Routes.DistanceIn(walking, seat);
+                return walk < reach && TryStartSittingOn(agent, own, false);
+            }
+
             using PhysicsObjectSystem.Nearby candidates =
                 objects.Gather(UniformGridIndex.Around(agent.Body.Position, reach));
             for (int c = 0; c < candidates.Count; c++)
             {
                 int i = candidates[c];
-                if (!objects.IsFreeChair(i))
+                if (!objects.IsFreeChair(i) || IsSomebodysOwn(i))
                 {
                     continue;
                 }
@@ -465,11 +534,12 @@ namespace Paniq.Simulation
             agent.Intent.LookHeading = objects.HeadingOf(chair);
 
             // Until told, for somebody a cue will get up (a meeting under
-            // way); otherwise for a while of their own. The draw is skipped
-            // rather than made and ignored, so it cannot move anybody else's.
+            // way); otherwise for a while of their own, longer at their own
+            // desk. The draw is skipped rather than made and ignored, so it
+            // cannot move anybody else's.
             agent.Intent.ActivityEndTick = agent.Sitting.SitUntilTold
                 ? int.MaxValue
-                : checked(context.Tick + context.Random.NextIntInclusive(settings.SitMinimumTicks, settings.SitMaximumTicks));
+                : checked(context.Tick + SitLength(agent, chair));
             agent.Sitting.SitUntilTick = agent.Intent.ActivityEndTick;
             return true;
         }

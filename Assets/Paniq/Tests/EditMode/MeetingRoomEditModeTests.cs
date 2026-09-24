@@ -265,9 +265,12 @@ namespace Paniq.Tests.EditMode
                     continue;
                 }
 
+                // Up, and not straight back into the same chair: a visitor
+                // with no desk may sit down again somewhere, but not for a
+                // few seconds, and not as part of the meeting ending.
                 AgentSnapshot person = simulation.GetAgent(i);
-                Assert.That(person.ActivityState, Is.Not.EqualTo(AgentActivityState.Sitting),
-                    $"Person {person.AgentId} is still sitting after the meeting ended.");
+                Assert.That(person.ActivityState != AgentActivityState.Sitting || simulation.Tick - roseAt[i] > 5 * Run.TicksPerSecond,
+                    Is.True, $"Person {person.AgentId} is still sitting after the meeting ended: " + simulation.DescribeForTests(i));
             }
 
             // The host ends it: the person at the table with the most

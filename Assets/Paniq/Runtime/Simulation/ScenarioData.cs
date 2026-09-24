@@ -680,9 +680,21 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "66";
+        public string ContentRevision = "67";
         public ulong DefaultSeed = 42UL;
 
+        // 55: the day keeps its own rules. A cue never changes what somebody
+        // is doing on the tick it is called (somebody mid-errand finishes it
+        // first); no two people take a cue up on the same tick; home time
+        // stands until everybody is out, and is written down in the middle of
+        // the floor rather than on the fire; somebody seated in their own
+        // chair when told to go home sits on for a while of their own; a
+        // chat partner must be on their feet; a locked door is remembered for
+        // a minute; a door somebody opened is shut behind them; somebody with
+        // a desk chair sits only in it and nobody else does; a visitor walks
+        // back from the toilet to where they stood; desk sits are longer;
+        // only a heard remark is written down; the toilet rate allows for how
+        // many stalls the floor has. Fingerprints re-recorded.
         // 54: an errand is a list of steps from a cue's script (data on the
         // scenario), a person keeps hold of a chair through a glance and
         // waits for one that is still sliding, and the host of a room cue is
@@ -728,7 +740,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 54;
+        public int SimulationCompatibilityVersion = 55;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

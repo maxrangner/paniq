@@ -811,12 +811,54 @@ that make people read as people (the host says something at the meeting end;
 the hailed partner walks too; chats end one person at a time; doorway hails
 excluded; wander on errand walks; traits gate what somebody takes up).
 
+## Prototype 2 fix: the day keeps its own rules (2026-09-24)
+
+The second of the three commits the owner approved from the cue system's
+review, after the refactor that made an errand a list of steps. Every row is
+a rule the day already claimed to keep and did not, or a thing that read as
+wrong on screen, found by reading the code the day it was written.
+
+**What a player sees.** Home time called while two people are talking no
+longer snaps them apart on that tick: they finish talking and then go. The
+meeting breaks up one person at a time even when its spread is nought. Home
+time stands until everybody is out, so a front door unlocked a minute late
+still empties the building, and nobody wanders off to the toilet while it
+is home time. The two at the cafeteria table get up when the meeting-ending
+cue reaches their room instead of sitting until something frightens them.
+People shut the doors they opened behind them, so the floor is not all open
+doors five minutes in. Nobody sits in somebody else's desk chair, and
+somebody at their own desk stays there for a minute or so rather than
+popping up after ten seconds. A visitor walks back from the toilet to where
+they were standing instead of loitering in the stall. The story no longer
+reads "person 3 said something" forty times a chat.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **A cue never changes what somebody is doing on the tick it is called** | `CueSystem.Hand` no longer wipes an errand under way. It goes into `AgentErrand.Next`, and `ErrandBehaviour.Finish` takes it up when the current errand ends. A pending errand (handed, not yet begun) is still replaced, since nothing has begun | It broke the owner's rule twice over: home time called mid-chat turned one talker away that very tick, and their partner ended the same tick for want of them | A cue that must interrupt (a fire drill): then a flag on the definition |
+| **No two people take a cue up on the same tick** | `CueSystem.Staggered` reserves start ticks the way `FearSystem.Staggered` reserves reaction ticks: the first free tick at or after the drawn one, stepped by `PerceptionSettings.StartleStaggerTicks`, forgotten as the ticks pass, no random number drawn | The spread was statistical: with a spread of nought, six people at the meeting rose within the same eight-tick lag, two or three of them on one tick, most runs | Never |
+| **Home time stands** | `CueSystem.HomeTimeTick` remembers it. Somebody free with nothing waiting on them, after `AgentHome.NextHomeTryTick`, is handed it again (`RemindOfHomeTime`, the same line in the story as its cause); giving up on it -- a locked way out stood at until they tired of it, no route -- sets that tick `DaySettings.HomeTimeRetryTicks` (**1500**, jittered) ahead. While home time stands nobody has ideas of their own: no toilet trip, no chat, no drifting back to their desk | The front of the queue gave up on the locked door after thirty seconds, the rest timed out at sixty, and nothing ever told them again. Unlock the door at thirty-five seconds and the building stayed. It is a state of the day, not a moment | Home time that can be called off (the disaster starts, the Director says work on) |
+| **Home time is written down in the middle of the floor** | `CueSystem` works out the middle of all the rooms once and writes a building-wide cue there | It was positioned at the fire's origin, so the end card put "it was home time" on the fire | A level whose "middle" is nowhere sensible (an L-shaped floor); then a named point on the level |
+| **Somebody seated in their own chair sits on for a while** | `ChairBehaviour.SitForAWhile`: when a cue that sends them home reaches somebody already in their own chair, the sit stops being "until told" and gets a drawn length of its own; the errand ends there | The two at the cafeteria table were exactly that, so the "lunch ends" line the last commit offered would have done nothing | Never |
+| **A chat partner must be on their feet** | `ErrandBehaviour.PartnerOf` checks `Body.IsOnTheirFeet` | Knocked flat, they were talked to on the floor | Never |
+| **A door found locked is remembered** | Giving up at a door that would not open sets `AgentDoors.AvoidUntilTick` for `DaySettings.LockedDoorMemoryTicks` (**3000**, jittered), which the route finder already honours | Somebody shut in a locked stall retried the handle every thirty seconds for ever, and every try was a line in the story | A player unlocking a door expects people to notice at once. Then a door swinging open clears the memory, as it already teaches a way out |
+| **A door they opened is shut behind them** | `ErrandBehaviour.ShutTheDoorBehindThem`: the door somebody opened themselves on the way (`AgentErrand.OpenedDoor`), once they are a stride through it on the far side, is shut unless anybody else is within `DaySettings.DoorHoldMillimetres` (**2000**) of it, in which case it is left for them | Errands opened doors and never shut them, so five minutes into a calm half every door on the floor stood open, which changes how a fire and a noise travel and reads as a draughty office | The cruel slamming doors (which exists for strolls) should apply here too, or a trait should hold a door open longer |
+| **Somebody with a desk chair sits only in it** | `ChairBehaviour.TryStartSitting`: a person with a home chair sits in it if it is free and within reach, and nowhere else; everybody else skips chairs that are somebody's own (learnt once from everybody's homes) | Musical chairs: anybody sat in the nearest free chair, including somebody else's desk chair, and the owner came back to find it taken and stood about | Communal chairs in a room with desks (a spare chair at a desk cluster) |
+| **A visitor walks back from the toilet** | The toilet trip's last walk is *home or where they stood* rather than *home* | With no home to go to, a visitor's errand ended inside the stall and they strolled there | Never |
+| **Desk sits are longer** | `DaySettings.DeskSitMinimumTicks` / `DeskSitMaximumTicks` (**1500** to **4500**: half a minute to a minute and a half) for a sit in one's own chair; the ordinary five to twenty seconds is for any other chair | Office workers popped up and down at their desks like a fairground game | Playtesters say the office looks dead; then shorter, or fidgets in the chair |
+| **Only a heard remark is written down** | `SoundSystem.Say` returns without a line when the remark is not heard; a chat's first remark from each person is heard and logged, the rest are neither | "Person 3 said something" forty times in the read-back | The read-back wants a "they talked for a while" summary line |
+| **A stall claim is one look** | `ErrandBehaviour` keeps, per room, who last set off for it as a stall; a claim holds while that person's errand is still about the stall. Asking whether a stall is free is that one look plus the people physically in it | It walked the whole crowd once per stall per toilet decision: three stalls times five hundred people, several times a second | Never |
+| **The toilet rate allows for the stalls** | `ErrandBehaviour.ToiletEveryTicks`: the day's figure, stretched to `2 × people × longest stay / stalls` when that is slower, so the stalls are on average at most half full. Twenty people, three stalls, a thirty-second stay: every 400 seconds instead of 360 | Demand was a rate per person, so at five hundred people three stalls would have saturated for good and "try the toilet again" become everybody's idea | A level with a bathroom per wing; then per-wing rather than per-floor |
+| **The host of a room cue: the lower ID on a tie** | `CueSystem.HostOf` breaks a leadership tie by ID, as the doc always said | It broke ties by index, which is equal to ID order today but not on a baked level whose IDs are out of order | Never |
+| Versions | `SimulationCompatibilityVersion` 54 -> 55; `ContentRevision` 66 -> 67. Ten of the thirteen recorded fingerprints re-recorded; three (seed 40 cards, and the two seed 41 "no visitors" runs) happen not to change | Nearly every row changes where somebody is a minute in | Never |
+| Tests | `CuesEditModeTests`: home time called mid-chat changes nothing on that tick and is taken up when the chat is over; a cue with no spread reaches no two people on the same tick; the meeting ending gets up somebody seated in their own chair. `ErrandsEditModeTests`: home time with the way out unlocked late still empties the building, without trying the handle all day; somebody sent home shuts the office door behind them. The meeting-room test now allows a visitor to sit down again some seconds after rising | -- | -- |
+
 ## Version history
 
 Every bump of `SimulationCompatibilityVersion` (the rules) and `ContentRevision` (the building) that the replay compatibility row of the first table used to list in one cell, newest first. The bumps from 27 to 42 are recorded in their own stones' sections above (search this document for "Versions").
 
 | Change | What moved |
 | --- | --- |
+| 54 → 55 and content 66 → 67 (2026-09-24) | the day keeps its own rules: a cue never changes what somebody is doing on the tick it is called, no two people take one up on the same tick, home time stands until everybody is out, doors are shut behind, nobody sits in somebody else's chair, desk sits are longer, a locked door is remembered, only a heard remark is written down. Ten of the thirteen fingerprints re-recorded; three happen not to change. |
 | 53 → 54 and content 65 → 66 (2026-09-24) | an errand is a list of steps from a cue's script, a person keeps hold of a chair through a glance and waits for one still sliding, and the host of a room cue is up first. Six of the thirteen fingerprints re-recorded; seven happen not to change. |
 | 52 → 53 and content 64 → 65 (2026-09-24) | a tick that got somewhere forgives one stuck tick instead of wiping the count, so a jostling crush no longer counts as getting somewhere; and a round the hazard started on its own blames its end on the hazard's start. Eleven of the thirteen fingerprints re-recorded; two happen not to change. |
 | 51 → 52 and content 63 → 64 (2026-09-24) | a chair that will not come all the way out is sat on where it stopped, and one that will not slide all the way back in is settled where it is, instead of being dropped or kicked over. Five of the thirteen fingerprints re-recorded; eight happen not to change. |

@@ -1946,6 +1946,40 @@ namespace Paniq.Simulation
         /// </summary>
         public int PlayerHomeTimeSpreadTicks = 1500;
 
+        /// <summary>
+        /// How long somebody sits at their own desk before getting up for a
+        /// stroll, a chat or the toilet: half a minute to a minute and a
+        /// half. The ordinary sit (five to twenty seconds) is for a chair
+        /// that is not theirs; at their own desk it had people popping up and
+        /// down like a fairground game.
+        /// </summary>
+        public int DeskSitMinimumTicks = 1500;
+        public int DeskSitMaximumTicks = 4500;
+
+        /// <summary>
+        /// Home time stands until everybody is out. Somebody who gave up on
+        /// it -- stood at a locked way out until they tired of it, or found
+        /// no route -- waits about this long, jittered, before taking it up
+        /// again, so a way out unlocked a minute later still empties the
+        /// building.
+        /// </summary>
+        public int HomeTimeRetryTicks = 1500;
+
+        /// <summary>
+        /// How long somebody remembers a door they stood at that would not
+        /// open, and routes round it. A minute: long enough that the story
+        /// is not one line of "tried the door" after another from somebody
+        /// shut in a stall, short enough that a door unlocked is found again.
+        /// </summary>
+        public int LockedDoorMemoryTicks = 3000;
+
+        /// <summary>
+        /// A door somebody opened themselves is shut behind them once they
+        /// are through, unless somebody else is within this distance of it
+        /// and may be on their way through too.
+        /// </summary>
+        public int DoorHoldMillimetres = 2000;
+
         public DaySettings Clone() => (DaySettings)MemberwiseClone();
 
         internal void Validate()
@@ -1955,6 +1989,8 @@ namespace Paniq.Simulation
             Settings.Require(RemarkHearingRadiusMillimetres >= 0 && AtHomeMillimetres >= 0, "remark reach and home");
             Settings.Require(ErrandTimeoutTicks >= 1 && BlockedGiveUpTicks >= 1 && WaitAtLockedDoorTicks >= 0 &&
                              PlayerHomeTimeSpreadTicks >= 0, "errand timing");
+            Settings.Require(Settings.Range(DeskSitMinimumTicks, DeskSitMaximumTicks, 1) && HomeTimeRetryTicks >= 1 &&
+                             LockedDoorMemoryTicks >= 0 && DoorHoldMillimetres >= 0, "desk sits, home time and doors");
         }
     }
 

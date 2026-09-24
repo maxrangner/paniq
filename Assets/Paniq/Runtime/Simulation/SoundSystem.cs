@@ -47,15 +47,21 @@ namespace Paniq.Simulation
         /// <summary>
         /// A remark in a conversation: quiet, heard a little way off, alarming
         /// nobody. Neighbours glance over at the talking when it starts (a
-        /// remark that is <paramref name="heard"/>); the rest of it is only
-        /// written down, or the whole office would spend the day staring at
-        /// the two people talking beside them. The person being talked to
-        /// never turns to wonder what the voice was, because it is them being
-        /// talked to.
+        /// remark that is <paramref name="heard"/>); the rest of it is
+        /// neither heard nor written down, or the whole office would spend
+        /// the day staring at the two people talking beside them and the
+        /// story would read "person 3 said something" forty times. The person
+        /// being talked to never turns to wonder what the voice was, because
+        /// it is them being talked to.
         /// </summary>
         public void Say(Agent speaker, ulong causalParentEventId, bool heard)
         {
-            int reach = heard ? context.Scenario.Day.RemarkHearingRadiusMillimetres : 0;
+            if (!heard)
+            {
+                return;
+            }
+
+            int reach = context.Scenario.Day.RemarkHearingRadiusMillimetres;
             CausalEvent said = context.Events.Append(
                 context.Tick,
                 speaker.Id,
@@ -64,10 +70,7 @@ namespace Paniq.Simulation
                 reach,
                 0,
                 causalParentEventId);
-            if (heard)
-            {
-                Emit(speaker.Id, speaker.Body.Position, reach, 0, said.EventId, AgentAlertSource.Yell, speaker);
-            }
+            Emit(speaker.Id, speaker.Body.Position, reach, 0, said.EventId, AgentAlertSource.Yell, speaker);
         }
 
         /// <summary>A collision, trip, shove or box hit: heard up to the thud reach, alarming no one.</summary>

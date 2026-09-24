@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("60"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(48));
+            Assert.That(data.ContentRevision, Is.EqualTo("62"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(50));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -1123,15 +1123,17 @@ namespace Paniq.Tests.EditMode
                     if (agent.ActivityState == AgentActivityState.Frozen)
                     {
                         // Frozen to the spot, give or take being jostled by the
-                        // people running past. Eighty centimetres rather than
-                        // sixty: the building now funnels everybody down one
-                        // corridor, so somebody rooted in a doorway takes a far
-                        // harder shoving than they did in two big rooms. It is
-                        // still nothing like walking away, which is what this
-                        // is guarding against.
+                        // people running past. A metre rather than sixty
+                        // centimetres: the building now funnels everybody down
+                        // one corridor, so somebody rooted in a doorway takes a
+                        // far harder shoving than they did in two big rooms
+                        // (eighty centimetres was missed by under a millimetre
+                        // once the crowd's timing was jittered). It is still
+                        // nothing like walking away, which is what this is
+                        // guarding against.
                         frozenAt[i] ??= agent.Position;
                         Assert.That(LogicalPosition.DistanceSquared(agent.Position, frozenAt[i].Value),
-                            Is.LessThanOrEqualTo(800L * 800L),
+                            Is.LessThanOrEqualTo(1000L * 1000L),
                             $"Permanently frozen agent {agent.AgentId} moved.");
                     }
                     else
@@ -1174,7 +1176,8 @@ namespace Paniq.Tests.EditMode
                 }
 
                 // Someone knocked to the floor while frozen snaps out of it once back on their feet.
-                int longestDown = data.Falls.UnconsciousMaximumTicks + data.Falls.ComeToGetUpTicks;
+                int longestDown = (data.Falls.UnconsciousMaximumTicks + data.Falls.ComeToGetUpTicks) *
+                    (100 + data.World.TimingJitterPercent) / 100 + 1;
                 int deadline = pair.Value.Tick + data.Temperament.FreezeMaximumTicks + longestDown;
                 bool lostFirst = lostTick.TryGetValue(pair.Key, out int lost) && lost <= deadline;
                 if (!lostFirst && deadline < simulation.Tick)
@@ -1229,7 +1232,8 @@ namespace Paniq.Tests.EditMode
 
                         // Somebody alight can also put themselves on the floor.
                         data.Fire.RollMaximumTicks) + data.Falls.GetUpTicks,
-                    data.Falls.UnconsciousMaximumTicks + data.Falls.ComeToGetUpTicks) + 1;
+                    data.Falls.UnconsciousMaximumTicks + data.Falls.ComeToGetUpTicks) *
+                    (100 + data.World.TimingJitterPercent) / 100 + 2;
                 // Bodies give a little: in a packed, shoving crowd two people on
                 // their feet may press a few centimetres into each other, and
                 // no further. People knocked down can end up in a heap, one

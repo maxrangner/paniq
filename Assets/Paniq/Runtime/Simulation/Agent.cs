@@ -469,6 +469,9 @@
         /// <summary>They stop following at this tick unless called on again.</summary>
         public int FollowUntilTick;
 
+        /// <summary>When they actually fall in behind the leader: a few ticks after the call, like every reaction.</summary>
+        public int FollowFromTick;
+
         /// <summary>When they may next look around and form a plan.</summary>
         public int NextPlanTick;
 

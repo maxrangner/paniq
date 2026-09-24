@@ -80,7 +80,7 @@ namespace Paniq.Simulation
 
             agent.Carry.ItemIndex = best;
             agent.Intent.Activity = AgentActivityState.FetchingItem;
-            agent.Intent.ActivityEndTick = checked(context.Tick + calm.StrollTimeoutTicks);
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(calm.StrollTimeoutTicks));
             return true;
         }
 
@@ -127,7 +127,7 @@ namespace Paniq.Simulation
                     if (IsWithinReach(agent, item))
                     {
                         intent.Activity = AgentActivityState.PickingUp;
-                        intent.ActivityEndTick = checked(tick + settings.PickUpTicks);
+                        intent.ActivityEndTick = checked(tick + context.Jittered(settings.PickUpTicks));
                         return true;
                     }
 
@@ -160,7 +160,7 @@ namespace Paniq.Simulation
                         agent.Body.BlockedTicks > calm.BlockedGiveUpTicks)
                     {
                         intent.Activity = AgentActivityState.SettingDown;
-                        intent.ActivityEndTick = checked(tick + settings.SetDownTicks);
+                        intent.ActivityEndTick = checked(tick + context.Jittered(settings.SetDownTicks));
                         return true;
                     }
 
@@ -197,7 +197,7 @@ namespace Paniq.Simulation
         {
             AgentIntent intent = agent.Intent;
             intent.Activity = AgentActivityState.CarryingItem;
-            intent.ActivityEndTick = checked(context.Tick + calm.StrollTimeoutTicks);
+            intent.ActivityEndTick = checked(context.Tick + context.Jittered(calm.StrollTimeoutTicks));
             long minimumSquared = (long)settings.CarryMinimumDistanceMillimetres * settings.CarryMinimumDistanceMillimetres;
             for (int attempt = 0; attempt < 3; attempt++)
             {

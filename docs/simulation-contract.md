@@ -57,6 +57,17 @@ procedure with the scenario seed as `initstate` and a fixed `initseq` of `54`.
   stream deserves a derivation scheme rather than a third constant.
 - Simulation code must not use Unity's global `UnityEngine.Random`, wall-clock
   time, rendering-frame count, or presentation state to choose an outcome.
+- Nobody reacts on the tick a thing happens, and nothing happens to a whole
+  group on exactly the same tick (the owner's rule, 2026-09-24). Every reaction
+  to the world begins a few ticks late through `SimulationContext.ReactionLag`
+  (`PerceptionSettings.ReactionLagMinimumTicks` to `ReactionLagMaximumTicks`),
+  and no two people finish being startled on one tick (`FearSystem.Staggered`). Every fixed length of time a person spends on something --
+  getting up, trying a door, pressing an alarm, picking something up -- is
+  stretched or squeezed by a seeded amount through `SimulationContext.Jittered`
+  (`WorldSettings.TimingJitterPercent`, 20 % either way), and any schedule
+  several people share, such as the moment a meeting ends, draws a seeded
+  offset per person. The draws come from the run's generator in processing
+  order, so a replay agrees.
 - Visual, audio, and UI code may use presentation-only variation, but may not
   read, seed, restore, or advance the simulation generator.
 - The generator's 64-bit state and stream selector are part of runtime

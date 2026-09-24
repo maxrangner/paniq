@@ -121,7 +121,7 @@ namespace Paniq.Simulation
 
                     if (room == side || (beyond >= 0 && room == beyond))
                     {
-                        agent.Intent.NextPanicDecisionTick = context.Tick;
+                        context.ThinkAgainSoon(agent.Intent);
                         wayfinding.Learn(agent, door, WayLearned.SawItOpen, 0UL);
                     }
                 }
@@ -658,12 +658,12 @@ namespace Paniq.Simulation
             if (doors.StateOf(door) == DoorState.Unlocked && !doors.IsObstructed(door))
             {
                 agent.Intent.Activity = AgentActivityState.OpeningDoor;
-                agent.Intent.ActivityEndTick = checked(context.Tick + settings.DoorOpenTicks);
+                agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.DoorOpenTicks));
             }
             else
             {
                 agent.Intent.Activity = AgentActivityState.TryingDoor;
-                agent.Intent.ActivityEndTick = checked(context.Tick + settings.DoorTryTicks);
+                agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.DoorTryTicks));
             }
         }
 
@@ -701,7 +701,7 @@ namespace Paniq.Simulation
                 agent.Doors.AvoidUntilTick[door] = checked(tick + context.Random.NextIntInclusive(
                     settings.DoorCrowdedAvoidMinimumTicks, settings.DoorCrowdedAvoidMaximumTicks));
                 agent.Doors.ExitDoorIndex = -1;
-                agent.Intent.NextPanicDecisionTick = tick;
+                context.ThinkAgainSoon(agent.Intent);
                 return false;
             }
 
@@ -721,7 +721,7 @@ namespace Paniq.Simulation
                     {
                         // Wedged while they were pulling at it: it will not come.
                         agent.Intent.Activity = AgentActivityState.TryingDoor;
-                        agent.Intent.ActivityEndTick = checked(tick + settings.DoorTryTicks);
+                        agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.DoorTryTicks));
                         return true;
                     }
 
@@ -742,7 +742,7 @@ namespace Paniq.Simulation
 
                     HeaveObstructionClear(agent, door);
                     agent.Intent.Activity = AgentActivityState.TryingDoor;
-                    agent.Intent.ActivityEndTick = checked(tick + settings.DoorTryTicks);
+                    agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.DoorTryTicks));
                     return true;
 
                 case AgentActivityState.TryingDoor:
@@ -762,14 +762,14 @@ namespace Paniq.Simulation
                         if (thing >= 0 && CanReachToThrowClear(agent, thing))
                         {
                             objects.ThrowClear(agent, thing, ClearAwayHeading(agent, doorCentre), agent.Doors.AttemptEventId);
-                            agent.Intent.ActivityEndTick = checked(tick + settings.DoorTryTicks);
+                            agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.DoorTryTicks));
                             return true;
                         }
 
                         if (agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength)
                         {
                             agent.Intent.Activity = AgentActivityState.ShovingObstruction;
-                            agent.Intent.ActivityEndTick = checked(tick + context.Scenario.Blockades.ShoveTicks);
+                            agent.Intent.ActivityEndTick = checked(tick + context.Jittered(context.Scenario.Blockades.ShoveTicks));
                         }
                         else
                         {

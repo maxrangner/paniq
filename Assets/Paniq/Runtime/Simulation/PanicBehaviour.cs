@@ -95,14 +95,16 @@ namespace Paniq.Simulation
         private bool TryHeaveTable(Agent agent)
         {
             LogicalPosition position = agent.Body.Position;
-            LogicalPosition target = agent.Intent.Target;
-            if (objects == null || agent.Body.State != AgentBodyState.Upright || position.Equals(target) ||
+            if (objects == null || agent.Body.State != AgentBodyState.Upright ||
                 context.Tick < agent.Intent.NextTableHeaveTick)
             {
                 return false;
             }
 
-            int heading = IntegerMath.HeadingBetween(position, target, agent.Body.Heading);
+            // The way they are facing, which is the way they have been
+            // pushing: somebody bolting from flames faces away from them,
+            // whatever spot they last decided to make for.
+            int heading = agent.Body.Heading;
             LogicalPosition ahead = position + IntegerMath.Displacement(heading, bodyRadius + ArmsReachMillimetres);
             int table = geometry.TableAt(ahead, bodyRadius);
             if (table < 0)
@@ -210,7 +212,7 @@ namespace Paniq.Simulation
             {
                 // Through the door they were running for: the next leg of the
                 // way out is worked out from the room they are standing in now.
-                intent.NextPanicDecisionTick = tick;
+                context.ThinkAgainSoon(intent);
             }
 
             bool leaving = doorBehaviour.IsLeaving(agent);

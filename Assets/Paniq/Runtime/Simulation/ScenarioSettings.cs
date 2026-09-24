@@ -18,12 +18,25 @@ namespace Paniq.Simulation
         public int OccupancyRadiusMillimetres = 250;
         public int MaximumStepDistanceMillimetres = 120;
 
+        /// <summary>
+        /// How far, either way, a fixed length of time for a person is
+        /// stretched or squeezed when it starts, as a percentage of it. Every
+        /// moment somebody spends -- getting up, trying a door, pressing an
+        /// alarm, picking something up -- takes a slightly different time for
+        /// each person and each occasion, so two people who started the same
+        /// thing on the same tick do not finish it on the same tick either.
+        /// The owner's rule (2026-09-24): nothing in the game happens to a
+        /// whole group on exactly the same tick.
+        /// </summary>
+        public int TimingJitterPercent = 20;
+
         public WorldSettings Clone() => (WorldSettings)MemberwiseClone();
 
         internal void Validate()
         {
             Settings.Require(OccupancyRadiusMillimetres > 0 && OccupancyRadiusMillimetres <= 2000, "occupancy radius");
             Settings.Require(MaximumStepDistanceMillimetres >= 0 && MaximumStepDistanceMillimetres <= 1000, "maximum step");
+            Settings.Require(Settings.Percent(TimingJitterPercent), "timing jitter");
         }
     }
 
@@ -33,6 +46,28 @@ namespace Paniq.Simulation
     {
         public int VisionRangeMillimetres = 3000;
         public int MaximumReactionDelayTicks = 20;
+
+        /// <summary>
+        /// No two people finish being startled on the same tick. Whoever
+        /// would have, the later one in ID order is put off by this many
+        /// ticks, and again until the tick is theirs alone: a bell that
+        /// reaches six people at a table has them come up out of their chairs
+        /// one after another, a few ticks apart, never all at once. The
+        /// owner's rule (2026-09-24).
+        /// </summary>
+        public int StartleStaggerTicks = 3;
+
+        /// <summary>
+        /// Nobody reacts on the tick a thing happens. Every reaction to the
+        /// world -- a bell, a door swinging open, a shout, a noise, a leader's
+        /// call, being knocked down, giving something up and thinking again --
+        /// begins this many ticks late, drawn per person and per occasion from
+        /// the seed, so a crowd answers the world raggedly the way people do
+        /// rather than all at once the way clockwork does. The owner's rule
+        /// (2026-09-24): all behaviour, never a reaction on the same tick.
+        /// </summary>
+        public int ReactionLagMinimumTicks = 2;
+        public int ReactionLagMaximumTicks = 8;
 
         /// <summary>
         /// How far away somebody who does not know the building notices a door
@@ -49,6 +84,8 @@ namespace Paniq.Simulation
 
         internal void Validate()
         {
+            Settings.Require(StartleStaggerTicks >= 1, "startle stagger");
+            Settings.Require(Settings.Range(ReactionLagMinimumTicks, ReactionLagMaximumTicks, 1), "reaction lag");
             Settings.Require(VisionRangeMillimetres > 0 && MaximumReactionDelayTicks >= 0 && DoorSightRangeMillimetres >= 0,
                 "perception");
         }
@@ -1437,6 +1474,14 @@ namespace Paniq.Simulation
         /// </summary>
         public int SeatedAtStartTicks = 3000;
 
+        /// <summary>
+        /// How far beyond <see cref="SeatedAtStartTicks"/> each person who
+        /// starts seated may sit on, drawn per person from the seed: the
+        /// meeting breaks up over eight seconds, one person at a time, rather
+        /// than all six rising on one tick in unison.
+        /// </summary>
+        public int SeatedAtStartSpreadTicks = 400;
+
         /// <summary>Getting out of a chair: this long, less a little for the nervous.</summary>
         public int StandUpTicks = 40;
         public int StandUpTicksPerNervousness = 2;
@@ -1515,7 +1560,7 @@ namespace Paniq.Simulation
             Settings.Require(DropNervousness >= 0 && HurlMinimumStrength >= 0 && EvilAimMinimum >= 0 && AimRangeMillimetres >= 0 &&
                              ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1 &&
                              PanicThrowSpreadDegrees >= 0 && PanicThrowSpreadDegrees <= 180, "throwing");
-            Settings.Require(SeatedAtStartTicks > 0, "how long people who start seated stay seated");
+            Settings.Require(SeatedAtStartTicks > 0 && SeatedAtStartSpreadTicks >= 0, "how long people who start seated stay seated");
             Settings.Require(SitScootMillimetres >= 0 && SitPullOutMillimetres >= 0 && SitPullTicks >= 1 &&
                              SitLowerTicks >= 1 && JumpUpKnockOverSpeed >= 0, "sitting down");
         }

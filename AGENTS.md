@@ -178,6 +178,17 @@ That is three commits — controls, game, visuals — not one, and not five.
   replayable on the same build and platform.
 - Visual, audio, and UI code may observe simulation state but must not decide
   simulation outcomes.
+- **Nobody reacts on the tick a thing happens, and nothing happens to a
+  whole group on exactly the same tick.** In the owner's words: "All behavior
+  in the game should never be a reaction of a tick. Always add a small tick
+  offset to make the reactions more human." Every reaction to the world -- a
+  bell, a door opening, a shout, a noise, a leader's call, being knocked down,
+  giving something up and thinking again -- begins a few ticks late through
+  `SimulationContext.ReactionLag`; no two people finish being startled on one
+  tick (`FearSystem.Staggered`); every fixed length of time a person spends
+  goes through `SimulationContext.Jittered`; and any schedule several people
+  share (such as when a meeting ends) draws a seeded per-person offset. A new
+  reaction or timer that skips this is a bug.
 - Add ECS, Burst, navigation, or other scale tooling only after profiling shows
   that the current approach blocks the intended scenario.
 

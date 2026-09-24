@@ -209,8 +209,16 @@ namespace Paniq.Simulation
         private void Investigate(Agent agent, out int goalHeading, out int goalSpeed)
         {
             HearingSettings hearing = context.Scenario.Hearing;
-            goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, agent.Hearing.SoundPoint, agent.Body.Heading);
             goalSpeed = 0;
+            if (context.Tick < agent.Hearing.InvestigateStartTick)
+            {
+                // Not yet: nobody's head comes round on the tick the noise is
+                // made. They finish the step they were taking first.
+                goalHeading = agent.Body.Heading;
+                return;
+            }
+
+            goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, agent.Hearing.SoundPoint, agent.Body.Heading);
 
             // From a chair they only turn to look; nobody edges off across the
             // room while still sitting in it.
@@ -309,7 +317,7 @@ namespace Paniq.Simulation
             int tick = context.Tick;
             AgentIntent intent = agent.Intent;
             intent.Activity = AgentActivityState.Strolling;
-            intent.ActivityEndTick = checked(tick + settings.StrollTimeoutTicks);
+            intent.ActivityEndTick = checked(tick + context.Jittered(settings.StrollTimeoutTicks));
             intent.WanderOffset = context.Random.NextIntInclusive(-settings.WanderMaximumDegrees, settings.WanderMaximumDegrees);
             intent.NextWanderTick = checked(tick + context.Random.NextIntInclusive(25, 60));
 
@@ -423,7 +431,7 @@ namespace Paniq.Simulation
                 {
                     agent.Intent.SocialPartnerIndex = i;
                     agent.Intent.Activity = AgentActivityState.Socialising;
-                    agent.Intent.ActivityEndTick = checked(context.Tick + settings.SocialTimeoutTicks);
+                    agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.SocialTimeoutTicks));
                     return true;
                 }
             }

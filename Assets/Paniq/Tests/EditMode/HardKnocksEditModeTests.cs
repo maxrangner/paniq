@@ -142,7 +142,14 @@ namespace Paniq.Tests.EditMode
             Assert.That(cameTo[0].CausalParentEventId, Is.EqualTo(passedOut[0].EventId));
             Assert.That(gotUp[gotUp.Count - 1].CausalParentEventId, Is.EqualTo(cameTo[0].EventId));
             Assert.That(cameTo[0].Tick - passedOut[0].Tick, Is.EqualTo(passedOut[0].DurationTicks));
-            Assert.That(gotUp[gotUp.Count - 1].Tick - cameTo[0].Tick, Is.EqualTo(data.Falls.ComeToGetUpTicks));
+            // Their own while, near the setting: every length of time a person
+            // spends is stretched or squeezed a little from the seed, so that
+            // nobody does the same thing on exactly the same tick as anybody
+            // else. The event says how long it really took.
+            Assert.That(gotUp[gotUp.Count - 1].Tick - cameTo[0].Tick, Is.EqualTo(cameTo[0].DurationTicks));
+            int jitter = data.Falls.ComeToGetUpTicks * data.World.TimingJitterPercent / 100;
+            Assert.That(cameTo[0].DurationTicks,
+                Is.InRange(data.Falls.ComeToGetUpTicks - jitter, data.Falls.ComeToGetUpTicks + jitter));
         }
 
         [Test]

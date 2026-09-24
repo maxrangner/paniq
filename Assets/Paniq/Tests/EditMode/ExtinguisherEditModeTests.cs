@@ -175,7 +175,19 @@ namespace Paniq.Tests.EditMode
 
             List<CausalEvent> saved = EventsOfType(simulation, CausalEventType.AgentDoused);
             Assert.That(saved, Is.Not.Empty, "Nobody who was alight was ever hosed down.");
-            Assert.That(simulation.GetAgent(saved[0].TargetId).IsBurning, Is.False, "The flames on them are out.");
+            if (simulation.GetAgent(saved[0].TargetId).IsBurning)
+            {
+                // Put out, then knocked flat by the same jet into the flames
+                // they were standing in, and alight again: the log has to say
+                // so, or the douse did nothing.
+                bool caughtAgain = false;
+                foreach (CausalEvent record in EventsOfType(simulation, CausalEventType.AgentCaughtFire))
+                {
+                    caughtAgain |= record.SourceId == saved[0].TargetId && record.EventId > saved[0].EventId;
+                }
+
+                Assert.That(caughtAgain, Is.True, "The flames on them are out, unless they caught again afterwards.");
+            }
 
             // The same jet knocks them off their feet, away from the sprayer.
             List<CausalEvent> blasted = EventsOfType(simulation, CausalEventType.AgentBlasted);

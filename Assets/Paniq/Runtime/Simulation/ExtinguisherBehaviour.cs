@@ -124,7 +124,7 @@ namespace Paniq.Simulation
             agent.Carry.ItemIndex = extinguisher;
             agent.Carry.Holding = false;
             agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
-            agent.Intent.ActivityEndTick = checked(context.Tick + settings.FetchTimeoutTicks);
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FetchTimeoutTicks));
             return Update(agent, inDanger);
         }
 
@@ -201,7 +201,7 @@ namespace Paniq.Simulation
 
                 objects.PickUp(item, agent);
                 agent.Carry.Holding = true;
-                agent.Intent.ActivityEndTick = checked(tick + settings.FightTimeoutTicks);
+                agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.FightTimeoutTicks));
                 context.Events.Append(tick, agent.Id, CausalEventType.AgentTookExtinguisher,
                     agent.Body.Position, 0, 0, agent.Fear.ScaredEventId, objects.IdOf(item));
                 return Walk(agent, where, 0);
@@ -378,7 +378,7 @@ namespace Paniq.Simulation
             }
 
             int away = IntegerMath.HeadingBetween(sprayer.Body.Position, hit.Body.Position, hit.Body.Heading);
-            hit.Body.BlastedUntilTick = checked(context.Tick + settings.BlastRecoveryTicks);
+            hit.Body.BlastedUntilTick = checked(context.Tick + context.Jittered(settings.BlastRecoveryTicks));
             context.Events.Append(context.Tick, sprayer.Id, CausalEventType.AgentBlasted,
                 hit.Body.Position, 0, away, sprayEventId, hit.Id);
             body.ShoveBack(hit, away, settings.BlastPushMillimetres, sprayEventId);
@@ -506,7 +506,7 @@ namespace Paniq.Simulation
             if (IsFighting(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = context.Tick;
+                context.ThinkAgainSoon(agent.Intent);
             }
         }
     }

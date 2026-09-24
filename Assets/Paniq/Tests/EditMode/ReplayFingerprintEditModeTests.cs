@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0x9513F4CC49021303UL)]
-        [TestCase(42UL, true, 0x467517B7D92DDF4FUL)]
-        [TestCase(40UL, false, 0x69F3A84D2E955E95UL)]
-        [TestCase(40UL, true, 0x50F93565BFCC0D8CUL)]
-        [TestCase(46UL, false, 0xBE827994C6617A23UL)]
-        [TestCase(46UL, true, 0x5AC1798450CE7ABDUL)]
+        [TestCase(42UL, false, 0x055A2FC2DF4D5404UL)]
+        [TestCase(42UL, true, 0x9C41EC99344C5F44UL)]
+        [TestCase(40UL, false, 0xA0216F6AB387ACDBUL)]
+        [TestCase(40UL, true, 0x3B5953E20DCFB435UL)]
+        [TestCase(46UL, false, 0xD1B42E906F2A152FUL)]
+        [TestCase(46UL, true, 0x27495DE5842D4283UL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
         /// well as by their own tests, so the whole command path is covered by
         /// replay. This run waits to be triggered, as a played level does.
         /// </summary>
-        [TestCase(42UL, 0xCC55EC7198FB25ABUL)]
-        [TestCase(40UL, 0x8F531DD228ACB3CDUL)]
+        [TestCase(42UL, 0xC4914035B434179FUL)]
+        [TestCase(40UL, 0x9C1ABCFF36AD4EC1UL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -59,8 +59,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0x6C765615F530E6FBUL)]
-        [TestCase(40UL, 0x0E2EF13BDC7FA5C5UL)]
+        [TestCase(42UL, 0x7774450A78D43704UL)]
+        [TestCase(40UL, 0x6A42DB9DBF6306F3UL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -105,9 +105,9 @@ namespace Paniq.Tests.EditMode
         /// staff against a floor with strangers on it.
         /// </para>
         /// </summary>
-        [TestCase(41UL, RecordedRun.DoorsLocked, 0xDB20EF6411C93104UL)]
-        [TestCase(41UL, RecordedRun.DoorsOpened, 0x973D62A0C795E948UL)]
-        [TestCase(42UL, RecordedRun.CardsPlayed, 0x2DCE6A67165198EDUL)]
+        [TestCase(41UL, RecordedRun.DoorsLocked, 0x322C84CD5B50F449UL)]
+        [TestCase(41UL, RecordedRun.DoorsOpened, 0x7ED395230900159BUL)]
+        [TestCase(42UL, RecordedRun.CardsPlayed, 0xC4914035B434179FUL)]
         public void WithNoVisitors_TheFloorReplaysExactlyAsItDidBefore(ulong seed, RecordedRun run, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();

@@ -106,7 +106,7 @@ namespace Paniq.Simulation
             agent.Sitting.OnIt = false;
             agent.Intent.Activity = AgentActivityState.GoingToSit;
             agent.Intent.Target = objects.PositionOf(best);
-            agent.Intent.ActivityEndTick = checked(context.Tick + context.Scenario.Calm.StrollTimeoutTicks);
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(context.Scenario.Calm.StrollTimeoutTicks));
             return true;
         }
 
@@ -476,7 +476,7 @@ namespace Paniq.Simulation
             }
 
             agent.Intent.Activity = AgentActivityState.StandingUp;
-            agent.Intent.ActivityEndTick = checked(context.Tick + TraitEffects.StandUpTicks(agent, context.Scenario));
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(TraitEffects.StandUpTicks(agent, context.Scenario)));
             agent.Sitting.Phase = SitPhase.LeapingUp;
             agent.Sitting.PhaseStartTick = context.Tick;
             agent.Sitting.MoveFrom = agent.Body.Position;
@@ -518,7 +518,7 @@ namespace Paniq.Simulation
             }
 
             agent.Intent.Activity = AgentActivityState.StandingUp;
-            agent.Intent.ActivityEndTick = checked(context.Tick + TraitEffects.StandUpTicks(agent, context.Scenario));
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(TraitEffects.StandUpTicks(agent, context.Scenario)));
             if (agent.Sitting.OnIt)
             {
                 // Back the chair out first, then rise from it: nobody rises

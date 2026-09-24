@@ -80,7 +80,7 @@ namespace Paniq.Simulation
 
             agent.Alarm.AlarmIndex = alarm;
             agent.Intent.Activity = AgentActivityState.GoingToAlarm;
-            agent.Intent.ActivityEndTick = checked(context.Tick + settings.FetchTimeoutTicks);
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FetchTimeoutTicks));
             return Update(agent, inDanger);
         }
 
@@ -119,7 +119,7 @@ namespace Paniq.Simulation
             if (LogicalPosition.DistanceSquared(agent.Body.Position, spot) <= reach * reach)
             {
                 agent.Intent.Activity = AgentActivityState.PullingAlarm;
-                agent.Intent.ActivityEndTick = checked(context.Tick + settings.PressTicks);
+                agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.PressTicks));
                 return FaceIt(agent, spot);
             }
 
@@ -150,7 +150,7 @@ namespace Paniq.Simulation
             if (IsRaisingTheAlarm(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = context.Tick;
+                context.ThinkAgainSoon(agent.Intent);
                 agent.Body.BlockedTicks = 0;
             }
         }

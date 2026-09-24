@@ -161,7 +161,7 @@ namespace Paniq.Simulation
             agent.Help.TargetIndex = best;
             helpedBy[best] = agent.Index;
             agent.Help.WorkEndTick = 0;
-            agent.Help.GiveUpTick = checked(context.Tick + settings.ReachTimeoutTicks);
+            agent.Help.GiveUpTick = checked(context.Tick + context.Jittered(settings.ReachTimeoutTicks));
             agent.Intent.Activity = bestIsShake ? AgentActivityState.ShakingAwake : AgentActivityState.Grabbing;
             agent.Doors.ExitDoorIndex = -1;
             return true;
@@ -223,7 +223,7 @@ namespace Paniq.Simulation
             {
                 agent.Help.WorkEndTick = checked(tick + (shaking
                     ? context.Random.NextIntInclusive(settings.ShakeMinimumTicks, settings.ShakeMaximumTicks)
-                    : settings.GrabTicks));
+                    : context.Jittered(settings.GrabTicks)));
             }
 
             if (tick < agent.Help.WorkEndTick)
@@ -384,7 +384,7 @@ namespace Paniq.Simulation
             if (IsHelping(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = context.Tick;
+                context.ThinkAgainSoon(agent.Intent);
 
                 // Whatever had them stuck, they start counting again from here.
                 agent.Body.BlockedTicks = 0;

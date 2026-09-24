@@ -126,7 +126,7 @@ namespace Paniq.Simulation
             agent.Carry.ItemIndex = item;
             agent.Carry.Holding = false;
             agent.Intent.Activity = AgentActivityState.FetchingBarricade;
-            agent.Barricade.GiveUpTick = checked(context.Tick + settings.BarricadeTimeoutTicks);
+            agent.Barricade.GiveUpTick = checked(context.Tick + context.Jittered(settings.BarricadeTimeoutTicks));
             return Update(agent, inDanger);
         }
 
@@ -340,7 +340,7 @@ namespace Paniq.Simulation
             }
 
             agent.Intent.Activity = AgentActivityState.Barricading;
-            agent.Intent.ActivityEndTick = checked(context.Tick + settings.BarricadeSetDownTicks);
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.BarricadeSetDownTicks));
             return FaceTowards(agent, spot, 0);
         }
 
@@ -388,7 +388,7 @@ namespace Paniq.Simulation
             if (IsBarricading(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = context.Tick;
+                context.ThinkAgainSoon(agent.Intent);
                 agent.Body.BlockedTicks = 0;
             }
         }

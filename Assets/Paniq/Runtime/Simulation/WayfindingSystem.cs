@@ -156,7 +156,7 @@ namespace Paniq.Simulation
             // AgentLookedForAWayOut already names the same fright.
             context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentFoundTheWayOut,
                 agent.Body.Position, (int)how, 0, cause != 0UL ? cause : agent.Fear.ScaredEventId);
-            agent.Intent.NextPanicDecisionTick = context.Tick;
+            context.ThinkAgainSoon(agent.Intent);
         }
 
         /// <summary>
@@ -214,7 +214,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            agent.Intent.NextPanicDecisionTick = context.Tick;
+            context.ThinkAgainSoon(agent.Intent);
             if (IsDeadEnd(agent, room))
             {
                 context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentFoundADeadEnd,

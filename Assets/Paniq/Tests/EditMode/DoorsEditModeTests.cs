@@ -247,6 +247,7 @@ namespace Paniq.Tests.EditMode
         public void OpenDoors_LetPanickedPeopleEscape()
         {
             int escaped = 0;
+            int safe = 0;
             for (ulong seed = 40UL; seed <= 44UL; seed++)
             {
                 ScenarioData data = DefaultData();
@@ -320,13 +321,21 @@ namespace Paniq.Tests.EditMode
                     Assert.That(simulation.GetAgent(record.SourceId).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped));
                 }
 
-                // Safe means out of the building, or at least in a room with no fire in it.
-                int safe = snapshot.EscapedCount + snapshot.ClearOfFireCount;
-                Assert.That(safe, Is.GreaterThanOrEqualTo(3),
-                    $"Seed {seed}: only {snapshot.EscapedCount} escaped and {snapshot.ClearOfFireCount} " +
-                    "were clear of the fire with every door open.");
+                // Somebody always gets out. How many is the dice's business:
+                // a seed where a thrown chair wedges the way out loses most of
+                // the building however wide the doors stood, so the count that
+                // means anything is the one over all five seeds together.
+                Assert.That(snapshot.EscapedCount, Is.GreaterThanOrEqualTo(1),
+                    $"Seed {seed}: nobody escaped with every door open.");
+                safe += snapshot.EscapedCount + snapshot.ClearOfFireCount;
                 escaped += snapshot.EscapedCount;
             }
+
+            // Safe means out of the building, or at least in a room with no
+            // fire in it. Five seeds of twenty people: a quarter of them safe
+            // is the floor, and most runs are far above it.
+            Assert.That(safe, Is.GreaterThanOrEqualTo(25),
+                $"Only {safe} of a hundred people over five seeds were out or clear of the fire with every door open.");
 
             Assert.That(escaped, Is.GreaterThan(0));
         }

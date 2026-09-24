@@ -99,7 +99,16 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void WhenTheMeetingIsStartled_NobodyGlidesBackwardsOutOfTheirChair()
         {
-            var simulation = new Run(DefaultData());
+            // The fire breaks out in the meeting room itself, in the corner away
+            // from the table, so the six are startled for certain. On the
+            // shipped seed it starts in the bathroom, and in half a minute the
+            // news never reached the meeting: this test used to watch six
+            // people sit still and pass.
+            ScenarioData data = DefaultData();
+            data.Round.HazardWaitsForTrigger = false;
+            data.Fire.ActivationTick = 50;
+            data.Fire.SpawnBounds = new LogicalBounds(-5000, -5000, 16000, 16000);
+            var simulation = new Run(data);
             var wasAt = new LogicalPosition[simulation.AgentCount];
             var seated = new bool[simulation.AgentCount];
             for (int i = 0; i < simulation.AgentCount; i++)
@@ -114,6 +123,7 @@ namespace Paniq.Tests.EditMode
 
             // Long enough for the fire to break out, the bell to go and every
             // one of them to be up and running.
+            var startedRisingAt = new int[simulation.AgentCount];
             for (int t = 0; t < 30 * Run.TicksPerSecond; t++)
             {
                 simulation.Step();
@@ -124,13 +134,42 @@ namespace Paniq.Tests.EditMode
                         continue;
                     }
 
-                    LogicalPosition now = simulation.GetAgent(i).Position;
+                    AgentSnapshot person = simulation.GetAgent(i);
+                    if (startedRisingAt[i] == 0 && person.SeatedPercent < 100)
+                    {
+                        startedRisingAt[i] = simulation.Tick;
+                    }
+
+                    LogicalPosition now = person.Position;
                     long step = IntegerMath.Distance(wasAt[i], now);
                     Assert.That(step, Is.LessThan(200L),
-                        $"Person {simulation.GetAgent(i).AgentId} crossed {step} mm in one tick: that is a teleport, not a step.");
+                        $"Person {person.AgentId} crossed {step} mm in one tick: that is a teleport, not a step.");
                     wasAt[i] = now;
                 }
             }
+
+            // Startled by the same bell, they come up out of their chairs one
+            // after another, a few ticks apart, never all on one tick: the
+            // owner's rule that nothing happens to a whole group on the same
+            // tick. It is what the owner asked for first, watching this room.
+            var risingTicks = new System.Collections.Generic.HashSet<int>();
+            int rose = 0;
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (!seated[i] || startedRisingAt[i] == 0)
+                {
+                    // Not everybody is startled inside half a minute -- the
+                    // bell may not have been rung, and somebody who freezes
+                    // for good may freeze in their chair and stay rooted.
+                    continue;
+                }
+
+                Assert.That(risingTicks.Add(startedRisingAt[i]), Is.True,
+                    $"Two people started up out of their chairs on tick {startedRisingAt[i]}: startled people should come up a few ticks apart.");
+                rose++;
+            }
+
+            Assert.That(rose, Is.GreaterThanOrEqualTo(4), "Most of the meeting gets up and runs.");
         }
 
         /// <summary>
@@ -163,9 +202,11 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(System.Array.FindAll(seated, s => s).Length, Is.EqualTo(6), "Six are in the meeting.");
 
-            // Through the end of the meeting and the moment it takes them to
-            // get up, then a little longer.
-            int until = data.Items.SeatedAtStartTicks + data.Items.SitPullTicks + data.Items.SitLowerTicks + 25;
+            // Through the end of the meeting, everybody's own while beyond it,
+            // and the moment it takes them to get up, then a little longer.
+            int until = data.Items.SeatedAtStartTicks + data.Items.SeatedAtStartSpreadTicks +
+                        data.Items.SitPullTicks + data.Items.SitLowerTicks + 25;
+            var roseAt = new int[simulation.AgentCount];
             for (int t = 0; t < until; t++)
             {
                 simulation.Step();
@@ -176,11 +217,40 @@ namespace Paniq.Tests.EditMode
                         continue;
                     }
 
-                    LogicalPosition now = simulation.GetAgent(i).Position;
+                    AgentSnapshot person = simulation.GetAgent(i);
+                    if (roseAt[i] == 0 && person.ActivityState != AgentActivityState.Sitting)
+                    {
+                        roseAt[i] = simulation.Tick;
+                    }
+
+                    // Once they are on their feet, and before they have wandered
+                    // off: a step beside the chair, not a slide across the room.
+                    if (roseAt[i] > 0 && simulation.Tick == roseAt[i] + data.Items.SitPullTicks + data.Items.SitLowerTicks + 5)
+                    {
+                        Assert.That(IntegerMath.Distance(seat[i], person.Position), Is.LessThan(1200L),
+                            $"Person {person.AgentId} got up and ended {IntegerMath.Distance(seat[i], person.Position)} mm from their seat: a step beside the chair, not a slide across the room.");
+                    }
+
+                    LogicalPosition now = person.Position;
                     long step = IntegerMath.Distance(wasAt[i], now);
                     Assert.That(step, Is.LessThan(200L),
-                        $"Tick {simulation.Tick}: person {simulation.GetAgent(i).AgentId} crossed {step} mm in one tick: that is a teleport, not a step.");
+                        $"Tick {simulation.Tick}: person {person.AgentId} crossed {step} mm in one tick: that is a teleport, not a step.");
                     wasAt[i] = now;
+                }
+            }
+
+            // The meeting breaks up one person at a time. All six used to rise
+            // on tick 3000 exactly, in unison, which reads as clockwork rather
+            // than people; the owner's rule is that nothing happens to a whole
+            // group on the same tick.
+            var risingTicks = new System.Collections.Generic.HashSet<int>();
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (seated[i])
+                {
+                    Assert.That(roseAt[i], Is.GreaterThan(0), $"Person {simulation.GetAgent(i).AgentId} never got up.");
+                    Assert.That(risingTicks.Add(roseAt[i]), Is.True,
+                        $"Two people got up on tick {roseAt[i]}: the meeting should break up one person at a time.");
                 }
             }
 
@@ -194,8 +264,6 @@ namespace Paniq.Tests.EditMode
                 AgentSnapshot person = simulation.GetAgent(i);
                 Assert.That(person.ActivityState, Is.Not.EqualTo(AgentActivityState.Sitting),
                     $"Person {person.AgentId} is still sitting after the meeting ended.");
-                Assert.That(IntegerMath.Distance(seat[i], person.Position), Is.LessThan(1200L),
-                    $"Person {person.AgentId} got up and ended {IntegerMath.Distance(seat[i], person.Position)} mm from their seat: a step beside the chair, not a slide across the room.");
             }
         }
 

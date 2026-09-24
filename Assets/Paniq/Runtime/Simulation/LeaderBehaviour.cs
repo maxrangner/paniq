@@ -163,10 +163,10 @@ namespace Paniq.Simulation
             breaker.Doors.FoundShut[door] = false;
             breaker.Doors.AvoidUntilTick[door] = 0;
             breaker.Leading.OrderedDoor = door;
-            breaker.Leading.OrderedUntilTick = checked(context.Tick + settings.OrderLastsTicks);
+            breaker.Leading.OrderedUntilTick = checked(context.Tick + context.Jittered(settings.OrderLastsTicks));
             breaker.Leading.OrderEventId = order;
             breaker.Intent.Activity = AgentActivityState.Fleeing;
-            breaker.Intent.NextPanicDecisionTick = context.Tick;
+            context.ThinkAgainSoon(breaker.Intent);
             return true;
         }
 
@@ -234,8 +234,8 @@ namespace Paniq.Simulation
             fighter.Carry.ItemIndex = bottle;
             fighter.Carry.Holding = false;
             fighter.Intent.Activity = AgentActivityState.FetchingExtinguisher;
-            fighter.Intent.ActivityEndTick = checked(context.Tick + context.Scenario.Extinguishers.FetchTimeoutTicks);
-            fighter.Leading.OrderedUntilTick = checked(context.Tick + settings.OrderLastsTicks);
+            fighter.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(context.Scenario.Extinguishers.FetchTimeoutTicks));
+            fighter.Leading.OrderedUntilTick = checked(context.Tick + context.Jittered(settings.OrderLastsTicks));
             fighter.Leading.OrderEventId = order;
             return true;
         }
@@ -282,7 +282,8 @@ namespace Paniq.Simulation
 
                 wayfinding.Share(leader, other, order);
                 other.Leading.FollowingIndex = leader.Index;
-                other.Leading.FollowUntilTick = checked(context.Tick + settings.FollowLastsTicks);
+                other.Leading.FollowFromTick = context.ReactionTick();
+                other.Leading.FollowUntilTick = checked(other.Leading.FollowFromTick + context.Jittered(settings.FollowLastsTicks));
                 other.Leading.OrderEventId = order;
             }
 
@@ -314,6 +315,13 @@ namespace Paniq.Simulation
             if (agent.Intent.Activity == AgentActivityState.Frozen || agent.Burning.IsBurning)
             {
                 agent.Leading.FollowingIndex = -1;
+                return null;
+            }
+
+            if (context.Tick < agent.Leading.FollowFromTick)
+            {
+                // Called, but not yet turned to follow: a few ticks late, like
+                // every reaction. Until then they carry on as they were.
                 return null;
             }
 

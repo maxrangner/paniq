@@ -64,6 +64,32 @@
             }
         }
 
+        /// <summary>The ticks on which somebody is due to finish being startled, so nobody else is given one of them.</summary>
+        private readonly System.Collections.Generic.HashSet<int> reactionEndsTaken = new System.Collections.Generic.HashSet<int>();
+
+        /// <summary>
+        /// A reaction delay nobody else has: if somebody is already due to
+        /// finish being startled on that tick, this one is put off by the
+        /// startle stagger, and again until the tick is theirs alone. Six
+        /// people a bell reaches on the same tick come up out of their chairs
+        /// one after another, a few ticks apart, never all at once -- the
+        /// owner's rule that nothing happens to a whole group on one tick.
+        /// Processing order decides who waits, so a replay agrees, and no
+        /// random number is drawn.
+        /// </summary>
+        private int Staggered(int tick, int delay)
+        {
+            reactionEndsTaken.RemoveWhere(taken => taken < tick);
+            int stagger = context.Scenario.Perception.StartleStaggerTicks;
+            int end = checked(tick + delay);
+            while (!reactionEndsTaken.Add(end))
+            {
+                end = checked(end + stagger);
+            }
+
+            return end - tick;
+        }
+
         /// <summary>Startled: stop, draw a seeded reaction delay, and log what caused it.</summary>
         public ulong StartAlert(Agent agent, ulong causalParentEventId, AgentAlertSource alertSource)
         {
@@ -73,8 +99,10 @@
             agent.Intent.Activity = AgentActivityState.Reacting;
             agent.Intent.SocialPartnerIndex = -1;
             agent.Hearing.HasSoundPoint = false;
-            agent.Fear.ReactionDelayTicks = context.Random.NextIntInclusive(0,
-                TraitEffects.MaximumReactionDelayTicks(agent, context.Scenario));
+            // Their own lag before anything at all, then their own seeded
+            // reaction delay on top, then a tick nobody else finishes on.
+            agent.Fear.ReactionDelayTicks = Staggered(tick, context.ReactionLag() + context.Random.NextIntInclusive(0,
+                TraitEffects.MaximumReactionDelayTicks(agent, context.Scenario)));
             agent.Fear.ReactionEndTick = checked(tick + agent.Fear.ReactionDelayTicks);
             CausalEvent alert = context.Events.Append(
                 tick,
@@ -121,7 +149,7 @@
             // Whatever they were doing calmly, they are now running.
             if (agent.Fear.State == AgentFearState.Scared && agent.Intent.Activity != AgentActivityState.Frozen)
             {
-                agent.Intent.NextPanicDecisionTick = context.Tick;
+                context.ThinkAgainSoon(agent.Intent);
             }
         }
 
@@ -202,7 +230,7 @@
         private void StartFleeing(Agent agent)
         {
             agent.Intent.Activity = AgentActivityState.Fleeing;
-            agent.Intent.NextPanicDecisionTick = context.Tick;
+            context.ThinkAgainSoon(agent.Intent);
             agent.Fear.NextShoutTick = checked(context.Tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
         }
 

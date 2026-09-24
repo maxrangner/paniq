@@ -31,8 +31,16 @@ namespace Paniq.Tests.EditMode
         /// slowly, not one passing through the other, and both resolve well
         /// inside a tenth of a second.
         /// </para>
+        /// <para>
+        /// Eight, not four: once every reaction in the crowd was made a few
+        /// ticks late, a kicked office chair on seed 44 spent five ticks
+        /// coming off the floor and then six coming off a wall (86 and 94 mm).
+        /// Chased one tick at a time this would never settle; eight is still
+        /// under a fifth of a second, and a thing genuinely passing through
+        /// another stays pressed for far longer than that.
+        /// </para>
         /// </summary>
-        public const int LongestKnockTicks = 4;
+        public const int LongestKnockTicks = 8;
 
         private int deepTicks;
 

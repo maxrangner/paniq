@@ -139,7 +139,10 @@ namespace Paniq.Simulation
             agent.Body.BlockedTicks = 0;
             agent.Hearing.SoundPoint = point;
             agent.Hearing.HasSoundPoint = true;
-            agent.Hearing.InvestigateStartTick = context.Tick;
+
+            // A few ticks late, like every reaction: they finish the step
+            // they were taking before their head comes round.
+            agent.Hearing.InvestigateStartTick = context.ReactionTick();
             agent.Intent.ActivityEndTick = checked(context.Tick + context.Random.NextIntInclusive(
                 settings.InvestigateMinimumTicks,
                 settings.InvestigateMaximumTicks));

@@ -330,7 +330,10 @@ namespace Paniq.Simulation
                 agent.Sitting.SeatedPercent = 100;
                 agent.Intent.Activity = AgentActivityState.Sitting;
                 agent.Intent.LookHeading = agent.Body.Heading;
-                agent.Intent.ActivityEndTick = context.Scenario.Items.SeatedAtStartTicks;
+                // Each for their own while, in ascending ID order: the meeting
+                // breaks up one person at a time, never all six on one tick.
+                agent.Intent.ActivityEndTick = checked(context.Scenario.Items.SeatedAtStartTicks +
+                    context.Random.NextIntInclusive(0, context.Scenario.Items.SeatedAtStartSpreadTicks));
                 agent.Sitting.SitUntilTick = agent.Intent.ActivityEndTick;
             }
         }

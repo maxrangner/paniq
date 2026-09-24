@@ -14,15 +14,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 60
+    ContentRevision: 62
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 48
+    SimulationCompatibilityVersion: 50
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
+      TimingJitterPercent: 20
     Perception:
       VisionRangeMillimetres: 3000
       MaximumReactionDelayTicks: 20
+      StartleStaggerTicks: 3
+      ReactionLagMinimumTicks: 2
+      ReactionLagMaximumTicks: 8
       DoorSightRangeMillimetres: 8000
     Fire:
       SpawnAreas:
@@ -484,6 +488,7 @@ MonoBehaviour:
       SitMinimumTicks: 250
       SitMaximumTicks: 1000
       SeatedAtStartTicks: 3000
+      SeatedAtStartSpreadTicks: 400
       StandUpTicks: 40
       StandUpTicksPerNervousness: 2
       StandUpShoveSpeed: 8

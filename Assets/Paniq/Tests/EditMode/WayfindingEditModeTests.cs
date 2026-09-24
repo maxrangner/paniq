@@ -275,8 +275,11 @@ namespace Paniq.Tests.EditMode
             CausalEvent found = floor.Context.Events.Events.Single(
                 e => e.EventType == CausalEventType.AgentFoundTheWayOut);
             Assert.That((WayLearned)found.Strength, Is.EqualTo(WayLearned.Sign));
-            Assert.That(visitor.Intent.NextPanicDecisionTick, Is.EqualTo(floor.Context.Tick),
-                "Learning of a way out makes them think again at once.");
+            // A few ticks late, like every reaction: nobody thinks again on
+            // the tick a thing happens.
+            Assert.That(visitor.Intent.NextPanicDecisionTick,
+                Is.InRange(floor.Context.Tick + 1, floor.Context.Tick + floor.Context.Scenario.Perception.ReactionLagMaximumTicks),
+                "Learning of a way out makes them think again, a moment later.");
         }
 
         // ------------------------------------------------------------ routes

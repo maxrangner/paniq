@@ -309,11 +309,13 @@ namespace Paniq.Tests.EditMode
             data.PowerLines = new PowerLineDefinition[0];
             data.Agents = new[]
             {
-                new AgentDefinition(new SimulationId(1UL), new LogicalPosition(0, -1700), CardinalDirection.North,
+                new AgentDefinition(new SimulationId(1UL), new LogicalPosition(0, -1500), CardinalDirection.North,
                     AgentTraitValues.AllOrdinary)
             };
             data.Fire.ActivationTick = 1;
-            data.Fire.SpawnBounds = new LogicalBounds(0, 0, -2400, -2400);
+            // Near enough to frighten them, far enough that the moment they take
+            // to turn and look does not put them in it.
+            data.Fire.SpawnBounds = new LogicalBounds(0, 0, -2700, -2700);
             data.Fire.SpreadMinimumTicks = 1000000;
             data.Fire.SpreadMaximumTicks = 1000000;
             data.Perception.MaximumReactionDelayTicks = 0;

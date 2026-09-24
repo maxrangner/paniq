@@ -52,17 +52,18 @@ namespace Paniq.Simulation
             if (body.State == AgentBodyState.Fallen)
             {
                 body.State = AgentBodyState.GettingUp;
-                body.EndTick = checked(tick + settings.GetUpTicks);
+                body.EndTick = checked(tick + context.Jittered(settings.GetUpTicks));
                 return true;
             }
 
             if (body.State == AgentBodyState.Unconscious)
             {
                 // Coming round, then getting up slowly.
+                int comeTo = context.Jittered(settings.ComeToGetUpTicks);
                 body.EventId = context.Events.Append(tick, agent.Id, CausalEventType.AgentCameTo, body.Position, 0,
-                    settings.ComeToGetUpTicks, body.EventId).EventId;
+                    comeTo, body.EventId).EventId;
                 body.State = AgentBodyState.GettingUp;
-                body.EndTick = checked(tick + settings.ComeToGetUpTicks);
+                body.EndTick = checked(tick + comeTo);
                 return true;
             }
 
@@ -77,7 +78,7 @@ namespace Paniq.Simulation
             {
                 // Back on your feet: look for a way out afresh.
                 agent.Intent.Activity = AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = tick;
+                context.ThinkAgainSoon(agent.Intent);
             }
 
             return false;
@@ -209,7 +210,7 @@ namespace Paniq.Simulation
                 bool stillFrozen = agent.Personality.Temperament != AgentPanicTemperament.Runner &&
                                    context.Tick < agent.Fear.FreezeEndTick;
                 agent.Intent.Activity = stillFrozen ? AgentActivityState.Frozen : AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = context.Tick;
+                context.ThinkAgainSoon(agent.Intent);
             }
 
             context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDoused,
@@ -270,6 +271,9 @@ namespace Paniq.Simulation
         private void PutDown(Agent agent, AgentBodyState state, int duration, ulong eventId)
         {
             agent.Body.State = state;
+
+            // Not jittered here: every caller draws the while on the floor from
+            // a range already, and the event they logged says that length.
             agent.Body.EndTick = checked(context.Tick + duration);
             agent.Body.EventId = eventId;
             agent.Body.Speed = 0;

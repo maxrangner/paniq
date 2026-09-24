@@ -1,4 +1,4 @@
-namespace Paniq.Simulation
+﻿namespace Paniq.Simulation
 {
     /// <summary>
     /// When a round starts, when it is finished, and how it scored.
@@ -119,8 +119,11 @@ namespace Paniq.Simulation
                 }
 
                 // The hazard started itself on its own tick count rather than
-                // being triggered. Same round, no trigger to blame it on.
+                // being triggered. Same round; the hazard's own start is what
+                // the survivors and the end of the round are blamed on, so
+                // that nothing in the log is left without a cause.
                 Phase = RoundPhase.Running;
+                TriggerEventId = threats.RootEventId;
             }
 
             if (Phase != RoundPhase.Running)

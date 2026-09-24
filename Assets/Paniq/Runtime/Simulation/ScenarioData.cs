@@ -558,9 +558,17 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "64";
+        public string ContentRevision = "65";
         public ulong DefaultSeed = 42UL;
 
+        // 53: a tick that got somewhere forgives one stuck tick instead of
+        // wiping the count. A crush that shoves somebody a hand's width
+        // sideways every few ticks no longer counts as getting somewhere, so
+        // somebody pinned against a table by a jostling crowd stays "stuck"
+        // long enough to heave it or think again. Seen on seed 41 with the
+        // trigger at 300, at the meeting table's north edge. With it, a round
+        // the hazard started on its own blames its end on the hazard's start
+        // event. Eleven of thirteen fingerprints re-recorded.
         // 52: a chair that will not come all the way out from the desk is sat
         // on where it stopped, and one that will not slide all the way back in
         // is settled where it is. Before this, the walk-to-the-chair timeout
@@ -594,7 +602,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 52;
+        public int SimulationCompatibilityVersion = 53;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

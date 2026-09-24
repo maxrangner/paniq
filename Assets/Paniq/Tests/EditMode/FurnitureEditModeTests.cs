@@ -61,8 +61,11 @@ namespace Paniq.Tests.EditMode
         /// bodies now, so one turned even a little covers a rectangle at an
         /// angle, and the box drawn round it takes in floor it does not cover.
         /// The point is turned back into the table's own frame and measured
-        /// against the rectangle it was authored as. A table tipped over is
-        /// skipped: on its side it is no longer the thing this asks about.
+        /// against the rectangle it was authored as. A table tipped over, or
+        /// up on one edge mid-tip after a heave, is skipped: it is no longer
+        /// the flat rectangle on the floor this asks about, and its body's
+        /// origin lifts and shifts as it goes over, so measuring the authored
+        /// rectangle round that origin flags people running past its edge.
         /// </summary>
         private static bool InsideTable(LogicalPosition position, int radius, TableSnapshot table,
             ScenarioData data)
@@ -75,9 +78,10 @@ namespace Paniq.Tests.EditMode
             var turn = new Quaternion(
                 table.Pose.RotationX / (float)BodyPose.RotationScale, table.Pose.RotationY / (float)BodyPose.RotationScale,
                 table.Pose.RotationZ / (float)BodyPose.RotationScale, table.Pose.RotationW / (float)BodyPose.RotationScale);
-            if ((turn * Vector3.up).y < 0.7f)
+            if ((turn * Vector3.up).y < 0.985f)
             {
-                // On its side or its back: not a table top any more.
+                // More than about ten degrees off flat -- up on an edge, on its
+                // side or its back: not a table top on the floor any more.
                 return false;
             }
 

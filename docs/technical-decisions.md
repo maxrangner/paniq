@@ -755,12 +755,36 @@ seat when it fired is what made the chair go over.
 | Versions | `SimulationCompatibilityVersion` 51 -> 52; `ContentRevision` 63 -> 64. Five of the thirteen recorded fingerprints re-recorded (seed 42 locked and opened, seed 46 opened, and both box runs); eight happen not to change | Whether a sit completes changes where people are for the rest of the run | Never |
 | Test | `ErrandsEditModeTests.SentHomeAcrossTheBuilding_SomebodyOpensTheDoorsOnTheWay_AndSitsOnTheirOwnChair` is the check that reached this path, and the trace that found it (somebody sent home from the bathroom, with their neighbour sitting down at the same time) is what it exercises | -- | -- |
 
+## Prototype 2 fix: being shoved about is not getting anywhere (2026-09-24)
+
+Found while the cue system was being reworked into steps, and fixed on its
+own before it.
+
+**What a player saw.** On seed 41, with the fire set off at six seconds and
+the way out opened, person 1011 fled the meeting straight at the long table
+between them and the door, and stood pressed against its edge by the crowd
+for the rest of the round, feet going, getting nowhere. Frightened people who
+are stuck are meant to heave a table over, throw a thing clear, or think
+again after a quarter of a second of getting nowhere. They never did, because
+a single tick of getting somewhere wiped the whole count: a crowd that shoves
+somebody thirty millimetres sideways and back every few ticks kept resetting
+it just short of the line.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **A free tick forgives one stuck tick** | `PeopleBodies` still counts a tick stuck when somebody got less than a third of the way they wanted; a tick that got somewhere now takes one off the count instead of wiping it. Measuring progress *along the push* was tried first and dropped: the body's momentum lags a sharp turn by a dozen ticks, so every turn read as being stuck and a lone runner dithered between doors | Every "stuck" rule in the game (heaving a table, clearing a wedged door, giving way, trying another door, giving up a stroll or an errand) reads this one count, and a jostling crush is exactly when they are needed | Somebody in a slow-moving queue, stuck two ticks in three, now reaches the "think again" line where before they never did. Then the queue needs an order of its own rather than a stuck count |
+| **A self-started round has a cause** | When the hazard starts on its own tick count rather than the player's trigger, `RoundSystem` takes the hazard's own start event as the round's trigger, so the survivors and the end of the round are blamed on it. Before, both were written with no cause at all, which broke the rule that every line of the read-back traces back to the fire, whenever a run happened to end inside a test's window | Found because the fix above emptied the building of a test run faster than it used to | Never |
+| Test | `FurnitureEditModeTests.NobodyAndNothing_EverEndsUpInsideATable` skips a table more than about ten degrees off flat, not only one on its side: a desk mid-tip after a heave lifts and shifts its body's origin, and the authored rectangle drawn round that origin flagged somebody running past its edge | The check approximates a rotated table by its authored rectangle, which is a floor rectangle only while the table is flat | -- |
+| Versions | `SimulationCompatibilityVersion` 52 -> 53; `ContentRevision` 64 -> 65. Eleven of the thirteen recorded fingerprints re-recorded; two (seed 42 locked, and the seed 40 box run) happen not to change | When somebody counts as stuck changes what they do next for the rest of a run | Never |
+| Test | `CorridorStarersEditModeTests.NobodyFrightened_StandsStaringAtAWall` (seed 41, trigger 300, way out opened) is the check that reached this path | -- | -- |
+
 ## Version history
 
 Every bump of `SimulationCompatibilityVersion` (the rules) and `ContentRevision` (the building) that the replay compatibility row of the first table used to list in one cell, newest first. The bumps from 27 to 42 are recorded in their own stones' sections above (search this document for "Versions").
 
 | Change | What moved |
 | --- | --- |
+| 52 → 53 and content 64 → 65 (2026-09-24) | a tick that got somewhere forgives one stuck tick instead of wiping the count, so a jostling crush no longer counts as getting somewhere; and a round the hazard started on its own blames its end on the hazard's start. Eleven of the thirteen fingerprints re-recorded; two happen not to change. |
 | 51 → 52 and content 63 → 64 (2026-09-24) | a chair that will not come all the way out is sat on where it stopped, and one that will not slide all the way back in is settled where it is, instead of being dropped or kicked over. Five of the thirteen fingerprints re-recorded; eight happen not to change. |
 | 50 → 51 and content 62 → 63 (2026-09-24) | the building has a day: the meeting ends by the timetable, calm people go home, to the toilet and over to talk, and every calm decision draws differently. All thirteen fingerprints re-recorded. |
 | 49 → 50 and content 61 → 62 (2026-09-24) | nobody reacts on the tick a thing happens: every reaction begins a few ticks late, and no two people finish being startled on the same tick. All thirteen fingerprints re-recorded. |

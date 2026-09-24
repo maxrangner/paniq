@@ -201,6 +201,7 @@
                 case CausalEventType.ObjectCaughtFire:
                 case CausalEventType.ItemThrown:
                 case CausalEventType.BoxBumped:
+                case CausalEventType.ObjectPopped:
                     return UproarTier.Small;
 
                 // A death deals a card; the head count pays for an escape.

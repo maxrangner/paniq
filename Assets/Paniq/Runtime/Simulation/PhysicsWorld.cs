@@ -765,6 +765,18 @@ namespace Paniq.Simulation
             rigidbody.angularVelocity = Vector3.zero;
         }
 
+        /// <summary>
+        /// Where a point this high up a body's own axis is now, in hundredths
+        /// of a millimetre: the top of a lamp that has gone over, wherever it
+        /// has come to lie. The height is never below the floor.
+        /// </summary>
+        public (long X, long Y, long Z) PointOn(int handle, int heightMillimetres)
+        {
+            Rigidbody rigidbody = bodies[handle].Rigidbody;
+            Vector3 point = rigidbody.position + rigidbody.rotation * (Vector3.up * MetresFromMillimetres(heightMillimetres));
+            return (Units(point.x), Math.Max(0L, Units(point.y)), Units(point.z));
+        }
+
         /// <summary>Turns a standing body to face this heading, without moving it.</summary>
         public void Face(int handle, int heading)
         {

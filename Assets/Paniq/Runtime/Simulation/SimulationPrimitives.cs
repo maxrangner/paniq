@@ -624,7 +624,15 @@ namespace Paniq.Simulation
         /// way. Names the table; the strength is the change of speed it was
         /// given, in millimetres per tick.
         /// </summary>
-        TableHeaved
+        TableHeaved,
+
+        /// <summary>
+        /// Something went over and popped: a standing lamp's bulb bursting as
+        /// it hits the floor. A small crack, not a bang: nothing is thrown,
+        /// nobody is knocked down and no floor is lit. The strength is how big
+        /// the thing is, in millimetres, for drawing the flash.
+        /// </summary>
+        ObjectPopped
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -723,7 +731,31 @@ namespace Paniq.Simulation
         /// Every socket's cable runs back to it, and when it goes off it goes
         /// off harder than anything else in the building.
         /// </summary>
-        FuseBox
+        FuseBox,
+
+        /// <summary>A vending machine: tall, heavy and hard to shift; only a blast tips it.</summary>
+        VendingMachine,
+
+        /// <summary>A filing cabinet: heavy steel, slow to catch.</summary>
+        Cabinet,
+
+        /// <summary>Shelves full of books and files: tall, thin, quick to catch, easy to tip.</summary>
+        Shelves,
+
+        /// <summary>A big copy machine on castors: it rolls a long way when shoved, and its toner goes off in the flames.</summary>
+        CopyMachine,
+
+        /// <summary>A whiteboard on wheels: light and tall, it goes over at a shove.</summary>
+        Whiteboard,
+
+        /// <summary>A standing lamp: it tips over at a touch, its bulb pops when it does, and its shade comes off.</summary>
+        StandingLamp,
+
+        /// <summary>A lamp's shade: part of the lamp until the lamp goes over, then a loose thing on the floor.</summary>
+        LampShade,
+
+        /// <summary>A robot vacuum: trundles about the floor by itself, turning at walls and desks, and burns like plastic.</summary>
+        RobotVacuum
     }
 
     /// <summary>

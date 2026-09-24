@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("62"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(50));
+            Assert.That(data.ContentRevision, Is.EqualTo("64"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(52));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -267,7 +267,11 @@ namespace Paniq.Tests.EditMode
         {
             foreach (DoorSnapshot door in snapshot.Doors)
             {
-                if (LogicalPosition.DistanceSquared(position, door.Centre) < 1000L * 1000L)
+                // A metre of the middle, or, for the corridor's 2.4 m archway,
+                // anywhere in its gap: somebody hugging the corridor wall as
+                // they go through the archway's edge is in a doorway too.
+                long reach = Math.Max(1000L, door.WidthMillimetres / 2L + 300L);
+                if (LogicalPosition.DistanceSquared(position, door.Centre) < reach * reach)
                 {
                     return true;
                 }

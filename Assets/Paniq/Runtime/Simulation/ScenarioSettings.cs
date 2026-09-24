@@ -952,10 +952,25 @@ namespace Paniq.Simulation
         /// </summary>
         public int SpinMaximum = 8;
 
+        /// <summary>
+        /// A thing that drives itself (a robot vacuum), stopped by a wall, a
+        /// desk or somebody's foot, waits this long before setting off on its
+        /// new heading, and turns by between this many degrees and that many,
+        /// either way, drawn from the seed.
+        /// </summary>
+        public int RoverPauseTicks = 15;
+        public int RoverTurnMinimumDegrees = 60;
+        public int RoverTurnMaximumDegrees = 150;
+
+        /// <summary>How fast it turns on the spot, in degrees a tick: a quarter turn in about a fifth of a second.</summary>
+        public int RoverTurnDegreesPerTick = 10;
+
         public ObjectPhysicsSettings Clone() => (ObjectPhysicsSettings)MemberwiseClone();
 
         internal void Validate()
         {
+            Settings.Require(RoverPauseTicks >= 0 && Settings.Range(RoverTurnMinimumDegrees, RoverTurnMaximumDegrees, 1) &&
+                             RoverTurnMaximumDegrees <= 180 && RoverTurnDegreesPerTick >= 1, "robot vacuums");
             Settings.Require(AgentMassGrams > 0 && Friction >= 0 && Settings.Percent(AgentRestitutionPercent) &&
                              Settings.Percent(ObjectRestitutionPercent) && Settings.Percent(WallRestitutionPercent), "object physics");
             Settings.Require(TripMinimumSpeed >= 0 && TripScale > 0 && Settings.Percent(TripMaximumChancePercent) &&
@@ -1215,7 +1230,7 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ObjectKindSettings
     {
-        public const int KindCount = 13;
+        public const int KindCount = 21;
 
         public PhysicsObjectKind Kind;
         public int FrictionPercent = 100;
@@ -1243,6 +1258,14 @@ namespace Paniq.Simulation
         public int PopIgniteCells;
 
         /// <summary>
+        /// It goes off at the end of its burn rather than the moment the
+        /// flames reach it: a robot vacuum rides about alight for a good
+        /// while, and then its battery goes. The pop is the same pop, from
+        /// the three values above; only when it happens differs.
+        /// </summary>
+        public bool PopsWhenBurntOut;
+
+        /// <summary>
         /// What this kind of thing is for, rather than what it is made of.
         ///
         /// These used to be decided by naming the kind in the rules -- "is it a
@@ -1259,6 +1282,30 @@ namespace Paniq.Simulation
         /// with it, or drops it the moment they are frightened.
         /// </summary>
         public bool IsEquipment;
+
+        /// <summary>
+        /// It pops the first time it goes over: a standing lamp's bulb bursting
+        /// as it hits the floor. A small crack rather than a bang (see
+        /// <see cref="PopRadiusMillimetres"/> for the things that go off).
+        /// </summary>
+        public bool PopsWhenTipped;
+
+        /// <summary>
+        /// Whatever was authored as part of it comes loose when it goes over:
+        /// a lamp's shade. Parts are their own kind of thing, kept out of the
+        /// world until then (see <c>PhysicsObjectDefinition.PartOfObjectId</c>).
+        /// </summary>
+        public bool ShedsPartsWhenTipped;
+
+        /// <summary>
+        /// It moves about the floor by itself, like a robot vacuum: trundling
+        /// at <see cref="CruiseSpeedMillimetresPerTick"/> and turning when it
+        /// meets a wall, a table or anything else that stops it.
+        /// </summary>
+        public bool DrivesItself;
+
+        /// <summary>How fast a thing that drives itself goes, in millimetres per tick.</summary>
+        public int CruiseSpeedMillimetresPerTick;
 
         public ObjectKindSettings Clone() => (ObjectKindSettings)MemberwiseClone();
 
@@ -1310,8 +1357,68 @@ namespace Paniq.Simulation
                 // biggest bang in the building by a long way: a 3.2 m circle
                 // against the microwave's 2.2, and it sets five squares of
                 // floor alight rather than three.
-                Popping(Entry(PhysicsObjectKind.FuseBox, 1000, 110, 50, 80), 3200, 95, 5)
+                Popping(Entry(PhysicsObjectKind.FuseBox, 1000, 110, 50, 80), 3200, 95, 5),
+
+                // The rest of the office, added 2026-09-24. Tall things tip
+                // because their shape is tall and their feet grip; nothing
+                // per kind is written for that.
+
+                // Steel and glass, and heavy: a blast tips it, a crowd does not.
+                Entry(PhysicsObjectKind.VendingMachine, 150, 220, 500, 800),
+
+                // Steel drawers full of paper: slow to catch, burns a long while.
+                Entry(PhysicsObjectKind.Cabinet, 140, 180, 500, 800),
+
+                // Books and files on thin shelves: quick to catch, easy to tip.
+                Entry(PhysicsObjectKind.Shelves, 130, 110, 500, 800),
+
+                // On castors like an office chair, so a shove sends it rolling
+                // across the room. Its toner goes off in the flames: a bang
+                // bigger than a laptop's, smaller than a socket's.
+                Popping(Entry(PhysicsObjectKind.CopyMachine, 30, 150, 300, 500), 1200, 50, 2),
+
+                // Light, tall and on wheels: it goes over at a shove.
+                Entry(PhysicsObjectKind.Whiteboard, 30, 200, 300, 500),
+
+                // It goes over at a touch, and when it does its bulb pops and
+                // its shade comes off.
+                TipsAndPops(Entry(PhysicsObjectKind.StandingLamp, 100, 150, 300, 500), sheds: true),
+
+                // The shade: paper on a wire frame. Part of the lamp until the
+                // lamp goes over, then a loose thing on the floor.
+                Entry(PhysicsObjectKind.LampShade, 90, 100, 200, 350),
+
+                // A robot vacuum: it drives itself about at a Roomba's pace
+                // (16 mm a tick is 0.8 m/s), turns at walls and desks, and
+                // once alight it rides about burning for half a minute to a
+                // minute -- a lot of health, the owner asked -- before its
+                // battery goes off with a laptop-sized bang.
+                SelfDriving(PoppingAtTheEnd(Entry(PhysicsObjectKind.RobotVacuum, 60, 120, 1500, 3000), 1000, 45, 2), 16)
             };
+        }
+
+        /// <summary>The same kind, but one that goes off when its burn ends rather than when the flames reach it.</summary>
+        private static ObjectKindSettings PoppingAtTheEnd(ObjectKindSettings kind, int radius, int speed, int igniteCells)
+        {
+            Popping(kind, radius, speed, igniteCells);
+            kind.PopsWhenBurntOut = true;
+            return kind;
+        }
+
+        /// <summary>The same kind, but one that pops the first time it goes over, and may shed the parts authored onto it.</summary>
+        private static ObjectKindSettings TipsAndPops(ObjectKindSettings kind, bool sheds)
+        {
+            kind.PopsWhenTipped = true;
+            kind.ShedsPartsWhenTipped = sheds;
+            return kind;
+        }
+
+        /// <summary>The same kind, but one that drives itself about at this speed.</summary>
+        private static ObjectKindSettings SelfDriving(ObjectKindSettings kind, int cruiseSpeedMillimetresPerTick)
+        {
+            kind.DrivesItself = true;
+            kind.CruiseSpeedMillimetresPerTick = cruiseSpeedMillimetresPerTick;
+            return kind;
         }
 
         /// <summary>The same kind, but one somebody can sit on.</summary>
@@ -1363,6 +1470,8 @@ namespace Paniq.Simulation
             Settings.Require(BreakMomentum >= 0 && PopRadiusMillimetres >= 0 && PopSpeed >= 0 && PopIgniteCells >= 0,
                 "breaking and popping");
             Settings.Require(IgniteTicks == 0 || Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1), "object burn time");
+            Settings.Require(CruiseSpeedMillimetresPerTick >= 0 && (!DrivesItself || CruiseSpeedMillimetresPerTick > 0),
+                "a thing that drives itself needs a speed");
         }
     }
 

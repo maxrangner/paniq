@@ -168,6 +168,7 @@ namespace Paniq.Presentation
 
                 case CausalEventType.ItemThrown: return $"{who} flung {whom} away from them";
                 case CausalEventType.TableHeaved: return $"{who} heaved a table out of the way";
+                case CausalEventType.ObjectPopped: return $"{who} went over and its bulb popped";
                 case CausalEventType.ItemDropped: return $"{who} dropped {whom}";
                 case CausalEventType.BoxBumped: return $"{whom} was knocked about";
                 case CausalEventType.BoxHitAgent: return $"{whom} was hit by something flying";
@@ -246,6 +247,14 @@ namespace Paniq.Presentation
                 case PhysicsObjectKind.WallSocket: return "a wall socket";
                 case PhysicsObjectKind.FuseBox: return "the fuse box";
                 case PhysicsObjectKind.TableWreck: return "a heap of broken boards";
+                case PhysicsObjectKind.VendingMachine: return "the vending machine";
+                case PhysicsObjectKind.Cabinet: return "a filing cabinet";
+                case PhysicsObjectKind.Shelves: return "a set of shelves";
+                case PhysicsObjectKind.CopyMachine: return "the copier";
+                case PhysicsObjectKind.Whiteboard: return "a whiteboard";
+                case PhysicsObjectKind.StandingLamp: return "a standing lamp";
+                case PhysicsObjectKind.LampShade: return "a lamp shade";
+                case PhysicsObjectKind.RobotVacuum: return "the robot vacuum";
                 default: return "something";
             }
         }

@@ -127,6 +127,25 @@ namespace Paniq.Simulation
             /// <summary>The event that last set this object moving, so its later hits can name their cause.</summary>
             public ulong LastPushEventId;
 
+            /// <summary>Whether it stood upright the last time it was read: how a thing is seen to go over.</summary>
+            public bool WasUpright = true;
+
+            /// <summary>It has gone over and popped once already; a lamp's bulb goes only once.</summary>
+            public bool Popped;
+
+            /// <summary>The index of the thing this is a part of (a shade's lamp), or -1 for a thing of its own.</summary>
+            public int PartOf = -1;
+
+            /// <summary>A thing that drives itself: when it may set off again after being stopped, and whether it was trying to go.</summary>
+            public int RoverPauseUntilTick;
+
+            public bool RoverWantedToMove;
+
+            /// <summary>A thing that drives itself, turning on the spot toward this heading before it sets off again.</summary>
+            public bool RoverTurning;
+
+            public int RoverGoalHeading;
+
             /// <summary>The <c>DoorBlocked</c> event while this thing is jamming a door, so clearing it names the same door.</summary>
             public ulong BlockedEventId;
 
@@ -252,6 +271,15 @@ namespace Paniq.Simulation
                 if (kinds.Of(definition.Kind).IsEquipment)
                 {
                     equipment.Add(i);
+                }
+            }
+
+            // Parts know the thing they belong to once every thing has a place.
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                if (definitions[i].IsPartOfSomething && indexById.TryGetValue(definitions[i].PartOfObjectId, out int whole))
+                {
+                    bodies[i].PartOf = whole;
                 }
             }
 
@@ -394,7 +422,191 @@ namespace Paniq.Simulation
         {
             people = systems.People;
             power = systems.Power;
+            flammables = systems.Flammables;
         }
+
+        /// <summary>What is burning and what has burnt out, for a robot vacuum that has burnt to a stop.</summary>
+        private FlammablesSystem flammables;
+
+        // ---------------------------------------------------------------- things that drive themselves
+
+        /// <summary>
+        /// Before the engine steps: every thing that drives itself (a robot
+        /// vacuum) pushes on the way it is facing at its cruising speed.
+        /// Stopped by a wall, a desk, a foot or a box -- it wanted to go and
+        /// barely moved, or the floor ahead is not floor -- it waits a moment,
+        /// turns by a seeded amount and sets off again. Off its wheels (kicked,
+        /// thrown, on its side), held, or burnt out, it does not drive at all.
+        /// Ascending index order and the seed for the turns, so a replay agrees.
+        /// It stays a loose thing like any other: kicked, thrown, tidied away
+        /// and burnt like a box, and a burning one keeps trundling until it
+        /// burns out, heating whatever it passes.
+        /// </summary>
+        public void DriveTheRovers()
+        {
+            int tick = context.Tick;
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                PhysicsBody thing = bodies[b];
+                ObjectKindSettings kind = kinds.Of(thing.Kind);
+                if (!kind.DrivesItself || thing.HeldBy >= 0 || thing.Dormant || thing.Wrecked || thing.OccupiedBy >= 0 ||
+                    (flammables != null && flammables.ObjectState(b) == ObjectBurnState.Burnt))
+                {
+                    thing.RoverWantedToMove = false;
+                    continue;
+                }
+
+                bool onItsWheels = thing.Reading.UprightPercent >= 70 && thing.Reading.BottomMillimetres < OffTheFloorMillimetres &&
+                                   !thing.Thrown;
+                if (!onItsWheels)
+                {
+                    // Tumbling, flying or lying on its side: it settles first.
+                    thing.RoverPauseUntilTick = checked(tick + settings.RoverPauseTicks);
+                    thing.RoverWantedToMove = false;
+                    continue;
+                }
+
+                if (thing.RoverTurning)
+                {
+                    // Turning on the spot, through the engine: a spin toward
+                    // the heading it chose, so the body really turns and the
+                    // read-back agrees. Writing its rotation straight in was
+                    // tried first and made replays disagree from one run to
+                    // the next; a spin, as a tumbling chair is given, does not.
+                    int remaining = IntegerMath.SignedAngleDifference(thing.Heading, thing.RoverGoalHeading);
+                    if (System.Math.Abs(remaining) <= settings.RoverTurnDegreesPerTick)
+                    {
+                        world.SetSpin(b, 0, 0, 0);
+                        thing.RoverTurning = false;
+                    }
+                    else
+                    {
+                        int rate = settings.RoverTurnDegreesPerTick;
+                        world.SetSpin(b, 0, remaining > 0 ? rate : -rate, 0);
+                        continue;
+                    }
+                }
+
+                if (tick < thing.RoverPauseUntilTick)
+                {
+                    continue;
+                }
+
+                // A body's length ahead: not floor, or a table, and it turns
+                // before it gets there. Stopped short by something in the way
+                // -- it wanted to go and hardly moved -- it turns as well.
+                LogicalPosition ahead = thing.Position + IntegerMath.Displacement(thing.Heading,
+                    thing.Radius + kind.CruiseSpeedMillimetresPerTick * 5);
+                bool blockedAhead = geometry.RoomAt(ahead) < 0 || geometry.TableAt(ahead, thing.Radius) >= 0;
+                bool stopped = thing.RoverWantedToMove &&
+                               thing.Reading.HorizontalSpeed < (long)kind.CruiseSpeedMillimetresPerTick * SubMillimetre / 3L;
+                if (blockedAhead || stopped)
+                {
+                    int turn = context.Random.NextIntInclusive(settings.RoverTurnMinimumDegrees, settings.RoverTurnMaximumDegrees);
+                    int side = context.Random.NextIntInclusive(0, 1) == 0 ? -1 : 1;
+                    thing.RoverGoalHeading = IntegerMath.NormalizeDegrees(thing.Heading + side * turn);
+                    thing.RoverTurning = true;
+                    SetMotion(b, 0L, 0L, 0L);
+                    thing.RoverPauseUntilTick = checked(tick + settings.RoverPauseTicks);
+                    thing.RoverWantedToMove = false;
+                    continue;
+                }
+
+                LogicalPosition cruise = IntegerMath.Displacement(thing.Heading, kind.CruiseSpeedMillimetresPerTick);
+                SetMotion(b, (long)cruise.X * SubMillimetre, 0L, (long)cruise.Z * SubMillimetre);
+                thing.RoverWantedToMove = true;
+            }
+        }
+
+        // ---------------------------------------------------------------- things that go over
+
+        /// <summary>
+        /// After the engine has stepped: anything that pops when it goes over
+        /// (a standing lamp) and was upright last time but is not now, pops
+        /// once -- a small crack, logged and heard, nothing thrown -- and
+        /// whatever was authored as part of it comes loose where its top has
+        /// come to lie. Ascending index order, so a replay agrees.
+        /// </summary>
+        private void PopWhateverWentOver()
+        {
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                PhysicsBody thing = bodies[b];
+                if (thing.HeldBy >= 0 || thing.Dormant || thing.PartOf >= 0)
+                {
+                    continue;
+                }
+
+                ObjectKindSettings kind = kinds.Of(thing.Kind);
+                if (!kind.PopsWhenTipped)
+                {
+                    continue;
+                }
+
+                bool upright = thing.Reading.UprightPercent >= 50;
+                if (thing.WasUpright && !upright && !thing.Popped)
+                {
+                    Pop(b, kind);
+                }
+
+                thing.WasUpright = upright;
+            }
+        }
+
+        /// <summary>The small crack of a thing going over, and its parts coming loose.</summary>
+        private void Pop(int index, ObjectKindSettings kind)
+        {
+            PhysicsBody thing = bodies[index];
+            thing.Popped = true;
+            LogicalPosition centre = thing.Position;
+            ulong pop = context.Events.Append(context.Tick, thing.Id, CausalEventType.ObjectPopped, centre,
+                thing.Size, 0, thing.LastPushEventId).EventId;
+            sound.Thud(thing.Id, centre, pop);
+            if (kind.ShedsPartsWhenTipped)
+            {
+                ShedParts(index, pop);
+            }
+        }
+
+        /// <summary>
+        /// Every dormant part of this thing comes loose where the thing's top
+        /// now lies, and is nudged a little further the way the thing fell, so
+        /// a lamp's shade drops to the floor beside it rather than inside it.
+        /// </summary>
+        private void ShedParts(int index, ulong causeEventId)
+        {
+            PhysicsBody thing = bodies[index];
+            int top = ObjectShapes.TopHeight(thing.Kind, thing.Size);
+            for (int p = 0; p < bodies.Length; p++)
+            {
+                PhysicsBody part = bodies[p];
+                if (part.PartOf != index || !part.Dormant)
+                {
+                    continue;
+                }
+
+                // Where the top of the thing is, less the part's own height, so
+                // the part starts where it was drawn and falls from there.
+                (long x, long y, long z) = world.PointOn(index, System.Math.Max(0, top - ObjectShapes.TopHeight(part.Kind, part.Size)));
+                part.Dormant = false;
+                part.PartOf = -1;
+                MoveBody(p, x, z);
+                world.SetSolid(p, true);
+                world.Place(p, x, y, z, part.Heading);
+                part.Reading = world.Read(p);
+
+                // Away from the thing's middle, the way it went over.
+                int away = IntegerMath.HeadingOf(part.Position.X - thing.Position.X, part.Position.Z - thing.Position.Z, part.Heading);
+                LogicalPosition push = IntegerMath.Displacement(away, ShedSpeedMillimetresPerTick);
+                SetMotion(p, (long)push.X * SubMillimetre, 0L, (long)push.Z * SubMillimetre);
+                Tumble(p, away, ShedSpeedMillimetresPerTick, 2);
+                part.Thrown = false;
+                part.LastPushEventId = causeEventId;
+            }
+        }
+
+        /// <summary>How fast a part that has come loose is sent on its way, in millimetres per tick.</summary>
+        private const int ShedSpeedMillimetresPerTick = 15;
 
         /// <summary>
         /// Something electrical goes off: the bang, the fling, the people
@@ -1143,13 +1355,20 @@ namespace Paniq.Simulation
                         continue;
                     }
 
+                    // Shared out by weight past the reference thing, as a
+                    // table's shove is: a bin flies at the blast's full speed,
+                    // a 45 kg set of shelves at under half of it, and a 160 kg
+                    // vending machine rocks and stays put. Nothing lighter than
+                    // the reference is slowed, so every box, chair and bag
+                    // flies exactly as it did.
+                    long share = Math.Min(strength, strength * BlastReferenceMassGrams / Math.Max(1, thing.MassGrams));
                     int away = IntegerMath.HeadingBetween(centre, thing.Position, thing.Heading);
-                    LogicalPosition velocity = IntegerMath.Displacement(away, (int)strength);
+                    LogicalPosition velocity = IntegerMath.Displacement(away, (int)share);
                     SetMotion(b,
                         (long)velocity.X * SubMillimetre,
-                        strength * SubMillimetre * feel.BlastLiftPercent / 100L,
+                        share * SubMillimetre * feel.BlastLiftPercent / 100L,
                         (long)velocity.Z * SubMillimetre);
-                    Tumble(b, away, (int)strength, BlastTumbleMultiplier);
+                    Tumble(b, away, (int)share, BlastTumbleMultiplier);
                     thing.Thrown = true;
                     thing.LastPushEventId = causeEventId;
                     context.Events.Append(context.Tick, thing.Id, CausalEventType.ItemThrown, thing.Position,
@@ -1500,6 +1719,7 @@ namespace Paniq.Simulation
                 }
             }
 
+            PopWhateverWentOver();
             ClearOfTheirHands();
 
             IReadOnlyList<PhysicsWorld.Contact> touched = world.Contacts;

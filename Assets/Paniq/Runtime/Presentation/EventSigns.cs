@@ -278,6 +278,7 @@ namespace Paniq.Presentation
                 case CausalEventType.DoorBlocked: return "jammed!";
                 case CausalEventType.DoorBurntThrough: return "burnt through!";
                 case CausalEventType.ObjectExploded: return "bang!";
+                case CausalEventType.ObjectPopped: return "pop!";
                 case CausalEventType.PowerSparkStarted: return "the wire is lit!";
                 case CausalEventType.AgentLookedForAWayOut: return "which way?";
                 case CausalEventType.AgentFoundADeadEnd: return "dead end!";

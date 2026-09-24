@@ -204,6 +204,96 @@ namespace Paniq.Presentation
                     Part("Handle", PrimitiveType.Cube, Vector3.up * (height + 0.02f), new Vector3(size * 0.4f, 0.03f, 0.03f));
                     break;
 
+                case PhysicsObjectKind.VendingMachine:
+                    // A tall dark red cabinet with a pale glass front and a
+                    // black base strip: the shapes the physics has, coloured.
+                    height = 1.8f;
+                    colour = new Color(0.62f, 0.14f, 0.14f);
+                    Part("Cabinet", PrimitiveType.Cube, Vector3.up * (height * 0.5f), new Vector3(size, height, size));
+                    Part("Glass", PrimitiveType.Cube, new Vector3(0f, height * 0.6f, -size * 0.5f),
+                        new Vector3(size * 0.7f, height * 0.55f, 0.02f));
+                    Part("Base", PrimitiveType.Cube, new Vector3(0f, 0.08f, -size * 0.5f), new Vector3(size, 0.16f, 0.02f));
+                    break;
+
+                case PhysicsObjectKind.Cabinet:
+                    // A grey-blue steel filing cabinet with three drawer lines.
+                    height = 1.4f;
+                    colour = new Color(0.42f, 0.46f, 0.52f);
+                    Part("Cabinet", PrimitiveType.Cube, Vector3.up * (height * 0.5f), new Vector3(size, height, size));
+                    for (int drawer = 0; drawer < 3; drawer++)
+                    {
+                        Part($"Drawer {drawer}", PrimitiveType.Cube,
+                            new Vector3(0f, height * (0.2f + 0.3f * drawer), -size * 0.5f),
+                            new Vector3(size * 0.85f, 0.015f, 0.02f));
+                    }
+
+                    break;
+
+                case PhysicsObjectKind.Shelves:
+                    // A wooden frame with boards across it and books on them,
+                    // in a few colours so it reads as shelves and not a wall.
+                    height = 1.8f;
+                    colour = PresentationMaterials.WoodColor;
+                    float depth = size * 0.4f;
+                    Part("Left side", PrimitiveType.Cube, new Vector3(-size * 0.5f + 0.015f, height * 0.5f, 0f),
+                        new Vector3(0.03f, height, depth));
+                    Part("Right side", PrimitiveType.Cube, new Vector3(size * 0.5f - 0.015f, height * 0.5f, 0f),
+                        new Vector3(0.03f, height, depth));
+                    Part("Back", PrimitiveType.Cube, new Vector3(0f, height * 0.5f, depth * 0.5f - 0.01f),
+                        new Vector3(size, height, 0.02f));
+                    for (int shelf = 0; shelf < 4; shelf++)
+                    {
+                        float y = height * (0.05f + 0.3f * shelf);
+                        Part($"Shelf {shelf}", PrimitiveType.Cube, new Vector3(0f, y, 0f), new Vector3(size, 0.03f, depth));
+                        Part($"Books {shelf}", PrimitiveType.Cube, new Vector3(0f, y + 0.14f, 0f),
+                            new Vector3(size * 0.8f, 0.25f, depth * 0.7f));
+                    }
+
+                    break;
+
+                case PhysicsObjectKind.CopyMachine:
+                    // A big pale box with a darker lid and a castor strip.
+                    height = 1.1f;
+                    colour = new Color(0.78f, 0.78f, 0.76f);
+                    Part("Body", PrimitiveType.Cube, Vector3.up * (height * 0.55f), new Vector3(size, height * 0.9f, size * 0.9f));
+                    Part("Lid", PrimitiveType.Cube, Vector3.up * (height + 0.02f), new Vector3(size * 0.9f, 0.04f, size * 0.8f));
+                    Part("Castors", PrimitiveType.Cube, Vector3.up * 0.05f, new Vector3(size * 0.9f, 0.1f, size * 0.8f));
+                    break;
+
+                case PhysicsObjectKind.Whiteboard:
+                    // A white board on a thin post over a low base with wheels.
+                    height = 1.85f;
+                    colour = new Color(0.93f, 0.94f, 0.92f);
+                    Part("Base", PrimitiveType.Cube, Vector3.up * 0.04f, new Vector3(size, 0.08f, size * 0.5f));
+                    Part("Post", PrimitiveType.Cube, Vector3.up * 0.35f, new Vector3(0.05f, 0.6f, 0.05f));
+                    Part("Board", PrimitiveType.Cube, Vector3.up * 1.2f, new Vector3(size, 1.3f, 0.04f));
+                    break;
+
+                case PhysicsObjectKind.StandingLamp:
+                    // A dark base, a thin post and a cream shade on top. The
+                    // shade stays drawn on the lamp: the loose shade that drops
+                    // off when the lamp goes over is a thing of its own.
+                    height = 1.725f;
+                    colour = new Color(0.25f, 0.24f, 0.22f);
+                    Part("Base", PrimitiveType.Cylinder, Vector3.up * 0.02f, new Vector3(size, 0.02f, size));
+                    Part("Post", PrimitiveType.Cylinder, Vector3.up * 0.77f, new Vector3(0.03f, 0.73f, 0.03f));
+                    Part("Shade", PrimitiveType.Cylinder, Vector3.up * 1.6f, new Vector3(size * 1.1f, 0.125f, size * 1.1f));
+                    break;
+
+                case PhysicsObjectKind.LampShade:
+                    height = 0.25f;
+                    colour = new Color(0.92f, 0.86f, 0.70f);
+                    Part("Shade", PrimitiveType.Cylinder, Vector3.up * (height * 0.5f), new Vector3(size, height * 0.5f, size));
+                    break;
+
+                case PhysicsObjectKind.RobotVacuum:
+                    // A squat dark disc with a little light on top.
+                    height = 0.09f;
+                    colour = new Color(0.22f, 0.23f, 0.25f);
+                    Part("Disc", PrimitiveType.Cylinder, Vector3.up * (height * 0.5f), new Vector3(size, height * 0.5f, size));
+                    Part("Light", PrimitiveType.Cube, new Vector3(0f, height + 0.01f, size * 0.25f), new Vector3(0.05f, 0.02f, 0.05f));
+                    break;
+
                 default:
                     height = size * 0.5f;
                     colour = new Color(0.55f, 0.57f, 0.60f);
@@ -347,7 +437,8 @@ namespace Paniq.Presentation
             middle = view.Transform.TransformPoint(Vector3.up * (view.Height * 0.4f));
             size = view.Size;
             shatters = view.Kind == PhysicsObjectKind.Laptop || view.Kind == PhysicsObjectKind.Microwave ||
-                       view.Kind == PhysicsObjectKind.WallSocket || view.Kind == PhysicsObjectKind.Extinguisher;
+                       view.Kind == PhysicsObjectKind.WallSocket || view.Kind == PhysicsObjectKind.Extinguisher ||
+                       view.Kind == PhysicsObjectKind.CopyMachine;
             return true;
         }
 

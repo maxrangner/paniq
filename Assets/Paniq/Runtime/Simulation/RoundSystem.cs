@@ -281,7 +281,7 @@ namespace Paniq.Simulation
                         agent.Body.Position,
                         0,
                         0,
-                        TriggerEventId);
+                        WhatSetItOff());
                 }
 
                 saved += IsSaved(agent.Outcome) ? 1 : 0;
@@ -296,8 +296,16 @@ namespace Paniq.Simulation
                 geometry.FireArea.Centre,
                 saved,
                 0,
-                TriggerEventId);
+                WhatSetItOff());
         }
+
+        /// <summary>
+        /// What the round's end traces back to: the player's trigger, or, in
+        /// a run where the hazard began on its own clock, the hazard's own
+        /// first event. It used to be the trigger alone, which left the end of
+        /// an untriggered run with no cause at all.
+        /// </summary>
+        private ulong WhatSetItOff() => TriggerEventId != 0UL ? TriggerEventId : threats.RootEventId;
 
         /// <summary>Out of the building alive, or alive inside it at the end: both count.</summary>
         public static bool IsSaved(AgentTerminalOutcome outcome) =>

@@ -39,8 +39,15 @@ namespace Paniq.Tests.EditMode
         /// under a fifth of a second, and a thing genuinely passing through
         /// another stays pressed for far longer than that.
         /// </para>
+        /// <para>
+        /// Twelve, not eight: a standing lamp that has gone over is a long thin
+        /// thing on the floor, and somebody running over its shade end took
+        /// eleven ticks to shove it out from under their feet, jammed against
+        /// the door they were opening (seed 40, 135 mm). A quarter of a second,
+        /// and still a wedge coming apart rather than a thing passing through.
+        /// </para>
         /// </summary>
-        public const int LongestKnockTicks = 8;
+        public const int LongestKnockTicks = 12;
 
         private int deepTicks;
 

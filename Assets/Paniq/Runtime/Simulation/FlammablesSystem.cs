@@ -34,6 +34,9 @@ namespace Paniq.Simulation
             public ulong EventId;
             public int RestCell = -1;
             public int RestTicks;
+
+            /// <summary>It goes off at the end of its burn rather than the moment it catches.</summary>
+            public bool PopsWhenBurntOut;
         }
 
         private readonly SimulationContext context;
@@ -86,7 +89,8 @@ namespace Paniq.Simulation
                     // Nothing that takes no time to catch: 0 means it never does.
                     IgniteTicks = kind.IgniteTicks,
                     BurnMinimumTicks = kind.BurnMinimumTicks,
-                    BurnMaximumTicks = kind.BurnMaximumTicks
+                    BurnMaximumTicks = kind.BurnMaximumTicks,
+                    PopsWhenBurntOut = kind.PopsWhenBurntOut
                 };
 
                 things[i].Slot = i;
@@ -195,6 +199,13 @@ namespace Paniq.Simulation
                     StopBurning(thing);
                     context.Events.Append(tick, thing.Id, CausalEventType.ObjectBurntOut, PositionOf(thing), 0, 0,
                         thing.EventId);
+                    if (thing.PopsWhenBurntOut)
+                    {
+                        // A robot vacuum's battery: it has ridden about alight
+                        // for a good while, and now it goes.
+                        Pop(thing);
+                    }
+
                     continue;
                 }
 
@@ -305,8 +316,12 @@ namespace Paniq.Simulation
             thing.RestCell = -1;
             thing.RestTicks = 0;
 
-            // Something electrical does not sit and burn: it goes off.
-            Pop(thing);
+            // Something electrical does not sit and burn: it goes off -- now,
+            // or, for a thing whose row says so, at the end of its burn.
+            if (!thing.PopsWhenBurntOut)
+            {
+                Pop(thing);
+            }
         }
 
         /// <summary>

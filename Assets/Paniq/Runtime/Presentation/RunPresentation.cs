@@ -422,6 +422,14 @@ namespace Paniq.Presentation
                             record.EventId, time);
                         ripples.Start(record.Position, record.Strength * 6, SoundRipples.ThudColor, time);
                         break;
+                    case CausalEventType.ObjectPopped:
+                        // A lamp's bulb going as it hits the floor: a small
+                        // flash and a short ring. The strength is the thing's
+                        // size, so the flash is a fraction of a socket's.
+                        pops.Start(record.Position, boxes.BurstHeightOf(record.SourceId), record.Strength,
+                            record.EventId, time);
+                        ripples.Start(record.Position, record.Strength * 4, SoundRipples.ThudColor, time);
+                        break;
                     case CausalEventType.ObjectBroke:
                         // Splinters or shards where it smashed; a table that is
                         // not one of the loose things is a big wooden one.

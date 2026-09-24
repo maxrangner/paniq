@@ -353,6 +353,13 @@ namespace Paniq.Simulation
         /// </summary>
         [UnityEngine.SerializeField] private bool startsResting;
 
+        /// <summary>
+        /// The thing this is a part of, or nothing: a lamp's shade names its
+        /// lamp. A part starts dormant, out of the world, and comes loose
+        /// where the thing's top is the moment the thing goes over.
+        /// </summary>
+        [UnityEngine.SerializeField] private SimulationId partOfObjectId;
+
         public PhysicsObjectDefinition(
             SimulationId objectId,
             PhysicsObjectKind kind,
@@ -361,7 +368,8 @@ namespace Paniq.Simulation
             int massGrams,
             bool startsDormant = false,
             int initialFacingDegrees = 0,
-            bool startsResting = false)
+            bool startsResting = false,
+            SimulationId partOfObjectId = default)
         {
             this.objectId = objectId;
             this.kind = kind;
@@ -371,6 +379,7 @@ namespace Paniq.Simulation
             this.startsDormant = startsDormant;
             this.initialFacingDegrees = initialFacingDegrees;
             this.startsResting = startsResting;
+            this.partOfObjectId = partOfObjectId;
         }
 
         public SimulationId ObjectId => objectId;
@@ -396,6 +405,12 @@ namespace Paniq.Simulation
         /// moment anybody picks it up, throws it, or breaks what holds it.
         /// </summary>
         public bool StartsResting => startsResting;
+
+        /// <summary>The thing this is a part of (a shade's lamp), or a zero ID when it stands on its own.</summary>
+        public SimulationId PartOfObjectId => partOfObjectId;
+
+        /// <summary>True for a part of another thing, which starts attached to it and comes loose when it goes over.</summary>
+        public bool IsPartOfSomething => partOfObjectId.Value != 0UL;
     }
 
     /// <summary>
@@ -461,7 +476,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "62";
+        public string ContentRevision = "64";
         public ulong DefaultSeed = 42UL;
 
         // 45: a physics look-up (is this spot clear to stand or lie in, is
@@ -487,7 +502,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 50;
+        public int SimulationCompatibilityVersion = 52;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -988,6 +1003,30 @@ namespace Paniq.Simulation
                     body.MassGrams <= 0 || body.MassGrams > 200000)
                 {
                     throw new InvalidOperationException($"Object {body.ObjectId} has an invalid size or mass.");
+                }
+
+                if (body.IsPartOfSomething)
+                {
+                    // A part waits out of the world on the thing it belongs
+                    // to, so it must be dormant, and the thing must exist.
+                    if (!body.StartsDormant)
+                    {
+                        throw new InvalidOperationException(
+                            $"Object {body.ObjectId} is part of {body.PartOfObjectId}, so it must start dormant.");
+                    }
+
+                    bool found = false;
+                    for (int other = 0; other < PhysicsObjects.Length && !found; other++)
+                    {
+                        found = other != i && PhysicsObjects[other].ObjectId == body.PartOfObjectId &&
+                                !PhysicsObjects[other].IsPartOfSomething;
+                    }
+
+                    if (!found)
+                    {
+                        throw new InvalidOperationException(
+                            $"Object {body.ObjectId} is part of {body.PartOfObjectId}, which is not in the scenario.");
+                    }
                 }
 
                 if (!body.StartsDormant && RoomHolding(body.InitialPosition, body.RadiusMillimetres) < 0)

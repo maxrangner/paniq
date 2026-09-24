@@ -1064,7 +1064,7 @@ hole is in the middle of it — and leaves five lumps of rubble in the gap, laid
 from the hole's own ID so it looks the same every run without touching the
 simulation's randomness; a hole leading outside gets the same strip of outside
 ground a door does. Explosions and blasts throw a large floor ring, and a shove
-makes the shover lunge.
+makes the shover lunge. The office's later things (2026-09-24): a vending machine is a tall dark red cabinet with a pale glass front; a filing cabinet a grey-blue box with drawer lines; shelves a wooden frame with boards and blocks of books; the copier a big pale box on a castor strip; a whiteboard a white slab on a post over a wheeled base; a standing lamp a dark base, a thin post and a cream shade, and the shade that drops off it is a loose cream drum of its own; a robot vacuum a squat dark disc with a little light on top, which is drawn wherever the physics has it as it trundles about.
 
 **The player's own controls** are the card row along the bottom, the influence
 bar above it, and the line above that saying what a click will do. Clicking a

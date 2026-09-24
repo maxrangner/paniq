@@ -422,7 +422,55 @@
                 SpareExtinguisher(3391UL),
                 SpareExtinguisher(3392UL),
                 SpareExtinguisher(3393UL),
-                SpareExtinguisher(3394UL)
+                SpareExtinguisher(3394UL),
+
+                // The rest of the office (2026-09-24). Everything below is
+                // knocked about by the physics like the rest: the tall things
+                // go over, the things on castors roll, and it all burns.
+
+                // A vending machine against the cafeteria's east wall, past
+                // the microwaves.
+                VendingMachine(3401UL, 12600, 15500),
+
+                // Filing cabinets against the office walls, and one in the
+                // maintenance room beside the fuse box.
+                // Never beside where somebody starts: a cabinet going over on
+                // top of a person standing between it and the wall pushed them
+                // through the wall (seed 40).
+                Cabinet(3411UL, -5700, 4700),
+                Cabinet(3412UL, 5700, -1200),
+                Cabinet(3413UL, -8700, 8600),
+
+                // Shelves of files on the office's north wall, clear of its
+                // door, and of books on the meeting room's east wall.
+                Shelves(3421UL, -1500, 5550),
+                Shelves(3422UL, 1550, 10500),
+
+                // The copier against the office's east wall, and another
+                // parked in the corridor by the cafeteria door, which a crowd
+                // will shove along in front of it.
+                CopyMachine(3431UL, 5500, -2000),
+                CopyMachine(3432UL, 8000, 8550),
+
+                // Whiteboards on wheels: one at the head of the meeting table,
+                // one in the office.
+                Whiteboard(3441UL, -5400, 13000),
+                Whiteboard(3442UL, 2500, -5400),
+
+                // Standing lamps in a meeting room corner and a cafeteria
+                // corner, each with its shade, which is nowhere until the lamp
+                // goes over.
+                // The cafeteria's lamp stands in the corner furthest from its
+                // doors: kicked over into a doorway, its pole lay across the
+                // feet of whoever was opening the door (seed 40).
+                StandingLamp(3451UL, 1600, 16600),
+                StandingLamp(3452UL, 12600, 16600),
+                LampShade(3461UL, 3451UL, 1600, 16600),
+                LampShade(3462UL, 3452UL, 12600, 16600),
+
+                // Robot vacuums trundling about the office and the cafeteria.
+                RobotVacuum(3471UL, 0, -3000),
+                RobotVacuum(3472UL, 8000, 15500)
             };
         }
 
@@ -580,6 +628,69 @@
         {
             return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Briefcase, new LogicalPosition(x, z), 400, 6000);
+        }
+
+        /// <summary>A vending machine: 0.7 m square, 1.8 m tall and 160 kg; only a blast tips it.</summary>
+        private static PhysicsObjectDefinition VendingMachine(ulong id, int x, int z)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.VendingMachine, new LogicalPosition(x, z), 700, 160000);
+        }
+
+        /// <summary>A filing cabinet: half a metre square, chest high, 60 kg of steel and paper.</summary>
+        private static PhysicsObjectDefinition Cabinet(ulong id, int x, int z)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.Cabinet, new LogicalPosition(x, z), 500, 60000);
+        }
+
+        /// <summary>Shelves: 0.9 m wide, 1.8 m tall, shallow, 45 kg with the books on them. They face +Z.</summary>
+        private static PhysicsObjectDefinition Shelves(ulong id, int x, int z, int facing = North)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.Shelves, new LogicalPosition(x, z), 900, 45000,
+                initialFacingDegrees: facing);
+        }
+
+        /// <summary>The copier: 0.8 m across, waist high, 100 kg, on castors (see the kind's friction).</summary>
+        private static PhysicsObjectDefinition CopyMachine(ulong id, int x, int z)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.CopyMachine, new LogicalPosition(x, z), 800, 100000);
+        }
+
+        /// <summary>A whiteboard on wheels: a metre wide (the widest a thing may be), 15 kg, and it faces +Z.</summary>
+        private static PhysicsObjectDefinition Whiteboard(ulong id, int x, int z, int facing = North)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.Whiteboard, new LogicalPosition(x, z), 1000, 15000,
+                initialFacingDegrees: facing);
+        }
+
+        /// <summary>A standing lamp: a 0.3 m base, 6 kg, and it goes over at a touch.</summary>
+        private static PhysicsObjectDefinition StandingLamp(ulong id, int x, int z)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.StandingLamp, new LogicalPosition(x, z), 300, 6000);
+        }
+
+        /// <summary>
+        /// A lamp's shade: part of the lamp, so it is nowhere until the lamp
+        /// goes over, when it comes off at the lamp's top and drops to the
+        /// floor. Authored at the lamp's spot, which is never used.
+        /// </summary>
+        private static PhysicsObjectDefinition LampShade(ulong id, ulong lamp, int x, int z)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.LampShade, new LogicalPosition(x, z), 350, 1000,
+                startsDormant: true, partOfObjectId: new SimulationId(lamp));
+        }
+
+        /// <summary>A robot vacuum: a 0.33 m disc, 4 kg, that drives itself about (see the kind's table row).</summary>
+        private static PhysicsObjectDefinition RobotVacuum(ulong id, int x, int z)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.RobotVacuum, new LogicalPosition(x, z), 330, 4000);
         }
 
         /// <summary>

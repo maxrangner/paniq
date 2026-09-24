@@ -705,6 +705,7 @@ namespace Paniq.Simulation
             // The engine's step: everybody's feet push, everything moves,
             // bounces and topples, then what happened is read back and judged.
             BringThePhysicsUpToDate();
+            objects.DriveTheRovers();
             people.Drive();
             long stepStarted = System.Diagnostics.Stopwatch.GetTimestamp();
             physics.Step();

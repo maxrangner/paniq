@@ -59,7 +59,10 @@ game-development knowledge to answer.
 - Put logic-focused tests in `Assets/Paniq/Tests/EditMode`.
 - Put scene, object-lifecycle, and integration checks in
   `Assets/Paniq/Tests/PlayMode`.
-- Run both test groups after changes to foundation code or scene flow.
+- Checking work runs in two gears: targeted tests while iterating, both test
+  groups before committing. The binding rule is in
+  [`AGENTS.md`](../AGENTS.md) under *Quality checks*; the commands and the
+  coverage table are below.
 - The replay fingerprint tests (`ReplayFingerprintEditModeTests`) squash whole
   runs into single numbers. A change meant to be invisible to players, such as
   a restructure, must keep every number. A change meant to alter behaviour
@@ -75,11 +78,15 @@ the project while the editor has it open, so a small editor script
 in the editor that is already open:
 
 ```powershell
-.\tools\RunUnityTests.ps1                        # every edit-mode test
-.\tools\RunUnityTests.ps1 -PlayMode              # the play-mode tests
-.\tools\RunUnityTests.ps1 -Category UnityPhysics # one NUnit category
-.\tools\RunUnityTests.ps1 -Filter ReplayFingerprint
-.\tools\RunUnityTests.ps1 -Reset                 # the bridge is stuck on a run Unity dropped
+.\tools\CompileAgainstUnity.ps1                      # after every edit: compiles, no editor needed
+.\tools\RunUnityTests.ps1 -Filter Doors,ClosingDoors # while iterating: the areas a step touched
+.\tools\RunUnityTests.ps1 -Filter ReplayFingerprint  # simulation code changed: the canary
+.\tools\RunUnityTests.ps1 -All                       # before committing: both halves
+.\tools\RunUnityTests.ps1 -Slowest 10 -LastRun       # what the last run spent its time on
+.\tools\RunUnityTests.ps1                            # every edit-mode test
+.\tools\RunUnityTests.ps1 -PlayMode                  # the play-mode tests
+.\tools\RunUnityTests.ps1 -Category UnityPhysics     # the physics-foundation checks, the one category in use
+.\tools\RunUnityTests.ps1 -Reset                     # the bridge is stuck on a run Unity dropped
 ```
 
 The editor must be open on the project and not in play mode. If nothing
@@ -91,6 +98,59 @@ then use `-Reset` if the run never reports back.
 `tools\CompileAgainstUnity.ps1` compiles every Paniq assembly against Unity's
 libraries without Unity running: a quick check that a change builds before
 handing it to the editor.
+
+### Two gears
+
+The full suite is 425 tests and about three minutes, because every test that
+builds a run needs the physics engine inside the editor. Run after every step
+of a six-step task, that is fifteen minutes spent re-proving what the step
+could not have touched. So checking work has two gears:
+
+1. **While iterating.** After every edit, the compile check above. Once a
+   step has a claim worth checking (a behaviour is in, not a file saved), the
+   tests for the areas the step touched, in one request:
+   `-Filter Doors,ClosingDoors`. Several names run every test matching any of
+   them. Whenever simulation code changed, add `ReplayFingerprint`: those
+   tests squash whole runs into numbers and catch a change of behaviour in
+   code that has no tests of its own.
+2. **Before committing.** `-All`, on the tree that will be committed, and
+   again after any change to shared simulation code (the run itself, the
+   systems, the physics world, navigation). This is the run that "validation
+   passed" refers to. A targeted run is reported as a targeted check, naming
+   what ran.
+
+The full run happens once per task whatever its size, so a larger task per
+prompt waits less in total than the same work split into small prompts.
+
+`-Slowest 10` after any run, or `-Slowest 10 -LastRun` afterwards with no
+editor, lists the tests the suite spends its time on. Trim on that evidence,
+not by feel.
+
+### Which tests cover what
+
+Most test files are named after the code they check (`DoorsEditModeTests`
+for the door code, `WayfindingEditModeTests` for wayfinding), so the filter
+word is the feature's name. These are the ones that are not:
+
+| Code changed | Filter words |
+| --- | --- |
+| `InfluenceSystem`, `DeckSystem`, `PlayerCommandSystem` (the player's purse, cards and clicks) | `Powers,Economy,UproarTable,TraitCards` |
+| `Run` (the tick itself) | `Simulation,ReplayFingerprint` |
+| `UniformGridIndex` (who is near here) | `SpatialIndex` |
+| `IThreat`, `Threats` (what a danger is) | `ThreatSeam,ReplayFingerprint` |
+| `CollisionSystem`, `BodySystem`, `PhysicsWorld` | `HardKnocks,Shoving,PhysicsFoundation,PhysicsObjects` |
+| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding` |
+| `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting` |
+| `TraitEffects` | `Traits,TraitCards` |
+| `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade` |
+| `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
+
+`FearSystem`, `PerceptionSystem`, `PanicBehaviour`, `CalmBehaviour`,
+`Locomotion`, `SoundSystem`, `Crowd` and the causal event log have no tests of
+their own; they are checked only through whole runs. A change there means
+`ReplayFingerprint` in the small gear and the full run before the commit,
+without exception. When a test file is added or renamed, this table is
+updated in the same commit.
 
 ### The runner that needed no editor is gone
 

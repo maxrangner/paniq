@@ -103,6 +103,14 @@
         /// people have errands that take them through the building. Somebody
         /// standing about, or wandering inside one room, is still walled in, so
         /// nobody drifts through a door for no reason.
+        ///
+        /// The errand's answer comes before the stroll's. A door strolled
+        /// through used to be remembered after the stroll, and to answer here
+        /// ahead of the errand, so somebody who had wandered through the
+        /// cafeteria's shortcut earlier was "lined up with" that one door for
+        /// the rest of the day: sent home, they reached the open way out and
+        /// circled in front of it for half a minute, pushed off it by the
+        /// wall beside it every time they came near.
         /// </summary>
         public int DoorwayInUse
         {
@@ -113,12 +121,12 @@
                     return Doors.ExitDoorIndex;
                 }
 
-                if (Doors.StrollDoorIndex >= 0)
+                if (IsOnAnErrand)
                 {
-                    return Doors.StrollDoorIndex;
+                    return AgentDoorMemory.AnyDoorway;
                 }
 
-                return IsOnAnErrand ? AgentDoorMemory.AnyDoorway : -1;
+                return Doors.StrollDoorIndex;
             }
         }
 
@@ -338,6 +346,16 @@
         /// can be.
         /// </summary>
         public int WayOutDoorIndex = -1;
+
+        /// <summary>
+        /// Whether, since they were last frightened, they have looked for a
+        /// way out at all. Until they have, a way out of -1 means "not thought
+        /// about it yet", not "there is none left": somebody startled beside
+        /// an open door with fire beyond it used to slam it in the few ticks
+        /// before their first decision, cutting off the very route that
+        /// decision would have chosen.
+        /// </summary>
+        public bool HasLookedForAWayOut;
 
         /// <summary>The room they are heading at that door from, so approach and target points work from either side.</summary>
         public int ApproachRoom = -1;

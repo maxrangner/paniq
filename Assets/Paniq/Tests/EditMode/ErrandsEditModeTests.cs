@@ -61,6 +61,64 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        [Test]
+        public void AnErrandThroughTheWayOut_IsNotWalledOffByADoorStrolledThroughEarlier()
+        {
+            // Home time with the way out unlocked late: person 1018 reached
+            // the open front door with nobody near and circled in front of it
+            // for half a minute. They had strolled through the cafeteria's
+            // shortcut earlier, that was still the one doorway they counted
+            // as lined up with, and the wall beside the way out pushed them
+            // off it every time they came near.
+            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(CalmDay());
+            using (var simulation = new Run(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, 1);
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, 2);
+                int person = IndexOf(simulation, 1018UL);
+                Agent walker = simulation.AgentForTests(person);
+                walker.Doors.StrollDoorIndex = DoorIndex(simulation, TheBuilding.CafeteriaShortcut);
+                simulation.CuesForTests.CallHomeTime(0, 0UL);
+
+                bool walking = false;
+                for (int t = 0; t < 10 * Run.TicksPerSecond && !walking; t++)
+                {
+                    simulation.Step();
+                    walking = simulation.GetAgent(person).ActivityState == AgentActivityState.RunningAnErrand;
+                }
+
+                Assert.That(walking, Is.True, simulation.DescribeForTests(person));
+                Assert.That(walker.DoorwayInUse, Is.EqualTo(AgentDoorMemory.AnyDoorway),
+                    "On an errand, any open doorway is theirs to walk through, whatever door they last strolled through.");
+
+                // Standing just inside the open way out, wanting to walk
+                // straight out of it: the wall it sits in must not push back.
+                WorldGeometry geometry = simulation.GeometryForTests;
+                int wayOut = DoorIndex(simulation, TheBuilding.TheWayOut);
+                Assert.That(geometry.IsDoorOpen(wayOut), Is.True, "The player opened the way out.");
+                LogicalPosition justInside = geometry.DoorCentre(wayOut) + new LogicalPosition(-70, -310);
+                long steerX = 0L;
+                long steerZ = IntegerMath.TrigScale;
+                geometry.AddWallRepulsion(justInside, walker.DoorwayInUse, data.Steering.WallAvoidDistanceMillimetres,
+                    data.Calm.WallAvoidPercent, data.Calm.TableAvoidPercent, ref steerX, ref steerZ);
+                Assert.That(steerZ, Is.GreaterThan(0L), "The wall beside the open way out pushed them back from it.");
+            }
+        }
+
+        private static int DoorIndex(Run simulation, SimulationId id)
+        {
+            for (int i = 0; i < simulation.DoorCount; i++)
+            {
+                if (simulation.GetDoor(i).DoorId == id)
+                {
+                    return i;
+                }
+            }
+
+            Assert.Fail($"No door {id}.");
+            return -1;
+        }
+
         private static int IndexOf(Run simulation, ulong agentId)
         {
             for (int i = 0; i < simulation.AgentCount; i++)

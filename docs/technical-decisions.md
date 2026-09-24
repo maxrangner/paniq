@@ -908,12 +908,104 @@ which is the owner's same-tick rule broken for glances at a noise; a
 visitor risen from the meeting may sit straight back down in the nearest
 chair a few seconds later, since a chair just left is not remembered.
 
+## Prototype 2 fix: pressed against a table is not cut off (2026-09-24)
+
+Found merging the day into the rest of the office: the merged content's new
+random draws sent a different person into a corner both branches had passed
+by on their own.
+
+**What a player saw.** On seed 41, with the fire set off at six seconds and
+the way out left locked, person 1009 fled the meeting straight at the long
+table between them and the door and stood pressed against its edge for half
+a minute, heaving at it every second, feet going, getting nowhere. The heave
+worked as designed (the table crept a hand's width each time); what they
+never once did was step round it.
+
+**Why.** The floor is walked as squares, and a square with less clear space
+round it than a body's radius is one no route reaches. A body shoved right up
+against a table's edge stands on such a square. Asked for the way to the
+door, the route-finder found no route from there at all and fell back to
+pointing straight at the door, through the table.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **The nearest square a route reaches** | `Navigation` follows a route from the person's own square, or, when no route reaches it, from the nearest square within two (half a metre) that one does: the same room only, the cheapest of the first ring that has any, walked in a fixed order so a replay picks the same one. The first step is onto that square and the route takes over from there. "Can I get there" and "how far is it" recover the same way, so nobody pressed against a table reads as cut off from the building | Half a metre covers a body pressed into an edge, or a table shoved into somebody; further than that is a body inside something, which is the physics' business to ease out | A person is seen stepping through a wall to reach the floor beyond it (the same-room rule is what prevents it) |
+| Versions | `SimulationCompatibilityVersion` 57 -> 58; `ContentRevision` 69 -> 70. Eleven of the thirteen fingerprints re-recorded; two (seed 42 opened, and the seed 42 box run) happen not to change. | Which way somebody pressed against a table turns changes the rest of a run | Never |
+| Test | `NavigationRoutesEditModeTests.SomebodyPressedAgainstATable_IsPointedRoundIt_NotStraightIntoIt`; `CorridorStarersEditModeTests.NobodyFrightened_StandsStaringAtAWall` (seed 41, trigger 300, way out locked) is the check that reached this path | -- | -- |
+
+## Prototype 2 fix: a door strolled through is forgotten (2026-09-24)
+
+Found merging the day into the rest of the office, the same way as the fix
+above.
+
+**What a player saw.** Home time called, the way out unlocked late, and
+everybody out but one: person 1018 reached the open front door with nobody
+near and walked in a tight circle in front of it for half a minute, wandered
+off, came back the long way round, and the round ran out before they were
+out.
+
+**Why.** Walls push people away from themselves so nobody scrapes along them,
+except the wall holding the doorway a person is lined up with, or nobody
+could walk through a door. Which doorway that is was answered in a fixed
+order: the way out they are fleeing to, else the door they are strolling
+through, else, on an errand, any open doorway. The door strolled through was
+remembered after the stroll ended and answered ahead of the errand, so
+somebody who had wandered through the cafeteria's shortcut earlier was, for
+the rest of the day, lined up with that door and no other, and the wall
+beside the way out pushed them back from it every time they came near.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **An errand may use any open doorway, whatever was strolled through** | `Agent.DoorwayInUse` answers the way out first, then, on an errand, any open doorway, and only then the door a stroll is going through; and `CalmBehaviour` forgets the stroll's door the moment the stroll ends | The errand's answer is the wider one and the right one whenever both apply, and a remembered stroll door was never meant to outlive the stroll | Somebody standing about is seen drifting out through a door for no reason |
+| Versions | `SimulationCompatibilityVersion` 58 -> 59; `ContentRevision` 70 -> 71. None of the thirteen recorded fingerprints happens to change: no recorded run has somebody on an errand through a doorway with a stroll's door still remembered. | Which wall pushes whom changes the rest of a run | Never |
+| Test | `ErrandsEditModeTests.AnErrandThroughTheWayOut_IsNotWalledOffByADoorStrolledThroughEarlier`; `ErrandsEditModeTests.HomeTime_WithTheWayOutUnlockedLate_StillEmptiesTheBuilding_WithoutTryingTheHandleAllDay` is the check that reached this path | -- | -- |
+
+## Prototype 2 fix: pressing Play with no scene open plays the game (2026-09-24)
+
+**What the owner saw.** Play pressed, a moment's loading, the Play button
+blue, and nothing on screen. Unity had started with no scene to reopen (its
+note of the last open scene was empty, and the title bar read `Untitled`),
+so Play faithfully played a blank scene. The recent commits had nothing to
+do with it; the editor log had no error at all. Best guess at the cause: the
+previous session closed straight after a play-mode test run, which swaps
+scenes in and out, and left the "reopen this" note blank.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **Play on the blank scene plays the game** | `Assets/Paniq/Editor/PlayFromABlankScene.cs`: when Play is pressed and the only open scene has never been saved and never been touched, cancel the Play, open `Bootstrap.unity`, press Play again, and say so in the Console. Any scene somebody has changed, and the saved scene the test runner builds for play-mode tests, are left alone | To someone new to Unity an empty Game tab reads as a broken game, and the first thing suspected was the day's commits. A silent no is worse than a loud yes | The project has several playable scenes and the right one to open is no longer obvious |
+| **"Blank" means never saved and never touched, not empty** | The scene Unity makes when it has nothing to reopen holds a camera and a light, so "no objects" never matched it (the first version of the guard did nothing, tried on the very scene the owner had). `Scene.isDirty` false and no path is the mark | Found by pressing Play on that scene through the bridge | -- |
+| **The follow-up runs on `EditorApplication.update`, not `delayCall`** | `delayCall` waits for the editor's panels to refresh, which they do not while the window is minimised (as it is whenever a script drives the editor), and the scene never opened. A one-shot `update` handler, which the test bridge already relies on, does | The second try on the same scene | -- |
+| **Not `EditorSceneManager.playModeStartScene`** (rejected) | Unity's own switch for "always start Play from this scene" | It starts every Play from that scene, including the play-mode test runner's, and nothing in the test framework package guards against it: the play-mode tests would break | Never, at that cost |
+| Tests | None automated: the edit-mode test assembly cannot reference the loose editor assembly the script lives in, and the behaviour exists only on a button press. Verified on the blank scene Unity had actually opened, pressing Play through the bridge (`tools/RunUnityTests.ps1 -Menu "Edit/Play Mode/Play"`, the menu's name in Unity 6.3): the Console line, `Bootstrap.unity` opened, play mode entered, `FireReactionPrototype` loaded. `-PlayMode` passed with the guard in place, which proves the test runner's scene is untouched | -- | -- |
+
+## Prototype 2 fix: a seated body is not told to stop spinning (2026-09-24)
+
+Found on the way to the fix above: the previous editor session's log was 9 GB,
+all one warning, *"Setting angular velocity of a kinematic body is not
+supported."*, once per seated person per tick.
+
+**Why.** Somebody sitting is pinned to the chair: their body is kinematic (it
+goes where it is put and nothing pushes it). Every tick of the sit-down,
+`PeopleBodies.MoveSeated` called `PhysicsWorld.SetUpright`, which zeroed the
+body's spin, and the engine refuses that for a pinned body and says so. The
+game was unaffected, since the order was ignored anyway, but the Console
+filled with yellow warnings whenever people sat and every test run paid for
+writing them to disk.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **The spin is zeroed only on a body that is free to spin** | `PhysicsWorld.SetUpright` skips `angularVelocity` when the body is kinematic, the way the same file's other velocity writes already do. Constraints, damping and rotation are set as before | A warning a tick per seated person, and a 9 GB log | Never |
+| Versions | Unchanged. The write was a no-op, so no run changes and every recorded fingerprint stays | -- | -- |
+| Test | `SittingEditModeTests.SomebodySittingDown_DrawsNoComplaintFromThePhysicsEngine` listens on `Application.logMessageReceived` through a sit-down, because Unity's runner fails a test on an error but not on a warning. It failed before the fix and passes after | -- | -- |
+
 ## Version history
 
 Every bump of `SimulationCompatibilityVersion` (the rules) and `ContentRevision` (the building) that the replay compatibility row of the first table used to list in one cell, newest first. The bumps from 27 to 42 are recorded in their own stones' sections above (search this document for "Versions").
 
 | Change | What moved |
 | --- | --- |
+| 58 → 59 and content 70 → 71 (2026-09-24) | a door strolled through is forgotten: somebody on an errand may walk through any open doorway whatever door they last strolled through, and a stroll's door is forgotten when the stroll ends, so nobody sent home circles in front of the open way out. None of the thirteen recorded fingerprints happens to change: no recorded run has somebody on an errand through a doorway with a stroll's door still remembered. |
+| 57 → 58 and content 69 → 70 (2026-09-24) | pressed against a table is not cut off: somebody standing on floor too tight for a body follows the route from the nearest square a route reaches, instead of pointing straight through the table and heaving at it. Eleven of the thirteen fingerprints re-recorded; two (seed 42 opened, and the seed 42 box run) happen not to change. |
 | 56 → 57 and content 68 → 69 (2026-09-24) | the day and the rest of the office merged. On its own branch the office work counted 50 → 52 and content 62 → 64 (the two rows marked *office branch* below) while the day counted 50 → 56; together the rules are one number again. All thirteen fingerprints re-recorded. |
 | 55 → 56 and content 67 → 68 (2026-09-24) | people, not clockwork: the host says something as the meeting ends, both walk to a chat and it ends one at a time, no chats in doorways, errand walks wander, and the cruel are contrary. All thirteen fingerprints re-recorded. |
 | 54 → 55 and content 66 → 67 (2026-09-24) | the day keeps its own rules: a cue never changes what somebody is doing on the tick it is called, no two people take one up on the same tick, home time stands until everybody is out, doors are shut behind, nobody sits in somebody else's chair, desk sits are longer, a locked door is remembered, only a heard remark is written down. Ten of the thirteen fingerprints re-recorded; three happen not to change. |

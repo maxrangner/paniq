@@ -238,6 +238,7 @@
         private void StartFleeing(Agent agent)
         {
             agent.Intent.Activity = AgentActivityState.Fleeing;
+            agent.Doors.HasLookedForAWayOut = false;
             context.ThinkAgainSoon(agent.Intent);
             agent.Fear.NextShoutTick = checked(context.Tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
         }

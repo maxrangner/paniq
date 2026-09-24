@@ -145,6 +145,7 @@ namespace Paniq.Simulation
         /// </summary>
         public int ChooseExitDoor(Agent agent)
         {
+            agent.Doors.HasLookedForAWayOut = true;
             LogicalPosition position = agent.Body.Position;
             int room = geometry.RoomAt(position);
             if (room < 0)
@@ -1231,6 +1232,16 @@ namespace Paniq.Simulation
         /// </summary>
         private bool WouldCutOffTheirOwnWayOut(Agent agent, int room, int door)
         {
+            if (room >= 0 && agent.Fear.State != AgentFearState.Calm && !agent.Doors.HasLookedForAWayOut)
+            {
+                // Frightened and not yet thought about which way to run: every
+                // door might be the one, so none is shut. Their first decision
+                // is a few ticks away (nobody reacts on the tick), and this
+                // used to be the gap in which somebody slammed the door they
+                // were about to run through.
+                return true;
+            }
+
             int wayOut = agent.Doors.WayOutDoorIndex;
             if (wayOut < 0 || room < 0)
             {

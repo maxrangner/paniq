@@ -695,9 +695,20 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "69";
+        public string ContentRevision = "71";
         public ulong DefaultSeed = 42UL;
 
+        // 59: a door strolled through is forgotten. Somebody on an errand may
+        // walk through any open doorway, whatever door they last strolled
+        // through, and a stroll's door is forgotten the moment the stroll
+        // ends; before, one person sent home circled in front of the open
+        // way out for half a minute, pushed off it by the wall beside it.
+        // Fingerprints re-recorded.
+        // 58: pressed against a table is not cut off. Somebody standing on
+        // floor too tight for a body (shoved into a table's edge by a crowd,
+        // or with a table shoved into them) follows the route from the
+        // nearest square a route reaches, instead of pointing straight at the
+        // goal through the table and heaving at it. Fingerprints re-recorded.
         // 57: the day and the rest of the office together. The props branch
         // counted its own 51 and 52 (seven more things, the lamp that pops,
         // the vacuum that rides about alight) while the day counted 51 to 56;
@@ -765,7 +776,7 @@ namespace Paniq.Simulation
         // are furniture rather than clutter to be carried about, and nothing
         // made of furniture smashes any more. All of it changes what a run
         // produces, so every recorded replay fingerprint was re-recorded.
-        public int SimulationCompatibilityVersion = 57;
+        public int SimulationCompatibilityVersion = 59;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

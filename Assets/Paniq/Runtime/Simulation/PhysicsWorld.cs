@@ -703,7 +703,14 @@ namespace Paniq.Simulation
 
             rigidbody.constraints = StandingConstraints;
             rigidbody.angularDamping = StandingAngularDamping;
-            rigidbody.angularVelocity = Vector3.zero;
+            if (!rigidbody.isKinematic)
+            {
+                // A pinned body (somebody held on a chair) has no spin to
+                // stop, and the engine refuses the order with a warning: one
+                // per seated person per tick, which once filled a 9 GB log.
+                rigidbody.angularVelocity = Vector3.zero;
+            }
+
             rigidbody.rotation = Quaternion.Euler(0f, heading, 0f);
         }
 

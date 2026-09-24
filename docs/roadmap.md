@@ -349,6 +349,22 @@ as a day or as a fidget: people opening doors to go to the toilet, chats
 starting up beside desks, the office filling its own chairs. The numbers are
 all in `DaySettings`.
 
+## Prototype 2: playtest fixes, second round (2026-09-24)
+
+The owner played seeds 41 and 42 again after the building got its day and
+listed nineteen things. Reproducing them first turned up two facts the list
+did not name: whenever the fire starts outside the open office, everybody in
+the other rooms stays calm at their desks until the flames reach them (on
+seeds 40 and 42 all twenty die with the way out standing open, because nobody
+outside the burning room ever sees or hears it); and the jam in the opened
+exit on seed 41 is the cruel shoving the weaker to the floor in the gap, one
+person knocked out cold in front of the door, and the bully locking the front
+door from outside once he is through.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| Nobody slams a door before they know which way to run | System | Somebody startled within reach of an open door with fire beyond it used to pull it shut in the few ticks before their first thought about a way out -- a way out of "none" read as "none left" rather than "not thought about it yet" -- and so shut the very door they were about to run through. A fright now leaves every door alone until they have looked for a way out once. No recorded run moved |
+
 ## Foundations reviewed (2026-09-23)
 
 Not a stone. The owner asked for a full review of the code against the game

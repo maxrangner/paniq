@@ -120,6 +120,9 @@ namespace Paniq.Simulation
                     if (distance < settings.StrollArrivalDistanceMillimetres || tick >= intent.ActivityEndTick ||
                         agent.Body.BlockedTicks > settings.BlockedGiveUpTicks)
                     {
+                        // The doorway this stroll was going through is nobody's
+                        // to walk through once the stroll is over.
+                        agent.Doors.StrollDoorIndex = -1;
                         ChooseNext(agent, true);
                         break;
                     }

@@ -131,6 +131,54 @@ namespace Paniq.Tests.EditMode
                 Is.LessThan(400L * 400L), "They are on the chair, not beside it.");
         }
 
+        /// <summary>
+        /// Somebody on a chair is held there by the engine: their body goes
+        /// where it is put and nothing pushes it. Telling a held body to stop
+        /// spinning is refused with a warning, and it used to be told so on
+        /// every tick of the sit-down, one warning per seated person per tick;
+        /// one day's test runs left a 9 GB editor log made of them. Unity's
+        /// test runner fails a test on an error but not on a warning, so this
+        /// listens for them itself.
+        /// </summary>
+        [Test]
+        public void SomebodySittingDown_DrawsNoComplaintFromThePhysicsEngine()
+        {
+            var complaints = new System.Collections.Generic.List<string>();
+            UnityEngine.Application.LogCallback listen = (message, stackTrace, type) =>
+            {
+                if (type != UnityEngine.LogType.Log)
+                {
+                    complaints.Add(type + ": " + message);
+                }
+            };
+
+            UnityEngine.Application.logMessageReceived += listen;
+            try
+            {
+                using (var simulation = new Run(OnePersonOneChair()))
+                {
+                    for (int t = 0; t < 20 * Run.TicksPerSecond && !OnTheChair(simulation); t++)
+                    {
+                        simulation.Step();
+                    }
+
+                    Assert.That(OnTheChair(simulation), Is.True, "Nobody ever sat down.");
+
+                    // A second on the chair: the whole of settling into it.
+                    for (int t = 0; t < Run.TicksPerSecond; t++)
+                    {
+                        simulation.Step();
+                    }
+                }
+            }
+            finally
+            {
+                UnityEngine.Application.logMessageReceived -= listen;
+            }
+
+            Assert.That(complaints, Is.Empty, "The engine complained: " + string.Join(" | ", complaints));
+        }
+
         /// <summary>How upright a thing stands: 1 on its feet, 0 on its side, -1 upside down.</summary>
         private static float Uprightness(PhysicsObjectSnapshot thing)
         {

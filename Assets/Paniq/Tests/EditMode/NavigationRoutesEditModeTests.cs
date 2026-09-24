@@ -120,6 +120,35 @@ namespace Paniq.Tests.EditMode
                 "The middle of a table was treated as somewhere to walk to.");
         }
 
+        [Test]
+        public void SomebodyPressedAgainstATable_IsPointedRoundIt_NotStraightIntoIt()
+        {
+            // Seed 41: a frightened person shoved up against the meeting
+            // table's edge by the crowd stood on floor too tight for a body,
+            // which no field reaches. "No way from here" fell back to pointing
+            // straight at the door beyond the table, and they spent half a
+            // minute heaving the table towards it instead of stepping round.
+            ScenarioData data = scenario.ToRuntimeData();
+            int radius = data.World.OccupancyRadiusMillimetres;
+            WorldGeometry geometry = new Run(data).GeometryForTests;
+
+            LogicalBounds table = LongestTable(data);
+            int middle = (table.MinX + table.MaxX) / 2;
+            var pressedAgainstIt = new LogicalPosition(middle, table.MaxZ + radius - 50);
+            var theCorridorBeyondIt = new LogicalPosition(middle, 7500);
+            Assert.That(geometry.TableAt(pressedAgainstIt, radius), Is.GreaterThanOrEqualTo(0),
+                "The spot is meant to be within the table's clearance, where no field reaches.");
+            Assert.That(geometry.RoomAt(theCorridorBeyondIt), Is.GreaterThanOrEqualTo(0), "The goal is meant to be on a room's floor.");
+
+            int facingTheTable = 180;
+            int heading = geometry.Routes.HeadingToward(pressedAgainstIt, theCorridorBeyondIt, radius, facingTheTable);
+            Assert.That(System.Math.Abs(IntegerMath.SignedAngleDifference(heading, facingTheTable)), Is.GreaterThanOrEqualTo(45),
+                $"Pointed at {heading} degrees: straight into the table rather than round it.");
+            Assert.That(geometry.Routes.CanGetFromHereToThere(pressedAgainstIt, theCorridorBeyondIt, radius), Is.True,
+                "Pressed against a table is not cut off from the building.");
+            Assert.That(geometry.Routes.WalkingDistance(pressedAgainstIt, theCorridorBeyondIt, radius), Is.LessThan(long.MaxValue));
+        }
+
         private static LogicalBounds LongestTable(ScenarioData data)
         {
             LogicalBounds longest = default;

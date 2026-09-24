@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 69
+    ContentRevision: 71
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 57
+    SimulationCompatibilityVersion: 59
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120

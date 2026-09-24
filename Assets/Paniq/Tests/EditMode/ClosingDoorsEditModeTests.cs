@@ -1,3 +1,4 @@
+using System;
 ﻿using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -320,13 +321,21 @@ namespace Paniq.Tests.EditMode
         /// and then dither, because shutting a door crosses it off their own
         /// list of ways out. Somebody with a route they can still take now runs
         /// it instead.
+        /// <para>
+        /// This also guards the first few ticks of a fright. Somebody startled
+        /// within reach of an open door with fire beyond it used to slam it
+        /// before their first decision about which way to run -- a way out of
+        /// -1 read as "none left" rather than "not thought about it yet" --
+        /// and so shut the very door that decision would have chosen.
+        /// </para>
         /// </summary>
         [Test]
         public void NobodyShutsADoorTheyAreAboutToRunThrough()
         {
-            // One person in the storage closet with the door open and a fire
-            // away across the office: far enough that the flames are nowhere
-            // near the doorway, so the closet door is still their way out.
+            // One person in the storage closet, a metre inside its open door,
+            // and a fire away across the office: far enough that the flames
+            // are nowhere near the doorway, so the closet door is still their
+            // way out.
             ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
@@ -346,14 +355,26 @@ namespace Paniq.Tests.EditMode
             using (var simulation = new Run(data))
             {
                 Click(simulation, ClosetDoor, 1);
+                for (int t = 0; t < 5; t++)
+                {
+                    simulation.Step();
+                }
+
+                // Frightened by hand: from the back of the closet the flames
+                // are out of sight, and how they learn of the fire is not what
+                // this test is about. (It used to pass without this, because a
+                // calm stroll in a two-metre closet ended in the office.)
+                simulation.FrightenForTests(0);
                 for (int t = 0; t < 15 * Run.TicksPerSecond; t++)
                 {
                     simulation.Step();
                 }
 
-                Assert.That(EventsOfType(simulation, CausalEventType.DoorClosed), Is.Empty,
+                Assert.That(EventsOfType(simulation, CausalEventType.DoorClosed),
+                    Has.None.Matches<CausalEvent>(record => record.TargetId == ClosetDoor),
                     "The one door out of the closet is the door they need: they should have run, not shut it.");
-                Assert.That(simulation.GetAgent(0).Position.X, Is.LessThan(6000),
+                Assert.That(simulation.GeometryForTests.RoomAt(simulation.GetAgent(0).Position),
+                    Is.Not.EqualTo(Array.FindIndex(data.Rooms, r => r.RoomId == PrototypeBuilding.Closet)),
                     "They should be out of the closet and away.");
             }
         }

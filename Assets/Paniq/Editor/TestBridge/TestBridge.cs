@@ -17,8 +17,9 @@ namespace Paniq.Editor
     ///
     /// A request is a file, Temp/PaniqTestBridge/request.txt, written by
     /// tools/RunUnityTests.ps1. Its lines are key=value pairs: id, mode
-    /// (EditMode or PlayMode), filter (part of a test's full name) and
-    /// category. The bridge refreshes the asset database first so any code
+    /// (EditMode or PlayMode), filter (part of a test's full name; the line
+    /// may repeat, and a test matching any of them runs) and category. The
+    /// bridge refreshes the asset database first so any code
     /// changed since the last compile is compiled, then runs the tests and
     /// writes Temp/PaniqTestBridge/result.txt, ending with a "done=id" line.
     /// A compile failure is reported in the same file instead of running.
@@ -104,7 +105,8 @@ namespace Paniq.Editor
                 return;
             }
 
-            Dictionary<string, string> fields = Parse(SessionState.GetString(PendingKey, string.Empty));
+            string pending = SessionState.GetString(PendingKey, string.Empty);
+            Dictionary<string, string> fields = Parse(pending);
             SessionState.EraseString(PendingKey);
             string id = Get(fields, "id", "unknown");
 
@@ -124,8 +126,14 @@ namespace Paniq.Editor
 
             TestMode mode = Get(fields, "mode", "EditMode") == "PlayMode" ? TestMode.PlayMode : TestMode.EditMode;
             var filter = new Filter { testMode = mode };
-            string nameFilter = Get(fields, "filter", string.Empty);
-            if (nameFilter.Length > 0) filter.groupNames = new[] { System.Text.RegularExpressions.Regex.Escape(nameFilter) };
+            List<string> names = Values(pending, "filter");
+            if (names.Count > 0)
+            {
+                // Several names run every test matching any of them, so one
+                // request covers the two or three areas a change touched.
+                for (int i = 0; i < names.Count; i++) names[i] = System.Text.RegularExpressions.Regex.Escape(names[i]);
+                filter.groupNames = names.ToArray();
+            }
             string category = Get(fields, "category", string.Empty);
             if (category.Length > 0) filter.categoryNames = new[] { category };
 
@@ -206,6 +214,25 @@ namespace Paniq.Editor
 
         private static string Get(Dictionary<string, string> fields, string key, string fallback) =>
             fields.TryGetValue(key, out string value) ? value : fallback;
+
+        /// <summary>
+        /// Every value of a key that may repeat, in request order. Parse keeps
+        /// only the last of a repeated key, which is right for id and mode and
+        /// wrong for filter, which the script writes once per name.
+        /// </summary>
+        private static List<string> Values(string text, string key)
+        {
+            var values = new List<string>();
+            foreach (string line in text.Split('\n'))
+            {
+                int equals = line.IndexOf('=');
+                if (equals <= 0 || line.Substring(0, equals).Trim() != key) continue;
+                string value = line.Substring(equals + 1).Trim();
+                if (value.Length > 0) values.Add(value);
+            }
+
+            return values;
+        }
 
         private sealed class Callbacks : IErrorCallbacks
         {

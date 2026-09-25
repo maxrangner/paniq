@@ -51,8 +51,20 @@
         /// <summary>How much has been spent on cards, for the display.</summary>
         public int Spent { get; private set; }
 
+        /// <summary>
+        /// Whether there is a purse at all (<see cref="InfluenceSettings.Enabled"/>).
+        /// Off, everything costs nothing and nothing is paid in, so every
+        /// check below passes and the display draws no purse.
+        /// </summary>
+        public bool Enabled => settings.Enabled;
+
         public int CostOf(PlayerCommandType card)
         {
+            if (!settings.Enabled)
+            {
+                return 0;
+            }
+
             switch (card)
             {
                 case PlayerCommandType.PlayBeefcake:
@@ -87,6 +99,11 @@
         /// </summary>
         public int CostOfDoorClick(DoorState state, bool leadsOutside)
         {
+            if (!settings.Enabled)
+            {
+                return 0;
+            }
+
             switch (state)
             {
                 case DoorState.Locked: return leadsOutside ? settings.UnlockExitCost : settings.UnlockDoorCost;
@@ -103,6 +120,11 @@
         /// </summary>
         public int CostOfLockToggle(DoorState state, bool leadsOutside)
         {
+            if (!settings.Enabled)
+            {
+                return 0;
+            }
+
             switch (state)
             {
                 case DoorState.Locked: return leadsOutside ? settings.UnlockExitCost : settings.UnlockDoorCost;
@@ -213,6 +235,7 @@
                 case CausalEventType.BoxHitAgent:
                 case CausalEventType.AlarmPulled:
                 case CausalEventType.TableHeaved:
+                case CausalEventType.BoxTowerFell:
                     return UproarTier.Middling;
 
                 case CausalEventType.AgentYelled:
@@ -246,6 +269,9 @@
                 case CausalEventType.PowerPoppedFuseBox:
                 case CausalEventType.PowerPulledAlarm:
                 case CausalEventType.PowerStickTogether:
+                case CausalEventType.PowerHeldDoor:
+                case CausalEventType.PowerReleasedDoor:
+                case CausalEventType.PowerPoked:
                 case CausalEventType.DoorUnlocked:
                 case CausalEventType.RoundEventTriggered:
                 case CausalEventType.RoundEnded:
@@ -278,6 +304,13 @@
                 case CausalEventType.AgentSaid:
                 case CausalEventType.PowerCalledHomeTime:
                 case CausalEventType.AgentIgnoredCue:
+                case CausalEventType.AgentPoked:
+                case CausalEventType.AgentAnnoyed:
+
+                // The Director's own doing: the trap watching, and the way
+                // opening again. The fall itself is a commotion, above.
+                case CausalEventType.TrapTriggered:
+                case CausalEventType.BoxPileCleared:
 
                 // Bookkeeping: things happening quietly to people, things and doors.
                 case CausalEventType.AgentGotUp:
@@ -318,7 +351,7 @@
 
         private void Credit(int amount)
         {
-            if (amount <= 0)
+            if (amount <= 0 || !settings.Enabled)
             {
                 return;
             }

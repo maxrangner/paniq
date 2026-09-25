@@ -33,6 +33,10 @@ namespace Paniq.Presentation
         private static readonly Color StarYellow = new Color(1f, 0.9f, 0.2f);
         private static readonly Color NumberWhite = new Color(1f, 1f, 1f, 0.85f);
 
+        /// <summary>The scribble over somebody annoyed at being poked (prototype 3).</summary>
+        private static readonly Color AnnoyedOrange = new Color(1f, 0.5f, 0.15f);
+        private const float AnnoyedDuration = 1.6f;
+
         private readonly Transform root;
         private readonly Transform notice;
         private readonly LineRenderer[] noticeStrokes;
@@ -43,12 +47,14 @@ namespace Paniq.Presentation
         private readonly Transform[] stars;
         private readonly LineRenderer[] starStrokes;
         private readonly TextMesh question;
+        private readonly TextMesh annoyed;
         private readonly TextMesh idle;
         private readonly TextMesh number;
         private readonly float spinOffset;
 
         private float noticeTime = float.NegativeInfinity;
         private float yellTime = float.NegativeInfinity;
+        private float annoyedTime = float.NegativeInfinity;
         private float frozenSince = float.NegativeInfinity;
         private bool wasFrozen;
 
@@ -106,6 +112,7 @@ namespace Paniq.Presentation
             SetColor(starStrokes, StarYellow);
 
             question = CreateText("Investigating ?", "?", 0.2f, 64, QuestionYellow, new Vector3(0f, 0.2f, 0f));
+            annoyed = CreateText("Annoyed #!", "#!", 0.16f, 64, AnnoyedOrange, new Vector3(0f, 0.2f, 0f));
             idle = CreateText("Idle ...", "...", 0.13f, 48, IdleGrey, new Vector3(0f, -0.05f, 0f));
             number = CreateText("Number", numberLabel, 0.07f, 64, NumberWhite, new Vector3(0.32f, -0.28f, 0f));
             // A green star over whoever is being followed. It used to be an
@@ -128,6 +135,9 @@ namespace Paniq.Presentation
         /// <summary>The person just yelled: play the sound-wave arcs.</summary>
         public void Yell(float time) => yellTime = time;
 
+        /// <summary>The person is annoyed at being poked: an orange scribble, shaking.</summary>
+        public void Annoyed(float time) => annoyedTime = time;
+
         public void HideAll()
         {
             notice.gameObject.SetActive(false);
@@ -135,6 +145,7 @@ namespace Paniq.Presentation
             snowflake.gameObject.SetActive(false);
             SetActive(stars, false);
             question.gameObject.SetActive(false);
+            annoyed.gameObject.SetActive(false);
             leading.gameObject.SetActive(false);
             idle.gameObject.SetActive(false);
             number.gameObject.SetActive(false);
@@ -217,7 +228,20 @@ namespace Paniq.Presentation
                 }
             }
 
-            question.gameObject.SetActive(investigating && !showNotice);
+            // Annoyed: an orange scribble that shakes and fades, over
+            // everything but the "!".
+            float annoyedAge = time - annoyedTime;
+            bool showAnnoyed = annoyedAge >= 0f && annoyedAge < AnnoyedDuration && !showNotice;
+            annoyed.gameObject.SetActive(showAnnoyed);
+            if (showAnnoyed)
+            {
+                float scale = annoyedAge < NoticePopTime ? EaseOutBack(annoyedAge / NoticePopTime) : 1f;
+                annoyed.transform.localScale = Vector3.one * Mathf.Max(0.01f, scale);
+                annoyed.transform.localPosition = new Vector3(0.03f * Mathf.Sin(annoyedAge * 40f), 0.2f, 0f);
+                annoyed.color = WithAlpha(AnnoyedOrange, Fade(annoyedAge, AnnoyedDuration, NoticeFadeTime));
+            }
+
+            question.gameObject.SetActive(investigating && !showNotice && !showAnnoyed);
 
             // A leader's call: a star over the head, bobbing as they shout.
             // Whoever is trailing after them wears nothing at all, so the one

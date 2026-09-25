@@ -86,6 +86,16 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// A crash: something big coming down (the tower of boxes). Heard as
+        /// far as the caller says, and it frightens nobody by itself -- calm
+        /// people turn to look, as at a thud.
+        /// </summary>
+        public void Crash(SimulationId sourceId, LogicalPosition position, int hearingRadius, ulong soundEventId)
+        {
+            Emit(sourceId, position, hearingRadius, 0, soundEventId);
+        }
+
+        /// <summary>
         /// A bang: something going off. It carries a long way and frightens
         /// people near it outright, but it shows them nothing, so it works on
         /// them like a yell rather than like a bell.

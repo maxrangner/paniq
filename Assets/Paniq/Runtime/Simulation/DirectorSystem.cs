@@ -21,20 +21,33 @@ namespace Paniq.Simulation
         private readonly SimulationContext context;
         private readonly CueSystem cues;
         private readonly WorldGeometry geometry;
+        private readonly TrapSystem traps;
         private readonly ScheduledCue[] timetable;
         private readonly bool[] called;
 
-        public DirectorSystem(SimulationContext context, CueSystem cues, WorldGeometry geometry)
+        public DirectorSystem(SimulationContext context, CueSystem cues, WorldGeometry geometry, TrapSystem traps)
         {
             this.context = context;
             this.cues = cues;
             this.geometry = geometry;
+            this.traps = traps;
             timetable = context.Scenario.Timetable ?? System.Array.Empty<ScheduledCue>();
             called = new bool[timetable.Length];
         }
 
-        /// <summary>Every cue whose tick has come and that has not been called yet, in timetable order.</summary>
+        /// <summary>
+        /// Every cue whose tick has come and that has not been called yet, in
+        /// timetable order; then the traps (prototype 3, 2026-09-25), the
+        /// Director's first reactive rule: it watches the fire and the crowd
+        /// and springs a trap when somebody comes near it.
+        /// </summary>
         public void Advance()
+        {
+            CallTheTimetable();
+            traps.Advance();
+        }
+
+        private void CallTheTimetable()
         {
             for (int i = 0; i < timetable.Length; i++)
             {

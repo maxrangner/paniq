@@ -295,12 +295,36 @@
         /// </summary>
         public static LogicalBounds[] DefaultFireAreas()
         {
+            // Prototype 3 (2026-09-25, the owner's rule): the fire always
+            // starts in the meeting room, anywhere in it -- the whole room
+            // less half a metre of wall margin, so a seed can put it behind
+            // the door, under the table or in a far corner. The office, the
+            // cafeteria and the bathroom used to be on this list too; the
+            // level is built around the meeting room burning first, with the
+            // tower of boxes waiting at the junction for the crowd that runs
+            // from it.
             return new[]
             {
-                new LogicalBounds(-4500, 4500, -4500, 4500),   // the open office
-                new LogicalBounds(-4500, 500, 10500, 15500),   // the meeting room
-                new LogicalBounds(3500, 11500, 10500, 15500),  // the cafeteria
-                new LogicalBounds(9500, 11500, 2500, 4500)     // the bathroom
+                new LogicalBounds(-5500, 1500, 9500, 16500)    // the meeting room
+            };
+        }
+
+        /// <summary>
+        /// The Director's traps (prototype 3, 2026-09-25): the tower of boxes
+        /// in the junction's south-west corner, just past the bathroom door
+        /// and to the right, which comes down across the archway (2016)
+        /// between the corridor and the crossbar. Its boxes are authored in
+        /// <see cref="DefaultPhysicsObjects"/>.
+        /// </summary>
+        public static TrapDefinition[] DefaultTraps()
+        {
+            return new[]
+            {
+                new TrapDefinition(new SimulationId(7001UL), new SimulationId(2016UL), new[]
+                {
+                    new SimulationId(3701UL), new SimulationId(3702UL), new SimulationId(3703UL), new SimulationId(3704UL),
+                    new SimulationId(3705UL), new SimulationId(3706UL), new SimulationId(3707UL), new SimulationId(3708UL)
+                })
             };
         }
 
@@ -686,7 +710,27 @@
                 Sounder(3604UL, -5850, 11000, West),
                 Sounder(3605UL, 12850, 3000, East),
                 Sounder(3606UL, 12000, -650, North),
-                Sounder(3607UL, 15850, 8000, East)
+                Sounder(3607UL, 15850, 8000, East),
+
+                // The tower of boxes (prototype 3, 2026-09-25): two stacks of
+                // four, 1.8 m tall, in the junction's south-west corner --
+                // out of the bathroom door and to the right, where the
+                // corridor meets the crossbar. It stands half a metre off the
+                // archway's wall line so it is not "wedged in" the archway
+                // while it stands, and clear of the crossbar's south arm.
+                // Pinned while it stands (the Director's TrapSystem holds
+                // it), it comes down across the archway once the fire is
+                // lit and somebody comes near. Each box is a plain 600 mm
+                // box of 13 kg: the strong can throw one clear and most
+                // people can carry one.
+                Box(3701UL, 13600, 6350, 600, 13000),
+                Box(3702UL, 13600, 6350, 600, 13000, restsOnTheOneBelow: true),
+                Box(3703UL, 13600, 6350, 600, 13000, restsOnTheOneBelow: true),
+                Box(3704UL, 13600, 6350, 600, 13000, restsOnTheOneBelow: true),
+                Box(3705UL, 14200, 6350, 600, 13000),
+                Box(3706UL, 14200, 6350, 600, 13000, restsOnTheOneBelow: true),
+                Box(3707UL, 14200, 6350, 600, 13000, restsOnTheOneBelow: true),
+                Box(3708UL, 14200, 6350, 600, 13000, restsOnTheOneBelow: true)
             };
         }
 
@@ -702,13 +746,17 @@
         /// </summary>
         public static AlarmDefinition[] DefaultAlarms()
         {
+            // Prototype 3 (2026-09-25, the owner's rule): one pull station
+            // in the whole building, at the far west end of the corridor on
+            // its north wall, beside the maintenance room (the fuse box
+            // room) and past the meeting room's door. Pulling it means
+            // walking toward the fire, so only the brave do. The stations in
+            // the office (6001's old spot), the corridor's middle (6002), the
+            // cafeteria (6003), the meeting room (6004) and the stockroom
+            // (6005) are gone; the bells on the walls are untouched.
             return new[]
             {
-                new AlarmDefinition(new SimulationId(6001UL), new LogicalPosition(-5700, 2000)),
-                new AlarmDefinition(new SimulationId(6002UL), new LogicalPosition(3000, 8700)),
-                new AlarmDefinition(new SimulationId(6003UL), new LogicalPosition(7000, 16700)),
-                new AlarmDefinition(new SimulationId(6004UL), new LogicalPosition(-5700, 16700)),
-                new AlarmDefinition(new SimulationId(6005UL), new LogicalPosition(6300, -2500))
+                new AlarmDefinition(new SimulationId(6001UL), new LogicalPosition(-5700, 8700))
             };
         }
 

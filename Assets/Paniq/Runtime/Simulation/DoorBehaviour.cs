@@ -784,7 +784,7 @@ namespace Paniq.Simulation
                 0,
                 agent.Fear.ScaredEventId,
                 doors.IdOf(door)).EventId;
-            if (doors.StateOf(door) == DoorState.Unlocked && !doors.IsObstructed(door))
+            if (doors.CanBePushedOpen(door))
             {
                 agent.Intent.Activity = AgentActivityState.OpeningDoor;
                 agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.DoorOpenTicks));
@@ -834,10 +834,9 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            if (state == DoorState.Unlocked && !doors.IsObstructed(door) &&
-                agent.Intent.Activity != AgentActivityState.OpeningDoor)
+            if (doors.CanBePushedOpen(door) && agent.Intent.Activity != AgentActivityState.OpeningDoor)
             {
-                // Unlocked while they were rattling it: it opens at once.
+                // Unlocked, or let go of, while they were rattling it: it opens at once.
                 doors.Open(door, agent.Doors.AttemptEventId, geometry.SideOf(door, agent.Body.Position));
                 agent.Intent.Activity = AgentActivityState.Fleeing;
                 return false;
@@ -846,9 +845,9 @@ namespace Paniq.Simulation
             switch (agent.Intent.Activity)
             {
                 case AgentActivityState.OpeningDoor:
-                    if (doors.IsObstructed(door))
+                    if (!doors.CanBePushedOpen(door))
                     {
-                        // Wedged while they were pulling at it: it will not come.
+                        // Wedged, or taken hold of, while they were pulling at it: it will not come.
                         agent.Intent.Activity = AgentActivityState.TryingDoor;
                         agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.DoorTryTicks));
                         return true;
@@ -905,6 +904,34 @@ namespace Paniq.Simulation
                             GiveUp(agent, false);
                         }
 
+                        return true;
+                    }
+
+                    if (doors.IsHeldShut(door))
+                    {
+                        // The player is holding it shut (the owner's rule,
+                        // 2026-09-25): somebody strong enough to batter a door
+                        // at all gets through a held one in a single push, and
+                        // it is off its hinges for good; everybody else rattles
+                        // it, gives up, and comes back once it is let go of.
+                        if (!agent.Doors.ShutByThem[door] && TraitEffects.DoorShoveDamage(agent, context.Scenario) > 0)
+                        {
+                            CausalEvent push = context.Events.Append(
+                                tick,
+                                agent.Id,
+                                CausalEventType.AgentForcedDoor,
+                                doorCentre,
+                                context.Scenario.Hearing.BumpSoundRadiusMillimetres,
+                                0,
+                                agent.Doors.AttemptEventId,
+                                doors.IdOf(door));
+                            sound.Thud(agent.Id, doorCentre, push.EventId);
+                            doors.Batter(door, agent, context.Scenario.Exits.DoorStrength, push.EventId);
+                            agent.Intent.Activity = AgentActivityState.Fleeing;
+                            return false;
+                        }
+
+                        GiveUp(agent, false);
                         return true;
                     }
 

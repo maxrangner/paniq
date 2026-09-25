@@ -72,6 +72,21 @@ namespace Paniq.Simulation
         /// that a swing door is propped and the fire may come through.
         /// </summary>
         public bool Obstructed;
+
+        /// <summary>
+        /// The player has a hand on it, holding it shut (prototype 3,
+        /// 2026-09-25). Nobody opens it while it is held, locked or not;
+        /// somebody strong enough bursts it in one push. Lasts until the
+        /// player lets go.
+        /// </summary>
+        public bool HeldShut;
+
+        /// <summary>
+        /// An archway with the tower of boxes lying across it (see
+        /// <see cref="TrapSystem"/>): shut, though it has no leaf, for people
+        /// and fire alike, until enough of the boxes are gone.
+        /// </summary>
+        public bool Piled;
     }
 
     /// <summary>
@@ -318,6 +333,113 @@ namespace Paniq.Simulation
 
         public DoorState StateOf(int door) => doors[door].State;
 
+        /// <summary>Whether the player is holding this door shut.</summary>
+        public bool IsHeldShut(int door) => doors[door].HeldShut;
+
+        /// <summary>Whether the tower of boxes is lying across this doorway.</summary>
+        public bool IsPiled(int door) => doors[door].Piled;
+
+        /// <summary>
+        /// Whether a person can simply push this door open: shut but not
+        /// locked, nothing wedged in it, nobody holding it, no heap of boxes
+        /// across it. The one question every person at a door asks first.
+        /// </summary>
+        public bool CanBePushedOpen(int door)
+        {
+            DoorRuntime d = doors[door];
+            return d.State == DoorState.Unlocked && !IsObstructed(door) && !d.HeldShut && !d.Piled;
+        }
+
+        /// <summary>
+        /// The player takes hold of a door and holds it shut. An open door is
+        /// pulled shut first, if the doorway is clear; otherwise the hand
+        /// stays on it and it shuts the moment the doorway clears (see
+        /// <see cref="KeepHeldDoorsShut"/>). Returns whether anything
+        /// changed: a door already held, a swing door, a hole or a broken
+        /// door is nothing to hold.
+        /// </summary>
+        public bool HoldShut(int door)
+        {
+            DoorRuntime d = doors[door];
+            if (d.HeldShut || d.IsHole || d.Swings || d.State == DoorState.Broken)
+            {
+                return false;
+            }
+
+            d.HeldShut = true;
+            ulong held = context.Events.Append(context.Tick, d.Id, CausalEventType.PowerHeldDoor, geometry.DoorCentre(door),
+                0, 0, 0UL, d.Id).EventId;
+            if (d.State == DoorState.Open)
+            {
+                TryClose(door, d.Id, held);
+            }
+
+            return true;
+        }
+
+        /// <summary>The player lets go of a door they were holding; nothing happens if they were not.</summary>
+        public void Release(int door)
+        {
+            DoorRuntime d = doors[door];
+            if (!d.HeldShut)
+            {
+                return;
+            }
+
+            d.HeldShut = false;
+            context.Events.Append(context.Tick, d.Id, CausalEventType.PowerReleasedDoor, geometry.DoorCentre(door),
+                0, 0, 0UL, d.Id);
+        }
+
+        /// <summary>
+        /// Phase 1's tail: a held door that is still open (somebody was in
+        /// the doorway when the player took hold of it) shuts as soon as the
+        /// doorway is clear. Ascending door index, no random draw.
+        /// </summary>
+        public void KeepHeldDoorsShut()
+        {
+            for (int door = 0; door < Count; door++)
+            {
+                DoorRuntime d = doors[door];
+                if (d.HeldShut && d.State == DoorState.Open)
+                {
+                    TryClose(door, d.Id, 0UL);
+                }
+            }
+        }
+
+        /// <summary>
+        /// The tower of boxes has come down across this archway (see
+        /// <see cref="TrapSystem"/>): it is shut now, for people and fire,
+        /// though it still has no leaf. Its plug appears with the next
+        /// physics step, as for any door that shuts.
+        /// </summary>
+        public void PileInto(int door)
+        {
+            DoorRuntime d = doors[door];
+            d.Piled = true;
+            d.State = DoorState.Unlocked;
+            d.OpenSide = 0;
+        }
+
+        /// <summary>
+        /// Enough of the boxes are gone: the archway is an archway again,
+        /// open for good. The fire beside it is told, as beside any door
+        /// that has just opened.
+        /// </summary>
+        public void ClearPile(int door)
+        {
+            DoorRuntime d = doors[door];
+            if (!d.Piled)
+            {
+                return;
+            }
+
+            d.Piled = false;
+            d.State = DoorState.Broken;
+            RecordOpening(door);
+        }
+
         /// <summary>
         /// One number that changes whenever any door does: state, damage or
         /// scorch. The end of a round reads it to tell a building where
@@ -331,7 +453,7 @@ namespace Paniq.Simulation
                 for (int door = 0; door < Count; door++)
                 {
                     DoorRuntime d = doors[door];
-                    signature = signature * 31L + (int)d.State + d.Damage + d.Scorch;
+                    signature = signature * 31L + (int)d.State + d.Damage + d.Scorch + (d.HeldShut ? 7 : 0) + (d.Piled ? 11 : 0);
                 }
 
                 return signature;
@@ -448,8 +570,10 @@ namespace Paniq.Simulation
         public bool ToggleLock(int door)
         {
             DoorRuntime d = doors[door];
-            if (d.IsHole || d.Swings)
+            if (d.IsHole || d.Swings || d.HeldShut)
             {
+                // Nothing to turn a key in; and a door the player is holding
+                // is not also being locked by them.
                 return false;
             }
 
@@ -579,9 +703,10 @@ namespace Paniq.Simulation
         /// <returns>Whether it opened; something wedged in the doorway stops it.</returns>
         public bool Open(int door, ulong causalParentEventId, int pushedFrom = 0)
         {
-            if (IsObstructed(door))
+            if (IsObstructed(door) || doors[door].HeldShut || doors[door].Piled)
             {
-                // Something is wedged against it: it will not budge.
+                // Something is wedged against it, the player is holding it,
+                // or the boxes are lying across it: it will not budge.
                 return false;
             }
 
@@ -734,7 +859,8 @@ namespace Paniq.Simulation
             int damagePercent = Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength);
             return new DoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent,
                 ScorchPercent(d),
-                d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door), d.Swings);
+                d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door), d.Swings,
+                d.HeldShut, d.Piled);
         }
 
         public DoorSnapshot[] GetSnapshots()

@@ -5,9 +5,11 @@ The prototype is built stone by stone (see [goals](goals.md) for what
 next one is chosen. It is not a schedule and not a feature list for the
 finished game.
 
-**Where things stand (2026-09-22).** Prototype 1 -- the fire-reaction office
--- is finished and merged into `main`. Prototype 2 is under way in the same
-scene: it is the stone of *game*, and its first five stones are listed below.
+**Where things stand (2026-09-25).** Prototype 1 -- the fire-reaction office
+-- is finished and merged into `main`. Prototype 2, the stone of *game*, made
+the same scene a round you can play and is listed below. Prototype 3 has
+begun in the same scene: it is the stone of *gameplay*, where the level
+itself pushes back (its first batch is under "Prototype 3" further down).
 
 ## Foundation (complete)
 
@@ -428,6 +430,40 @@ the fire is triggered, for 30 of the opening 30. Everybody then crowds the
 locked way out, and the strong may batter it down before the fire exists.
 Escapes before the trigger pay the purse nothing, but the round's saved count
 still counts them. Whether that is a tactic or an exploit is the owner's call.
+
+## Prototype 3: gameplay, first batch (2026-09-25)
+
+Prototype 2 made the office a round you can play. Prototype 3 is about
+getting gameplay up and running: the level has to be an obstacle, not a
+floor plan. The owner's seven notes, built as one batch on
+`feat/prototype-3-gameplay`. The level is the same office; what changed is
+what it does to you.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| The fire starts in the meeting room | System | Every round, the fire starts somewhere in the meeting room -- behind the door one seed, under the table the next. It used to be drawn from one of four rooms. The owner's rule |
+| A tower of boxes | System | Two stacks of cardboard boxes, four high, stand in the corner where the corridor meets the T: out of the bathroom door and to the right. All day it is scenery; people walk past it to the toilet and nobody knocks it over |
+| The Director's first trap | System | Once the fire is lit, the first person to run near the tower brings it down a beat later. The boxes crash across the archway between the corridor and the crossbar and wall it off: nobody gets through, and the fire coming down the corridor is held at the heap until the boxes have burnt. From then on the only way out is office, stockroom, up the T's south arm. This is the reactive Director's first rule: it watches the fire and the crowd, and springs a trap |
+| Boxes you can clear | Behaviour | The fallen boxes are real boxes. Somebody strong enough grabs one off the heap and throws it clear; anyone who can carry one can carry it off; everybody else gives up on the archway and goes round. Once fewer than three boxes lie in the gap the archway is an archway again -- for people and for the fire |
+| One pull station | System | The building keeps one fire-alarm pull station, at the far west end of the corridor beside the fuse box room, past the meeting room's door. Pulling it means walking toward the fire, so only the brave do; people will now consider an alarm up to eight metres' walk away instead of four |
+| No purse | System | The office has no influence. Every door, every alarm and every card is free, and the bar and the prices are gone from the screen. The purse's rules are all still in the code, switched off on the level: a later level can turn them back on |
+| Hold a door shut | System | Press and hold the left button on a door and you have a hand on it. An open door pulls shut as soon as the doorway is clear, and while you hold it nobody opens it, locked or not. Somebody strong enough bursts through it in a single push, and it is off its hinges for good (the owner's rule); everybody else rattles it, gives up and looks elsewhere, and comes back once you let go. A held door is drawn in the blue of a card in hand |
+| Poke a person | Behaviour | Click somebody with nothing in hand and you poke them: they lurch backwards and stagger, and a beat later look round for whoever did it (the red `!`). Three pokes inside ten seconds and they are annoyed: an orange `#!` over their head, "leave me alone!" on a sign, and a calm person stops what they were doing and goes and does something else. Somebody sitting down keeps their seat. A poke frightens nobody |
+
+**What this deliberately left out.** The scene baker cannot author a trap; the
+fall is placed by the simulation (a guaranteed wall of cardboard) and only
+drawn as a tumble, not thrown by the physics engine; there is one trap and
+the Director has no menu of them; a burning heap does not yet drop embers
+onto the crossbar side; and the annoyed do not yet walk *away* from the
+player's pointer, only off to something else.
+
+**One thing to watch at the next playtest.** The tower blocks the short way
+out for everybody in the corridor, the cafeteria and the bathroom. Whether the
+long way round through the office and the stockroom reads as a tense escape
+or as a maze is the question this batch exists to ask. The second is whether
+the crash is noticed at all from the far end of the building; the sign says
+"the boxes came down!" beside whoever set it off, and the crash is heard
+twelve metres.
 
 ## Foundations reviewed (2026-09-23)
 

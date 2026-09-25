@@ -142,11 +142,13 @@ word is the feature's name. These are the ones that are not:
 | `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors` |
 | `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting` |
 | `TraitEffects` | `Traits,TraitCards` |
-| `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered` |
+| `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered,HeldDoors,BoxTower` |
 | `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
 | `GroupSystem` (sticking together) | `Groups,TraitCards` |
-| `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking` |
+| `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking,HeldDoors,Poke` |
 | `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |
+| `TrapSystem`, `DirectorSystem` (the tower of boxes) | `BoxTower,Cues,Doors,Stockroom` |
+| `PokeSystem` (poking people) | `Poke` |
 | `PerceptionSystem`, `SoundSystem` (what a person sees and hears) | `Perception,Hearing,Simulation` |
 
 `FearSystem`, `PanicBehaviour`, `CalmBehaviour`, `Locomotion`, `Crowd` and

@@ -46,20 +46,26 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The point of the change: play twenty different seeds and the fire
-        /// does not keep starting in the same room.
+        /// Prototype 3 (2026-09-25, the owner's rule): the fire always starts
+        /// in the meeting room, and where in the meeting room is the seed's
+        /// to choose. Twenty seeds: the same room every time, and not the
+        /// same spot every time.
         /// </summary>
         [Test]
-        public void AcrossManySeeds_TheFireStartsInMoreThanOneRoom()
+        public void AcrossManySeeds_TheFireAlwaysStartsInTheMeetingRoom_ButNotAlwaysAtTheSameSpot()
         {
-            var rooms = new HashSet<int>();
+            ScenarioData data = scenario.ToRuntimeData();
+            var spots = new HashSet<LogicalPosition>();
             for (ulong seed = 1UL; seed <= 20UL; seed++)
             {
-                rooms.Add(RoomTheFireStartsIn(seed, out _));
+                int room = RoomTheFireStartsIn(seed, out LogicalPosition origin);
+                Assert.That(data.Rooms[room].RoomId, Is.EqualTo(PrototypeBuilding.MeetingRoom),
+                    $"Seed {seed}: the fire started at ({origin.X}, {origin.Z}), outside the meeting room.");
+                spots.Add(origin);
             }
 
-            Assert.That(rooms, Has.Count.GreaterThan(1),
-                "Twenty seeds and the fire started in the same room every time.");
+            Assert.That(spots, Has.Count.GreaterThan(3),
+                "Twenty seeds and the fire started on the same few squares: where in the room should be the seed's choice.");
         }
 
         /// <summary>It always starts somewhere indoors, never in a wall or the street.</summary>
@@ -115,7 +121,8 @@ namespace Paniq.Tests.EditMode
         public void SettingTheOneArea_ReplacesTheWholeList()
         {
             ScenarioData data = scenario.ToRuntimeData();
-            Assert.That(data.Fire.SpawnAreas, Has.Length.GreaterThan(1), "The shipped building has several.");
+            Assert.That(data.Fire.SpawnAreas, Has.Length.EqualTo(1), "The shipped building names the meeting room, and only it.");
+            Assert.That(data.Fire.SpawnAreas[0].MinX, Is.Not.EqualTo(0));
 
             data.Fire.SpawnBounds = new LogicalBounds(0, 0, 0, 0);
             Assert.That(data.Fire.SpawnAreas, Has.Length.EqualTo(1));

@@ -147,8 +147,10 @@ namespace Paniq.Simulation
         public DoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state,
             int damagePercent, int scorchPercent = 0, bool isHole = false, bool isBlocked = false,
             bool leadsOutside = false,
-            int openSide = 0, bool isJammed = false, bool swings = false)
+            int openSide = 0, bool isJammed = false, bool swings = false, bool isHeld = false, bool isPiled = false)
         {
+            IsHeld = isHeld;
+            IsPiled = isPiled;
             Swings = swings;
             IsHole = isHole;
             IsBlocked = isBlocked;
@@ -214,6 +216,16 @@ namespace Paniq.Simulation
         /// to burn its way through.
         /// </summary>
         public bool Swings { get; }
+
+        /// <summary>The player has a hand on it, holding it shut (prototype 3): nobody opens it until they let go.</summary>
+        public bool IsHeld { get; }
+
+        /// <summary>
+        /// The tower of boxes is lying across this archway (prototype 3):
+        /// shut for people and fire, with no leaf, until enough of the boxes
+        /// are carried off, thrown clear or burnt.
+        /// </summary>
+        public bool IsPiled { get; }
     }
 
     /// <summary>A table: where it stands and whether it is heating up, burning or burnt out.</summary>
@@ -531,6 +543,7 @@ namespace Paniq.Simulation
             IReadOnlyList<CausalEvent> events,
             int clearOfFireCount,
             bool alarmsRinging,
+            bool influenceEnabled,
             int influence,
             int influenceMaximum,
             int influenceSpent,
@@ -548,6 +561,7 @@ namespace Paniq.Simulation
             this.events = events;
             ClearOfFireCount = clearOfFireCount;
             AlarmsRinging = alarmsRinging;
+            InfluenceEnabled = influenceEnabled;
             Influence = influence;
             InfluenceMaximum = influenceMaximum;
             InfluenceSpent = influenceSpent;
@@ -565,6 +579,13 @@ namespace Paniq.Simulation
 
         /// <summary>Whether the fire alarms are ringing.</summary>
         public bool AlarmsRinging { get; private set; }
+
+        /// <summary>
+        /// Whether this level has a purse at all (prototype 3, 2026-09-25:
+        /// the office does not). Off, everything is free and the display
+        /// draws no purse and no prices.
+        /// </summary>
+        public bool InfluenceEnabled { get; private set; } = true;
 
         /// <summary>What the player has left to spend, and what they have spent and earned.</summary>
         public int Influence { get; private set; }

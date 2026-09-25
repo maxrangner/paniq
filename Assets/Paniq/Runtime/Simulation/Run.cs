@@ -61,6 +61,8 @@ namespace Paniq.Simulation
         private readonly CueSystem cues;
         private readonly ErrandBehaviour errands;
         private readonly DirectorSystem director;
+        private readonly PokeSystem pokes;
+        private readonly TrapSystem traps;
         private readonly WorldGeometry geometry;
         private readonly Crowd crowd;
         private readonly PhysicsWorld physics;
@@ -113,6 +115,7 @@ namespace Paniq.Simulation
                 var sound = new SoundSystem(context, crowd, threats, fear, geometry);
                 perception = new PerceptionSystem(context, threats, fear, sound, crowd, geometry);
                 body = new BodySystem(context, threats, sound, fear);
+                pokes = new PokeSystem(context, crowd, body);
                 objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound, fire, physics);
                 people = new PeopleBodies(context, crowd, physics, threats, objects.Count);
                 power = new PowerSystem(context, objects);
@@ -127,12 +130,13 @@ namespace Paniq.Simulation
                 RememberHomes();
                 locomotion = new Locomotion(context, crowd, geometry, objects);
                 flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
+                traps = new TrapSystem(context, crowd, geometry, doors, objects, flammables, fire, body, sound, people);
                 items = new ItemBehaviour(context, geometry, objects, flammables);
                 chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
                 cues = new CueSystem(context, crowd, geometry);
                 errands = new ErrandBehaviour(context, crowd, geometry, objects, doors, chairs, sound, cues);
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues, sound);
-                director = new DirectorSystem(context, cues, geometry);
+                director = new DirectorSystem(context, cues, geometry, traps);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
                 groups = new GroupSystem(context, crowd, wayfinding);
@@ -161,7 +165,7 @@ namespace Paniq.Simulation
                     DoorBehaviour = doorBehaviour, Help = help, Panic = panic, Burning = burning,
                     Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms, Groups = groups,
                     AlarmBehaviour = alarmBehaviour, Barricades = barricades,
-                    Cues = cues, Errands = errands, Director = director
+                    Cues = cues, Errands = errands, Director = director, Pokes = pokes, Traps = traps
                 };
                 systems.BindAll();
             }
@@ -612,6 +616,34 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Tests only: whether the deepest press of the last tick was somebody
+        /// lying down inside a stall against its wall. A body on the floor is
+        /// longer than a stall is wide, so the engine holds it against the
+        /// wall until they get up; nothing is passing into anything.
+        /// </summary>
+        internal bool DeepestPressIsABodyLyingInAStallForTests
+        {
+            get
+            {
+                (int a, int b, PhysicsWorld.StaticKind building) = physics.DeepestPressPair;
+                if (b >= 0 || building != PhysicsWorld.StaticKind.Wall)
+                {
+                    return false;
+                }
+
+                Agent person = people.PersonAt(a);
+                if (person == null || person.Body.State == AgentBodyState.Upright ||
+                    person.Body.State == AgentBodyState.Staggering)
+                {
+                    return false;
+                }
+
+                int room = geometry.RoomOf(person);
+                return room >= 0 && context.Scenario.Rooms[room].Use == RoomUse.Stall;
+            }
+        }
+
+        /// <summary>
         /// Tests only: the two things pressed deepest during the last tick, as
         /// words: a person, a thing, or part of the building.
         /// </summary>
@@ -629,7 +661,7 @@ namespace Paniq.Simulation
             Agent person = people.PersonAt(handle);
             if (person != null)
             {
-                return $"person {person.Id} ({person.Body.State}, {person.Intent.Activity}, sitting {person.Sitting.OnIt})";
+                return $"person {person.Id} ({person.Body.State}, {person.Intent.Activity}, sitting {person.Sitting.OnIt}, at {person.Body.Position.X},{person.Body.Position.Z}, room {geometry.RoomOf(person)})";
             }
 
             PhysicsObjectSnapshot thing = GetPhysicsObject(handle);
@@ -704,13 +736,17 @@ namespace Paniq.Simulation
             context.Tick = checked(context.Tick + 1);
             playerCommands.Consume();
 
-            // Phase 1's tail: the bells that are due ring again.
+            // Phase 1's tail: the bells that are due ring again, and a door
+            // the player is holding shuts once its doorway is clear.
             alarms.Update();
+            doors.KeepHeldDoorsShut();
 
             // Phase 1½: what the building's day holds. A cue called here
             // reaches people at their own reaction tick in phase 4, so nobody
-            // moves on the tick it is called.
+            // moves on the tick it is called. The same for the Director's
+            // traps and for anybody poked a beat ago.
             director.Advance();
+            pokes.Advance();
             threats.Advance();
 
             // Phase 2 as well: a fuse burning along a wall toward a socket is
@@ -1027,6 +1063,7 @@ namespace Paniq.Simulation
                 context.Events.View(),
                 CountClearOfFire(),
                 alarms.Ringing,
+                influence.Enabled,
                 influence.Influence,
                 context.Scenario.Influence.Maximum,
                 influence.Spent,

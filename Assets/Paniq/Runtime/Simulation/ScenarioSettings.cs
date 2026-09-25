@@ -1983,8 +1983,14 @@ namespace Paniq.Simulation
         /// <summary>Turn the alarms off altogether, to see the building without them.</summary>
         public bool Enabled = true;
 
-        /// <summary>How far somebody will divert to hit an alarm.</summary>
-        public int ReachMillimetres = 4000;
+        /// <summary>
+        /// How far somebody will divert to hit an alarm, as a walk. Eight
+        /// metres since prototype 3 (2026-09-25): the office keeps one pull
+        /// station, at the far west end of the corridor beside the fuse box
+        /// room, and at four metres nobody in the office or the corridor
+        /// would ever have thought of it.
+        /// </summary>
+        public int ReachMillimetres = 8000;
 
         /// <summary>How close they must get to hit it.</summary>
         public int ArrivalMillimetres = 500;
@@ -2034,6 +2040,18 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class InfluenceSettings
     {
+        /// <summary>
+        /// Whether there is a purse at all. Off (the office level since
+        /// prototype 3, 2026-09-25, the owner's call: "remove influence
+        /// points for now, keep the system intact"), every door, alarm and
+        /// card is free, nothing is paid in, and the display shows no purse.
+        /// The rules below still stand, and a level that wants them turns
+        /// this back on. The code default stays on so the tests of the purse
+        /// still test it; the level asset turns it off (see
+        /// <c>LevelDefinition</c>).
+        /// </summary>
+        public bool Enabled = true;
+
         /// <summary>
         /// What the player starts the run with: thirty, which is one card or
         /// one pull of a fire alarm (the owner's call, 2026-09-24: "start with
@@ -2361,6 +2379,83 @@ namespace Paniq.Simulation
             Settings.Require(Settings.Range(DeskSitMinimumTicks, DeskSitMaximumTicks, 1) && HomeTimeRetryTicks >= 1 &&
                              LockedDoorMemoryTicks >= 0 && DoorHoldMillimetres >= 0, "desk sits, home time and doors");
             Settings.Require(Settings.Percent(CruelIgnoreCuePercent) && Settings.Range(CruelSitOnMinimumTicks, CruelSitOnMaximumTicks, 0), "ignoring cues");
+        }
+    }
+
+    /// <summary>
+    /// The Director's traps (prototype 3, 2026-09-25): a tower of boxes that
+    /// comes down across a doorway once the fire is lit and somebody comes
+    /// near it (<see cref="TrapDefinition"/>, <see cref="TrapSystem"/>).
+    /// </summary>
+    [Serializable]
+    public sealed class TrapSettings
+    {
+        /// <summary>
+        /// How near somebody has to come to the tower to bring it down, for
+        /// a trap that names no radius of its own. Two metres: a runner
+        /// passing the corner, not somebody on the far side of the junction.
+        /// </summary>
+        public int TriggerRadiusMillimetres = 2000;
+
+        /// <summary>
+        /// How many of the fallen boxes have to be lying unburnt in the
+        /// doorway for it to stay shut. Fewer than this and the way is open
+        /// again: carried off, thrown clear or burnt, one at a time.
+        /// </summary>
+        public int PileHoldsAtBoxes = 3;
+
+        /// <summary>
+        /// How far the crash of the tower is heard. Twelve metres, a whole
+        /// corridor: calm people look, and anybody running for that doorway
+        /// thinks again.
+        /// </summary>
+        public int CrashSoundRadiusMillimetres = 12000;
+
+        /// <summary>How far somebody standing in the doorway is knocked clear as the boxes come down.</summary>
+        public int KnockClearMillimetres = 800;
+
+        /// <summary>
+        /// How far past the wall line, into the far room, the fallen boxes
+        /// are laid: clear of the doorway's own plug, and still inside the
+        /// strip that counts as the doorway.
+        /// </summary>
+        public int PileBeyondMillimetres = 350;
+
+        public TrapSettings Clone() => (TrapSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(TriggerRadiusMillimetres > 0 && PileHoldsAtBoxes >= 1 && CrashSoundRadiusMillimetres >= 0 &&
+                             KnockClearMillimetres >= 0 && PileBeyondMillimetres >= 0, "traps");
+        }
+    }
+
+    /// <summary>
+    /// Poking people (prototype 3, 2026-09-25): a click on somebody makes
+    /// them lurch, look round a beat later, and after a few pokes in a row
+    /// get annoyed (<see cref="PokeSystem"/>).
+    /// </summary>
+    [Serializable]
+    public sealed class PokeSettings
+    {
+        /// <summary>How far the poke shoves them, backwards from the way they face.</summary>
+        public int LurchMillimetres = 200;
+
+        /// <summary>Pokes this close together count as "in a row".</summary>
+        public int AnnoyedWindowTicks = 500;
+
+        /// <summary>The poke that makes them annoyed: the third in a row.</summary>
+        public int AnnoyedAfterPokes = 3;
+
+        /// <summary>How long a calm person stands and glares after a poke before getting on with something else.</summary>
+        public int HuffTicks = 60;
+
+        public PokeSettings Clone() => (PokeSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(LurchMillimetres >= 0 && AnnoyedWindowTicks >= 0 && AnnoyedAfterPokes >= 1 && HuffTicks >= 1,
+                "poking");
         }
     }
 

@@ -285,6 +285,9 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentFoundTheWayOut: return "this way!";
                 case CausalEventType.AgentDashedThroughHeat: return "going for it!";
                 case CausalEventType.AgentHidFromTheHeat: return "too hot!";
+                case CausalEventType.AgentAnnoyed: return "leave me alone!";
+                case CausalEventType.BoxTowerFell: return "the boxes came down!";
+                case CausalEventType.BoxPileCleared: return "the way is clear!";
                 default: return null;
             }
         }
@@ -302,6 +305,7 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentShookAwake:
                 case CausalEventType.AgentDoused:
                 case CausalEventType.AgentFoundTheWayOut:
+                case CausalEventType.BoxPileCleared:
                     return true;
                 default:
                     return false;

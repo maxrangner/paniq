@@ -9,7 +9,10 @@ namespace Paniq.Presentation
 {
     /// <summary>
     /// The player's pointer and keys. With no card picked, a left click on a
-    /// door leaf works that door and a double click turns its key; with a card
+    /// door leaf works that door, a double click turns its key, and the
+    /// button held down on it is a hand holding it shut until it comes back
+    /// up (prototype 3, 2026-09-25); a left click on a person with nothing
+    /// else under the pointer pokes them (prototype 3 too). With a card
     /// picked, a left click plays it on the spot on the floor under the
     /// pointer. A card is picked up by clicking it on the screen (2026-09-25;
     /// the number keys are gone) and put down with Escape or a right click.
@@ -60,10 +63,13 @@ namespace Paniq.Presentation
         /// <summary>The door under the pointer, for the hover highlight.</summary>
         public SimulationId? HoveredDoor { get; private set; }
 
+        /// <summary>The door the player is holding shut, for the hover line.</summary>
+        public SimulationId? HeldDoor => clicks.Held;
+
         /// <summary>The fire alarm under the pointer, for the hover line.</summary>
         public SimulationId? HoveredAlarm { get; private set; }
 
-        /// <summary>The person under the pointer while a person-card is picked.</summary>
+        /// <summary>The person under the pointer: with a person-card picked, or with nothing picked (a poke).</summary>
         public SimulationId? HoveredPerson { get; private set; }
 
         /// <summary>Where on the floor the pointer is, while a place-card is picked.</summary>
@@ -154,22 +160,45 @@ namespace Paniq.Presentation
                 SelectedCard = null;
             }
 
+            Mouse mouse = Mouse.current;
+            bool buttonDown = mouse != null && mouse.leftButton.isPressed;
             if (lookOnly)
             {
                 // A card picked up before the freeze is put back down, so
-                // unpausing never plays something the player has forgotten about.
+                // unpausing never plays something the player has forgotten
+                // about; and a door held through a pause is let go of, because
+                // the release would never reach the run while it is stopped.
                 SelectedCard = null;
-                clicks.Clear();
+                SimulationId? letGo = clicks.Clear();
+                if (letGo.HasValue)
+                {
+                    runner.QueueReleaseDoor(letGo.Value);
+                }
             }
             else
             {
                 ReadKeys(turningTheView);
 
+                // A hand on a door comes off when the button does, and goes
+                // on once the button has stayed down for the whole window;
+                // the hold is asked for before the single click settles,
+                // because the two turn on the same instant.
+                SimulationId? released = clicks.Release(buttonDown);
+                if (released.HasValue)
+                {
+                    runner.QueueReleaseDoor(released.Value);
+                }
+
+                SimulationId? taken = clicks.Hold(now, buttonDown);
+                if (taken.HasValue)
+                {
+                    runner.QueueHoldDoor(taken.Value);
+                }
+
                 // A single click whose double-click window has closed is sent now.
                 SendSingleClick(clicks.Settle(now));
             }
 
-            Mouse mouse = Mouse.current;
             if (mouse == null || camera == null || snapshot == null || pointerOverHud)
             {
                 return;
@@ -179,7 +208,7 @@ namespace Paniq.Presentation
             bool clicked = mouse.leftButton.wasPressedThisFrame && !lookOnly;
             if (SelectedCard == null)
             {
-                UpdateDoors(camera, pointer, clicked, now);
+                UpdateWorldClick(camera, snapshot, pointer, clicked, now);
                 return;
             }
 
@@ -213,48 +242,59 @@ namespace Paniq.Presentation
             }
         }
 
-        private void UpdateDoors(Camera camera, Vector2 pointer, bool clicked, float now)
+        /// <summary>
+        /// With nothing in hand: a fire alarm or a door under the pointer
+        /// first (they are solid things the ray can hit), and failing those,
+        /// the nearest person on the screen, whom a click pokes.
+        /// </summary>
+        private void UpdateWorldClick(Camera camera, RunSnapshot snapshot, Vector2 pointer, bool clicked, float now)
         {
             // Door leaves swing, so their colliders must be where they are drawn.
             Physics.SyncTransforms();
             Ray ray = camera.ScreenPointToRay(pointer);
-            if (!Physics.Raycast(ray, out RaycastHit hit, 200f))
+            if (Physics.Raycast(ray, out RaycastHit hit, 200f))
             {
-                return;
-            }
-
-            // A fire alarm is clicked like a door: pulled for a price, which
-            // the run decides (see PlayerCommandSystem).
-            if (room.TryGetAlarm(hit.collider, out SimulationId alarmId))
-            {
-                HoveredAlarm = alarmId;
-                if (clicked)
+                // A fire alarm is clicked like a door: pulled for a price, which
+                // the run decides (see PlayerCommandSystem).
+                if (room.TryGetAlarm(hit.collider, out SimulationId alarmId))
                 {
-                    runner.QueueAlarmPull(alarmId);
+                    HoveredAlarm = alarmId;
+                    if (clicked)
+                    {
+                        runner.QueueAlarmPull(alarmId);
+                    }
+
+                    return;
                 }
 
-                return;
+                if (room.TryGetDoor(hit.collider, out SimulationId doorId))
+                {
+                    HoveredDoor = doorId;
+                    if (!clicked)
+                    {
+                        return;
+                    }
+
+                    // One click works the door, held back for the double-click
+                    // window; a second click inside it turns the key instead;
+                    // and a press that outlasts the window is a hand on it.
+                    if (clicks.Press(doorId, now, out SimulationId? settled))
+                    {
+                        runner.QueueLockToggle(doorId);
+                    }
+
+                    SendSingleClick(settled);
+                    return;
+                }
             }
 
-            if (!room.TryGetDoor(hit.collider, out SimulationId doorId))
+            // Nothing solid under the pointer: somebody, perhaps. Poking is
+            // a click, never a hold, so it is sent at once.
+            HoveredPerson = NearestPerson(camera, snapshot, pointer);
+            if (clicked && HoveredPerson.HasValue)
             {
-                return;
+                runner.QueuePoke(HoveredPerson.Value);
             }
-
-            HoveredDoor = doorId;
-            if (!clicked)
-            {
-                return;
-            }
-
-            // One click works the door, held back for the double-click
-            // window; a second click inside it turns the key instead.
-            if (clicks.Press(doorId, now, out SimulationId? settled))
-            {
-                runner.QueueLockToggle(doorId);
-            }
-
-            SendSingleClick(settled);
         }
 
         /// <summary>

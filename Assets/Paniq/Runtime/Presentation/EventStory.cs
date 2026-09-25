@@ -68,6 +68,7 @@ namespace Paniq.Presentation
                 case CausalEventType.AlarmRang:
                 case CausalEventType.ObjectBurntOut:
                 case CausalEventType.PowerSparkArrived:
+                case CausalEventType.TrapTriggered:
                 case CausalEventType.AgentSaid:
                     return true;
                 default:
@@ -198,6 +199,14 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerBlastedWall: return "you blew a hole through a wall";
                 case CausalEventType.PowerPoppedFuseBox: return "you popped the fuse box";
                 case CausalEventType.PowerPulledAlarm: return "you pulled a fire alarm";
+                case CausalEventType.PowerHeldDoor: return $"you held {who} shut";
+                case CausalEventType.PowerReleasedDoor: return $"you let go of {who}";
+                case CausalEventType.PowerPoked: return $"you poked {whom}";
+                case CausalEventType.AgentPoked: return $"{who} looked round for whoever poked them";
+                case CausalEventType.AgentAnnoyed: return $"{who} got annoyed at being poked";
+                case CausalEventType.TrapTriggered: return $"{whom} came too near the tower of boxes";
+                case CausalEventType.BoxTowerFell: return $"the tower of boxes came down across {whom}";
+                case CausalEventType.BoxPileCleared: return $"the way through the boxes at {whom} was clear";
                 case CausalEventType.PowerStickTogether: return $"you told {whom} to stick together";
 
                 case CausalEventType.PowerSparkStarted:

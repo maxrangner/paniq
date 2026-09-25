@@ -61,6 +61,8 @@ namespace Paniq.Simulation
         public CueSystem Cues;
         public DirectorSystem Director;
         public ErrandBehaviour Errands;
+        public PokeSystem Pokes;
+        public TrapSystem Traps;
 
         /// <summary>Hands every system that asked for it the finished set, in a fixed order.</summary>
         public void BindAll()

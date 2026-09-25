@@ -192,6 +192,72 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
+    /// A trap the Director springs (prototype 3, 2026-09-25): a tower of
+    /// boxes standing beside a doorway. Once the fire is lit, the first
+    /// person to come within reach of it brings it down a beat later, and
+    /// the boxes land wedged across the doorway: shut for people and fire
+    /// until enough of them have been carried off, thrown clear or burnt.
+    /// The boxes are ordinary boxes authored stacked at the tower's spot.
+    /// </summary>
+    [Serializable]
+    public struct TrapDefinition
+    {
+        [UnityEngine.SerializeField] private SimulationId trapId;
+        [UnityEngine.SerializeField] private SimulationId doorId;
+        [UnityEngine.SerializeField] private SimulationId[] boxIds;
+        [UnityEngine.SerializeField] private int triggerRadiusMillimetres;
+
+        public TrapDefinition(SimulationId trapId, SimulationId doorId, SimulationId[] boxIds, int triggerRadiusMillimetres = 0)
+        {
+            this.trapId = trapId;
+            this.doorId = doorId;
+            this.boxIds = boxIds;
+            this.triggerRadiusMillimetres = triggerRadiusMillimetres;
+        }
+
+        public SimulationId TrapId => trapId;
+
+        /// <summary>The doorway the boxes fall across.</summary>
+        public SimulationId DoorId => doorId;
+
+        /// <summary>The boxes that make the tower, lowest first.</summary>
+        public SimulationId[] BoxIds => boxIds ?? Array.Empty<SimulationId>();
+
+        /// <summary>How near somebody must come to bring it down; 0 means the scenario's <see cref="TrapSettings"/> value.</summary>
+        public int TriggerRadiusMillimetres => triggerRadiusMillimetres;
+
+        // The boxes are an array: compared box by box, so an asset written
+        // from the code compares equal to the code (see CueDefinition).
+        public override bool Equals(object obj)
+        {
+            if (!(obj is TrapDefinition other) || trapId != other.trapId || doorId != other.doorId ||
+                triggerRadiusMillimetres != other.triggerRadiusMillimetres)
+            {
+                return false;
+            }
+
+            SimulationId[] mine = BoxIds;
+            SimulationId[] theirs = other.BoxIds;
+            if (mine.Length != theirs.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < mine.Length; i++)
+            {
+                if (mine[i] != theirs[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public override int GetHashCode() => trapId.GetHashCode() ^ doorId.GetHashCode();
+    }
+
+    /// <summary>
     /// A door in one of the room's walls. Its position is the centre of the
     /// gap, measured along the wall (X for north and south walls, Z for east
     /// and west walls). Every door starts locked.
@@ -709,7 +775,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "79";
+        public string ContentRevision = "80";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -824,7 +890,18 @@ namespace Paniq.Simulation
         // 66: the cafeteria's door onto the crossbar's north arm (2009) is
         // gone, at the owner's request: nobody has a private door beside
         // the way out.
-        public int SimulationCompatibilityVersion = 66;
+        // 67: prototype 3 (2026-09-25). The Director's first trap: a tower
+        // of boxes at the junction that comes down across the archway once
+        // the fire is lit and somebody comes near, wedging it shut for
+        // people and fire until enough boxes are gone (TrapSystem,
+        // TrapTriggered, BoxTowerFell, BoxPileCleared); the fire always
+        // starts in the meeting room; one pull station, at the corridor's
+        // west end, and an alarm reach of eight metres; a purse that can be
+        // switched off (free when it is); doors the player holds shut
+        // (HoldDoor, ReleaseDoor: nobody opens one, the strong burst it in
+        // one push); people the player pokes (PokePerson, AgentPoked,
+        // AgentAnnoyed). Fingerprints re-recorded: the fire moved.
+        public int SimulationCompatibilityVersion = 67;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -852,6 +929,8 @@ namespace Paniq.Simulation
         public BlockadeSettings Blockades = new BlockadeSettings();
         public BlastSettings Blast = new BlastSettings();
         public DaySettings Day = new DaySettings();
+        public TrapSettings Traps = new TrapSettings();
+        public PokeSettings Poke = new PokeSettings();
 
         public AgentDefinition[] Agents = PrototypeBuilding.DefaultAgents();
         public DoorDefinition[] Doors = PrototypeBuilding.DefaultDoors();
@@ -889,6 +968,13 @@ namespace Paniq.Simulation
         /// timetable and people's own ideas call these by kind.
         /// </summary>
         public CueDefinition[] Cues = PrototypeBuilding.DefaultCues();
+
+        /// <summary>
+        /// The Director's traps (<see cref="TrapDefinition"/>): a tower of
+        /// boxes that comes down across a doorway. Empty is a building with
+        /// nothing waiting to fall.
+        /// </summary>
+        public TrapDefinition[] TrapDefinitions = PrototypeBuilding.DefaultTraps();
 
         /// <summary>The definition of this kind of cue. Validation guarantees there is one of each.</summary>
         public CueDefinition CueOf(CueKind kind)
@@ -949,6 +1035,8 @@ namespace Paniq.Simulation
             copy.Blockades = Blockades?.Clone();
             copy.Blast = Blast?.Clone();
             copy.Day = Day?.Clone();
+            copy.Traps = Traps?.Clone();
+            copy.Poke = Poke?.Clone();
             copy.Agents = (AgentDefinition[])Agents?.Clone();
             copy.Doors = (DoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (PhysicsObjectDefinition[])PhysicsObjects?.Clone();
@@ -960,6 +1048,7 @@ namespace Paniq.Simulation
             copy.ExitSigns = (ExitSignDefinition[])ExitSigns?.Clone();
             copy.Timetable = (ScheduledCue[])Timetable?.Clone();
             copy.Cues = (CueDefinition[])Cues?.Clone();
+            copy.TrapDefinitions = (TrapDefinition[])TrapDefinitions?.Clone();
             return copy;
         }
 
@@ -979,7 +1068,8 @@ namespace Paniq.Simulation
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
                 ObjectPhysics == null || PhysicsFeel == null || Traits == null || Flammables == null || Items == null || Help == null ||
                 Influence == null || Alarm == null || Blockades == null || Blast == null ||
-                Extinguishers == null || Leadership == null || Groups == null || Day == null)
+                Extinguishers == null || Leadership == null || Groups == null || Day == null ||
+                Traps == null || Poke == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -1010,6 +1100,8 @@ namespace Paniq.Simulation
             Blast.Validate();
             Power.Validate();
             Day.Validate();
+            Traps.Validate();
+            Poke.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");
@@ -1090,6 +1182,61 @@ namespace Paniq.Simulation
             ValidatePowerLines();
             ValidateCues();
             ValidateTimetable(roomIds);
+            ValidateTraps(ids);
+        }
+
+        /// <summary>
+        /// A trap names a doorway that is an archway (something with no leaf
+        /// for the boxes to lie across) and boxes. A doorway or a box that
+        /// is not in the building at all is allowed and leaves the trap
+        /// inert: dozens of tests empty the building of loose things or
+        /// build a floor of their own, and have emptied the tower with it.
+        /// A doorway that is there but is a real door, or a thing that is
+        /// there but is not a box, is a mistake.
+        /// </summary>
+        private void ValidateTraps(HashSet<SimulationId> ids)
+        {
+            TrapDefinitions ??= Array.Empty<TrapDefinition>();
+
+            // Unique among traps, not among everything: the shipped trap
+            // stays on a test's building of its own, whose rooms and people
+            // may use any number.
+            var trapIds = new HashSet<SimulationId>();
+            for (int i = 0; i < TrapDefinitions.Length; i++)
+            {
+                TrapDefinition trap = TrapDefinitions[i];
+                if (trap.TrapId.Value == 0UL || !trapIds.Add(trap.TrapId))
+                {
+                    throw new InvalidOperationException("Trap IDs must be unique and non-zero.");
+                }
+
+                int door = Array.FindIndex(Doors, d => d.DoorId == trap.DoorId);
+                if (door >= 0 && !Doors[door].IsOpening)
+                {
+                    throw new InvalidOperationException(
+                        $"Trap {trap.TrapId} names doorway {trap.DoorId}, which is a door rather than an archway.");
+                }
+
+                if (trap.BoxIds.Length == 0)
+                {
+                    throw new InvalidOperationException($"Trap {trap.TrapId} has no boxes to fall.");
+                }
+
+                for (int b = 0; b < trap.BoxIds.Length; b++)
+                {
+                    int box = Array.FindIndex(PhysicsObjects, o => o.ObjectId == trap.BoxIds[b]);
+                    if (box >= 0 && PhysicsObjects[box].Kind != PhysicsObjectKind.Box)
+                    {
+                        throw new InvalidOperationException(
+                            $"Trap {trap.TrapId} names {trap.BoxIds[b]} as a box, and it is a {PhysicsObjects[box].Kind}.");
+                    }
+                }
+
+                if (trap.TriggerRadiusMillimetres < 0)
+                {
+                    throw new InvalidOperationException($"Trap {trap.TrapId} has a negative reach.");
+                }
+            }
         }
 
         /// <summary>

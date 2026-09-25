@@ -294,7 +294,7 @@ namespace Paniq.Presentation
                 // Every card and button drawn below claims its place on the
                 // screen, so next frame's clicks on them stay off the world.
                 HudHitTest.BeginFrame();
-                PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, runner.Seed, FindDoor(frameSnapshot, hoveredDoor), hoveredAlarm);
+                PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, runner.Seed, FindDoor(frameSnapshot, hoveredDoor), hoveredAlarm, input);
                 screens.DrawStrip(frameSnapshot);
                 PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input, aimRing.PeopleInside);
                 if (runner.IsPaused)
@@ -402,6 +402,18 @@ namespace Paniq.Presentation
                     case CausalEventType.AlarmRang:
                         // One big ring from every bell, so the noise is visible.
                         ripples.Start(record.Position, record.Strength, SoundRipples.YellColor, time);
+                        break;
+                    case CausalEventType.AgentPoked:
+                        // Looking round for whoever did it.
+                        agents.Notice(record.SourceId, time);
+                        break;
+                    case CausalEventType.AgentAnnoyed:
+                        agents.Annoyed(record.SourceId, time);
+                        break;
+                    case CausalEventType.BoxTowerFell:
+                        // A crash heard down the corridor, and the dust of it.
+                        ripples.Start(record.Position, scenario.Traps.CrashSoundRadiusMillimetres, SoundRipples.ThudColor, time);
+                        effects.Knock(ToUnityPosition(record.Position) + Vector3.up * 0.4f, 1f, record.EventId);
                         break;
                     case CausalEventType.PowerBeefcake:
                     case CausalEventType.PowerCourage:

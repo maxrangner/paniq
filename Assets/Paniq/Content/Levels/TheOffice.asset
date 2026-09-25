@@ -18,3 +18,4 @@ MonoBehaviour:
   physicsFeel: {fileID: 11400000, guid: 112481c59fe94050b51d79088580e1a4, type: 2}
   hazardWaitsForTrigger: 1
   targetSavedPercent: 75
+  influenceEnabled: 0

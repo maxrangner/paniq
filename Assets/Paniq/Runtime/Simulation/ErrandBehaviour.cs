@@ -858,7 +858,7 @@ namespace Paniq.Simulation
         {
             AgentErrand errand = agent.Errand;
             int door = errand.Door;
-            if (doors.StateOf(door) == DoorState.Unlocked && !doors.IsObstructed(door))
+            if (doors.CanBePushedOpen(door))
             {
                 errand.Phase = ErrandPhase.OpeningTheDoor;
                 errand.UntilTick = checked(context.Tick + context.Jittered(exits.DoorOpenTicks));
@@ -916,7 +916,7 @@ namespace Paniq.Simulation
                 return CarryOnThroughTheDoor(agent);
             }
 
-            if (doors.StateOf(errand.Door) == DoorState.Unlocked && !doors.IsObstructed(errand.Door))
+            if (doors.CanBePushedOpen(errand.Door))
             {
                 errand.Phase = ErrandPhase.OpeningTheDoor;
                 errand.UntilTick = checked(context.Tick + context.Jittered(exits.DoorOpenTicks));

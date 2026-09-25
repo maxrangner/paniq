@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 79
+    ContentRevision: 80
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 66
+    SimulationCompatibilityVersion: 67
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -33,22 +33,10 @@ MonoBehaviour:
       DoorSightRangeMillimetres: 8000
     Fire:
       SpawnAreas:
-      - minX: -4500
-        maxX: 4500
-        minZ: -4500
-        maxZ: 4500
-      - minX: -4500
-        maxX: 500
-        minZ: 10500
-        maxZ: 15500
-      - minX: 3500
-        maxX: 11500
-        minZ: 10500
-        maxZ: 15500
-      - minX: 9500
-        maxX: 11500
-        minZ: 2500
-        maxZ: 4500
+      - minX: -5500
+        maxX: 1500
+        minZ: 9500
+        maxZ: 16500
       ActivationTick: 250
       CellSizeMillimetres: 500
       SpreadMinimumTicks: 40
@@ -792,6 +780,7 @@ MonoBehaviour:
       ReachMillimetres: 150
       ReachTimeoutTicks: 250
     Influence:
+      Enabled: 1
       Starting: 30
       PerPersonSaved: 15
       Maximum: 100
@@ -810,7 +799,7 @@ MonoBehaviour:
       UnlockExitCost: 100
     Alarm:
       Enabled: 1
-      ReachMillimetres: 4000
+      ReachMillimetres: 8000
       ArrivalMillimetres: 500
       PressTicks: 20
       FetchTimeoutTicks: 400
@@ -862,6 +851,17 @@ MonoBehaviour:
       CruelIgnoreCuePercent: 50
       CruelSitOnMinimumTicks: 500
       CruelSitOnMaximumTicks: 1500
+    Traps:
+      TriggerRadiusMillimetres: 2000
+      PileHoldsAtBoxes: 3
+      CrashSoundRadiusMillimetres: 12000
+      KnockClearMillimetres: 800
+      PileBeyondMillimetres: 350
+    Poke:
+      LurchMillimetres: 200
+      AnnoyedWindowTicks: 500
+      AnnoyedAfterPokes: 3
+      HuffTicks: 60
     Agents:
     - agentId:
         value: 1001
@@ -3033,6 +3033,110 @@ MonoBehaviour:
       startsResting: 0
       partOfObjectId:
         value: 0
+    - objectId:
+        value: 3701
+      kind: 0
+      initialPosition:
+        x: 13600
+        z: 6350
+      sizeMillimetres: 600
+      massGrams: 13000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3702
+      kind: 0
+      initialPosition:
+        x: 13600
+        z: 6350
+      sizeMillimetres: 600
+      massGrams: 13000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3703
+      kind: 0
+      initialPosition:
+        x: 13600
+        z: 6350
+      sizeMillimetres: 600
+      massGrams: 13000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3704
+      kind: 0
+      initialPosition:
+        x: 13600
+        z: 6350
+      sizeMillimetres: 600
+      massGrams: 13000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3705
+      kind: 0
+      initialPosition:
+        x: 14200
+        z: 6350
+      sizeMillimetres: 600
+      massGrams: 13000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3706
+      kind: 0
+      initialPosition:
+        x: 14200
+        z: 6350
+      sizeMillimetres: 600
+      massGrams: 13000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3707
+      kind: 0
+      initialPosition:
+        x: 14200
+        z: 6350
+      sizeMillimetres: 600
+      massGrams: 13000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3708
+      kind: 0
+      initialPosition:
+        x: 14200
+        z: 6350
+      sizeMillimetres: 600
+      massGrams: 13000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
     Tables:
     - tableId:
         value: 4001
@@ -3178,27 +3282,7 @@ MonoBehaviour:
         value: 6001
       position:
         x: -5700
-        z: 2000
-    - alarmId:
-        value: 6002
-      position:
-        x: 3000
         z: 8700
-    - alarmId:
-        value: 6003
-      position:
-        x: 7000
-        z: 16700
-    - alarmId:
-        value: 6004
-      position:
-        x: -5700
-        z: 16700
-    - alarmId:
-        value: 6005
-      position:
-        x: 6300
-        z: -2500
     BlastHoles:
     - value: 2901
     - value: 2902
@@ -3386,3 +3470,18 @@ MonoBehaviour:
         target: 0
         minimumTicks: 50
         maximumTicks: 150
+    TrapDefinitions:
+    - trapId:
+        value: 7001
+      doorId:
+        value: 2016
+      boxIds:
+      - value: 3701
+      - value: 3702
+      - value: 3703
+      - value: 3704
+      - value: 3705
+      - value: 3706
+      - value: 3707
+      - value: 3708
+      triggerRadiusMillimetres: 0

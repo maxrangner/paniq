@@ -35,6 +35,9 @@ namespace Paniq.Gameplay
         [Tooltip("The share of the crowd that has to be saved to clear the level. Twenty people at 75 means fifteen.")]
         [SerializeField] private int targetSavedPercent = 75;
 
+        [Tooltip("On: the player has a purse of influence that doors, alarms and cards cost. Off (the office since prototype 3): everything is free and no purse is shown.")]
+        [SerializeField] private bool influenceEnabled;
+
         public string LevelId => string.IsNullOrEmpty(levelId) ? name : levelId;
         public string DisplayName => string.IsNullOrEmpty(displayName) ? name : displayName;
         public PhysicsFeelPreset PhysicsFeel => physicsFeel;
@@ -56,6 +59,7 @@ namespace Paniq.Gameplay
                 : new ScenarioData();
             data.Round.HazardWaitsForTrigger = hazardWaitsForTrigger;
             data.Round.TargetSavedPercent = targetSavedPercent;
+            data.Influence.Enabled = influenceEnabled;
             return data;
         }
 

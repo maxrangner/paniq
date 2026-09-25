@@ -149,6 +149,15 @@ namespace Paniq.Simulation
             /// <summary>The <c>DoorBlocked</c> event while this thing is jamming a door, so clearing it names the same door.</summary>
             public ulong BlockedEventId;
 
+            /// <summary>
+            /// Held in place by the simulation (a tower of boxes waiting to
+            /// fall, or a box lying in the heap it fell into): nothing
+            /// pushes it, and it goes nowhere until it is unpinned -- by
+            /// being picked up, thrown clear, or let go of by whatever
+            /// pinned it (see <see cref="TrapSystem"/>).
+            /// </summary>
+            public bool Pinned;
+
             public LogicalPosition Position => new LogicalPosition(
                 (int)FloorDivide(X, SubMillimetre),
                 (int)FloorDivide(Z, SubMillimetre));
@@ -243,6 +252,7 @@ namespace Paniq.Simulation
             var definitions = (PhysicsObjectDefinition[])context.Scenario.PhysicsObjects.Clone();
             Array.Sort(definitions, (left, right) => left.ObjectId.CompareTo(right.ObjectId));
             bodies = new PhysicsBody[definitions.Length];
+            restingBottom = new int[definitions.Length];
             for (int i = 0; i < bodies.Length; i++)
             {
                 PhysicsObjectDefinition definition = definitions[i];
@@ -352,7 +362,16 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>How high a thing authored as resting starts: on the table under it, or on top of the thing under it.</summary>
+        /// <summary>
+        /// How high a thing authored as resting starts: on the table under
+        /// it, or on top of the lowest-numbered floor thing at its spot -- or,
+        /// if other resting things with lower IDs are already stacked at that
+        /// spot, on top of the highest of those. So a stack of any height
+        /// works (the tower of boxes is four high): each resting thing is
+        /// placed after the ones with lower IDs, so the height of everything
+        /// under it is already known, and a pair stacks exactly as it did
+        /// before towers existed.
+        /// </summary>
         private int RestingHeight(int index)
         {
             PhysicsBody top = bodies[index];
@@ -361,6 +380,8 @@ namespace Paniq.Simulation
                 return feel.TableHeightMillimetres;
             }
 
+            int height = 0;
+            bool baseFound = false;
             for (int u = 0; u < bodies.Length; u++)
             {
                 PhysicsBody under = bodies[u];
@@ -370,15 +391,38 @@ namespace Paniq.Simulation
                 }
 
                 long reach = under.Radius;
-                if (LogicalPosition.DistanceSquared(top.Position, under.Position) <= reach * reach &&
-                    !context.Scenario.PhysicsObjects[DefinitionOf(under.Id)].StartsResting)
+                if (LogicalPosition.DistanceSquared(top.Position, under.Position) > reach * reach)
                 {
-                    return ObjectShapes.TopHeight(under.Kind, under.Size);
+                    continue;
+                }
+
+                bool resting = context.Scenario.PhysicsObjects[DefinitionOf(under.Id)].StartsResting;
+                if (!resting)
+                {
+                    if (!baseFound)
+                    {
+                        // The lowest-numbered floor thing at the spot is the base,
+                        // as it always was.
+                        baseFound = true;
+                        height = Math.Max(height, ObjectShapes.TopHeight(under.Kind, under.Size));
+                    }
+
+                    continue;
+                }
+
+                if (u < index)
+                {
+                    // Already stacked here: this one goes on top of it.
+                    height = Math.Max(height, restingBottom[u] + ObjectShapes.TopHeight(under.Kind, under.Size));
                 }
             }
 
-            return 0;
+            restingBottom[index] = height;
+            return height;
         }
+
+        /// <summary>How high off the floor each resting thing's underside started, for the things stacked on it.</summary>
+        private readonly int[] restingBottom;
 
         private int DefinitionOf(SimulationId id)
         {
@@ -818,6 +862,69 @@ namespace Paniq.Simulation
         /// <summary>A spare the player has not put down yet.</summary>
         public bool IsDormant(int index) => bodies[index].Dormant;
 
+        /// <summary>Its authored width, in millimetres.</summary>
+        public int SizeOf(int index) => bodies[index].Size;
+
+        /// <summary>Held where it is by the simulation (see <see cref="PhysicsBody.Pinned"/>).</summary>
+        public bool IsPinned(int index) => bodies[index].Pinned;
+
+        /// <summary>
+        /// Holds a thing where it is: the engine stops moving it and nothing
+        /// here pushes it. It still stands in everybody's way, still heats,
+        /// burns and can be picked up; picking it up or throwing it clear
+        /// unpins it.
+        /// </summary>
+        public void Pin(int index)
+        {
+            PhysicsBody thing = bodies[index];
+            if (thing.Pinned)
+            {
+                return;
+            }
+
+            thing.Pinned = true;
+            thing.VelocityX = 0L;
+            thing.VelocityY = 0L;
+            thing.VelocityZ = 0L;
+            thing.Spin = 0;
+            thing.Thrown = false;
+            world.SetPinned(index, true);
+        }
+
+        /// <summary>Lets a pinned thing go: it is a loose thing again.</summary>
+        public void Unpin(int index)
+        {
+            PhysicsBody thing = bodies[index];
+            if (!thing.Pinned)
+            {
+                return;
+            }
+
+            thing.Pinned = false;
+            world.SetPinned(index, false);
+        }
+
+        /// <summary>
+        /// Puts a thing straight down at a spot, its underside this high off
+        /// the floor, stopped, turned to this heading: how the fallen tower's
+        /// boxes are laid across the doorway (see <see cref="TrapSystem"/>).
+        /// Not a throw and not a push: it is where it is put.
+        /// </summary>
+        public void PlaceAt(int index, LogicalPosition spot, int bottomMillimetres, int heading, ulong causeEventId)
+        {
+            PhysicsBody thing = bodies[index];
+            MoveBody(index, (long)spot.X * SubMillimetre, (long)spot.Z * SubMillimetre);
+            thing.Heading = heading;
+            thing.LastPushEventId = causeEventId;
+            thing.VelocityX = 0L;
+            thing.VelocityY = 0L;
+            thing.VelocityZ = 0L;
+            thing.Spin = 0;
+            thing.Thrown = false;
+            world.Place(index, thing.X, (long)bottomMillimetres * SubMillimetre, thing.Z, heading);
+            thing.Reading = world.Read(index);
+        }
+
         /// <summary>Smashed into wreckage on the floor.</summary>
         public bool IsWrecked(int index) => bodies[index].Wrecked;
 
@@ -1050,6 +1157,12 @@ namespace Paniq.Simulation
         private void SetMotion(int index, long velocityX, long velocityY, long velocityZ)
         {
             PhysicsBody thing = bodies[index];
+            if (thing.Pinned)
+            {
+                // Held where it is: a kick, a shove or a blast moves it not at all.
+                return;
+            }
+
             thing.VelocityX = velocityX;
             thing.VelocityY = velocityY;
             thing.VelocityZ = velocityZ;
@@ -1078,6 +1191,7 @@ namespace Paniq.Simulation
         public void PickUp(int index, Agent carrier)
         {
             PhysicsBody item = bodies[index];
+            Unpin(index);
             item.HeldBy = carrier.Index;
             item.VelocityX = 0L;
             item.VelocityY = 0L;
@@ -1346,7 +1460,8 @@ namespace Paniq.Simulation
                 {
                     int b = near[c];
                     PhysicsBody thing = bodies[b];
-                    if (b == exceptIndex || thing.Dormant || thing.HeldBy >= 0 || thing.OccupiedBy >= 0 || IsFixedInPlace(b))
+                    if (b == exceptIndex || thing.Dormant || thing.HeldBy >= 0 || thing.OccupiedBy >= 0 || IsFixedInPlace(b) ||
+                        thing.Pinned)
                     {
                         continue;
                     }
@@ -1630,6 +1745,7 @@ namespace Paniq.Simulation
         private void Fling(Agent agent, int index, int heading, ulong causeEventId)
         {
             PhysicsBody item = bodies[index];
+            Unpin(index);
             int speed = ThrowSpeed(agent, index);
             CausalEvent thrown = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemThrown, item.Position,
                 speed, 0, causeEventId, item.Id);

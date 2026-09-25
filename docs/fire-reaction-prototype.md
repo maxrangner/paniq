@@ -78,7 +78,9 @@ They turn and speed up gradually, keep personal space, and steer away from
 walls before reaching them. Each person has their own seeded walking pace
 (set by their speed trait) and turning speed, so no two move alike.
 
-**After five seconds a fire starts** at a seeded spot near the middle. The
+**After five seconds a fire starts** at a seeded spot (since prototype 3,
+2026-09-25, always somewhere in the meeting room; in a played round, when the
+player presses Trigger event). The
 floor is a grid of 0.5 m squares. Each burning square shows a dim glowing tile
 and a cluster of two or three small cubes that bob, spin, flicker and cycle
 between red, orange and yellow. New squares pop in with a small overshoot, and
@@ -372,12 +374,16 @@ direction they happen to be facing, and the cruel aim it at the nearest person.
 It is a reflex rather than a plan, so a briefcase sails off at an angle and
 clatters into a table.
 
-**Fire alarms.** Two kinds of red thing on the walls (2026-09-25): small
-pull stations at hand height in each big room, and bell units high on a wall
-of every room people use. Anyone who has taken in that there is a fire, is
-not in immediate danger, has their hands free, and is brave (6+), leads (6+)
-or thinks of others (compassion 6+) breaks off to hit the station in their
-own room -- four paces at most, half a second to press it -- and then runs.
+**Fire alarms.** Two kinds of red thing on the walls (2026-09-25): a small
+pull station at hand height, and bell units high on a wall of every room
+people use. Since prototype 3 (2026-09-25, the owner's rule) the building
+has **one** pull station, at the far west end of the corridor beside the
+maintenance room and past the meeting room's door, so pulling it means
+walking toward the fire and only the brave do. Anyone who has taken in that
+there is a fire, is not in immediate danger, has their hands free, and is
+brave (6+), leads (6+) or thinks of others (compassion 6+) breaks off to hit
+it if it is within eight metres' walk -- half a second to press it -- and
+then runs.
 Hitting one rings **every** bell in the building at once, so a shut door
 cannot leave a room in the dark, and the bells ring again every six seconds
 or so, each on its own beat, so a door opened later lets the noise through.
@@ -492,6 +498,13 @@ whole purse, 100 (the owner's rules, 2026-09-25). The key is yours to turn
 both ways: a locked door is yours to unlock and a shut one yours to lock,
 and an open one shut and locked in one go if nobody is in the doorway. Once
 the way out is unlocked the people open it themselves.
+
+**The office has no purse (prototype 3, 2026-09-25).** The owner had
+influence switched off for now: every door, alarm and card is free, nothing
+is paid in, and the bar and the prices are gone from the screen. The cards
+are still dealt by the dead and still played. Everything below about the
+purse is how the rules stand in the code, switched off on the office level
+(`LevelDefinition`), for a level that turns them back on.
 
 **Influence and cards: the dead deal, the uproar pays.** A round opens with
 **thirty** and **one card**, drawn at random from the deck (the owner's call,

@@ -950,6 +950,18 @@ namespace Paniq.Tests.EditMode
                     case CausalEventType.TableHeaved:
                         Assert.That(record.HasTarget, Is.True, "A heave names the table.");
                         break;
+                    case CausalEventType.TrapTriggered:
+                        Assert.That(agents, Does.Contain(record.TargetId), "A sprung trap names who sprang it.");
+                        break;
+                    case CausalEventType.BoxTowerFell:
+                    case CausalEventType.BoxPileCleared:
+                    case CausalEventType.PowerHeldDoor:
+                    case CausalEventType.PowerReleasedDoor:
+                        Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, $"{record.EventType} names the doorway.");
+                        break;
+                    case CausalEventType.PowerPoked:
+                        Assert.That(agents, Does.Contain(record.TargetId), "A poke names the person poked.");
+                        break;
                     case CausalEventType.CueCalled:
                         // A cue names the room it was called in or the person
                         // it was called to, or nothing for the whole building.

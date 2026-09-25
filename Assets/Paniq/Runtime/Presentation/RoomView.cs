@@ -46,6 +46,9 @@ namespace Paniq.Presentation
             public DoorState State;
             public int DamagePercent;
 
+            /// <summary>The player has a hand on it (prototype 3): drawn in the player's blue.</summary>
+            public bool IsHeld;
+
             /// <summary>
             /// A pair of swing doors (2026-09-25): a second hinge and leaf at
             /// the far end of the gap, and instead of a state to follow, a
@@ -123,6 +126,9 @@ namespace Paniq.Presentation
 
         private static readonly Color AlarmRestingColor = new Color(0.75f, 0.12f, 0.12f);
         private static readonly Color SwingDoorColor = new Color(0.62f, 0.55f, 0.42f);
+
+        /// <summary>A door the player is holding shut (prototype 3): the blue of a card picked up.</summary>
+        private static readonly Color HeldDoorColor = new Color(0.3f, 0.55f, 1f);
 
         /// <summary>The leaves' spring: stiff enough to fly open ahead of a runner, damped little enough to flap back past shut.</summary>
         private const float SwingStiffness = 120f;
@@ -593,6 +599,7 @@ namespace Paniq.Presentation
                 if (doors.TryGetValue(door.DoorId, out DoorView known))
                 {
                     known.State = door.State;
+                    known.IsHeld = door.IsHeld;
                     // Battered or burnt: either way the leaf darkens as it goes.
                     known.DamagePercent = door.FailingPercent;
                     if (door.OpenSide != 0)
@@ -728,6 +735,13 @@ namespace Paniq.Presentation
                 {
                     color = Color.Lerp(color, BrokenDoorColor, view.DamagePercent / 100f * 0.8f);
                 }
+
+                // The player's hand on it: the blue of the card in their hand.
+                if (view.IsHeld)
+                {
+                    color = Color.Lerp(color, HeldDoorColor, 0.75f);
+                }
+
                 if (hoveredDoor.HasValue && hoveredDoor.Value == view.DoorId)
                 {
                     color = Color.Lerp(color, Color.white, 0.3f);

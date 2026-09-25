@@ -39,6 +39,7 @@ namespace Paniq.Simulation
         private CueSystem cues;
         private AlarmSystem alarms;
         private GroupSystem groups;
+        private PokeSystem pokes;
 
         /// <summary>Who a "Stick together" throw caught, and each one's event, gathered before anything is written.</summary>
         private readonly List<int> caughtIndices = new List<int>();
@@ -66,6 +67,7 @@ namespace Paniq.Simulation
             geometry = systems.Geometry;
             cues = systems.Cues;
             groups = systems.Groups;
+            pokes = systems.Pokes;
         }
 
         /// <summary>Every command queued so far, in sequence order.</summary>
@@ -103,9 +105,18 @@ namespace Paniq.Simulation
             {
                 case PlayerCommandType.ClickDoor:
                 case PlayerCommandType.ToggleLock:
+                case PlayerCommandType.HoldDoor:
+                case PlayerCommandType.ReleaseDoor:
                     if (doors.IndexOf(targetId) < 0)
                     {
                         throw new ArgumentException($"Unknown door ID {targetId}.", nameof(targetId));
+                    }
+
+                    break;
+                case PlayerCommandType.PokePerson:
+                    if (crowd.IndexOf(targetId) < 0)
+                    {
+                        throw new ArgumentException($"Unknown person ID {targetId}.", nameof(targetId));
                     }
 
                     break;
@@ -216,6 +227,34 @@ namespace Paniq.Simulation
                 if (alarms.PullByPlayer(alarms.IndexOf(command.TargetId)))
                 {
                     influence.Spend(price);
+                }
+
+                return;
+            }
+
+            // A hand on a door (prototype 3, 2026-09-25): free, and not a
+            // card. Holding costs nothing because it is the player's own
+            // effort for as long as they keep the button down.
+            if (command.CommandType == PlayerCommandType.HoldDoor)
+            {
+                doors.HoldShut(doors.IndexOf(command.TargetId));
+                return;
+            }
+
+            if (command.CommandType == PlayerCommandType.ReleaseDoor)
+            {
+                doors.Release(doors.IndexOf(command.TargetId));
+                return;
+            }
+
+            // A poke (prototype 3, 2026-09-25): free, not a card, and nothing
+            // at all to somebody already out of the building or dead.
+            if (command.CommandType == PlayerCommandType.PokePerson)
+            {
+                Agent poked = crowd.All[crowd.IndexOf(command.TargetId)];
+                if (poked.IsParticipating)
+                {
+                    pokes.Poke(poked);
                 }
 
                 return;

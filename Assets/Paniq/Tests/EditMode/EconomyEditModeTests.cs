@@ -92,6 +92,40 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
+        /// Prototype 3 (2026-09-25, the owner's call): the office level has
+        /// no purse. With the purse switched off every price is nought,
+        /// nothing is paid in, a door and an alarm work for nothing, and the
+        /// cards are still dealt and still played. The rules are all still
+        /// there for a level that turns it back on.
+        /// </summary>
+        [Test]
+        public void WithThePurseSwitchedOff_EverythingIsFree_AndNothingIsPaidIn()
+        {
+            ScenarioData data = QuietRoom();
+            data.Influence.Enabled = false;
+            data.Influence.Starting = 0;
+            using (var simulation = new Run(data, 42UL))
+            {
+                Assert.That(simulation.GetSnapshot().InfluenceEnabled, Is.False);
+                Assert.That(simulation.GetSnapshot().CostOfDoorClick(DoorState.Locked, true), Is.Zero, "The way out is free to unlock.");
+                Assert.That(simulation.GetSnapshot().CostOf(PlayerCommandType.PullAlarm), Is.Zero);
+                Assert.That(simulation.GetSnapshot().Hand, Has.Count.EqualTo(1), "The opening card is still dealt.");
+
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, 1);
+                simulation.QueueCommand(PlayerCommandType.PullAlarm, TheBuilding.TheAlarm, 2);
+                for (int t = 0; t < 3 * Run.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                }
+
+                Assert.That(EventsOfType(simulation, CausalEventType.DoorUnlocked), Has.Count.EqualTo(1), "Unlocked, with an empty purse.");
+                Assert.That(EventsOfType(simulation, CausalEventType.PowerPulledAlarm), Has.Count.EqualTo(1), "Pulled, with an empty purse.");
+                Assert.That(simulation.Influence, Is.Zero, "Nothing paid in by the uproar of the bells.");
+                Assert.That(simulation.InfluenceSpent, Is.Zero);
+            }
+        }
+
+        /// <summary>
         /// A round opens with thirty and one card drawn from the three-card
         /// deck (the owner's call, 2026-09-24). The same seed opens with the
         /// same card; the draw comes from the deck's own stream, so it moves

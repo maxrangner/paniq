@@ -140,6 +140,15 @@ namespace Paniq.Presentation
             }
         }
 
+        /// <summary>A red scribble for being annoyed at the player's poking.</summary>
+        public void Annoyed(SimulationId agentId, float time)
+        {
+            if (agents.TryGetValue(agentId, out AgentView view))
+            {
+                view.Icons.Annoyed(time);
+            }
+        }
+
         /// <summary>A shoulder thrown at a stuck door.</summary>
         public void Lunge(SimulationId agentId, float time)
         {

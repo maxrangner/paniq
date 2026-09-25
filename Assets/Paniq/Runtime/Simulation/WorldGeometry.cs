@@ -1453,6 +1453,37 @@ namespace Paniq.Simulation
 
         public LogicalPosition DoorCentre(int door) => DoorPoint(door, 0, 0);
 
+        /// <summary>Whether this doorway's gap runs along X (a north or south wall) rather than along Z.</summary>
+        public bool DoorwayRunsAlongX(int door) =>
+            doors[door].Side == WallSide.North || doors[door].Side == WallSide.South;
+
+        /// <summary>
+        /// The heading straight away from this doorway's wall line, on the
+        /// side <paramref name="side"/> (+1 beyond the door's own room, -1
+        /// into it, as <see cref="SideOf"/> answers).
+        /// </summary>
+        public int OutwardHeading(int door, int side)
+        {
+            int outward;
+            switch (doors[door].Side)
+            {
+                case WallSide.North:
+                    outward = 0;
+                    break;
+                case WallSide.East:
+                    outward = 90;
+                    break;
+                case WallSide.South:
+                    outward = 180;
+                    break;
+                default:
+                    outward = 270;
+                    break;
+            }
+
+            return side >= 0 ? outward : IntegerMath.NormalizeDegrees(outward + 180);
+        }
+
         /// <summary>
         /// A person here would be in the way of the door swinging shut: in
         /// the gap itself, from either side, or (for a door leading outside)

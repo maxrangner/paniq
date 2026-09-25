@@ -106,13 +106,28 @@ namespace Paniq.Tests.EditMode
         public static readonly SimulationId StockroomToCrossbar = new SimulationId(2019UL);
 
         /// <summary>
+        /// The tower of boxes (prototype 3): the middle of its footprint, in
+        /// the junction's south-west corner just past the archway.
+        /// </summary>
+        public static readonly LogicalPosition TheTower = new LogicalPosition(13900, 6350);
+
+        /// <summary>The Director's trap that brings the tower down.</summary>
+        public static readonly SimulationId TheTrap = new SimulationId(7001UL);
+
+        /// <summary>The corridor's east end, just short of the archway into the crossbar.</summary>
+        public static readonly LogicalPosition CorridorEastEnd = new LogicalPosition(12000, 7500);
+
+        /// <summary>The building's one pull station, at the corridor's west end beside the maintenance room (prototype 3).</summary>
+        public static readonly SimulationId TheAlarm = new SimulationId(6001UL);
+
+        /// <summary>
         /// The shipped building, with the fire pinned to the open office.
         /// <para>
-        /// A played round draws the fire from one of four preset areas, so
-        /// three runs in four start it somewhere other than the office. That is
-        /// the point of it, and it is covered by its own tests -- but a test
-        /// about what a frightened crowd does needs the fire where the crowd
-        /// is, every time, or it is really a test of which room came up.
+        /// A played round starts the fire in the meeting room (prototype 3;
+        /// it used to be one of four rooms), which is covered by its own
+        /// tests -- but a test about what a frightened crowd does needs the
+        /// fire where the crowd is, every time, or it is really a test of
+        /// which square came up.
         /// </para>
         /// </summary>
         public static ScenarioData WithTheFireInTheOffice(ScenarioData data)

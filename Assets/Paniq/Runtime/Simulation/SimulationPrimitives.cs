@@ -828,7 +828,52 @@ namespace Paniq.Simulation
         /// The player threw "Stick together": one of these per person the
         /// throw caught, who is now bound to the others. Target: the person.
         /// </summary>
-        PowerStickTogether
+        PowerStickTogether,
+
+        // Prototype 3 (2026-09-25): the tower of boxes, doors held shut and
+        // people poked. Appended only.
+
+        /// <summary>
+        /// The Director's trap is sprung: with the fire lit, somebody came
+        /// near the tower of boxes. Source: the trap. Target: the person who
+        /// set it off. The fall itself comes a few ticks later.
+        /// </summary>
+        TrapTriggered,
+
+        /// <summary>
+        /// The tower of boxes came down across a doorway, which is shut for
+        /// people and fire until enough of the boxes are gone. Source: the
+        /// trap. Target: the doorway. Cause: the trigger.
+        /// </summary>
+        BoxTowerFell,
+
+        /// <summary>
+        /// Enough of the fallen boxes have been carried off, thrown clear or
+        /// burnt that the doorway is a way through again. Source: the trap.
+        /// Target: the doorway.
+        /// </summary>
+        BoxPileCleared,
+
+        /// <summary>The player took hold of a door and held it shut. A root event. Source and target: the door.</summary>
+        PowerHeldDoor,
+
+        /// <summary>The player let go of a door they were holding. A root event. Source and target: the door.</summary>
+        PowerReleasedDoor,
+
+        /// <summary>The player poked somebody. A root event. Target: the person.</summary>
+        PowerPoked,
+
+        /// <summary>
+        /// Somebody poked a beat ago looks round for whoever did it. Source:
+        /// the person. Cause: the poke.
+        /// </summary>
+        AgentPoked,
+
+        /// <summary>
+        /// Poked once too often, they are annoyed: they say so and go and
+        /// stand somewhere else. Source: the person. Cause: the last poke.
+        /// </summary>
+        AgentAnnoyed
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -1042,7 +1087,26 @@ namespace Paniq.Simulation
         /// Stick together: everybody the throw catches becomes one group that
         /// keeps together once frightened (see <see cref="GroupSystem"/>).
         /// </summary>
-        StickTogether
+        StickTogether,
+
+        /// <summary>
+        /// The player puts a hand on a door and holds it shut (the target is
+        /// the door's ID; prototype 3, 2026-09-25). An open door is pulled
+        /// shut first, as soon as the doorway is clear. While held, nobody
+        /// opens it, locked or not; somebody strong enough bursts it in one
+        /// push. Free. Ends with <see cref="ReleaseDoor"/>.
+        /// </summary>
+        HoldDoor,
+
+        /// <summary>The player lets go of a door they were holding shut (the target is the door's ID). Free.</summary>
+        ReleaseDoor,
+
+        /// <summary>
+        /// The player pokes a person (the target is the person's ID;
+        /// prototype 3, 2026-09-25): they lurch, look round a beat later, and
+        /// after a few pokes in a row get annoyed. Free, and not a card.
+        /// </summary>
+        PokePerson
     }
 
     /// <summary>

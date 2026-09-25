@@ -82,6 +82,7 @@
         public readonly AgentBarricade Barricade = new AgentBarricade();
         public readonly AgentHome Home = new AgentHome();
         public readonly AgentErrand Errand = new AgentErrand();
+        public readonly AgentPoke Poke = new AgentPoke();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -612,6 +613,26 @@
         /// where they sat, so nothing shoves them backwards out of it.
         /// </summary>
         LeapingUp
+    }
+
+    /// <summary>
+    /// Being poked by the player (prototype 3, 2026-09-25; see
+    /// <see cref="PokeSystem"/>): how many pokes in a row, when the last one
+    /// was, and when the reaction to it is due.
+    /// </summary>
+    internal sealed class AgentPoke
+    {
+        /// <summary>Pokes close enough together to count as one bout of it.</summary>
+        public int CountInARow;
+
+        /// <summary>The tick of the last poke, so a poke long after the last starts the count again.</summary>
+        public int LastPokeTick = int.MinValue / 2;
+
+        /// <summary>When they look round for whoever did it, or 0 when nothing is due.</summary>
+        public int ReactAtTick;
+
+        /// <summary>The poke the reaction names as its cause.</summary>
+        public ulong PokeEventId;
     }
 
     internal sealed class AgentSitting

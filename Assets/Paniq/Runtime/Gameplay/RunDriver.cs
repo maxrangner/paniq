@@ -276,6 +276,24 @@ namespace Paniq.Gameplay
             Simulation.QueueCommand(PlayerCommandType.ToggleLock, doorId, Simulation.Tick + 1);
         }
 
+        /// <summary>The player taking hold of a door to keep it shut (prototype 3), queued for the next tick that has not started.</summary>
+        public void QueueHoldDoor(SimulationId doorId)
+        {
+            Simulation.QueueCommand(PlayerCommandType.HoldDoor, doorId, Simulation.Tick + 1);
+        }
+
+        /// <summary>The player letting go of a held door, queued for the next tick that has not started.</summary>
+        public void QueueReleaseDoor(SimulationId doorId)
+        {
+            Simulation.QueueCommand(PlayerCommandType.ReleaseDoor, doorId, Simulation.Tick + 1);
+        }
+
+        /// <summary>The player poking somebody (prototype 3), queued for the next tick that has not started.</summary>
+        public void QueuePoke(SimulationId personId)
+        {
+            Simulation.QueueCommand(PlayerCommandType.PokePerson, personId, Simulation.Tick + 1);
+        }
+
         /// <summary>The player pulling a fire alarm, queued for the next tick that has not started.</summary>
         public void QueueAlarmPull(SimulationId alarmId)
         {

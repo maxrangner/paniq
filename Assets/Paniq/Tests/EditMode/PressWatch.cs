@@ -1,4 +1,4 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Paniq.Simulation;
 
 namespace Paniq.Tests.EditMode
@@ -62,10 +62,20 @@ namespace Paniq.Tests.EditMode
         /// rest of the run. Nobody sees a leg 81 mm into the carpet; a chair
         /// wedged in a doorway is exactly what the doorways are for; and a
         /// limit chased tick by tick for it would never settle.
+        /// <para>
+        /// Nor is somebody lying down inside a bathroom stall. A body on the
+        /// floor is longer than a stall is wide, so the engine holds it
+        /// against the stall's wall (96 mm) until they get up, and there is
+        /// nowhere for it to pass into. Once the fire moved to the meeting
+        /// room (prototype 3, 2026-09-25) seed 45 had somebody go down in the
+        /// third stall while fleeing, and stay pressed for as long as they
+        /// lay there.
+        /// </para>
         /// </summary>
         public void Check(Run simulation, string context)
         {
-            if (simulation.DeepestPressMillimetres <= DeepestSqueezeMillimetres || simulation.DeepestPressIsIntoTheFloorForTests)
+            if (simulation.DeepestPressMillimetres <= DeepestSqueezeMillimetres || simulation.DeepestPressIsIntoTheFloorForTests ||
+                simulation.DeepestPressIsABodyLyingInAStallForTests)
             {
                 deepTicks = 0;
                 return;

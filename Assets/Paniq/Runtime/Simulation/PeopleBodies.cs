@@ -250,6 +250,21 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Shifted bodily to a spot, on their feet and facing as they were:
+        /// what happens to somebody standing exactly where the tower of
+        /// boxes has just landed (see <see cref="TrapSystem"/>), who cannot
+        /// be left inside a box. A short shift, not a walk; the knock-down
+        /// that follows is what the player sees.
+        /// </summary>
+        public void ShiftTo(Agent agent, LogicalPosition spot)
+        {
+            int handle = HandleOf(agent);
+            crowd.MoveTo(agent, spot);
+            world.Place(handle, (long)spot.X * PhysicsWorld.SubMillimetre, 0L,
+                (long)spot.Z * PhysicsWorld.SubMillimetre, agent.Body.Heading);
+        }
+
+        /// <summary>
         /// Out of the chair. If they were given a spot to step to they stand
         /// there; knocked off it, they go down where they are and are free of
         /// it from then on.

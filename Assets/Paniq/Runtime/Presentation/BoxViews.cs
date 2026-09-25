@@ -27,6 +27,17 @@ namespace Paniq.Presentation
             public float Height;
             public float Lift;
 
+            /// <summary>
+            /// A thing that jumped more than a metre in one tick was put
+            /// somewhere by the simulation, not pushed (the tower of boxes
+            /// laid across the archway): it is drawn tumbling from where it
+            /// was to where it is over half a second, rather than blinking
+            /// there. When the tumble began, and where from.
+            /// </summary>
+            public float TumbleStart = float.NegativeInfinity;
+            public Vector3 TumbleFrom;
+            public Quaternion TumbleFromRotation;
+
             /// <summary>0 while it is in one piece, 1 once it has collapsed into wreckage.</summary>
             public float Wreck;
         }
@@ -455,6 +466,11 @@ namespace Paniq.Presentation
         /// <summary>Where the simulation lets go of a carried thing, in metres; it is drawn there while held.</summary>
         private const float HandHeight = 1f;
 
+        /// <summary>A thing that moved further than this in one tick was put there, and is drawn tumbling (see <c>BoxView.TumbleStart</c>).</summary>
+        private const float TumbleJumpMetres = 1f;
+        private const float TumbleSeconds = 0.5f;
+        private const float TumbleHeight = 0.6f;
+
         public void Update(RunSnapshot snapshot, RunSnapshot previousSnapshot, float blend, float time)
         {
             for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
@@ -492,9 +508,36 @@ namespace Paniq.Presentation
                 // pose for a carried thing (it rides with its carrier), so it
                 // is drawn in their hands, upright and facing their way.
                 view.Lift = Mathf.MoveTowards(view.Lift, box.IsHeld ? 1f : 0f, delta * 4f);
-                if (!box.Pose.IsKnown)
+
+                // Put somewhere in one tick (see TumbleStart): start a tumble
+                // from where it was drawn last frame.
+                Vector3 wasAt = ToUnityPosition(previous.Position);
+                Vector3 isAt = ToUnityPosition(box.Position);
+                if (!box.IsHeld && !previous.IsHeld && !previous.Dormant &&
+                    (isAt - wasAt).sqrMagnitude > TumbleJumpMetres * TumbleJumpMetres &&
+                    time - view.TumbleStart > TumbleSeconds)
                 {
-                    Vector3 planar = Vector3.Lerp(ToUnityPosition(previous.Position), ToUnityPosition(box.Position), blend);
+                    view.TumbleStart = time;
+                    view.TumbleFrom = view.Transform.position;
+                    view.TumbleFromRotation = view.Transform.rotation;
+                }
+
+                float tumbleAge = time - view.TumbleStart;
+                if (tumbleAge < TumbleSeconds)
+                {
+                    // An arc up and over, turning end over end, to where the
+                    // simulation now has it.
+                    float t = tumbleAge / TumbleSeconds;
+                    Vector3 landing = box.Pose.IsKnown ? PoseOrigin(box.Pose) : isAt;
+                    Quaternion landed = box.Pose.IsKnown ? PoseRotation(box.Pose) : Quaternion.Euler(0f, box.HeadingDegrees, 0f);
+                    Vector3 arc = Vector3.Lerp(view.TumbleFrom, landing, t) + Vector3.up * (TumbleHeight * 4f * t * (1f - t));
+                    Quaternion spin = Quaternion.Slerp(view.TumbleFromRotation, landed, t) *
+                                      Quaternion.Euler(360f * t * (1f - t) * 2f, 0f, 0f);
+                    view.Transform.SetPositionAndRotation(arc, spin);
+                }
+                else if (!box.Pose.IsKnown)
+                {
+                    Vector3 planar = Vector3.Lerp(wasAt, isAt, blend);
                     float yaw = Mathf.LerpAngle(previous.HeadingDegrees, box.HeadingDegrees, blend);
                     view.Transform.SetPositionAndRotation(planar + Vector3.up * (view.Lift * HandHeight),
                         Quaternion.Euler(0f, yaw, 0f));

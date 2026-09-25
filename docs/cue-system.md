@@ -243,6 +243,12 @@ of it is started; each is a stone of its own.
    menu of cues with cooldowns, seeded. A quiet run gets a second problem in
    a far wing; a massacre gets a breather. `DirectorSystem` is the seam; it
    reads simulation state and the seed only, never the player's screen.
+   *Started 2026-09-25 (prototype 3):* its first reactive rule is in, a
+   trap (`TrapSystem`, called from the Director every tick) that watches the
+   fire and the crowd and brings the tower of boxes down across the archway
+   once the fire is lit and somebody comes near. One rule, one trap, no
+   menu and no cooldowns yet; the traps are data on the scenario
+   (`ScenarioData.TrapDefinitions`), so a second is a line, not code.
 5. **Visuals for the day** (a visuals commit). A pip over whoever speaks and
    heads turning to them; a home-time button, so the player's path to it
    can be seen; chats that are not two statues. Nothing here decides

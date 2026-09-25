@@ -87,6 +87,7 @@ in the editor that is already open:
 .\tools\RunUnityTests.ps1 -PlayMode                  # the play-mode tests
 .\tools\RunUnityTests.ps1 -Category UnityPhysics     # the physics-foundation checks, the one category in use
 .\tools\RunUnityTests.ps1 -Reset                     # the bridge is stuck on a run Unity dropped
+.\tools\BuildModel.ps1 -Name VendingMachine          # build one model from its script with Blender (see model-pipeline.md)
 ```
 
 The editor must be open on the project and not in play mode. If nothing
@@ -148,6 +149,7 @@ word is the feature's name. These are the ones that are not:
 | `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking` |
 | `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |
 | `PerceptionSystem`, `SoundSystem` (what a person sees and hears) | `Perception,Hearing,Simulation` |
+| `ModelImportSettings`, `tools/models` (a model's way into Unity; rebuild the ruler first with `BuildModel.ps1 -Example CalibrationBox`) | `Models` |
 
 `FearSystem`, `PanicBehaviour`, `CalmBehaviour`, `Locomotion`, `Crowd` and
 the causal event log have no tests of their own; they are checked only
@@ -165,6 +167,19 @@ was retired along with its stand-ins and its runner. The two checks it made
 its own way live in the editor's suite: the fixed timestep in
 `SimulationContractEditModeTests`, and the saved scenario asset matching the
 code defaults in `SimulationEditModeTests`.
+
+## Building a model
+
+A model (a mesh for a prop or a person) is a short script under
+`tools/models/models/` that `tools\BuildModel.ps1 -Name <Name>` runs through
+Blender in the background: it checks the model against the rules, exports an
+FBX into `Assets/Paniq/Content/Models/`, draws a preview into
+`docs/models/previews/` and writes a report beside it. Nothing needs the
+Unity editor; it picks the file up next time it looks. How to ask for a
+model, what comes back and the rules a model follows are in
+[model-pipeline.md](model-pipeline.md). After any change to the kit under
+`tools/models/paniq_models/` or to the import settings, rebuild the ruler
+(`-Example CalibrationBox`) and run `-Filter Models`.
 
 ## Building a floor plan
 

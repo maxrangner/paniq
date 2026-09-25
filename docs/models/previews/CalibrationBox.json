@@ -1,0 +1,32 @@
+{
+  "blender": "5.2.2 LTS",
+  "bounds_max_m": [
+    0.6,
+    0.5,
+    1.2
+  ],
+  "bounds_min_m": [
+    -0.5,
+    -0.6,
+    0.0
+  ],
+  "budget_tris": 200,
+  "fbx": "Assets/Paniq/Tests/Fixtures/Models/CalibrationBox.fbx",
+  "footprint_mm": [
+    1200,
+    1200
+  ],
+  "hash": "d546ba48aea4871a",
+  "height_mm": 1200,
+  "name": "CalibrationBox",
+  "parts": [
+    "Lid"
+  ],
+  "preview": true,
+  "recipe": "yaw=90;forward=-Z;up=Y;apply_transform;scale=FBX_SCALE_ALL;triangles",
+  "shape_keys": [
+    "Squash"
+  ],
+  "triangles": 92,
+  "vertices": 56
+}

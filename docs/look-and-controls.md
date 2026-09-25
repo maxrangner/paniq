@@ -120,10 +120,14 @@ something you could pick up.
   alight, frozen or sitting keeps their own movement instead. This means
   movement is animated procedurally — the transform is moved, bounced and
   rocked in code, as the fire cubes already are — with **no character rigs, no
-  Animator controllers, and no animation packages**.
+  Animator controllers, and no animation packages**. A model may carry a few
+  stored deformations (a lean, a flinch) and a named moving part (a lid), but
+  the amount of each is set in code, so this rule stands; see the
+  [model pipeline](model-pipeline.md).
 
-Concept art is to be added under `docs/reference/` as it is produced. Nothing
-is there yet.
+Concept art goes under `docs/reference/`, and the
+[model pipeline](model-pipeline.md) turns a description or a picture into a
+mesh. Nothing is there yet.
 
 ## Walls and what they hide
 

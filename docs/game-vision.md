@@ -282,7 +282,8 @@ treated as settled.
 - Whether the player knows individuals by name, or the crowd stays anonymous.
 - Audio design beyond the decision that sound replaces helper markers.
 - The models themselves, and the concept art that will pin them down; the
-  style they sit in is settled in [look and controls](look-and-controls.md).
+  style they sit in is settled in [look and controls](look-and-controls.md),
+  and the way one is made in the [model pipeline](model-pipeline.md).
 - Which feelings beyond fear arrive first, and with which danger or card.
   (Crowd size and level size are decided above: large. Influence numbers and
   the card list are settled for now in [technical decisions](technical-decisions.md).)

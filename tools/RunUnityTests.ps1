@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Runs Paniq's tests inside the Unity editor that is already open.
 
@@ -9,18 +9,39 @@
     watches Temp/PaniqTestBridge/request.txt, compiles any changed code, runs
     the tests with Unity's own runner and writes the results back.
 
-    The editor must be open on this project and not in play mode. The first
+    The editor must be open on this project; a playtest left running is
+    stopped by the bridge before the tests start. The first
     time the bridge itself is added, click into the editor once so Unity
     compiles it; after that it picks up code changes by itself.
 
 .PARAMETER Filter
-    Only run tests whose full name contains this text.
+    Only run tests whose full name contains this text. Several names,
+    separated by commas, run every test matching any of them: the small gear
+    while iterating, so -Filter Doors,ClosingDoors checks the two areas a
+    change touched without the three-minute full run.
 
 .PARAMETER Category
-    Only run tests in this NUnit category, for example UnityPhysics.
+    Only run tests in this NUnit category. UnityPhysics, on the
+    physics-foundation checks, is the one category in use; every test that
+    builds a run needs physics now, so the name no longer says who needs it.
+
+.PARAMETER Slowest
+    After the run, list this many of the slowest tests with their times, so
+    trimming the suite is done on evidence.
+
+.PARAMETER LastRun
+    With -Slowest: read the previous run's results instead of running again.
+    Needs no editor. -All writes each half's results over the last, so this
+    shows the play-mode half after a full run.
 
 .PARAMETER PlayMode
     Run the play-mode tests instead of the edit-mode tests.
+
+.PARAMETER All
+    Run both halves, edit mode then play mode, and fail if either does. This
+    is what to use before committing. Without it the script runs edit mode
+    only, which is half the suite: a play-mode test once sat broken for a day
+    because every check that day had been an edit-mode one.
 
 .PARAMETER TimeoutSeconds
     How long to wait for the editor before giving up.
@@ -35,20 +56,26 @@
     afterwards.
 
 .EXAMPLE
+    .\tools\RunUnityTests.ps1 -All                       # before committing
+    .\tools\RunUnityTests.ps1 -Filter Doors,ClosingDoors # while iterating
+    .\tools\RunUnityTests.ps1 -Filter ReplayFingerprint  # simulation code changed
+    .\tools\RunUnityTests.ps1 -Slowest 10 -LastRun
     .\tools\RunUnityTests.ps1
     .\tools\RunUnityTests.ps1 -Category UnityPhysics
-    .\tools\RunUnityTests.ps1 -Filter ReplayFingerprint
     .\tools\RunUnityTests.ps1 -PlayMode
 #>
 [CmdletBinding()]
 param(
-    [string] $Filter,
+    [string[]] $Filter,
     [string] $Category,
     [switch] $PlayMode,
+    [switch] $All,
     [int] $TimeoutSeconds = 900,
     [switch] $ShowPassed,
     [switch] $Reset,
-    [string] $Menu
+    [string] $Menu,
+    [int] $Slowest = 0,
+    [switch] $LastRun
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,8 +86,59 @@ $request = Join-Path $folder 'request.txt'
 $result = Join-Path $folder 'result.txt'
 $status = Join-Path $folder 'status.txt'
 
+function Show-Slowest([string] $text, [int] $count) {
+    $timed = foreach ($line in ($text -split "`n")) {
+        if ($line -match '^(PASSED|FAILED|SKIPPED|INCONCLUSIVE)\t([^\t]+)\t([\d.]+)') {
+            [pscustomobject]@{ Name = $Matches[2]; Seconds = [double] $Matches[3] }
+        }
+    }
+    if (-not $timed) { Write-Host 'No timed tests in the results.' -ForegroundColor Yellow; return }
+    Write-Host ''
+    Write-Host "Slowest $count of $(@($timed).Count):" -ForegroundColor Cyan
+    foreach ($test in ($timed | Sort-Object Seconds -Descending | Select-Object -First $count)) {
+        Write-Host ('{0,8:N3} s  {1}' -f $test.Seconds, $test.Name)
+    }
+}
+
+if ($LastRun) {
+    if ($Slowest -le 0) { throw '-LastRun only reads results; say how many with -Slowest.' }
+    if (-not (Test-Path $result)) { throw 'No previous run to read: nothing has run through the bridge yet.' }
+    Show-Slowest (Get-Content $result -Raw) $Slowest
+    exit 0
+}
+
+if ($All) {
+    if ($Menu)     { throw '-All runs the tests; it cannot be combined with -Menu.' }
+    if ($PlayMode) { throw '-All already runs the play-mode tests.' }
+    if ($Reset)    { throw '-All runs the tests; it cannot be combined with -Reset.' }
+
+    $worst = 0
+    foreach ($half in @($false, $true)) {
+        Write-Host ''
+        Write-Host "===== $(if ($half) { 'play' } else { 'edit' }) mode =====" -ForegroundColor Cyan
+        $arguments = @{ TimeoutSeconds = $TimeoutSeconds }
+        if ($Filter)     { $arguments['Filter'] = $Filter }
+        if ($Category)   { $arguments['Category'] = $Category }
+        if ($ShowPassed) { $arguments['ShowPassed'] = $true }
+        if ($Slowest)    { $arguments['Slowest'] = $Slowest }
+        if ($half)       { $arguments['PlayMode'] = $true }
+
+        & $PSCommandPath @arguments
+        if ($LASTEXITCODE -ne 0) { $worst = $LASTEXITCODE }
+    }
+
+    Write-Host ''
+    if ($worst -eq 0) {
+        Write-Host 'Both halves passed.' -ForegroundColor Green
+    } else {
+        Write-Host 'Something failed -- look above for which half.' -ForegroundColor Red
+    }
+
+    exit $worst
+}
+
 if (-not (Test-Path (Join-Path $repository 'Temp\UnityLockfile'))) {
-    throw 'The Unity editor does not have this project open. Open it, or use tools\RunEditModeTests.ps1 for the tests that do not need Unity.'
+    throw 'The Unity editor does not have this project open. Open it: every test that builds a run needs the physics engine inside the editor.'
 }
 
 New-Item -ItemType Directory -Force -Path $folder | Out-Null
@@ -74,7 +152,7 @@ if ($Reset) {
 $id = [guid]::NewGuid().ToString('N')
 $lines = @("id=$id", "mode=$(if ($Menu) { 'Menu' } elseif ($PlayMode) { 'PlayMode' } else { 'EditMode' })")
 if ($Menu)     { $lines += "menu=$Menu" }
-if ($Filter)   { $lines += "filter=$Filter" }
+foreach ($name in $Filter) { if ($name) { $lines += "filter=$name" } }
 if ($Category) { $lines += "category=$Category" }
 
 # Write to a side file and rename, so the editor never reads half a request.
@@ -85,7 +163,8 @@ Move-Item -Force $staging $request
 if ($Menu) {
     Write-Host "Asked the Unity editor to run the menu command $Menu..." -ForegroundColor Cyan
 } else {
-    Write-Host "Asked the Unity editor to run the $(if ($PlayMode) { 'play' } else { 'edit' })-mode tests..." -ForegroundColor Cyan
+    $which = if ($Filter) { " matching $($Filter -join ', ')" } else { '' }
+    Write-Host "Asked the Unity editor to run the $(if ($PlayMode) { 'play' } else { 'edit' })-mode tests$which..." -ForegroundColor Cyan
 }
 
 $started = Get-Date
@@ -136,5 +215,7 @@ if ($passed -eq 0 -and $exitCode -eq 0) {
     Write-Host 'No tests ran. Check the filter or category.' -ForegroundColor Yellow
     $exitCode = 1
 }
+
+if ($Slowest -gt 0 -and -not $Menu) { Show-Slowest $text $Slowest }
 
 exit $exitCode

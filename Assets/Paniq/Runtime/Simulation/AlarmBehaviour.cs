@@ -2,9 +2,10 @@ namespace Paniq.Simulation
 {
     /// <summary>
     /// Raising the alarm. Somebody who has taken in that there is a fire, who
-    /// thinks of other people or is used to being listened to, and who is not in
-    /// immediate danger, breaks off to hit the alarm on the wall of the room they
-    /// are in before running. Everyone else leaves it to somebody else.
+    /// is brave, thinks of other people or is used to being listened to, and
+    /// who is not in immediate danger, breaks off to hit the alarm on the wall
+    /// of the room they are in before running. Everyone else leaves it to
+    /// somebody else.
     /// <para>
     /// Built like <see cref="ExtinguisherBehaviour"/>: one step in the panic
     /// decision that returns what the body should do, or nothing at all when
@@ -40,7 +41,7 @@ namespace Paniq.Simulation
             return activity == AgentActivityState.GoingToAlarm || activity == AgentActivityState.PullingAlarm;
         }
 
-        /// <summary>Who thinks of it: a leader, or somebody who thinks of other people.</summary>
+        /// <summary>Who thinks of it: a leader, somebody who thinks of other people, or somebody brave (the owner asked for the brave, 2026-09-25).</summary>
         private bool WouldRaiseIt(Agent agent)
         {
             if (agent.Carry.ItemIndex >= 0 || agent.Help.TargetIndex >= 0 || agent.Body.State != AgentBodyState.Upright)
@@ -49,7 +50,8 @@ namespace Paniq.Simulation
             }
 
             return agent.Traits.Leadership >= settings.PullMinimumLeadership ||
-                   agent.Traits.Compassion >= settings.PullMinimumCompassion;
+                   agent.Traits.Compassion >= settings.PullMinimumCompassion ||
+                   agent.Traits.Bravery >= settings.PullMinimumBravery;
         }
 
         /// <summary>
@@ -80,7 +82,7 @@ namespace Paniq.Simulation
 
             agent.Alarm.AlarmIndex = alarm;
             agent.Intent.Activity = AgentActivityState.GoingToAlarm;
-            agent.Intent.ActivityEndTick = checked(context.Tick + settings.FetchTimeoutTicks);
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FetchTimeoutTicks));
             return Update(agent, inDanger);
         }
 
@@ -119,7 +121,7 @@ namespace Paniq.Simulation
             if (LogicalPosition.DistanceSquared(agent.Body.Position, spot) <= reach * reach)
             {
                 agent.Intent.Activity = AgentActivityState.PullingAlarm;
-                agent.Intent.ActivityEndTick = checked(context.Tick + settings.PressTicks);
+                agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.PressTicks));
                 return FaceIt(agent, spot);
             }
 
@@ -150,7 +152,7 @@ namespace Paniq.Simulation
             if (IsRaisingTheAlarm(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = context.Tick;
+                context.ThinkAgainSoon(agent.Intent);
                 agent.Body.BlockedTicks = 0;
             }
         }

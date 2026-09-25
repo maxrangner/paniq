@@ -1,0 +1,265 @@
+using Paniq.Gameplay;
+using Paniq.Simulation;
+using UnityEngine;
+
+namespace Paniq.Presentation
+{
+    /// <summary>
+    /// Everything the round itself puts on screen: the card before it starts,
+    /// the running score and the buttons along the top, and the card at the
+    /// end.
+    /// <para>
+    /// All of it observes. It reads the snapshot and the runner and it presses
+    /// the runner's own buttons; it never decides anything about the run.
+    /// </para>
+    /// </summary>
+    internal sealed class RoundScreens
+    {
+        private const float CardWidth = 460f;
+        private static readonly Color CardBack = new Color(0f, 0f, 0f, 0.86f);
+        private static readonly Color Cleared = new Color(0.45f, 0.95f, 0.55f);
+        private static readonly Color NotCleared = new Color(1f, 0.6f, 0.45f);
+        private static readonly Color TriggerReady = new Color(0.75f, 0.2f, 0.15f, 0.95f);
+        private static readonly Color Spent = new Color(0.18f, 0.18f, 0.2f, 0.8f);
+
+        private readonly RunDriver runner;
+
+        /// <summary>What the player has typed in the seed box, kept between frames.</summary>
+        private string seedText;
+
+        /// <summary>Whether this round's result has already gone into the high score.</summary>
+        private bool resultRecorded;
+
+        /// <summary>Whether this round beat the best ever, worked out once when it ended.</summary>
+        private bool beatTheBest;
+
+        public RoundScreens(RunDriver runner)
+        {
+            this.runner = runner;
+            seedText = runner.Seed.ToString();
+        }
+
+        /// <summary>True while a card is covering the screen, so clicks in the world are ignored.</summary>
+        public bool CardIsUp => runner.IsWaitingToStart || runner.Simulation.Phase == RoundPhase.Over;
+
+        private string LevelId => runner.Level != null ? runner.Level.LevelId : "the-office";
+        private string LevelName => runner.Level != null ? runner.Level.DisplayName : "The Office";
+
+        /// <summary>Reset and Pause in the top-right corner, and Trigger event bottom centre. (The running score is drawn by the HUD, packed under the alarm band.)</summary>
+        public void DrawStrip(RunSnapshot snapshot)
+        {
+            // Back to the start card, quick, from anywhere in the round or
+            // from the end card (the owner asked, 2026-09-24). The seed is
+            // kept, so the same day can be played again from the card, or a
+            // new one typed in. It says Reset (2026-09-25), because that is
+            // what it does.
+            if (!runner.IsWaitingToStart)
+            {
+                var reset = new Rect(Screen.width - 130f, 36f, 110f, 30f);
+                HudHitTest.Claim(reset);
+                if (GUI.Button(reset, "Reset"))
+                {
+                    LevelLoader.BackToTheStart(runner.Seed);
+                    return;
+                }
+            }
+
+            // The trigger sits bottom centre and goes the moment it is pressed
+            // (the owner asked, 2026-09-25): nothing left to press means the
+            // fire has been set going. Kept clear of the hand on a narrow
+            // screen.
+            if (!snapshot.EventTriggered)
+            {
+                var trigger = new Rect(Mathf.Max(Screen.width * 0.5f - 110f, 460f), Screen.height - 64f, 220f, 36f);
+                HudHitTest.Claim(trigger);
+                GUI.backgroundColor = TriggerReady;
+                if (GUI.Button(trigger, "Trigger event"))
+                {
+                    runner.QueueTriggerEvent();
+                }
+
+                GUI.backgroundColor = Color.white;
+            }
+
+            if (snapshot.RoundIsOver)
+            {
+                return;
+            }
+
+            // Pause, under Reset. The pause screen itself says PAUSED.
+            var pause = new Rect(Screen.width - 130f, 72f, 110f, 30f);
+            HudHitTest.Claim(pause);
+            if (GUI.Button(pause, runner.IsPaused ? "Resume (Space)" : "Pause (Space)"))
+            {
+                runner.TogglePause();
+            }
+        }
+        /// <summary>The card before the round: the level, the target, the best so far, and the seed.</summary>
+        public void DrawStartCard(RunSnapshot snapshot)
+        {
+            const float height = 250f;
+            Rect card = CentredCard(height);
+            float x = card.x + 24f;
+            float y = card.y + 20f;
+            float width = card.width - 48f;
+
+            GUI.Label(new Rect(x, y, width, 26f), LevelName.ToUpperInvariant());
+            y += 30f;
+            GUI.Label(new Rect(x, y, width, 22f),
+                $"Save {snapshot.TargetSavedCount} of {snapshot.CrowdSize} people to clear it.");
+            y += 24f;
+            DrawBestSoFar(x, y, width);
+            y += 32f;
+
+            y = DrawSeedRow(x, y, width);
+            y += 12f;
+
+            if (GUI.Button(new Rect(x, y, width, 38f), "PLAY"))
+            {
+                Play();
+            }
+
+            y += 44f;
+            GUI.color = new Color(0.75f, 0.78f, 0.82f);
+            GUI.Label(new Rect(x, y, width, 22f),
+                "The office is calm until you press Trigger event yourself.");
+            GUI.color = Color.white;
+        }
+
+        /// <summary>
+        /// The card at the end: what the round came to, a way to read it back,
+        /// and two ways to play it again.
+        /// </summary>
+        public void DrawEndCard(RunSnapshot snapshot)
+        {
+            RecordResultOnce(snapshot);
+
+            const float height = 316f;
+            Rect card = CentredCard(height);
+            float x = card.x + 24f;
+            float y = card.y + 20f;
+            float width = card.width - 48f;
+
+            GUI.Label(new Rect(x, y, width, 26f),
+                $"You saved {snapshot.SavedCount} of {snapshot.CrowdSize} — {snapshot.SavedPercent}%");
+            y += 30f;
+
+            GUI.color = snapshot.Cleared ? Cleared : NotCleared;
+            GUI.Label(new Rect(x, y, width, 22f), snapshot.Cleared
+                ? $"Cleared — {snapshot.TargetSavedPercent}% was needed"
+                : $"Not cleared — {snapshot.TargetSavedPercent}% was needed");
+            GUI.color = Color.white;
+            y += 24f;
+
+            GUI.Label(new Rect(x, y, width, 22f),
+                $"{snapshot.EscapedCount} got out, {snapshot.SurvivedCount} sat it out somewhere safe, " +
+                $"{snapshot.LostCount} did not make it.");
+            y += 26f;
+
+            if (beatTheBest)
+            {
+                GUI.color = Cleared;
+                GUI.Label(new Rect(x, y, width, 22f), $"A new best: {snapshot.SavedPercent}%.");
+                GUI.color = Color.white;
+            }
+            else
+            {
+                DrawBestSoFar(x, y, width);
+            }
+
+            y += 32f;
+            y = DrawSeedRow(x, y, width);
+            y += 12f;
+
+            if (GUI.Button(new Rect(x, y, width, 32f), "What happened"))
+            {
+                WantsTheLog = true;
+            }
+
+            y += 40f;
+            float half = (width - 10f) * 0.5f;
+            if (GUI.Button(new Rect(x, y, half, 36f), "Play again (same seed)"))
+            {
+                LevelLoader.PlayAgain();
+            }
+
+            if (GUI.Button(new Rect(x + half + 10f, y, half, 36f), "Play the seed above"))
+            {
+                Play();
+            }
+        }
+
+        /// <summary>
+        /// Set when the player asks to read the round back. Whoever is drawing
+        /// takes it and clears it, so the button is a request rather than the
+        /// screens owning a second screen.
+        /// </summary>
+        public bool WantsTheLog { get; set; }
+
+        private void DrawBestSoFar(float x, float y, float width)
+        {
+            int best = LevelSession.BestPercentFor(LevelId);
+            GUI.color = new Color(0.75f, 0.78f, 0.82f);
+            GUI.Label(new Rect(x, y, width, 22f),
+                best > 0 ? $"Best so far: {best}%" : "Never played this one before.");
+            GUI.color = Color.white;
+        }
+
+        /// <summary>The seed box and its Random button. Returns the y below it.</summary>
+        private float DrawSeedRow(float x, float y, float width)
+        {
+            GUI.Label(new Rect(x, y + 4f, 44f, 22f), "Seed");
+            seedText = GUI.TextField(new Rect(x + 48f, y, width - 48f - 96f, 26f), seedText, 20);
+            if (GUI.Button(new Rect(x + width - 90f, y, 90f, 26f), "Random"))
+            {
+                seedText = LevelSession.RandomSeed().ToString();
+            }
+
+            y += 30f;
+            GUI.color = new Color(0.66f, 0.7f, 0.74f);
+            GUI.Label(new Rect(x, y, width, 20f),
+                "The same seed is the same day: the fire starts in the same place.");
+            GUI.color = Color.white;
+            return y + 22f;
+        }
+
+        /// <summary>Starts the level on whatever is in the seed box, or on the level's own seed if it makes no sense.</summary>
+        private void Play()
+        {
+            if (ulong.TryParse(seedText, out ulong seed) && seed != 0UL && seed != runner.Seed)
+            {
+                LevelLoader.PlayWithSeed(seed);
+                return;
+            }
+
+            if (runner.IsWaitingToStart)
+            {
+                runner.BeginPlaying();
+                return;
+            }
+
+            LevelLoader.PlayAgain();
+        }
+
+        /// <summary>The high score is written once, the first frame the end card is drawn.</summary>
+        private void RecordResultOnce(RunSnapshot snapshot)
+        {
+            if (resultRecorded)
+            {
+                return;
+            }
+
+            resultRecorded = true;
+            beatTheBest = LevelSession.RecordResult(LevelId, snapshot.SavedPercent);
+        }
+
+        private static Rect CentredCard(float height)
+        {
+            var card = new Rect((Screen.width - CardWidth) * 0.5f, (Screen.height - height) * 0.5f, CardWidth, height);
+            GUI.color = CardBack;
+            GUI.DrawTexture(card, Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            return card;
+        }
+    }
+}

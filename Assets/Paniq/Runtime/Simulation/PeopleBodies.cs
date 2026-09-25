@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -23,12 +23,12 @@ namespace Paniq.Simulation
     /// Everybody is handled in ascending ID order, so the engine is always
     /// given the same pushes in the same order.
     /// </summary>
-    internal sealed class PeopleBodies
+    internal sealed class PeopleBodies : IBindable
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
         private readonly PhysicsWorld world;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly PhysicsFeelSettings feel;
         private readonly int firstHandle;
         private readonly int radius;
@@ -84,12 +84,12 @@ namespace Paniq.Simulation
             Gone
         }
 
-        public PeopleBodies(SimulationContext context, Crowd crowd, PhysicsWorld world, FireSystem fire, int firstHandle)
+        public PeopleBodies(SimulationContext context, Crowd crowd, PhysicsWorld world, Threats threats, int firstHandle)
         {
             this.context = context;
             this.crowd = crowd;
             this.world = world;
-            this.fire = fire;
+            this.threats = threats;
             this.firstHandle = firstHandle;
             feel = context.Scenario.PhysicsFeel;
             radius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -106,6 +106,7 @@ namespace Paniq.Simulation
             squeezedTicks = new int[count];
             pullTo = new LogicalPosition[count];
             pullSpeed = new int[count];
+            carried = new bool[count];
             leavingChair = new int[count];
             for (int i = 0; i < count; i++)
             {
@@ -115,8 +116,8 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>Wired up after construction, because the body system is built first.</summary>
-        public void UseBody(BodySystem bodySystem) => body = bodySystem;
+        /// <summary>The body system is built before this, so it is handed over once everything exists.</summary>
+        public void Bind(Systems systems) => body = systems.Body;
 
         /// <summary>How tall a person is to the physics, in millimetres: what a flying chair can hit.</summary>
         public const int HeightMillimetres = 1700;
@@ -189,7 +190,7 @@ namespace Paniq.Simulation
             // Slowing = grip * gravity, in millimetres per tick per tick; then
             // v * v = 2 * slowing * distance.
             double slowing = feel.PersonFloorGripPercent / 100.0 * 9.81 * feel.GravityPercent / 100.0 *
-                             1000.0 / (FireReactionSimulation.TicksPerSecond * FireReactionSimulation.TicksPerSecond);
+                             1000.0 / (Run.TicksPerSecond * Run.TicksPerSecond);
             return (int)Math.Round(Math.Sqrt(2.0 * Math.Max(0.0, slowing) * Math.Max(0, distanceMillimetres)));
         }
 
@@ -202,6 +203,21 @@ namespace Paniq.Simulation
             pullTo[agent.Index] = spot;
             pullSpeed[agent.Index] = Math.Max(0, speed);
         }
+
+        /// <summary>
+        /// The same haul, but by the press of a crowd rather than a helper's
+        /// arms: it moves somebody crumpled where they stood as well as
+        /// somebody lying flat, because a crowd shoving a body through a
+        /// doorway does not care which way it fell.
+        /// </summary>
+        public void CarryToward(Agent agent, LogicalPosition spot, int speed)
+        {
+            PullToward(agent, spot, speed);
+            carried[agent.Index] = true;
+        }
+
+        /// <summary>Whether this tick's pull is the crowd's carry, which moves a crumpled body too.</summary>
+        private readonly bool[] carried;
 
         /// <summary>
         /// Sits somebody in a chair: they are put on it, held there, and pass
@@ -347,7 +363,7 @@ namespace Paniq.Simulation
 
                 if (down)
                 {
-                    if (pose[i] == Pose.Lying)
+                    if (pose[i] == Pose.Lying || carried[i])
                     {
                         Pull(agent, handle);
                     }
@@ -355,11 +371,13 @@ namespace Paniq.Simulation
                     {
                         // Crumpled where they stood: no push of their own, and
                         // anybody dragging them hauls a dead weight that will
-                        // not come.
+                        // not come. The press of a crowd is another matter
+                        // (see CarryToward).
                         pullSpeed[i] = -1;
                         world.SetGrip(handle, feel.PersonFloorGripPercent, 10);
                     }
 
+                    carried[i] = false;
                     continue;
                 }
 
@@ -583,24 +601,25 @@ namespace Paniq.Simulation
                 }
 
                 // Wanting to go somewhere and getting less than a third of the
-                // way is being stuck, whatever is in the way.
+                // way is being stuck, whatever is in the way. A tick that got
+                // somewhere forgives one stuck tick, not all of them: a crush
+                // that shoves somebody a hand's width sideways every few ticks
+                // used to wipe the count each time, so somebody pinned against
+                // a table by a jostling crowd never stayed "stuck" long enough
+                // to heave it or think again.
                 long moved = IntegerMath.Sqrt(LogicalPosition.DistanceSquared(from, to));
                 if (wanted[i] > 0 && moved * 3 < wanted[i])
                 {
                     agent.Body.BlockedTicks++;
                 }
-                else if (moved > 0L)
+                else if (moved > 0L && agent.Body.BlockedTicks > 0)
                 {
-                    agent.Body.BlockedTicks = 0;
+                    agent.Body.BlockedTicks--;
                 }
 
-                if (fire.Active && moved > 0L)
+                if (moved > 0L)
                 {
-                    ulong cellEventId = fire.FindTouchingSweep(from, to);
-                    if (cellEventId != 0UL)
-                    {
-                        body.CatchFire(agent, cellEventId);
-                    }
+                    threats.ResolveContactAlong(agent, from, to, body);
                 }
             }
         }

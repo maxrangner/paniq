@@ -18,7 +18,7 @@ namespace Paniq.Simulation
     /// pointed, does nothing and costs nothing.
     /// </para>
     /// </summary>
-    internal sealed class PlayerCommandSystem
+    internal sealed class PlayerCommandSystem : IBindable
     {
         private readonly SimulationContext context;
         private readonly List<PlayerCommand> pending = new List<PlayerCommand>();
@@ -30,27 +30,42 @@ namespace Paniq.Simulation
         private PhysicsObjectSystem objects;
         private Crowd crowd;
         private InfluenceSystem influence;
+        private DeckSystem deck;
         private SoundSystem sound;
         private BodySystem body;
         private WorldGeometry geometry;
+        private RoundSystem round;
+        private PowerSystem power;
+        private CueSystem cues;
+        private AlarmSystem alarms;
+        private GroupSystem groups;
+
+        /// <summary>Who a "Stick together" throw caught, and each one's event, gathered before anything is written.</summary>
+        private readonly List<int> caughtIndices = new List<int>();
+        private readonly List<ulong> caughtEvents = new List<ulong>();
 
         public PlayerCommandSystem(SimulationContext context)
         {
             this.context = context;
         }
 
-        /// <summary>Wired up after construction, because these are all built after this system.</summary>
-        public void Use(DoorSystem doorSystem, FireSystem fireSystem, PhysicsObjectSystem physicsObjects, Crowd people,
-            InfluenceSystem influenceSystem, SoundSystem soundSystem, BodySystem bodySystem, WorldGeometry world)
+        /// <summary>Every system a command reaches into is built after this one, so they are handed over once everything exists.</summary>
+        public void Bind(Systems systems)
         {
-            doors = doorSystem;
-            fire = fireSystem;
-            objects = physicsObjects;
-            crowd = people;
-            influence = influenceSystem;
-            sound = soundSystem;
-            body = bodySystem;
-            geometry = world;
+            round = systems.Round;
+            power = systems.Power;
+            alarms = systems.Alarms;
+            doors = systems.Doors;
+            fire = systems.Fire;
+            objects = systems.Objects;
+            crowd = systems.Crowd;
+            influence = systems.Influence;
+            deck = systems.Deck;
+            sound = systems.Sound;
+            body = systems.Body;
+            geometry = systems.Geometry;
+            cues = systems.Cues;
+            groups = systems.Groups;
         }
 
         /// <summary>Every command queued so far, in sequence order.</summary>
@@ -87,22 +102,37 @@ namespace Paniq.Simulation
             switch (commandType)
             {
                 case PlayerCommandType.ClickDoor:
+                case PlayerCommandType.ToggleLock:
                     if (doors.IndexOf(targetId) < 0)
                     {
                         throw new ArgumentException($"Unknown door ID {targetId}.", nameof(targetId));
                     }
 
                     break;
-                case PlayerCommandType.PlayBeefcake:
-                    if (crowd.IndexOf(targetId) < 0)
+                case PlayerCommandType.PullAlarm:
+                    if (alarms.IndexOf(targetId) < 0)
                     {
-                        throw new ArgumentException($"Unknown person ID {targetId}.", nameof(targetId));
+                        throw new ArgumentException($"Unknown alarm ID {targetId}.", nameof(targetId));
                     }
 
                     break;
+                // Every card below names a place, not a thing, so there is
+                // nothing to check here: whether the throw caught anybody is
+                // decided when it lands, because the world will have moved on
+                // by then. Beefcake used to name a person and be checked here;
+                // it is thrown at a patch like the rest of them now.
+                case PlayerCommandType.PlayBeefcake:
+                case PlayerCommandType.PlayCourage:
+                case PlayerCommandType.PlayTerror:
+                case PlayerCommandType.PlayBastard:
+                case PlayerCommandType.PlayColdHeart:
                 case PlayerCommandType.SpawnFire:
                 case PlayerCommandType.SpawnExtinguisher:
                 case PlayerCommandType.BlastWall:
+                case PlayerCommandType.TriggerEvent:
+                case PlayerCommandType.PopFuseBox:
+                case PlayerCommandType.CallHomeTime:
+                case PlayerCommandType.StickTogether:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(commandType), $"Unknown command type {commandType}.");
@@ -130,7 +160,90 @@ namespace Paniq.Simulation
         {
             if (command.CommandType == PlayerCommandType.ClickDoor)
             {
-                doors.ClickDoor(doors.IndexOf(command.TargetId));
+                // A door is priced by what the click would do to it -- turning
+                // the key, walking it open, pulling it shut -- rather than by
+                // the command, so its cost is asked for here and not from the
+                // card table. Same rule as a card: a click they cannot pay for,
+                // or one the door refuses, does nothing and costs nothing.
+                int door = doors.IndexOf(command.TargetId);
+                int price = influence.CostOfDoorClick(doors.StateOf(door), geometry.DoorLeadsOutside(door));
+                if (!influence.CanAfford(price))
+                {
+                    return;
+                }
+
+                if (doors.ClickDoor(door))
+                {
+                    influence.Spend(price);
+                }
+
+                return;
+            }
+
+            // The key is the player's to turn (2026-09-25): priced by the
+            // door and by what turning it does, and paid for only when the
+            // door actually changed.
+            if (command.CommandType == PlayerCommandType.ToggleLock)
+            {
+                int door = doors.IndexOf(command.TargetId);
+                int price = influence.CostOfLockToggle(doors.StateOf(door), geometry.DoorLeadsOutside(door));
+                if (!influence.CanAfford(price))
+                {
+                    return;
+                }
+
+                if (doors.ToggleLock(door))
+                {
+                    influence.Spend(price);
+                }
+
+                return;
+            }
+
+            // Pulling a fire alarm is not a card either, but it is priced like
+            // one: paid for only when the bells actually start, and free (and
+            // pointless) once they are ringing. The owner's rule: 30, always
+            // on offer, so a player who sees a fire nobody else has can raise
+            // the building.
+            if (command.CommandType == PlayerCommandType.PullAlarm)
+            {
+                int price = influence.CostOf(PlayerCommandType.PullAlarm);
+                if (!influence.CanAfford(price))
+                {
+                    return;
+                }
+
+                if (alarms.PullByPlayer(alarms.IndexOf(command.TargetId)))
+                {
+                    influence.Spend(price);
+                }
+
+                return;
+            }
+
+            // Setting the disaster going is not a card: it costs nothing, so
+            // it is dealt with before the purse is consulted at all.
+            if (command.CommandType == PlayerCommandType.TriggerEvent)
+            {
+                round.TriggerEvent();
+                return;
+            }
+
+            // Calling it a day is not a card either. The player is the cause,
+            // so it is a root event, and the cue it calls names it.
+            if (command.CommandType == PlayerCommandType.CallHomeTime)
+            {
+                ulong called = context.Events.Append(context.Tick, default, CausalEventType.PowerCalledHomeTime,
+                    geometry.FireArea.Centre).EventId;
+                cues.CallHomeTime(context.Scenario.Day.PlayerHomeTimeSpreadTicks, called);
+                return;
+            }
+
+            // A card they are not holding is not theirs to play. Cards are not
+            // bought -- the dead deal them -- so having the influence for one is
+            // only half of being able to play it.
+            if (!deck.Holds(command.CommandType))
+            {
                 return;
             }
 
@@ -144,7 +257,11 @@ namespace Paniq.Simulation
             switch (command.CommandType)
             {
                 case PlayerCommandType.PlayBeefcake:
-                    played = PlayBeefcake(command);
+                case PlayerCommandType.PlayCourage:
+                case PlayerCommandType.PlayTerror:
+                case PlayerCommandType.PlayBastard:
+                case PlayerCommandType.PlayColdHeart:
+                    played = PlayTraitCard(command);
                     break;
                 case PlayerCommandType.SpawnFire:
                     played = SpawnFire(command);
@@ -155,34 +272,174 @@ namespace Paniq.Simulation
                 case PlayerCommandType.BlastWall:
                     played = BlastWall(command);
                     break;
+                case PlayerCommandType.PopFuseBox:
+                    played = PopFuseBox(command);
+                    break;
+                case PlayerCommandType.StickTogether:
+                    played = StickTogether(command);
+                    break;
                 default:
                     played = false;
                     break;
             }
 
+            // Only a card that actually did something is paid for, and only a
+            // card that is paid for leaves the hand. A throw that caught
+            // nobody was a miss: it costs neither the influence nor the card.
             if (played)
             {
                 influence.Spend(command.CommandType);
+                deck.Discard(command.CommandType);
             }
         }
 
         /// <summary>
-        /// Beefcake: as strong as a person can be, for good. Nothing else about
-        /// them changes, and because traits are read when they are used the very
-        /// next tick already has them shouldering doors off their hinges.
+        /// What each trait card does: which dial it moves, which end it moves
+        /// it to, and what the log calls it. Every one of them is thrown at a
+        /// patch of floor rather than at a chosen person.
         /// </summary>
-        private bool PlayBeefcake(PlayerCommand command)
+        private static bool DialOf(
+            PlayerCommandType card, out AgentTrait trait, out int end, out CausalEventType logged)
         {
-            Agent agent = crowd.All[crowd.IndexOf(command.TargetId)];
-            if (!agent.IsParticipating || agent.Traits.Strength >= AgentTraitValues.Maximum)
+            switch (card)
             {
-                // Gone, or already as strong as they can get.
+                case PlayerCommandType.PlayBeefcake:
+                    trait = AgentTrait.Strength;
+                    end = AgentTraitValues.Maximum;
+                    logged = CausalEventType.PowerBeefcake;
+                    return true;
+                case PlayerCommandType.PlayCourage:
+                    trait = AgentTrait.Bravery;
+                    end = AgentTraitValues.Maximum;
+                    logged = CausalEventType.PowerCourage;
+                    return true;
+                case PlayerCommandType.PlayTerror:
+                    trait = AgentTrait.Nervousness;
+                    end = AgentTraitValues.Maximum;
+                    logged = CausalEventType.PowerTerror;
+                    return true;
+                case PlayerCommandType.PlayBastard:
+                    trait = AgentTrait.Evil;
+                    end = AgentTraitValues.Maximum;
+                    logged = CausalEventType.PowerBastard;
+                    return true;
+                case PlayerCommandType.PlayColdHeart:
+                    trait = AgentTrait.Compassion;
+                    end = AgentTraitValues.Minimum;
+                    logged = CausalEventType.PowerColdHeart;
+                    return true;
+                default:
+                    trait = AgentTrait.Strength;
+                    end = 0;
+                    logged = default;
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// A trait card, thrown at a patch of floor: everybody standing inside
+        /// it has that one dial slammed to the end of its scale, for the rest
+        /// of the round. Nothing else about them changes, and because traits
+        /// are read when they are used rather than cached, the very next tick
+        /// already has them behaving like the person they have become.
+        /// <para>
+        /// It counts as played -- and so is paid for, and leaves the hand -- if
+        /// it moved anybody's dial. A throw that catches nobody is a miss, and
+        /// so is one that catches four people who were all at that end
+        /// already: the established rule is that a card which does nothing is
+        /// free. A throw that catches the wrong person is spent, which is the
+        /// whole of the player's accuracy.
+        /// </para>
+        /// <para>
+        /// The crowd is walked in ascending order (which is the order
+        /// <see cref="Crowd.Within"/> reports), so the events this writes go
+        /// into the log in the same order on every replay of a seed.
+        /// </para>
+        /// </summary>
+        private bool PlayTraitCard(PlayerCommand command)
+        {
+            if (!DialOf(command.CommandType, out AgentTrait trait, out int end, out CausalEventType logged))
+            {
                 return false;
             }
 
-            agent.Traits = agent.Traits.WithStrength(AgentTraitValues.Maximum);
-            context.Events.Append(context.Tick, agent.Id, FireReactionEventType.PowerBeefcake, agent.Body.Position,
-                influence.CostOf(command.CommandType), 0, 0UL, agent.Id);
+            long radius = context.Scenario.Influence.CardPatchRadiusMillimetres;
+            int price = influence.CostOf(command.CommandType);
+            bool caught = false;
+
+            using (Crowd.Nearby inside = crowd.Within(command.Point, radius))
+            {
+                for (int i = 0; i < inside.Count; i++)
+                {
+                    Agent agent = crowd.All[inside[i]];
+                    if (!agent.IsParticipating || agent.Traits.Of(trait) == end)
+                    {
+                        // Gone, or that dial is already where this card would
+                        // put it.
+                        continue;
+                    }
+
+                    // The index gathers a box, not a circle, so the corners
+                    // have to be turned down by hand or the patch would catch
+                    // people 2.1 m away on the diagonal.
+                    if (LogicalPosition.DistanceSquared(agent.Body.Position, command.Point) > radius * radius)
+                    {
+                        continue;
+                    }
+
+                    agent.Traits = agent.Traits.With(trait, end);
+                    context.Events.Append(
+                        context.Tick, agent.Id, logged, agent.Body.Position, price, 0, 0UL, agent.Id);
+                    caught = true;
+                }
+            }
+
+            return caught;
+        }
+
+        /// <summary>
+        /// "Stick together", thrown at a patch of floor: everybody standing
+        /// inside it becomes one group (see <see cref="GroupSystem"/>). Two
+        /// or more make a group; a throw that catches one person or none is a
+        /// miss, free, and writes nothing -- the log is append-only, so who
+        /// was caught is settled before the first event goes in. The crowd
+        /// is walked in ascending order, so the events land in the same order
+        /// on every replay.
+        /// </summary>
+        private bool StickTogether(PlayerCommand command)
+        {
+            long radius = context.Scenario.Influence.CardPatchRadiusMillimetres;
+            int price = influence.CostOf(command.CommandType);
+            caughtIndices.Clear();
+            caughtEvents.Clear();
+            using (Crowd.Nearby inside = crowd.Within(command.Point, radius))
+            {
+                for (int i = 0; i < inside.Count; i++)
+                {
+                    Agent agent = crowd.All[inside[i]];
+                    if (!agent.IsParticipating ||
+                        LogicalPosition.DistanceSquared(agent.Body.Position, command.Point) > radius * radius)
+                    {
+                        continue;
+                    }
+
+                    caughtIndices.Add(agent.Index);
+                }
+            }
+
+            if (caughtIndices.Count < 2)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < caughtIndices.Count; i++)
+            {
+                Agent agent = crowd.All[caughtIndices[i]];
+                caughtEvents.Add(context.Events.Append(
+                    context.Tick, agent.Id, CausalEventType.PowerStickTogether, agent.Body.Position, price, 0, 0UL, agent.Id).EventId);
+            }
+
+            groups.Form(caughtIndices, caughtEvents);
             return true;
         }
 
@@ -197,7 +454,7 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            CausalEvent card = context.Events.Append(context.Tick, default, FireReactionEventType.PowerSpawnedFire,
+            CausalEvent card = context.Events.Append(context.Tick, default, CausalEventType.PowerSpawnedFire,
                 command.Point, influence.CostOf(command.CommandType));
             fire.TryIgniteForPlayer(cell, card.EventId, out ulong _);
             return true;
@@ -209,6 +466,32 @@ namespace Paniq.Simulation
         /// then the noise, then the loose things flung away from it, then the
         /// people knocked over.
         /// </summary>
+        /// <summary>
+        /// Pop the fuse box by hand. The spark then runs the other way, out of
+        /// the maintenance room and along the line of sockets, popping each in
+        /// turn -- which costs no extra rules, because a run of cable has no
+        /// direction of its own.
+        /// <para>
+        /// Refused, at no cost and with nothing written down, when there is no
+        /// fuse box near where the player pointed or it has already gone. The
+        /// reach is checked before anything is written, because the log only
+        /// ever grows and must not record something that did not happen.
+        /// </para>
+        /// </summary>
+        private bool PopFuseBox(PlayerCommand command)
+        {
+            if (!power.CanPopTheFuseBoxNear(command.Point))
+            {
+                return false;
+            }
+
+            ulong played = context.Events.Append(context.Tick, default,
+                CausalEventType.PowerPoppedFuseBox, command.Point,
+                influence.CostOf(command.CommandType), 0, 0UL).EventId;
+            power.PopTheFuseBoxNear(command.Point, played);
+            return true;
+        }
+
         private bool BlastWall(PlayerCommand command)
         {
             ulong blasted = doors.TryBlastWall(command.Point, influence.CostOf(command.CommandType));
@@ -221,21 +504,23 @@ namespace Paniq.Simulation
             sound.Bang(default, command.Point, blast.BangHearingRadiusMillimetres, blast.BangAlarmRadiusMillimetres, blasted);
             objects.FlingFrom(command.Point, blast.ThrowRadiusMillimetres, blast.ThrowSpeedMillimetresPerTick, -1, blasted);
 
-            Agent[] people = crowd.All;
             long radius = blast.KnockDownRadiusMillimetres;
-            for (int i = 0; i < people.Length; i++)
+            using (Crowd.Nearby people = crowd.Within(command.Point, radius))
             {
-                Agent agent = people[i];
-                if (!agent.IsParticipating ||
-                    LogicalPosition.DistanceSquared(agent.Body.Position, command.Point) > radius * radius)
+                for (int c = 0; c < people.Count; c++)
                 {
-                    continue;
-                }
+                    Agent agent = crowd.All[people[c]];
+                    if (!agent.IsParticipating ||
+                        LogicalPosition.DistanceSquared(agent.Body.Position, command.Point) > radius * radius)
+                    {
+                        continue;
+                    }
 
-                int away = IntegerMath.HeadingBetween(command.Point, agent.Body.Position, agent.Body.Heading);
-                body.BlowOver(agent, away,
-                    blast.ShoveDistanceMillimetres * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
-                    context.Scenario.PhysicsFeel.BlastLiftPercent, blasted);
+                    int away = IntegerMath.HeadingBetween(command.Point, agent.Body.Position, agent.Body.Heading);
+                    body.BlowOver(agent, away,
+                        blast.ShoveDistanceMillimetres * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
+                        context.Scenario.PhysicsFeel.BlastLiftPercent, blasted);
+                }
             }
 
             return true;
@@ -250,7 +535,7 @@ namespace Paniq.Simulation
             }
 
             context.Events.Append(context.Tick, objects.IdOf(index),
-                FireReactionEventType.PowerSpawnedExtinguisher, command.Point,
+                CausalEventType.PowerSpawnedExtinguisher, command.Point,
                 influence.CostOf(command.CommandType), 0, 0UL, objects.IdOf(index));
             OfferItToWhoeverCanSeeIt(command.Point);
             return true;
@@ -268,10 +553,10 @@ namespace Paniq.Simulation
             ExtinguisherSettings settings = context.Scenario.Extinguishers;
             int room = geometry.RoomAtPoint(spot);
             long reach = settings.OfferedNoticeRangeMillimetres;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby near = crowd.Within(spot, reach);
+            for (int c = 0; c < near.Count; c++)
             {
-                Agent agent = agents[i];
+                Agent agent = crowd.All[near[c]];
                 if (!agent.IsParticipating || agent.Burning.IsBurning ||
                     geometry.RoomOf(agent) != room ||
                     LogicalPosition.DistanceSquared(agent.Body.Position, spot) > reach * reach)

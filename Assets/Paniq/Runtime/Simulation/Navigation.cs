@@ -65,6 +65,14 @@ namespace Paniq.Simulation
         /// </summary>
         private const int ReachQuantumMillimetres = 2000;
 
+        /// <summary>
+        /// How far round somebody standing on a square no field reaches looks
+        /// for one it does, in squares. Two is half a metre: a body pressed
+        /// into a table's edge by a crowd, or with a table shoved into it.
+        /// Further off than that, no field can help them.
+        /// </summary>
+        private const int RecoverySquares = 2;
+
         private readonly SimulationContext context;
         private readonly NavigationGrid grid;
         private readonly FlowField[] fields = new FlowField[FieldsKept];
@@ -83,7 +91,7 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Throws away every route worked out so far, because the floor has
-        /// changed shape: a wall blown through, a table smashed to wreckage.
+        /// changed shape: a wall blown through, a table shoved somewhere new.
         /// They are cheap to work out again, and a stale one sends people at a
         /// wall that is no longer there.
         /// </summary>
@@ -120,9 +128,22 @@ namespace Paniq.Simulation
             }
 
             FlowField field = FieldTo(goal, radius);
-            if (field == null || !field.Reaches(here))
+            if (field == null)
             {
                 return straight;
+            }
+
+            int start = SquareToFollowFrom(field, here);
+            if (start < 0)
+            {
+                return straight;
+            }
+
+            if (start != here)
+            {
+                // Off the field: the first step is onto it, and from there
+                // the field takes over.
+                return IntegerMath.HeadingBetween(from, grid.CentreOfCell(start), currentHeading);
             }
 
             LogicalPosition makeFor = FurthestPointStraightAhead(field, here, from, radius);
@@ -151,13 +172,19 @@ namespace Paniq.Simulation
             }
 
             FlowField field = FieldTo(goal, radius);
-            if (field == null || !field.Reaches(here))
+            if (field == null)
+            {
+                return long.MaxValue;
+            }
+
+            int start = SquareToFollowFrom(field, here);
+            if (start < 0)
             {
                 return long.MaxValue;
             }
 
             // Costs are in fifths of a square; a square is the grid's own size.
-            return (long)field.CostAt(here) * NavigationGrid.CellSizeMillimetres / FlowField.StraightCost;
+            return (long)field.CostAt(start) * NavigationGrid.CellSizeMillimetres / FlowField.StraightCost;
         }
 
         /// <summary>
@@ -234,7 +261,77 @@ namespace Paniq.Simulation
             }
 
             FlowField field = FieldTo(goal, radius);
-            return field == null || field.Reaches(here);
+            return field == null || SquareToFollowFrom(field, here) >= 0;
+        }
+
+        /// <summary>
+        /// The square to follow a field from: the person's own, or, when the
+        /// field does not reach it, the nearest one it does.
+        ///
+        /// Somebody pressed into a table's edge by a crowd, or with a table
+        /// shoved into them, stands on floor too tight for a body, which no
+        /// field reaches. That used to read as "no way from here", the fallback
+        /// was to point straight at the goal, and on seed 41 a frightened
+        /// person spent half a minute shoving the meeting table towards the
+        /// door instead of stepping round it. The rings are walked in a fixed
+        /// order and the cheapest square of the first ring with any wins, so
+        /// a replay picks the same one. Only squares of the same room count,
+        /// so nobody is sent through a wall to the floor beyond it; a square
+        /// under the table itself belongs to no room, and from there any
+        /// neighbour will do. -1 when nothing within reach is on the field.
+        /// </summary>
+        private int SquareToFollowFrom(FlowField field, int here)
+        {
+            if (field.Reaches(here))
+            {
+                return here;
+            }
+
+            int column = here % grid.Columns;
+            int row = here / grid.Columns;
+            short room = grid.RoomOfCell(here);
+            for (int ring = 1; ring <= RecoverySquares; ring++)
+            {
+                int best = -1;
+                int bestCost = int.MaxValue;
+                for (int dz = -ring; dz <= ring; dz++)
+                {
+                    for (int dx = -ring; dx <= ring; dx++)
+                    {
+                        if (Math.Max(Math.Abs(dx), Math.Abs(dz)) != ring)
+                        {
+                            continue;
+                        }
+
+                        int nextColumn = column + dx;
+                        int nextRow = row + dz;
+                        if (nextColumn < 0 || nextRow < 0 || nextColumn >= grid.Columns || nextRow >= grid.Rows)
+                        {
+                            continue;
+                        }
+
+                        int cell = nextRow * grid.Columns + nextColumn;
+                        if ((room != NavigationGrid.Outside && grid.RoomOfCell(cell) != room) || !field.Reaches(cell))
+                        {
+                            continue;
+                        }
+
+                        int cost = field.CostAt(cell);
+                        if (cost < bestCost)
+                        {
+                            bestCost = cost;
+                            best = cell;
+                        }
+                    }
+                }
+
+                if (best >= 0)
+                {
+                    return best;
+                }
+            }
+
+            return -1;
         }
 
         /// <summary>

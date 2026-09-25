@@ -94,6 +94,16 @@ Every completed task ends with a report in this shape:
 
 ## Git workflow
 
+### Branches
+
+- **Ask the owner before creating a branch, every time.** Name the branch you
+  would make and what would go on it, then wait. This applies to a large piece
+  of work and to a one-line fix alike: a small fix does not get a branch of its
+  own unless the owner says so. Default to working on the branch that is
+  already checked out.
+- The one exception is `main`: never commit to it directly. If `main` is
+  checked out and there is work to do, that is the moment to ask, not to branch
+  quietly.
 - **Branch names**: `type/short-description` only — `feat/`, `fix/`,
   `chore/`, `docs/`, `refactor/`, `test/` — in plain kebab-case words. Never
   prefix a branch with an assistant's name (`claude/`, `codex/`, or similar),
@@ -102,9 +112,46 @@ Every completed task ends with a report in this shape:
   from a correctly named branch) before it's pushed.
 - **Merges**: always use `--no-ff`, so every integration leaves a visible
   merge commit in the log, even when the merge could fast-forward.
-- Prefer one substantial, well-described commit per real unit of work over a
-  long trail of small "wip"-style commits. Squash before pushing if a branch
-  has accumulated more commits than it has distinct changes.
+
+### How much goes in one commit
+
+**A batch of work is a few commits, usually one.** When the owner hands over a
+batch — a playtest's list of notes, a feature together with its controls and
+its drawing, a round of fixes — everything that batch produces normally lands
+in one commit: the rules, the input, the drawing, the tests and the
+documentation together. One is the reasonable answer; more is fine when each
+extra commit can be defended, in one sentence, as a change somebody would want
+to read or revert on its own without the rest — for example a tooling repair
+found on the way, a change to these agreements, or a second feature that only
+happens to share the batch. If that sentence is hard to write, it is not a
+separate commit.
+
+Never split by layer for its own sake, never by file, never one commit per
+note, and never into a trail of `wip`-style commits; if such a trail has grown
+while iterating, squash it before pushing. Fewer, larger, well-described
+commits beat many small ones every time.
+
+Use the stone's name as the scope, for example `feat(prototype-2)`. Add a
+layer suffix (`-controls` for input and camera, `-game` for rules and state,
+`-visuals` for how it is drawn) only when a commit really is confined to that
+one layer; a commit that touches several carries no suffix.
+
+- **Tests and documentation travel with the change they describe**, never in a
+  commit of their own.
+- **A fix found while reviewing your own work goes into the commit it belongs
+  to** (amend or squash it in) as long as nothing has been pushed; once pushed,
+  it is a small commit of its own.
+- **The message carries the structure, not the history**: a subject for the
+  batch, then a short list of what it adds, one line each, so the commit can
+  still be read in pieces even though it is committed in one.
+
+**Worked example.** The third playtest round produced seventeen notes: a
+stockroom, swing doors, bells that panic everybody, cards you click, doors you
+double-click, a red banner over a packed top. That is one commit,
+`feat(prototype-2): ...`, whose body lists the seventeen. It is not three
+commits by layer and not seventeen by note. A second commit is defensible for
+work unrelated to the round, such as a repair to the test bridge found on the
+way; a third would need a reason just as clear.
 
 ## Scope and structure
 
@@ -138,13 +185,42 @@ Every completed task ends with a report in this shape:
   replayable on the same build and platform.
 - Visual, audio, and UI code may observe simulation state but must not decide
   simulation outcomes.
+- **Nobody reacts on the tick a thing happens, and nothing happens to a
+  whole group on exactly the same tick.** In the owner's words: "All behavior
+  in the game should never be a reaction of a tick. Always add a small tick
+  offset to make the reactions more human." Every reaction to the world -- a
+  bell, a door opening, a shout, a noise, a leader's call, being knocked down,
+  giving something up and thinking again -- begins a few ticks late through
+  `SimulationContext.ReactionLag`; no two people finish being startled on one
+  tick (`FearSystem.Staggered`); every fixed length of time a person spends
+  goes through `SimulationContext.Jittered`; and any schedule several people
+  share (such as when a meeting ends) draws a seeded per-person offset. A new
+  reaction or timer that skips this is a bug.
 - Add ECS, Burst, navigation, or other scale tooling only after profiling shows
   that the current approach blocks the intended scenario.
 
 ## Quality checks
 
 - Add or update relevant edit-mode and play-mode tests with behavior changes.
-- Run the available Unity tests before claiming validation passed.
+- **Checking work runs in two gears.** After every edit, run
+  `tools/CompileAgainstUnity.ps1`: it needs no editor and answers in seconds.
+  While iterating, once a step has a claim worth checking (a behaviour is in,
+  not a file saved), run `tools/RunUnityTests.ps1 -Filter` with the names of
+  the areas touched, for example `-Filter Doors,ClosingDoors`. The table in
+  [`docs/development-workflow.md`](docs/development-workflow.md#which-tests-cover-what)
+  says which names cover the areas whose tests are not named after their
+  code, and `ReplayFingerprint` joins the list whenever simulation code
+  changed.
+- **The full run guards every commit.** Before the commits of a task, on the
+  tree that will be committed, and after any change to shared simulation code
+  (the run itself, the systems, the physics world, navigation), run
+  `tools/RunUnityTests.ps1 -All`. "Validation passed" means that run passed;
+  a targeted run is reported as a targeted check, naming what ran. Do not run
+  the full suite between the steps of one task: it re-proves what the step
+  could not have touched, at three minutes a time.
+- A new test that plays a whole run (3,000 ticks, a minute of game time) says
+  in its commit why a shorter one would not do. `-Slowest 10` shows what the
+  suite already pays for.
 - Record standalone-build profiling results before adopting any scale tooling,
   and whenever a prototype stone noticeably raises the number of people or
   visual objects on screen.

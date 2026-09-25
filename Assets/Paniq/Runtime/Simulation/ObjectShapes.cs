@@ -1,4 +1,4 @@
-namespace Paniq.Simulation
+﻿namespace Paniq.Simulation
 {
     /// <summary>
     /// The solid shape of each kind of loose thing, built from boxes and
@@ -99,6 +99,11 @@ namespace Paniq.Simulation
                 case PhysicsObjectKind.WallSocket:
                     return new[] { Box(0, size / 4, 0, size, size / 2, 30) };
 
+                // A cabinet on the wall: as deep as it is wide is wrong, but a
+                // slab a hand's breadth off the wall is about right.
+                case PhysicsObjectKind.FuseBox:
+                    return new[] { Box(0, size / 2, 0, size, size, 120) };
+
                 case PhysicsObjectKind.Briefcase:
                     return new[] { Box(0, size * 4 / 10, 0, size, size * 8 / 10, size * 3 / 10) };
 
@@ -108,6 +113,55 @@ namespace Paniq.Simulation
                         Box(0, 15, 0, size, 30, size * 7 / 10),
                         Box(0, size / 4, -size * 3 / 10, size, size / 2, 30)
                     };
+
+                // A tall steel box, as deep as it is wide.
+                case PhysicsObjectKind.VendingMachine:
+                    return new[] { Box(0, 900, 0, size, 1800, size) };
+
+                // A filing cabinet: a steel box to chest height.
+                case PhysicsObjectKind.Cabinet:
+                    return new[] { Box(0, 700, 0, size, 1400, size) };
+
+                // Shelves: as tall as a vending machine, but shallow, so they
+                // go over forwards at a shove.
+                case PhysicsObjectKind.Shelves:
+                    return new[] { Box(0, 900, 0, size, 1800, size * 4 / 10) };
+
+                // A copier: a big box on castors, waist high.
+                case PhysicsObjectKind.CopyMachine:
+                    return new[] { Box(0, 550, 0, size, 1100, size * 9 / 10) };
+
+                // A whiteboard on wheels: a wide low base its feet stand on,
+                // and a thin board above it. Nearly all of it is up in the
+                // air, which is why it goes over.
+                case PhysicsObjectKind.Whiteboard:
+                    return new[]
+                    {
+                        Box(0, 40, 0, size, 80, size / 2),
+                        Box(0, 1200, 0, size, 1300, 60)
+                    };
+
+                // A standing lamp: a flat base, a thin post and a shade on
+                // top, which is the part that comes off when it goes over.
+                case PhysicsObjectKind.StandingLamp:
+                    return new[]
+                    {
+                        Box(0, 20, 0, size, 40, size),
+                        Box(0, 770, 0, 40, 1460, 40),
+                        Box(0, 1600, 0, size * 11 / 10, 250, size * 11 / 10)
+                    };
+
+                case PhysicsObjectKind.LampShade:
+                    return new[] { Box(0, 125, 0, size, 250, size) };
+
+                // A robot vacuum: a low disc, near-square to the engine.
+                case PhysicsObjectKind.RobotVacuum:
+                    return new[] { Box(0, 45, 0, size, 90, size) };
+
+                // A fire alarm bell: a plate high on the wall, above every
+                // head, so nobody ever bumps into it.
+                case PhysicsObjectKind.AlarmSounder:
+                    return new[] { Box(0, 2100, 0, size, size, 40) };
 
                 default:
                     return new[] { Box(0, size * 3 / 8, 0, size, size * 3 / 4, size) };
@@ -160,10 +214,29 @@ namespace Paniq.Simulation
                     return size * 6 / 10;
                 case PhysicsObjectKind.WallSocket:
                     return size / 2;
+                case PhysicsObjectKind.FuseBox:
+                    return size;
                 case PhysicsObjectKind.Briefcase:
                     return size * 8 / 10;
                 case PhysicsObjectKind.Laptop:
                     return 30;
+                case PhysicsObjectKind.VendingMachine:
+                case PhysicsObjectKind.Shelves:
+                    return 1800;
+                case PhysicsObjectKind.Cabinet:
+                    return 1400;
+                case PhysicsObjectKind.CopyMachine:
+                    return 1100;
+                case PhysicsObjectKind.Whiteboard:
+                    return 1850;
+                case PhysicsObjectKind.StandingLamp:
+                    return 1725;
+                case PhysicsObjectKind.LampShade:
+                    return 250;
+                case PhysicsObjectKind.RobotVacuum:
+                    return 90;
+                case PhysicsObjectKind.AlarmSounder:
+                    return 2100 + size / 2;
                 default:
                     return size * 3 / 4;
             }

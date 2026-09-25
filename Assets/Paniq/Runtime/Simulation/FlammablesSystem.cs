@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -34,6 +34,9 @@ namespace Paniq.Simulation
             public ulong EventId;
             public int RestCell = -1;
             public int RestTicks;
+
+            /// <summary>It goes off at the end of its burn rather than the moment it catches.</summary>
+            public bool PopsWhenBurntOut;
         }
 
         private readonly SimulationContext context;
@@ -42,7 +45,6 @@ namespace Paniq.Simulation
         private readonly FireSystem fire;
         private readonly PhysicsObjectSystem objects;
         private readonly BodySystem body;
-        private readonly SoundSystem sound;
         private readonly FlammableSettings settings;
         private readonly int personRadius;
 
@@ -64,10 +66,8 @@ namespace Paniq.Simulation
             WorldGeometry geometry,
             FireSystem fire,
             PhysicsObjectSystem objects,
-            BodySystem body,
-            SoundSystem sound)
+            BodySystem body)
         {
-            this.sound = sound;
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
@@ -89,7 +89,8 @@ namespace Paniq.Simulation
                     // Nothing that takes no time to catch: 0 means it never does.
                     IgniteTicks = kind.IgniteTicks,
                     BurnMinimumTicks = kind.BurnMinimumTicks,
-                    BurnMaximumTicks = kind.BurnMaximumTicks
+                    BurnMaximumTicks = kind.BurnMaximumTicks,
+                    PopsWhenBurntOut = kind.PopsWhenBurntOut
                 };
 
                 things[i].Slot = i;
@@ -125,8 +126,12 @@ namespace Paniq.Simulation
 
             int tick = context.Tick;
 
-            // Burning people set alight whatever they touch.
+            // Burning people set alight whatever they touch: the loose things
+            // near them, read from the index, then the tables, which are few.
+            // Loose things come before tables in the list of things, so this
+            // is the order a walk of everything would have lit them in.
             Agent[] agents = crowd.All;
+            int touch = personRadius + settings.TouchGapMillimetres;
             for (int a = 0; a < agents.Length; a++)
             {
                 Agent agent = agents[a];
@@ -135,7 +140,20 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                for (int i = 0; i < things.Length; i++)
+                using (PhysicsObjectSystem.Nearby near = objects.Gather(
+                           UniformGridIndex.Around(agent.Body.Position, (long)touch + objects.WidestRadius)))
+                {
+                    for (int c = 0; c < near.Count; c++)
+                    {
+                        int i = near[c];
+                        if (things[i].State == ObjectBurnState.Intact && !IsNowhere(things[i]) && Touches(things[i], agent))
+                        {
+                            Ignite(things[i], agent.Burning.EventId);
+                        }
+                    }
+                }
+
+                for (int i = objects.Count; i < things.Length; i++)
                 {
                     if (things[i].State == ObjectBurnState.Intact && Touches(things[i], agent))
                     {
@@ -149,8 +167,14 @@ namespace Paniq.Simulation
             {
                 Flammable thing = things[i];
 
-                // Ignite time 0 means this thing never catches at all (a potted plant).
-                if (thing.State != ObjectBurnState.Intact || thing.IgniteTicks <= 0)
+                // Ignite time 0 means this thing never catches at all (a potted
+                // plant); and a thing that is not in the world yet (a spare
+                // extinguisher the card has not put down, a lamp's shade while
+                // the lamp stands) is nowhere for the flames to reach. Until
+                // 2026-09-25 a dormant shade authored at its lamp's spot could
+                // be lit by a fire in that corner and light the floor from
+                // nowhere.
+                if (thing.State != ObjectBurnState.Intact || thing.IgniteTicks <= 0 || IsNowhere(thing))
                 {
                     continue;
                 }
@@ -179,19 +203,33 @@ namespace Paniq.Simulation
                 if (tick >= thing.BurnEndTick)
                 {
                     StopBurning(thing);
-                    context.Events.Append(tick, thing.Id, FireReactionEventType.ObjectBurntOut, PositionOf(thing), 0, 0,
+                    context.Events.Append(tick, thing.Id, CausalEventType.ObjectBurntOut, PositionOf(thing), 0, 0,
                         thing.EventId);
+                    if (thing.PopsWhenBurntOut)
+                    {
+                        // A robot vacuum's battery: it has ridden about alight
+                        // for a good while, and now it goes.
+                        Pop(thing);
+                    }
+
                     continue;
                 }
 
                 LightTheFloor(thing);
 
-                // Anyone touching it catches fire.
-                for (int a = 0; a < agents.Length; a++)
+                // Anyone touching it catches fire: only the people near it,
+                // in ascending order as ever.
+                using (Crowd.Nearby near = thing.IsTable
+                           ? crowd.Gather(Grow(geometry.TableBounds(thing.Index), touch))
+                           : crowd.Within(objects.PositionOf(thing.Index), objects.RadiusOf(thing.Index) + (long)touch))
                 {
-                    if (agents[a].IsParticipating && !agents[a].Burning.IsBurning && Touches(thing, agents[a]))
+                    for (int c = 0; c < near.Count; c++)
                     {
-                        body.CatchFire(agents[a], thing.EventId);
+                        Agent agent = agents[near[c]];
+                        if (agent.IsParticipating && !agent.Burning.IsBurning && Touches(thing, agent))
+                        {
+                            body.CatchFire(agent, thing.EventId);
+                        }
                     }
                 }
             }
@@ -225,9 +263,12 @@ namespace Paniq.Simulation
                 }
 
                 StopBurning(thing);
-                context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ObjectBurntOut, where, 0, 0, causeEventId);
+                context.Events.Append(context.Tick, thing.Id, CausalEventType.ObjectBurntOut, where, 0, 0, causeEventId);
             }
         }
+
+        /// <summary>A loose thing that is not in the world yet: dormant until something puts it there.</summary>
+        private bool IsNowhere(Flammable thing) => !thing.IsTable && objects.IsDormant(thing.Index);
 
         /// <summary>The event of the flames heating this thing (the earliest-lit square, or a burning thing), or 0 when nothing is close.</summary>
         private ulong HeatSource(Flammable thing)
@@ -279,13 +320,17 @@ namespace Paniq.Simulation
             int duration = context.Random.NextIntInclusive(thing.BurnMinimumTicks, thing.BurnMaximumTicks);
             StartBurning(thing);
             thing.BurnEndTick = checked(tick + duration);
-            thing.EventId = context.Events.Append(tick, thing.Id, FireReactionEventType.ObjectCaughtFire, PositionOf(thing),
+            thing.EventId = context.Events.Append(tick, thing.Id, CausalEventType.ObjectCaughtFire, PositionOf(thing),
                 0, duration, causeEventId).EventId;
             thing.RestCell = -1;
             thing.RestTicks = 0;
 
-            // Something electrical does not sit and burn: it goes off.
-            Pop(thing);
+            // Something electrical does not sit and burn: it goes off -- now,
+            // or, for a thing whose row says so, at the end of its burn.
+            if (!thing.PopsWhenBurntOut)
+            {
+                Pop(thing);
+            }
         }
 
         /// <summary>
@@ -306,42 +351,51 @@ namespace Paniq.Simulation
                 return;
             }
 
-            ObjectKindSettings kind = settings.Of(objects.KindOf(thing.Index));
-            if (kind.PopRadiusMillimetres <= 0)
+            // The blast itself belongs to the things, not to the flames: the
+            // fire reaching it is only one of the reasons something goes off.
+            ulong bang = objects.Detonate(thing.Index, thing.Id, thing.EventId);
+            if (bang == 0UL)
             {
                 return;
             }
 
-            LogicalPosition centre = objects.PositionOf(thing.Index);
-            long radius = kind.PopRadiusMillimetres;
-            ulong bang = context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ObjectExploded, centre,
-                kind.PopRadiusMillimetres, 0, thing.EventId).EventId;
-
-            // Heard well beyond the blast itself, which is how the far side of
-            // the building learns something has happened.
-            sound.Bang(thing.Id, centre, kind.PopRadiusMillimetres * 6, kind.PopRadiusMillimetres * 3, bang);
-
-            objects.FlingFrom(centre, kind.PopRadiusMillimetres, kind.PopSpeed, thing.Index, bang);
-
-            Agent[] people = crowd.All;
-            for (int i = 0; i < people.Length; i++)
+            ObjectKindSettings kind = settings.Of(objects.KindOf(thing.Index));
+            if (!kind.PopDouses)
             {
-                Agent agent = people[i];
-                if (!agent.IsParticipating ||
-                    LogicalPosition.DistanceSquared(agent.Body.Position, centre) > radius * radius)
-                {
-                    continue;
-                }
-
-                int away = IntegerMath.HeadingBetween(centre, agent.Body.Position, agent.Body.Heading);
-                body.BlowOver(agent, away,
-                    kind.PopRadiusMillimetres / 3 * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
-                    context.Scenario.PhysicsFeel.BlastLiftPercent, bang);
+                return;
             }
 
-            fire.IgniteAround(centre, kind.PopRadiusMillimetres, kind.PopIgniteCells, bang);
-            objects.Wreck(thing.Index, thing.Id, bang);
+            // A bottle bursting empties itself over everything around it:
+            // every burning square in its circle goes out, nearest first,
+            // then everything and everybody alight in it -- the bottle itself
+            // included, which is then spent. Squares, things, people: the
+            // order the spray uses, so a replay agrees.
+            LogicalPosition centre = objects.PositionOf(thing.Index);
+            int reach = kind.PopRadiusMillimetres;
+            fire.CollectBurningWithin(centre, reach, burst);
+            for (int i = 0; i < burst.Count; i++)
+            {
+                fire.Douse(burst[i], thing.Id, bang);
+            }
+
+            DouseWithin(centre, reach, bang, 0, 180);
+            objects.UseFuel(thing.Index, int.MaxValue);
+            using (Crowd.Nearby near = crowd.Within(centre, reach))
+            {
+                for (int c = 0; c < near.Count; c++)
+                {
+                    Agent other = crowd.All[near[c]];
+                    if (other.IsParticipating && other.Burning.IsBurning &&
+                        LogicalPosition.DistanceSquared(other.Body.Position, centre) <= (long)reach * reach)
+                    {
+                        body.PutOutPerson(other, bang);
+                    }
+                }
+            }
         }
+
+        /// <summary>The burning squares a bursting bottle reaches, reused each time one goes.</summary>
+        private readonly List<int> burst = new List<int>();
 
         /// <summary>A burning thing that stays in one square for a moment sets that square alight.</summary>
         private void LightTheFloor(Flammable thing)
@@ -365,6 +419,27 @@ namespace Paniq.Simulation
             {
                 fire.IgniteCell(cell, thing.EventId);
             }
+        }
+
+        /// <summary>How many things are burning right now, for telling a settled building from a busy one.</summary>
+        public int BurningCount => alight.Count;
+
+        /// <summary>
+        /// Whether anything in this room is alight. A burning chair in a room
+        /// with no burning floor square is still the fire being in that room,
+        /// which is what the end of a round has to know.
+        /// </summary>
+        public bool AnythingBurningInRoom(int room)
+        {
+            for (int i = 0; i < alight.Count; i++)
+            {
+                if (geometry.RoomAtPoint(PositionOf(things[alight[i]])) == room)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private LogicalPosition PositionOf(Flammable thing)
@@ -420,17 +495,22 @@ namespace Paniq.Simulation
 
         public int ObjectHeatPercent(int objectIndex) => HeatPercent(things[objectIndex]);
 
-        public FireReactionTableSnapshot[] GetTableSnapshots()
+        public TableSnapshot[] GetTableSnapshots()
         {
-            var tables = new FireReactionTableSnapshot[geometry.TableCount];
-            for (int t = 0; t < tables.Length; t++)
+            var tables = new TableSnapshot[geometry.TableCount];
+            FillTableSnapshots(tables);
+            return tables;
+        }
+
+        /// <summary>Every table as it stands, written into a buffer of exactly that many.</summary>
+        public void FillTableSnapshots(TableSnapshot[] into)
+        {
+            for (int t = 0; t < into.Length; t++)
             {
                 Flammable thing = things[objects.Count + t];
-                tables[t] = new FireReactionTableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
-                    geometry.TablePose(t), geometry.IsTableBroken(t));
+                into[t] = new TableSnapshot(thing.Id, geometry.TableBounds(t), thing.State, HeatPercent(thing),
+                    geometry.TablePose(t));
             }
-
-            return tables;
         }
 
         private static int HeatPercent(Flammable thing)

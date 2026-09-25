@@ -115,6 +115,21 @@ namespace Paniq.Simulation
     /// <c>TraitEffects</c>). Authored per person in the scenario, or drawn
     /// from the seed.
     /// </summary>
+    /// <summary>
+    /// The seven dials, by name, so a card can say which one it moves without
+    /// every card needing a method of its own.
+    /// </summary>
+    public enum AgentTrait
+    {
+        Strength,
+        Speed,
+        Bravery,
+        Compassion,
+        Evil,
+        Nervousness,
+        Leadership
+    }
+
     [Serializable]
     public struct AgentTraitValues : IEquatable<AgentTraitValues>
     {
@@ -150,11 +165,55 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// The same person with a different strength. Used by the player's
-        /// Beefcake power; everything that reads strength picks it up on the
+        /// Beefcake card; everything that reads strength picks it up on the
         /// next tick, because traits are read when used and never cached.
         /// </summary>
-        public AgentTraitValues WithStrength(int newStrength) =>
-            new AgentTraitValues(newStrength, speed, bravery, compassion, evil, nervousness, leadership);
+        public AgentTraitValues WithStrength(int newStrength) => With(AgentTrait.Strength, newStrength);
+
+        /// <summary>
+        /// The same person with one dial moved. The player's cards all do this
+        /// and differ only in which dial and which end, so they share one
+        /// method rather than having seven of their own.
+        /// </summary>
+        public AgentTraitValues With(AgentTrait which, int value)
+        {
+            switch (which)
+            {
+                case AgentTrait.Strength:
+                    return new AgentTraitValues(value, speed, bravery, compassion, evil, nervousness, leadership);
+                case AgentTrait.Speed:
+                    return new AgentTraitValues(strength, value, bravery, compassion, evil, nervousness, leadership);
+                case AgentTrait.Bravery:
+                    return new AgentTraitValues(strength, speed, value, compassion, evil, nervousness, leadership);
+                case AgentTrait.Compassion:
+                    return new AgentTraitValues(strength, speed, bravery, value, evil, nervousness, leadership);
+                case AgentTrait.Evil:
+                    return new AgentTraitValues(strength, speed, bravery, compassion, value, nervousness, leadership);
+                case AgentTrait.Nervousness:
+                    return new AgentTraitValues(strength, speed, bravery, compassion, evil, value, leadership);
+                case AgentTrait.Leadership:
+                    return new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, value);
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(which), $"Unknown trait {which}.");
+            }
+        }
+
+        /// <summary>One dial's reading, by name.</summary>
+        public int Of(AgentTrait which)
+        {
+            switch (which)
+            {
+                case AgentTrait.Strength: return strength;
+                case AgentTrait.Speed: return speed;
+                case AgentTrait.Bravery: return bravery;
+                case AgentTrait.Compassion: return compassion;
+                case AgentTrait.Evil: return evil;
+                case AgentTrait.Nervousness: return nervousness;
+                case AgentTrait.Leadership: return leadership;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(which), $"Unknown trait {which}.");
+            }
+        }
 
         public static AgentTraitValues AllOrdinary =>
             new AgentTraitValues(Ordinary, Ordinary, Ordinary, Ordinary, Ordinary, Ordinary, Ordinary);
@@ -198,6 +257,26 @@ namespace Paniq.Simulation
         West
     }
 
+    /// <summary>
+    /// How well somebody knows the building before anything happens.
+    /// <para>
+    /// Zero has to mean "knows it": a person authored before this existed, or
+    /// in any level that never says, reads back as zero and keeps the perfect
+    /// map everybody used to be given.
+    /// </para>
+    /// </summary>
+    public enum AgentFamiliarity
+    {
+        /// <summary>Works here: knows every door and where it leads.</summary>
+        KnowsTheBuilding,
+
+        /// <summary>
+        /// Only knows the room they start in. Everything else they find out by
+        /// looking, reading the signs, and being shown.
+        /// </summary>
+        Visitor
+    }
+
     public enum AgentParticipation
     {
         Participating,
@@ -219,7 +298,10 @@ namespace Paniq.Simulation
         Bumped,
 
         /// <summary>A fire alarm went off. Appended only.</summary>
-        Alarm
+        Alarm,
+
+        /// <summary>They saw somebody bolt: leap up, or run, frightened. Appended only.</summary>
+        SawSomeoneRun
     }
 
     /// <summary>What an agent is currently choosing to do. Calm and panic activities are separate.</summary>
@@ -276,7 +358,135 @@ namespace Paniq.Simulation
         Barricading,
 
         /// <summary>Heaving whatever is wedged in a doorway out of the way.</summary>
-        ShovingObstruction
+        ShovingObstruction,
+
+        /// <summary>
+        /// Walking somewhere with a purpose while calm -- home, to a stall, to
+        /// the way out, over to somebody -- or standing at a door on the way
+        /// (see <see cref="ErrandBehaviour"/>).
+        /// </summary>
+        RunningAnErrand,
+
+        /// <summary>Stood talking to somebody, facing them.</summary>
+        Chatting
+    }
+
+    /// <summary>
+    /// A small thing that happens in the building's day and changes what some
+    /// people want to do: the game's word for one of these, because "event"
+    /// already means a line in the causal log. Called by the Director from the
+    /// level's timetable, by a person as their own idea, or by the player.
+    /// Appended only: a kind's number is carried in the log.
+    /// </summary>
+    public enum CueKind
+    {
+        /// <summary>The meeting in a room breaks up: the host first, the rest one by one.</summary>
+        MeetingEnds,
+
+        /// <summary>The end of the working day: everybody packs up and leaves.</summary>
+        HomeTime,
+
+        /// <summary>Two people stop and talk.</summary>
+        Chat,
+
+        /// <summary>Somebody goes to the toilet.</summary>
+        ToiletTrip,
+
+        /// <summary>Somebody goes back to their own desk. Their own idea, and not written down: nobody else notices.</summary>
+        GoHome,
+
+        /// <summary>Somebody has heard a threat's noise from another room and goes to see what it is. Their own idea.</summary>
+        GoAndLook
+    }
+
+    /// <summary>Who a cue reaches. Which of these a cue has decides whether the timetable may call it.</summary>
+    public enum CueAudience
+    {
+        /// <summary>The person whose idea it was, and nobody else.</summary>
+        Self,
+
+        /// <summary>The person whose idea it was and the one person it is about.</summary>
+        Pair,
+
+        /// <summary>Everybody calm in the room it is called in.</summary>
+        Room,
+
+        /// <summary>Everybody calm in the building.</summary>
+        Building
+    }
+
+    /// <summary>Who speaks for a cue and takes it up first.</summary>
+    public enum CueHostRule
+    {
+        Nobody,
+
+        /// <summary>The seated person in the room with the most leadership, the lower ID on a tie; failing anybody seated, anybody calm in it.</summary>
+        SeatedWithMostLeadership
+    }
+
+    /// <summary>
+    /// One step of an errand: the vocabulary a cue's script is written in
+    /// (see <see cref="ErrandBehaviour"/>). Appended only: a step's number is
+    /// saved in the scenario.
+    /// </summary>
+    public enum ErrandStepKind
+    {
+        /// <summary>Walk to the place the step's target names, room to room, opening shut doors on the way and waiting at a locked one.</summary>
+        GoTo,
+
+        /// <summary>Sit on the chair the target names (their own), if there is one and they are near it. Skipped otherwise.</summary>
+        SitOn,
+
+        /// <summary>Stand for a while, drawn from the step's range.</summary>
+        StandFor,
+
+        /// <summary>Say something that is heard nearby. Takes no time.</summary>
+        Say,
+
+        /// <summary>Stand talking with the partner, a remark now and then, until the chat ends.</summary>
+        Talk,
+
+        /// <summary>Shut the door of the small room they are in (a stall). Takes no time.</summary>
+        ShutTheDoor,
+
+        /// <summary>Open the door of the small room they are in, which takes a moment; wait if it is locked.</summary>
+        OpenTheDoor,
+
+        /// <summary>Walk out of the building through the nearest way out, waiting at a locked one.</summary>
+        Leave
+    }
+
+    /// <summary>Where a step is aimed.</summary>
+    public enum ErrandTarget
+    {
+        None,
+
+        /// <summary>Their own chair or spot. A step aimed here is skipped by somebody with no home.</summary>
+        Home,
+
+        /// <summary>The nearest free toilet stall. An errand aimed here ends when there is none.</summary>
+        FreeStall,
+
+        /// <summary>The person the cue is about. An errand aimed here ends when they are gone.</summary>
+        Partner,
+
+        /// <summary>Their own chair or spot, or, for somebody with no home, where they stood when the errand began.</summary>
+        HomeOrWhereTheyStood,
+
+        /// <summary>The noise they went to look at: where they heard it come from, stopped short of.</summary>
+        TheNoise
+    }
+
+    /// <summary>
+    /// What a room is for, where that changes what people do in it. Zero is
+    /// an ordinary room, so a room authored before this existed reads as one.
+    /// </summary>
+    public enum RoomUse
+    {
+        Ordinary,
+
+        /// <summary>A toilet stall: somebody goes in, shuts the door, and comes out a while later.</summary>
+        Stall
     }
 
     /// <summary>Seeded personality: how this person reacts once scared.</summary>
@@ -299,14 +509,39 @@ namespace Paniq.Simulation
         Unconscious
     }
 
+    /// <summary>
+    /// How a person's run finished. Appended to only: each value's number is
+    /// part of the replay fingerprint.
+    /// </summary>
     public enum AgentTerminalOutcome
     {
         Unresolved,
         Lost,
-        Escaped
+        Escaped,
+
+        /// <summary>
+        /// Alive at the end of the round, still inside, somewhere the hazard
+        /// could not reach. The game vision counts barricading yourself into a
+        /// storeroom as living through the disaster, not as an exploit, so this
+        /// counts as saved exactly as <see cref="Escaped"/> does.
+        /// </summary>
+        Survived
     }
 
-    public enum FireReactionEventType
+    /// <summary>Where a round has got to: before the event, during it, or finished.</summary>
+    public enum RoundPhase
+    {
+        /// <summary>The building is going about its day and nothing has gone wrong yet.</summary>
+        BeforeEvent,
+
+        /// <summary>The hazard has started and people are resolving one way or the other.</summary>
+        Running,
+
+        /// <summary>Nobody is left to resolve. Nothing moves and the score is final.</summary>
+        Over
+    }
+
+    public enum CausalEventType
     {
         FireActivated,
         FireSpread,
@@ -382,7 +617,7 @@ namespace Paniq.Simulation
         /// <summary>An alarm ringing, which is the noise everybody hears (source: the alarm).</summary>
         AlarmRang,
 
-        /// <summary>A chair or table smashed by something hitting it hard (source: the thing that broke, target: what hit it).</summary>
+        /// <summary>A loose thing smashed by something hitting it hard (source: the thing that broke, target: what hit it). Furniture never smashes.</summary>
         ObjectBroke,
 
         /// <summary>
@@ -426,7 +661,190 @@ namespace Paniq.Simulation
         AgentCrushed,
 
         /// <summary>Somebody alight throws themselves down and rolls (source: the person; strength: how long the roll lasts).</summary>
-        AgentRolled
+        AgentRolled,
+
+        /// <summary>
+        /// The player set the disaster going (strength: the tick they pressed
+        /// it on). The root cause of everything the hazard goes on to do.
+        /// </summary>
+        RoundEventTriggered,
+
+        /// <summary>
+        /// Somebody alive and out of the hazard's reach when the round
+        /// finished (source: the person). Counts as saved.
+        /// </summary>
+        AgentSurvived,
+
+        /// <summary>
+        /// Nobody is left to resolve and the round is over (strength: how many
+        /// were saved; cause: what triggered the round).
+        /// </summary>
+        RoundEnded,
+
+        /// <summary>
+        /// A shut door that stood in the flames long enough to burn through
+        /// (source and target: the door; strength: its width; cause: the
+        /// burning square that ate it). It is open for good, like any other
+        /// broken door.
+        /// </summary>
+        DoorBurntThrough,
+
+        /// <summary>
+        /// A spark set off along a run of cable (source: the thing that just
+        /// went off; target: what is at the far end; strength: how long the
+        /// run is in millimetres; duration: how many ticks it will take).
+        /// </summary>
+        PowerSparkStarted,
+
+        /// <summary>
+        /// A spark reached the far end of its cable (source and target: the
+        /// thing it reached). Whatever is there goes off, unless it already
+        /// has.
+        /// </summary>
+        PowerSparkArrived,
+
+        /// <summary>The player popped the fuse box by hand (target: the box; strength: what it cost).</summary>
+        PowerPoppedFuseBox,
+
+        /// <summary>
+        /// Somebody frightened who knows of no way out has started looking for
+        /// one (source: them; cause: what frightened them).
+        /// </summary>
+        AgentLookedForAWayOut,
+
+        /// <summary>
+        /// Somebody looking for a way out has looked all round a room and found
+        /// nothing onward from it but the way they came in (source: them;
+        /// cause: when they started looking).
+        /// </summary>
+        AgentFoundADeadEnd,
+
+        /// <summary>
+        /// Somebody frightened has just learned of a way out they did not know
+        /// (source: them; strength: how they learned it, a
+        /// <see cref="WayLearned"/>; cause: the rally that told them, where
+        /// there is one). No target, deliberately: the person is the subject,
+        /// so the pop-up sign is theirs and carries their number.
+        /// </summary>
+        AgentFoundTheWayOut,
+
+        /// Somebody was killed and their death dealt the player a card. The
+        /// strength field carries which card it was, as a
+        /// <see cref="PlayerCommandType"/>.
+        /// </summary>
+        CardDealt,
+
+        // One apiece for the trait cards, appended once per person caught, so
+        // the round reads back as "you made these four fearless" rather than
+        // as one line naming a patch of carpet.
+
+        /// <summary>Courage caught this person: their bravery is now at the top.</summary>
+        PowerCourage,
+
+        /// <summary>Terror caught this person: their nervousness is now at the top.</summary>
+        PowerTerror,
+
+        /// <summary>Bastard caught this person: their evil is now at the top.</summary>
+        PowerBastard,
+
+        /// <summary>Cold heart caught this person: their compassion is now at the bottom.</summary>
+        PowerColdHeart,
+
+        /// <summary>
+        /// Somebody stuck behind a table in a panic heaved it out of their
+        /// way. Names the table; the strength is the change of speed it was
+        /// given, in millimetres per tick.
+        /// </summary>
+        TableHeaved,
+
+        /// <summary>
+        /// Something went over and popped: a standing lamp's bulb bursting as
+        /// it hits the floor. A small crack, not a bang: nothing is thrown,
+        /// nobody is knocked down and no floor is lit. The strength is how big
+        /// the thing is, in millimetres, for drawing the flash.
+        /// </summary>
+        ObjectPopped,
+
+        /// <summary>
+        /// A cue was called (see <see cref="CueKind"/>, carried as the
+        /// strength). Source: whoever called it -- the host who ended the
+        /// meeting, the person who went to the toilet or started the chat --
+        /// or nobody, for the Director's timetable and the player. Target: the
+        /// room it was called in, or the person it was called to. Cause: the
+        /// player's command, when it was theirs.
+        /// </summary>
+        CueCalled,
+
+        /// <summary>
+        /// A remark in a conversation, heard a little way off (source: the
+        /// speaker; strength: how far it carries; cause: the chat's cue).
+        /// Chatter: it is folded in the read-back and earns no sign.
+        /// </summary>
+        AgentSaid,
+
+        /// <summary>The player called it a day. A root event: the cue it calls names it as its cause.</summary>
+        PowerCalledHomeTime,
+
+        /// <summary>
+        /// Somebody cruel would not take up a cue: sat on when the meeting
+        /// ended, ignored home time, would not talk to whoever came over.
+        /// Strength is the <see cref="CueKind"/>; the target, for a chat,
+        /// is the person turned away. Its cause is the cue's line, or
+        /// nothing for a chat that was never written down.
+        /// </summary>
+        AgentIgnoredCue,
+
+        /// <summary>
+        /// Their only way out is through the heat and they ran for it: the
+        /// door's approach is inside their danger distance, or the room
+        /// beyond it is alight, but the floor there is still walkable, and
+        /// they are brave enough, or their own room is burning. Target: the
+        /// door run for. Cause: their fright.
+        /// </summary>
+        AgentDashedThroughHeat,
+
+        /// <summary>
+        /// Their only way out is through the heat and they would not risk it
+        /// -- not brave enough, or the route crosses burning floor -- so they
+        /// gave that door up for a while and looked for somewhere to hide.
+        /// Target: the door given up. Cause: their fright.
+        /// </summary>
+        AgentHidFromTheHeat,
+
+        /// <summary>
+        /// Down inside an open doorway with the crowd pressing on them from
+        /// one side, they are carried on through it by the press. Target:
+        /// the door. Cause: whatever put them down.
+        /// </summary>
+        AgentCarriedThroughDoorway,
+
+        /// <summary>
+        /// The player pulled a fire alarm. A root event: the bells that ring
+        /// name it as their cause. Target: the alarm.
+        /// </summary>
+        PowerPulledAlarm,
+
+        /// <summary>
+        /// The player threw "Stick together": one of these per person the
+        /// throw caught, who is now bound to the others. Target: the person.
+        /// </summary>
+        PowerStickTogether
+    }
+
+    /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
+    public enum WayLearned
+    {
+        /// <summary>They saw it, in their own room or through an open doorway.</summary>
+        Saw,
+
+        /// <summary>A green sign pointed the way.</summary>
+        Sign,
+
+        /// <summary>It opened near them, which nobody misses.</summary>
+        SawItOpen,
+
+        /// <summary>A leader they fell in behind told them.</summary>
+        Told
     }
 
     /// <summary>A box, chair or table: untouched (maybe heating up), in flames, or burnt out and charred.</summary>
@@ -497,8 +915,50 @@ namespace Paniq.Simulation
         /// <summary>A wall socket: it never moves and never burns, but it spits sparks and pops.</summary>
         WallSocket,
 
-        /// <summary>The heap a smashed table collapses into: still something to trip over, but nobody sits on it.</summary>
-        TableWreck
+        /// <summary>
+        /// The heap a smashed table would collapse into. Tables no longer smash,
+        /// so nothing becomes this in a run; the kind stays in the table so a
+        /// scenario that authored one still loads.
+        /// </summary>
+        TableWreck,
+
+        /// <summary>
+        /// The floor's main fuse box, bolted to the maintenance room wall.
+        /// Every socket's cable runs back to it, and when it goes off it goes
+        /// off harder than anything else in the building.
+        /// </summary>
+        FuseBox,
+
+        /// <summary>A vending machine: tall, heavy and hard to shift; only a blast tips it.</summary>
+        VendingMachine,
+
+        /// <summary>A filing cabinet: heavy steel, slow to catch.</summary>
+        Cabinet,
+
+        /// <summary>Shelves full of books and files: tall, thin, quick to catch, easy to tip.</summary>
+        Shelves,
+
+        /// <summary>A big copy machine on castors: it rolls a long way when shoved, and its toner goes off in the flames.</summary>
+        CopyMachine,
+
+        /// <summary>A whiteboard on wheels: light and tall, it goes over at a shove.</summary>
+        Whiteboard,
+
+        /// <summary>A standing lamp: it tips over at a touch, its bulb pops when it does, and its shade comes off.</summary>
+        StandingLamp,
+
+        /// <summary>A lamp's shade: part of the lamp until the lamp goes over, then a loose thing on the floor.</summary>
+        LampShade,
+
+        /// <summary>A robot vacuum: trundles about the floor by itself, turning at walls and desks, and burns like plastic.</summary>
+        RobotVacuum,
+
+        /// <summary>
+        /// A fire alarm bell, high on the wall: it rings when any pull station
+        /// is hit, and when the flames reach it it goes off with a crack and
+        /// falls silent (2026-09-25).
+        /// </summary>
+        AlarmSounder
     }
 
     /// <summary>
@@ -523,7 +983,66 @@ namespace Paniq.Simulation
         SpawnExtinguisher,
 
         /// <summary>TNT: blow a hole through the wall nearest the named place.</summary>
-        BlastWall
+        BlastWall,
+
+        /// <summary>
+        /// Set the disaster going. Not a card and it costs nothing: it is the
+        /// one deliberate "start the trouble" the round waits for. The first
+        /// one starts the hazard; any later one does nothing.
+        /// </summary>
+        TriggerEvent,
+
+        /// <summary>
+        /// Pop the fuse box by hand. Aimed at a place rather than a thing,
+        /// because the card finds the box near where the player pointed, and a
+        /// floor has one of them.
+        /// </summary>
+        PopFuseBox,
+
+        // The trait cards. Each is thrown at a patch of floor and slams one
+        // dial to the end of its scale for everybody caught inside, for the
+        // rest of the round.
+
+        /// <summary>Courage: bravery to the top. They stop dithering and go at the thing.</summary>
+        PlayCourage,
+
+        /// <summary>Terror: nervousness to the top. Whoever is caught bolts.</summary>
+        PlayTerror,
+
+        /// <summary>Bastard: evil to the top. They shove people aside and lock doors behind them.</summary>
+        PlayBastard,
+
+        /// <summary>Cold heart: compassion to the bottom. They stop going back for anybody.</summary>
+        PlayColdHeart,
+
+        /// <summary>
+        /// Call it a day: everybody in the building packs up and heads for the
+        /// way out. Not a card and it costs nothing, like the trigger: it is
+        /// the player's way of calling a cue, proven to work by a test, and
+        /// nothing on the screen is wired to it yet.
+        /// </summary>
+        CallHomeTime,
+
+        /// <summary>
+        /// The player pulls a fire alarm (the target is the alarm's ID). Not a
+        /// card: it is always on offer, priced like one, and does nothing for
+        /// nothing when the bells are already ringing.
+        /// </summary>
+        PullAlarm,
+
+        /// <summary>
+        /// The player turns a door's key (the target is the door's ID): a
+        /// locked door is unlocked, a shut one locked, and an open one shut
+        /// and locked if nobody is in the doorway. Priced by the door: the
+        /// building's way out costs the whole purse to unlock (2026-09-25).
+        /// </summary>
+        ToggleLock,
+
+        /// <summary>
+        /// Stick together: everybody the throw catches becomes one group that
+        /// keeps together once frightened (see <see cref="GroupSystem"/>).
+        /// </summary>
+        StickTogether
     }
 
     /// <summary>

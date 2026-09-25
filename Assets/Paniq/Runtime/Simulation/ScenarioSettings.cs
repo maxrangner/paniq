@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -18,12 +18,25 @@ namespace Paniq.Simulation
         public int OccupancyRadiusMillimetres = 250;
         public int MaximumStepDistanceMillimetres = 120;
 
+        /// <summary>
+        /// How far, either way, a fixed length of time for a person is
+        /// stretched or squeezed when it starts, as a percentage of it. Every
+        /// moment somebody spends -- getting up, trying a door, pressing an
+        /// alarm, picking something up -- takes a slightly different time for
+        /// each person and each occasion, so two people who started the same
+        /// thing on the same tick do not finish it on the same tick either.
+        /// The owner's rule (2026-09-24): nothing in the game happens to a
+        /// whole group on exactly the same tick.
+        /// </summary>
+        public int TimingJitterPercent = 20;
+
         public WorldSettings Clone() => (WorldSettings)MemberwiseClone();
 
         internal void Validate()
         {
             Settings.Require(OccupancyRadiusMillimetres > 0 && OccupancyRadiusMillimetres <= 2000, "occupancy radius");
             Settings.Require(MaximumStepDistanceMillimetres >= 0 && MaximumStepDistanceMillimetres <= 1000, "maximum step");
+            Settings.Require(Settings.Percent(TimingJitterPercent), "timing jitter");
         }
     }
 
@@ -31,14 +44,170 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class PerceptionSettings
     {
-        public int VisionRangeMillimetres = 3000;
+        /// <summary>
+        /// How far somebody sees a threat, in their own room or through an
+        /// open doorway along their line of sight. Twelve metres is the long
+        /// side of the meeting room and most of the corridor: a fire in the
+        /// room you are in is seen, and a fire beyond an open door is seen
+        /// when the door is between you and it. It was three metres, which
+        /// let a fire burn at the far end of the same room unseen
+        /// (2026-09-24, the owner's second playtest).
+        /// </summary>
+        public int VisionRangeMillimetres = 12000;
         public int MaximumReactionDelayTicks = 20;
+
+        /// <summary>
+        /// How far off somebody sees a person bolt: a frightened person on
+        /// their feet and running, or leaping up out of a chair, in the
+        /// watcher's own room or through an open doorway. Fear spreads by
+        /// sight as well as by voice: in a meeting the person opposite
+        /// leaping up is what makes you look, before you know why.
+        /// </summary>
+        public int BoltSightRangeMillimetres = 8000;
+
+        /// <summary>A frightened person moving at least this fast (millimetres a tick) is plainly running, not edging away; a calm walk is 20 to 32.</summary>
+        public int BoltSpeedMinimum = 40;
+
+        /// <summary>This brave or braver: seeing somebody bolt makes you look, not run. Everybody else is startled by it.</summary>
+        public int BraveLookFirstMinimum = 7;
+
+        /// <summary>
+        /// No two people finish being startled on the same tick. Whoever
+        /// would have, the later one in ID order is put off by this many
+        /// ticks, and again until the tick is theirs alone: a bell that
+        /// reaches six people at a table has them come up out of their chairs
+        /// one after another, a few ticks apart, never all at once. The
+        /// owner's rule (2026-09-24).
+        /// </summary>
+        public int StartleStaggerTicks = 3;
+
+        /// <summary>
+        /// Nobody reacts on the tick a thing happens. Every reaction to the
+        /// world -- a bell, a door swinging open, a shout, a noise, a leader's
+        /// call, being knocked down, giving something up and thinking again --
+        /// begins this many ticks late, drawn per person and per occasion from
+        /// the seed, so a crowd answers the world raggedly the way people do
+        /// rather than all at once the way clockwork does. The owner's rule
+        /// (2026-09-24): all behaviour, never a reaction on the same tick.
+        /// </summary>
+        public int ReactionLagMinimumTicks = 2;
+        public int ReactionLagMaximumTicks = 8;
+
+        /// <summary>
+        /// How far away somebody who does not know the building notices a door
+        /// or a corner of the room they are in. Eight metres is how far off a
+        /// green sign can be read, so a door and the sign beside it are seen
+        /// together. On this floor it is also what makes the T at the end of
+        /// the corridor a real choice: stood in its archway, the dead end is
+        /// five and a half metres off and in sight, and the way out is nine and
+        /// a half metres off and not.
+        /// </summary>
+        public int DoorSightRangeMillimetres = 8000;
 
         public PerceptionSettings Clone() => (PerceptionSettings)MemberwiseClone();
 
         internal void Validate()
         {
-            Settings.Require(VisionRangeMillimetres > 0 && MaximumReactionDelayTicks >= 0, "perception");
+            Settings.Require(StartleStaggerTicks >= 1, "startle stagger");
+            Settings.Require(Settings.Range(ReactionLagMinimumTicks, ReactionLagMaximumTicks, 1), "reaction lag");
+            Settings.Require(VisionRangeMillimetres > 0 && MaximumReactionDelayTicks >= 0 && DoorSightRangeMillimetres >= 0,
+                "perception");
+            Settings.Require(BoltSightRangeMillimetres >= 0 && BoltSpeedMinimum >= 0 && BraveLookFirstMinimum >= 0, "seeing somebody bolt");
+        }
+    }
+
+    /// <summary>
+    /// How a round begins, how it is judged to be finished, and what it takes
+    /// to clear it.
+    /// </summary>
+    [Serializable]
+    public sealed class RoundSettings
+    {
+        /// <summary>
+        /// The hazard waits for the player's "trigger event" rather than
+        /// starting itself on <see cref="FireSettings.ActivationTick"/>. The
+        /// level then opens calm and stays calm until the player sets it off.
+        /// <para>
+        /// Off by default, because a bare scenario on its own should behave the
+        /// way it always has: the fire starts on its own tick count. A playable
+        /// level turns it on (see the level asset), so the calm opening belongs
+        /// to the level rather than to the scenario data.
+        /// </para>
+        /// </summary>
+        public bool HazardWaitsForTrigger;
+
+        /// <summary>
+        /// The share of the crowd that has to be saved to clear the level, out
+        /// of a hundred. Saved means escaped or alive inside at the end.
+        /// Chosen with the owner at 75: fifteen of twenty.
+        /// </summary>
+        public int TargetSavedPercent = 75;
+
+        /// <summary>
+        /// How long the whole building has to be doing nothing at all before
+        /// the round is called finished.
+        /// <para>
+        /// The round used to end as soon as everybody left was in a room the
+        /// fire could not reach, which stopped it while people were still
+        /// walking towards the door. It waits for them now, and this is the
+        /// only thing that stops a run going on for ever when the last person
+        /// left is frozen in a corner.
+        /// </para>
+        /// </summary>
+        public int StallTicks = 1500;
+
+        /// <summary>
+        /// How far somebody has to get from where they were standing when the
+        /// stall clock started for the building to count as still moving.
+        /// </summary>
+        public int StallMoveMillimetres = 400;
+
+        public RoundSettings Clone() => (RoundSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(TargetSavedPercent >= 0 && TargetSavedPercent <= 100, "round clear target");
+            Settings.Require(StallTicks >= 1 && StallMoveMillimetres >= 0, "round stall time");
+        }
+    }
+
+    /// <summary>
+    /// The cable between the sockets and the fuse box, and how fast a spark
+    /// runs along it once something sets it off.
+    /// </summary>
+    [Serializable]
+    public sealed class PowerSettings
+    {
+        /// <summary>
+        /// How fast the spark crawls, in millimetres a tick. 45 is a little
+        /// over two metres a second -- a brisk walk, and slower than somebody
+        /// running.
+        /// <para>
+        /// It started at 120, which is six metres a second. That is faster than
+        /// anybody in the building can run, so the whole chain of sockets went
+        /// off within a few seconds of the first one and there was nothing to
+        /// watch and nothing to do about it. A fuse has to crawl or it is just
+        /// a delayed explosion.
+        /// </para>
+        /// </summary>
+        public int SparkSpeedMillimetresPerTick = 45;
+
+        /// <summary>
+        /// A beat of silence at the fuse box before the big one. Half a second
+        /// of nothing is what makes it land.
+        /// </summary>
+        public int FuseBoxExtraDelayTicks = 25;
+
+        /// <summary>How near the player has to click the fuse box for the card to find it.</summary>
+        public int CardReachMillimetres = 2500;
+
+        public PowerSettings Clone() => (PowerSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(SparkSpeedMillimetresPerTick >= 1, "spark speed");
+            Settings.Require(FuseBoxExtraDelayTicks >= 0, "fuse box delay");
+            Settings.Require(CardReachMillimetres >= 0, "fuse box card reach");
         }
     }
 
@@ -46,7 +215,30 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class FireSettings
     {
-        public LogicalBounds SpawnBounds = new LogicalBounds(-2000, 2000, -2000, 2000);
+        /// <summary>
+        /// The preset areas the danger may begin in. One of them is drawn, and
+        /// then a spot inside it, so a run's fire is somewhere different every
+        /// seed without ever being somewhere silly -- inside a wall, in the
+        /// corridor everybody has to use, or out in the street.
+        /// <para>
+        /// A list rather than one rectangle because a floor has more than one
+        /// room worth burning, and because a finished level wants to say where
+        /// its disaster is allowed to start rather than leaving it to chance.
+        /// </para>
+        /// </summary>
+        public LogicalBounds[] SpawnAreas = { new LogicalBounds(-2000, 2000, -2000, 2000) };
+
+        /// <summary>
+        /// The one area, for a scenario that wants the fire in exactly one
+        /// place -- which nearly every test does. Reading it gives the first
+        /// area; setting it replaces the lot with that one.
+        /// </summary>
+        public LogicalBounds SpawnBounds
+        {
+            get => SpawnAreas != null && SpawnAreas.Length > 0 ? SpawnAreas[0] : default;
+            set => SpawnAreas = new[] { value };
+        }
+
         public int ActivationTick = 250;
         public int CellSizeMillimetres = 500;
         public int SpreadMinimumTicks = 40;
@@ -89,11 +281,24 @@ namespace Paniq.Simulation
         /// <summary>Chance a roll puts the flames out for good.</summary>
         public int RollPutsOutChancePercent = 35;
 
-        public FireSettings Clone() => (FireSettings)MemberwiseClone();
+        public FireSettings Clone()
+        {
+            var copy = (FireSettings)MemberwiseClone();
+
+            // The shallow copy would hand both runs the same array, and a run
+            // must never be able to reach into another one's scenario.
+            copy.SpawnAreas = (LogicalBounds[])SpawnAreas?.Clone();
+            return copy;
+        }
 
         internal void Validate()
         {
-            Settings.Require(SpawnBounds.MinX <= SpawnBounds.MaxX && SpawnBounds.MinZ <= SpawnBounds.MaxZ, "fire spawn bounds");
+            Settings.Require(SpawnAreas != null && SpawnAreas.Length > 0, "at least one fire spawn area");
+            for (int i = 0; i < SpawnAreas.Length; i++)
+            {
+                Settings.Require(SpawnAreas[i].MinX <= SpawnAreas[i].MaxX && SpawnAreas[i].MinZ <= SpawnAreas[i].MaxZ,
+                    "fire spawn bounds");
+            }
             Settings.Require(ActivationTick >= 0 && CellSizeMillimetres >= 100, "fire timing and cell size");
             Settings.Require(SpreadMinimumTicks > 0 && SpreadMaximumTicks >= SpreadMinimumTicks, "fire spread interval");
             Settings.Require(Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1) &&
@@ -168,6 +373,13 @@ namespace Paniq.Simulation
         public int WallAvoidPercent = 150;
         public int ObjectAvoidPercent = 100;
 
+        /// <summary>
+        /// How hard a calm person keeps off the edge of a table: as hard as
+        /// off a wall. Somebody strolling round the office walks round the
+        /// desks.
+        /// </summary>
+        public int TableAvoidPercent = 150;
+
         public CalmSettings Clone() => (CalmSettings)MemberwiseClone();
 
         internal void Validate()
@@ -183,7 +395,8 @@ namespace Paniq.Simulation
                              WanderMaximumDegrees >= 0 && WanderMaximumDegrees <= 180, "strolling");
             Settings.Require(SocialStopDistanceMillimetres >= 0 &&
                              Settings.Range(SocialMinimumDistanceMillimetres, SocialMaximumDistanceMillimetres, 0), "socialising");
-            Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0, "calm steering weights");
+            Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0 &&
+                             TableAvoidPercent >= 0, "calm steering weights");
         }
     }
 
@@ -237,10 +450,56 @@ namespace Paniq.Simulation
         /// <summary>A spot or door whose straight route runs into a table scores this much worse.</summary>
         public int TableRoutePenaltyMillimetres = 3000;
 
+        // Reading the exit signs. Somebody running who catches sight of one
+        // takes its word for which way the way out is.
+
+        /// <summary>
+        /// How far off a sign can still be read, in millimetres. A sign is a
+        /// big lit thing you pick out down a corridor, not something you have
+        /// to be standing under: the fire's 3 m vision range is the distance at
+        /// which flames are upon you, and would be far too short for this.
+        /// </summary>
+        public int SignReadRangeMillimetres = 8000;
+
+        /// <summary>
+        /// How much better a spot scores for lying the way a visible sign
+        /// points, in millimetres, falling to that much worse for lying the
+        /// opposite way. Big enough to beat the noise in the scoring and to
+        /// stand alongside the penalty for a route past the fire, so a sign
+        /// changes where somebody decides to go rather than only how they
+        /// drift once they are going.
+        /// </summary>
+        public int SignEscapeBonusMillimetres = 6000;
+
         /// <summary>Steering weights, as percentages of the pull toward the goal.</summary>
         public int PeopleAvoidPercent = 50;
         public int WallAvoidPercent = 200;
         public int ObjectAvoidPercent = 20;
+
+        /// <summary>
+        /// How hard a running person keeps off the edge of a table. Much less
+        /// than off a wall: a table is furniture, not brickwork, and a crowd
+        /// in a panic brushes past desks, bumps them and shoves them along.
+        /// Tables used to be kept off exactly like walls, so nobody ever
+        /// touched one and no table was ever seen to move.
+        /// </summary>
+        public int TableAvoidPercent = 60;
+
+        /// <summary>
+        /// The change of speed somebody stuck behind a table gives it when
+        /// they heave it out of their way, in millimetres per tick, for a
+        /// table as light as a blast's reference thing (20 kg). Applied at
+        /// the table's top edge, so a light desk goes over away from them and
+        /// a heavy one slides. Heavier tables get less, down to
+        /// <see cref="TableHeaveLeastPercent"/> of it.
+        /// </summary>
+        public int TableHeaveSpeedMillimetresPerTick = 80;
+
+        /// <summary>The least share of the heave the heaviest table gets, so even the meeting table shifts.</summary>
+        public int TableHeaveLeastPercent = 25;
+
+        /// <summary>How long after heaving a table somebody waits before heaving one again.</summary>
+        public int TableHeaveRestTicks = 40;
 
         public PanicSettings Clone() => (PanicSettings)MemberwiseClone();
 
@@ -262,7 +521,12 @@ namespace Paniq.Simulation
                              EscapeRoutePenaltyMillimetres >= 0 && EscapeShortHopDistanceMillimetres >= 0 &&
                              EscapeShortHopPenaltyMillimetres >= 0 && EscapeTurnPenaltyPerDegree >= 0 &&
                              EscapeNoiseMillimetres >= 0 && TableRoutePenaltyMillimetres >= 0, "escape scoring");
-            Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0, "panic steering weights");
+            Settings.Require(PeopleAvoidPercent >= 0 && WallAvoidPercent >= 0 && ObjectAvoidPercent >= 0 &&
+                             TableAvoidPercent >= 0, "panic steering weights");
+            Settings.Require(TableHeaveSpeedMillimetresPerTick >= 0 && Settings.Percent(TableHeaveLeastPercent) &&
+                             TableHeaveRestTicks >= 1, "heaving tables");
+            Settings.Require(SignReadRangeMillimetres >= 0 && SignEscapeBonusMillimetres >= 0,
+                "exit sign reading");
         }
     }
 
@@ -292,13 +556,29 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class HearingSettings
     {
-        /// <summary>Calm people this close to a yell understand it and are alarmed.</summary>
-        public int YellAlarmRadiusMillimetres = 2500;
+        /// <summary>
+        /// Calm people this close to a yell understand it and are alarmed.
+        /// Every yell is a frightened person's (calm people talk, they do not
+        /// yell), so this is the reach of a panic shout: six metres, the
+        /// width of a room, halved by a shut door. It was two and a half,
+        /// which spread a fright round a meeting table one seat at a time.
+        /// </summary>
+        public int YellAlarmRadiusMillimetres = 6000;
 
         /// <summary>Calm people this close to a yell only hear it and turn to look.</summary>
-        public int YellHearingRadiusMillimetres = 6000;
+        public int YellHearingRadiusMillimetres = 12000;
 
+        /// <summary>
+        /// How far a fire is heard when it is one square of floor. It is heard
+        /// further as it grows, by <see cref="FireHearingPerCellMillimetres"/>
+        /// a burning square up to <see cref="FireHearingMaximumMillimetres"/>:
+        /// a bathroom ablaze roars, and a roar carries. Through a wall or a
+        /// shut door it carries half as far, like every noise.
+        /// </summary>
         public int FireHearingRadiusMillimetres = 3500;
+        public int FireHearingPerCellMillimetres = 50;
+        public int FireHearingMaximumMillimetres = 15000;
+
         public int BumpSoundRadiusMillimetres = 3000;
         public int InvestigateMinimumTicks = 50;
         public int InvestigateMaximumTicks = 125;
@@ -312,6 +592,28 @@ namespace Paniq.Simulation
         /// <summary>They only edge closer while facing the noise within this many degrees.</summary>
         public int InvestigateCreepMaximumTurn = 30;
 
+        /// <summary>
+        /// A person keeps a few noises in their head at once. While they are
+        /// looking toward one, a threat's own noise (fire crackling) or a
+        /// louder noise nearer to them takes over; anything else waits, and
+        /// is looked at next if it is still this fresh when they finish.
+        /// </summary>
+        public int PendingNoiseFreshTicks = 300;
+
+        /// <summary>
+        /// Somebody who has heard a threat's noise from another room and seen
+        /// nothing goes to look: they walk toward the noise, opening doors on
+        /// the way, and stop this far short of it -- by then they have seen
+        /// what it was, or they have not and go back to their day.
+        /// </summary>
+        public int GoAndLookStopMillimetres = 2500;
+
+        /// <summary>The very nervous do not go and look; they stay where they are and keep glancing.</summary>
+        public int GoAndLookNervousnessMaximum = 7;
+
+        /// <summary>Having gone to look once, how long before the same person would go again.</summary>
+        public int GoAndLookAgainTicks = 900;
+
         public HearingSettings Clone() => (HearingSettings)MemberwiseClone();
 
         internal void Validate()
@@ -321,6 +623,10 @@ namespace Paniq.Simulation
                              Settings.Range(InvestigateMinimumTicks, InvestigateMaximumTicks, 1), "hearing");
             Settings.Require(InvestigateCreepDelayTicks >= 0 && InvestigateCreepDistanceMillimetres >= 0 &&
                              InvestigateCreepMaximumTurn >= 0 && InvestigateCreepMaximumTurn <= 180, "investigating");
+            Settings.Require(FireHearingPerCellMillimetres >= 0 && FireHearingMaximumMillimetres >= FireHearingRadiusMillimetres,
+                "a fire heard as it grows");
+            Settings.Require(PendingNoiseFreshTicks >= 0 && GoAndLookStopMillimetres >= 0 && GoAndLookNervousnessMaximum >= 0 &&
+                             GoAndLookAgainTicks >= 1, "going to look");
         }
     }
 
@@ -472,6 +778,24 @@ namespace Paniq.Simulation
         /// <summary>How much shoving damage a door takes before it breaks. Damage stays between attempts.</summary>
         public int DoorStrength = 40;
 
+        /// <summary>
+        /// How long a shut door stands with flames against it before it burns
+        /// through and the fire comes on. Eighteen seconds: longer than a chair
+        /// (three) or a table (five), because a door is a slab in a frame, and
+        /// long enough that shutting one buys real time without ever being a
+        /// way to win. Flames within <see cref="FireAtDoorRadiusMillimetres"/>
+        /// of the doorway count, from either side.
+        /// </summary>
+        public int DoorBurnThroughTicks = 900;
+
+        /// <summary>
+        /// How long a pair of swing doors stands in the flames before it
+        /// goes: half a shut door's time (the owner's rule, 2026-09-25 --
+        /// "swinging doors stop fire half as good as normal ones"). Two thin
+        /// leaves that meet in the middle rather than a slab in a frame.
+        /// </summary>
+        public int SwingDoorBurnThroughTicks = 450;
+
         // Closing doors. Only the cruel shut the door behind them as they
         // leave a room or the building, and only the cruellest lock it.
         // Shutting a door with fire beyond it is a different act and open to
@@ -486,14 +810,63 @@ namespace Paniq.Simulation
         /// <summary>Fire this close to a door makes anyone shut it, kind or not, and whoever is still coming.</summary>
         public int FireAtDoorRadiusMillimetres = 2000;
 
-        /// <summary>This evil: shut the door behind them, even in the face of someone coming.</summary>
-        public int EvilCloseMinimum = 7;
+        /// <summary>
+        /// This evil: shut the door behind them, even in the face of someone
+        /// coming. Raised from 7, which let four people in twenty do it, so the
+        /// building read as full of door-slammers rather than as having one.
+        /// </summary>
+        public int EvilCloseMinimum = 8;
 
         /// <summary>This evil: turn the key as well, so nobody can follow.</summary>
         public int EvilLockMinimum = 9;
 
-        /// <summary>This compassionate: hold a door open for someone coming, even with fire in the room beyond.</summary>
-        public int CompassionHoldMinimum = 7;
+        /// <summary>
+        /// This callous or worse: with the flames already at the door, they
+        /// pull it shut on somebody still coming through. Everybody else
+        /// holds a door for whoever is coming, flames or no flames; shutting
+        /// one on people is a selfish thing, so it takes a selfish person
+        /// (the owner's rule, 2026-09-24). Compassion used to have to be 7 or
+        /// more to hold a door at all, which left most of the office shutting
+        /// doors in each other's faces.
+        /// </summary>
+        public int CallousCompassionMaximum = 3;
+
+        /// <summary>
+        /// The way out is through the heat -- its approach is inside their
+        /// danger distance, or the room beyond it is alight -- and the floor
+        /// there is still walkable. This brave or braver runs for it; the
+        /// rest, and anyone whose route crosses burning floor, give that door
+        /// up and hide in the nearest dead end. Somebody whose own room is
+        /// alight runs for it whatever their nerve, because staying is worse.
+        /// The owner's choice (2026-09-24): "dash past or hide, by bravery".
+        /// </summary>
+        public int DashMinimumBravery = 5;
+
+        /// <summary>How long a dash lasts before the choice is made again: three seconds, jittered.</summary>
+        public int DashTicks = 150;
+
+        /// <summary>
+        /// "Across burning floor" means a straight walk that passes within
+        /// this of a burning square, or ends within it. Half a metre: a
+        /// square is half a metre across and a person a quarter, so this is
+        /// the line past which the walk is through the flames rather than
+        /// past them. Nobody dashes across burning floor, however brave.
+        /// </summary>
+        public int DashClearanceMillimetres = 500;
+
+        /// <summary>
+        /// Somebody down inside an open doorway with the crowd pressing on
+        /// them from one side is carried on through it by the press rather
+        /// than lying in the gap as a plug: anyone upright within this of
+        /// them on one side counts as pressing, and while it lasts they are
+        /// hauled toward the other side at this speed (millimetres a tick;
+        /// 40 is two metres a second, the pace of a body shoved along a
+        /// floor). Out through the way out, that is an escape on their back.
+        /// On seed 41 the opened exit stood blocked for fifteen seconds by
+        /// the people the cruel had shoved to the floor in it (2026-09-24).
+        /// </summary>
+        public int CarryThroughRadiusMillimetres = 1000;
+        public int CarryThroughSpeedMillimetresPerTick = 40;
 
         public ExitSettings Clone() => (ExitSettings)MemberwiseClone();
 
@@ -521,11 +894,13 @@ namespace Paniq.Simulation
                              ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0 &&
                              CurrentRoomBonusMillimetres >= 0 && RefugeNoFireMillimetres >= 0 &&
                              RefugeClearRoomMillimetres >= 0 && RefugeSpacePerPersonMillimetres > 0, "door scoring");
-            Settings.Require(DoorStrength >= 1, "door strength");
+            Settings.Require(DoorStrength >= 1 && DoorBurnThroughTicks >= 1 && SwingDoorBurnThroughTicks >= 1, "door strength");
             Settings.Require(CloseReachMillimetres >= 0 && CloseApproachRadiusMillimetres >= 0 &&
                              FireAtDoorRadiusMillimetres >= 0 && EvilCloseMinimum >= 0 &&
-                             CompassionHoldMinimum >= 0 && EvilLockMinimum >= EvilCloseMinimum,
+                             CallousCompassionMaximum >= 0 && EvilLockMinimum >= EvilCloseMinimum,
                 "closing doors");
+            Settings.Require(DashMinimumBravery >= 0 && DashTicks >= 1 && DashClearanceMillimetres >= 0, "dashing through the heat");
+            Settings.Require(CarryThroughRadiusMillimetres >= 0 && CarryThroughSpeedMillimetresPerTick >= 0, "carried through a doorway");
         }
     }
 
@@ -699,10 +1074,25 @@ namespace Paniq.Simulation
         /// </summary>
         public int SpinMaximum = 8;
 
+        /// <summary>
+        /// A thing that drives itself (a robot vacuum), stopped by a wall, a
+        /// desk or somebody's foot, waits this long before setting off on its
+        /// new heading, and turns by between this many degrees and that many,
+        /// either way, drawn from the seed.
+        /// </summary>
+        public int RoverPauseTicks = 15;
+        public int RoverTurnMinimumDegrees = 60;
+        public int RoverTurnMaximumDegrees = 150;
+
+        /// <summary>How fast it turns on the spot, in degrees a tick: a quarter turn in about a fifth of a second.</summary>
+        public int RoverTurnDegreesPerTick = 10;
+
         public ObjectPhysicsSettings Clone() => (ObjectPhysicsSettings)MemberwiseClone();
 
         internal void Validate()
         {
+            Settings.Require(RoverPauseTicks >= 0 && Settings.Range(RoverTurnMinimumDegrees, RoverTurnMaximumDegrees, 1) &&
+                             RoverTurnMaximumDegrees <= 180 && RoverTurnDegreesPerTick >= 1, "robot vacuums");
             Settings.Require(AgentMassGrams > 0 && Friction >= 0 && Settings.Percent(AgentRestitutionPercent) &&
                              Settings.Percent(ObjectRestitutionPercent) && Settings.Percent(WallRestitutionPercent), "object physics");
             Settings.Require(TripMinimumSpeed >= 0 && TripScale > 0 && Settings.Percent(TripMaximumChancePercent) &&
@@ -789,6 +1179,68 @@ namespace Paniq.Simulation
             Settings.Require(StrengthPassOutPercentPerPoint >= 0 && StrengthForceChancePerPoint >= 0 &&
                              DoorBreakMinimumStrength >= 0 && DoorBreakMinimumStrength <= AgentTraitValues.Maximum &&
                              DoorDamagePerPoint >= 0, "strength at doors and knock-outs");
+        }
+    }
+
+    /// <summary>
+    /// Sticking together (the "Stick together" card, 2026-09-25): how hard
+    /// the people a throw catches keep to each other once frightened, and
+    /// how much the door their most leaderly member picks sways the rest.
+    /// </summary>
+    [Serializable]
+    public sealed class GroupSettings
+    {
+        /// <summary>Members further apart than this have lost each other, and the pull is off.</summary>
+        public int ReachMillimetres = 8000;
+
+        /// <summary>Members this near the middle of the group are together already: no pull, no hanging back.</summary>
+        public int CloseEnoughMillimetres = 1000;
+
+        /// <summary>
+        /// The pull comes on gradually over this distance beyond close enough,
+        /// rather than at full strength the moment they part: a full-strength
+        /// pull at running speed steered members straight into each other,
+        /// and a hard collision puts both on the floor.
+        /// </summary>
+        public int PullRampMillimetres = 2000;
+
+        /// <summary>No pull at all while another member is within arm's reach: they are together, whatever the middle of the group says.</summary>
+        public int ElbowRoomMillimetres = 800;
+
+        /// <summary>
+        /// The pull toward the rest of the group, as a percentage of a full
+        /// step: this, plus per point of nervousness, less per point of
+        /// bravery, less again per point of evil. Nought to a hundred.
+        /// </summary>
+        public int CohesionBasePercent = 60;
+        public int CohesionPercentPerNervousness = 3;
+        public int CohesionPercentPerBravery = 2;
+        public int CohesionPercentPerEvil = 6;
+
+        /// <summary>Evil this high walks off: they ignore the group as they ignore a leader.</summary>
+        public int IgnoreMinimumEvil = 7;
+
+        /// <summary>
+        /// How much somebody with the rest of the group behind them slows to
+        /// let them catch up, as a percentage of their pull: at full pull a
+        /// sprinter drops to this much less than their pace. Steering only
+        /// turns a person; waiting is a matter of pace.
+        /// </summary>
+        public int HangBackPercent = 70;
+
+        /// <summary>How much the door the group's anchor runs for is worth to the others, in walk-millimetres of scoring.</summary>
+        public int ChoiceBonusMillimetres = 3000;
+
+        /// <summary>How often, give or take, members compare notes on the way out.</summary>
+        public int ShareEveryTicks = 100;
+
+        public GroupSettings Clone() => (GroupSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(ReachMillimetres >= 0 && CloseEnoughMillimetres >= 0 && ChoiceBonusMillimetres >= 0 &&
+                             ShareEveryTicks >= 1 && IgnoreMinimumEvil >= 0 && PullRampMillimetres >= 1 &&
+                             ElbowRoomMillimetres >= 0 && HangBackPercent >= 0 && HangBackPercent <= 100, "sticking together");
         }
     }
 
@@ -888,6 +1340,14 @@ namespace Paniq.Simulation
         public int FightTimeoutTicks = 1500;
 
         /// <summary>
+        /// Getting nowhere for this long on the errand -- pressed against a
+        /// wall, a table or a crowd -- and they give it up. The comment above
+        /// promised this and nothing did it: somebody wedged stood there for
+        /// the whole thirty seconds.
+        /// </summary>
+        public int BlockedGiveUpTicks = 50;
+
+        /// <summary>
         /// How much of their usual keep-away distance from the flames someone
         /// with an extinguisher in their hands still keeps: the bottle makes
         /// them braver, up to a point.
@@ -929,7 +1389,7 @@ namespace Paniq.Simulation
                 "noticing an extinguisher somebody put down");
             Settings.Require(FetchRangeMillimetres >= 0 && PickUpDistanceMillimetres > 0 && SaveRangeMillimetres >= 0,
                 "extinguisher distances");
-            Settings.Require(FetchTimeoutTicks > 0 && FightTimeoutTicks > 0, "extinguisher timeouts");
+            Settings.Require(FetchTimeoutTicks > 0 && FightTimeoutTicks > 0 && BlockedGiveUpTicks > 0, "extinguisher timeouts");
             Settings.Require(SprayRangeMillimetres > 0 && SprayConeDegrees > 0 && SprayConeDegrees <= 180 && CellsPerTick > 0 &&
                 StandOffMillimetres > 0 && StandOffMillimetres <= SprayRangeMillimetres, "the spray");
             Settings.Require(SweepDegrees >= 0 && SweepDegreesPerStrengthPoint >= 0, "the sweep");
@@ -954,7 +1414,7 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ObjectKindSettings
     {
-        public const int KindCount = 12;
+        public const int KindCount = 22;
 
         public PhysicsObjectKind Kind;
         public int FrictionPercent = 100;
@@ -982,6 +1442,22 @@ namespace Paniq.Simulation
         public int PopIgniteCells;
 
         /// <summary>
+        /// It goes off at the end of its burn rather than the moment the
+        /// flames reach it: a robot vacuum rides about alight for a good
+        /// while, and then its battery goes. The pop is the same pop, from
+        /// the three values above; only when it happens differs.
+        /// </summary>
+        public bool PopsWhenBurntOut;
+
+        /// <summary>
+        /// When it goes off it empties itself over everything around it: a
+        /// fire extinguisher bursting in the flames puts out every burning
+        /// square, thing and person within its pop radius, the way a spray
+        /// would, and is spent (2026-09-25).
+        /// </summary>
+        public bool PopDouses;
+
+        /// <summary>
         /// What this kind of thing is for, rather than what it is made of.
         ///
         /// These used to be decided by naming the kind in the rules -- "is it a
@@ -999,6 +1475,30 @@ namespace Paniq.Simulation
         /// </summary>
         public bool IsEquipment;
 
+        /// <summary>
+        /// It pops the first time it goes over: a standing lamp's bulb bursting
+        /// as it hits the floor. A small crack rather than a bang (see
+        /// <see cref="PopRadiusMillimetres"/> for the things that go off).
+        /// </summary>
+        public bool PopsWhenTipped;
+
+        /// <summary>
+        /// Whatever was authored as part of it comes loose when it goes over:
+        /// a lamp's shade. Parts are their own kind of thing, kept out of the
+        /// world until then (see <c>PhysicsObjectDefinition.PartOfObjectId</c>).
+        /// </summary>
+        public bool ShedsPartsWhenTipped;
+
+        /// <summary>
+        /// It moves about the floor by itself, like a robot vacuum: trundling
+        /// at <see cref="CruiseSpeedMillimetresPerTick"/> and turning when it
+        /// meets a wall, a table or anything else that stops it.
+        /// </summary>
+        public bool DrivesItself;
+
+        /// <summary>How fast a thing that drives itself goes, in millimetres per tick.</summary>
+        public int CruiseSpeedMillimetresPerTick;
+
         public ObjectKindSettings Clone() => (ObjectKindSettings)MemberwiseClone();
 
         /// <summary>The office's things, in enum order.</summary>
@@ -1008,11 +1508,13 @@ namespace Paniq.Simulation
             {
                 Entry(PhysicsObjectKind.Box, 100, 75, 400, 750),
 
-                // Wooden: a hard enough knock breaks it up.
-                SatOn(Breakable(Entry(PhysicsObjectKind.Chair, 120, 150, 600, 900), 450)),
+                // Wooden. It is shoved, tipped and rolled like anything else,
+                // but it never smashes: a room left full of broken stumps read
+                // as a demolition rather than as a fire.
+                SatOn(Entry(PhysicsObjectKind.Chair, 120, 150, 600, 900)),
 
-                // Castors: it rolls away across the floor, and its frame bends.
-                SatOn(Breakable(Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900), 400)),
+                // Castors: it rolls away across the floor.
+                SatOn(Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900)),
                 Entry(PhysicsObjectKind.WasteBin, 80, 50, 250, 450),
 
                 // Earth and green leaves: it never catches.
@@ -1025,8 +1527,13 @@ namespace Paniq.Simulation
                 // throw burning plastic onto the desk it was sitting on.
                 Popping(Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400), 900, 45, 1),
 
-                // Steel: it never catches, and it is equipment rather than clutter.
-                Equipment(Entry(PhysicsObjectKind.Extinguisher, 90, 0, 0, 0)),
+                // Steel, and full of pressure: equipment rather than clutter,
+                // and it takes four seconds in the flames to heat through,
+                // then bursts (the owner asked, 2026-09-25): a bang the size
+                // of a socket's, everyone within 1.6 m off their feet, no
+                // fresh fire, and its contents over every flame in that
+                // circle. After that it is a spent bottle nobody fetches.
+                Dousing(Equipment(Popping(Entry(PhysicsObjectKind.Extinguisher, 90, 200, 1, 1), 1600, 60, 0))),
 
                 // Stiff leather: it slides less than a soft bag and burns slowly.
                 Entry(PhysicsObjectKind.Briefcase, 110, 175, 350, 600),
@@ -1041,8 +1548,79 @@ namespace Paniq.Simulation
 
                 // A pre-authored dormant heap, claimed and placed when a table
                 // is smashed: already wreckage, so it never catches again.
-                Entry(PhysicsObjectKind.TableWreck, 250, 0, 0, 0)
+                Entry(PhysicsObjectKind.TableWreck, 250, 0, 0, 0),
+
+                // The main fuse box. Bolted to the wall like a socket, and the
+                // biggest bang in the building by a long way: a 3.2 m circle
+                // against the microwave's 2.2, and it sets five squares of
+                // floor alight rather than three.
+                Popping(Entry(PhysicsObjectKind.FuseBox, 1000, 110, 50, 80), 3200, 95, 5),
+
+                // The rest of the office, added 2026-09-24. Tall things tip
+                // because their shape is tall and their feet grip; nothing
+                // per kind is written for that.
+
+                // Steel and glass, and heavy: a blast tips it, a crowd does not.
+                Entry(PhysicsObjectKind.VendingMachine, 150, 220, 500, 800),
+
+                // Steel drawers full of paper: slow to catch, burns a long while.
+                Entry(PhysicsObjectKind.Cabinet, 140, 180, 500, 800),
+
+                // Books and files on thin shelves: quick to catch, easy to tip.
+                Entry(PhysicsObjectKind.Shelves, 130, 110, 500, 800),
+
+                // On castors like an office chair, so a shove sends it rolling
+                // across the room. Its toner goes off in the flames: a bang
+                // bigger than a laptop's, smaller than a socket's.
+                Popping(Entry(PhysicsObjectKind.CopyMachine, 30, 150, 300, 500), 1200, 50, 2),
+
+                // Light, tall and on wheels: it goes over at a shove.
+                Entry(PhysicsObjectKind.Whiteboard, 30, 200, 300, 500),
+
+                // It goes over at a touch, and when it does its bulb pops and
+                // its shade comes off.
+                TipsAndPops(Entry(PhysicsObjectKind.StandingLamp, 100, 150, 300, 500), sheds: true),
+
+                // The shade: paper on a wire frame. Part of the lamp until the
+                // lamp goes over, then a loose thing on the floor.
+                Entry(PhysicsObjectKind.LampShade, 90, 100, 200, 350),
+
+                // A robot vacuum: it drives itself about at a Roomba's pace
+                // (16 mm a tick is 0.8 m/s), turns at walls and desks, and
+                // once alight it rides about burning for half a minute to a
+                // minute -- a lot of health, the owner asked -- before its
+                // battery goes off with a laptop-sized bang.
+                SelfDriving(PoppingAtTheEnd(Entry(PhysicsObjectKind.RobotVacuum, 60, 120, 1500, 3000), 1000, 45, 2), 16),
+
+                // A fire alarm bell: bolted to the wall like a socket, and the
+                // flames reaching it set it off with a laptop-sized crack.
+                // After that it is silent.
+                Popping(Entry(PhysicsObjectKind.AlarmSounder, 1000, 80, 20, 40), 800, 40, 1)
             };
+        }
+
+        /// <summary>The same kind, but one that goes off when its burn ends rather than when the flames reach it.</summary>
+        private static ObjectKindSettings PoppingAtTheEnd(ObjectKindSettings kind, int radius, int speed, int igniteCells)
+        {
+            Popping(kind, radius, speed, igniteCells);
+            kind.PopsWhenBurntOut = true;
+            return kind;
+        }
+
+        /// <summary>The same kind, but one that pops the first time it goes over, and may shed the parts authored onto it.</summary>
+        private static ObjectKindSettings TipsAndPops(ObjectKindSettings kind, bool sheds)
+        {
+            kind.PopsWhenTipped = true;
+            kind.ShedsPartsWhenTipped = sheds;
+            return kind;
+        }
+
+        /// <summary>The same kind, but one that drives itself about at this speed.</summary>
+        private static ObjectKindSettings SelfDriving(ObjectKindSettings kind, int cruiseSpeedMillimetresPerTick)
+        {
+            kind.DrivesItself = true;
+            kind.CruiseSpeedMillimetresPerTick = cruiseSpeedMillimetresPerTick;
+            return kind;
         }
 
         /// <summary>The same kind, but one somebody can sit on.</summary>
@@ -1056,6 +1634,13 @@ namespace Paniq.Simulation
         private static ObjectKindSettings Equipment(ObjectKindSettings kind)
         {
             kind.IsEquipment = true;
+            return kind;
+        }
+
+        /// <summary>The same kind, but one whose pop puts the fire out around it rather than spreading it.</summary>
+        private static ObjectKindSettings Dousing(ObjectKindSettings kind)
+        {
+            kind.PopDouses = true;
             return kind;
         }
 
@@ -1094,6 +1679,8 @@ namespace Paniq.Simulation
             Settings.Require(BreakMomentum >= 0 && PopRadiusMillimetres >= 0 && PopSpeed >= 0 && PopIgniteCells >= 0,
                 "breaking and popping");
             Settings.Require(IgniteTicks == 0 || Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1), "object burn time");
+            Settings.Require(CruiseSpeedMillimetresPerTick >= 0 && (!DrivesItself || CruiseSpeedMillimetresPerTick > 0),
+                "a thing that drives itself needs a speed");
         }
     }
 
@@ -1105,13 +1692,6 @@ namespace Paniq.Simulation
 
         /// <summary>How each kind of loose object slides and burns; one entry per kind.</summary>
         public ObjectKindSettings[] Kinds = ObjectKindSettings.Defaults();
-
-        /// <summary>
-        /// How hard a blow collapses a table, as momentum in kilograms times
-        /// millimetres per tick. Higher than a chair's, because a table is the
-        /// sturdiest thing in the room.
-        /// </summary>
-        public int TableBreakMomentum = 600;
 
         /// <summary>Ticks of heat before each kind catches fire.</summary>
         public int BoxIgniteTicks = 75;
@@ -1132,7 +1712,6 @@ namespace Paniq.Simulation
         /// <summary>A person this close to a burning thing's edge touches it (and catches fire).</summary>
         public int TouchGapMillimetres = 50;
 
-        /// <summary>The heap a smashed table tips into: its weight, and its size clamped between these two.</summary>
         /// <summary>
         /// A table's weight, by the floor it covers: a 1.2 by 0.7 m desk comes
         /// out at 21 kg, the 5.4 by 1 m meeting table at 135 kg. Tables are
@@ -1143,10 +1722,6 @@ namespace Paniq.Simulation
 
         /// <summary>How well a table grips the floor, as the engine's friction times 100.</summary>
         public int TableFloorGripPercent = 80;
-
-        public int TableWreckMassGrams = 40000;
-        public int TableWreckMinimumSizeMillimetres = 350;
-        public int TableWreckMaximumSizeMillimetres = 500;
 
         public FlammableSettings Clone()
         {
@@ -1174,11 +1749,7 @@ namespace Paniq.Simulation
                              Settings.Range(ChairBurnMinimumTicks, ChairBurnMaximumTicks, 1) &&
                              Settings.Range(TableBurnMinimumTicks, TableBurnMaximumTicks, 1), "burn times");
             Settings.Require(FloorIgniteRestTicks >= 1 && TouchGapMillimetres >= 0, "burning things");
-            Settings.Require(TableBreakMomentum >= 0, "table strength");
             Settings.Require(TableMassGramsPerSquareMetre > 0 && TableFloorGripPercent >= 0, "table weight");
-            Settings.Require(TableWreckMassGrams > 0 &&
-                             Settings.Range(TableWreckMinimumSizeMillimetres, TableWreckMaximumSizeMillimetres, 1),
-                             "table wreck");
             Settings.Require(Kinds != null && Kinds.Length == ObjectKindSettings.KindCount, "one entry per kind of object");
             for (int i = 0; i < Kinds.Length; i++)
             {
@@ -1213,14 +1784,6 @@ namespace Paniq.Simulation
         public int SitMinimumTicks = 250;
         public int SitMaximumTicks = 1000;
 
-        /// <summary>
-        /// How long somebody who starts the run already seated stays put before
-        /// they would get up of their own accord. A minute of ticks: longer
-        /// than any recorded run, so a meeting that is under way when the fire
-        /// starts breaks up because of the fire and nothing else.
-        /// </summary>
-        public int SeatedAtStartTicks = 3000;
-
         /// <summary>Getting out of a chair: this long, less a little for the nervous.</summary>
         public int StandUpTicks = 40;
         public int StandUpTicksPerNervousness = 2;
@@ -1240,12 +1803,15 @@ namespace Paniq.Simulation
         /// </summary>
         public int SitPullOutMillimetres = 300;
         public int SitPullTicks = 12;
-        public int SitLowerTicks = 10;
+        // Half a second each way. It was a fifth, which had somebody cross
+        // half a metre of floor onto or off the seat in ten ticks: a lunge,
+        // not a sit.
+        public int SitLowerTicks = 25;
 
         /// <summary>
         /// How hard a chair somebody leapt out of is sent over backwards, in
         /// millimetres a tick. A shove, not a throw: at twice this it clatters
-        /// into the meeting table hard enough to smash it, which is not what
+        /// into the meeting table hard enough to shift it, which is not what
         /// standing up quickly should do. What tips it over is the lift and
         /// the spin, not the speed.
         /// </summary>
@@ -1296,7 +1862,6 @@ namespace Paniq.Simulation
             Settings.Require(DropNervousness >= 0 && HurlMinimumStrength >= 0 && EvilAimMinimum >= 0 && AimRangeMillimetres >= 0 &&
                              ThrowImpulse > 0 && ThrowMinimumSpeed >= 1 && ThrowHitMultiplier >= 1 &&
                              PanicThrowSpreadDegrees >= 0 && PanicThrowSpreadDegrees <= 180, "throwing");
-            Settings.Require(SeatedAtStartTicks > 0, "how long people who start seated stay seated");
             Settings.Require(SitScootMillimetres >= 0 && SitPullOutMillimetres >= 0 && SitPullTicks >= 1 &&
                              SitLowerTicks >= 1 && JumpUpKnockOverSpeed >= 0, "sitting down");
         }
@@ -1405,11 +1970,12 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
-    /// Fire alarms. Somebody who has taken in that there is a fire and who
-    /// thinks of other people walks over to the nearest alarm and hits it; every
-    /// alarm in the building then rings, and everybody who hears one knows there
-    /// is a fire. What they do about it depends who they are: the brave and
-    /// level-headed walk briskly out, while the nervous stampede.
+    /// Fire alarms. Somebody who has taken in that there is a fire and who is
+    /// brave, thinks of other people or is used to being listened to walks
+    /// over to the nearest pull station and hits it; every bell in the
+    /// building then rings, and everybody who hears one takes fright exactly
+    /// as if they had seen the flames (the owner's rule, 2026-09-25). The
+    /// bells ring again every few seconds, each on its own beat.
     /// </summary>
     [Serializable]
     public sealed class AlarmSettings
@@ -1433,25 +1999,29 @@ namespace Paniq.Simulation
         public int BellHearingRadiusMillimetres = 14000;
         public int BellAlarmRadiusMillimetres = 14000;
 
-        /// <summary>Who thinks to raise the alarm: a leader, or somebody who thinks of others.</summary>
+        /// <summary>Who thinks to raise the alarm: a leader, somebody who thinks of others, or somebody brave (the owner asked for the brave, 2026-09-25).</summary>
         public int PullMinimumLeadership = 6;
         public int PullMinimumCompassion = 6;
+        public int PullMinimumBravery = 6;
 
         /// <summary>
-        /// Bravery minus nervousness at least this much, and the bell makes them
-        /// leave briskly rather than panic. Everyone else stampedes.
+        /// How often a ringing bell rings again, give or take: each bell draws
+        /// its own beat, so no two ring on one tick. Six seconds: somebody who
+        /// was out of earshot behind a shut door hears the next one once the
+        /// door opens.
         /// </summary>
-        public int ComposureGap = 2;
+        public int RepeatTicks = 300;
 
         public AlarmSettings Clone() => (AlarmSettings)MemberwiseClone();
 
         internal void Validate()
         {
             Settings.Require(ReachMillimetres >= 0 && ArrivalMillimetres > 0 && PressTicks >= 1 &&
-                             FetchTimeoutTicks >= 1, "fire alarms");
+                             FetchTimeoutTicks >= 1 && RepeatTicks >= 1, "fire alarms");
             Settings.Require(BellHearingRadiusMillimetres >= 0 &&
                              BellAlarmRadiusMillimetres <= BellHearingRadiusMillimetres, "alarm bells");
-            Settings.Require(PullMinimumLeadership >= 0 && PullMinimumCompassion >= 0, "who raises the alarm");
+            Settings.Require(PullMinimumLeadership >= 0 && PullMinimumCompassion >= 0 && PullMinimumBravery >= 0,
+                "who raises the alarm");
         }
     }
 
@@ -1464,27 +2034,124 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class InfluenceSettings
     {
-        /// <summary>What the player starts the run with.</summary>
-        public int Starting = 100;
+        /// <summary>
+        /// What the player starts the run with: thirty, which is one card or
+        /// one pull of a fire alarm (the owner's call, 2026-09-24: "start with
+        /// one random card, and 30 activity points"). It was nothing, so that
+        /// the building had to get into trouble before there was anything to
+        /// spend; thirty is one move before it does -- enough to raise the
+        /// alarm on a fire nobody else has seen, and nowhere near the way out
+        /// (100) before anybody is in trouble.
+        /// </summary>
+        public int Starting = 30;
 
         /// <summary>Earned for each person who gets out alive, rescued or under their own steam.</summary>
         public int PerPersonSaved = 15;
 
-        /// <summary>The most influence the player can bank, so saving everybody does not leave a meaningless pile.</summary>
-        public int Maximum = 300;
+        /// <summary>
+        /// The most influence the player can bank: a hundred (the owner's
+        /// call, 2026-09-25), which is exactly what the way out costs to
+        /// unlock, so a full purse is the one thing that opens it.
+        /// </summary>
+        public int Maximum = 100;
 
-        public int BeefcakeCost = 20;
-        public int SpawnFireCost = 10;
-        public int SpawnExtinguisherCost = 25;
-        public int BlastWallCost = 40;
+        /// <summary>
+        /// Cards the player is holding before anybody has died. Empty in the
+        /// office, where the whole point is that the round opens with nothing.
+        /// A later level that wants to hand the player something to start with
+        /// -- or a test that needs a particular card in hand -- sets it here.
+        /// </summary>
+        public PlayerCommandType[] StartingHand = new PlayerCommandType[0];
 
-        public InfluenceSettings Clone() => (InfluenceSettings)MemberwiseClone();
+        /// <summary>
+        /// How many cards are drawn from the deck at the start, on top of
+        /// <see cref="StartingHand"/>: one, from the deck's own random stream,
+        /// so the same seed opens with the same card. The owner's call
+        /// (2026-09-24). A test that counts cards in hand sets it to nought.
+        /// </summary>
+        public int OpeningDrawCount = 1;
+
+        /// <summary>
+        /// What the player pays to pull a fire alarm: the price of a card, and
+        /// exactly the opening purse, so raising the building is the one move
+        /// always on offer from the first tick. Free (and pointless) once the
+        /// bells are ringing.
+        /// </summary>
+        public int PullAlarmCost = 30;
+
+        /// <summary>
+        /// How wide a patch a card thrown at the floor catches. About a
+        /// doorway and a half across: wide enough that a scrum wedged in a door
+        /// is one throw, narrow enough that a calm room is not.
+        /// <para>
+        /// Cards are aimed at a place rather than at a chosen person, so this
+        /// is the whole of the player's accuracy. A throw that catches nobody
+        /// is a miss and costs nothing; a throw that catches the wrong person
+        /// is spent.
+        /// </para>
+        /// </summary>
+        public int CardPatchRadiusMillimetres = 1500;
+
+        /// <summary>
+        /// Every card costs the same. Which card you get is not something you
+        /// choose -- the dead deal them -- so pricing them against each other
+        /// would be pricing a choice nobody makes. What the player chooses is
+        /// whether this moment is worth thirty.
+        /// </summary>
+        public int CardCost = 30;
+
+        /// <summary>
+        /// What the uproar pays. Every notable thing that happens in the
+        /// building feeds the meter, sorted into three sizes: somebody
+        /// shouting or tripping is small, somebody going down or a door coming
+        /// off its hinges is middling, and somebody catching fire or an
+        /// appliance going off is big.
+        /// <para>
+        /// Deaths are deliberately not in here. A death deals a card instead,
+        /// so it pays once rather than twice and the two currencies keep one
+        /// source each.
+        /// </para>
+        /// </summary>
+        public int UproarSmall = 1;
+        public int UproarMiddling = 3;
+        public int UproarBig = 6;
+
+        /// <summary>
+        /// What working a door costs. Reaching into the building and working
+        /// a door is the player's commonest move, and it used to be free, so
+        /// there was never a reason not to fling every door in the place open.
+        /// Each click pays for what that click does. Ten for anything done to
+        /// an inside door -- opening, shutting, locking, unlocking (the owner's
+        /// call, 2026-09-25) -- and the whole purse to unlock the building's
+        /// way out, which is the round's one big decision.
+        /// </summary>
+        public int UnlockDoorCost = 10;
+        public int OpenDoorCost = 10;
+        public int CloseDoorCost = 10;
+        public int LockDoorCost = 10;
+        public int UnlockExitCost = 100;
+
+        public InfluenceSettings Clone()
+        {
+            var copy = (InfluenceSettings)MemberwiseClone();
+
+            // The shallow copy would hand both scenarios the same array, so a
+            // level that dealt itself an opening card would deal it to every
+            // other copy too.
+            copy.StartingHand = StartingHand == null
+                ? new PlayerCommandType[0]
+                : (PlayerCommandType[])StartingHand.Clone();
+            return copy;
+        }
 
         internal void Validate()
         {
             Settings.Require(Starting >= 0 && PerPersonSaved >= 0 && Maximum >= Starting, "influence");
-            Settings.Require(BeefcakeCost >= 0 && SpawnFireCost >= 0 && SpawnExtinguisherCost >= 0 &&
-                             BlastWallCost >= 0, "card costs");
+            Settings.Require(LockDoorCost >= 0 && UnlockExitCost >= 0, "the key");
+            Settings.Require(CardCost >= 0 && PullAlarmCost >= 0 && OpeningDrawCount >= 0, "card costs");
+            Settings.Require(CardPatchRadiusMillimetres > 0, "how wide a card's patch is");
+            Settings.Require(UproarSmall >= 0 && UproarMiddling >= 0 && UproarBig >= 0, "what the uproar pays");
+            Settings.Require(UnlockDoorCost >= 0 && OpenDoorCost >= 0 && CloseDoorCost >= 0, "door costs");
         }
     }
 
@@ -1547,6 +2214,153 @@ namespace Paniq.Simulation
                              GrabTicks >= 1 && DragSpeedBase >= 0 && DragSpeedPerStrength >= 0 && DragGapMillimetres >= 0 &&
                              DragAwayDistanceMillimetres >= 0 && DragGiveUpBlockedTicks >= 1, "dragging");
             Settings.Require(ReachMillimetres >= 0 && ReachTimeoutTicks >= 1, "reaching someone");
+        }
+    }
+
+    /// <summary>
+    /// The building's day: the small things calm people do because a cue
+    /// told them to or because they thought of it themselves (see
+    /// <see cref="CueSystem"/> and <see cref="ErrandBehaviour"/>). What the
+    /// day actually holds -- when the meeting ends, whether there is a home
+    /// time -- is the level's timetable, not a setting.
+    /// </summary>
+    [Serializable]
+    public sealed class DaySettings
+    {
+        /// <summary>
+        /// How often one person needs the toilet: about this many ticks
+        /// between trips, each person's next drawn from the seed, and their
+        /// first anywhere inside the first stretch so the whole office does
+        /// not go at once. Six minutes: in a twenty-person office that is a
+        /// trip every twenty seconds or so somewhere on the floor, one or two
+        /// people in the bathroom at a time. A chance per decision was tried
+        /// first and sent people every few seconds, because a calm person
+        /// decides something every few seconds. Nought means nobody ever goes,
+        /// which a test about two people in one room wants.
+        /// </summary>
+        public int ToiletEveryTicks = 18000;
+
+        /// <summary>
+        /// How often a calm person who has a desk and is not at it decides
+        /// to go back to it. This is what keeps an office reading as an
+        /// office: people drift back to their own chairs between strolls
+        /// and chats rather than wandering the corridor all day.
+        /// </summary>
+        public int GoHomeChancePercent = 10;
+
+        /// <summary>Within this distance of their spot, or on their chair, somebody counts as at home.</summary>
+        public int AtHomeMillimetres = 1500;
+
+        /// <summary>How often somebody talking says something, drawn from this range.</summary>
+        public int RemarkEveryMinimumTicks = 150;
+        public int RemarkEveryMaximumTicks = 400;
+
+        /// <summary>
+        /// How far the first thing each of them says carries. Quiet: within a
+        /// couple of metres people glance over as the talking starts, and
+        /// nobody further off hears a thing. What follows is only written
+        /// down, so a chat beside somebody's desk does not hold their head
+        /// turned all afternoon. A remark alarms nobody, whatever it says.
+        /// </summary>
+        public int RemarkHearingRadiusMillimetres = 2500;
+
+        /// <summary>
+        /// A walk that has taken this long is given up on: a person who
+        /// cannot get where they were going goes back to loitering rather
+        /// than pressing at a wall all day.
+        /// </summary>
+        public int ErrandTimeoutTicks = 3000;
+
+        /// <summary>
+        /// Somebody on an errand who has been stuck this long gives it up.
+        /// Three seconds: a stroll gives up after less than half a second,
+        /// because a stroll has no purpose, and an errand walker who borrowed
+        /// that patience dropped a toilet trip the first time they had to
+        /// wait behind somebody in the office. Somebody leaving the building
+        /// never gives up for being stuck: a queue at the front door is the
+        /// point of them.
+        /// </summary>
+        public int BlockedGiveUpTicks = 150;
+
+        /// <summary>
+        /// How long somebody leaving stands at a locked way out before they
+        /// give up and go back to their day. Long: a queue at the front door
+        /// at home time is exactly the sort of thing worth watching.
+        /// </summary>
+        public int WaitAtLockedDoorTicks = 1500;
+
+        /// <summary>
+        /// When the player calls it a day, how far apart people take it up:
+        /// the building empties over about half a minute, never all at once.
+        /// A timetable's home time carries its own spread.
+        /// </summary>
+        public int PlayerHomeTimeSpreadTicks = 1500;
+
+        /// <summary>
+        /// How long somebody sits at their own desk before getting up for a
+        /// stroll, a chat or the toilet: half a minute to a minute and a
+        /// half. The ordinary sit (five to twenty seconds) is for a chair
+        /// that is not theirs; at their own desk it had people popping up and
+        /// down like a fairground game.
+        /// </summary>
+        public int DeskSitMinimumTicks = 1500;
+        public int DeskSitMaximumTicks = 4500;
+
+        /// <summary>
+        /// Home time stands until everybody is out. Somebody who gave up on
+        /// it -- stood at a locked way out until they tired of it, or found
+        /// no route -- waits about this long, jittered, before taking it up
+        /// again, so a way out unlocked a minute later still empties the
+        /// building.
+        /// </summary>
+        public int HomeTimeRetryTicks = 1500;
+
+        /// <summary>
+        /// How long somebody remembers a door they stood at that would not
+        /// open, and routes round it. A minute: long enough that the story
+        /// is not one line of "tried the door" after another from somebody
+        /// shut in a stall, short enough that a door unlocked is found again.
+        /// </summary>
+        public int LockedDoorMemoryTicks = 3000;
+
+        /// <summary>
+        /// A door somebody opened themselves is shut behind them once they
+        /// are through, unless somebody else is within this distance of it
+        /// and may be on their way through too.
+        /// </summary>
+        public int DoorHoldMillimetres = 2000;
+
+        /// <summary>
+        /// How often somebody cruel enough to defy a leader
+        /// (<see cref="LeadershipSettings.DefiantMinimumEvil"/>) defies a cue
+        /// that has a person behind it: sits on when the host ends the
+        /// meeting, will not talk to whoever came over. Half the time: the
+        /// cruel are contrary, not deaf, and a refusal is a line in the
+        /// story. A cue with nobody behind it (home time, by the clock) is
+        /// nobody's to defy.
+        /// </summary>
+        public int CruelIgnoreCuePercent = 50;
+
+        /// <summary>
+        /// How long somebody who sat on when the meeting ended sits on for,
+        /// drawn from this range: ten to thirty seconds, after which they
+        /// get up like everybody else. Contrary, not glued to the chair.
+        /// </summary>
+        public int CruelSitOnMinimumTicks = 500;
+        public int CruelSitOnMaximumTicks = 1500;
+
+        public DaySettings Clone() => (DaySettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(ToiletEveryTicks >= 0 && Settings.Percent(GoHomeChancePercent), "day chances");
+            Settings.Require(Settings.Range(RemarkEveryMinimumTicks, RemarkEveryMaximumTicks, 1), "remarks");
+            Settings.Require(RemarkHearingRadiusMillimetres >= 0 && AtHomeMillimetres >= 0, "remark reach and home");
+            Settings.Require(ErrandTimeoutTicks >= 1 && BlockedGiveUpTicks >= 1 && WaitAtLockedDoorTicks >= 0 &&
+                             PlayerHomeTimeSpreadTicks >= 0, "errand timing");
+            Settings.Require(Settings.Range(DeskSitMinimumTicks, DeskSitMaximumTicks, 1) && HomeTimeRetryTicks >= 1 &&
+                             LockedDoorMemoryTicks >= 0 && DoorHoldMillimetres >= 0, "desk sits, home time and doors");
+            Settings.Require(Settings.Percent(CruelIgnoreCuePercent) && Settings.Range(CruelSitOnMinimumTicks, CruelSitOnMaximumTicks, 0), "ignoring cues");
         }
     }
 

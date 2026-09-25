@@ -15,7 +15,7 @@ namespace Paniq.Simulation
             ulong eventId,
             int tick,
             SimulationId sourceId,
-            FireReactionEventType eventType,
+            CausalEventType eventType,
             LogicalPosition position,
             int strength,
             int durationTicks,
@@ -36,7 +36,7 @@ namespace Paniq.Simulation
         public ulong EventId { get; }
         public int Tick { get; }
         public SimulationId SourceId { get; }
-        public FireReactionEventType EventType { get; }
+        public CausalEventType EventType { get; }
         public LogicalPosition Position { get; }
         public int Strength { get; }
         public int DurationTicks { get; }
@@ -61,7 +61,7 @@ namespace Paniq.Simulation
         public CausalEvent Append(
             int tick,
             SimulationId sourceId,
-            FireReactionEventType eventType,
+            CausalEventType eventType,
             LogicalPosition position,
             int strength = 0,
             int durationTicks = 0,

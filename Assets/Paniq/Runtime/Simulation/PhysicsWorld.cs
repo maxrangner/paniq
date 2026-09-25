@@ -37,7 +37,7 @@ namespace Paniq.Simulation
         public const int RotationScale = 10000;
 
         private const float MetresPerUnit = 1f / (1000f * SubMillimetre);
-        private const float StepSeconds = 1f / FireReactionSimulation.TicksPerSecond;
+        private const float StepSeconds = 1f / Run.TicksPerSecond;
 
         /// <summary>
         /// How hard the engine works on each step. Fixed here rather than
@@ -396,7 +396,7 @@ namespace Paniq.Simulation
         /// is shoved, tipped and flipped by whatever hits it, as heavy as its
         /// weight makes it. To everything else it still reports as a table (a
         /// thing that meets it meets <see cref="StaticKind.Table"/>), so the
-        /// rules about tables -- what smashes one, what bounces off -- are the
+        /// rules about tables -- what bounces off one, what tips one -- are the
         /// same whether it stands still or not. Its origin is the middle of its
         /// underside.
         /// </summary>
@@ -425,13 +425,6 @@ namespace Paniq.Simulation
             tableBodies.Add(rigidbody);
             tableSizes.Add(size);
             return index;
-        }
-
-        /// <summary>A smashed table stops holding anything up: what stood on it falls.</summary>
-        public void RemoveTable(int index)
-        {
-            SetSolid(tables[index], false);
-            tableBodies[index].isKinematic = true;
         }
 
         /// <summary>Whether the engine moved this table in the last step (a table at rest sleeps).</summary>
@@ -504,6 +497,30 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Heaves a table by hand: the same change of speed across the floor
+        /// (hundredths of a millimetre per tick), but delivered at a point on
+        /// its top edge -- the point over <paramref name="at"/>, which is where
+        /// the hands are -- rather than through its middle. Pushed at the top,
+        /// a light table goes over away from the push and a heavy one slides;
+        /// pushed through the middle, as a blast does, nothing ever tips. The
+        /// push is scaled by the table's weight so that the engine turns it as
+        /// a real shove of that strength would.
+        /// </summary>
+        public void HeaveTable(int index, LogicalPosition at, long vx, long vz)
+        {
+            Rigidbody rigidbody = tableBodies[index];
+            if (rigidbody.isKinematic)
+            {
+                return;
+            }
+
+            Vector3 hands = new Vector3(MetresFromMillimetres(at.X), rigidbody.position.y + tableSizes[index].y,
+                MetresFromMillimetres(at.Z));
+            rigidbody.AddForceAtPosition(VelocityInMetres(vx, 0L, vz) * rigidbody.mass, hands, ForceMode.Impulse);
+            rigidbody.WakeUp();
+        }
+
+        /// <summary>
         /// A plug filling a doorway, there while the door is shut. The door
         /// leaf itself is drawn by the display; to the physics a shut door is
         /// simply more wall.
@@ -537,7 +554,7 @@ namespace Paniq.Simulation
             // The gap itself, a hair thinner so a body leaning on the frame
             // beside it does not count.
             Vector3 half = size * 0.5f - new Vector3(0.005f, 0.005f, 0.005f);
-            int count = physics.OverlapBox(middle, half, overlapping, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore);
+            int count = OverlapBoxAll(middle, half);
             for (int i = 0; i < count; i++)
             {
                 if (bodyByCollider.TryGetValue(overlapping[i].GetInstanceID(), out int handle) && handle != ignoreHandle)
@@ -686,7 +703,14 @@ namespace Paniq.Simulation
 
             rigidbody.constraints = StandingConstraints;
             rigidbody.angularDamping = StandingAngularDamping;
-            rigidbody.angularVelocity = Vector3.zero;
+            if (!rigidbody.isKinematic)
+            {
+                // A pinned body (somebody held on a chair) has no spin to
+                // stop, and the engine refuses the order with a warning: one
+                // per seated person per tick, which once filled a 9 GB log.
+                rigidbody.angularVelocity = Vector3.zero;
+            }
+
             rigidbody.rotation = Quaternion.Euler(0f, heading, 0f);
         }
 
@@ -748,6 +772,18 @@ namespace Paniq.Simulation
             rigidbody.angularVelocity = Vector3.zero;
         }
 
+        /// <summary>
+        /// Where a point this high up a body's own axis is now, in hundredths
+        /// of a millimetre: the top of a lamp that has gone over, wherever it
+        /// has come to lie. The height is never below the floor.
+        /// </summary>
+        public (long X, long Y, long Z) PointOn(int handle, int heightMillimetres)
+        {
+            Rigidbody rigidbody = bodies[handle].Rigidbody;
+            Vector3 point = rigidbody.position + rigidbody.rotation * (Vector3.up * MetresFromMillimetres(heightMillimetres));
+            return (Units(point.x), Math.Max(0L, Units(point.y)), Units(point.z));
+        }
+
         /// <summary>Turns a standing body to face this heading, without moving it.</summary>
         public void Face(int handle, int heading)
         {
@@ -775,7 +811,42 @@ namespace Paniq.Simulation
             }
         }
 
-        private readonly Collider[] overlapping = new Collider[32];
+        /// <summary>
+        /// Room for what a look-up finds. It grows: a look-up that fills it
+        /// is asked again with twice the room, because a full buffer is not
+        /// an answer. With a fixed thirty-two, a doorway packed with chairs
+        /// (three colliders each) could hide a body, and somebody standing up
+        /// in a crush could be told the spot was clear.
+        /// </summary>
+        private Collider[] overlapping = new Collider[64];
+
+        private int OverlapCapsuleAll(Vector3 a, Vector3 b, float radius)
+        {
+            while (true)
+            {
+                int count = physics.OverlapCapsule(a, b, radius, overlapping, ~0, QueryTriggerInteraction.Ignore);
+                if (count < overlapping.Length)
+                {
+                    return count;
+                }
+
+                overlapping = new Collider[overlapping.Length * 2];
+            }
+        }
+
+        private int OverlapBoxAll(Vector3 middle, Vector3 half)
+        {
+            while (true)
+            {
+                int count = physics.OverlapBox(middle, half, overlapping, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore);
+                if (count < overlapping.Length)
+                {
+                    return count;
+                }
+
+                overlapping = new Collider[overlapping.Length * 2];
+            }
+        }
 
         /// <summary>
         /// Whether somebody of this radius and height could stand upright here
@@ -789,7 +860,7 @@ namespace Paniq.Simulation
             float r = MetresFromMillimetres(radius - 5);
             var bottom = new Vector3(MetresFromMillimetres(spot.X), MetresFromMillimetres(radius + 10), MetresFromMillimetres(spot.Z));
             var top = new Vector3(bottom.x, MetresFromMillimetres(height - radius), bottom.z);
-            int count = physics.OverlapCapsule(bottom, top, r, overlapping, ~0, QueryTriggerInteraction.Ignore);
+            int count = OverlapCapsuleAll(bottom, top, r);
             for (int i = 0; i < count; i++)
             {
                 if (!bodyByCollider.TryGetValue(overlapping[i].GetInstanceID(), out int handle) || handle != ownHandle)
@@ -813,7 +884,7 @@ namespace Paniq.Simulation
             float height = MetresFromMillimetres(radius + 10);
             var head = new Vector3(MetresFromMillimetres(middle.X + along.X), height, MetresFromMillimetres(middle.Z + along.Z));
             var feet = new Vector3(MetresFromMillimetres(middle.X - along.X), height, MetresFromMillimetres(middle.Z - along.Z));
-            int count = physics.OverlapCapsule(head, feet, r, overlapping, ~0, QueryTriggerInteraction.Ignore);
+            int count = OverlapCapsuleAll(head, feet, r);
             for (int i = 0; i < count; i++)
             {
                 if (!bodyByCollider.TryGetValue(overlapping[i].GetInstanceID(), out int handle) || handle != ownHandle)
@@ -825,7 +896,22 @@ namespace Paniq.Simulation
             return true;
         }
 
-        private readonly RaycastHit[] sightHits = new RaycastHit[32];
+        /// <summary>Room for what a line of sight crosses; grows the same way, for the same reason.</summary>
+        private RaycastHit[] sightHits = new RaycastHit[64];
+
+        private int RaycastAll(Vector3 start, Vector3 direction, float length)
+        {
+            while (true)
+            {
+                int count = physics.Raycast(start, direction, sightHits, length, ~0, QueryTriggerInteraction.Ignore);
+                if (count < sightHits.Length)
+                {
+                    return count;
+                }
+
+                sightHits = new RaycastHit[sightHits.Length * 2];
+            }
+        }
 
         /// <summary>
         /// Whether a straight line from one spot to the other, at knee height,
@@ -845,7 +931,7 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            int count = physics.Raycast(start, along / length, sightHits, length, ~0, QueryTriggerInteraction.Ignore);
+            int count = RaycastAll(start, along / length, length);
             for (int i = 0; i < count; i++)
             {
                 if (staticByCollider.ContainsKey(sightHits[i].collider.GetInstanceID()))
@@ -910,7 +996,7 @@ namespace Paniq.Simulation
             rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
             rigidbody.solverIterations = SolverIterations;
             rigidbody.solverVelocityIterations = SolverVelocityIterations;
-            rigidbody.maxLinearVelocity = feel.MaximumSpeedMillimetresPerTick * 0.001f * FireReactionSimulation.TicksPerSecond;
+            rigidbody.maxLinearVelocity = feel.MaximumSpeedMillimetresPerTick * 0.001f * Run.TicksPerSecond;
             rigidbody.maxAngularVelocity = 30f;
             rigidbody.linearDamping = 0.05f;
             rigidbody.angularDamping = StandingAngularDamping;
@@ -1112,14 +1198,14 @@ namespace Paniq.Simulation
                 return;
             }
 
-            const float radiansPerDegreePerTick = Mathf.Deg2Rad * FireReactionSimulation.TicksPerSecond;
+            const float radiansPerDegreePerTick = Mathf.Deg2Rad * Run.TicksPerSecond;
             body.Rigidbody.angularVelocity = new Vector3(aboutX, aboutY, aboutZ) * radiansPerDegreePerTick;
             body.Rigidbody.WakeUp();
         }
 
         private static Vector3 VelocityInMetres(long vx, long vy, long vz)
         {
-            float scale = MetresPerUnit * FireReactionSimulation.TicksPerSecond;
+            float scale = MetresPerUnit * Run.TicksPerSecond;
             return new Vector3(vx * scale, vy * scale, vz * scale);
         }
 
@@ -1313,7 +1399,7 @@ namespace Paniq.Simulation
             Quaternion rotation = rigidbody.rotation;
             Vector3 velocity = rigidbody.isKinematic ? Vector3.zero : rigidbody.linearVelocity;
             Vector3 spin = rigidbody.isKinematic ? Vector3.zero : rigidbody.angularVelocity;
-            float perTick = 1f / (MetresPerUnit * FireReactionSimulation.TicksPerSecond);
+            float perTick = 1f / (MetresPerUnit * Run.TicksPerSecond);
 
             ref Reading reading = ref body.Reading;
             reading.X = Units(position.x);
@@ -1339,7 +1425,7 @@ namespace Paniq.Simulation
             reading.Heading = IntegerMath.HeadingOf(
                 (long)Math.Round(across.x * RotationScale), (long)Math.Round(across.z * RotationScale), reading.Heading);
             reading.UprightPercent = (int)Math.Round(up.y * 100f);
-            reading.SpinDegreesPerTick = (int)Math.Round(spin.magnitude * Mathf.Rad2Deg / FireReactionSimulation.TicksPerSecond);
+            reading.SpinDegreesPerTick = (int)Math.Round(spin.magnitude * Mathf.Rad2Deg / Run.TicksPerSecond);
             reading.Sleeping = !rigidbody.isKinematic && rigidbody.IsSleeping();
 
             float bottom = float.MaxValue;
@@ -1369,7 +1455,7 @@ namespace Paniq.Simulation
             }
 
             // Kilogram-metres per second to kilogram-millimetres per tick.
-            const float impulseScale = 1000f / FireReactionSimulation.TicksPerSecond;
+            const float impulseScale = 1000f / Run.TicksPerSecond;
             for (int h = 0; h < headers.Length; h++)
             {
                 ContactPairHeader header = headers[h];

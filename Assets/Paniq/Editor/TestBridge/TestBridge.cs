@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -17,8 +17,9 @@ namespace Paniq.Editor
     ///
     /// A request is a file, Temp/PaniqTestBridge/request.txt, written by
     /// tools/RunUnityTests.ps1. Its lines are key=value pairs: id, mode
-    /// (EditMode or PlayMode), filter (part of a test's full name) and
-    /// category. The bridge refreshes the asset database first so any code
+    /// (EditMode or PlayMode), filter (part of a test's full name; the line
+    /// may repeat, and a test matching any of them runs) and category. The
+    /// bridge refreshes the asset database first so any code
     /// changed since the last compile is compiled, then runs the tests and
     /// writes Temp/PaniqTestBridge/result.txt, ending with a "done=id" line.
     /// A compile failure is reported in the same file instead of running.
@@ -81,6 +82,19 @@ namespace Paniq.Editor
                 SessionState.SetBool(RefreshedKey, false);
             }
 
+            if (EditorApplication.isPlaying)
+            {
+                // A playtest left running would block every test. Nobody is
+                // here to stop it -- the script that asked is waiting on a
+                // file -- so it is stopped here, and the request keeps (it is
+                // in session state, which outlives the reload) until the
+                // editor is back in edit mode. It used to refuse instead, and
+                // the only way on was to close and reopen the editor.
+                WriteStatus("stopping play mode");
+                EditorApplication.isPlaying = false;
+                return;
+            }
+
             if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
 
             if (!SessionState.GetBool(RefreshedKey, false))
@@ -91,7 +105,8 @@ namespace Paniq.Editor
                 return;
             }
 
-            Dictionary<string, string> fields = Parse(SessionState.GetString(PendingKey, string.Empty));
+            string pending = SessionState.GetString(PendingKey, string.Empty);
+            Dictionary<string, string> fields = Parse(pending);
             SessionState.EraseString(PendingKey);
             string id = Get(fields, "id", "unknown");
 
@@ -99,13 +114,6 @@ namespace Paniq.Editor
             {
                 string messages = File.Exists(CompileLogPath) ? File.ReadAllText(CompileLogPath) : string.Empty;
                 File.WriteAllText(ResultPath, "compile=failed\n" + messages + "done=" + id + "\n");
-                WriteStatus("idle");
-                return;
-            }
-
-            if (EditorApplication.isPlaying)
-            {
-                File.WriteAllText(ResultPath, "error=The editor is in play mode; stop it and try again.\ndone=" + id + "\n");
                 WriteStatus("idle");
                 return;
             }
@@ -118,8 +126,14 @@ namespace Paniq.Editor
 
             TestMode mode = Get(fields, "mode", "EditMode") == "PlayMode" ? TestMode.PlayMode : TestMode.EditMode;
             var filter = new Filter { testMode = mode };
-            string nameFilter = Get(fields, "filter", string.Empty);
-            if (nameFilter.Length > 0) filter.groupNames = new[] { System.Text.RegularExpressions.Regex.Escape(nameFilter) };
+            List<string> names = Values(pending, "filter");
+            if (names.Count > 0)
+            {
+                // Several names run every test matching any of them, so one
+                // request covers the two or three areas a change touched.
+                for (int i = 0; i < names.Count; i++) names[i] = System.Text.RegularExpressions.Regex.Escape(names[i]);
+                filter.groupNames = names.ToArray();
+            }
             string category = Get(fields, "category", string.Empty);
             if (category.Length > 0) filter.categoryNames = new[] { category };
 
@@ -141,6 +155,14 @@ namespace Paniq.Editor
             string outcome;
             try
             {
+                // Nobody is sitting at the editor when a script drives it,
+                // and a modal dialog blocks Unity's main thread -- so a
+                // command that stops to ask "are you sure?" freezes not
+                // just itself but every later request, and even
+                // recompiling, until a person notices the dialog and
+                // clicks it. Commands that would ask read this instead and
+                // take the yes as given.
+                SessionState.SetBool(NobodyIsHereToAskKey, true);
                 outcome = EditorApplication.ExecuteMenuItem(item)
                     ? "menu=ran\n"
                     : "error=There is no menu command called '" + item + "'.\n";
@@ -151,8 +173,18 @@ namespace Paniq.Editor
             }
 
             File.WriteAllText(ResultPath, outcome + "done=" + id + "\n");
+            SessionState.SetBool(NobodyIsHereToAskKey, false);
             WriteStatus("idle");
         }
+
+        /// <summary>
+        /// Where the bridge records that a script, rather than a person,
+        /// asked for what is running. Kept in <c>SessionState</c> rather
+        /// than a field because the commands that need to read it live in
+        /// another assembly, and it clears itself when the editor
+        /// restarts, which is exactly the lifetime it should have.
+        /// </summary>
+        public const string NobodyIsHereToAskKey = "Paniq.NobodyIsHereToAsk";
 
         private static void RecordCompilerMessages(string assembly, CompilerMessage[] messages)
         {
@@ -182,6 +214,25 @@ namespace Paniq.Editor
 
         private static string Get(Dictionary<string, string> fields, string key, string fallback) =>
             fields.TryGetValue(key, out string value) ? value : fallback;
+
+        /// <summary>
+        /// Every value of a key that may repeat, in request order. Parse keeps
+        /// only the last of a repeated key, which is right for id and mode and
+        /// wrong for filter, which the script writes once per name.
+        /// </summary>
+        private static List<string> Values(string text, string key)
+        {
+            var values = new List<string>();
+            foreach (string line in text.Split('\n'))
+            {
+                int equals = line.IndexOf('=');
+                if (equals <= 0 || line.Substring(0, equals).Trim() != key) continue;
+                string value = line.Substring(equals + 1).Trim();
+                if (value.Length > 0) values.Add(value);
+            }
+
+            return values;
+        }
 
         private sealed class Callbacks : IErrorCallbacks
         {

@@ -80,7 +80,7 @@ namespace Paniq.Simulation
 
             agent.Carry.ItemIndex = best;
             agent.Intent.Activity = AgentActivityState.FetchingItem;
-            agent.Intent.ActivityEndTick = checked(context.Tick + calm.StrollTimeoutTicks);
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(calm.StrollTimeoutTicks));
             return true;
         }
 
@@ -88,8 +88,13 @@ namespace Paniq.Simulation
         private bool IsFreeToTake(Agent agent, int index)
         {
             // An extinguisher is not clutter: it is left on its wall until
-            // somebody needs it (see ExtinguisherBehaviour).
-            return !objects.IsEquipment(index) && !objects.IsDormant(index) &&
+            // somebody needs it (see ExtinguisherBehaviour). Neither is a
+            // chair. An office full of chairs is an office full of the nearest
+            // liftable thing, so nobody ever sat down in one -- they spent the
+            // day carrying the furniture about instead. A frightened person
+            // still wedges a chair against a door, which is a different act
+            // and lives in BarricadeBehaviour.
+            return !objects.IsEquipment(index) && !objects.CanBeSatOn(index) && !objects.IsDormant(index) &&
                    objects.HolderOf(index) < 0 && !objects.IsMoving(index) && objects.CanLift(agent, index) &&
                    flammables.ObjectState(index) == ObjectBurnState.Intact;
         }
@@ -122,7 +127,7 @@ namespace Paniq.Simulation
                     if (IsWithinReach(agent, item))
                     {
                         intent.Activity = AgentActivityState.PickingUp;
-                        intent.ActivityEndTick = checked(tick + settings.PickUpTicks);
+                        intent.ActivityEndTick = checked(tick + context.Jittered(settings.PickUpTicks));
                         return true;
                     }
 
@@ -155,7 +160,7 @@ namespace Paniq.Simulation
                         agent.Body.BlockedTicks > calm.BlockedGiveUpTicks)
                     {
                         intent.Activity = AgentActivityState.SettingDown;
-                        intent.ActivityEndTick = checked(tick + settings.SetDownTicks);
+                        intent.ActivityEndTick = checked(tick + context.Jittered(settings.SetDownTicks));
                         return true;
                     }
 
@@ -192,7 +197,7 @@ namespace Paniq.Simulation
         {
             AgentIntent intent = agent.Intent;
             intent.Activity = AgentActivityState.CarryingItem;
-            intent.ActivityEndTick = checked(context.Tick + calm.StrollTimeoutTicks);
+            intent.ActivityEndTick = checked(context.Tick + context.Jittered(calm.StrollTimeoutTicks));
             long minimumSquared = (long)settings.CarryMinimumDistanceMillimetres * settings.CarryMinimumDistanceMillimetres;
             for (int attempt = 0; attempt < 3; attempt++)
             {
@@ -247,7 +252,7 @@ namespace Paniq.Simulation
 
             int item = agent.Carry.ItemIndex;
             LogicalPosition spot = objects.FindSpotToPutDown(item, agent, out LogicalPosition clear) ? clear : agent.Body.Position;
-            ulong dropped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemDropped, spot, 0, 0,
+            ulong dropped = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemDropped, spot, 0, 0,
                 causeEventId, objects.IdOf(item)).EventId;
             objects.Release(item, spot, 0, 0, dropped);
             agent.Carry.ItemIndex = -1;
@@ -263,7 +268,7 @@ namespace Paniq.Simulation
 
             int item = agent.Carry.ItemIndex;
             LogicalPosition spot = objects.FindSpotToPutDown(item, agent, out LogicalPosition clear) ? clear : agent.Body.Position;
-            ulong dropped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemDropped, spot, 0, 0,
+            ulong dropped = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemDropped, spot, 0, 0,
                 agent.Burning.EventId, objects.IdOf(item)).EventId;
             objects.Release(item, spot, 0, 0, dropped);
             agent.Carry.ItemIndex = -1;
@@ -333,7 +338,7 @@ namespace Paniq.Simulation
                         agent.Traits.Nervousness >= settings.DropNervousness;
             if (drop)
             {
-                ulong dropped = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemDropped, spot, 0, 0,
+                ulong dropped = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemDropped, spot, 0, 0,
                     cause, objects.IdOf(item)).EventId;
                 objects.Release(item, spot, 0, 0, dropped);
             }
@@ -342,7 +347,7 @@ namespace Paniq.Simulation
                 int speed = objects.ThrowSpeed(agent, item);
                 int heading = objects.PanicThrowHeading(agent, spot);
                 LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
-                ulong thrown = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemThrown, spot, speed, 0,
+                ulong thrown = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemThrown, spot, speed, 0,
                     cause, objects.IdOf(item)).EventId;
                 objects.Release(item, spot, velocity.X, velocity.Z, thrown);
             }

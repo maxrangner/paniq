@@ -124,7 +124,7 @@ namespace Paniq.Simulation
             agent.Carry.ItemIndex = extinguisher;
             agent.Carry.Holding = false;
             agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
-            agent.Intent.ActivityEndTick = checked(context.Tick + settings.FetchTimeoutTicks);
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FetchTimeoutTicks));
             return Update(agent, inDanger);
         }
 
@@ -170,9 +170,15 @@ namespace Paniq.Simulation
             // flames than they otherwise would, but not in them.
             long nerve = TraitEffects.DangerDistance(agent, context.Scenario) * settings.DangerTolerancePercent / 100L;
             bool tooClose = agent.Carry.Holding ? fire.AnyCloserThan(agent.Body.Position, (int)nerve) : inDanger;
+            bool gettingNowhere = agent.Body.BlockedTicks >= settings.BlockedGiveUpTicks;
             if (item < 0 || tooClose || !agent.Body.IsOnTheirFeet || agent.Burning.IsBurning ||
-                tick >= agent.Intent.ActivityEndTick)
+                tick >= agent.Intent.ActivityEndTick || gettingNowhere)
             {
+                if (gettingNowhere && agent.Carry.Holding)
+                {
+                    items.PutDownWhereTheyStand(agent, agent.Fear.ScaredEventId);
+                }
+
                 GiveUp(agent);
                 return null;
             }
@@ -195,8 +201,8 @@ namespace Paniq.Simulation
 
                 objects.PickUp(item, agent);
                 agent.Carry.Holding = true;
-                agent.Intent.ActivityEndTick = checked(tick + settings.FightTimeoutTicks);
-                context.Events.Append(tick, agent.Id, FireReactionEventType.AgentTookExtinguisher,
+                agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.FightTimeoutTicks));
+                context.Events.Append(tick, agent.Id, CausalEventType.AgentTookExtinguisher,
                     agent.Body.Position, 0, 0, agent.Fear.ScaredEventId, objects.IdOf(item));
                 return Walk(agent, where, 0);
             }
@@ -204,7 +210,7 @@ namespace Paniq.Simulation
             if (objects.FuelOf(item) <= 0)
             {
                 // Empty: they drop it and run.
-                context.Events.Append(tick, agent.Id, FireReactionEventType.ExtinguisherEmptied,
+                context.Events.Append(tick, agent.Id, CausalEventType.ExtinguisherEmptied,
                     agent.Body.Position, 0, 0, agent.Doors.AttemptEventId, objects.IdOf(item));
                 items.PutDownWhereTheyStand(agent, agent.Fear.ScaredEventId);
                 GiveUp(agent);
@@ -237,15 +243,15 @@ namespace Paniq.Simulation
             int heading = geometry.Routes.HeadingToward(agent.Body.Position, target, bodyRadius, agent.Body.Heading);
 
             // Once the trigger is down they keep it down while the jet still
-            // reaches; otherwise they close to arm's length first, at a run
-            // if they are chasing somebody who is alight.
+            // reaches; otherwise they close to arm's length first, at a run:
+            // a frightened person with a bottle in a burning building does
+            // not stroll (the owner watched one do so on seed 41).
             bool spraying = agent.Intent.Activity == AgentActivityState.Spraying;
             long closeEnough = spraying ? settings.SprayRangeMillimetres : settings.StandOffMillimetres;
             if (distance > closeEnough)
             {
                 agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
-                return Walk(agent, target,
-                    burningPerson >= 0 ? agent.Personality.PanicSpeed : agent.Personality.CalmSpeed);
+                return Walk(agent, target, agent.Personality.PanicSpeed);
             }
 
             if (!spraying)
@@ -317,7 +323,7 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             objects.UseFuel(item, 1);
-            ulong spray = context.Events.Append(tick, agent.Id, FireReactionEventType.ExtinguisherSprayed,
+            ulong spray = context.Events.Append(tick, agent.Id, CausalEventType.ExtinguisherSprayed,
                 agent.Body.Position, settings.SprayRangeMillimetres, agent.Body.Heading,
                 agent.Fear.ScaredEventId, objects.IdOf(item)).EventId;
 
@@ -337,21 +343,23 @@ namespace Paniq.Simulation
             // blasted off their feet — including whoever was alight.
             flammables.DouseWithin(agent.Body.Position, settings.SprayRangeMillimetres, spray, agent.Body.Heading, Cone(agent));
 
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using (Crowd.Nearby near = crowd.Within(agent.Body.Position, settings.SprayRangeMillimetres))
             {
-                Agent other = agents[i];
-                if (other == agent || !other.IsParticipating || !InTheCone(agent, other.Body.Position))
+                for (int c = 0; c < near.Count; c++)
                 {
-                    continue;
-                }
+                    Agent other = crowd.All[near[c]];
+                    if (other == agent || !other.IsParticipating || !InTheCone(agent, other.Body.Position))
+                    {
+                        continue;
+                    }
 
-                if (other.Burning.IsBurning)
-                {
-                    body.PutOutPerson(other, spray);
-                }
+                    if (other.Burning.IsBurning)
+                    {
+                        body.PutOutPerson(other, spray);
+                    }
 
-                Blast(agent, other, spray);
+                    Blast(agent, other, spray);
+                }
             }
 
             Recoil(agent, spray);
@@ -370,8 +378,8 @@ namespace Paniq.Simulation
             }
 
             int away = IntegerMath.HeadingBetween(sprayer.Body.Position, hit.Body.Position, hit.Body.Heading);
-            hit.Body.BlastedUntilTick = checked(context.Tick + settings.BlastRecoveryTicks);
-            context.Events.Append(context.Tick, sprayer.Id, FireReactionEventType.AgentBlasted,
+            hit.Body.BlastedUntilTick = checked(context.Tick + context.Jittered(settings.BlastRecoveryTicks));
+            context.Events.Append(context.Tick, sprayer.Id, CausalEventType.AgentBlasted,
                 hit.Body.Position, 0, away, sprayEventId, hit.Id);
             body.ShoveBack(hit, away, settings.BlastPushMillimetres, sprayEventId);
         }
@@ -401,7 +409,13 @@ namespace Paniq.Simulation
         private MotorIntent Walk(Agent agent, LogicalPosition where, int speed)
         {
             agent.Intent.Target = where;
-            int heading = IntegerMath.HeadingBetween(agent.Body.Position, where, agent.Body.Heading);
+
+            // Round what is in the way. The bottle is chosen by how far it is
+            // to walk to it, which may be through two doorways, and this used
+            // to head straight at it: three people from the meeting stood
+            // nose to the wall between them and the cafeteria's extinguisher
+            // for as long as the errand lasted (seed 41).
+            int heading = geometry.Routes.HeadingToward(agent.Body.Position, where, bodyRadius, agent.Body.Heading);
             return new MotorIntent(heading, speed, agent.Personality.PanicTurnRate, context.Scenario.Panic.Acceleration);
         }
 
@@ -466,9 +480,11 @@ namespace Paniq.Simulation
             long reach = settings.FetchRangeMillimetres;
             long bestDistance = reach * reach;
             int best = -1;
-            for (int i = 0; i < objects.Count; i++)
+            IReadOnlyList<int> bottles = objects.Equipment;
+            for (int b = 0; b < bottles.Count; b++)
             {
-                if (!objects.IsEquipment(i) || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                int i = bottles[b];
+                if (objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
                 {
                     continue;
                 }
@@ -490,7 +506,7 @@ namespace Paniq.Simulation
             if (IsFighting(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = context.Tick;
+                context.ThinkAgainSoon(agent.Intent);
             }
         }
     }

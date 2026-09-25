@@ -1,4 +1,4 @@
-namespace Paniq.Simulation
+﻿namespace Paniq.Simulation
 {
     /// <summary>
     /// One person's runtime state, split by concern so it is clear which
@@ -16,6 +16,7 @@ namespace Paniq.Simulation
     /// <item><see cref="Intent"/>: what they are trying to do right now (the behaviours).</item>
     /// <item><see cref="Hearing"/>: the last noise worth turning toward.</item>
     /// <item><see cref="Doors"/>: the door they are running for and doors that failed them.</item>
+    /// <item><see cref="Knowledge"/>: which doors they know of, and how much of each room they have looked round.</item>
     /// <item><see cref="Burning"/>: whether they are on fire, and until when.</item>
     /// <item><see cref="Carry"/>: the item they are going for or carrying.</item>
     /// <item><see cref="Help"/>: the person they are helping, if any.</item>
@@ -23,15 +24,23 @@ namespace Paniq.Simulation
     /// <item><see cref="Leading"/>: who they are following, and what they were told to do.</item>
     /// <item><see cref="Alarm"/>: the fire alarm they are going to hit, if any.</item>
     /// <item><see cref="Barricade"/>: the door they are wedging something against, if any.</item>
+    /// <item><see cref="Home"/>: where they belong in the building, if anywhere.</item>
+    /// <item><see cref="Errand"/>: the purpose a cue has given them, and how far along it they are (<see cref="ErrandBehaviour"/>).</item>
     /// </list>
     /// </summary>
     internal sealed class Agent
     {
-        public Agent(int index, SimulationId id, int doorCount)
+        /// <summary>
+        /// A person who knows the building. <paramref name="roomCount"/> only
+        /// matters for somebody later made a visitor; left at nothing, they can
+        /// never be.
+        /// </summary>
+        public Agent(int index, SimulationId id, int doorCount, int roomCount = 0)
         {
             Index = index;
             Id = id;
             Doors = new AgentDoorMemory(doorCount);
+            Knowledge = new AgentKnowledge(doorCount, roomCount);
         }
 
         /// <summary>Position in ascending-ID order; the processing order of every per-person loop.</summary>
@@ -41,6 +50,19 @@ namespace Paniq.Simulation
         public AgentParticipation Participation;
         public AgentTerminalOutcome Outcome;
 
+        /// <summary>
+        /// Whether this person's death has already dealt the player their card.
+        /// Kept per person rather than as a running total, so the deal happens
+        /// exactly once however the death was resolved.
+        /// </summary>
+        public bool DeathDealt;
+
+        /// <summary>
+        /// The log entry for this person's death, so the card it deals the
+        /// player can point back at it.
+        /// </summary>
+        public ulong DeathEventId;
+
         public AgentTraitValues Traits;
 
         public readonly AgentBody Body = new AgentBody();
@@ -49,13 +71,17 @@ namespace Paniq.Simulation
         public readonly AgentIntent Intent = new AgentIntent();
         public readonly AgentHearing Hearing = new AgentHearing();
         public readonly AgentDoorMemory Doors;
+        public readonly AgentKnowledge Knowledge;
         public readonly AgentBurning Burning = new AgentBurning();
         public readonly AgentCarry Carry = new AgentCarry();
         public readonly AgentHelp Help = new AgentHelp();
         public readonly AgentSitting Sitting = new AgentSitting();
         public readonly AgentLeading Leading = new AgentLeading();
         public readonly AgentAlarm Alarm = new AgentAlarm();
+        public readonly AgentGroup Group = new AgentGroup();
         public readonly AgentBarricade Barricade = new AgentBarricade();
+        public readonly AgentHome Home = new AgentHome();
+        public readonly AgentErrand Errand = new AgentErrand();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -78,6 +104,14 @@ namespace Paniq.Simulation
         /// people have errands that take them through the building. Somebody
         /// standing about, or wandering inside one room, is still walled in, so
         /// nobody drifts through a door for no reason.
+        ///
+        /// The errand's answer comes before the stroll's. A door strolled
+        /// through used to be remembered after the stroll, and to answer here
+        /// ahead of the errand, so somebody who had wandered through the
+        /// cafeteria's shortcut earlier was "lined up with" that one door for
+        /// the rest of the day: sent home, they reached the open way out and
+        /// circled in front of it for half a minute, pushed off it by the
+        /// wall beside it every time they came near.
         /// </summary>
         public int DoorwayInUse
         {
@@ -88,12 +122,12 @@ namespace Paniq.Simulation
                     return Doors.ExitDoorIndex;
                 }
 
-                if (Doors.StrollDoorIndex >= 0)
+                if (IsOnAnErrand)
                 {
-                    return Doors.StrollDoorIndex;
+                    return AgentDoorMemory.AnyDoorway;
                 }
 
-                return IsOnAnErrand ? AgentDoorMemory.AnyDoorway : -1;
+                return Doors.StrollDoorIndex;
             }
         }
 
@@ -116,6 +150,7 @@ namespace Paniq.Simulation
                     case AgentActivityState.FetchingBarricade:
                     case AgentActivityState.CarryingBarricade:
                     case AgentActivityState.Following:
+                    case AgentActivityState.RunningAnErrand:
                         return true;
                     default:
                         return false;
@@ -123,9 +158,9 @@ namespace Paniq.Simulation
             }
         }
 
-        public FireReactionAgentSnapshot ToSnapshot()
+        public AgentSnapshot ToSnapshot()
         {
-            return new FireReactionAgentSnapshot(
+            return new AgentSnapshot(
                 Id,
                 Body.Position,
                 Participation,
@@ -143,8 +178,9 @@ namespace Paniq.Simulation
                 Traits,
                 Burning.IsBurning,
                 Leading.LedCount > 0,
-                Fear.Composed,
-                Body.Pose);
+                Body.Pose,
+                Sitting.SeatedPercent,
+                Group.GroupId);
         }
     }
 
@@ -245,14 +281,6 @@ namespace Paniq.Simulation
         public int FreezeEndTick;
         public ulong FrozeEventId;
         public int NextShoutTick;
-
-        /// <summary>
-        /// Told about the fire by an alarm bell rather than by seeing it, and
-        /// level-headed enough to walk out instead of panicking: no sprinting,
-        /// no zig-zagging, no dithering and no freezing. It lasts until the fire
-        /// actually comes at them (<see cref="FearSystem.BreakComposure"/>).
-        /// </summary>
-        public bool Composed;
     }
 
     internal sealed class AgentIntent
@@ -269,6 +297,9 @@ namespace Paniq.Simulation
         public int SwerveEndTick;
         public int NextPanicDecisionTick;
 
+        /// <summary>When they may next heave a table out of their way; heaving one costs a moment.</summary>
+        public int NextTableHeaveTick;
+
         /// <summary>The soonest a cruel person will heave another person out of their way (not the door shoving in <see cref="AgentDoorMemory"/>).</summary>
         public int NextShoveTick;
 
@@ -281,11 +312,58 @@ namespace Paniq.Simulation
         public bool SetOnAWayOut;
     }
 
+    /// <summary>
+    /// What a person has heard and not yet looked at. The noise they are
+    /// looking toward now is <see cref="SoundPoint"/>; a few more wait their
+    /// turn in <see cref="Pending"/>, so somebody turned toward a thud in the
+    /// next room still hears the fire crackling behind the door, and looks
+    /// at that next (or at once, since a threat's noise beats a thud).
+    /// </summary>
     internal sealed class AgentHearing
     {
         public LogicalPosition SoundPoint;
         public bool HasSoundPoint;
         public int InvestigateStartTick;
+
+        /// <summary>The event that made the noise being looked toward, for whatever it leads to to name as its cause.</summary>
+        public ulong SoundEventId;
+
+        /// <summary>Whether the noise being looked toward is a threat's own (fire crackling) rather than a thud or a voice.</summary>
+        public bool SoundIsAThreat;
+
+        /// <summary>The room the noise came from, or -1.</summary>
+        public int SoundRoom = -1;
+
+        /// <summary>How far the noise carried, which stands for how loud it was.</summary>
+        public long SoundLoudness;
+
+        public const int PendingCapacity = 3;
+        public readonly HeardNoise[] Pending = new HeardNoise[PendingCapacity];
+        public int PendingCount;
+
+        /// <summary>Where the threat noise they last went to look at came from, for the errand that walks them toward it.</summary>
+        public LogicalPosition NoiseToLookAt;
+
+        /// <summary>The soonest they would go and look at a noise again.</summary>
+        public int NextGoAndLookTick;
+
+        /// <summary>The last noise they turned to look at, and when: the same noise again, soon after, turns no head a second time.</summary>
+        public LogicalPosition LastLookedPoint;
+        public bool HasLookedAtAnything;
+        public int LastLookedTick;
+
+        public void ClearPending() => PendingCount = 0;
+    }
+
+    /// <summary>One noise waiting to be looked at.</summary>
+    internal struct HeardNoise
+    {
+        public LogicalPosition Point;
+        public ulong EventId;
+        public int Tick;
+        public long Loudness;
+        public bool IsAThreat;
+        public int Room;
     }
 
     internal sealed class AgentDoorMemory
@@ -308,6 +386,29 @@ namespace Paniq.Simulation
         /// can be.
         /// </summary>
         public int WayOutDoorIndex = -1;
+
+        /// <summary>
+        /// Whether, since they were last frightened, they have looked for a
+        /// way out at all. Until they have, a way out of -1 means "not thought
+        /// about it yet", not "there is none left": somebody startled beside
+        /// an open door with fire beyond it used to slam it in the few ticks
+        /// before their first decision, cutting off the very route that
+        /// decision would have chosen.
+        /// </summary>
+        public bool HasLookedForAWayOut;
+
+        /// <summary>
+        /// Until when they are running for a way out through the heat: while
+        /// this holds they do not bolt away from the flames at their danger
+        /// distance and do not abandon a door for the heat at it.
+        /// </summary>
+        public int DashingUntilTick;
+
+        /// <summary>The door they last gave up as too hot to reach, or -1: so the giving up is written down once, not every decision.</summary>
+        public int HidFromHeatAtDoor = -1;
+
+        /// <summary>The doorway the press is carrying them through while they are down, or -1: so it is written down once per fall.</summary>
+        public int CarriedThroughDoor = -1;
 
         /// <summary>The room they are heading at that door from, so approach and target points work from either side.</summary>
         public int ApproachRoom = -1;
@@ -353,6 +454,89 @@ namespace Paniq.Simulation
         public ulong EscapedEventId;
     }
 
+    /// <summary>
+    /// What somebody knows of the building: which doors they know are there
+    /// and where each leads, and how much of each room they have looked round.
+    /// <para>
+    /// Somebody who works here knows it all, and every question below answers
+    /// "yes" for them without looking at anything -- which is what keeps them
+    /// walking exactly as everybody did before anybody could be a stranger.
+    /// A visitor starts out knowing only the room they are in and learns the
+    /// rest (see <see cref="WayfindingSystem"/>). Nothing is ever forgotten.
+    /// </para>
+    /// <para>
+    /// Knowledge is kept per door rather than per room on purpose. Seeing into
+    /// a room must not tell anybody where its far door is: stood at the mouth
+    /// of a long corridor you know the corridor is there, not that the stairs
+    /// are at the end of it.
+    /// </para>
+    /// </summary>
+    internal sealed class AgentKnowledge
+    {
+        /// <summary>All four corners of a room: south-west, south-east, north-west and north-east, one bit each.</summary>
+        public const byte AllCorners = 0xF;
+
+        public AgentKnowledge(int doorSlots, int roomCount)
+        {
+            KnowsDoor = new bool[doorSlots];
+            CornersSeen = new byte[roomCount];
+        }
+
+        /// <summary>Knows the building: every door, including any hole blown later, and every room.</summary>
+        public bool KnowsEverything { get; private set; } = true;
+
+        /// <summary>Per door slot: they know it is there and where it leads. Only read for a visitor.</summary>
+        public readonly bool[] KnowsDoor;
+
+        /// <summary>Per room: the corners they have been within sight of, from inside it. Only read for a visitor.</summary>
+        public readonly byte[] CornersSeen;
+
+        /// <summary>The room they were last seen to be in, and the one before it: the way they came.</summary>
+        public int LookRoom = -1;
+
+        public int CameFrom = -1;
+
+        /// <summary>Frightened, knowing of no way out, and looking for one.</summary>
+        public bool Searching;
+
+        /// <summary>Their AgentLookedForAWayOut, while they are still looking.</summary>
+        public ulong SearchEventId;
+
+        /// <summary>A spot in the room they are in that they are going to look round from, instead of a door.</summary>
+        public bool HasSearchSpot;
+
+        public LogicalPosition SearchSpot;
+
+        public bool Knows(int door) => KnowsEverything || KnowsDoor[door];
+
+        /// <summary>They have been within sight of every corner of this room from inside it.</summary>
+        public bool HasLookedOver(int room) => KnowsEverything || CornersSeen[room] == AllCorners;
+
+        /// <summary>
+        /// Forget the building but for the room they start in, which they have
+        /// been sitting in long enough to know every door of.
+        /// </summary>
+        public void StartAsVisitor(int room, int[] doorsOfRoom)
+        {
+            if (room < 0 || room >= CornersSeen.Length)
+            {
+                throw new System.InvalidOperationException("A visitor has to start in a room the building has.");
+            }
+
+            KnowsEverything = false;
+            System.Array.Clear(KnowsDoor, 0, KnowsDoor.Length);
+            System.Array.Clear(CornersSeen, 0, CornersSeen.Length);
+            for (int i = 0; i < doorsOfRoom.Length; i++)
+            {
+                KnowsDoor[doorsOfRoom[i]] = true;
+            }
+
+            CornersSeen[room] = AllCorners;
+            LookRoom = room;
+            CameFrom = -1;
+        }
+    }
+
     internal sealed class AgentLeading
     {
         /// <summary>The leader (agent index) they are following, or -1.</summary>
@@ -360,6 +544,9 @@ namespace Paniq.Simulation
 
         /// <summary>They stop following at this tick unless called on again.</summary>
         public int FollowUntilTick;
+
+        /// <summary>When they actually fall in behind the leader: a few ticks after the call, like every reaction.</summary>
+        public int FollowFromTick;
 
         /// <summary>When they may next look around and form a plan.</summary>
         public int NextPlanTick;
@@ -390,6 +577,22 @@ namespace Paniq.Simulation
         public int AlarmIndex = -1;
     }
 
+    /// <summary>Bound by a "Stick together" throw (see <see cref="GroupSystem"/>).</summary>
+    internal sealed class AgentGroup
+    {
+        /// <summary>The group they belong to, or -1.</summary>
+        public int GroupId = -1;
+
+        /// <summary>The throw that bound them, so what they learn from the others names it.</summary>
+        public ulong CauseEventId;
+
+        /// <summary>When the pull toward the others begins: a few ticks after the throw, like every reaction.</summary>
+        public int FromTick;
+
+        /// <summary>When they next compare notes on the way out with the others.</summary>
+        public int NextShareTick;
+    }
+
     /// <summary>
     /// The parts of sitting down and getting up again, in order. Nobody snaps
     /// onto a seat: they pull the chair out, then lower themselves onto it as
@@ -401,7 +604,14 @@ namespace Paniq.Simulation
         PullingOut,
         Lowering,
         ScootingOut,
-        Rising
+        Rising,
+
+        /// <summary>
+        /// Coming up out of the seat in a fright rather than on purpose: the
+        /// chair has already been kicked away behind them and they are rising
+        /// where they sat, so nothing shoves them backwards out of it.
+        /// </summary>
+        LeapingUp
     }
 
     internal sealed class AgentSitting
@@ -433,6 +643,245 @@ namespace Paniq.Simulation
         /// cut short how long they meant to sit.
         /// </summary>
         public int SitUntilTick;
+
+        /// <summary>
+        /// Where they are stepping to as they rise from the chair, chosen once
+        /// when they start to rise. It used to be worked out afresh every
+        /// tick from wherever they had got to, so it kept moving away from
+        /// them and they slid the better part of two metres backwards.
+        /// </summary>
+        public LogicalPosition StepTo;
+
+        /// <summary>
+        /// How far into the seat they are, nought to a hundred: nought on
+        /// their feet, a hundred sat down, and in between while lowering onto
+        /// it or rising from it. For the display, which draws the body that
+        /// much lower or higher; it decides nothing.
+        /// </summary>
+        public int SeatedPercent;
+
+        /// <summary>How far into the seat they were when a fright started them up out of it.</summary>
+        public int RisingFromPercent;
+
+        /// <summary>
+        /// They stay in the chair until something tells them to get up -- a
+        /// meeting under way when the run starts -- rather than for a drawn
+        /// while. <see cref="SitUntilTick"/> is the end of time while this holds.
+        /// </summary>
+        public bool SitUntilTold;
+    }
+
+    /// <summary>
+    /// Where somebody belongs in the building: their desk chair, or a spot
+    /// they stand at. Authored per person; somebody with neither (a visitor,
+    /// say) simply loiters wherever the day leaves them.
+    /// </summary>
+    internal sealed class AgentHome
+    {
+        /// <summary>The chair (physical-object index) that is theirs, or -1.</summary>
+        public int Chair = -1;
+
+        public bool HasSpot;
+        public LogicalPosition Spot;
+
+        public bool Exists => Chair >= 0 || HasSpot;
+
+        /// <summary>
+        /// When they next need the toilet, or 0 before their first is drawn.
+        /// Kept here with the rest of what is theirs about the building's
+        /// day, rather than on the errand, which is cleared.
+        /// </summary>
+        public int NextToiletTick;
+
+        /// <summary>
+        /// When they may next take up home time, after giving up on it (a
+        /// locked way out, no route): home time stands until they are out.
+        /// </summary>
+        public int NextHomeTryTick;
+    }
+
+    /// <summary>How far along the current step of an errand somebody is, so a glance at a noise resumes where it left off.</summary>
+    internal enum ErrandPhase
+    {
+        /// <summary>Handed to them, not yet taken up: waits for <see cref="AgentErrand.StartTick"/>.</summary>
+        NotStarted,
+
+        /// <summary>Out of the chair they were in before the first step.</summary>
+        GettingUp,
+
+        /// <summary>On the way somewhere.</summary>
+        Walking,
+
+        /// <summary>Pushing a shut door open, which takes a moment.</summary>
+        OpeningTheDoor,
+
+        /// <summary>Stood at a door that will not open, waiting for it to.</summary>
+        WaitingAtTheDoor,
+
+        /// <summary>Stood still for a while.</summary>
+        Standing,
+
+        /// <summary>Stood talking, or waiting for the person who hailed them to arrive.</summary>
+        Talking,
+
+        /// <summary>Handed over to the chair behaviour for the last few steps and the sit itself.</summary>
+        SittingDown
+    }
+
+    /// <summary>
+    /// A cue handed to somebody in the middle of an errand, kept until that
+    /// errand ends: a cue never changes what somebody is doing on the tick
+    /// it is called, so home time called mid-chat waits for the chat.
+    /// </summary>
+    internal struct PendingCue
+    {
+        public bool Has;
+        public CueKind Cue;
+        public bool IsHost;
+        public int StartTick;
+        public ulong CauseEventId;
+    }
+
+    /// <summary>
+    /// The errand this person is on, if any: a cue's script being carried
+    /// out step by step by <see cref="ErrandBehaviour"/>, with the scratch
+    /// the current step needs. Fixed fields, nothing allocated; cleared
+    /// whenever fear takes over.
+    /// </summary>
+    internal sealed class AgentErrand
+    {
+        /// <summary>Whether there is an errand at all: pending or under way.</summary>
+        public bool Has;
+
+        /// <summary>Which cue's script they are carrying out.</summary>
+        public CueKind Cue;
+
+        /// <summary>Whether they are the one whose idea the cue was, which is the one who follows its host script and whose chat has an end.</summary>
+        public bool IsHost;
+
+        /// <summary>The step of the script they are on, or -1 before the first.</summary>
+        public int Step = -1;
+
+        public ErrandPhase Phase;
+
+        /// <summary>When they take it up: their own reaction tick, plus their share of the cue's spread.</summary>
+        public int StartTick;
+
+        /// <summary>When the current phase gives up or ends, by the clock.</summary>
+        public int UntilTick;
+
+        /// <summary>For a chat, when it ends, drawn when it was called; only the one whose idea it was holds an end.</summary>
+        public int ChatEndTick;
+
+        /// <summary>The room the current step is about (a stall), or -1.</summary>
+        public int Room = -1;
+
+        /// <summary>The door the walk is about next, or -1.</summary>
+        public int Door = -1;
+
+        /// <summary>The door of the small room the errand is about (a stall door), or -1.</summary>
+        public int Object = -1;
+
+        /// <summary>The way out at the far end of the route, or -1.</summary>
+        public int WayOutDoor = -1;
+
+        /// <summary>The room the route was worked out from, so a new room means a new route.</summary>
+        public int ApproachRoom = -1;
+
+        /// <summary>The person (agent index) the cue is about, or -1. Not <see cref="AgentIntent.SocialPartnerIndex"/>, which every distraction clears.</summary>
+        public int PartnerIndex = -1;
+
+        /// <summary>Where the current step is walking to right now: the next door on the way, or the destination itself on the last leg.</summary>
+        public LogicalPosition Place;
+
+        /// <summary>Where the current step is walking to in the end.</summary>
+        public LogicalPosition Destination;
+
+        /// <summary>How near the place counts as arriving, for the current step.</summary>
+        public int ArriveWithin;
+
+        /// <summary>A moment's wait after which the current step is begun again rather than the next one (a chair still sliding).</summary>
+        public bool RetryStep;
+
+        /// <summary>How many times the current step has been begun again.</summary>
+        public int Tries;
+
+        /// <summary>Where they stood when the errand began, for a script that sends them back there.</summary>
+        public LogicalPosition Origin;
+
+        /// <summary>The cue that set them on it, for everything that follows to name its cause.</summary>
+        public ulong CauseEventId;
+
+        /// <summary>When they next say something, while talking.</summary>
+        public int NextRemarkTick;
+
+        /// <summary>How many things they have said in this chat. The first is heard; the rest are only written down.</summary>
+        public int Remarks;
+
+        /// <summary>Why the last errand ended, for the debug line and for tests; decides nothing.</summary>
+        public string EndedBecause = "";
+
+        /// <summary>A cue that arrived while this errand was under way, taken up when it ends.</summary>
+        public PendingCue Next;
+
+        /// <summary>A door they opened themselves on the way, to shut behind them once through; -1 for none.</summary>
+        public int OpenedDoor = -1;
+
+        /// <summary>Which side of <see cref="OpenedDoor"/> they opened it from, so "through" is the other side.</summary>
+        public int OpenedFromSide;
+
+        /// <summary>Handed to them and not yet taken up.</summary>
+        public bool Pending => Has && Step < 0;
+
+        /// <summary>Taken up and not yet done.</summary>
+        public bool Active => Has && Step >= 0;
+
+        public void Clear()
+        {
+            Has = false;
+            Next = default;
+            OpenedDoor = -1;
+            OpenedFromSide = 0;
+            Cue = default;
+            IsHost = false;
+            Step = -1;
+            Phase = ErrandPhase.NotStarted;
+            StartTick = 0;
+            UntilTick = 0;
+            ChatEndTick = 0;
+            Room = -1;
+            Door = -1;
+            Object = -1;
+            WayOutDoor = -1;
+            ApproachRoom = -1;
+            PartnerIndex = -1;
+            Place = default;
+            Destination = default;
+            ArriveWithin = 0;
+            RetryStep = false;
+            Tries = 0;
+            Origin = default;
+            CauseEventId = 0UL;
+            NextRemarkTick = 0;
+            Remarks = 0;
+        }
+
+        /// <summary>The scratch of one step, wiped between steps; what the errand is about stays.</summary>
+        public void ClearStep()
+        {
+            Phase = ErrandPhase.NotStarted;
+            UntilTick = 0;
+            Door = -1;
+            WayOutDoor = -1;
+            ApproachRoom = -1;
+            Place = default;
+            Destination = default;
+            ArriveWithin = 0;
+            RetryStep = false;
+            NextRemarkTick = 0;
+            OpenedDoor = -1;
+            OpenedFromSide = 0;
+        }
     }
 
     internal sealed class AgentHelp

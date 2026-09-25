@@ -44,6 +44,36 @@ This is what makes the percentage saved dramatic rather than arithmetic: a
 person the player fails to save does not merely reduce the score, they may
 join the other side.
 
+## Decided: three things the finished game must be
+
+Stated by the owner on 2026-09-24, in these words, as the yardstick every
+foundation decision is measured against. Where the foundation stands against
+each is checked in [technical decisions](technical-decisions.md#alignment-with-the-three-requirements-for-the-finished-game-2026-09-24).
+
+1. **Very optimised for large crowds, each person with a lot of emergent
+   behaviour and events.** Large is a stated goal, not an open question: the
+   working budget is two hundred to five hundred people on a floor of thirty
+   to fifty rooms, and every system is measured against a panicking crowd of
+   that size before it is trusted. Emergence is not decoration: every person
+   decides for themselves from what they see, hear and touch, and every event
+   names its cause, so a chain of consequences can be read back.
+2. **Systems flexible for different dangers; a reaction is a feeling about a
+   situation, never a response to a named event.** A danger is content that
+   answers the crowd's questions (where is it, is it in my room, can I see it,
+   is it on my way, is it touching me, what does touching do). People react to
+   what those answers make them feel. Nothing in the crowd switches on an
+   event's name. Fear is the feeling that exists today; the others that drive
+   behaviour -- anger, trust in a leader, curiosity -- are named here so they
+   are built as feelings when a danger or a card first needs them, not as
+   special cases.
+3. **Handcrafted levels, with dynamic scenery and props, possibly on more than
+   one floor.** Levels are placed by hand and read into the run by a bake tool,
+   never generated. Scenery is not a backdrop: props are physical things that
+   are shoved, thrown, tipped, broken and burnt; tables move and the walkable
+   floor follows them; walls are blown through; doors break. Storeys are
+   prepared for now (every room and position may carry a storey number; a stair
+   is a kind of door between storeys) and built when a level asks.
+
 ## Decided: how a disaster is described
 
 Paniq does not commit to any particular disaster. Instead, every disaster is
@@ -164,6 +194,19 @@ simulation layer. It draws every choice from the scenario seed, reads only
 simulation state, and never reads the camera or anything else the player's
 screen knows. See [simulation contract](simulation-contract.md).
 
+## Decided: the building has a day
+
+Decided with the owner on 2026-09-24. The calm half of a level is not people
+killing time: it is a working day, with small things happening in it. A
+meeting ends and the host gets up first. Somebody goes to the toilet. Two
+people stop and chat. At the end of the day everybody packs up and heads for
+the door. These small events are **cues**, called by the Director from the
+level's timetable, by the people themselves, or by the player, and every one
+of them is carried out with the same walking, doors, chairs and sounds the
+disaster uses, so that the two halves of the game are one simulation. The
+Director's timetable is the first thing a future event editor edits. The
+foundation is [the cue system](cue-system.md).
+
 ## Decided: structure — a shelf of dioramas
 
 - Each level is a small, self-contained scene — a diorama. Played together they
@@ -193,7 +236,9 @@ stays a real-time panic rather than becoming turn-based.
 
 1. **Indirect control:** change what people are capable of, never where they go.
 2. **Autonomous crowd:** the crowd reacts to hazards, the environment, and each
-   other; it is not a collection of identical particles.
+   other; it is not a collection of identical particles. A reaction is a
+   feeling about a situation -- fear today; anger, trust and curiosity as they
+   are needed -- never a rule keyed to an event's name.
 3. **The crowd carries the disaster:** the people being rescued are also how the
    danger spreads.
 4. **Readable emergence:** simple, visible rules produce surprising chains with
@@ -210,12 +255,17 @@ stays a real-time panic rather than becoming turn-based.
 These are accepted, not solved. Each needs playtest evidence before it is
 treated as settled.
 
-- **The Influence economy can spiral.** Influence is earned by saving people, so
-  a disastrous opening leaves the player without the means to recover. A
-  well-tuned Director is expected to absorb this by easing off. The intriguing
-  alternative, kept on the shelf, is for **panic itself to pay** — the more
-  chaos on screen, the faster Influence accrues, making the game and the toy
-  the same thing.
+- ~~**The Influence economy can spiral.**~~ **Settled on 2026-09-23: panic
+  pays.** The alternative that was kept on the shelf came off it. A round now
+  opens with an empty purse and an empty hand; the meter fills from the
+  building in uproar, and every person the disaster kills deals the player one
+  card at random. So a disastrous opening arms the player rather than leaving
+  them broke and spectating, and the game and the toy are the same thing. The
+  cost is that letting people die is genuinely tempting, which the owner chose
+  deliberately: it hurts the percentage and buys options, so it is a hard
+  choice rather than a free lunch. What is now unproven is the *wait* at the
+  start of a round — see the measurement in
+  [technical decisions](technical-decisions.md).
 - **The cascade curve.** Contagion tends to either fizzle out or run away, and
   the interesting middle is narrow. The Director is the intended cure and is
   unproven.
@@ -233,7 +283,9 @@ treated as settled.
 - Audio design beyond the decision that sound replaces helper markers.
 - The models themselves, and the concept art that will pin them down; the
   style they sit in is settled in [look and controls](look-and-controls.md).
-- Exact Influence numbers, card list, crowd size, and level size.
+- Which feelings beyond fear arrive first, and with which danger or card.
+  (Crowd size and level size are decided above: large. Influence numbers and
+  the card list are settled for now in [technical decisions](technical-decisions.md).)
 - Relationships between people, and which information is hidden from the player.
 
 Locations and situations will vary; no single narrative setting is committed.

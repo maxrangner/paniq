@@ -11,12 +11,12 @@ namespace Paniq.Simulation
     /// they are dragging. The cruel never help. Helping stops when the helper
     /// is in danger, loses their footing, catches fire or gives up.
     /// </summary>
-    internal sealed class HelpBehaviour : IPanicOption
+    internal sealed class HelpBehaviour : IPanicOption, IBindable
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly FearSystem fear;
         private readonly BodySystem body;
         private readonly PhysicsObjectSystem objects;
@@ -24,8 +24,14 @@ namespace Paniq.Simulation
         private readonly HelpSettings settings;
         private readonly int radius;
 
-        /// <summary>Per person: somebody is already on their way to them. Reused every search.</summary>
-        private readonly bool[] alreadyBeingHelped;
+        /// <summary>
+        /// Per person: who last set out to help them (their index), or -1.
+        /// Read through <see cref="IsAlreadyBeingHelped"/>, which checks the
+        /// helper is still at it, so a stale entry is harmless. This used to
+        /// be a table of everybody rebuilt from the whole crowd every time
+        /// anybody kind thought about helping, which was every tick.
+        /// </summary>
+        private readonly int[] helpedBy;
 
         /// <summary>Everybody's physical body: somebody being dragged is hauled along the floor as one.</summary>
         private readonly PeopleBodies people;
@@ -37,7 +43,7 @@ namespace Paniq.Simulation
             SimulationContext context,
             Crowd crowd,
             WorldGeometry geometry,
-            FireSystem fire,
+            Threats threats,
             FearSystem fear,
             BodySystem body,
             PhysicsObjectSystem objects,
@@ -47,13 +53,18 @@ namespace Paniq.Simulation
             this.context = context;
             this.crowd = crowd;
             this.geometry = geometry;
-            this.fire = fire;
+            this.threats = threats;
             this.fear = fear;
             this.body = body;
             this.objects = objects;
             this.locomotion = locomotion;
             this.people = people;
-            alreadyBeingHelped = new bool[crowd.All.Length];
+            helpedBy = new int[crowd.All.Length];
+            for (int i = 0; i < helpedBy.Length; i++)
+            {
+                helpedBy[i] = -1;
+            }
+
             settings = context.Scenario.Help;
             radius = context.Scenario.World.OccupancyRadiusMillimetres;
         }
@@ -109,7 +120,6 @@ namespace Paniq.Simulation
             }
 
             int danger = TraitEffects.DangerDistance(agent, context.Scenario);
-            MarkWhoIsAlreadyBeingHelped();
 
             // Nobody outside the longer of the two reaches can be chosen, so
             // only the people near enough are worth looking at.
@@ -123,7 +133,7 @@ namespace Paniq.Simulation
                 int i = candidates[c];
                 Agent other = crowd.All[i];
                 if (other == agent || !other.IsParticipating || other.Burning.IsBurning || i == agent.Help.GaveUpOnIndex ||
-                    alreadyBeingHelped[i] || fire.AnyCloserThan(other.Body.Position, danger))
+                    IsAlreadyBeingHelped(i) || threats.AnyCloserThan(other.Body.Position, danger))
                 {
                     continue;
                 }
@@ -149,31 +159,31 @@ namespace Paniq.Simulation
             }
 
             agent.Help.TargetIndex = best;
+            helpedBy[best] = agent.Index;
             agent.Help.WorkEndTick = 0;
-            agent.Help.GiveUpTick = checked(context.Tick + settings.ReachTimeoutTicks);
+            agent.Help.GiveUpTick = checked(context.Tick + context.Jittered(settings.ReachTimeoutTicks));
             agent.Intent.Activity = bestIsShake ? AgentActivityState.ShakingAwake : AgentActivityState.Grabbing;
             agent.Doors.ExitDoorIndex = -1;
             return true;
         }
 
         /// <summary>
-        /// Who somebody is already seeing to, so that two people do not both
-        /// set off for the same casualty. Worked out once for the whole search
-        /// rather than once per candidate: nobody starts or stops helping while
-        /// the search runs, so the answer cannot change partway through it.
+        /// Whether somebody is already seeing to this person, so that two
+        /// people do not both set off for the same casualty. The last helper
+        /// to set out for them is remembered; they count only while they are
+        /// still in the run, still helping, and still helping this person,
+        /// which is exactly what a walk of the whole crowd used to establish.
         /// </summary>
-        private void MarkWhoIsAlreadyBeingHelped()
+        private bool IsAlreadyBeingHelped(int person)
         {
-            Array.Clear(alreadyBeingHelped, 0, alreadyBeingHelped.Length);
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            int helper = helpedBy[person];
+            if (helper < 0)
             {
-                Agent helper = agents[i];
-                if (helper.IsParticipating && IsHelping(helper) && helper.Help.TargetIndex >= 0)
-                {
-                    alreadyBeingHelped[helper.Help.TargetIndex] = true;
-                }
+                return false;
             }
+
+            Agent by = crowd.All[helper];
+            return by.IsParticipating && IsHelping(by) && by.Help.TargetIndex == person;
         }
 
         /// <summary>Running to the person in need, then shaking them, or getting a grip on them.</summary>
@@ -213,7 +223,7 @@ namespace Paniq.Simulation
             {
                 agent.Help.WorkEndTick = checked(tick + (shaking
                     ? context.Random.NextIntInclusive(settings.ShakeMinimumTicks, settings.ShakeMaximumTicks)
-                    : settings.GrabTicks));
+                    : context.Jittered(settings.GrabTicks)));
             }
 
             if (tick < agent.Help.WorkEndTick)
@@ -228,7 +238,7 @@ namespace Paniq.Simulation
             }
 
             // Got a grip: start dragging.
-            agent.Help.GrabEventId = context.Events.Append(tick, agent.Id, FireReactionEventType.AgentGrabbed,
+            agent.Help.GrabEventId = context.Events.Append(tick, agent.Id, CausalEventType.AgentGrabbed,
                 target.Body.Position, 0, 0, agent.Fear.ScaredEventId, target.Id).EventId;
             agent.Intent.Activity = AgentActivityState.Dragging;
             agent.Body.BlockedTicks = 0;
@@ -242,7 +252,7 @@ namespace Paniq.Simulation
             bool forGood = target.Personality.Temperament == AgentPanicTemperament.FreezeForever;
             if (!forGood || context.Random.NextPercent(settings.ShakeFreezeForeverSuccessPercent))
             {
-                CausalEvent shook = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentShookAwake,
+                CausalEvent shook = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentShookAwake,
                     target.Body.Position, 0, 0, agent.Fear.ScaredEventId, target.Id);
                 fear.Unfreeze(target, shook.EventId);
             }
@@ -255,8 +265,8 @@ namespace Paniq.Simulation
             StopHelping(agent, false);
         }
 
-        /// <summary>Wired up after construction, because the doors are built after this behaviour.</summary>
-        public void UseDoors(DoorSystem doorSystem) => doors = doorSystem;
+        /// <summary>The doors are built after this behaviour, so they are handed over once everything exists.</summary>
+        public void Bind(Systems systems) => doors = systems.Doors;
 
         // ---------------------------------------------------------------- dragging
 
@@ -276,9 +286,12 @@ namespace Paniq.Simulation
             FlowField walking = geometry.Routes.ReachFrom(agent.Body.Position, radius);
             for (int d = 0; d < geometry.DoorCount; d++)
             {
-                if (!geometry.IsDoorOpen(d) || !geometry.DoorLeadsOutside(d) || doors.IsObstructed(d))
+                if (!geometry.IsDoorOpen(d) || !geometry.DoorLeadsOutside(d) || doors.IsObstructed(d) ||
+                    !agent.Knowledge.Knows(d))
                 {
                     // Something wedged in the gap: they would never get through.
+                    // Or a way out they do not know is there, which to them is
+                    // no way out at all.
                     continue;
                 }
 
@@ -301,14 +314,14 @@ namespace Paniq.Simulation
             }
 
             agent.Doors.ExitDoorIndex = -1;
-            if (fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition flames) == long.MaxValue)
+            if (threats.NearestDistanceSquared(agent.Body.Position, out LogicalPosition flames, out _) == long.MaxValue)
             {
                 agent.Intent.Target = agent.Body.Position;
                 return;
             }
 
             int away = IntegerMath.HeadingBetween(flames, agent.Body.Position, agent.Body.Heading);
-            agent.Intent.Target = geometry.ClampIntoWalkable(agent.Body.Position, -1,
+            agent.Intent.Target = geometry.ClampIntoRoom(agent.Body.Position,
                 agent.Body.Position + IntegerMath.Displacement(away, settings.DragAwayDistanceMillimetres));
         }
 
@@ -354,7 +367,7 @@ namespace Paniq.Simulation
             if (agent.Intent.Activity == AgentActivityState.Dragging && logDrop && agent.Help.TargetIndex >= 0)
             {
                 Agent target = crowd.All[agent.Help.TargetIndex];
-                context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentDropped, target.Body.Position, 0, 0,
+                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDropped, target.Body.Position, 0, 0,
                     agent.Help.GrabEventId, target.Id);
             }
 
@@ -371,7 +384,7 @@ namespace Paniq.Simulation
             if (IsHelping(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = context.Tick;
+                context.ThinkAgainSoon(agent.Intent);
 
                 // Whatever had them stuck, they start counting again from here.
                 agent.Body.BlockedTicks = 0;
@@ -458,7 +471,7 @@ namespace Paniq.Simulation
 
                 dragged.Participation = AgentParticipation.NoLongerParticipating;
                 dragged.Outcome = AgentTerminalOutcome.Escaped;
-                context.Events.Append(context.Tick, helper.Id, FireReactionEventType.AgentRescued, dragged.Body.Position, 0, 0,
+                context.Events.Append(context.Tick, helper.Id, CausalEventType.AgentRescued, dragged.Body.Position, 0, 0,
                     helper.Doors.EscapedEventId, dragged.Id);
             }
         }

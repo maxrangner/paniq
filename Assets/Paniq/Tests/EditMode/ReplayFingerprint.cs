@@ -24,29 +24,68 @@ namespace Paniq.Tests.EditMode
         };
 
         /// <summary>
-        /// Cards for the "cards played" runs: Beefcake on the nervous wreck, a
-        /// fire of the player's own, a spare extinguisher put down, and a wall
-        /// blown open. Enough to cover every command type in a replay.
+        /// Cards for the "cards played" runs: all five trait cards thrown into
+        /// the office where the crowd is, a fire of the player's own, a spare
+        /// extinguisher put down, and a wall blown open. Enough to cover every
+        /// command type in a replay.
         /// </summary>
         public static readonly (PlayerCommandType Card, SimulationId Target, LogicalPosition Point, int Tick)[] Cards =
         {
-            (PlayerCommandType.PlayBeefcake, new SimulationId(1006UL), default, 200),
+            (PlayerCommandType.PlayBeefcake, default, new LogicalPosition(0, 0), 200),
             (PlayerCommandType.SpawnFire, default, new LogicalPosition(3000, 3000), 400),
+            (PlayerCommandType.PlayCourage, default, new LogicalPosition(0, 0), 450),
             (PlayerCommandType.SpawnExtinguisher, default, new LogicalPosition(-4000, 4000), 600),
-            (PlayerCommandType.BlastWall, default, new LogicalPosition(0, -5900), 800)
+            (PlayerCommandType.PlayTerror, default, new LogicalPosition(-2000, 0), 650),
+            (PlayerCommandType.BlastWall, default, new LogicalPosition(0, -5900), 800),
+            (PlayerCommandType.PlayBastard, default, new LogicalPosition(2000, 0), 850),
+            (PlayerCommandType.PlayColdHeart, default, new LogicalPosition(0, 2000), 900),
+            (PlayerCommandType.StickTogether, default, new LogicalPosition(0, 0), 950),
+            (PlayerCommandType.ToggleLock, new SimulationId(2002UL), default, 1000)
         };
+
+        /// <summary>
+        /// The tick the "cards played" run triggers the event on. The same
+        /// tick the fire would have started itself on, so that run burns
+        /// exactly as the others do while still covering the trigger command.
+        /// </summary>
+        public const int TriggerTick = 250;
 
         /// <param name="kickBoxes">
         /// Start every box sliding, so box-on-box and box-on-person hits
         /// happen often enough to be covered; the default scenario only
         /// produces a few.
         /// </param>
-        public static ulong Run(FireReactionScenarioData data, ulong seed, bool openDoors, bool kickBoxes = false,
+        public static ulong Of(ScenarioData data, ulong seed, bool openDoors, bool kickBoxes = false,
             bool playCards = false)
         {
-            var simulation = new FireReactionSimulation(data, seed);
+            if (playCards || openDoors)
+            {
+                // A copy, so setting this does not leak into the caller's data.
+                data = data.Clone();
+
+                // A round now opens with an empty purse and an empty hand, so
+                // without this every door click and every card in the runs
+                // below would be refused for want of funds and the two would
+                // fingerprint identically to the run that does nothing. What is
+                // being guarded here is the simulation's response to a player
+                // acting, not whether they could afford to.
+                data.Influence.Starting = 100000;
+                data.Influence.Maximum = 100000;
+                data.Influence.StartingHand = TheBuilding.EveryCard();
+            }
+
             if (playCards)
             {
+                data.Round.HazardWaitsForTrigger = true;
+            }
+
+            var simulation = new Run(data, seed);
+            if (playCards)
+            {
+                // The hazard is the player's to set going in this run, as it
+                // is in the game.
+                simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), TriggerTick);
+
                 // Queued before the run starts, in card order, so a replay plays
                 // exactly the same hand at exactly the same ticks.
                 foreach ((PlayerCommandType card, SimulationId target, LogicalPosition point, int tick) in Cards)
@@ -72,12 +111,22 @@ namespace Paniq.Tests.EditMode
 
             if (kickBoxes)
             {
-                // Every box slides toward the middle of the room, so they meet
-                // each other and whoever stands in between.
-                LogicalPosition middle = data.Rooms[0].Bounds.Centre;
+                // Every loose thing in the office slides toward the middle of
+                // the room, so they meet each other and whoever stands in
+                // between. Only the office's: the stockroom's thirty-odd boxes
+                // (2026-09-25) hurled through its walls into their own
+                // collapsing stacks made a contact storm the physics engine
+                // did not replay the same twice.
+                LogicalBounds office = data.Rooms[0].Bounds;
+                LogicalPosition middle = office.Centre;
                 for (int i = 0; i < simulation.PhysicsObjectCount; i++)
                 {
                     LogicalPosition from = simulation.GetPhysicsObject(i).Position;
+                    if (!office.ContainsCircle(from, 0))
+                    {
+                        continue;
+                    }
+
                     LogicalPosition velocity = IntegerMath.Displacement(
                         IntegerMath.HeadingOf((long)middle.X - from.X, (long)middle.Z - from.Z, 0), 110);
                     simulation.LaunchObjectForTests(i, velocity.X, velocity.Z);
@@ -90,7 +139,7 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
                 for (int i = 0; i < simulation.AgentCount; i++)
                 {
-                    FireReactionAgentSnapshot agent = simulation.GetAgent(i);
+                    AgentSnapshot agent = simulation.GetAgent(i);
                     hash.Add(agent.Position.X);
                     hash.Add(agent.Position.Z);
                     hash.Add(agent.HeadingDegrees);
@@ -137,7 +186,7 @@ namespace Paniq.Tests.EditMode
             return hash.Value;
         }
 
-        private static void AddObject(ref Fnv1a hash, FireReactionPhysicsObjectSnapshot thing)
+        private static void AddObject(ref Fnv1a hash, PhysicsObjectSnapshot thing)
         {
             hash.Add(thing.Position.X);
             hash.Add(thing.Position.Z);

@@ -141,19 +141,38 @@ define its logical-world data.
 
 The fire-reaction prototype added these to the record above.
 
+**Feelings, not event names (decided 2026-09-24).** What a person does follows
+from their fear state, what alerted them, their temperament and their traits,
+applied to what they see, hear and touch. No rule in the crowd switches on an
+event type; the event log records why something happened, it does not tell
+anybody what to do. Further feelings the game vision names (anger, trust in a
+leader, curiosity) arrive as additional per-person state on this record, each
+with the first danger or card that needs it, never as a switch on a named
+event.
+
 **What they are holding.** A person may be authored already holding something
 (`CarriedObjectId` on the agent definition), and a thing held that way is marked
 as *theirs*: they keep hold of it while calm rather than tidying it away, and let
 go only when something frightens them. This is what makes a bag or a briefcase
 different from a box somebody picked up to tidy.
 
-**Composure.** A person told about a hazard by an alarm bell, rather than by
-seeing it, may keep their head: they still head for a way out, but at walking
-pace, without swerving, dithering or freezing. It is one flag on their fear,
-consulted where pace, swerving and hesitation are worked out, rather than a
-fourth fear state — which would have touched every check for "scared" in the
-simulation. It is cleared the moment the hazard stops being an abstraction: it
-reaches them, they are knocked about, or they see it for themselves.
+**Sticking together (2026-09-25).** `AgentGroup` is the group a "Stick
+together" throw bound them to, or none: the group's id, the throw's event as
+the cause of whatever they learn from the others, the tick their pull begins
+(their own reaction tick, never the throw's), and when they next compare notes
+on the way out. It is read where a frightened person's steering and pace are
+worked out, and where they choose a door. (Composure -- walking out calmly
+after a bell -- was a flag here until 2026-09-25, when the owner ruled that a
+bell frightens everybody.)
+
+**Where they belong, and what they are doing about the day (2026-09-24).**
+`AgentHome` is where somebody belongs: the chair that is theirs, or a spot,
+set once from the authored definition and never changed. `AgentErrand` is the
+purpose a cue has given them and how far along it they are (kind, phase, when
+it starts, the room and door and partner it is about, its cause), written by
+`CueSystem` and `ErrandBehaviour`, and cleared the moment fear takes over. Both
+are prototype runtime state on this record, not fields of the neutral
+foundation; see [the cue system](cue-system.md).
 
 **Traits can be changed by the player.** The player's Beefcake card sets a
 person's strength to its maximum. Nothing else about them changes, and because

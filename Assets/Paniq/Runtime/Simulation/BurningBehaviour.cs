@@ -16,6 +16,9 @@ namespace Paniq.Simulation
         private readonly Locomotion locomotion;
         private readonly FireSettings settings;
 
+        /// <summary>Who was alight at the start of the pass, reused every tick rather than made afresh.</summary>
+        private readonly int[] burners;
+
         public BurningBehaviour(SimulationContext context, Crowd crowd, BodySystem body, SoundSystem sound, Locomotion locomotion)
         {
             this.context = context;
@@ -24,6 +27,7 @@ namespace Paniq.Simulation
             this.sound = sound;
             this.locomotion = locomotion;
             settings = context.Scenario.Fire;
+            burners = new int[crowd.All.Length];
         }
 
         /// <summary>This tick's wild run: scream now and then, lurch a new way now and then, full speed.</summary>
@@ -78,37 +82,26 @@ namespace Paniq.Simulation
             int radius = context.Scenario.World.OccupancyRadiusMillimetres;
             long reach = radius * 2L + settings.BurningSpreadGapMillimetres;
             long reachSquared = reach * reach;
+            // Only people burning at the start of this pass spread fire in it.
             int burningCount = 0;
             for (int i = 0; i < agents.Length; i++)
             {
                 if (agents[i].IsParticipating && agents[i].Burning.IsBurning)
                 {
-                    burningCount++;
+                    burners[burningCount++] = i;
                 }
             }
 
-            if (burningCount == 0)
+            for (int b = 0; b < burningCount; b++)
             {
-                return;
-            }
+                Agent burner = agents[burners[b]];
 
-            // Only people burning at the start of this pass spread fire in it.
-            var burners = new Agent[burningCount];
-            int next = 0;
-            for (int i = 0; i < agents.Length; i++)
-            {
-                if (agents[i].IsParticipating && agents[i].Burning.IsBurning)
+                // Only the people within a hand's breadth, in ascending order,
+                // which is the order a walk of everybody would have drawn for.
+                using Crowd.Nearby near = crowd.Within(burner.Body.Position, reach);
+                for (int c = 0; c < near.Count; c++)
                 {
-                    burners[next++] = agents[i];
-                }
-            }
-
-            for (int b = 0; b < burners.Length; b++)
-            {
-                Agent burner = burners[b];
-                for (int i = 0; i < agents.Length; i++)
-                {
-                    Agent other = agents[i];
+                    Agent other = agents[near[c]];
                     if (other == burner || !other.IsParticipating || other.Burning.IsBurning ||
                         LogicalPosition.DistanceSquared(burner.Body.Position, other.Body.Position) > reachSquared)
                     {

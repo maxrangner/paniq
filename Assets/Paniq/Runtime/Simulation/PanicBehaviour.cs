@@ -9,7 +9,7 @@ namespace Paniq.Simulation
     /// pinned against a wall: being blocked forces a new decision. Frozen
     /// people stand and stare until (or unless) they snap out of it.
     /// </summary>
-    internal sealed class PanicBehaviour
+    internal sealed class PanicBehaviour : IBindable
     {
         private readonly SimulationContext context;
 
@@ -17,13 +17,14 @@ namespace Paniq.Simulation
         private readonly int bodyRadius;
         private readonly Crowd crowd;
         private readonly WorldGeometry geometry;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly FearSystem fear;
         private readonly SoundSystem sound;
         private readonly BodySystem body;
         private readonly DoorBehaviour doorBehaviour;
         private readonly HelpBehaviour help;
         private readonly ChairBehaviour chairs;
+        private readonly ExitSignBehaviour exitSigns;
 
         /// <summary>
         /// The things somebody might do instead of running, in the order they
@@ -38,22 +39,26 @@ namespace Paniq.Simulation
             SimulationContext context,
             Crowd crowd,
             WorldGeometry geometry,
-            FireSystem fire,
+            Threats threats,
             FearSystem fear,
             SoundSystem sound,
             BodySystem body,
             DoorBehaviour doorBehaviour,
             HelpBehaviour help,
             ChairBehaviour chairs,
-            Locomotion locomotion)
+            ExitSignBehaviour exitSigns,
+            Locomotion locomotion,
+            GroupSystem groups)
         {
             this.help = help;
             this.chairs = chairs;
+            this.exitSigns = exitSigns;
+            this.groups = groups;
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
             this.geometry = geometry;
-            this.fire = fire;
+            this.threats = threats;
             this.fear = fear;
             this.sound = sound;
             this.body = body;
@@ -63,11 +68,63 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// The things somebody might do instead of running, in priority order.
-        /// Wired up after construction, because each of them needs the others
-        /// around it.
+        /// What a frightened person might do instead of running, in the order
+        /// they consider it. The first that answers wins, so this list is the
+        /// priority order, and it is the only place it is written down.
+        /// Raising the alarm comes after helping so that somebody with an
+        /// unconscious person in front of them sees to them rather than
+        /// walking off to the bell; plenty of other people are free to hit it.
+        /// Bound once everything exists, because each needs the others.
         /// </summary>
-        public void Offer(params IPanicOption[] inPriorityOrder) => options = inPriorityOrder;
+        public void Bind(Systems systems)
+        {
+            objects = systems.Objects;
+            options = new IPanicOption[]
+            {
+                systems.Leaders, systems.Extinguishers, systems.Help, systems.AlarmBehaviour, systems.Barricades
+            };
+        }
+
+        /// <summary>The loose things and the tables, for heaving a table out of the way.</summary>
+        private PhysicsObjectSystem objects;
+
+        /// <summary>Who is sticking together with whom.</summary>
+        private readonly GroupSystem groups;
+
+        /// <summary>
+        /// Stuck with a table between them and where they are going: they
+        /// heave it out of the way, which sends a light one over and shifts a
+        /// heavy one. Self-preservation, so anybody does it, and it costs
+        /// them a moment before they can do it again. True when they did.
+        /// </summary>
+        private bool TryHeaveTable(Agent agent)
+        {
+            LogicalPosition position = agent.Body.Position;
+            if (objects == null || agent.Body.State != AgentBodyState.Upright ||
+                context.Tick < agent.Intent.NextTableHeaveTick)
+            {
+                return false;
+            }
+
+            // The way they are facing, which is the way they have been
+            // pushing: somebody bolting from flames faces away from them,
+            // whatever spot they last decided to make for.
+            int heading = agent.Body.Heading;
+            LogicalPosition ahead = position + IntegerMath.Displacement(heading, bodyRadius + ArmsReachMillimetres);
+            int table = geometry.TableAt(ahead, bodyRadius);
+            if (table < 0)
+            {
+                return false;
+            }
+
+            objects.HeaveTable(agent, table, heading, agent.Fear.ScaredEventId);
+            agent.Intent.NextTableHeaveTick = checked(context.Tick + settings.TableHeaveRestTicks);
+            agent.Body.BlockedTicks = 0;
+            return true;
+        }
+
+        /// <summary>How far in front of their body somebody's hands reach when they heave at a table.</summary>
+        private const int ArmsReachMillimetres = 300;
 
         /// <summary>
         /// This tick's panicked decision. Returns no intent when the person
@@ -77,15 +134,9 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             AgentIntent intent = agent.Intent;
-            long fireDistanceSquared = fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition firePoint);
+            long fireDistanceSquared = threats.NearestDistanceSquared(agent.Body.Position, out LogicalPosition firePoint, out _);
             long danger = TraitEffects.DangerDistance(agent, context.Scenario);
             bool inDanger = fireDistanceSquared < danger * danger;
-            if (inDanger)
-            {
-                // The fire is on them now: whatever composure the bell left them
-                // with is gone.
-                fear.BreakComposure(agent);
-            }
 
             if (intent.Activity == AgentActivityState.Frozen)
             {
@@ -115,11 +166,13 @@ namespace Paniq.Simulation
                 agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
             }
 
-            if (agent.Sitting.OnIt)
+            if (agent.Sitting.OnIt || agent.Sitting.Phase == SitPhase.LeapingUp)
             {
-                // Still in a chair: they have to get out of it first.
-                chairs.StartStandingUp(agent);
-                if (tick < intent.ActivityEndTick)
+                // Still in a chair: they have to get out of it first. They come
+                // up on the spot and the chair goes over behind them, so nobody
+                // is shoved backwards out of their seat before they run.
+                chairs.StartLeapingUp(agent);
+                if (chairs.UpdateLeapingUp(agent))
                 {
                     return PanicIntent.StandAndFace(agent, agent.Body.Heading, settings);
                 }
@@ -144,11 +197,16 @@ namespace Paniq.Simulation
                 doorBehaviour.ConsiderClosingAgainstFire(agent, room);
             }
 
+            // Running for a way out through the heat: the flames at their
+            // danger distance neither turn them back nor make them abandon
+            // the door.
+            bool dashing = doorBehaviour.IsDashing(agent);
+
             if (DoorBehaviour.IsAtDoor(agent))
             {
                 // Worked out first: giving up forgets which door this was.
                 MotorIntent faceDoor = doorBehaviour.FaceDoor(agent);
-                if (doorBehaviour.UpdateAttempt(agent, inDanger))
+                if (doorBehaviour.UpdateAttempt(agent, inDanger && !dashing))
                 {
                     return faceDoor;
                 }
@@ -158,7 +216,7 @@ namespace Paniq.Simulation
             {
                 // Through the door they were running for: the next leg of the
                 // way out is worked out from the room they are standing in now.
-                intent.NextPanicDecisionTick = tick;
+                context.ThinkAgainSoon(intent);
             }
 
             bool leaving = doorBehaviour.IsLeaving(agent);
@@ -188,9 +246,10 @@ namespace Paniq.Simulation
                        agent.Body.BlockedTicks < settings.BlockedGiveUpTicks * 2))
             {
                 // A thing in the way: grab it and throw it clear.
+                // A table in the way: heave it over or along.
                 // Wedged beside an open door: stand aside for whoever is lined up with it.
                 // Otherwise stuck in the crowd: if it was on the way to a door, try another one for a while.
-                if (!doorBehaviour.TryClearTheWay(agent) && !doorBehaviour.TryGiveWay(agent))
+                if (!doorBehaviour.TryClearTheWay(agent) && !TryHeaveTable(agent) && !doorBehaviour.TryGiveWay(agent))
                 {
                     doorBehaviour.AvoidCrowdedExit(agent);
                     DecideMove(agent, false);
@@ -224,7 +283,7 @@ namespace Paniq.Simulation
             int goalHeading;
             bool nearExit = doorBehaviour.IsNearExit(agent, context.Scenario.Exits.NoSwerveDistanceMillimetres);
             int swerve = tick < intent.SwerveEndTick && !nearExit && !eager ? intent.SwerveOffset : 0;
-            if (inDanger && fireDistanceSquared > 0L && !leaving)
+            if (inDanger && fireDistanceSquared > 0L && !leaving && !dashing)
             {
                 // Too close: run directly away from the nearest flames.
                 goalHeading = IntegerMath.HeadingBetween(firePoint, agent.Body.Position, agent.Body.Heading) + swerve / 2;
@@ -243,9 +302,19 @@ namespace Paniq.Simulation
                 FollowNearbyRunners(agent, out followX, out followZ);
             }
 
+            int pace = 100;
+            if (!inDanger && !eager)
+            {
+                // Sticking together: pulled toward the rest of their group,
+                // and slowed for the ones behind, unless the flames are at
+                // their back or a way out stands open right in front of them.
+                pace = groups.PullToward(agent, goalHeading, ref followX, ref followZ);
+            }
+
             goalHeading = locomotion.Steer(agent, goalHeading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
-                settings.WallAvoidPercent, settings.ObjectAvoidPercent, followX, followZ);
-            return PanicIntent.WalkTowards(agent, goalHeading, settings);
+                settings.WallAvoidPercent, settings.ObjectAvoidPercent, followX, followZ, settings.TableAvoidPercent);
+            MotorIntent run = PanicIntent.WalkTowards(agent, goalHeading, settings);
+            return pace < 100 ? PanicIntent.MoveAt(agent, run.GoalHeading, run.GoalSpeed * pace / 100, settings) : run;
         }
 
         private MotorIntent LookIntent(Agent agent)
@@ -296,7 +365,12 @@ namespace Paniq.Simulation
 
             intent.Activity = AgentActivityState.Fleeing;
             agent.Doors.ExitDoorIndex = doorBehaviour.ChooseExitDoor(agent);
-            intent.Target = agent.Doors.ExitDoorIndex >= 0 ? doorBehaviour.DoorTarget(agent) : ChooseEscapeTarget(agent);
+
+            // A door; or, for a visitor looking for a way out, the spot to look
+            // round this room from; or, with nothing better, a spot to run to.
+            intent.Target = agent.Doors.ExitDoorIndex >= 0 ? doorBehaviour.DoorTarget(agent)
+                : agent.Knowledge.HasSearchSpot ? agent.Knowledge.SearchSpot
+                : ChooseEscapeTarget(agent);
             if (context.Random.NextPercent(TraitEffects.SwerveChancePercent(agent, context.Scenario)))
             {
                 int side = context.Random.NextIntInclusive(0, 1) == 0 ? -1 : 1;
@@ -309,9 +383,9 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Samples spots in the room they are in and scores them: far from
-        /// fire is good, a route that brushes past the fire is bad, a U-turn
-        /// is a little bad, and random noise keeps the choice human and
-        /// imperfect.
+        /// fire is good, the way a sign they can see points is good, a route
+        /// that brushes past the fire is bad, a U-turn is a little bad, and
+        /// random noise keeps the choice human and imperfect.
         /// </summary>
         private LogicalPosition ChooseEscapeTarget(Agent agent)
         {
@@ -319,15 +393,20 @@ namespace Paniq.Simulation
             LogicalPosition best = position;
             long bestScore = long.MinValue;
             int room = geometry.RoomOf(agent);
+
+            // Read the signs once, before the samples, rather than once per
+            // sample: what they can see does not change between one candidate
+            // spot and the next.
+            bool readASign = exitSigns.TryRead(agent, out int signPointing);
             for (int sample = 0; sample < settings.EscapeSampleCount; sample++)
             {
                 LogicalPosition candidate = geometry.RandomInteriorPoint(room, settings.EscapeWallMarginMillimetres);
                 long score = context.Random.NextIntInclusive(0, settings.EscapeNoiseMillimetres);
 
-                long fireDistanceSquared = fire.NearestDistanceSquared(candidate);
+                long fireDistanceSquared = threats.NearestDistanceSquared(candidate, out _, out _);
                 score += fireDistanceSquared == long.MaxValue ? 20000L : IntegerMath.Sqrt(fireDistanceSquared);
 
-                if (fire.RoutePassesNear(position, candidate, settings.EscapeRouteClearanceMillimetres))
+                if (threats.RoutePassesNear(position, candidate, settings.EscapeRouteClearanceMillimetres))
                 {
                     score -= settings.EscapeRoutePenaltyMillimetres;
                 }
@@ -347,6 +426,15 @@ namespace Paniq.Simulation
                     agent.Body.Heading,
                     IntegerMath.HeadingBetween(position, candidate, agent.Body.Heading)));
                 score -= turn * settings.EscapeTurnPenaltyPerDegree;
+
+                if (readASign)
+                {
+                    // They have been told which way the door is, and they
+                    // believe it: a spot the sign's way is worth crossing the
+                    // room for, and one the other way is worth less than where
+                    // they already stand.
+                    score += exitSigns.ScoreToward(position, candidate, signPointing);
+                }
 
                 if (score > bestScore)
                 {

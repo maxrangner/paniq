@@ -130,9 +130,9 @@ namespace Paniq.Tests.PlayMode
         public IEnumerator ThePrototypeSceneUsesTheParticleSettingsAsset()
         {
             yield return SceneManager.LoadSceneAsync(Paniq.App.Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
-            var presentation = Object.FindFirstObjectByType<FireReactionPrototypePresentation>();
+            var presentation = Object.FindFirstObjectByType<RunPresentation>();
             Assert.That(presentation, Is.Not.Null);
-            var settings = (ParticleEffectSettings)typeof(FireReactionPrototypePresentation)
+            var settings = (ParticleEffectSettings)typeof(RunPresentation)
                 .GetField("particleEffects", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 .GetValue(presentation);
             Assert.That(settings, Is.Not.Null, "The scene lost its link to Content/ParticleEffects.asset.");

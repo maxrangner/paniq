@@ -7,7 +7,8 @@ namespace Paniq.Presentation
 {
     /// <summary>
     /// People as capsules. They blend between the last two ticks so movement
-    /// is smooth at any frame rate, bob with each stride, lean with speed,
+    /// is smooth at any frame rate, waddle from foot to foot as they walk,
+    /// bob with each stride, lean with speed,
     /// fall and lie where the physics engine laid them (and fly with it when a
     /// blast throws them), slump where there is no room to fall, wobble when staggering, tremble when frozen,
     /// flail with little flames licking up them when on fire, lunge at doors
@@ -49,19 +50,28 @@ namespace Paniq.Presentation
             public float EscapedSince = -1f;
             public Vector3 EscapePosition;
             public FlameEmitter Flames;
+
+            /// <summary>A band round the ankles, coloured by the group a "Stick together" throw bound them to (2026-09-25).</summary>
+            public Renderer Band;
         }
 
-        private readonly FireReactionScenarioData scenario;
+        /// <summary>One colour per group, by its number; a fifth group starts over.</summary>
+        private static readonly Color[] GroupColours =
+        {
+            new Color(0.85f, 0.6f, 1f), new Color(1f, 0.8f, 0.3f), new Color(0.4f, 0.9f, 0.9f), new Color(1f, 0.55f, 0.75f)
+        };
+
+        private readonly ScenarioData scenario;
         private readonly PresentationMaterials materials;
         private readonly Dictionary<SimulationId, AgentView> agents = new Dictionary<SimulationId, AgentView>();
 
-        public AgentViews(FireReactionScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
+        public AgentViews(ScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
             Transform parent)
         {
             this.scenario = scenario;
             this.materials = materials;
             int number = 0;
-            foreach (FireReactionAgentDefinition definition in scenario.Agents)
+            foreach (AgentDefinition definition in scenario.Agents)
             {
                 number++;
                 GameObject agentObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -72,6 +82,20 @@ namespace Paniq.Presentation
                 Renderer agentRenderer = agentObject.GetComponent<Renderer>();
                 agentRenderer.sharedMaterial = materials.Agent;
                 ShowThroughWalls(agentObject, materials);
+
+                // The group band: a thin ring round the ankles, a child of the
+                // capsule so it runs and falls with it. In capsule space the
+                // body runs from -1 to 1 along Y.
+                GameObject band = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                band.name = "Group band";
+                RemoveCollider(band);
+                band.transform.SetParent(agentObject.transform, false);
+                band.transform.localPosition = new Vector3(0f, -0.82f, 0f);
+                band.transform.localScale = new Vector3(1.2f, 0.03f, 1.2f);
+                Renderer bandRenderer = band.GetComponent<Renderer>();
+                bandRenderer.sharedMaterial = materials.Box;
+                ShowThroughWalls(band, materials);
+                band.SetActive(false);
 
                 var visionObject = new GameObject($"Agent {definition.AgentId.Value} vision cone (presentation)");
                 visionObject.transform.SetParent(parent, false);
@@ -92,7 +116,8 @@ namespace Paniq.Presentation
                     Icons = new AgentIconViews($"Agent {definition.AgentId.Value}", number.ToString(), materials.Icon,
                         definition.AgentId.Value % 60UL, parent),
                     Vision = vision,
-                    ShakePhase = definition.AgentId.Value % 97UL
+                    ShakePhase = definition.AgentId.Value % 97UL,
+                    Band = bandRenderer
                 });
             }
         }
@@ -124,18 +149,18 @@ namespace Paniq.Presentation
             }
         }
 
-        public void Update(FireReactionSnapshot snapshot, FireReactionSnapshot previousSnapshot, float blend, float time,
+        public void Update(RunSnapshot snapshot, RunSnapshot previousSnapshot, float blend, float time,
             Transform cameraTransform)
         {
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
-                FireReactionAgentSnapshot agent = snapshot.Agents[i];
+                AgentSnapshot agent = snapshot.Agents[i];
                 if (!agents.TryGetValue(agent.AgentId, out AgentView view))
                 {
                     continue;
                 }
 
-                FireReactionAgentSnapshot previous = previousSnapshot != null && i < previousSnapshot.Agents.Count
+                AgentSnapshot previous = previousSnapshot != null && i < previousSnapshot.Agents.Count
                     ? previousSnapshot.Agents[i]
                     : agent;
                 Vector3 planar = Vector3.Lerp(ToUnityPosition(previous.Position), ToUnityPosition(agent.Position), blend);
@@ -155,8 +180,8 @@ namespace Paniq.Presentation
                 bool lost = agent.Outcome == AgentTerminalOutcome.Lost;
                 bool frozen = agent.ActivityState == AgentActivityState.Frozen;
                 bool running = agent.FearState == AgentFearState.Scared && !frozen;
-                float speed = agent.SpeedMillimetresPerTick * FireReactionSimulation.TicksPerSecond /
-                              (float)FireReactionSimulation.MillimetresPerMetre;
+                float speed = agent.SpeedMillimetresPerTick * Run.TicksPerSecond /
+                              (float)Run.MillimetresPerMetre;
 
                 // A step bounce driven by distance actually travelled, so feet
                 // never appear to slide.
@@ -164,6 +189,17 @@ namespace Paniq.Presentation
                 view.LastPlanarPosition = planar;
                 view.StridePhase += travelled / (running ? 1.1f : 0.7f) * Mathf.PI;
                 float bounce = Mathf.Abs(Mathf.Sin(view.StridePhase)) * (running ? 0.12f : 0.05f) * Mathf.Clamp01(speed);
+
+                // The waddle. The bounce above is a hop on every footfall, so
+                // it uses the size of the sine; these use its sign as well, so
+                // they come out opposite on the left foot and the right one
+                // and the body rocks from one to the other. Both fade out with
+                // speed, so somebody shuffling barely moves and somebody
+                // sprinting throws themselves about.
+                float onThisFoot = Mathf.Sin(view.StridePhase) * Mathf.Clamp01(speed) *
+                                   (running ? RunningWaddle : 1f);
+                float waddleRoll = onThisFoot * WaddleRollDegrees;
+                float waddleTwist = onThisFoot * WaddleTwistDegrees;
                 float alertJump = agent.FearState == AgentFearState.Alert && !agent.IsDown
                     ? 0.18f + Mathf.Abs(Mathf.Sin(time * 18f + agent.AgentId.Value % 997UL)) * 0.18f
                     : 0f;
@@ -173,16 +209,9 @@ namespace Paniq.Presentation
                 bool fallen = agent.BodyState == AgentBodyState.Fallen || agent.BodyState == AgentBodyState.Unconscious;
                 bool rising = agent.BodyState == AgentBodyState.GettingUp;
 
-                // Anybody not sitting stands at their full height. Set here as
-                // well as in the seated branch, because somebody knocked out of a
-                // chair goes from sitting to lying in one tick and would
-                // otherwise stay folded up on the floor.
-                bool seatedNow = agent.ActivityState == AgentActivityState.Sitting ||
-                                 agent.ActivityState == AgentActivityState.StandingUp;
-                if (!seatedNow)
-                {
-                    view.Transform.localScale = BodyScale;
-                }
+                // Where the top of their head is, so the icons above it follow
+                // them up onto a chair instead of hanging at standing height.
+                float headHeight = BodyHalfHeight * 2f;
 
                 if (lost)
                 {
@@ -217,12 +246,14 @@ namespace Paniq.Presentation
                 else
                 {
                     float lean = Mathf.Min(running ? 14f : 4f, speed * 3f);
-                    float roll = 0f;
+                    float roll = waddleRoll;
+                    float twist = waddleTwist;
                     Vector3 shake = Vector3.zero;
                     if (agent.BodyState == AgentBodyState.Staggering)
                     {
                         // Reeling from a bump.
                         roll = Mathf.Sin(time * 26f + view.ShakePhase) * 14f;
+                        twist = 0f;
                         lean = -8f;
                     }
                     else if (agent.ActivityState == AgentActivityState.ShakingAwake && agent.SpeedMillimetresPerTick == 0)
@@ -231,6 +262,7 @@ namespace Paniq.Presentation
                         Vector3 facing = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
                         shake = facing * (Mathf.Sin(time * 30f + view.ShakePhase) * 0.06f);
                         roll = Mathf.Sin(time * 30f + view.ShakePhase) * 6f;
+                        twist = 0f;
                     }
                     else if (agent.ActivityState == AgentActivityState.Dragging)
                     {
@@ -239,8 +271,11 @@ namespace Paniq.Presentation
                     }
                     else if (agent.IsBurning)
                     {
-                        // Flailing: thrashing side to side as they run.
+                        // Flailing: thrashing side to side as they run. Far
+                        // bigger than the waddle, and it replaces it: somebody
+                        // alight is not taking tidy steps any more.
                         roll = Mathf.Sin(time * 22f + view.ShakePhase) * 18f;
+                        twist = 0f;
                         lean += Mathf.Sin(time * 15f + view.ShakePhase * 0.7f) * 8f;
                     }
                     else if (frozen)
@@ -251,6 +286,7 @@ namespace Paniq.Presentation
                             0f,
                             Mathf.Sin(time * 53f + view.ShakePhase * 1.7f) * 0.025f);
                         roll = Mathf.Sin(time * 41f + view.ShakePhase) * 2.5f;
+                        twist = 0f;
                         bounce = 0f;
                     }
 
@@ -264,40 +300,36 @@ namespace Paniq.Presentation
                         lean += push * 20f;
                     }
 
-                    // Sitting: lowered onto the seat, and rising back out of
-                    // it as they stand, so the change reads as a movement.
-                    float seated = 0f;
-                    if (agent.ActivityState == AgentActivityState.Sitting)
-                    {
-                        seated = 1f;
-                        bounce = 0f;
-                    }
-                    else if (agent.ActivityState == AgentActivityState.StandingUp)
-                    {
-                        seated = 0.5f;
-                        bounce = 0f;
-                    }
-
-                    // Seated, they are on the seat rather than standing in the
-                    // chair: the body sits on top of the cushion and folds up, so
-                    // the head ends just above the table top instead of a whole
-                    // body-height above the floor.
-                    float bodyHeight = Mathf.Lerp(BodyHalfHeight, BodyHalfHeight * SeatedSquash, seated);
-                    float floor = SeatHeight * seated;
-                    view.Transform.localScale = new Vector3(
-                        BodyScale.x, Mathf.Lerp(BodyScale.y, BodyScale.y * SeatedSquash, seated), BodyScale.z);
+                    // Sitting: the same body, lifted onto the seat by however
+                    // far into the chair the simulation says they are, so
+                    // lowering onto it and rising from it read as one smooth
+                    // movement. Nothing else about the body changes -- no
+                    // lean, no squash, no folding: the owner's call. It used
+                    // to be scaled to 0.62 m tall at its full 0.5 m width,
+                    // and a capsule scaled unevenly flattens its rounded ends
+                    // into a blob. A seated head ends up about half a metre
+                    // above a standing one, which the owner chose over a
+                    // deformed body.
+                    float seated = Mathf.Lerp(previous.SeatedPercent, agent.SeatedPercent, blend) / 100f;
+                    float upright = 1f - seated;
+                    bounce *= upright;
+                    roll *= upright;
+                    twist *= upright;
+                    alertJump *= upright;
+                    float middle = Mathf.Lerp(BodyHalfHeight, SeatedCentreHeight, seated);
+                    headHeight = middle + BodyHalfHeight;
                     view.Transform.SetPositionAndRotation(
-                        planar + shake + lunge + Vector3.up * (floor + bodyHeight + bounce + alertJump),
-                        Quaternion.Euler(lean + 6f * seated, yaw, roll));
+                        planar + shake + lunge + Vector3.up * (middle + bounce + alertJump),
+                        Quaternion.Euler(lean, yaw + twist, roll));
                 }
 
                 bool down = lost || view.Transform.up.y < 0.7f;
-                UpdateAppearance(agent, view, planar, yaw, down, alertJump, time, cameraTransform);
+                UpdateAppearance(agent, view, planar, yaw, down, alertJump, headHeight, time, cameraTransform);
             }
         }
 
         /// <summary>Someone who got out keeps walking a few steps and shrinks away.</summary>
-        private static void UpdateEscaped(FireReactionAgentSnapshot agent, AgentView view, Vector3 planar, float yaw, float time)
+        private static void UpdateEscaped(AgentSnapshot agent, AgentView view, Vector3 planar, float yaw, float time)
         {
             if (view.EscapedSince < 0f)
             {
@@ -314,8 +346,8 @@ namespace Paniq.Presentation
                 return;
             }
 
-            float speed = Mathf.Max(1.5f, agent.SpeedMillimetresPerTick * FireReactionSimulation.TicksPerSecond /
-                                          (float)FireReactionSimulation.MillimetresPerMetre);
+            float speed = Mathf.Max(1.5f, agent.SpeedMillimetresPerTick * Run.TicksPerSecond /
+                                          (float)Run.MillimetresPerMetre);
             Vector3 forward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
             view.Transform.SetPositionAndRotation(
                 view.EscapePosition + forward * (speed * age * EscapeFadeSeconds) + Vector3.up * BodyHalfHeight,
@@ -327,7 +359,7 @@ namespace Paniq.Presentation
         /// Notices a fall, a get-up or a recovery, remembering when it began
         /// and where the body was drawn at that moment.
         /// </summary>
-        private void NoteBodyStateChange(FireReactionAgentSnapshot agent, AgentView view, float time)
+        private void NoteBodyStateChange(AgentSnapshot agent, AgentView view, float time)
         {
             if (agent.BodyState == view.LastBodyState)
             {
@@ -338,7 +370,7 @@ namespace Paniq.Presentation
             int riseTicks = view.LastBodyState == AgentBodyState.Unconscious
                 ? scenario.Falls.ComeToGetUpTicks
                 : scenario.Falls.GetUpTicks;
-            view.RiseSeconds = Mathf.Max(0.05f, (float)riseTicks / FireReactionSimulation.TicksPerSecond);
+            view.RiseSeconds = Mathf.Max(0.05f, (float)riseTicks / Run.TicksPerSecond);
             view.LastBodyState = agent.BodyState;
             view.BodyStateSince = time;
             view.FromPosition = view.Transform.position;
@@ -351,7 +383,7 @@ namespace Paniq.Presentation
         /// of the physical one. Where there was no room to fall they stay on
         /// their feet in the physics, and are drawn slumped to their knees.
         /// </summary>
-        private static void DownPose(FireReactionAgentSnapshot agent, FireReactionAgentSnapshot previous, float blend,
+        private static void DownPose(AgentSnapshot agent, AgentSnapshot previous, float blend,
             Vector3 planar, float yaw, out Vector3 position, out Quaternion rotation)
         {
             if (!agent.Pose.IsKnown)
@@ -375,12 +407,13 @@ namespace Paniq.Presentation
         }
 
         private void UpdateAppearance(
-            FireReactionAgentSnapshot agent,
+            AgentSnapshot agent,
             AgentView view,
             Vector3 planar,
             float yaw,
             bool down,
             float alertJump,
+            float headHeight,
             float time,
             Transform cameraTransform)
         {
@@ -393,6 +426,19 @@ namespace Paniq.Presentation
                 : agent.FearState == AgentFearState.Calm ? CalmColor
                 : frozen ? FrozenColor : ScaredColor;
             materials.SetColor(view.Renderer, bodyColor);
+
+            // The band, for as long as they are somebody's group.
+            bool grouped = participating && agent.GroupId >= 0;
+            if (view.Band.gameObject.activeSelf != grouped)
+            {
+                view.Band.gameObject.SetActive(grouped);
+            }
+
+            if (grouped)
+            {
+                materials.SetColor(view.Band, GroupColours[agent.GroupId % GroupColours.Length]);
+            }
+
             // Capsule space: the body runs from -1 to 1 along Y, radius 0.5.
             view.Flames.Update(burning, new Vector3(0f, -0.7f, 0f), new Vector3(0.45f, 2f, 0.45f), 0.42f);
 
@@ -402,7 +448,7 @@ namespace Paniq.Presentation
             }
             else
             {
-                Vector3 anchor = planar + Vector3.up * (down ? 0.75f : BodyHalfHeight * 2f + 0.4f + alertJump);
+                Vector3 anchor = planar + Vector3.up * (down ? 0.75f : headHeight + 0.4f + alertJump);
                 Vector3 facing = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
                 float facingSide = Vector3.Dot(facing, cameraTransform.right) >= 0f ? 1f : -1f;
                 bool calm = agent.FearState == AgentFearState.Calm;
@@ -416,7 +462,6 @@ namespace Paniq.Presentation
                     calm && (agent.ActivityState == AgentActivityState.Standing ||
                              agent.ActivityState == AgentActivityState.LookingAround),
                     agent.IsLeading,
-                    agent.ActivityState == AgentActivityState.Following,
                     time);
             }
 
@@ -442,19 +487,46 @@ namespace Paniq.Presentation
         private static readonly Vector3 BodyScale = new Vector3(BodyRadius * 2f, BodyHalfHeight, BodyRadius * 2f);
 
         /// <summary>
-        /// The seat of a chair, matching the one BoxViews draws. A seated body
-        /// stands on this rather than on the floor.
+        /// The top of a chair's seat, in metres: the 0.45 m seat of
+        /// <c>BoxViews.CreateChair</c> plus half its 0.05 m thickness. Somebody
+        /// sitting rests on this.
         /// </summary>
-        private const float SeatHeight = 0.45f;
+        private const float SeatSurfaceHeight = 0.475f;
 
         /// <summary>
-        /// How much of their height somebody keeps once they are sitting: knees
-        /// and hips are folded away, so a seated head sits just above a 0.74 m
-        /// table rather than well over it.
+        /// Where the middle of a seated body is, in metres: the standing body,
+        /// exactly as it is, with its bottom on the seat. The owner's decision
+        /// (2026-09-24): a seated person looks the same as a standing one and
+        /// is simply higher off the ground. The chairs are drawn life size
+        /// next to people drawn at about 60 % of it, so the head ends up about
+        /// half a metre above a standing head; folding or shrinking the body
+        /// to bring it down was tried twice and read as a blob both times.
         /// </summary>
-        private const float SeatedSquash = 0.62f;
+        private const float SeatedCentreHeight = SeatSurfaceHeight + BodyHalfHeight;
 
-        private void UpdateVisionCone(FireReactionAgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw)
+        /// <summary>
+        /// How far a walking body rocks onto each foot in turn, in degrees.
+        /// This is the waddle: a person is a capsule with no legs, so the
+        /// tipping from side to side is what reads as steps being taken. It is
+        /// deliberately more than a real walk -- the look wanted is somebody
+        /// play-walking a doll across a table, not a gait.
+        /// </summary>
+        private const float WaddleRollDegrees = 9f;
+
+        /// <summary>
+        /// How far the body twists about its own axis on each step, in
+        /// degrees. A rock with no twist reads as a metronome; the two
+        /// together read as weight being thrown from one foot to the other.
+        /// </summary>
+        private const float WaddleTwistDegrees = 5f;
+
+        /// <summary>
+        /// How much harder somebody running waddles than somebody walking.
+        /// A panicked run is all shoulders.
+        /// </summary>
+        private const float RunningWaddle = 1.45f;
+
+        private void UpdateVisionCone(AgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw)
         {
             vision.enabled = agent.Participation == AgentParticipation.Participating;
             if (!vision.enabled)

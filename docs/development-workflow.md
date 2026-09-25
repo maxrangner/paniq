@@ -2,6 +2,15 @@
 
 ## Git
 
+**Branches and commit size are settled in [`AGENTS.md`](../AGENTS.md) under
+*Git workflow*, and that is the binding copy.** In short: ask the owner before
+making a branch, even for a one-line fix, and land a batch of work as a few
+commits, usually one — rules, input, drawing, tests and documentation
+together — adding a commit only when it can be defended as a change worth
+reading or reverting on its own, such as a tooling repair found on the way.
+
+What goes into a commit at all:
+
 - Commit Unity scenes, prefabs, ScriptableObjects, `.meta` files, package
   manifest, and generated package lockfile once Unity creates it.
 - Do not commit `Library`, build output, logs, IDE files, or user settings.
@@ -50,7 +59,10 @@ game-development knowledge to answer.
 - Put logic-focused tests in `Assets/Paniq/Tests/EditMode`.
 - Put scene, object-lifecycle, and integration checks in
   `Assets/Paniq/Tests/PlayMode`.
-- Run both test groups after changes to foundation code or scene flow.
+- Checking work runs in two gears: targeted tests while iterating, both test
+  groups before committing. The binding rule is in
+  [`AGENTS.md`](../AGENTS.md) under *Quality checks*; the commands and the
+  coverage table are below.
 - The replay fingerprint tests (`ReplayFingerprintEditModeTests`) squash whole
   runs into single numbers. A change meant to be invisible to players, such as
   a restructure, must keep every number. A change meant to alter behaviour
@@ -66,11 +78,15 @@ the project while the editor has it open, so a small editor script
 in the editor that is already open:
 
 ```powershell
-.\tools\RunUnityTests.ps1                        # every edit-mode test
-.\tools\RunUnityTests.ps1 -PlayMode              # the play-mode tests
-.\tools\RunUnityTests.ps1 -Category UnityPhysics # one NUnit category
-.\tools\RunUnityTests.ps1 -Filter ReplayFingerprint
-.\tools\RunUnityTests.ps1 -Reset                 # the bridge is stuck on a run Unity dropped
+.\tools\CompileAgainstUnity.ps1                      # after every edit: compiles, no editor needed
+.\tools\RunUnityTests.ps1 -Filter Doors,ClosingDoors # while iterating: the areas a step touched
+.\tools\RunUnityTests.ps1 -Filter ReplayFingerprint  # simulation code changed: the canary
+.\tools\RunUnityTests.ps1 -All                       # before committing: both halves
+.\tools\RunUnityTests.ps1 -Slowest 10 -LastRun       # what the last run spent its time on
+.\tools\RunUnityTests.ps1                            # every edit-mode test
+.\tools\RunUnityTests.ps1 -PlayMode                  # the play-mode tests
+.\tools\RunUnityTests.ps1 -Category UnityPhysics     # the physics-foundation checks, the one category in use
+.\tools\RunUnityTests.ps1 -Reset                     # the bridge is stuck on a run Unity dropped
 ```
 
 The editor must be open on the project and not in play mode. If nothing
@@ -83,44 +99,72 @@ then use `-Reset` if the run never reports back.
 libraries without Unity running: a quick check that a change builds before
 handing it to the editor.
 
-### Running the edit-mode tests without Unity
+### Two gears
 
-The plain-.NET runner below still compiles and runs the simulation on its own.
-Every test that needs Unity's physics stops at once and is listed as
-**skipped**, never as passed, so today it mainly checks the scenario asset and
-the tests that need no physics:
+The full suite is 425 tests and about three minutes, because every test that
+builds a run needs the physics engine inside the editor. Run after every step
+of a six-step task, that is fifteen minutes spent re-proving what the step
+could not have touched. So checking work has two gears:
 
-```powershell
-.\tools\RunEditModeTests.ps1                  # every edit-mode test, about 20 seconds
-.\tools\RunEditModeTests.ps1 -FingerprintsOnly # just the ten replay fingerprints
-.\tools\RunEditModeTests.ps1 -Filter Doors     # tests whose name contains "Doors"
-.\tools\RunEditModeTests.ps1 -Record           # re-record fingerprints, ready to paste
-```
+1. **While iterating.** After every edit, the compile check above. Once a
+   step has a claim worth checking (a behaviour is in, not a file saved), the
+   tests for the areas the step touched, in one request:
+   `-Filter Doors,ClosingDoors`. Several names run every test matching any of
+   them. Whenever simulation code changed, add `ReplayFingerprint`: those
+   tests squash whole runs into numbers and catch a change of behaviour in
+   code that has no tests of its own.
+2. **Before committing.** `-All`, on the tree that will be committed, and
+   again after any change to shared simulation code (the run itself, the
+   systems, the physics world, navigation). This is the run that "validation
+   passed" refers to. A targeted run is reported as a targeted check, naming
+   what ran.
 
-The script compiles the simulation, the edit-mode tests, a few small Unity
-stand-ins (`tools/Stubs`) and a reflection-driven runner (`tools/TestRunner`)
-with Unity's own bundled Roslyn compiler, and runs them on the installed .NET
-runtime. It needs the editor installed, not running.
+The full run happens once per task whatever its size, so a larger task per
+prompt waits less in total than the same work split into small prompts.
 
-Use `-Record` only for a deliberate behaviour change: it prints the ten
-fingerprints as `[TestCase]` lines to paste into
-`ReplayFingerprintEditModeTests.cs`, which still has to be accompanied by the
-version bumps above.
+`-Slowest 10` after any run, or `-Slowest 10 -LastRun` afterwards with no
+editor, lists the tests the suite spends its time on. Trim on that evidence,
+not by feel.
 
-The fingerprints now need Unity's physics, so under this runner they are
-skipped and `-Record` has nothing to print. Re-record them in the editor
-instead: `tools\RunUnityTests.ps1 -Filter ReplayFingerprint` fails each changed
-case with its new number (`fingerprint is 0x...UL`), ready to paste.
+### Which tests cover what
 
-Two checks that cannot run outside the editor are covered another way by the
-script -- the fixed timestep is read from `ProjectSettings/TimeManager.asset`,
-and the saved scenario asset is compared with the code defaults by reading its
-YAML. Everything it genuinely cannot check is listed as skipped at the end of
-every run, never as passed.
+Most test files are named after the code they check (`DoorsEditModeTests`
+for the door code, `WayfindingEditModeTests` for wayfinding), so the filter
+word is the feature's name. These are the ones that are not:
 
-**This is a fast check, not a substitute for Unity's own runners.** Run the
-EditMode and PlayMode tests in the editor (`tools\RunUnityTests.ps1`) before
-calling a change verified in the engine.
+| Code changed | Filter words |
+| --- | --- |
+| `InfluenceSystem`, `DeckSystem`, `PlayerCommandSystem` (the player's purse, cards and clicks) | `Powers,Economy,UproarTable,TraitCards` |
+| `Run` (the tick itself) | `Simulation,ReplayFingerprint` |
+| `UniformGridIndex` (who is near here) | `SpatialIndex` |
+| `IThreat`, `Threats` (what a danger is) | `ThreatSeam,ReplayFingerprint` |
+| `CollisionSystem`, `BodySystem`, `PhysicsWorld` | `HardKnocks,Shoving,PhysicsFoundation,PhysicsObjects` |
+| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors` |
+| `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting` |
+| `TraitEffects` | `Traits,TraitCards` |
+| `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered` |
+| `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
+| `GroupSystem` (sticking together) | `Groups,TraitCards` |
+| `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking` |
+| `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |
+| `PerceptionSystem`, `SoundSystem` (what a person sees and hears) | `Perception,Hearing,Simulation` |
+
+`FearSystem`, `PanicBehaviour`, `CalmBehaviour`, `Locomotion`, `Crowd` and
+the causal event log have no tests of their own; they are checked only
+through whole runs. A change there means `ReplayFingerprint` in the small
+gear and the full run before the commit, without exception. When a test file
+is added or renamed, this table is updated in the same commit.
+
+### The runner that needed no editor is gone
+
+Until 2026-09-23 `tools/RunEditModeTests.ps1` compiled the simulation without
+Unity and ran the edit-mode tests in about twenty seconds. Once people and
+things became physical bodies, every test that builds a run needed the
+editor's physics engine, so nearly the whole suite was skipped under it and it
+was retired along with its stand-ins and its runner. The two checks it made
+its own way live in the editor's suite: the fixed timestep in
+`SimulationContractEditModeTests`, and the saved scenario asset matching the
+code defaults in `SimulationEditModeTests`.
 
 ## Building a floor plan
 
@@ -140,7 +184,14 @@ can now lay one out by dragging things around in the scene.
    (a box, a chair, an extinguisher), **Paniq > Person** for people,
    **Paniq > Alarm** for alarms, and exactly one **Paniq > Fire Start** for
    where the fire begins.
-6. Run **Paniq > Bake Scenario From Scene**.
+6. Give the building a day, if you want one (see
+   [the cue system](cue-system.md)): on a **Person**, drag the chair that is
+   theirs into *Home*, or tick *home is where they stand*; on a **Room**, set
+   *Use* to *Stall* for a toilet stall; and add a **Paniq > Cue** for each
+   thing on the timetable -- the meeting that ends (inside its room, with the
+   room dragged in) or home time (anywhere). A scene with no cue keeps the
+   timetable the level already has.
+7. Run **Paniq > Bake Scenario From Scene**.
 
 The baker rounds everything to whole millimetres, and rooms to the size of a
 navigation square, because a run only repeats exactly if every number in it is

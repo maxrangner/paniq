@@ -1,9 +1,10 @@
 # Look and controls
 
-**Status:** decided direction, mostly unbuilt. This note records how Paniq is
-meant to look and how the player drives the camera. It does not describe what
-exists today — the prototype's camera is fixed, framed once around every room,
-and does not move.
+**Status:** the controls below are **built** as of prototype 2. The camera
+moves, swings freely under a right-button drag, snaps a quarter turn on Q and
+E, and zooms with a coupled tilt, exactly as this note describes. The look is partly built: the building now reads as one
+floor of an office tower, and the two *Future goals* at the bottom — a slight
+perspective with depth of field, and the cutaway walls — are still parked.
 
 The decisions themselves were settled with the owner; the ones with technical
 consequences are recorded in [technical decisions](technical-decisions.md).
@@ -23,7 +24,11 @@ the camera looks from, not how high above the floor it sits.
   front. A slight perspective is a **future goal**; see *Future goals* below.
 - **Zoom** pulls the camera in and out, and **tilts it as it goes**: the closer
   the view, the more the camera looks along the floor; the further out, the
-  more it looks down on the building.
+  more it looks down on the building. The tilt does not start straight away —
+  the first half of the wheel's travel comes **straight in** at the isometric
+  angle, and only the second half swoops down toward the floor. Tilting from
+  the very first notch made a small zoom feel like a lurch rather than a step
+  closer.
 
 One honest consequence: once the tilt moves off 35.264 degrees, the picture is
 no longer isometric in the strict sense. That is accepted. Isometric here
@@ -35,22 +40,65 @@ every zoom level.
 | Input | What it does |
 | --- | --- |
 | **W A S D** | move the camera forward, back, left and right across the building |
-| **Q / E** | rotate the view a quarter turn, snapped — so there are four views, one per corner |
+| **Hold right mouse button and drag** | swing the view to any angle at all; it stays where you let go |
+| **Q / E** | snap a quarter turn to the next corner view, from wherever the view is now |
 | **Mouse wheel** | zoom in and out, tilting the camera as described above |
-| **Left mouse button** | interact with the world under the pointer |
+| **Left mouse button** | on a card along the bottom: pick it up (or put it down again); on the floor with a card in hand: throw it there; on a door: open or shut it; on a red pull station: pull the fire alarm (30) |
+| **Double click a door** | turn its key: lock a shut door, unlock a locked one, or shut and lock an open one. Ten on an inside door; the building's way out costs 100 to unlock |
+| **Right click** (without dragging) | put down the card in hand |
+| **Reset** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
+| **Pause** (the button under Reset) | stop and start the world, as Space does |
+| **Trigger event** (the red button bottom centre) | start the fire. It goes the moment it is pressed |
 
 Chosen on the owner's behalf:
 
 - **W always moves the camera up the screen**, whichever corner the view is
   currently from. Moving relative to the world instead would mean W changed
   direction every time the player pressed Q, which is disorienting.
-- Rotation **snaps** rather than sweeping freely, so the view always returns to
-  a corner and the look stays consistent.
-- The angles, zoom limits and how far the tilt travels are presentation values
-  and will be chosen when the camera is built.
+- Rotation is **free under a drag and snapped under Q and E**. It used to be
+  snapped only, which kept the look consistent but meant a thing hidden behind
+  a wall could not be leaned around — the nearest corner view was as close as
+  the player could get. Dragging does **not** spring back to a corner when it
+  is let go: springing back would undo the one thing the drag is for. The four
+  corners remain as somewhere tidy to land, and Q and E measure from wherever
+  the view is pointing, so a quarter turn always arrives on one however far a
+  drag has wandered.
+- **A right click puts a card down; a right drag turns the view.** The two are
+  told apart by how far the pointer travelled before the button came back up,
+  which is why the card is dropped on the button's *release* rather than on its
+  press — at the moment of pressing, nobody yet knows which one it is.
+- **A single click on a door waits a third of a second** before it is sent,
+  because until then nobody knows whether a second click is coming. Acting on
+  the first click at once would have opened the door, and charged for it,
+  before the double click that meant "lock it" was complete. A third of a
+  second is about fifteen ticks, less than the delay people already take to
+  react to anything, so the wait is never seen. A single click on a locked
+  door sends nothing: its key is the double click, and the line under the
+  score says so.
+- **A click on a card or a button never reaches the world.** Every card and
+  button claims its patch of screen as it is drawn, and the next frame's
+  click checks those patches first; until 2026-09-25 a click on "Trigger
+  event" with a door under it clicked the door too.
+- **The number keys are gone** (2026-09-25). Cards are clicked, and two of a
+  kind sit as one card with the count on it, so there is nothing for a
+  number to name.
+- The angles, zoom limits and how far the tilt travels are presentation values,
+  chosen when the camera was built and listed below.
 
-Keys the prototype already uses, which these must live alongside: **1–4** pick
-a card, and **Tab** shows the table of everyone's traits.
+Keys the prototype already uses, which these live alongside: **Tab** shows
+the table of everyone's traits, **G** paints the floor people can walk on,
+and **Space** pauses.
+
+The values chosen when the camera was built, recorded in
+[technical decisions](technical-decisions.md): the view pans at 14 metres a
+second and more slowly the closer it is zoomed, the wheel zooms in twelve
+notches from the whole building down to about a sixth of it, and the tilt
+travels from 35.264 degrees at full zoom-out to 18 degrees fully in — held flat
+for the first half of the wheel and eased the whole way down over the second.
+A drag swings the view a quarter of a degree per pixel, so a full turn is about
+a screen and a half of travel, and five pixels of travel is the line between a
+click and a drag. The view can be pushed about eight metres past the building's
+edge and no further.
 
 ## The look
 
@@ -64,10 +112,15 @@ something you could pick up.
   the very front and very back of the scene is what makes a photograph of a
   real street look like a toy. This is blocked for now by the orthographic
   camera and is part of the future goal below.
-- **Animation is minimal.** Walking is a bob rather than a stride. This means
-  movement is animated procedurally — the transform is moved and bounced in
-  code, as the fire cubes already are — with **no character rigs, no Animator
-  controllers, and no animation packages**.
+- **Animation is minimal.** Walking is a waddle rather than a stride: the body
+  hops on each footfall and rocks and twists onto alternating feet, so a
+  capsule with no legs still reads as somebody taking steps. The look wanted is
+  a person play-walking a doll across a table, not a gait, so it is deliberately
+  larger than a real walk. It fades out with speed, and anybody staggering,
+  alight, frozen or sitting keeps their own movement instead. This means
+  movement is animated procedurally — the transform is moved, bounced and
+  rocked in code, as the fire cubes already are — with **no character rigs, no
+  Animator controllers, and no animation packages**.
 
 Concept art is to be added under `docs/reference/` as it is produced. Nothing
 is there yet.

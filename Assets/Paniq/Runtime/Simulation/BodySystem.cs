@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Paniq.Simulation
 {
@@ -7,10 +7,10 @@ namespace Paniq.Simulation
     /// the floor, getting up, and being caught by the fire. A body that is
     /// not upright makes no move but still takes up space.
     /// </summary>
-    internal sealed class BodySystem
+    internal sealed class BodySystem : IBindable
     {
         private readonly SimulationContext context;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
         private readonly SoundSystem sound;
         private readonly FearSystem fear;
         private readonly FallSettings settings;
@@ -18,17 +18,17 @@ namespace Paniq.Simulation
         /// <summary>Everybody's physical body, which a shove or a blast pushes. Set once it exists.</summary>
         private PeopleBodies people;
 
-        public BodySystem(SimulationContext context, FireSystem fire, SoundSystem sound, FearSystem fear)
+        public BodySystem(SimulationContext context, Threats threats, SoundSystem sound, FearSystem fear)
         {
             this.context = context;
-            this.fire = fire;
+            this.threats = threats;
             this.sound = sound;
             this.fear = fear;
             settings = context.Scenario.Falls;
         }
 
-        /// <summary>Wired up after construction, because people's bodies are built after this system.</summary>
-        public void UsePeople(PeopleBodies bodies) => people = bodies;
+        /// <summary>People's bodies are built after this system, so they are handed over once everything exists.</summary>
+        public void Bind(Systems systems) => people = systems.People;
 
         /// <summary>
         /// Advances staggering, lying down and getting up. Returns true while
@@ -52,23 +52,24 @@ namespace Paniq.Simulation
             if (body.State == AgentBodyState.Fallen)
             {
                 body.State = AgentBodyState.GettingUp;
-                body.EndTick = checked(tick + settings.GetUpTicks);
+                body.EndTick = checked(tick + context.Jittered(settings.GetUpTicks));
                 return true;
             }
 
             if (body.State == AgentBodyState.Unconscious)
             {
                 // Coming round, then getting up slowly.
-                body.EventId = context.Events.Append(tick, agent.Id, FireReactionEventType.AgentCameTo, body.Position, 0,
-                    settings.ComeToGetUpTicks, body.EventId).EventId;
+                int comeTo = context.Jittered(settings.ComeToGetUpTicks);
+                body.EventId = context.Events.Append(tick, agent.Id, CausalEventType.AgentCameTo, body.Position, 0,
+                    comeTo, body.EventId).EventId;
                 body.State = AgentBodyState.GettingUp;
-                body.EndTick = checked(tick + settings.ComeToGetUpTicks);
+                body.EndTick = checked(tick + comeTo);
                 return true;
             }
 
             if (body.State == AgentBodyState.GettingUp)
             {
-                context.Events.Append(tick, agent.Id, FireReactionEventType.AgentGotUp, body.Position, 0, 0, body.EventId);
+                context.Events.Append(tick, agent.Id, CausalEventType.AgentGotUp, body.Position, 0, 0, body.EventId);
             }
 
             body.State = AgentBodyState.Upright;
@@ -77,7 +78,7 @@ namespace Paniq.Simulation
             {
                 // Back on your feet: look for a way out afresh.
                 agent.Intent.Activity = AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = tick;
+                context.ThinkAgainSoon(agent.Intent);
             }
 
             return false;
@@ -86,13 +87,11 @@ namespace Paniq.Simulation
         /// <param name="closingSpeed">How hard the hit was; harder hits knock people out more often.</param>
         public void KnockDown(Agent agent, ulong collisionEventId, int closingSpeed)
         {
-            // Being knocked about or set alight ends any composure.
-            fear.BreakComposure(agent);
             int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
             CausalEvent down = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentKnockedDown,
+                CausalEventType.AgentKnockedDown,
                 agent.Body.Position,
                 0,
                 duration,
@@ -114,7 +113,7 @@ namespace Paniq.Simulation
             }
 
             int duration = context.Random.NextIntInclusive(settings.UnconsciousMinimumTicks, settings.UnconsciousMaximumTicks);
-            CausalEvent passedOut = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentPassedOut,
+            CausalEvent passedOut = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentPassedOut,
                 agent.Body.Position, 0, duration, downEventId);
             PutDown(agent, AgentBodyState.Unconscious, duration, passedOut.EventId);
         }
@@ -143,12 +142,11 @@ namespace Paniq.Simulation
                 return;
             }
 
-            fear.BreakComposure(agent);
             int speed = people.SpeedToSlide(distance);
             people.FallTowards(agent, away);
             people.Push(agent, away, speed, speed * liftPercent / 100);
             int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
-            CausalEvent down = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentKnockedDown,
+            CausalEvent down = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentKnockedDown,
                 agent.Body.Position, 0, duration, causeEventId);
             PutDown(agent, AgentBodyState.Fallen, duration, down.EventId);
         }
@@ -175,9 +173,8 @@ namespace Paniq.Simulation
                 return;
             }
 
-            fear.BreakComposure(agent);
             int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
-            CausalEvent crushed = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentCrushed,
+            CausalEvent crushed = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentCrushed,
                 agent.Body.Position, squeeze, duration, cause);
             people.FallTowards(agent, agent.Body.Heading);
             PutDown(agent, AgentBodyState.Fallen, duration, crushed.EventId);
@@ -209,18 +206,16 @@ namespace Paniq.Simulation
                 bool stillFrozen = agent.Personality.Temperament != AgentPanicTemperament.Runner &&
                                    context.Tick < agent.Fear.FreezeEndTick;
                 agent.Intent.Activity = stillFrozen ? AgentActivityState.Frozen : AgentActivityState.Fleeing;
-                agent.Intent.NextPanicDecisionTick = context.Tick;
+                context.ThinkAgainSoon(agent.Intent);
             }
 
-            context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentDoused,
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDoused,
                 agent.Body.Position, 0, 0, causeEventId, agent.Id);
         }
 
         /// <summary>Knocked off balance: reeling for a moment, jolted a little to one side.</summary>
         public void Stagger(Agent agent, ulong causeEventId)
         {
-            // Being knocked about or set alight ends any composure.
-            fear.BreakComposure(agent);
             int duration = context.Random.NextIntInclusive(settings.StaggerMinimumTicks, settings.StaggerMaximumTicks);
             int side = context.Random.NextIntInclusive(0, 1) == 0 ? -1 : 1;
             agent.Body.Heading = IntegerMath.NormalizeDegrees(agent.Body.Heading +
@@ -231,13 +226,11 @@ namespace Paniq.Simulation
         /// <summary>A stumble: on your own, over someone on the floor, or over a box. It makes a thud.</summary>
         public void Trip(Agent agent, ulong causalParentEventId)
         {
-            // Being knocked about or set alight ends any composure.
-            fear.BreakComposure(agent);
             int duration = context.Random.NextIntInclusive(settings.TripMinimumTicks, settings.TripMaximumTicks);
             CausalEvent trip = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentTripped,
+                CausalEventType.AgentTripped,
                 agent.Body.Position,
                 context.Scenario.Hearing.BumpSoundRadiusMillimetres,
                 duration,
@@ -257,7 +250,7 @@ namespace Paniq.Simulation
             CausalEvent rolled = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentRolled,
+                CausalEventType.AgentRolled,
                 agent.Body.Position,
                 0,
                 duration,
@@ -270,6 +263,9 @@ namespace Paniq.Simulation
         private void PutDown(Agent agent, AgentBodyState state, int duration, ulong eventId)
         {
             agent.Body.State = state;
+
+            // Not jittered here: every caller draws the while on the floor from
+            // a range already, and the event they logged says that length.
             agent.Body.EndTick = checked(context.Tick + duration);
             agent.Body.EventId = eventId;
             agent.Body.Speed = 0;
@@ -284,8 +280,6 @@ namespace Paniq.Simulation
         /// </summary>
         public void CatchFire(Agent agent, ulong causeEventId)
         {
-            // Being knocked about or set alight ends any composure.
-            fear.BreakComposure(agent);
             if (!agent.IsParticipating || agent.Burning.IsBurning)
             {
                 return;
@@ -294,7 +288,7 @@ namespace Paniq.Simulation
             int tick = context.Tick;
             FireSettings fireSettings = context.Scenario.Fire;
             int duration = context.Random.NextIntInclusive(fireSettings.BurnMinimumTicks, fireSettings.BurnMaximumTicks);
-            CausalEvent caught = context.Events.Append(tick, agent.Id, FireReactionEventType.AgentCaughtFire,
+            CausalEvent caught = context.Events.Append(tick, agent.Id, CausalEventType.AgentCaughtFire,
                 agent.Body.Position, 0, duration, causeEventId);
 
             AgentBurning burning = agent.Burning;
@@ -315,6 +309,7 @@ namespace Paniq.Simulation
             agent.Intent.SocialPartnerIndex = -1;
             agent.Hearing.HasSoundPoint = false;
             agent.Doors.ExitDoorIndex = -1;
+            agent.Errand.Clear();
         }
 
         /// <summary>Burnt out: collapses and is lost. Returns true when it happened this tick.</summary>
@@ -340,14 +335,18 @@ namespace Paniq.Simulation
             agent.Participation = AgentParticipation.NoLongerParticipating;
             agent.Outcome = AgentTerminalOutcome.Lost;
             agent.Body.Speed = 0;
-            context.Events.Append(
+            CausalEvent death = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentLost,
+                CausalEventType.AgentLost,
                 agent.Body.Position,
-                fire.BurningCount,
+                threats.Count,
                 0,
                 causeEventId);
+
+            // Kept so the card this death deals the player can name it as its
+            // cause, the way every other event in the log names one.
+            agent.DeathEventId = death.EventId;
         }
     }
 }

@@ -13,7 +13,7 @@ namespace Paniq.Simulation
     /// seen through a wall. This system owns the fire's state and answers
     /// every question about where the fire is.
     /// </summary>
-    internal sealed class FireSystem
+    internal sealed class FireSystem : IThreat
     {
         private static readonly int[] NeighbourOffsetX = { 0, 1, 0, -1 };
         private static readonly int[] NeighbourOffsetZ = { 1, 0, -1, 0 };
@@ -77,14 +77,70 @@ namespace Paniq.Simulation
 
             burningPerRoom = new int[geometry.RoomCount];
 
+            // Which preset area the danger begins in, and then whereabouts in
+            // it. A scenario with one area draws nothing for the choice: the
+            // draw is skipped rather than made and thrown away, so every
+            // single-area run -- which is nearly every test -- asks the
+            // generator for exactly the two numbers it always did.
+            LogicalBounds[] areas = settings.SpawnAreas;
+            LogicalBounds area = areas.Length == 1
+                ? areas[0]
+                : areas[context.Random.NextIntInclusive(0, areas.Length - 1)];
             var origin = new LogicalPosition(
-                context.Random.NextIntInclusive(settings.SpawnBounds.MinX, settings.SpawnBounds.MaxX),
-                context.Random.NextIntInclusive(settings.SpawnBounds.MinZ, settings.SpawnBounds.MaxZ));
-            originCell = CellAt(origin);
+                context.Random.NextIntInclusive(area.MinX, area.MaxX),
+                context.Random.NextIntInclusive(area.MinZ, area.MaxZ));
+            originCell = NearestSquareThatCanBurn(CellAt(origin));
         }
 
         public bool Active => active;
         public int BurningCount => burningCells.Count;
+
+        // ---------------------------------------------------------------- as a threat
+
+        /// <summary>The fire that lit it all: what every fright traces back to.</summary>
+        ulong IThreat.RootEventId => activationEventId;
+
+        /// <summary>How much fire there is: burning squares.</summary>
+        int IThreat.Count => burningCells.Count;
+
+        /// <summary>
+        /// The number of burning squares, which is what the round clock watched
+        /// before the fire was a threat like any other. Kept as exactly that so
+        /// no recorded run moved.
+        /// </summary>
+        long IThreat.Signature => burningCells.Count;
+
+        /// <summary>
+        /// Fire crackles: a calm person this close turns to see what it is.
+        /// A bigger fire is heard further, up to a ceiling: one square of
+        /// floor crackles, a room ablaze roars.
+        /// </summary>
+        int IThreat.HeardWithinMillimetres
+        {
+            get
+            {
+                HearingSettings hearing = context.Scenario.Hearing;
+                long reach = hearing.FireHearingRadiusMillimetres + (long)burningCells.Count * hearing.FireHearingPerCellMillimetres;
+                return (int)Math.Min(reach, hearing.FireHearingMaximumMillimetres);
+            }
+        }
+
+        bool IThreat.IsInRoom(int room) => IsBurningInRoom(room);
+
+        ulong IThreat.Touching(LogicalPosition position) => FindTouching(position);
+
+        ulong IThreat.TouchingAlong(LogicalPosition from, LogicalPosition to) => FindTouchingSweep(from, to);
+
+        /// <summary>Touching the fire sets you alight.</summary>
+        void IThreat.Harm(Agent agent, ulong causeEventId, BodySystem body) => body.CatchFire(agent, causeEventId);
+
+        /// <summary>The nearest burning point, and the ignition event of the square it is on.</summary>
+        public long NearestDistanceSquared(LogicalPosition from, out LogicalPosition point, out ulong causeEventId)
+        {
+            long distance = NearestCellDistanceSquared(from, out point, out int cell);
+            causeEventId = cell >= 0 ? cellEventIds[cell] : 0UL;
+            return distance;
+        }
         public int GridColumns => gridColumns;
         public int GridRows => gridRows;
         public LogicalPosition Origin => CellBounds(originCell).Centre;
@@ -96,16 +152,36 @@ namespace Paniq.Simulation
         public bool IsBurningInRoom(int room) => room >= 0 && burningPerRoom[room] > 0;
         public ulong ActivationEventId => activationEventId;
 
-        /// <summary>Phase 2: the fire starts on its tick, then spreads.</summary>
+        /// <summary>Whether somebody has asked for the fire to start but it has not lit yet.</summary>
+        private bool startRequested;
+
+        /// <summary>
+        /// The player's "trigger event", asking for the fire to start. Nothing
+        /// lights here: phase 2 of this tick does the lighting, exactly as it
+        /// does when the fire starts itself on a tick count. Asking twice is
+        /// the same as asking once.
+        /// </summary>
+        public void RequestStart() => startRequested = true;
+
+        /// <summary>Whether the fire has been asked to start, whether or not it has lit yet.</summary>
+        public bool StartRequested => startRequested || active;
+
+        /// <summary>Phase 2: the fire starts when it is due, then spreads.</summary>
         public void Advance()
         {
             int tick = context.Tick;
             if (!active)
             {
-                if (tick >= settings.ActivationTick)
+                // Either the player sets it off, or it sets itself off on its
+                // own tick count -- never both, so a level cannot surprise a
+                // player who was told nothing would happen until they pressed.
+                bool due = context.Scenario.Round.HazardWaitsForTrigger
+                    ? startRequested
+                    : tick >= settings.ActivationTick;
+                if (due)
                 {
                     active = true;
-                    activationEventId = Ignite(originCell, FireReactionEventType.FireActivated, 0UL);
+                    activationEventId = Ignite(originCell, CausalEventType.FireActivated, 0UL);
                 }
 
                 return;
@@ -131,17 +207,17 @@ namespace Paniq.Simulation
                 }
 
                 int chosen = neighbourScratch[context.Random.NextIntInclusive(0, neighbourScratch.Count - 1)];
-                Ignite(chosen, FireReactionEventType.FireSpread, cellEventIds[cell]);
+                Ignite(chosen, CausalEventType.FireSpread, cellEventIds[cell]);
                 cellNextSpreadTicks[cell] = checked(tick + NextSpreadDelay());
             }
         }
 
-        private ulong Ignite(int cell, FireReactionEventType eventType, ulong parentEventId)
+        private ulong Ignite(int cell, CausalEventType eventType, ulong parentEventId)
         {
             int tick = context.Tick;
             CausalEvent ignition = context.Events.Append(
                 tick,
-                new SimulationId(FireReactionSimulation.FireHazardIdValue),
+                new SimulationId(Run.FireHazardIdValue),
                 eventType,
                 CellBounds(cell).Centre,
                 settings.CellSizeMillimetres,
@@ -154,6 +230,39 @@ namespace Paniq.Simulation
             cellRecordIndex[cell] = cellRecords.Count;
             cellRecords.Add(new FireCellSnapshot(cell % gridColumns, cell / gridColumns, CellBounds(cell), tick, ignition.EventId));
             return ignition.EventId;
+        }
+
+        /// <summary>
+        /// A door into this room became a way through, so fire that had run out
+        /// of places to go may have somewhere new after all.
+        /// <para>
+        /// A burning square is retired for good once every square around it is
+        /// alight or walled off -- see <c>cellNextSpreadTicks[cell] =
+        /// int.MaxValue</c> above. That was safe while a shut door stopped fire
+        /// for ever: a fire pressed against one was genuinely finished. It is
+        /// not safe now. A door can be opened by the player, walked open or
+        /// shouldered down by somebody, blown off by TNT, or burnt through, and
+        /// any of those hands the fire on the other side of it somewhere to go.
+        /// Without this, a fire that filled a closed room stayed in it for the
+        /// rest of the run however wide the door was afterwards thrown.
+        /// </para>
+        /// Ascending cell order, so a replay agrees.
+        /// </summary>
+        public void WakeRoom(int room)
+        {
+            if (room < 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < burningCells.Count; i++)
+            {
+                int cell = burningCells[i];
+                if (cellRooms[cell] == room && cellNextSpreadTicks[cell] == int.MaxValue)
+                {
+                    cellNextSpreadTicks[cell] = checked(context.Tick + NextSpreadDelay());
+                }
+            }
         }
 
         private int NextSpreadDelay()
@@ -190,6 +299,65 @@ namespace Paniq.Simulation
 
                 neighbourScratch.Add(neighbour);
             }
+        }
+
+        /// <summary>
+        /// The drawn square, or the nearest one to it that is floor in some
+        /// room. A spot drawn inside a spawn area can still land on a square
+        /// whose middle falls in a wall, and a fire lit there would sit in the
+        /// brickwork doing nothing at all.
+        /// <para>
+        /// The search walks outward ring by ring and takes the first square it
+        /// finds, in a fixed order every time. It draws no random numbers, so
+        /// it cannot shift a replay by itself.
+        /// </para>
+        /// </summary>
+        private int NearestSquareThatCanBurn(int cell)
+        {
+            if (cellRooms[cell] >= 0)
+            {
+                return cell;
+            }
+
+            int fromColumn = cell % gridColumns;
+            int fromRow = cell / gridColumns;
+            int furthest = Math.Max(gridColumns, gridRows);
+            for (int ring = 1; ring <= furthest; ring++)
+            {
+                for (int row = fromRow - ring; row <= fromRow + ring; row++)
+                {
+                    if (row < 0 || row >= gridRows)
+                    {
+                        continue;
+                    }
+
+                    bool edgeRow = row == fromRow - ring || row == fromRow + ring;
+                    for (int column = fromColumn - ring; column <= fromColumn + ring; column++)
+                    {
+                        if (column < 0 || column >= gridColumns)
+                        {
+                            continue;
+                        }
+
+                        // Only the ring itself: everything inside it was looked
+                        // at on an earlier, smaller ring.
+                        if (!edgeRow && column != fromColumn - ring && column != fromColumn + ring)
+                        {
+                            continue;
+                        }
+
+                        int candidate = row * gridColumns + column;
+                        if (cellRooms[candidate] >= 0)
+                        {
+                            return candidate;
+                        }
+                    }
+                }
+            }
+
+            // No square anywhere is floor, which a scenario with a room cannot
+            // manage; the drawn square is as good an answer as there is.
+            return cell;
         }
 
         private int CellAt(LogicalPosition position)
@@ -246,7 +414,7 @@ namespace Paniq.Simulation
                 cellRecordIndex[cell] = -1;
             }
 
-            context.Events.Append(context.Tick, source, FireReactionEventType.FireDoused,
+            context.Events.Append(context.Tick, source, CausalEventType.FireDoused,
                 CellBounds(cell).Centre, settings.CellSizeMillimetres, 0, causeEventId);
             return true;
         }
@@ -307,7 +475,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+            Ignite(cell, CausalEventType.FireSpread, causeEventId);
         }
 
         /// <summary>
@@ -331,12 +499,12 @@ namespace Paniq.Simulation
                 // The player has beaten the scenario to it, so their card is
                 // where this run's fire came from.
                 active = true;
-                activationEventId = Ignite(cell, FireReactionEventType.FireActivated, causeEventId);
+                activationEventId = Ignite(cell, CausalEventType.FireActivated, causeEventId);
                 eventId = activationEventId;
                 return true;
             }
 
-            eventId = Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+            eventId = Ignite(cell, CausalEventType.FireSpread, causeEventId);
             return true;
         }
 
@@ -377,7 +545,7 @@ namespace Paniq.Simulation
                         continue;
                     }
 
-                    Ignite(cell, FireReactionEventType.FireSpread, causeEventId);
+                    Ignite(cell, CausalEventType.FireSpread, causeEventId);
                     lit++;
                 }
             }
@@ -473,7 +641,7 @@ namespace Paniq.Simulation
         /// from the position in square rings of cells and stops once no
         /// closer cell is possible.
         /// </summary>
-        public long NearestDistanceSquared(LogicalPosition position, out LogicalPosition nearestPoint, out int nearestCell)
+        public long NearestCellDistanceSquared(LogicalPosition position, out LogicalPosition nearestPoint, out int nearestCell)
         {
             nearestPoint = position;
             nearestCell = -1;
@@ -540,6 +708,61 @@ namespace Paniq.Simulation
             return nearest;
         }
 
+        /// <summary>
+        /// Squared distance to the nearest burning point that is in one of
+        /// two rooms, or long.MaxValue when nothing burns there. What a shut
+        /// door asks: the flames that can eat it are the ones on either side
+        /// of it, not the ones in the room next door behind a wall. Ties go
+        /// to the earliest-lit cell.
+        /// </summary>
+        public long NearestCellDistanceSquaredInRooms(LogicalPosition position, int roomA, int roomB,
+            out LogicalPosition nearestPoint, out int nearestCell)
+        {
+            long nearest = long.MaxValue;
+            ulong nearestEventId = 0UL;
+            nearestPoint = position;
+            nearestCell = -1;
+            for (int i = 0; i < burningCells.Count; i++)
+            {
+                int cell = burningCells[i];
+                int room = cellRooms[cell];
+                if (room != roomA && room != roomB)
+                {
+                    continue;
+                }
+
+                LogicalPosition point = CellBounds(cell).ClosestPoint(position);
+                long distance = LogicalPosition.DistanceSquared(position, point);
+                ulong eventId = cellEventIds[cell];
+                if (distance < nearest || (distance == nearest && eventId < nearestEventId))
+                {
+                    nearest = distance;
+                    nearestEventId = eventId;
+                    nearestPoint = point;
+                    nearestCell = cell;
+                }
+            }
+
+            return nearest;
+        }
+
+        /// <summary>True when some burning point in one of these two rooms is strictly closer than <paramref name="distance"/>.</summary>
+        public bool AnyCloserThanInRooms(LogicalPosition position, int distance, int roomA, int roomB)
+        {
+            long reachSquared = (long)distance * distance;
+            for (int i = 0; i < burningCells.Count; i++)
+            {
+                int cell = burningCells[i];
+                int room = cellRooms[cell];
+                if ((room == roomA || room == roomB) && CellBounds(cell).DistanceSquaredTo(position) < reachSquared)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private long NearestByCheckingEveryCell(LogicalPosition position, out LogicalPosition nearestPoint, out int nearestCell)
         {
             long nearest = long.MaxValue;
@@ -563,12 +786,12 @@ namespace Paniq.Simulation
 
         public long NearestDistanceSquared(LogicalPosition position, out LogicalPosition nearestPoint)
         {
-            return NearestDistanceSquared(position, out nearestPoint, out _);
+            return NearestCellDistanceSquared(position, out nearestPoint, out _);
         }
 
         public long NearestDistanceSquared(LogicalPosition position)
         {
-            return NearestDistanceSquared(position, out _, out _);
+            return NearestCellDistanceSquared(position, out _, out _);
         }
 
         /// <summary>True when the straight line between two points passes within <paramref name="clearance"/> of fire (checked at its quarter points).</summary>
@@ -634,12 +857,13 @@ namespace Paniq.Simulation
         {
             long rangeSquared = (long)range * range;
             LogicalPosition direction = IntegerMath.Direction(heading);
+            int eyeRoom = geometry.RoomAtPoint(eye);
             CellRange cells = CellsWithin(eye, range);
             if (burningCells.Count <= cells.Count)
             {
                 for (int i = 0; i < burningCells.Count; i++)
                 {
-                    if (CellIsVisible(burningCells[i], eye, direction, rangeSquared))
+                    if (CellIsVisible(burningCells[i], eyeRoom, eye, direction, rangeSquared))
                     {
                         return true;
                     }
@@ -653,7 +877,7 @@ namespace Paniq.Simulation
                 for (int column = cells.FirstColumn; column <= cells.LastColumn; column++)
                 {
                     int cell = row * gridColumns + column;
-                    if (cellEventIds[cell] != 0UL && CellIsVisible(cell, eye, direction, rangeSquared))
+                    if (cellEventIds[cell] != 0UL && CellIsVisible(cell, eyeRoom, eye, direction, rangeSquared))
                     {
                         return true;
                     }
@@ -669,14 +893,17 @@ namespace Paniq.Simulation
             return room < 0 || cellRooms[cell] == room || geometry.RoomsOpenToEachOther(room, cellRooms[cell]);
         }
 
-        /// <summary>The nearest point, centre or a corner of the cell lies inside the vision cone, and no wall is in the way.</summary>
-        private bool CellIsVisible(int cell, LogicalPosition eye, LogicalPosition direction, long rangeSquared)
+        /// <summary>
+        /// The nearest point, centre or a corner of the cell lies inside the
+        /// vision cone, and the line of sight to it runs through open
+        /// doorways only: the same room, or through the gap of an open door
+        /// between the rooms (see <see cref="WorldGeometry.CanSeeBetween"/>).
+        /// It used to be "the same room, or any room joined to it by an open
+        /// door", which saw through the wall beside the door as readily as
+        /// through the door.
+        /// </summary>
+        private bool CellIsVisible(int cell, int eyeRoom, LogicalPosition eye, LogicalPosition direction, long rangeSquared)
         {
-            if (!Reaches(geometry.RoomAtPoint(eye), cell))
-            {
-                return false;
-            }
-
             LogicalBounds bounds = CellBounds(cell);
             LogicalPosition closest = bounds.ClosestPoint(eye);
             if (LogicalPosition.DistanceSquared(eye, closest) > rangeSquared)
@@ -684,12 +911,13 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            return InVisionCone(eye, direction, closest, rangeSquared) ||
-                   InVisionCone(eye, direction, bounds.Centre, rangeSquared) ||
-                   InVisionCone(eye, direction, new LogicalPosition(bounds.MinX, bounds.MinZ), rangeSquared) ||
-                   InVisionCone(eye, direction, new LogicalPosition(bounds.MaxX, bounds.MinZ), rangeSquared) ||
-                   InVisionCone(eye, direction, new LogicalPosition(bounds.MinX, bounds.MaxZ), rangeSquared) ||
-                   InVisionCone(eye, direction, new LogicalPosition(bounds.MaxX, bounds.MaxZ), rangeSquared);
+            bool inCone = InVisionCone(eye, direction, closest, rangeSquared) ||
+                          InVisionCone(eye, direction, bounds.Centre, rangeSquared) ||
+                          InVisionCone(eye, direction, new LogicalPosition(bounds.MinX, bounds.MinZ), rangeSquared) ||
+                          InVisionCone(eye, direction, new LogicalPosition(bounds.MaxX, bounds.MinZ), rangeSquared) ||
+                          InVisionCone(eye, direction, new LogicalPosition(bounds.MinX, bounds.MaxZ), rangeSquared) ||
+                          InVisionCone(eye, direction, new LogicalPosition(bounds.MaxX, bounds.MaxZ), rangeSquared);
+            return inCone && geometry.CanSeeBetween(eyeRoom, eye, cellRooms[cell], closest);
         }
 
         /// <summary>The grid cells that could hold a point within <paramref name="reach"/> of a position (a few extra are fine).</summary>

@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba8b029cee9fdb0418f39eb9e7c2b368, type: 3}
+  m_Name: TheOffice
+  m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.LevelDefinition
+  levelId: the-office
+  displayName: The Office
+  scenario: {fileID: 11400000, guid: 736b4ed08f67491fa82cb1cf9dd533e2, type: 2}
+  physicsFeel: {fileID: 11400000, guid: 112481c59fe94050b51d79088580e1a4, type: 2}
+  hazardWaitsForTrigger: 1
+  targetSavedPercent: 75

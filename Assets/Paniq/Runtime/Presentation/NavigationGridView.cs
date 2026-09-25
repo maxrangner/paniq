@@ -28,7 +28,7 @@ namespace Paniq.Presentation
 
         private readonly GameObject root;
 
-        public NavigationGridView(FireReactionSimulation simulation, Transform parent, int bodyRadiusMillimetres)
+        public NavigationGridView(Run simulation, Transform parent, int bodyRadiusMillimetres)
         {
             root = new GameObject("NavigationGrid");
             root.transform.SetParent(parent, false);
@@ -54,7 +54,7 @@ namespace Paniq.Presentation
         }
 
         /// <summary>One flat square for every patch of floor a person of this size could stand on.</summary>
-        private static Mesh BuildMesh(FireReactionSimulation simulation, int bodyRadiusMillimetres)
+        private static Mesh BuildMesh(Run simulation, int bodyRadiusMillimetres)
         {
             NavigationGridReading grid = simulation.ReadNavigationGrid();
             float half = Metres(NavigationGrid.CellSizeMillimetres) / 2f - InsetMetres;

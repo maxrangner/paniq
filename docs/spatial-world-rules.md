@@ -80,41 +80,12 @@ fails scenario validation rather than wrapping.
 
 ## Movement requests and resolution
 
-**Superseded 2026-09-21.** The sweep-and-refuse resolution below was the
-foundation's movement rule. People and things are now physical bodies that push
-each other (see "Bodies in 3D"). It is kept here because the reasoning behind a
-fixed resolution order still applies to the physics step.
-
-A future autonomous system may submit at most one `MovementRequest` for each
-participating agent in a logical tick. A request contains only the stable Agent
-ID and an integer XZ displacement. Submitting a request is not a movement
-decision system; later agent work defines why and how a displacement is chosen.
-
-At the start of movement resolution, the spatial system sorts the participating
-Agent IDs in ascending order. With `N` participating agents, it starts at index
-`tick mod N` and visits that circular order once; `N = 0` has no requests to
-resolve. This rotates the first conflict opportunity without storing extra
-state. It applies only to movement resolution; agent decisions remain in
-ascending Agent ID order.
-
-The spatial system resolves requests in that circular order:
-
-1. Reject a request from a non-participating or unknown agent, a second request
-   from the same agent in the tick, or a displacement whose squared length is
-   greater than the shared maximum step distance squared.
-2. Sweep that agent's circle from its current position to the requested
-   destination. Accept the request only if the full sweep and destination stay
-   inside the boundary and avoid obstacle interiors and all currently occupied
-   participating-agent circles.
-3. On acceptance, update the agent's logical position immediately. On
-   rejection, leave it at its prior position for this tick.
-
-Because accepted moves update occupancy before the next request is considered,
-the earlier request in the circular order wins a conflict for the same free
-space. Agents cannot pass through an occupied agent, trade positions, or
-receive a second attempt later in the same tick. The system does not slide
-along obstacles, choose an alternate route, interpolate logical movement, keep
-velocity, apply acceleration, or teleport agents.
+**History (2026-09-21).** The foundation moved people by a sweep-and-refuse
+rule: one integer displacement per person per tick, resolved in a rotating
+circular order, accepted only if the swept footprint stayed inside the walls
+and clear of everybody else, never sliding or retrying. People and things are
+now physical bodies that push each other (see "Bodies in 3D"); what survives
+of that rule is its fixed resolution order, which the physics step keeps.
 
 ## Events and presentation
 
@@ -169,26 +140,13 @@ may not pass through a person or another box. Box positions keep hundredths of
 a millimetre so slow slides do not round away, but every overlap test uses
 whole millimetres. Objects stay inside the room and treat doorways as wall (they never pass through one), but an object may come to rest *in* a doorway, against the wall line, and one that does jams that door.
 
-## Resolution examples
-
-- A participating agent requests a within-limit displacement whose swept circle
-  stays clear: its logical position changes at the tick.
-- A request that crosses the boundary or an obstacle is rejected: the agent
-  remains at its previous logical position.
-- Two agents request the same currently free location: the earlier request in
-  that tick's circular order is accepted, and the other is rejected because the
-  location is occupied.
-- When an agent becomes `NoLongerParticipating`, its logical position remains
-  available as historical run state, but another participating agent may later
-  occupy that released space.
-
 ## Prototype extension: tables
 
 The fire-reaction prototype adds fixed tables to the room. A table is an
 axis-aligned rectangle in scenario data. A person's footprint may not overlap
-the rectangle grown by the person's radius; the movement rules above apply
-unchanged, with tables treated as extra walls when choosing and resolving a
-step. `WorldGeometry` is the only code that knows where tables are.
+the rectangle grown by the person's radius: the physics step keeps bodies out
+of it, and the navigation squares under it are not walkable. `WorldGeometry`
+is the only code that knows where tables are.
 
 ## Prototype extension: several rooms
 

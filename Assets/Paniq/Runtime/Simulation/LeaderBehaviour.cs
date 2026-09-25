@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Paniq.Simulation
 {
     /// <summary>
@@ -16,6 +18,13 @@ namespace Paniq.Simulation
     /// leader is out, down, alight, or no longer worth following. Orders are
     /// events naming the person ordered, never a hold on them: whoever is
     /// ordered may still decide otherwise.
+    /// <para>
+    /// Whoever falls in behind a leader, or is already following them when
+    /// they shout again, is told everything the leader knows about the
+    /// building (see <see cref="WayfindingSystem.Share"/>). A host who works
+    /// here can walk a room of lost visitors out; a leader who is lost
+    /// themselves can only lead them round in the same circles.
+    /// </para>
     /// </summary>
     internal sealed class LeaderBehaviour : IPanicOption
     {
@@ -31,6 +40,7 @@ namespace Paniq.Simulation
         private readonly SoundSystem sound;
         private readonly PhysicsObjectSystem objects;
         private readonly Locomotion locomotion;
+        private readonly WayfindingSystem wayfinding;
         private readonly LeadershipSettings settings;
 
         public LeaderBehaviour(
@@ -42,7 +52,8 @@ namespace Paniq.Simulation
             FireSystem fire,
             SoundSystem sound,
             PhysicsObjectSystem objects,
-            Locomotion locomotion)
+            Locomotion locomotion,
+            WayfindingSystem wayfinding)
         {
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -54,6 +65,7 @@ namespace Paniq.Simulation
             this.sound = sound;
             this.objects = objects;
             this.locomotion = locomotion;
+            this.wayfinding = wayfinding;
             settings = context.Scenario.Leadership;
         }
 
@@ -80,7 +92,7 @@ namespace Paniq.Simulation
 
             if (!TryOrderADoorBrokenDown(agent) && !TryOrderTheFireFought(agent))
             {
-                Rally(agent, FireReactionEventType.LeaderCalledPeopleOn, default);
+                Rally(agent, CausalEventType.LeaderCalledPeopleOn, default);
             }
 
             // Leaders lead by going: their own running is decided as usual.
@@ -101,7 +113,7 @@ namespace Paniq.Simulation
                 // Any way out they have found shut themselves, or that is
                 // wedged, not only one in the room they happen to be standing
                 // in: the person they send can walk to it now.
-                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) ||
+                if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) || !leader.Knowledge.Knows(d) ||
                     (!leader.Doors.FoundShut[d] && !doors.IsObstructed(d)))
                 {
                     continue;
@@ -133,11 +145,11 @@ namespace Paniq.Simulation
             if (!Obeys(breaker, leader))
             {
                 // They shout anyway; whoever it was simply does not take it on.
-                Rally(leader, FireReactionEventType.LeaderCalledPeopleOn, default);
+                Rally(leader, CausalEventType.LeaderCalledPeopleOn, default);
                 return true;
             }
 
-            ulong order = Rally(leader, FireReactionEventType.LeaderOrderedDoorBroken, doors.IdOf(door), breaker.Id);
+            ulong order = Rally(leader, CausalEventType.LeaderOrderedDoorBroken, doors.IdOf(door), breaker.Id);
 
             // Sent at that door: they stop trailing after the leader, or the
             // next thing they decide would be to follow them again and the
@@ -145,15 +157,16 @@ namespace Paniq.Simulation
             StopFollowing(breaker);
 
             // Sent at that door, and they will not give up on it while it holds.
+            wayfinding.Learn(breaker, door, WayLearned.Told, order);
             breaker.Doors.ExitDoorIndex = door;
             breaker.Doors.ApproachRoom = geometry.RoomOf(breaker);
             breaker.Doors.FoundShut[door] = false;
             breaker.Doors.AvoidUntilTick[door] = 0;
             breaker.Leading.OrderedDoor = door;
-            breaker.Leading.OrderedUntilTick = checked(context.Tick + settings.OrderLastsTicks);
+            breaker.Leading.OrderedUntilTick = checked(context.Tick + context.Jittered(settings.OrderLastsTicks));
             breaker.Leading.OrderEventId = order;
             breaker.Intent.Activity = AgentActivityState.Fleeing;
-            breaker.Intent.NextPanicDecisionTick = context.Tick;
+            context.ThinkAgainSoon(breaker.Intent);
             return true;
         }
 
@@ -172,11 +185,13 @@ namespace Paniq.Simulation
             // walking in straight lines.
             FlowField walking = geometry.Routes.ReachFrom(leader.Body.Position, bodyRadius);
             int bottle = -1;
-            for (int i = 0; i < objects.Count; i++)
+            IReadOnlyList<int> bottles = objects.Equipment;
+            for (int b = 0; b < bottles.Count; b++)
             {
                 // A bottle anywhere somebody could be sent to, rather than
                 // only one in the room the leader is standing in.
-                if (!objects.IsEquipment(i) || objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                int i = bottles[b];
+                if (objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
                 {
                     continue;
                 }
@@ -205,11 +220,11 @@ namespace Paniq.Simulation
 
             if (!Obeys(fighter, leader))
             {
-                Rally(leader, FireReactionEventType.LeaderCalledPeopleOn, default);
+                Rally(leader, CausalEventType.LeaderCalledPeopleOn, default);
                 return true;
             }
 
-            ulong order = Rally(leader, FireReactionEventType.LeaderOrderedFireFought, objects.IdOf(bottle), fighter.Id);
+            ulong order = Rally(leader, CausalEventType.LeaderOrderedFireFought, objects.IdOf(bottle), fighter.Id);
 
             // Sent for the bottle: they stop following the leader first, or the
             // next thing they decide would be to fall in behind them again.
@@ -219,8 +234,8 @@ namespace Paniq.Simulation
             fighter.Carry.ItemIndex = bottle;
             fighter.Carry.Holding = false;
             fighter.Intent.Activity = AgentActivityState.FetchingExtinguisher;
-            fighter.Intent.ActivityEndTick = checked(context.Tick + context.Scenario.Extinguishers.FetchTimeoutTicks);
-            fighter.Leading.OrderedUntilTick = checked(context.Tick + settings.OrderLastsTicks);
+            fighter.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(context.Scenario.Extinguishers.FetchTimeoutTicks));
+            fighter.Leading.OrderedUntilTick = checked(context.Tick + context.Jittered(settings.OrderLastsTicks));
             fighter.Leading.OrderEventId = order;
             return true;
         }
@@ -229,7 +244,7 @@ namespace Paniq.Simulation
         /// A shout that gathers whoever is near: they follow this leader
         /// until they are out, down, or the leader stops being one.
         /// </summary>
-        private ulong Rally(Agent leader, FireReactionEventType eventType, SimulationId target, SimulationId ordered = default)
+        private ulong Rally(Agent leader, CausalEventType eventType, SimulationId target, SimulationId ordered = default)
         {
             ulong order = context.Events.Append(context.Tick, leader.Id, eventType, leader.Body.Position,
                 settings.RallyRangeMillimetres, 0, leader.Fear.ScaredEventId,
@@ -238,17 +253,25 @@ namespace Paniq.Simulation
 
             long range = settings.RallyRangeMillimetres;
             int room = geometry.RoomOf(leader);
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby near = crowd.Within(leader.Body.Position, range);
+            for (int c = 0; c < near.Count; c++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[near[c]];
                 // Somebody frozen with fear does not hear a shout; they
                 // have to be shaken (see HelpBehaviour).
-                if (other == leader || !other.IsParticipating || other.Leading.FollowingIndex == leader.Index ||
+                if (other == leader || !other.IsParticipating ||
                     other.Intent.Activity == AgentActivityState.Frozen || other.Burning.IsBurning ||
                     !geometry.RoomsOpenToEachOther(room, geometry.RoomOf(other)) ||
                     LogicalPosition.DistanceSquared(other.Body.Position, leader.Body.Position) > range * range)
                 {
+                    continue;
+                }
+
+                if (other.Leading.FollowingIndex == leader.Index)
+                {
+                    // Already behind them: nothing new to decide, but whatever
+                    // the leader has found out since, they hear now.
+                    wayfinding.Share(leader, other, order);
                     continue;
                 }
 
@@ -257,8 +280,10 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                wayfinding.Share(leader, other, order);
                 other.Leading.FollowingIndex = leader.Index;
-                other.Leading.FollowUntilTick = checked(context.Tick + settings.FollowLastsTicks);
+                other.Leading.FollowFromTick = context.ReactionTick();
+                other.Leading.FollowUntilTick = checked(other.Leading.FollowFromTick + context.Jittered(settings.FollowLastsTicks));
                 other.Leading.OrderEventId = order;
             }
 
@@ -290,6 +315,13 @@ namespace Paniq.Simulation
             if (agent.Intent.Activity == AgentActivityState.Frozen || agent.Burning.IsBurning)
             {
                 agent.Leading.FollowingIndex = -1;
+                return null;
+            }
+
+            if (context.Tick < agent.Leading.FollowFromTick)
+            {
+                // Called, but not yet turned to follow: a few ticks late, like
+                // every reaction. Until then they carry on as they were.
                 return null;
             }
 
@@ -375,10 +407,10 @@ namespace Paniq.Simulation
             int room = geometry.RoomOf(leader);
             long best = (long)reach * reach;
             Agent found = null;
-            Agent[] agents = crowd.All;
-            for (int i = 0; i < agents.Length; i++)
+            using Crowd.Nearby near = crowd.Within(leader.Body.Position, reach);
+            for (int c = 0; c < near.Count; c++)
             {
-                Agent other = agents[i];
+                Agent other = crowd.All[near[c]];
                 // Nobody frozen with fear, alight, off their feet, or
                 // already under somebody's orders.
                 if (other == leader || !other.IsParticipating || other.Burning.IsBurning ||

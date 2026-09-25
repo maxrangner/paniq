@@ -133,7 +133,7 @@ namespace Paniq.Simulation
             CausalEvent collision = context.Events.Append(
                 context.Tick,
                 mover.Id,
-                FireReactionEventType.AgentsCollided,
+                CausalEventType.AgentsCollided,
                 midpoint,
                 closing,
                 0,
@@ -206,7 +206,7 @@ namespace Paniq.Simulation
             CausalEvent shoved = context.Events.Append(
                 context.Tick,
                 shover.Id,
-                FireReactionEventType.AgentShoved,
+                CausalEventType.AgentShoved,
                 victim.Body.Position,
                 settings.ShovePushMillimetres,
                 0,

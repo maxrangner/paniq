@@ -9,12 +9,12 @@
     internal sealed class FearSystem
     {
         private readonly SimulationContext context;
-        private readonly FireSystem fire;
+        private readonly Threats threats;
 
-        public FearSystem(SimulationContext context, FireSystem fire)
+        public FearSystem(SimulationContext context, Threats threats)
         {
             this.context = context;
-            this.fire = fire;
+            this.threats = threats;
         }
 
         /// <summary>
@@ -64,6 +64,32 @@
             }
         }
 
+        /// <summary>The ticks on which somebody is due to finish being startled, so nobody else is given one of them.</summary>
+        private readonly System.Collections.Generic.HashSet<int> reactionEndsTaken = new System.Collections.Generic.HashSet<int>();
+
+        /// <summary>
+        /// A reaction delay nobody else has: if somebody is already due to
+        /// finish being startled on that tick, this one is put off by the
+        /// startle stagger, and again until the tick is theirs alone. Six
+        /// people a bell reaches on the same tick come up out of their chairs
+        /// one after another, a few ticks apart, never all at once -- the
+        /// owner's rule that nothing happens to a whole group on one tick.
+        /// Processing order decides who waits, so a replay agrees, and no
+        /// random number is drawn.
+        /// </summary>
+        private int Staggered(int tick, int delay)
+        {
+            reactionEndsTaken.RemoveWhere(taken => taken < tick);
+            int stagger = context.Scenario.Perception.StartleStaggerTicks;
+            int end = checked(tick + delay);
+            while (!reactionEndsTaken.Add(end))
+            {
+                end = checked(end + stagger);
+            }
+
+            return end - tick;
+        }
+
         /// <summary>Startled: stop, draw a seeded reaction delay, and log what caused it.</summary>
         public ulong StartAlert(Agent agent, ulong causalParentEventId, AgentAlertSource alertSource)
         {
@@ -73,15 +99,21 @@
             agent.Intent.Activity = AgentActivityState.Reacting;
             agent.Intent.SocialPartnerIndex = -1;
             agent.Hearing.HasSoundPoint = false;
-            agent.Fear.ReactionDelayTicks = context.Random.NextIntInclusive(0,
-                TraitEffects.MaximumReactionDelayTicks(agent, context.Scenario));
+            agent.Hearing.ClearPending();
+
+            // Whatever the day had them doing is over: fear has its own rules.
+            agent.Errand.Clear();
+            // Their own lag before anything at all, then their own seeded
+            // reaction delay on top, then a tick nobody else finishes on.
+            agent.Fear.ReactionDelayTicks = Staggered(tick, context.ReactionLag() + context.Random.NextIntInclusive(0,
+                TraitEffects.MaximumReactionDelayTicks(agent, context.Scenario)));
             agent.Fear.ReactionEndTick = checked(tick + agent.Fear.ReactionDelayTicks);
             CausalEvent alert = context.Events.Append(
                 tick,
                 agent.Id,
-                FireReactionEventType.AgentAlerted,
+                CausalEventType.AgentAlerted,
                 agent.Body.Position,
-                fire.BurningCount,
+                threats.Count,
                 agent.Fear.ReactionDelayTicks,
                 causalParentEventId);
             agent.Fear.AlertEventId = alert.EventId;
@@ -91,53 +123,27 @@
         /// <summary>Startled by something they heard or felt at <paramref name="from"/>; they will turn toward it.</summary>
         public void Alarm(Agent agent, ulong causalParentEventId, AgentAlertSource alertSource, LogicalPosition from)
         {
-            if (alertSource == AgentAlertSource.Alarm)
-            {
-                // A bell tells you there is a fire without showing you one, so
-                // the level-headed simply leave.
-                agent.Fear.Composed = TraitEffects.StaysComposed(agent.Traits, context.Scenario);
-            }
-
+            // A bell tells you there is a fire without showing you one, and
+            // it frightens you just the same: the owner's rule (2026-09-25),
+            // "pull it, and everybody panics". The level-headed used to walk
+            // out at a stroll instead.
             StartAlert(agent, causalParentEventId, alertSource);
             agent.Hearing.SoundPoint = from;
             agent.Hearing.HasSoundPoint = true;
         }
 
-        /// <summary>
-        /// Composure goes the moment the fire stops being an abstraction: it
-        /// comes at them, somebody knocks them over, they catch light, or they
-        /// see the flames for themselves. From then on they panic like anybody
-        /// else.
-        /// </summary>
-        public void BreakComposure(Agent agent)
-        {
-            if (!agent.Fear.Composed)
-            {
-                return;
-            }
-
-            agent.Fear.Composed = false;
-
-            // Whatever they were doing calmly, they are now running.
-            if (agent.Fear.State == AgentFearState.Scared && agent.Intent.Activity != AgentActivityState.Frozen)
-            {
-                agent.Intent.NextPanicDecisionTick = context.Tick;
-            }
-        }
-
-        /// <summary>An alerted person now sees the fire for themselves.</summary>
-        public void PromoteAlertToVisual(Agent agent)
+        /// <summary>An alerted person now sees the danger for themselves; <paramref name="rootEventId"/> is what started the threat they saw.</summary>
+        public void PromoteAlertToVisual(Agent agent, ulong rootEventId)
         {
             agent.Fear.AlertSource = AgentAlertSource.Visual;
-            BreakComposure(agent);
             CausalEvent alert = context.Events.Append(
                 context.Tick,
                 agent.Id,
-                FireReactionEventType.AgentAlerted,
+                CausalEventType.AgentAlerted,
                 agent.Body.Position,
-                fire.BurningCount,
+                threats.Count,
                 agent.Fear.ReactionDelayTicks,
-                fire.ActivationEventId);
+                rootEventId);
             agent.Fear.AlertEventId = alert.EventId;
         }
 
@@ -154,19 +160,23 @@
 
             int tick = context.Tick;
             agent.Fear.State = AgentFearState.Scared;
+
+            // Whatever the day had them doing is over: fear has its own rules.
+            // Cleared here as well as on the way into being alert, because a
+            // test frightens somebody straight to scared.
+            agent.Errand.Clear();
             CausalEvent scared = context.Events.Append(
                 tick,
                 agent.Id,
-                FireReactionEventType.AgentScared,
+                CausalEventType.AgentScared,
                 agent.Body.Position,
-                fire.BurningCount,
+                threats.Count,
                 0,
-                agent.Fear.AlertEventId != 0UL ? agent.Fear.AlertEventId : fire.ActivationEventId);
+                agent.Fear.AlertEventId != 0UL ? agent.Fear.AlertEventId : threats.RootEventId);
             agent.Fear.ScaredEventId = scared.EventId;
 
-            if (agent.Personality.Temperament == AgentPanicTemperament.Runner || agent.Fear.Composed)
+            if (agent.Personality.Temperament == AgentPanicTemperament.Runner)
             {
-                // Nobody who is keeping their head freezes; they head for a way out.
                 StartFleeing(agent);
                 return;
             }
@@ -179,7 +189,7 @@
             CausalEvent froze = context.Events.Append(
                 tick,
                 agent.Id,
-                FireReactionEventType.AgentFroze,
+                CausalEventType.AgentFroze,
                 agent.Body.Position,
                 0,
                 agent.Fear.FreezeEndTick == int.MaxValue ? 0 : agent.Fear.FreezeEndTick - tick,
@@ -188,26 +198,32 @@
         }
 
         /// <summary>
-        /// Snapping out of a freeze: log it, start running, and shout straight
-        /// away. The cause is their own freeze running out, or someone shaking them.
+        /// Snapping out of a freeze: log it, start running, and shout as soon
+        /// as anybody does. The cause is their own freeze running out, or someone shaking them.
         /// </summary>
         public void Unfreeze(Agent agent, ulong causalParentEventId = 0UL)
         {
-            context.Events.Append(context.Tick, agent.Id, FireReactionEventType.AgentUnfroze, agent.Body.Position, 0, 0,
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentUnfroze, agent.Body.Position, 0, 0,
                 causalParentEventId != 0UL ? causalParentEventId : agent.Fear.FrozeEventId);
             StartFleeing(agent);
-            agent.Fear.NextShoutTick = context.Tick;
-        }
-
-        private void StartFleeing(Agent agent)
-        {
-            agent.Intent.Activity = AgentActivityState.Fleeing;
-            agent.Intent.NextPanicDecisionTick = context.Tick;
-            agent.Fear.NextShoutTick = checked(context.Tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
         }
 
         /// <summary>
-        /// A startled person stops. If they saw the fire they turn to face
+        /// Running. The first shout comes with the first stride, a few ticks
+        /// late like every reaction, and the next ones at their own interval:
+        /// it used to come two to five seconds in, which spread a fright
+        /// round a meeting table one seat at a time.
+        /// </summary>
+        private void StartFleeing(Agent agent)
+        {
+            agent.Intent.Activity = AgentActivityState.Fleeing;
+            agent.Doors.HasLookedForAWayOut = false;
+            context.ThinkAgainSoon(agent.Intent);
+            agent.Fear.NextShoutTick = context.ReactionTick();
+        }
+
+        /// <summary>
+        /// A startled person stops. If they saw the danger they turn to face
         /// it; if they were yelled at or bumped, they turn toward where that
         /// came from.
         /// </summary>
@@ -216,9 +232,9 @@
             agent.Intent.Activity = AgentActivityState.Reacting;
             int goalHeading = agent.Body.Heading;
             if (agent.Fear.AlertSource == AgentAlertSource.Visual &&
-                fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition firePoint) < long.MaxValue)
+                threats.NearestDistanceSquared(agent.Body.Position, out LogicalPosition dangerPoint, out _) < long.MaxValue)
             {
-                goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, firePoint, agent.Body.Heading);
+                goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, dangerPoint, agent.Body.Heading);
             }
             else if (agent.Hearing.HasSoundPoint)
             {

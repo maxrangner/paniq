@@ -22,22 +22,22 @@ namespace Paniq.Diagnostics
         private const int Spacing = 700;
 
         /// <summary>Rooms, doors, <paramref name="people"/> people and <paramref name="things"/> boxes, from the scenario's own tuning.</summary>
-        public static FireReactionScenarioData Build(FireReactionScenarioData template, int people, int things)
+        public static ScenarioData Build(ScenarioData template, int people, int things)
         {
-            FireReactionScenarioData data = template.Clone();
-            data.Alarms = new FireReactionAlarmDefinition[0];
+            ScenarioData data = template.Clone();
+            data.Alarms = new AlarmDefinition[0];
             data.BlastHoles = new SimulationId[0];
             data.Fire.ActivationTick = int.MaxValue;
             data.Fire.SpawnBounds = new LogicalBounds(1000, 1000, 1000, 1000);
             data.Calm.DecisionMinimumTicks = 1;
             data.Calm.DecisionMaximumTicks = 3;
 
-            var rooms = new List<FireReactionRoomDefinition>();
+            var rooms = new List<RoomDefinition>();
             for (int row = 0; row < Rows; row++)
             {
                 for (int column = 0; column < Columns; column++)
                 {
-                    rooms.Add(new FireReactionRoomDefinition(
+                    rooms.Add(new RoomDefinition(
                         new SimulationId((ulong)(50000 + row * Columns + column)),
                         new LogicalBounds(column * RoomSize, (column + 1) * RoomSize, row * RoomSize, (row + 1) * RoomSize)));
                 }
@@ -45,18 +45,18 @@ namespace Paniq.Diagnostics
 
             // One desk in the middle of each room. Tables are bodies like
             // everything else now, so a building being measured needs some.
-            var tables = new List<FireReactionTableDefinition>();
+            var tables = new List<TableDefinition>();
             for (int room = 0; room < rooms.Count; room++)
             {
                 LogicalBounds bounds = rooms[room].Bounds;
-                tables.Add(new FireReactionTableDefinition(
+                tables.Add(new TableDefinition(
                     new SimulationId((ulong)(51000 + room)),
                     new LogicalPosition((bounds.MinX + bounds.MaxX) / 2, (bounds.MinZ + bounds.MaxZ) / 2), 1200, 700));
             }
 
             data.Tables = tables.ToArray();
 
-            var doors = new List<FireReactionDoorDefinition>();
+            var doors = new List<DoorDefinition>();
             ulong doorId = 20000UL;
             for (int row = 0; row < Rows; row++)
             {
@@ -65,22 +65,26 @@ namespace Paniq.Diagnostics
                     SimulationId room = rooms[row * Columns + column].RoomId;
                     if (column + 1 < Columns)
                     {
-                        doors.Add(new FireReactionDoorDefinition(new SimulationId(doorId++), room, WallSide.East,
+                        doors.Add(new DoorDefinition(new SimulationId(doorId++), room, WallSide.East,
                             row * RoomSize + RoomSize / 2, 1000, false));
                     }
 
                     if (row + 1 < Rows)
                     {
-                        doors.Add(new FireReactionDoorDefinition(new SimulationId(doorId++), room, WallSide.North,
+                        doors.Add(new DoorDefinition(new SimulationId(doorId++), room, WallSide.North,
                             column * RoomSize + RoomSize / 2, 1000, false));
                     }
                 }
             }
 
-            doors.Add(new FireReactionDoorDefinition(new SimulationId(doorId), rooms[rooms.Count - 1].RoomId,
+            doors.Add(new DoorDefinition(new SimulationId(doorId), rooms[rooms.Count - 1].RoomId,
                 WallSide.East, (Rows - 1) * RoomSize + RoomSize / 2, 1000, false));
             data.Rooms = rooms.ToArray();
             data.Doors = doors.ToArray();
+
+            // A building of its own has a day of its own: the office's
+            // timetable names a room this grid does not have.
+            data.Timetable = System.Array.Empty<ScheduledCue>();
 
             // Spots on a lattice through every room, handed out in turn: a
             // person, then two boxes, and so on, so both are spread evenly.
@@ -116,8 +120,8 @@ namespace Paniq.Diagnostics
                     $"The stress building has room for {spots.Count} people and things, not {people + things}.");
             }
 
-            var agents = new FireReactionAgentDefinition[people];
-            var boxes = new FireReactionPhysicsObjectDefinition[things];
+            var agents = new AgentDefinition[people];
+            var boxes = new PhysicsObjectDefinition[things];
             int placedPeople = 0;
             int placedThings = 0;
             float thingsPerPerson = people == 0 ? float.MaxValue : things / (float)people;
@@ -127,14 +131,14 @@ namespace Paniq.Diagnostics
                                   (placedThings >= things || placedThings >= placedPeople * thingsPerPerson);
                 if (personNext)
                 {
-                    agents[placedPeople] = new FireReactionAgentDefinition(
+                    agents[placedPeople] = new AgentDefinition(
                         new SimulationId((ulong)(9000 + placedPeople)), spots[s], CardinalDirection.North,
                         AgentTraitValues.AllOrdinary);
                     placedPeople++;
                 }
                 else
                 {
-                    boxes[placedThings] = new FireReactionPhysicsObjectDefinition(
+                    boxes[placedThings] = new PhysicsObjectDefinition(
                         new SimulationId((ulong)(100000 + placedThings)), PhysicsObjectKind.Box, spots[s], 300, 3000);
                     placedThings++;
                 }

@@ -28,7 +28,7 @@ namespace Paniq.Simulation
     /// Whether they get through is the door rules' business, not the floor's.
     ///
     /// What does change the floor is the building changing shape -- a table
-    /// smashed to wreckage, a hole blown through a wall -- and those redo the
+    /// shoved somewhere new, a hole blown through a wall -- and those redo the
     /// patch around them through <see cref="Rebuild"/>.
     /// </summary>
     internal sealed class NavigationGrid
@@ -287,7 +287,7 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Redoes one patch of floor after the building changes shape: a table
-        /// smashed into walkable wreckage, or a hole blown through a wall.
+        /// shoved somewhere new, or a hole blown through a wall.
         ///
         /// Only the patch, grown by the furthest clearance is ever measured, so
         /// this stays cheap in a big building where a full redo would be a

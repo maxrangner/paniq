@@ -54,8 +54,10 @@ namespace Paniq.Simulation
         /// Blends the goal direction with a push away from people inside
         /// personal space, a push away from loose objects, a push away from
         /// nearby walls (except the wall of the door the person is lined up
-        /// with), and an optional extra direction (panic following). Weights
-        /// are percentages of a unit goal vector.
+        /// with) and table edges, and an optional extra direction (panic
+        /// following). Weights are percentages of a unit goal vector. Tables
+        /// push as hard as walls unless <paramref name="tableAvoidPercent"/>
+        /// says otherwise.
         /// </summary>
         public int Steer(
             Agent agent,
@@ -64,7 +66,8 @@ namespace Paniq.Simulation
             int wallAvoidPercent,
             int objectAvoidPercent,
             long extraX = 0L,
-            long extraZ = 0L)
+            long extraZ = 0L,
+            int tableAvoidPercent = -1)
         {
             SteeringSettings settings = context.Scenario.Steering;
             LogicalPosition position = agent.Body.Position;
@@ -107,7 +110,7 @@ namespace Paniq.Simulation
             }
 
             geometry.AddWallRepulsion(position, agent.DoorwayInUse, settings.WallAvoidDistanceMillimetres,
-                wallAvoidPercent, ref steerX, ref steerZ);
+                wallAvoidPercent, tableAvoidPercent < 0 ? wallAvoidPercent : tableAvoidPercent, ref steerX, ref steerZ);
 
             return IntegerMath.HeadingOf(steerX, steerZ, goalHeading);
         }

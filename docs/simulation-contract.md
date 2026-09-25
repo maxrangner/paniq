@@ -41,11 +41,33 @@ generator from that seed. The generator uses the PCG reference initialization
 procedure with the scenario seed as `initstate` and a fixed `initseq` of `54`.
 
 - Simulation systems obtain all random values only from that generator.
-- Derived streams are not allowed in the foundation. A later stream design must
-  name its derivation algorithm, state ownership, and compatibility effect
-  before it is introduced.
+- Derived streams must name their derivation algorithm, state ownership, and
+  compatibility effect before they are introduced. One exists:
+
+  | Stream | `initseq` | Owner | Why it is separate |
+  | --- | --- | --- | --- |
+  | The run | `54` | `SimulationContext.Random`, shared | Everything the world and the crowd decide |
+  | The deck | `55` | `DeckSystem`, owned outright | Which card a death deals the player |
+
+  Both derive from the same scenario seed as `initstate`, so a replay of a seed
+  reproduces both. The deck is separate because dealing a card must not shift
+  everybody else's randomness: while it shared the run's generator, one death
+  drew a number and from that tick on every person in the building panicked,
+  tripped and froze differently than they had before the deck existed. A third
+  stream deserves a derivation scheme rather than a third constant.
 - Simulation code must not use Unity's global `UnityEngine.Random`, wall-clock
   time, rendering-frame count, or presentation state to choose an outcome.
+- Nobody reacts on the tick a thing happens, and nothing happens to a whole
+  group on exactly the same tick (the owner's rule, 2026-09-24). Every reaction
+  to the world begins a few ticks late through `SimulationContext.ReactionLag`
+  (`PerceptionSettings.ReactionLagMinimumTicks` to `ReactionLagMaximumTicks`),
+  and no two people finish being startled on one tick (`FearSystem.Staggered`). Every fixed length of time a person spends on something --
+  getting up, trying a door, pressing an alarm, picking something up -- is
+  stretched or squeezed by a seeded amount through `SimulationContext.Jittered`
+  (`WorldSettings.TimingJitterPercent`, 20 % either way), and any schedule
+  several people share, such as the moment a meeting ends, draws a seeded
+  offset per person. The draws come from the run's generator in processing
+  order, so a replay agrees.
 - Visual, audio, and UI code may use presentation-only variation, but may not
   read, seed, restore, or advance the simulation generator.
 - The generator's 64-bit state and stream selector are part of runtime
@@ -105,11 +127,39 @@ a logged event, but no behaviour moves a body itself.
 The tick schedule is, in order:
 
 1. Consume commands assigned to this tick.
-2. Advance hazard state.
-3. Resolve hazard contact at current positions.
+   1½. The building's day: the Director calls every cue on the level's
+   timetable whose tick has come (`DirectorSystem.Advance`; see
+   [the cue system](cue-system.md)). A cue only hands people a pending
+   errand that begins at their own reaction tick in phase 4, so nothing
+   moves on the tick a cue is called, and the hazard's draws below stay
+   where they were.
+2. Advance hazard state. Every threat first, in the order the level lists
+   them (`Threats.Advance`; today that is the fire alone), then the sparks
+   crawling along the building's power cable, which are hazard advancing on
+   their own clock in exactly the way a threat is. The fire keeps its place at
+   the front of the phase so that adding the cable left its random draws where
+   they were.
+3. Resolve hazard contact at current positions: for each person in ascending
+   ID order, each threat in order says whether they are touching it and what
+   that does to them (the fire sets them alight).
 4. Make agent decisions, in ascending Agent ID order, then resolve what those
    decisions set in motion: standing up from chairs, following leaders,
-   spraying, and helpers pulling the people they drag.
+   spraying, and helpers pulling the people they drag. Each person's turn
+   begins with what they notice: any threat in sight or earshot, and then, for
+   somebody who does not know the building, the doors, signs and corners in
+   sight (`WayfindingSystem.Look`), which draws no random numbers.
+
+**Threats.** The crowd is afraid of *a threat*, never of the fire by name.
+`IThreat` is the whole of what a frightened person may ask of a danger: how
+far off its nearest part is, whether it is in a room, closer than a distance,
+in sight, on a route, being touched, and what touching it does. `Threats`
+holds every threat in the level and answers across all of them, ties to the
+threat listed first. Fear, perception, panic, doors, helping, barricading, the
+body's death cause, the physics read-back and the round clock ask `Threats`.
+Only things that are genuinely about fire (extinguishers, things catching,
+doors scorching, the player's fire card, waking retired squares) talk to
+`FireSystem` directly. A new family of danger is a new `IThreat`, not an edit
+to the crowd.
 5. Step the physics world once (see below).
 6. Judge what the step did, in the sorted contact order: loose things meeting
    people and other things (hits, breakages, smashed tables), then people

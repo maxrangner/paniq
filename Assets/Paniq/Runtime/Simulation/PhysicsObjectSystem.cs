@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -16,7 +16,8 @@ namespace Paniq.Simulation
     /// collisions) and each bump becomes a push on the engine's body. Then
     /// the engine steps, and every hit it reports is judged here: a heavy
     /// thing flying into somebody staggers or floors them, a hard knock
-    /// smashes what was hit, a thing hurled at a table may smash the table.
+    /// smashes what was hit. Furniture (tables, chairs) is shoved and tipped
+    /// but never smashes.
     ///
     /// Objects are also items: a person can pick one up (it then touches
     /// nothing and is carried in front of them), set it down, drop it or
@@ -24,7 +25,7 @@ namespace Paniq.Simulation
     /// instead of kicking it. A thrown item hits people harder than a sliding
     /// one, because it strikes the body, not the feet.
     /// </summary>
-    internal sealed class PhysicsObjectSystem
+    internal sealed class PhysicsObjectSystem : IBindable
     {
         /// <summary>Object positions and velocities are kept in hundredths of a millimetre.</summary>
         public const int SubMillimetre = PhysicsWorld.SubMillimetre;
@@ -126,6 +127,25 @@ namespace Paniq.Simulation
             /// <summary>The event that last set this object moving, so its later hits can name their cause.</summary>
             public ulong LastPushEventId;
 
+            /// <summary>Whether it stood upright the last time it was read: how a thing is seen to go over.</summary>
+            public bool WasUpright = true;
+
+            /// <summary>It has gone over and popped once already; a lamp's bulb goes only once.</summary>
+            public bool Popped;
+
+            /// <summary>The index of the thing this is a part of (a shade's lamp), or -1 for a thing of its own.</summary>
+            public int PartOf = -1;
+
+            /// <summary>A thing that drives itself: when it may set off again after being stopped, and whether it was trying to go.</summary>
+            public int RoverPauseUntilTick;
+
+            public bool RoverWantedToMove;
+
+            /// <summary>A thing that drives itself, turning on the spot toward this heading before it sets off again.</summary>
+            public bool RoverTurning;
+
+            public int RoverGoalHeading;
+
             /// <summary>The <c>DoorBlocked</c> event while this thing is jamming a door, so clearing it names the same door.</summary>
             public ulong BlockedEventId;
 
@@ -150,6 +170,8 @@ namespace Paniq.Simulation
         private readonly BodySystem body;
         private readonly FearSystem fear;
         private readonly SoundSystem sound;
+        private readonly FireSystem fire;
+        private PowerSystem power;
         private readonly PhysicsWorld world;
         private readonly ObjectPhysicsSettings settings;
         private readonly PhysicsFeelSettings feel;
@@ -201,7 +223,7 @@ namespace Paniq.Simulation
             WorldGeometry geometry,
             BodySystem body,
             FearSystem fear,
-            SoundSystem sound,
+            SoundSystem sound, FireSystem fire,
             PhysicsWorld world)
         {
             this.context = context;
@@ -210,6 +232,7 @@ namespace Paniq.Simulation
             this.body = body;
             this.fear = fear;
             this.sound = sound;
+            this.fire = fire;
             this.world = world;
             settings = context.Scenario.ObjectPhysics;
             feel = context.Scenario.PhysicsFeel;
@@ -217,12 +240,12 @@ namespace Paniq.Simulation
             items = context.Scenario.Items;
             personRadius = context.Scenario.World.OccupancyRadiusMillimetres;
 
-            var definitions = (FireReactionPhysicsObjectDefinition[])context.Scenario.PhysicsObjects.Clone();
+            var definitions = (PhysicsObjectDefinition[])context.Scenario.PhysicsObjects.Clone();
             Array.Sort(definitions, (left, right) => left.ObjectId.CompareTo(right.ObjectId));
             bodies = new PhysicsBody[definitions.Length];
             for (int i = 0; i < bodies.Length; i++)
             {
-                FireReactionPhysicsObjectDefinition definition = definitions[i];
+                PhysicsObjectDefinition definition = definitions[i];
                 bodies[i] = new PhysicsBody
                 {
                     Id = definition.ObjectId,
@@ -244,6 +267,20 @@ namespace Paniq.Simulation
                     (long)definition.InitialPosition.X * SubMillimetre,
                     (long)definition.InitialPosition.Z * SubMillimetre);
                 widestRadius = Math.Max(widestRadius, definition.RadiusMillimetres);
+                indexById[definition.ObjectId] = i;
+                if (kinds.Of(definition.Kind).IsEquipment)
+                {
+                    equipment.Add(i);
+                }
+            }
+
+            // Parts know the thing they belong to once every thing has a place.
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                if (definitions[i].IsPartOfSomething && indexById.TryGetValue(definitions[i].PartOfObjectId, out int whole))
+                {
+                    bodies[i].PartOf = whole;
+                }
             }
 
             // Things are flung about, so the grid reaches well past the rooms.
@@ -282,7 +319,7 @@ namespace Paniq.Simulation
         /// it, or else the lowest-numbered floor object at its spot, so a
         /// replay always stacks the same way.
         /// </summary>
-        private void AddToTheWorld(FireReactionPhysicsObjectDefinition[] definitions)
+        private void AddToTheWorld(PhysicsObjectDefinition[] definitions)
         {
             for (int i = 0; i < bodies.Length; i++)
             {
@@ -345,7 +382,7 @@ namespace Paniq.Simulation
 
         private int DefinitionOf(SimulationId id)
         {
-            FireReactionPhysicsObjectDefinition[] definitions = context.Scenario.PhysicsObjects;
+            PhysicsObjectDefinition[] definitions = context.Scenario.PhysicsObjects;
             for (int d = 0; d < definitions.Length; d++)
             {
                 if (definitions[d].ObjectId == id)
@@ -377,30 +414,290 @@ namespace Paniq.Simulation
 
         public int Count => bodies.Length;
 
-        /// <summary>Wired up after construction, because people's bodies are built after the things'.</summary>
-        public void UsePeople(PeopleBodies bodies) => people = bodies;
+        /// <summary>
+        /// People's bodies are built after the things', and the cable is built
+        /// from the things, so both are handed over once everything exists.
+        /// </summary>
+        public void Bind(Systems systems)
+        {
+            people = systems.People;
+            power = systems.Power;
+            flammables = systems.Flammables;
+        }
+
+        /// <summary>What is burning and what has burnt out, for a robot vacuum that has burnt to a stop.</summary>
+        private FlammablesSystem flammables;
+
+        // ---------------------------------------------------------------- things that drive themselves
+
+        /// <summary>
+        /// Before the engine steps: every thing that drives itself (a robot
+        /// vacuum) pushes on the way it is facing at its cruising speed.
+        /// Stopped by a wall, a desk, a foot or a box -- it wanted to go and
+        /// barely moved, or the floor ahead is not floor -- it waits a moment,
+        /// turns by a seeded amount and sets off again. Off its wheels (kicked,
+        /// thrown, on its side), held, or burnt out, it does not drive at all.
+        /// Ascending index order and the seed for the turns, so a replay agrees.
+        /// It stays a loose thing like any other: kicked, thrown, tidied away
+        /// and burnt like a box, and a burning one keeps trundling until it
+        /// burns out, heating whatever it passes.
+        /// </summary>
+        public void DriveTheRovers()
+        {
+            int tick = context.Tick;
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                PhysicsBody thing = bodies[b];
+                ObjectKindSettings kind = kinds.Of(thing.Kind);
+                if (!kind.DrivesItself || thing.HeldBy >= 0 || thing.Dormant || thing.Wrecked || thing.OccupiedBy >= 0 ||
+                    (flammables != null && flammables.ObjectState(b) == ObjectBurnState.Burnt))
+                {
+                    thing.RoverWantedToMove = false;
+                    continue;
+                }
+
+                bool onItsWheels = thing.Reading.UprightPercent >= 70 && thing.Reading.BottomMillimetres < OffTheFloorMillimetres &&
+                                   !thing.Thrown;
+                if (!onItsWheels)
+                {
+                    // Tumbling, flying or lying on its side: it settles first.
+                    thing.RoverPauseUntilTick = checked(tick + settings.RoverPauseTicks);
+                    thing.RoverWantedToMove = false;
+                    continue;
+                }
+
+                if (thing.RoverTurning)
+                {
+                    // Turning on the spot, through the engine: a spin toward
+                    // the heading it chose, so the body really turns and the
+                    // read-back agrees. Writing its rotation straight in was
+                    // tried first and made replays disagree from one run to
+                    // the next; a spin, as a tumbling chair is given, does not.
+                    int remaining = IntegerMath.SignedAngleDifference(thing.Heading, thing.RoverGoalHeading);
+                    if (System.Math.Abs(remaining) <= settings.RoverTurnDegreesPerTick)
+                    {
+                        world.SetSpin(b, 0, 0, 0);
+                        thing.RoverTurning = false;
+                    }
+                    else
+                    {
+                        int rate = settings.RoverTurnDegreesPerTick;
+                        world.SetSpin(b, 0, remaining > 0 ? rate : -rate, 0);
+                        continue;
+                    }
+                }
+
+                if (tick < thing.RoverPauseUntilTick)
+                {
+                    continue;
+                }
+
+                // A body's length ahead: not floor, or a table, and it turns
+                // before it gets there. Stopped short by something in the way
+                // -- it wanted to go and hardly moved -- it turns as well.
+                LogicalPosition ahead = thing.Position + IntegerMath.Displacement(thing.Heading,
+                    thing.Radius + kind.CruiseSpeedMillimetresPerTick * 5);
+                bool blockedAhead = geometry.RoomAt(ahead) < 0 || geometry.TableAt(ahead, thing.Radius) >= 0;
+                bool stopped = thing.RoverWantedToMove &&
+                               thing.Reading.HorizontalSpeed < (long)kind.CruiseSpeedMillimetresPerTick * SubMillimetre / 3L;
+                if (blockedAhead || stopped)
+                {
+                    int turn = context.Random.NextIntInclusive(settings.RoverTurnMinimumDegrees, settings.RoverTurnMaximumDegrees);
+                    int side = context.Random.NextIntInclusive(0, 1) == 0 ? -1 : 1;
+                    thing.RoverGoalHeading = IntegerMath.NormalizeDegrees(thing.Heading + side * turn);
+                    thing.RoverTurning = true;
+                    SetMotion(b, 0L, 0L, 0L);
+                    thing.RoverPauseUntilTick = checked(tick + settings.RoverPauseTicks);
+                    thing.RoverWantedToMove = false;
+                    continue;
+                }
+
+                LogicalPosition cruise = IntegerMath.Displacement(thing.Heading, kind.CruiseSpeedMillimetresPerTick);
+                SetMotion(b, (long)cruise.X * SubMillimetre, 0L, (long)cruise.Z * SubMillimetre);
+                thing.RoverWantedToMove = true;
+            }
+        }
+
+        // ---------------------------------------------------------------- things that go over
+
+        /// <summary>
+        /// After the engine has stepped: anything that pops when it goes over
+        /// (a standing lamp) and was upright last time but is not now, pops
+        /// once -- a small crack, logged and heard, nothing thrown -- and
+        /// whatever was authored as part of it comes loose where its top has
+        /// come to lie. Ascending index order, so a replay agrees.
+        /// </summary>
+        private void PopWhateverWentOver()
+        {
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                PhysicsBody thing = bodies[b];
+                if (thing.HeldBy >= 0 || thing.Dormant || thing.PartOf >= 0)
+                {
+                    continue;
+                }
+
+                ObjectKindSettings kind = kinds.Of(thing.Kind);
+                if (!kind.PopsWhenTipped)
+                {
+                    continue;
+                }
+
+                bool upright = thing.Reading.UprightPercent >= 50;
+                if (thing.WasUpright && !upright && !thing.Popped)
+                {
+                    Pop(b, kind);
+                }
+
+                thing.WasUpright = upright;
+            }
+        }
+
+        /// <summary>The small crack of a thing going over, and its parts coming loose.</summary>
+        private void Pop(int index, ObjectKindSettings kind)
+        {
+            PhysicsBody thing = bodies[index];
+            thing.Popped = true;
+            LogicalPosition centre = thing.Position;
+            ulong pop = context.Events.Append(context.Tick, thing.Id, CausalEventType.ObjectPopped, centre,
+                thing.Size, 0, thing.LastPushEventId).EventId;
+            sound.Thud(thing.Id, centre, pop);
+            if (kind.ShedsPartsWhenTipped)
+            {
+                ShedParts(index, pop);
+            }
+        }
+
+        /// <summary>
+        /// Every dormant part of this thing comes loose where the thing's top
+        /// now lies, and is nudged a little further the way the thing fell, so
+        /// a lamp's shade drops to the floor beside it rather than inside it.
+        /// </summary>
+        private void ShedParts(int index, ulong causeEventId)
+        {
+            PhysicsBody thing = bodies[index];
+            int top = ObjectShapes.TopHeight(thing.Kind, thing.Size);
+            for (int p = 0; p < bodies.Length; p++)
+            {
+                PhysicsBody part = bodies[p];
+                if (part.PartOf != index || !part.Dormant)
+                {
+                    continue;
+                }
+
+                // Where the top of the thing is, less the part's own height, so
+                // the part starts where it was drawn and falls from there.
+                (long x, long y, long z) = world.PointOn(index, System.Math.Max(0, top - ObjectShapes.TopHeight(part.Kind, part.Size)));
+                part.Dormant = false;
+                part.PartOf = -1;
+                MoveBody(p, x, z);
+                world.SetSolid(p, true);
+                world.Place(p, x, y, z, part.Heading);
+                part.Reading = world.Read(p);
+
+                // Away from the thing's middle, the way it went over.
+                int away = IntegerMath.HeadingOf(part.Position.X - thing.Position.X, part.Position.Z - thing.Position.Z, part.Heading);
+                LogicalPosition push = IntegerMath.Displacement(away, ShedSpeedMillimetresPerTick);
+                SetMotion(p, (long)push.X * SubMillimetre, 0L, (long)push.Z * SubMillimetre);
+                Tumble(p, away, ShedSpeedMillimetresPerTick, 2);
+                part.Thrown = false;
+                part.LastPushEventId = causeEventId;
+            }
+        }
+
+        /// <summary>How fast a part that has come loose is sent on its way, in millimetres per tick.</summary>
+        private const int ShedSpeedMillimetresPerTick = 15;
+
+        /// <summary>
+        /// Something electrical goes off: the bang, the fling, the people
+        /// knocked down and the floor set alight, in one place.
+        /// <para>
+        /// Everything here is somebody else's existing rule, in a fixed order
+        /// so the run stays repeatable: the objects in ascending ID order, then
+        /// the people in ascending ID order, then the floor squares row by row.
+        /// </para>
+        /// <para>
+        /// It lives here rather than with the flammable things because the
+        /// flames are only one of the reasons a thing goes off. Returns the
+        /// bang's event ID, or zero for something that does not go off at all.
+        /// </para>
+        /// </summary>
+        public ulong Detonate(int index, SimulationId id, ulong causeEventId)
+        {
+            ObjectKindSettings kind = kinds.Of(KindOf(index));
+            if (kind.PopRadiusMillimetres <= 0)
+            {
+                return 0UL;
+            }
+
+            LogicalPosition centre = PositionOf(index);
+            long radius = kind.PopRadiusMillimetres;
+            ulong bang = context.Events.Append(context.Tick, id, CausalEventType.ObjectExploded, centre,
+                kind.PopRadiusMillimetres, 0, causeEventId).EventId;
+
+            // Heard well beyond the blast itself, which is how the far side of
+            // the building learns something has happened.
+            sound.Bang(id, centre, kind.PopRadiusMillimetres * 6, kind.PopRadiusMillimetres * 3, bang);
+
+            FlingFrom(centre, kind.PopRadiusMillimetres, kind.PopSpeed, index, bang);
+
+            using (Crowd.Nearby people = crowd.Within(centre, radius))
+            {
+                for (int c = 0; c < people.Count; c++)
+                {
+                    Agent agent = crowd.All[people[c]];
+                    if (!agent.IsParticipating ||
+                        LogicalPosition.DistanceSquared(agent.Body.Position, centre) > radius * radius)
+                    {
+                        continue;
+                    }
+
+                    int away = IntegerMath.HeadingBetween(centre, agent.Body.Position, agent.Body.Heading);
+                    body.BlowOver(agent, away,
+                        kind.PopRadiusMillimetres / 3 * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
+                        context.Scenario.PhysicsFeel.BlastLiftPercent, bang);
+                }
+            }
+
+            fire.IgniteAround(centre, kind.PopRadiusMillimetres, kind.PopIgniteCells, bang);
+            Wreck(index, id, bang);
+
+            // Anything on the cable lights the cable. The power system has
+            // already marked whatever it set off itself, so a spark that caused
+            // this bang cannot come straight back round and cause it again.
+            power?.SomethingPopped(id, bang);
+            return bang;
+        }
 
         /// <summary>
         /// Built into the building rather than standing in it: a wall socket.
         /// It never moves, whatever hits it or goes off beside it.
         /// </summary>
-        private bool IsFixedInPlace(int index) => bodies[index].Kind == PhysicsObjectKind.WallSocket;
+        /// <summary>
+        /// Bolted to the wall: nothing shifts it, nobody picks it up, and a
+        /// blast throws everything else around it instead.
+        /// </summary>
+        private bool IsFixedInPlace(int index) =>
+            bodies[index].Kind == PhysicsObjectKind.WallSocket ||
+            bodies[index].Kind == PhysicsObjectKind.FuseBox ||
+            bodies[index].Kind == PhysicsObjectKind.AlarmSounder;
 
         public SimulationId IdOf(int index) => bodies[index].Id;
 
         /// <summary>The thing with this ID, or -1 if the run has no such thing.</summary>
-        public int IndexOf(SimulationId id)
-        {
-            for (int i = 0; i < bodies.Length; i++)
-            {
-                if (bodies[i].Id == id)
-                {
-                    return i;
-                }
-            }
+        public int IndexOf(SimulationId id) => indexById.TryGetValue(id, out int index) ? index : -1;
 
-            return -1;
-        }
+        /// <summary>Every thing by ID, built once.</summary>
+        private readonly Dictionary<SimulationId, int> indexById = new Dictionary<SimulationId, int>();
+
+        /// <summary>
+        /// The things that are equipment (extinguishers), in ascending order.
+        /// Everybody looking for a bottle used to walk every loose thing in the
+        /// building to find the few that are bottles.
+        /// </summary>
+        public IReadOnlyList<int> Equipment => equipment;
+
+        private readonly List<int> equipment = new List<int>();
 
         public PhysicsObjectKind KindOf(int index) => bodies[index].Kind;
 
@@ -414,6 +711,9 @@ namespace Paniq.Simulation
         /// moment they are frightened.
         /// </summary>
         public bool IsEquipment(int index) => kinds.Of(bodies[index].Kind).IsEquipment;
+
+        /// <summary>Furniture somebody sits on, whichever way up it happens to be right now.</summary>
+        public bool CanBeSatOn(int index) => kinds.Of(bodies[index].Kind).CanBeSatOn;
 
         /// <summary>The largest thing in the building, for widening a question enough to catch it.</summary>
         public int WidestRadius => widestRadius;
@@ -529,7 +829,7 @@ namespace Paniq.Simulation
         public void RecordBlockage(int index, SimulationId doorId, LogicalPosition doorCentre)
         {
             bodies[index].BlockedEventId = context.Events.Append(context.Tick, bodies[index].Id,
-                FireReactionEventType.DoorBlocked, doorCentre, 0, 0, bodies[index].LastPushEventId, doorId).EventId;
+                CausalEventType.DoorBlocked, doorCentre, 0, 0, bodies[index].LastPushEventId, doorId).EventId;
         }
 
         /// <summary>Whatever was jamming that door is clear of it again.</summary>
@@ -540,7 +840,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            context.Events.Append(context.Tick, bodies[index].Id, FireReactionEventType.DoorUnblocked, doorCentre,
+            context.Events.Append(context.Tick, bodies[index].Id, CausalEventType.DoorUnblocked, doorCentre,
                 0, 0, bodies[index].BlockedEventId, doorId);
             bodies[index].BlockedEventId = 0UL;
         }
@@ -553,7 +853,7 @@ namespace Paniq.Simulation
             SetMotion(index, (long)velocity.X * SubMillimetre, 0L, (long)velocity.Z * SubMillimetre);
             thing.Thrown = false;
             thing.LastPushEventId = context.Events.Append(context.Tick, shover.Id,
-                FireReactionEventType.AgentShovedObstruction, thing.Position, speed, 0, causeEventId, thing.Id).EventId;
+                CausalEventType.AgentShovedObstruction, thing.Position, speed, 0, causeEventId, thing.Id).EventId;
             sound.Thud(shover.Id, thing.Position, thing.LastPushEventId);
         }
 
@@ -930,7 +1230,7 @@ namespace Paniq.Simulation
         {
             PhysicsBody thing = bodies[index];
             long speed = IntegerMath.Sqrt((long)velocityX * velocityX + (long)velocityZ * velocityZ);
-            thing.LastPushEventId = context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ItemThrown,
+            thing.LastPushEventId = context.Events.Append(context.Tick, thing.Id, CausalEventType.ItemThrown,
                 thing.Position, (int)speed, 0, 0UL, thing.Id).EventId;
             SetMotion(index, (long)velocityX * SubMillimetre, (long)velocityY * SubMillimetre, (long)velocityZ * SubMillimetre);
         }
@@ -971,6 +1271,26 @@ namespace Paniq.Simulation
             }
 
             return -1;
+        }
+
+        /// <summary>
+        /// Whether there is a spare bottle left to put down. The deck asks, so
+        /// a death never deals a card that has nothing behind it.
+        /// </summary>
+        public bool HasSpareExtinguisher
+        {
+            get
+            {
+                for (int b = 0; b < bodies.Length; b++)
+                {
+                    if (bodies[b].Dormant && kinds.Of(bodies[b].Kind).IsEquipment)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
         }
 
         /// <summary>
@@ -1020,30 +1340,41 @@ namespace Paniq.Simulation
         {
             long reach = radius;
             long strength = (long)speed * feel.BlastStrengthPercent / 100L;
-            for (int b = 0; b < bodies.Length; b++)
+            using (Nearby near = Gather(UniformGridIndex.Around(centre, reach)))
             {
-                PhysicsBody thing = bodies[b];
-                if (b == exceptIndex || thing.Dormant || thing.HeldBy >= 0 || thing.OccupiedBy >= 0 || IsFixedInPlace(b))
+                for (int c = 0; c < near.Count; c++)
                 {
-                    continue;
-                }
+                    int b = near[c];
+                    PhysicsBody thing = bodies[b];
+                    if (b == exceptIndex || thing.Dormant || thing.HeldBy >= 0 || thing.OccupiedBy >= 0 || IsFixedInPlace(b))
+                    {
+                        continue;
+                    }
 
-                if (LogicalPosition.DistanceSquared(thing.Position, centre) > reach * reach)
-                {
-                    continue;
-                }
+                    if (LogicalPosition.DistanceSquared(thing.Position, centre) > reach * reach)
+                    {
+                        continue;
+                    }
 
-                int away = IntegerMath.HeadingBetween(centre, thing.Position, thing.Heading);
-                LogicalPosition velocity = IntegerMath.Displacement(away, (int)strength);
-                SetMotion(b,
-                    (long)velocity.X * SubMillimetre,
-                    strength * SubMillimetre * feel.BlastLiftPercent / 100L,
-                    (long)velocity.Z * SubMillimetre);
-                Tumble(b, away, (int)strength, BlastTumbleMultiplier);
-                thing.Thrown = true;
-                thing.LastPushEventId = causeEventId;
-                context.Events.Append(context.Tick, thing.Id, FireReactionEventType.ItemThrown, thing.Position,
-                    speed, 0, causeEventId, thing.Id);
+                    // Shared out by weight past the reference thing, as a
+                    // table's shove is: a bin flies at the blast's full speed,
+                    // a 45 kg set of shelves at under half of it, and a 160 kg
+                    // vending machine rocks and stays put. Nothing lighter than
+                    // the reference is slowed, so every box, chair and bag
+                    // flies exactly as it did.
+                    long share = Math.Min(strength, strength * BlastReferenceMassGrams / Math.Max(1, thing.MassGrams));
+                    int away = IntegerMath.HeadingBetween(centre, thing.Position, thing.Heading);
+                    LogicalPosition velocity = IntegerMath.Displacement(away, (int)share);
+                    SetMotion(b,
+                        (long)velocity.X * SubMillimetre,
+                        share * SubMillimetre * feel.BlastLiftPercent / 100L,
+                        (long)velocity.Z * SubMillimetre);
+                    Tumble(b, away, (int)share, BlastTumbleMultiplier);
+                    thing.Thrown = true;
+                    thing.LastPushEventId = causeEventId;
+                    context.Events.Append(context.Tick, thing.Id, CausalEventType.ItemThrown, thing.Position,
+                        speed, 0, causeEventId, thing.Id);
+                }
             }
 
             ShoveTablesFrom(centre, reach, strength, causeEventId);
@@ -1060,11 +1391,6 @@ namespace Paniq.Simulation
         {
             for (int t = 0; t < geometry.TableCount; t++)
             {
-                if (geometry.IsTableBroken(t))
-                {
-                    continue;
-                }
-
                 LogicalBounds bounds = geometry.TableBounds(t);
                 LogicalPosition middle = bounds.Centre;
                 if (LogicalPosition.DistanceSquared(middle, centre) > reach * reach)
@@ -1072,9 +1398,7 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                long massGrams = Math.Max(1000L,
-                    (long)(bounds.MaxX - bounds.MinX) * (bounds.MaxZ - bounds.MinZ) *
-                    context.Scenario.Flammables.TableMassGramsPerSquareMetre / 1000000L);
+                long massGrams = TableMassGrams(bounds);
                 long share = Math.Min(strength, strength * BlastReferenceMassGrams / massGrams);
                 int away = IntegerMath.HeadingBetween(centre, middle, 0);
                 LogicalPosition velocity = IntegerMath.Displacement(away, (int)share);
@@ -1094,6 +1418,37 @@ namespace Paniq.Simulation
         /// as heavy gets half of it.
         /// </summary>
         private const long BlastReferenceMassGrams = 20000L;
+
+        /// <summary>What a table weighs, as the physics was told: its top's area at the flammables' weight per square metre.</summary>
+        private long TableMassGrams(LogicalBounds bounds)
+        {
+            return Math.Max(1000L,
+                (long)(bounds.MaxX - bounds.MinX) * (bounds.MaxZ - bounds.MinZ) *
+                context.Scenario.Flammables.TableMassGramsPerSquareMetre / 1000000L);
+        }
+
+        /// <summary>
+        /// Somebody heaves a table out of their way: a change of speed the way
+        /// they are going, delivered at the table's top edge nearest them, so a
+        /// light desk goes over away from them and a heavy one slides. Shared
+        /// out by weight as a blast's shove is, but never below the panic
+        /// settings' least share, so even the meeting table shifts. Logged,
+        /// because a table going over is a commotion the round should pay for
+        /// and the story should tell.
+        /// </summary>
+        public void HeaveTable(Agent agent, int table, int heading, ulong causeEventId)
+        {
+            LogicalBounds bounds = geometry.TableBounds(table);
+            PanicSettings panic = context.Scenario.Panic;
+            long strength = (long)panic.TableHeaveSpeedMillimetresPerTick * feel.ThrowStrengthPercent / 100L;
+            long share = Math.Max(strength * panic.TableHeaveLeastPercent / 100L,
+                Math.Min(strength, strength * BlastReferenceMassGrams / TableMassGrams(bounds)));
+            LogicalPosition velocity = IntegerMath.Displacement(heading, (int)share);
+            LogicalPosition hands = bounds.ClosestPoint(agent.Body.Position);
+            world.HeaveTable(table, hands, (long)velocity.X * SubMillimetre, (long)velocity.Z * SubMillimetre);
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.TableHeaved, hands,
+                (int)share, 0, causeEventId, geometry.TableId(table));
+        }
 
         /// <summary>
         /// Sets a flung thing turning end over end, away from where it was
@@ -1183,7 +1538,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            ulong bumpEventId = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.BoxBumped, point,
+            ulong bumpEventId = context.Events.Append(context.Tick, agent.Id, CausalEventType.BoxBumped, point,
                 closing, 0, agent.Fear.ScaredEventId, thing.Id).EventId;
             thing.LastPushEventId = bumpEventId;
 
@@ -1276,7 +1631,7 @@ namespace Paniq.Simulation
         {
             PhysicsBody item = bodies[index];
             int speed = ThrowSpeed(agent, index);
-            CausalEvent thrown = context.Events.Append(context.Tick, agent.Id, FireReactionEventType.ItemThrown, item.Position,
+            CausalEvent thrown = context.Events.Append(context.Tick, agent.Id, CausalEventType.ItemThrown, item.Position,
                 speed, 0, causeEventId, item.Id);
 
             // Snatched off the floor and flung from the hip: it goes up and
@@ -1328,8 +1683,8 @@ namespace Paniq.Simulation
         /// read back in ascending ID order, then every collision the engine
         /// reported is judged, in the sorted order it gives them. A thing
         /// flying into a person may stagger or floor them; two things meeting
-        /// hard enough smash what was hit; a thing slammed into a table may
-        /// smash the table. The bouncing itself has already happened.
+        /// hard enough smash what was hit (furniture never smashes). The
+        /// bouncing itself has already happened.
         /// </summary>
         public void AfterStep()
         {
@@ -1365,6 +1720,7 @@ namespace Paniq.Simulation
                 }
             }
 
+            PopWhateverWentOver();
             ClearOfTheirHands();
 
             IReadOnlyList<PhysicsWorld.Contact> touched = world.Contacts;
@@ -1387,10 +1743,6 @@ namespace Paniq.Simulation
                 else if (contact.BodyB >= 0)
                 {
                     HitObject(contact.BodyA, before[contact.BodyA], contact.BodyB, before[contact.BodyB], contact);
-                }
-                else if (contact.Static == PhysicsWorld.StaticKind.Table)
-                {
-                    TrySmashTable(contact.BodyA, before[contact.BodyA], contact.StaticIndex);
                 }
             }
         }
@@ -1420,85 +1772,6 @@ namespace Paniq.Simulation
         /// <summary>How fast a velocity is, in hundredths of a millimetre per tick.</summary>
         private static long SpeedOf((long X, long Y, long Z) velocity) =>
             IntegerMath.Sqrt(velocity.X * velocity.X + velocity.Y * velocity.Y + velocity.Z * velocity.Z);
-
-        /// <summary>
-        /// A table takes the momentum of whatever just slammed into it, and
-        /// collapses if that was hard enough. A smashed table stops being
-        /// something people walk around, so the room opens up, and whatever it
-        /// was holding up falls to the floor.
-        /// </summary>
-        private void TrySmashTable(int index, (long X, long Y, long Z) velocity, int table)
-        {
-            if (geometry.IsTableBroken(table))
-            {
-                return;
-            }
-
-            PhysicsBody thrown = bodies[index];
-            long momentum = thrown.MassGrams * SpeedOf(velocity) / (1000L * SubMillimetre);
-            if (thrown.LastPushEventId == 0UL || momentum < context.Scenario.Flammables.TableBreakMomentum)
-            {
-                return;
-            }
-
-            LogicalBounds bounds = geometry.TableBounds(table);
-            geometry.BreakTable(table);
-            world.RemoveTable(table);
-            CausalEvent broke = context.Events.Append(context.Tick, geometry.TableId(table), FireReactionEventType.ObjectBroke,
-                bounds.Centre, (int)Math.Min(int.MaxValue, momentum), 0,
-                thrown.LastPushEventId, thrown.Id);
-            TipTableOver(table, bounds, thrown, broke.EventId);
-            sound.Thud(geometry.TableId(table), bounds.Centre, thrown.LastPushEventId);
-        }
-
-        /// <summary>
-        /// A smashed table tips into a real heap: claims a pre-authored dormant
-        /// wreck body (the reserved dormant-slot pattern, so nothing is created
-        /// mid-run), sizes and places it where the table stood, and carries
-        /// across a share of whatever hit it. Best-effort: if every spare wreck
-        /// is already in play the table still breaks, it just leaves nothing
-        /// behind to trip over.
-        /// </summary>
-        private void TipTableOver(int table, LogicalBounds bounds, PhysicsBody thrown, ulong causeEventId)
-        {
-            int slot = -1;
-            for (int b = 0; b < bodies.Length; b++)
-            {
-                if (bodies[b].Dormant && bodies[b].Kind == PhysicsObjectKind.TableWreck)
-                {
-                    slot = b;
-                    break;
-                }
-            }
-
-            if (slot < 0)
-            {
-                return;
-            }
-
-            PhysicsBody heap = bodies[slot];
-            int across = Math.Min(bounds.MaxX - bounds.MinX, bounds.MaxZ - bounds.MinZ) / 2;
-            across = Math.Max(kinds.TableWreckMinimumSizeMillimetres, Math.Min(kinds.TableWreckMaximumSizeMillimetres, across));
-            heap.Size = across;
-            heap.Radius = across / 2;
-            heap.MassGrams = kinds.TableWreckMassGrams;
-            heap.Dormant = false;
-            heap.Wrecked = true;
-            heap.Thrown = false;
-            heap.Heading = 0;
-            heap.LastPushEventId = causeEventId;
-
-            MoveBody(slot, (long)bounds.Centre.X * SubMillimetre, (long)bounds.Centre.Z * SubMillimetre);
-            world.SetSolid(slot, true);
-            world.Place(slot, heap.X, 0L, heap.Z, heap.Heading);
-            heap.Reading = world.Read(slot);
-
-            long share = thrown.MassGrams + heap.MassGrams;
-            long vx = share > 0 ? thrown.VelocityX * thrown.MassGrams / share : 0L;
-            long vz = share > 0 ? thrown.VelocityZ * thrown.MassGrams / share : 0L;
-            SetMotion(slot, vx, 0L, vz);
-            heap.Spin = SpinFromImpact(heap, (int)(IntegerMath.Sqrt(vx * vx + vz * vz) / SubMillimetre));
-        }
 
         /// <summary>
         /// A thing and a person met. Whichever was coming on faster along the
@@ -1575,7 +1848,7 @@ namespace Paniq.Simulation
             }
 
             LogicalPosition point = contact.Point;
-            CausalEvent hit = context.Events.Append(context.Tick, physicsBody.Id, FireReactionEventType.BoxHitAgent, point,
+            CausalEvent hit = context.Events.Append(context.Tick, physicsBody.Id, CausalEventType.BoxHitAgent, point,
                 (int)(closing / SubMillimetre), 0, physicsBody.LastPushEventId, agent.Id);
             bool wasCalm = agent.Fear.State == AgentFearState.Calm;
             if (momentum >= settings.KnockdownMomentum)
@@ -1638,7 +1911,7 @@ namespace Paniq.Simulation
 
             if (closing >= (long)settings.LoggedBoxHitSpeed * SubMillimetre)
             {
-                other.LastPushEventId = context.Events.Append(context.Tick, physicsBody.Id, FireReactionEventType.BoxesCollided,
+                other.LastPushEventId = context.Events.Append(context.Tick, physicsBody.Id, CausalEventType.BoxesCollided,
                     contact.Point, (int)(closing / SubMillimetre), 0, physicsBody.LastPushEventId, other.Id).EventId;
             }
             else
@@ -1671,7 +1944,7 @@ namespace Paniq.Simulation
             target.MassGrams = Math.Max(1000, target.MassGrams / 2);
             world.Resize(index, 75);
             world.SetMass(index, target.MassGrams);
-            context.Events.Append(context.Tick, target.Id, FireReactionEventType.ObjectBroke, target.Position,
+            context.Events.Append(context.Tick, target.Id, CausalEventType.ObjectBroke, target.Position,
                 (int)Math.Min(int.MaxValue, momentum), 0, causeEventId, brokenBy);
             sound.Thud(target.Id, target.Position, target.LastPushEventId);
         }
@@ -1701,12 +1974,12 @@ namespace Paniq.Simulation
             return value % divisor != 0L && (value < 0L) != (divisor < 0L) ? quotient - 1L : quotient;
         }
 
-        public FireReactionPhysicsObjectSnapshot GetSnapshot(int index)
+        public PhysicsObjectSnapshot GetSnapshot(int index)
         {
             PhysicsBody physicsBody = bodies[index];
             long speed = IntegerMath.Sqrt(physicsBody.VelocityX * physicsBody.VelocityX + physicsBody.VelocityZ * physicsBody.VelocityZ);
             PhysicsWorld.Reading reading = physicsBody.Reading;
-            return new FireReactionPhysicsObjectSnapshot(
+            return new PhysicsObjectSnapshot(
                 physicsBody.Id,
                 physicsBody.Kind,
                 physicsBody.Position,
@@ -1725,9 +1998,9 @@ namespace Paniq.Simulation
                         reading.RotationX, reading.RotationY, reading.RotationZ, reading.RotationW, reading.Position));
         }
 
-        public FireReactionPhysicsObjectSnapshot[] GetSnapshots()
+        public PhysicsObjectSnapshot[] GetSnapshots()
         {
-            var snapshots = new FireReactionPhysicsObjectSnapshot[bodies.Length];
+            var snapshots = new PhysicsObjectSnapshot[bodies.Length];
             for (int i = 0; i < bodies.Length; i++)
             {
                 snapshots[i] = GetSnapshot(i);

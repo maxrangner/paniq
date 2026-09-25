@@ -115,36 +115,43 @@ Every completed task ends with a report in this shape:
 
 ### How much goes in one commit
 
-A commit is **one layer of change**: the smallest thing that can be described in
-one sentence, read on its own, and reverted on its own without dragging
-unrelated work out with it. Neither one commit per branch nor one per file save.
+**A batch of work is a few commits, usually one.** When the owner hands over a
+batch — a playtest's list of notes, a feature together with its controls and
+its drawing, a round of fixes — everything that batch produces normally lands
+in one commit: the rules, the input, the drawing, the tests and the
+documentation together. One is the reasonable answer; more is fine when each
+extra commit can be defended, in one sentence, as a change somebody would want
+to read or revert on its own without the rest — for example a tooling repair
+found on the way, a change to these agreements, or a second feature that only
+happens to share the batch. If that sentence is hard to write, it is not a
+separate commit.
 
-The usual split, and the order it is usually made in:
+Never split by layer for its own sake, never by file, never one commit per
+note, and never into a trail of `wip`-style commits; if such a trail has grown
+while iterating, squash it before pushing. Fewer, larger, well-described
+commits beat many small ones every time.
 
-| Suffix | What belongs in it |
-| --- | --- |
-| `-controls` | Input and camera: what the player presses, and where they look |
-| `-game` | Rules, state, scoring, level and round structure: what the simulation decides |
-| `-visuals` | How any of it is drawn |
-
-Use the stone's name as the scope, with the layer as a suffix — for example
-`feat(prototype-2-controls)`, `feat(prototype-2-game)`,
-`feat(prototype-2-visuals)`. A layer that a piece of work does not touch simply
-has no commit.
+Use the stone's name as the scope, for example `feat(prototype-2)`. Add a
+layer suffix (`-controls` for input and camera, `-game` for rules and state,
+`-visuals` for how it is drawn) only when a commit really is confined to that
+one layer; a commit that touches several carries no suffix.
 
 - **Tests and documentation travel with the change they describe**, never in a
-  commit of their own. A `-game` commit carries its own tests and its own
-  updates to the roadmap and the decision log.
-- **A fix found while reviewing your own work is its own commit**, in whichever
-  layer it belongs to, rather than being folded back into the commit that
-  introduced the problem.
-- Still avoid a trail of `wip`-style commits; squash those before pushing. The
-  test is never how many commits there are, it is whether each one is a change
-  somebody would want to read by itself.
+  commit of their own.
+- **A fix found while reviewing your own work goes into the commit it belongs
+  to** (amend or squash it in) as long as nothing has been pushed; once pushed,
+  it is a small commit of its own.
+- **The message carries the structure, not the history**: a subject for the
+  batch, then a short list of what it adds, one line each, so the commit can
+  still be read in pieces even though it is committed in one.
 
-**Worked example.** Prototype 2 added a scored round that ends, seeds, replay
-and a high score, a camera the player drives, pause, and an office-tower look.
-That is three commits — controls, game, visuals — not one, and not five.
+**Worked example.** The third playtest round produced seventeen notes: a
+stockroom, swing doors, bells that panic everybody, cards you click, doors you
+double-click, a red banner over a packed top. That is one commit,
+`feat(prototype-2): ...`, whose body lists the seventeen. It is not three
+commits by layer and not seventeen by note. A second commit is defensible for
+work unrelated to the round, such as a repair to the test bridge found on the
+way; a third would need a reason just as clear.
 
 ## Scope and structure
 

@@ -4,10 +4,10 @@
 
 **Branches and commit size are settled in [`AGENTS.md`](../AGENTS.md) under
 *Git workflow*, and that is the binding copy.** In short: ask the owner before
-making a branch, even for a one-line fix, and split work into one commit per
-layer — `-controls` for input and camera, `-game` for rules and scoring,
-`-visuals` for how it is drawn — with each commit carrying its own tests and
-documentation.
+making a branch, even for a one-line fix, and land a batch of work as a few
+commits, usually one — rules, input, drawing, tests and documentation
+together — adding a commit only when it can be defended as a change worth
+reading or reverting on its own, such as a tooling repair found on the way.
 
 What goes into a commit at all:
 

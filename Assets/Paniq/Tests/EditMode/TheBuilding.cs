@@ -16,8 +16,8 @@ namespace Paniq.Tests.EditMode
     /// <para>
     /// The open office is deliberately unchanged from prototype 1, and the
     /// storage closet keeps its door and its old floor (it grew north on
-    /// 2026-09-24), so tests that only ever used the office need nothing from
-    /// here.
+    /// 2026-09-24 and south on 2026-09-25), so tests that only ever used the
+    /// office need nothing from here.
     /// </para>
     /// </summary>
     internal static class TheBuilding
@@ -57,8 +57,14 @@ namespace Paniq.Tests.EditMode
         /// <summary>The maintenance room at the dead west end of the floor.</summary>
         public static readonly LogicalPosition Maintenance = new LogicalPosition(-7500, 7500);
 
-        /// <summary>The crossbar of the T, between the way out and the dead end.</summary>
+        /// <summary>The crossbar of the T, between the way out and the arm down to the stockroom.</summary>
         public static readonly LogicalPosition Crossbar = new LogicalPosition(14500, 9000);
+
+        /// <summary>The stockroom behind the bathroom, on the lane between its two doors.</summary>
+        public static readonly LogicalPosition Stockroom = new LogicalPosition(10000, -3000);
+
+        /// <summary>The office's south-east corner, nearer the stockroom door than the corridor door.</summary>
+        public static readonly LogicalPosition OfficeSouthEastCorner = new LogicalPosition(4500, -4500);
 
         /// <summary>Just inside the building's one way out.</summary>
         public static readonly LogicalPosition InsideTheWayOut = new LogicalPosition(14500, 16000);
@@ -84,9 +90,6 @@ namespace Paniq.Tests.EditMode
         /// <summary>The cafeteria's door onto the corridor.</summary>
         public static readonly SimulationId CafeteriaDoor = new SimulationId(2011UL);
 
-        /// <summary>The cafeteria's second door, onto the arm nearer the way out.</summary>
-        public static readonly SimulationId CafeteriaShortcut = new SimulationId(2009UL);
-
         /// <summary>The bathroom's door onto the corridor.</summary>
         public static readonly SimulationId BathroomDoor = new SimulationId(2012UL);
 
@@ -95,6 +98,12 @@ namespace Paniq.Tests.EditMode
 
         /// <summary>The archway where the corridor Ts. It is an opening, not a door: nothing shuts it.</summary>
         public static readonly SimulationId Archway = new SimulationId(2016UL);
+
+        /// <summary>The stockroom's door in the office's east wall, at the office's south end.</summary>
+        public static readonly SimulationId StockroomDoor = new SimulationId(2018UL);
+
+        /// <summary>The stockroom's door into the crossbar's south end, under the way out.</summary>
+        public static readonly SimulationId StockroomToCrossbar = new SimulationId(2019UL);
 
         /// <summary>
         /// The shipped building, with the fire pinned to the open office.
@@ -161,7 +170,8 @@ namespace Paniq.Tests.EditMode
                 PlayerCommandType.SpawnFire,
                 PlayerCommandType.SpawnExtinguisher,
                 PlayerCommandType.BlastWall,
-                PlayerCommandType.PopFuseBox
+                PlayerCommandType.PopFuseBox,
+                PlayerCommandType.StickTogether
             };
 
             const int spare = 12;

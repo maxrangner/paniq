@@ -139,11 +139,14 @@ word is the feature's name. These are the ones that are not:
 | `UniformGridIndex` (who is near here) | `SpatialIndex` |
 | `IThreat`, `Threats` (what a danger is) | `ThreatSeam,ReplayFingerprint` |
 | `CollisionSystem`, `BodySystem`, `PhysicsWorld` | `HardKnocks,Shoving,PhysicsFoundation,PhysicsObjects` |
-| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding` |
+| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors` |
 | `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting` |
 | `TraitEffects` | `Traits,TraitCards` |
 | `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered` |
 | `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
+| `GroupSystem` (sticking together) | `Groups,TraitCards` |
+| `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking` |
+| `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |
 | `PerceptionSystem`, `SoundSystem` (what a person sees and hears) | `Perception,Hearing,Simulation` |
 
 `FearSystem`, `PanicBehaviour`, `CalmBehaviour`, `Locomotion`, `Crowd` and

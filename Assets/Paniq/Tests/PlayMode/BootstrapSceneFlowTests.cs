@@ -125,6 +125,10 @@ namespace Paniq.Tests.PlayMode
             runner.QueueDoorClick(door);
             runner.StepForTests();
             Assert.That(DoorState(runner, door), Is.EqualTo(Paniq.Simulation.DoorState.Unlocked));
+
+            // The purse holds a hundred and the way out took all of it: fill
+            // it again for the click that opens the door.
+            runner.Simulation.GiveInfluenceForTests(1000);
             runner.QueueDoorClick(door);
             runner.StepForTests();
             Assert.That(DoorState(runner, door), Is.EqualTo(Paniq.Simulation.DoorState.Open));

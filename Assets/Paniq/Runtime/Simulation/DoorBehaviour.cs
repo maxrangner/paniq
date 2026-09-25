@@ -35,7 +35,8 @@ namespace Paniq.Simulation
             Threats threats,
             SoundSystem sound,
             ExitSignBehaviour exitSigns,
-            WayfindingSystem wayfinding)
+            WayfindingSystem wayfinding,
+            GroupSystem groups)
         {
             this.context = context;
             this.crowd = crowd;
@@ -45,8 +46,12 @@ namespace Paniq.Simulation
             this.sound = sound;
             this.exitSigns = exitSigns;
             this.wayfinding = wayfinding;
+            this.groups = groups;
             settings = context.Scenario.Exits;
         }
+
+        /// <summary>Who is sticking together with whom, for the door the group's anchor picks.</summary>
+        private readonly GroupSystem groups;
 
         /// <summary>
         /// Whether this person is on their way to a way out they can see
@@ -156,6 +161,7 @@ namespace Paniq.Simulation
 
             agent.Doors.ApproachRoom = room;
             agent.Knowledge.HasSearchSpot = false;
+            int groupDoor = groups.AnchorExitDoor(agent);
             int best = -1;
             int bestWayOut = -1;
             bool bestIsThroughTheHeat = false;
@@ -219,6 +225,13 @@ namespace Paniq.Simulation
                 if (next == agent.Doors.ExitDoorIndex)
                 {
                     score += settings.CurrentChoiceBonusMillimetres;
+                }
+
+                if (groupDoor >= 0 && next == groupDoor)
+                {
+                    // The door the rest of the group is going for: worth a
+                    // walk to keep together, though not a walk through fire.
+                    score += context.Scenario.Groups.ChoiceBonusMillimetres;
                 }
 
                 score -= RoutePenalties(agent, position, next);

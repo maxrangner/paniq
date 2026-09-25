@@ -156,13 +156,14 @@ as *theirs*: they keep hold of it while calm rather than tidying it away, and le
 go only when something frightens them. This is what makes a bag or a briefcase
 different from a box somebody picked up to tidy.
 
-**Composure.** A person told about a hazard by an alarm bell, rather than by
-seeing it, may keep their head: they still head for a way out, but at walking
-pace, without swerving, dithering or freezing. It is one flag on their fear,
-consulted where pace, swerving and hesitation are worked out, rather than a
-fourth fear state — which would have touched every check for "scared" in the
-simulation. It is cleared the moment the hazard stops being an abstraction: it
-reaches them, they are knocked about, or they see it for themselves.
+**Sticking together (2026-09-25).** `AgentGroup` is the group a "Stick
+together" throw bound them to, or none: the group's id, the throw's event as
+the cause of whatever they learn from the others, the tick their pull begins
+(their own reaction tick, never the throw's), and when they next compare notes
+on the way out. It is read where a frightened person's steering and pace are
+worked out, and where they choose a door. (Composure -- walking out calmly
+after a bell -- was a flag here until 2026-09-25, when the owner ruled that a
+bell frightens everybody.)
 
 **Where they belong, and what they are doing about the day (2026-09-24).**
 `AgentHome` is where somebody belongs: the chair that is theirs, or a spot,

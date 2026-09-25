@@ -190,10 +190,11 @@ are the part of the [game vision](game-vision.md) that makes a run
 more than one level, and comparing one run against another beyond the single
 best-ever number.
 
-**One number to watch at the next playtest.** The way out costs 80 of the 100
-influence the player starts with. That may be exactly the tension the owner
-wants, or it may read as unfair; it is one number (`InfluenceSettings.Starting`)
-either way.
+**One number to watch at the next playtest.** The way out cost 80 of the 100
+influence the player started with when this stone was laid; since 2026-09-25
+the purse holds 100 at most, the round opens with 30, and unlocking the way out
+costs the whole hundred (`InfluenceSettings`). Whether that reads as the right
+tension or as unfair is a question for play.
 
 **One thing to know about the score.** Two runs are not strictly comparable,
 because the same building on a different seed is a different day. The best-ever
@@ -383,6 +384,50 @@ door from outside once he is through.
 | A Menu button, and alarms you can click | Style | **Menu** sits in the top-right corner from the moment the round starts until the end card, and one click puts the start card back up with the seed kept. Every red alarm box is clickable, with a hover line that says the price, or "already ringing", or that you cannot afford it. The stats table moved down out of the button's way |
 | Cards that look like cards | Style | The hand is a row of small portrait cards -- number badge, name, a line on what it does, the price -- instead of wide bars of text. The one in hand lifts and turns blue; one you cannot afford is dimmed red and says by how much. Six of them fit under the score strip on a laptop screen. The owner asked for cards that look like cards and take less room |
 | The crowd at a shut corridor door: not found | -- | The owner's seed 41 note about a crowd stood at a closed corridor door could not be reproduced on the current build: a sweep of four seeds, three trigger times and the way out locked or opened finds nobody frightened waiting ten seconds at a shut unlocked door. The only long waits are at inner doors the bully has locked, which the owner chose to keep, and at the locked way out itself, which is the player's door to open. The fear and door stones above changed the corridor anyway; if it comes back, the sweep in the decision log is the harness to run |
+
+## Prototype 2: playtest fixes, third round (2026-09-25)
+
+The owner played again and listed seventeen notes: fire alarms, a fourth
+room, swing doors, the purse and the key, cards you click, and the screen.
+Reproducing them found two facts the list did not name: an alarm pulled
+before the fire existed did nothing at all (people were "startled", and a
+startle only became fright once a fire existed), and a fire extinguisher
+could not burn, so it could not burst. The game layer is below; the controls
+and the drawing have their own rows further down.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| A stockroom behind the bathroom | System | South of the bathroom and the closet, a long stockroom of cardboard boxes, some stacked two high, with a lane through them. The office has a second door in its east wall at the south end, and the stockroom's other door opens into the south arm of the T, which is no longer a dead end. From the office there are now two ways to the way out: north through the corridor, or south-east through the boxes and up the whole crossbar. Every room but the bathroom and the cupboards has two ways out, as the owner asked. Cardboard catches in a second and a half, so a fire that reaches the stores turns the shortcut into a furnace |
+| The bathroom squared off | System | One clean rectangle: the three stalls run the full width of its south wall (the middle one wide), and the closet's south wall lines up with theirs. The old stall walls stood on fire-square centres, so two columns of bathroom floor could never burn; they can now |
+| Swing doors into the cafeteria | System | The cafeteria's corridor door, the far one from the way out, is a pair of swing doors two metres wide. People push straight through at a run; nobody opens, shuts, locks or batters them, and clicking them does nothing and costs nothing. The fire eats through them in nine seconds instead of eighteen, unless something lying in the gap props them open, and then it walks through |
+| Bells on the walls, and pull stations | System | Two kinds of red thing: small pull stations at hand height, and bell units high on a wall of every room people use. Pull a station and every bell rings, and rings again every six seconds or so, each on its own beat, so a door opened later lets the noise through. A bell the fire reaches goes off with a crack and falls silent; the others ring on |
+| A bell frightens everybody | Behaviour | Everybody who hears a bell takes fright exactly as if they had seen the flames, each a few ticks after the next -- the runners run, the freezers freeze -- and goes for a way out, fire or no fire. Nobody "walks out calmly" any more. The owner's rule: "pull it, and everybody panics" |
+| The brave pull the alarm | Behaviour | Somebody brave (bravery 6 and up) goes for the pull station as the kind and the leaders always did; a brave person near a small fire still goes for the extinguisher first |
+| Nobody barricades a building that is not burning | Behaviour | A bell alone sends the nervous to the doors, not to wedging boxes into them: nobody wedges a door until something is actually burning |
+| Extinguishers burst in the fire | System | A bottle standing in the flames -- on the wall, put down by the card, or in the hands of somebody alight -- heats for four seconds and bursts: a bang the size of a socket's, everyone within 1.6 m off their feet, and its own contents over every flame in that circle. After that it is a spent bottle nobody fetches |
+| A thing that is not there cannot catch fire | System | The spare bottles the card has not put down, and a lamp's shade while the lamp still stands, are nowhere for the flames to reach. A shade authored at its lamp's spot used to be lit by a fire in that corner and light the floor from nowhere |
+| A purse of a hundred, and the key is yours | System | The purse never holds more than 100. Opening a door costs 10, shutting it 10, locking it 10, unlocking an inside door 10 -- and unlocking the building's way out costs the whole hundred. Locking is new for the player: a locked door is theirs to lock and unlock, on top of the bully doing it himself. Once the way out is unlocked the people open it themselves |
+| Stick together | Behaviour | A fourth card. Thrown at a patch of crowd, everybody caught becomes a group: once frightened, each is pulled toward the others, the ones ahead slow for the ones behind, they go for the door the most leaderly of them goes for, and a visitor bound to somebody who works here learns the way out. Not a leash: the cruel walk off, the brave feel it least and the nervous most, anyone with flames at their back runs regardless, and a throw that catches fewer than two people makes no group and is free |
+| Cards you click, and doors you double-click | Style | Click a card to pick it up, click the floor to throw it, right click or Escape to put it down; the number keys are gone. Two of a kind sit as one card with "×2" on it. One click on a door opens or shuts it; a double click locks or unlocks it, and shuts and locks an open one; a single click on a locked door does nothing but the hover line tells you the double click's price. Clicking a card or a button never also clicks whatever is behind it, which it used to |
+| The buttons where they belong | Style | "Reset" (the old Menu) sits top right with "Pause" directly under it, and the red "Trigger event" button sits bottom centre and disappears once pressed |
+| Swing doors that bounce | Style | Two leaves that meet in the middle fly open ahead of whoever runs through, flap back past shut behind them and settle, on a spring rather than a state. Plain wood, neither red nor green: there is nothing to lock or unlock |
+| Bells and pull stations you can tell apart | Style | The pull station is a small red box at hand height with a white bar across it; the bell is a red plate with a dome high on the wall, which flashes twice a second while the bells ring and goes dark once the flames have popped it |
+| A red banner, and the top packed | Style | A FIRE ALARM band across the very top while the bells ring, pulsing on the bells' beat. Under it, everything the player reads sits in four lines within 130 pixels of the top: the tick and the fire, the head count, the round's score, and what a click under the pointer would do and cost. It used to sprawl to 250 |
+| A band for the group | Style | Everybody a "Stick together" throw bound wears a thin coloured band round the ankles, one colour per group, that runs and falls with them |
+| The cafeteria's private door is gone | System | The cafeteria used to have a door of its own straight onto the arm beside the way out, so its four were always first to the front door. The owner had it taken out: the cafeteria now empties through its swing doors into the corridor, or through the meeting room, like everybody else, and the queue at the front door is one queue |
+
+**What this deliberately left out.** A fire that starts in the stockroom (one
+line, but it changes which room every seed starts in, so the owner's seeds
+41 and 42 would move); a door from the closet into the stockroom (it would
+make the closet a through-room and take away the office's refuge); the scene
+baker still cannot author a swing door; swing doors neither muffle sound nor
+take a lock.
+
+**One thing to watch at the next playtest.** The alarm can be pulled before
+the fire is triggered, for 30 of the opening 30. Everybody then crowds the
+locked way out, and the strong may batter it down before the fire exists.
+Escapes before the trigger pay the purse nothing, but the round's saved count
+still counts them. Whether that is a tactic or an exploit is the owner's call.
 
 ## Foundations reviewed (2026-09-23)
 

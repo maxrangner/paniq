@@ -185,9 +185,16 @@ namespace Paniq.Presentation
 
             // Pause to look, not to act: while a card is up or the world is
             // stopped, the pointer still hovers but no click reaches the run.
+            // A pointer over a card or a button is the HUD's, not the world's
+            // (the HUD's y runs from the top, the input system's from the
+            // bottom). The double-click window runs on the unscaled clock,
+            // which pausing does not stop.
+            Mouse mouse = Mouse.current;
+            Vector2 pointer = mouse != null ? mouse.position.ReadValue() : Vector2.zero;
+            bool pointerOverHud = mouse != null && HudHitTest.Covers(new Vector2(pointer.x, Screen.height - pointer.y));
             input.Update(prototypeCamera, frameSnapshot,
                 runner.IsPaused || screens.CardIsUp || log.IsOpen,
-                cameraRig.IsTurningTheView);
+                cameraRig.IsTurningTheView, pointerOverHud, Time.unscaledTime);
             hoveredDoor = input.HoveredDoor;
             hoveredAlarm = input.HoveredAlarm;
             Keyboard keyboard = Keyboard.current;
@@ -220,7 +227,6 @@ namespace Paniq.Presentation
             PlayNewEvents(frameSnapshot, time);
             agents.Update(frameSnapshot, previous, blend, time, prototypeCamera.transform);
             room.Update(frameSnapshot, hoveredDoor, time, Time.deltaTime);
-            room.UpdateAlarms(frameSnapshot, time);
             room.UpdateHoles(frameSnapshot);
             boxes.Update(frameSnapshot, previous, blend, time);
             ripples.Update(time);
@@ -285,9 +291,10 @@ namespace Paniq.Presentation
 
             if (frameSnapshot != null)
             {
-                PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, hoveredDoor,
-                    hoveredDoor.HasValue ? room.StateOf(hoveredDoor.Value) : DoorState.Locked,
-                    hoveredDoor.HasValue && IsJammed(frameSnapshot, hoveredDoor.Value), hoveredAlarm);
+                // Every card and button drawn below claims its place on the
+                // screen, so next frame's clicks on them stay off the world.
+                HudHitTest.BeginFrame();
+                PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, runner.Seed, FindDoor(frameSnapshot, hoveredDoor), hoveredAlarm);
                 screens.DrawStrip(frameSnapshot);
                 PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input, aimRing.PeopleInside);
                 if (runner.IsPaused)
@@ -328,21 +335,27 @@ namespace Paniq.Presentation
 
                 // Very last, so the story covers the end card behind it.
                 log.Draw(frameSnapshot);
+                HudHitTest.EndFrame();
             }
         }
 
-        /// <summary>Whether this door is wedged so hard that no click will move it.</summary>
-        private static bool IsJammed(RunSnapshot snapshot, SimulationId doorId)
+        /// <summary>The door under the pointer as the run last reported it, for the hover line.</summary>
+        private static DoorSnapshot? FindDoor(RunSnapshot snapshot, SimulationId? doorId)
         {
+            if (!doorId.HasValue)
+            {
+                return null;
+            }
+
             foreach (DoorSnapshot door in snapshot.Doors)
             {
-                if (door.DoorId == doorId)
+                if (door.DoorId == doorId.Value)
                 {
-                    return door.IsJammed;
+                    return door;
                 }
             }
 
-            return false;
+            return null;
         }
 
         /// <summary>Starts icons, ripples, hops and judders for every event since the last frame.</summary>
@@ -395,6 +408,7 @@ namespace Paniq.Presentation
                     case CausalEventType.PowerTerror:
                     case CausalEventType.PowerBastard:
                     case CausalEventType.PowerColdHeart:
+                    case CausalEventType.PowerStickTogether:
                         // One of these per person the throw caught, so
                         // everybody it landed on flashes and the player can see
                         // what they actually got.

@@ -6,12 +6,12 @@ using Paniq.Simulation;
 namespace Paniq.Tests.EditMode
 {
     /// <summary>
-    /// Fire alarms. Somebody who has seen the fire and thinks of other people
-    /// breaks off to hit the alarm on the wall; every bell in the building then
-    /// rings, and everybody who hears one learns there is a fire. What they do
-    /// about it is personality: the brave and level-headed walk briskly out,
-    /// while the nervous stampede — and composure lasts only until the fire
-    /// actually comes at them.
+    /// Fire alarms. Somebody who has seen the fire and is brave, thinks of
+    /// other people or is used to being listened to breaks off to hit the pull
+    /// station on the wall; every bell in the building then rings, again every
+    /// few seconds, and everybody who hears one takes fright exactly as if
+    /// they had seen the flames (the owner's rule, 2026-09-25: "pull it, and
+    /// everybody panics"). A bell the flames reach pops and falls silent.
     /// </summary>
     public sealed class AlarmsEditModeTests
     {
@@ -93,7 +93,10 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>Somebody kind, who will go for the alarm.</summary>
-        private static AgentTraitValues Kind => new AgentTraitValues(5, 5, 6, 9, 0, 3);
+        private static AgentTraitValues Kind => new AgentTraitValues(5, 5, 5, 9, 0, 3);
+
+        /// <summary>Somebody brave and nothing else: neither kind nor in charge.</summary>
+        private static AgentTraitValues Brave => new AgentTraitValues(5, 5, 8, 3, 2, 3, 3);
 
         // ---------------------------------------------------------- the player's pull
 
@@ -117,7 +120,7 @@ namespace Paniq.Tests.EditMode
                 Assert.That(pulled[0].TargetId, Is.EqualTo(OfficeAlarm));
                 Assert.That(pulled[0].CausalParentEventId, Is.EqualTo(0UL), "The player is the root cause.");
                 List<CausalEvent> rang = EventsOfType(simulation, CausalEventType.AlarmRang);
-                Assert.That(rang, Has.Count.EqualTo(simulation.AlarmCount), "Every bell in the building.");
+                Assert.That(rang, Has.Count.EqualTo(simulation.BellCount), "Every bell in the building.");
                 foreach (CausalEvent bell in rang)
                 {
                     Assert.That(bell.CausalParentEventId, Is.EqualTo(pulled[0].EventId));
@@ -183,7 +186,7 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(EventsOfType(simulation, CausalEventType.AlarmPulled).Count, Is.EqualTo(1),
                 "One alarm is hit, once.");
-            Assert.That(EventsOfType(simulation, CausalEventType.AlarmRang).Count, Is.EqualTo(simulation.AlarmCount),
+            Assert.That(EventsOfType(simulation, CausalEventType.AlarmRang).Count, Is.GreaterThanOrEqualTo(simulation.BellCount),
                 "Every bell in the building should ring.");
         }
 
@@ -220,6 +223,18 @@ namespace Paniq.Tests.EditMode
             Assert.That(simulation.AlarmsRinging, Is.False);
         }
 
+        /// <summary>Somebody brave, and nothing else, goes for the alarm too (the owner asked, 2026-09-25).</summary>
+        [Test]
+        public void SomebodyBrave_GoesAndHitsTheAlarm()
+        {
+            var simulation = new Run(OfficeAndMeetingRoom(Brave, Selfish));
+            Advance(simulation, 10);
+
+            List<CausalEvent> pulled = EventsOfType(simulation, CausalEventType.AlarmPulled);
+            Assert.That(pulled, Is.Not.Empty, "The brave raise the alarm.");
+            Assert.That(pulled[0].SourceId, Is.EqualTo(Raiser));
+        }
+
         [Test]
         public void AlarmsTurnedOff_AreNeverRung()
         {
@@ -234,77 +249,38 @@ namespace Paniq.Tests.EditMode
                 "With the alarms off, the meeting room never finds out.");
         }
 
-        // ------------------------------------------------------------ composure
+        // ------------------------------------------------------------ everybody panics
 
         /// <summary>
-        /// The brave and steady walk out; the nervous panic. Both are frightened
-        /// and both head for a way out — the difference is how they do it.
+        /// A bell frightens whoever hears it exactly as the sight of flames
+        /// would, whoever they are: the brave and steady used to walk out at
+        /// a stroll (the owner's rule, 2026-09-25).
         /// </summary>
-        [TestCase(9, 1, true)]
-        [TestCase(1, 9, false)]
-        public void WhatABellDoesToSomebody_DependsWhoTheyAre(int bravery, int nervousness, bool expectComposed)
+        [TestCase(9, 1)]
+        [TestCase(1, 9)]
+        public void ABell_FrightensEverybodyWhoHearsIt_WhoeverTheyAre(int bravery, int nervousness)
         {
             ScenarioData data = OfficeAndMeetingRoom(Kind,
                 new AgentTraitValues(5, 5, bravery, 5, 0, nervousness));
             var simulation = new Run(data);
-            Advance(simulation, 10);
-
-            AgentSnapshot listener = simulation.GetAgent(FarAway);
-            Assert.That(listener.FearState, Is.EqualTo(AgentFearState.Scared), "The bell should frighten them either way.");
-            Assert.That(listener.IsComposed, Is.EqualTo(expectComposed),
-                expectComposed
-                    ? "Somebody brave and steady should keep their head and walk out."
-                    : "Somebody nervous should lose their head.");
-        }
-
-        [Test]
-        public void SomebodyKeepingTheirHead_WalksOutRatherThanSprinting()
-        {
-            ScenarioData data = OfficeAndMeetingRoom(Kind, new AgentTraitValues(5, 5, 9, 5, 0, 1));
-            var simulation = new Run(data);
-
             int fastest = 0;
             for (int t = 0; t < 12 * Run.TicksPerSecond; t++)
             {
                 simulation.Step();
-                AgentSnapshot listener = simulation.GetAgent(FarAway);
-                if (listener.IsComposed)
-                {
-                    fastest = System.Math.Max(fastest, listener.SpeedMillimetresPerTick);
-                }
+                fastest = System.Math.Max(fastest, simulation.GetAgent(FarAway).SpeedMillimetresPerTick);
             }
 
-            Assert.That(fastest, Is.GreaterThan(0), "They should actually be going somewhere.");
-            Assert.That(fastest, Is.LessThanOrEqualTo(data.Calm.SpeedMaximum + data.Traits.CalmSpeedJitter),
-                "Somebody keeping their head walks; they do not sprint.");
+            AgentSnapshot listener = simulation.GetAgent(FarAway);
+            Assert.That(listener.FearState, Is.EqualTo(AgentFearState.Scared), "The bell should frighten them.");
+            Assert.That(listener.AlertSource, Is.EqualTo(AgentAlertSource.Alarm));
+            Assert.That(fastest, Is.GreaterThan(data.Calm.SpeedMaximum + data.Traits.CalmSpeedJitter),
+                "They run for it; nobody walks out any more.");
         }
 
+        /// <summary>Told by a bell rather than by the sight of flames, somebody dealt the freezing card still freezes.</summary>
         [Test]
-        public void SomebodyKeepingTheirHead_LosesItWhenTheFireComesAtThem()
+        public void ABell_FreezesThoseWhoFreeze()
         {
-            // The steady one in the meeting room, with a fire that starts right
-            // beside them a few seconds after the bell.
-            ScenarioData data = OfficeAndMeetingRoom(Kind, new AgentTraitValues(5, 5, 9, 5, 0, 1));
-            var simulation = new Run(data);
-            Advance(simulation, 6);
-            Assert.That(simulation.GetAgent(FarAway).IsComposed, Is.True, "They should have kept their head so far.");
-
-            // A fire at their feet, played by the player.
-            simulation.QueueCommand(PlayerCommandType.SpawnFire, simulation.GetAgent(FarAway).Position,
-                simulation.Tick + 1);
-            Advance(simulation, 3);
-
-            Assert.That(simulation.GetAgent(FarAway).IsComposed, Is.False,
-                "Composure should not survive the fire arriving.");
-        }
-
-        [Test]
-        public void SomebodyKeepingTheirHead_NeverFreezes()
-        {
-            // Both are steady enough to keep their heads, but the one in the
-            // meeting room is very slightly the more fearful of the two, so the
-            // freezing card goes to them. Told by a bell rather than by the sight
-            // of flames, they walk out instead of rooting to the spot.
             ScenarioData data = OfficeAndMeetingRoom(
                 new AgentTraitValues(5, 5, 9, 9, 0, 1),
                 new AgentTraitValues(5, 5, 8, 5, 0, 1));
@@ -316,18 +292,123 @@ namespace Paniq.Tests.EditMode
             AgentSnapshot listener = simulation.GetAgent(FarAway);
             Assert.That(listener.Temperament, Is.EqualTo(AgentPanicTemperament.FreezeForever),
                 "The freezing card should have gone to the one in the meeting room.");
-            Assert.That(listener.IsComposed, Is.True);
-            Assert.That(listener.ActivityState, Is.Not.EqualTo(AgentActivityState.Frozen),
-                "Nobody keeping their head freezes.");
+            Assert.That(listener.FearState, Is.EqualTo(AgentFearState.Scared));
+            Assert.That(listener.ActivityState, Is.EqualTo(AgentActivityState.Frozen), "A bell freezes them as flames would.");
+        }
+
+        /// <summary>
+        /// The player pulls an alarm before the fire exists. Everybody who
+        /// hears it takes fright and goes for a way out all the same -- each a
+        /// few ticks after the bell, and no two on one tick. Before 2026-09-25
+        /// they stood startled, facing the bell, until the flames came.
+        /// </summary>
+        [Test]
+        public void ABellPulledBeforeAnyFire_SendsEverybodyForTheWayOut_EachInTheirOwnTime()
+        {
+            ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
+            data.Round.HazardWaitsForTrigger = true;
+            data.Influence.Starting = 30;
+            var simulation = new Run(data, 42UL);
+            LogicalPosition farAwayStart = simulation.GetAgent(FarAway).Position;
+            simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
+            Advance(simulation, 10);
+
+            Assert.That(simulation.FireCellCount, Is.Zero, "No fire at all.");
+            List<CausalEvent> rang = EventsOfType(simulation, CausalEventType.AlarmRang);
+            Assert.That(rang, Is.Not.Empty);
+            int bellTick = rang[0].Tick;
+            var scaredTicks = new HashSet<int>();
+            foreach (CausalEvent scared in EventsOfType(simulation, CausalEventType.AgentScared))
+            {
+                Assert.That(scared.Tick, Is.GreaterThan(bellTick), "Nobody is frightened on the bell's own tick.");
+                Assert.That(scaredTicks.Add(scared.Tick), Is.True, "No two people take fright on one tick.");
+            }
+
+            Assert.That(scaredTicks, Has.Count.EqualTo(2), "Both of them heard a bell.");
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                AgentSnapshot person = simulation.GetAgent(i);
+                Assert.That(person.FearState, Is.EqualTo(AgentFearState.Scared), $"{person.AgentId} should be frightened.");
+                Assert.That(person.ActivityState, Is.Not.EqualTo(AgentActivityState.Reacting),
+                    $"{person.AgentId} should have stopped staring at the bell and gone for a way out.");
+            }
+
+            Assert.That(IntegerMath.Distance(farAwayStart, simulation.GetAgent(FarAway).Position), Is.GreaterThan(2000),
+                "The one in the meeting room should be well on their way.");
+        }
+
+        /// <summary>
+        /// The bells ring again every few seconds, each on its own beat, so a
+        /// door opened later lets the news through.
+        /// </summary>
+        [Test]
+        public void TheBells_RingAgain_EachOnItsOwnBeat()
+        {
+            ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
+            data.Influence.Starting = 30;
+            var simulation = new Run(data, 42UL);
+            simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
+            Advance(simulation, 16);
+
+            List<CausalEvent> rang = EventsOfType(simulation, CausalEventType.AlarmRang);
+            Assert.That(rang.Count, Is.GreaterThanOrEqualTo(simulation.BellCount * 2), "Every bell rang at least twice.");
+            var secondRings = new HashSet<int>();
+            var seen = new HashSet<ulong>();
+            foreach (CausalEvent ring in rang)
+            {
+                if (!seen.Add(ring.SourceId.Value))
+                {
+                    secondRings.Add(ring.Tick);
+                }
+            }
+
+            Assert.That(secondRings.Count, Is.GreaterThan(1), "The bells do not all ring again on the same tick.");
+        }
+
+        /// <summary>
+        /// The bells are things on the walls, and the flames can reach one: it
+        /// goes off with a crack and falls silent, and the others ring on.
+        /// </summary>
+        [Test]
+        public void ABellTheFlamesReach_PopsAndFallsSilent_WhileTheOthersRingOn()
+        {
+            ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
+            data.PhysicsObjects = System.Array.FindAll(scenario.ToRuntimeData().PhysicsObjects,
+                thing => thing.Kind == PhysicsObjectKind.AlarmSounder);
+            data.Influence.Starting = 30;
+            var officeBell = new SimulationId(3601UL);
+
+            // A fire in the office's south-west corner, right under its bell.
+            data.Fire.SpawnBounds = new LogicalBounds(-5250, -5250, -1250, -1250);
+            var simulation = new Run(data, 42UL);
+            simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
+            Advance(simulation, 16);
+
+            List<CausalEvent> bangs = EventsOfType(simulation, CausalEventType.ObjectExploded);
+            Assert.That(bangs.Exists(bang => bang.SourceId == officeBell), Is.True, "The office bell should have gone off.");
+
+            int officeRings = 0;
+            int otherRings = 0;
+            foreach (CausalEvent ring in EventsOfType(simulation, CausalEventType.AlarmRang))
+            {
+                officeRings += ring.SourceId == officeBell ? 1 : 0;
+                otherRings += ring.SourceId == officeBell ? 0 : 1;
+            }
+
+            Assert.That(officeRings, Is.EqualTo(1), "The office bell rang once, before the flames reached it, and never again.");
+            Assert.That(otherRings, Is.GreaterThanOrEqualTo((simulation.BellCount - 1) * 2), "The others ring on.");
+            Assert.That(simulation.AlarmsRinging, Is.True, "The building has still been told.");
         }
 
         [Test]
         public void TheDefaultBuilding_HasAnAlarmInEachRoomPeopleUse()
         {
             var simulation = new Run(TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()));
-            Assert.That(simulation.AlarmCount, Is.EqualTo(4),
-                "The office, the corridor, the cafeteria and the meeting room. The closet, the\n"
-                + "stalls and the maintenance room have none: they are cupboards.");
+            Assert.That(simulation.AlarmCount, Is.EqualTo(5),
+                "The office, the corridor, the cafeteria, the meeting room and the stockroom. The\n"
+                + "closet, the stalls and the maintenance room have none: they are cupboards; and the\n"
+                + "crossbar's, beside the way out, was taken out at the owner's request (2026-09-25).");
+            Assert.That(simulation.BellCount, Is.EqualTo(7), "A bell in every room people use, the bathroom included.");
         }
     }
 }

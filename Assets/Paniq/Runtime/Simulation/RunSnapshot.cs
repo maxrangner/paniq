@@ -56,16 +56,16 @@ namespace Paniq.Simulation
             AgentTraitValues traits,
             bool isBurning,
             bool isLeading = false,
-            bool isComposed = false,
             BodyPose pose = default,
-            int seatedPercent = 0)
+            int seatedPercent = 0,
+            int groupId = -1)
         {
+            GroupId = groupId;
             Pose = pose;
             SeatedPercent = seatedPercent;
             Traits = traits;
             IsBurning = isBurning;
             IsLeading = isLeading;
-            IsComposed = isComposed;
             Temperament = temperament;
             BodyState = bodyState;
             AgentId = agentId;
@@ -126,11 +126,8 @@ namespace Paniq.Simulation
         /// <summary>Somebody is following this person right now.</summary>
         public bool IsLeading { get; }
 
-        /// <summary>
-        /// Told about the fire by a bell and keeping their head: heading for a
-        /// way out at a brisk walk instead of panicking.
-        /// </summary>
-        public bool IsComposed { get; }
+        /// <summary>The group a "Stick together" throw bound them to, or -1.</summary>
+        public int GroupId { get; }
 
         public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp ||
                               BodyState == AgentBodyState.Unconscious;
@@ -150,8 +147,9 @@ namespace Paniq.Simulation
         public DoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state,
             int damagePercent, int scorchPercent = 0, bool isHole = false, bool isBlocked = false,
             bool leadsOutside = false,
-            int openSide = 0, bool isJammed = false)
+            int openSide = 0, bool isJammed = false, bool swings = false)
         {
+            Swings = swings;
             IsHole = isHole;
             IsBlocked = isBlocked;
             OpenSide = openSide;
@@ -208,6 +206,14 @@ namespace Paniq.Simulation
 
         /// <summary>It leads out of the building rather than into the next room.</summary>
         public bool LeadsOutside { get; }
+
+        /// <summary>
+        /// A pair of swing doors: two leaves that push open ahead of whoever
+        /// walks through and swing shut behind them. Always open as far as
+        /// the rules are concerned, nothing to click, and only the fire has
+        /// to burn its way through.
+        /// </summary>
+        public bool Swings { get; }
     }
 
     /// <summary>A table: where it stands and whether it is heating up, burning or burnt out.</summary>
@@ -482,11 +488,18 @@ namespace Paniq.Simulation
         /// <summary>What each card costs, indexed by <see cref="PlayerCommandType"/>. Shared with the run; never written.</summary>
         private readonly int[] cardCosts;
 
-        /// <summary>What a door click costs, indexed by <see cref="DoorState"/>. Shared with the run; never written.</summary>
+        /// <summary>
+        /// What a door click and a turn of the key cost, indexed by
+        /// <see cref="DoorState"/>, for an inside door and for the way out.
+        /// Shared with the run; never written.
+        /// </summary>
         private readonly int[] doorClickCosts;
+        private readonly int[] exitClickCosts;
+        private readonly int[] lockToggleCosts;
+        private readonly int[] exitLockToggleCosts;
 
         internal RunSnapshot(int agentCount, int doorSlotCount, int objectCount, int tableCount,
-            int[] cardCosts, int[] doorClickCosts)
+            int[] cardCosts, int[] doorClickCosts, int[] exitClickCosts, int[] lockToggleCosts, int[] exitLockToggleCosts)
         {
             agents = new AgentSnapshot[agentCount];
             doors = new Prefix<DoorSnapshot>(doorSlotCount);
@@ -495,6 +508,9 @@ namespace Paniq.Simulation
             hand = new Prefix<PlayerCommandType>(16);
             this.cardCosts = cardCosts;
             this.doorClickCosts = doorClickCosts;
+            this.exitClickCosts = exitClickCosts;
+            this.lockToggleCosts = lockToggleCosts;
+            this.exitLockToggleCosts = exitLockToggleCosts;
             PowerSparks = System.Array.Empty<PowerSparkSnapshot>();
         }
 
@@ -575,12 +591,24 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// What one click on a door in this state would cost, so the hover
-        /// hint can put a price on it before the player commits to it.
+        /// hint can put a price on it before the player commits to it. The
+        /// building's way out has its own price for the key.
         /// </summary>
-        public int CostOfDoorClick(DoorState state)
+        public int CostOfDoorClick(DoorState state, bool leadsOutside)
+        {
+            return CostFrom(leadsOutside ? exitClickCosts : doorClickCosts, state);
+        }
+
+        /// <summary>What turning the key on a door in this state would cost.</summary>
+        public int CostOfLockToggle(DoorState state, bool leadsOutside)
+        {
+            return CostFrom(leadsOutside ? exitLockToggleCosts : lockToggleCosts, state);
+        }
+
+        private static int CostFrom(int[] table, DoorState state)
         {
             int index = (int)state;
-            return doorClickCosts != null && index >= 0 && index < doorClickCosts.Length ? doorClickCosts[index] : 0;
+            return table != null && index >= 0 && index < table.Length ? table[index] : 0;
         }
 
         public bool FireActive { get; private set; }

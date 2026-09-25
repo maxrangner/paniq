@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("76"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(64));
+            Assert.That(data.ContentRevision, Is.EqualTo("79"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(66));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -898,6 +898,12 @@ namespace Paniq.Tests.EditMode
             // did, moves the fire off them and the death disappears.
             data.Fire.ActivationTick = 1;
             TheBuilding.FireAt(data, TheBuilding.Office);
+
+            // And no dropping and rolling: about a third of the time that puts
+            // the flames out, and whether this person drew that third moved
+            // with every change to the run's randomness (a door taken out of
+            // the cafeteria was the one that finally landed on it).
+            data.Fire.DropAndRollChancePercent = 0;
             var people = new List<AgentDefinition>(data.Agents)
             {
                 new AgentDefinition(new SimulationId(1999UL), TheBuilding.Office,
@@ -1171,12 +1177,21 @@ namespace Paniq.Tests.EditMode
                         // one corridor, so somebody rooted in a doorway takes a
                         // far harder shoving than they did in two big rooms
                         // (eighty centimetres was missed by under a millimetre
-                        // once the crowd's timing was jittered). It is still
-                        // nothing like walking away, which is what this is
-                        // guarding against.
+                        // once the crowd's timing was jittered). Four metres
+                        // since 2026-09-25: a bell now sends everybody
+                        // sprinting rather than half of them walking, the
+                        // office has a second door, and somebody who went to
+                        // look at the noise and froze in the corridor doorway
+                        // has the whole office shoving past them for a
+                        // minute and a half. What this guards against is
+                        // walking away -- ninety seconds of that is tens of
+                        // metres -- so the real check is that they never take
+                        // a step of their own.
                         frozenAt[i] ??= agent.Position;
+                        Assert.That(agent.SpeedMillimetresPerTick, Is.Zero,
+                            $"Permanently frozen agent {agent.AgentId} took a step.");
                         Assert.That(LogicalPosition.DistanceSquared(agent.Position, frozenAt[i].Value),
-                            Is.LessThanOrEqualTo(1000L * 1000L),
+                            Is.LessThanOrEqualTo(4000L * 4000L),
                             $"Permanently frozen agent {agent.AgentId} moved.");
                     }
                     else

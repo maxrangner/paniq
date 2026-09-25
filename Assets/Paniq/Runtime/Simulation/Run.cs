@@ -54,6 +54,7 @@ namespace Paniq.Simulation
         private readonly ExtinguisherBehaviour extinguishers;
         private readonly LeaderBehaviour leaders;
         private readonly AlarmSystem alarms;
+        private readonly GroupSystem groups;
         private readonly AlarmBehaviour alarmBehaviour;
 
         /// <summary>The building's day: the cues, who carries them out, and the timetable that calls them.</summary>
@@ -134,15 +135,16 @@ namespace Paniq.Simulation
                 director = new DirectorSystem(context, cues, geometry);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
-                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, threats, sound, exitSigns, wayfinding);
+                groups = new GroupSystem(context, crowd, wayfinding);
+                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, threats, sound, exitSigns, wayfinding, groups);
                 help = new HelpBehaviour(context, crowd, geometry, threats, fear, body, objects, locomotion, people);
                 panic = new PanicBehaviour(context, crowd, geometry, threats, fear, sound, body, doorBehaviour, help, chairs,
-                    exitSigns, locomotion);
+                    exitSigns, locomotion, groups);
                 burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
                 extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
                 leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion,
                     wayfinding);
-                alarms = new AlarmSystem(context, sound, geometry);
+                alarms = new AlarmSystem(context, sound, geometry, objects, flammables);
                 alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion);
                 var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, threats, objects, flammables, locomotion);
 
@@ -157,7 +159,7 @@ namespace Paniq.Simulation
                     Collisions = collisions, Locomotion = locomotion, Flammables = flammables, Items = items,
                     Chairs = chairs, Calm = calm, ExitSigns = exitSigns, Wayfinding = wayfinding,
                     DoorBehaviour = doorBehaviour, Help = help, Panic = panic, Burning = burning,
-                    Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms,
+                    Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms, Groups = groups,
                     AlarmBehaviour = alarmBehaviour, Barricades = barricades,
                     Cues = cues, Errands = errands, Director = director
                 };
@@ -469,6 +471,9 @@ namespace Paniq.Simulation
         /// <summary>What the player has left to spend on cards.</summary>
         public int Influence => influence.Influence;
 
+        /// <summary>How many bells ring when an alarm is pulled: the sounders on the walls, or the pull stations on a floor without any.</summary>
+        public int BellCount => alarms.BellCount;
+
         /// <summary>Influence earned back by getting people out, and spent on cards, for the display.</summary>
         public int InfluenceEarned => influence.Earned;
         public int InfluenceSpent => influence.Spent;
@@ -699,6 +704,9 @@ namespace Paniq.Simulation
             context.Tick = checked(context.Tick + 1);
             playerCommands.Consume();
 
+            // Phase 1's tail: the bells that are due ring again.
+            alarms.Update();
+
             // Phase 1½: what the building's day holds. A cue called here
             // reaches people at their own reaction tick in phase 4, so nobody
             // moves on the tick it is called.
@@ -916,11 +924,22 @@ namespace Paniq.Simulation
         {
             for (int i = 0; i < doors.OpeningsThisTick; i++)
             {
-                int door = doors.OpeningAt(i);
-                int room = geometry.DoorRoom(door);
-                fire.WakeRoom(room);
-                fire.WakeRoom(geometry.RoomBeyond(door, room));
+                WakeFireBeside(doors.OpeningAt(i));
             }
+
+            // And beside swing doors that something has just propped open,
+            // which to the fire is the same news.
+            for (int i = 0; i < doors.ProppingsThisTick; i++)
+            {
+                WakeFireBeside(doors.ProppingAt(i));
+            }
+        }
+
+        private void WakeFireBeside(int door)
+        {
+            int room = geometry.DoorRoom(door);
+            fire.WakeRoom(room);
+            fire.WakeRoom(geometry.RoomBeyond(door, room));
         }
 
         /// <summary>People still in the run who are in a room with nothing burning in it.</summary>
@@ -959,7 +978,11 @@ namespace Paniq.Simulation
         public RunSnapshot NewSnapshotBuffer()
         {
             return new RunSnapshot(agents.Length, geometry.DoorSlotCount, objects.Count, geometry.TableCount,
-                cardCosts ??= CardCosts(), doorClickCosts ??= DoorClickCosts());
+                cardCosts ??= CardCosts(),
+                doorClickCosts ??= DoorCosts(state => influence.CostOfDoorClick(state, false)),
+                exitClickCosts ??= DoorCosts(state => influence.CostOfDoorClick(state, true)),
+                lockToggleCosts ??= DoorCosts(state => influence.CostOfLockToggle(state, false)),
+                exitLockToggleCosts ??= DoorCosts(state => influence.CostOfLockToggle(state, true)));
         }
 
         /// <summary>Writes the run as it stands into a snapshot from <see cref="NewSnapshotBuffer"/>.</summary>
@@ -1017,6 +1040,9 @@ namespace Paniq.Simulation
         /// <summary>The cost tables, worked out once: they are settings, and settings do not change in a run.</summary>
         private int[] cardCosts;
         private int[] doorClickCosts;
+        private int[] exitClickCosts;
+        private int[] lockToggleCosts;
+        private int[] exitLockToggleCosts;
 
         /// <summary>What every command costs, by command type, for the display.</summary>
         private int[] CardCosts()
@@ -1030,13 +1056,13 @@ namespace Paniq.Simulation
             return costs;
         }
 
-        /// <summary>What a click costs on a door in each state, for the display.</summary>
-        private int[] DoorClickCosts()
+        /// <summary>What working a door in each state costs, for the display.</summary>
+        private static int[] DoorCosts(System.Func<DoorState, int> priceOf)
         {
             var costs = new int[System.Enum.GetValues(typeof(DoorState)).Length];
             for (int i = 0; i < costs.Length; i++)
             {
-                costs[i] = influence.CostOfDoorClick((DoorState)i);
+                costs[i] = priceOf((DoorState)i);
             }
 
             return costs;

@@ -188,6 +188,7 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerBlastedWall:
                 case CausalEventType.PowerPoppedFuseBox:
                 case CausalEventType.PowerPulledAlarm:
+                case CausalEventType.PowerStickTogether:
                 case CausalEventType.RoundEventTriggered:
                 case CausalEventType.DoorUnlocked:
                 case CausalEventType.CardDealt:

@@ -125,13 +125,80 @@ namespace Paniq.Tests.EditMode
                 Assert.That(StateOf(simulation, WayOut), Is.EqualTo(DoorState.Unlocked),
                     "One click turns the key and leaves it shut, so the people inside can open it themselves.");
                 Assert.That(simulation.Influence,
-                    Is.EqualTo(data.Influence.Starting - data.Influence.UnlockDoorCost));
+                    Is.EqualTo(data.Influence.Starting - data.Influence.UnlockExitCost),
+                    "The way out costs the exit's price to unlock, not an inside door's.");
 
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, WayOut, 2);
                 simulation.Step();
                 Assert.That(StateOf(simulation, WayOut), Is.EqualTo(DoorState.Open));
                 Assert.That(simulation.Influence, Is.EqualTo(
-                    data.Influence.Starting - data.Influence.UnlockDoorCost - data.Influence.OpenDoorCost));
+                    data.Influence.Starting - data.Influence.UnlockExitCost - data.Influence.OpenDoorCost));
+            }
+        }
+
+        /// <summary>The key is the player's to turn (2026-09-25): ten on an inside door either way, and the whole purse at the way out.</summary>
+        [Test]
+        public void TheKey_CostsTenInside_AndTheWholePurseAtTheWayOut()
+        {
+            ScenarioData data = QuietRoom();
+            using (var simulation = new Run(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.ToggleLock, ClosetDoor, 1);
+                simulation.Step();
+                Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Locked), "Locked by the player.");
+                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.LockDoorCost));
+                List<CausalEvent> locked = EventsOfType(simulation, CausalEventType.DoorLocked);
+                Assert.That(locked, Has.Count.EqualTo(1));
+                Assert.That(locked[0].SourceId, Is.EqualTo(ClosetDoor), "The player's own doing: the door names itself.");
+                Assert.That(locked[0].HasCausalParent, Is.False);
+
+                simulation.QueueCommand(PlayerCommandType.ToggleLock, ClosetDoor, 2);
+                simulation.Step();
+                Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Unlocked), "And unlocked again.");
+                Assert.That(simulation.Influence, Is.EqualTo(
+                    data.Influence.Starting - data.Influence.LockDoorCost - data.Influence.UnlockDoorCost));
+
+                simulation.QueueCommand(PlayerCommandType.ToggleLock, WayOut, 3);
+                simulation.Step();
+                Assert.That(StateOf(simulation, WayOut), Is.EqualTo(DoorState.Unlocked));
+                Assert.That(simulation.Influence, Is.EqualTo(
+                    data.Influence.Starting - data.Influence.LockDoorCost - data.Influence.UnlockDoorCost - data.Influence.UnlockExitCost));
+            }
+        }
+
+        [Test]
+        public void AnOpenDoor_LockedByThePlayer_IsShutFirst_AndCostsBoth()
+        {
+            ScenarioData data = QuietRoom();
+            using (var simulation = new Run(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, ClosetDoor, 1);
+                simulation.QueueCommand(PlayerCommandType.ToggleLock, ClosetDoor, 2);
+                simulation.Step();
+                simulation.Step();
+
+                Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Locked), "Shut and locked.");
+                Assert.That(EventsOfType(simulation, CausalEventType.DoorClosed), Has.Count.EqualTo(1));
+                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting -
+                    data.Influence.OpenDoorCost - data.Influence.CloseDoorCost - data.Influence.LockDoorCost));
+            }
+        }
+
+        /// <summary>The shipped purse: a hundred at most, and the way out costs exactly that (the owner's rules, 2026-09-25).</summary>
+        [Test]
+        public void TheShippedPurse_HoldsAHundred_AndTheWayOutCostsAllOfIt()
+        {
+            ScenarioData data = scenario.ToRuntimeData();
+            Assert.That(data.Influence.Maximum, Is.EqualTo(100));
+            Assert.That(data.Influence.UnlockExitCost, Is.EqualTo(data.Influence.Maximum));
+            Assert.That(data.Influence.OpenDoorCost, Is.EqualTo(10));
+            Assert.That(data.Influence.CloseDoorCost, Is.EqualTo(10));
+            Assert.That(data.Influence.LockDoorCost, Is.EqualTo(10));
+            Assert.That(data.Influence.UnlockDoorCost, Is.EqualTo(10));
+            using (var simulation = new Run(data))
+            {
+                simulation.GiveInfluenceForTests(1000);
+                Assert.That(simulation.Influence, Is.EqualTo(100), "The purse never holds more than a hundred.");
             }
         }
 
@@ -456,7 +523,7 @@ namespace Paniq.Tests.EditMode
             Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped), "Nobody got out.");
             // Two clicks to get the door open -- the key, then the door -- and
             // then somebody walks out through it and pays some of it back.
-            int doorCost = data.Influence.UnlockDoorCost + data.Influence.OpenDoorCost;
+            int doorCost = data.Influence.UnlockExitCost + data.Influence.OpenDoorCost;
             Assert.That(simulation.Influence, Is.EqualTo(starting - doorCost + data.Influence.PerPersonSaved),
                 "Getting somebody out should pay influence back, on top of what the door cost.");
             Assert.That(simulation.InfluenceEarned, Is.EqualTo(data.Influence.PerPersonSaved));

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 
@@ -82,19 +83,49 @@ namespace Paniq.Presentation
                 case PlayerCommandType.SpawnExtinguisher: return "a bottle where you click";
                 case PlayerCommandType.BlastWall: return "a hole through a wall";
                 case PlayerCommandType.PopFuseBox: return "the fuse box goes off";
+                case PlayerCommandType.StickTogether: return "everyone caught keeps together";
                 default: return string.Empty;
             }
         }
 
+        /// <summary>The red band across the very top while the bells ring.</summary>
+        private static readonly Color BannerRed = new Color(0.8f, 0.08f, 0.06f);
+        private const float BannerHeight = 28f;
+
+        private static GUIStyle bannerStyle;
+
+        private static GUIStyle BannerStyle => bannerStyle ??= new GUIStyle(GUI.skin.label)
+        {
+            fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, fontSize = 16
+        };
+
+        /// <summary>
+        /// The top of the screen (packed toward it since 2026-09-25, the owner
+        /// asked): a red FIRE ALARM band across the very top while the bells
+        /// ring, then four lines at the top left -- the tick and the fire, the
+        /// head count, the round's score, and what a click on the door or the
+        /// pull station under the pointer would do and cost. The band's 28
+        /// pixels are always kept, so nothing jumps when the bells start.
+        /// </summary>
         public static void Draw(
             RunSnapshot snapshot,
             ScenarioData scenario,
-            SimulationId? hoveredDoor,
-            DoorState hoveredState,
-            bool hoveredIsJammed = false,
+            ulong seed,
+            DoorSnapshot? hoveredDoor,
             SimulationId? hoveredAlarm = null)
         {
             GUI.color = Color.white;
+            if (snapshot.AlarmsRinging)
+            {
+                // Two beats a second, like the bells.
+                float pulse = Mathf.Repeat(Time.unscaledTime * 4f, 2f) < 1f ? 1f : 0.75f;
+                var band = new Rect(0f, 0f, Screen.width, BannerHeight);
+                GUI.color = new Color(BannerRed.r, BannerRed.g, BannerRed.b, pulse);
+                GUI.DrawTexture(band, Texture2D.whiteTexture);
+                GUI.color = Color.white;
+                GUI.Label(band, "FIRE ALARM", BannerStyle);
+            }
+
             string fireText;
             if (snapshot.FireActive)
             {
@@ -110,29 +141,42 @@ namespace Paniq.Presentation
                 fireText = $"FIRE IN {Mathf.Max(0f, (scenario.Fire.ActivationTick - snapshot.Tick) / (float)Run.TicksPerSecond):0.00} s";
             }
 
-            GUI.Label(new Rect(20f, 20f, 360f, 24f), $"Fire-reaction prototype  |  tick {snapshot.Tick}");
-            GUI.Label(new Rect(20f, 44f, 480f, 24f),
-                snapshot.AlarmsRinging ? $"{fireText}   |   ALARM RINGING" : fireText);
-            GUI.Label(new Rect(20f, 68f, 900f, 24f),
+            GUI.Label(new Rect(20f, 36f, 700f, 22f), $"Fire-reaction prototype  |  tick {snapshot.Tick}  |  {fireText}");
+            GUI.Label(new Rect(20f, 58f, 900f, 22f),
                 $"Calm {snapshot.CalmCount}   Scared {snapshot.ScaredCount} (frozen {snapshot.FrozenCount}, on fire {snapshot.BurningCount})   " +
                 $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   " +
                 $"Escaped {snapshot.EscapedCount}   In a room with no fire {snapshot.ClearOfFireCount}");
+
+            // The round's score, on its dark backing.
+            var strip = new Rect(20f, 80f, 720f, 22f);
+            GUI.color = StripBack;
+            GUI.DrawTexture(strip, Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(strip.x + 8f, strip.y, strip.width - 16f, strip.height),
+                $"Saved {snapshot.SavedCount}   Lost {snapshot.LostCount}   Still inside {snapshot.RemainingCount}" +
+                $"      Need {snapshot.TargetSavedCount} of {snapshot.CrowdSize} to clear      Seed {seed}");
+
             if (hoveredDoor.HasValue)
             {
                 // A door with something wedged in it will not move however many
                 // times you click, so say so rather than letting the click look
                 // as though it did nothing. Same for a door they cannot pay for:
-                // without this the click simply vanishes.
-                int price = snapshot.CostOfDoorClick(hoveredState);
-                bool affordable = snapshot.Influence >= price;
-                string action = hoveredIsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted"
-                    : hoveredState == DoorState.Broken ? "Broken down"
-                    : !affordable ? $"NOT ENOUGH INFLUENCE - it costs {price}, and you have {snapshot.Influence}"
-                    : hoveredState == DoorState.Locked ? $"Click to unlock ({price})"
-                    : hoveredState == DoorState.Unlocked ? $"Click to open ({price})"
-                    : $"Click to close ({price}, if nobody is in the doorway)";
-                GUI.color = hoveredIsJammed || !affordable ? new Color(1f, 0.7f, 0.6f) : Color.white;
-                GUI.Label(new Rect(20f, 92f, 700f, 24f), $"Door {hoveredDoor.Value.Value}: {action}");
+                // without this the click simply vanishes. One click works the
+                // door; a double click turns its key (2026-09-25).
+                DoorSnapshot door = hoveredDoor.Value;
+                int price = snapshot.CostOfDoorClick(door.State, door.LeadsOutside);
+                int key = snapshot.CostOfLockToggle(door.State, door.LeadsOutside);
+                bool locked = door.State == DoorState.Locked;
+                bool affordable = snapshot.Influence >= (locked ? key : price);
+                string action = door.Swings ? "Swing doors: people push straight through, and there is nothing to work"
+                    : door.IsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted"
+                    : door.State == DoorState.Broken ? "Broken down"
+                    : !affordable ? $"NOT ENOUGH INFLUENCE - it costs {(locked ? key : price)}, and you have {snapshot.Influence}"
+                    : locked ? $"Locked. Double-click to unlock ({key})"
+                    : door.State == DoorState.Unlocked ? $"Click to open ({price}); double-click to lock ({key})"
+                    : $"Click to close ({price}, if nobody is in the doorway); double-click to shut and lock ({key})";
+                GUI.color = door.IsJammed || !affordable ? new Color(1f, 0.7f, 0.6f) : Color.white;
+                GUI.Label(new Rect(20f, 104f, 900f, 22f), $"Door {door.DoorId.Value}: {action}");
                 GUI.color = Color.white;
             }
             else if (hoveredAlarm.HasValue)
@@ -145,10 +189,12 @@ namespace Paniq.Presentation
                     : !affordable ? $"NOT ENOUGH INFLUENCE - it costs {price}, and you have {snapshot.Influence}"
                     : $"Click to pull it ({price}): every bell in the building rings";
                 GUI.color = affordable || snapshot.AlarmsRinging ? Color.white : new Color(1f, 0.7f, 0.6f);
-                GUI.Label(new Rect(20f, 92f, 700f, 24f), $"Fire alarm {hoveredAlarm.Value.Value}: {action}");
+                GUI.Label(new Rect(20f, 104f, 900f, 22f), $"Fire alarm {hoveredAlarm.Value.Value}: {action}");
                 GUI.color = Color.white;
             }
         }
+
+        private static readonly Color StripBack = new Color(0f, 0f, 0f, 0.55f);
 
         /// <summary>Which cards are thrown at a patch of crowd rather than at a place in the building.</summary>
         private static bool IsAThrownCard(PlayerCommandType card)
@@ -160,6 +206,7 @@ namespace Paniq.Presentation
                 case PlayerCommandType.PlayTerror:
                 case PlayerCommandType.PlayBastard:
                 case PlayerCommandType.PlayColdHeart:
+                case PlayerCommandType.StickTogether:
                     return true;
                 default:
                     return false;
@@ -168,18 +215,20 @@ namespace Paniq.Presentation
 
         /// <summary>
         /// The player's purse and their cards, along the bottom: portrait
-        /// cards, each with its number, its name, a line on what it does and
-        /// its price. A card they cannot afford is dimmed red and cannot be
-        /// picked up; the one in their hand lifts and turns blue, and the line
-        /// above says what a click will do. They used to be wide bars of text
-        /// (the owner asked, 2026-09-24, for cards that look like cards and
-        /// take less room).
+        /// cards, each with its name, a line on what it does and its price.
+        /// Two of a kind sit as one card with the count in its corner
+        /// (2026-09-25). A card is a button: click it to pick it up, click it
+        /// again to put it down. A card they cannot afford is dimmed red; the
+        /// one in their hand lifts and turns blue, and the line above says
+        /// what a click will do. They used to be wide bars of text picked up
+        /// with the number keys.
         /// </summary>
         public static void DrawCards(
             RunSnapshot snapshot, PlayerCommandType? selected, PlayerInput input, int peopleInTheCircle)
         {
             float bottom = Screen.height - 20f;
-            float handWidth = Mathf.Max(300f, snapshot.Hand.Count * (CardWidth + CardGap) - CardGap);
+            int stacks = CountStacks(snapshot.Hand);
+            float handWidth = Mathf.Max(300f, stacks * (CardWidth + CardGap) - CardGap);
             float cardsTop = bottom - CardHeight - CardLift;
 
             // The purse, above the hand and as wide as it.
@@ -193,13 +242,13 @@ namespace Paniq.Presentation
             GUI.DrawTexture(new Rect(barArea.x, barArea.y, barArea.width * fraction, barArea.height), Texture2D.whiteTexture);
             GUI.color = Color.white;
             GUI.Label(new Rect(barArea.x + barArea.width + 10f, barArea.y - 3f, 400f, 22f),
-                $"Influence {snapshot.Influence}   (spent {snapshot.InfluenceSpent}, taken in {snapshot.InfluenceEarned})");
+                $"Influence {snapshot.Influence} of {snapshot.InfluenceMaximum}   (spent {snapshot.InfluenceSpent}, taken in {snapshot.InfluenceEarned})");
 
             // The hand. One card at the start of a round and then only what
             // the dead deal, so an empty bar is the game saying "you have
             // played what you had and nobody has died since" rather than a
             // display that has not loaded.
-            if (snapshot.Hand.Count == 0)
+            if (stacks == 0)
             {
                 GUI.color = new Color(0.75f, 0.75f, 0.75f);
                 GUI.Label(new Rect(20f, bottom - 22f, 700f, 22f), "No cards left. The dead deal them.");
@@ -207,14 +256,23 @@ namespace Paniq.Presentation
                 return;
             }
 
-            for (int i = 0; i < snapshot.Hand.Count; i++)
+            for (int i = 0; i < stacks; i++)
             {
-                PlayerCommandType card = snapshot.Hand[i];
+                PlayerCommandType card = stackKinds[i];
+                int count = stackCounts[i];
                 int cost = snapshot.CostOf(card);
                 bool affordable = snapshot.Influence >= cost;
                 bool picked = selected == card;
                 var area = new Rect(20f + i * (CardWidth + CardGap), bottom - CardHeight - (picked ? CardLift : 0f),
                     CardWidth, CardHeight);
+
+                // The card is a button. It claims its patch of screen so the
+                // click that picks it up never also lands on the floor behind.
+                HudHitTest.Claim(area);
+                if (GUI.Button(area, GUIContent.none, GUIStyle.none))
+                {
+                    input.Toggle(card);
+                }
 
                 // Edge and face.
                 GUI.color = picked ? CardPicked : affordable ? CardEdge : CardTooDearEdge;
@@ -222,12 +280,15 @@ namespace Paniq.Presentation
                 GUI.color = affordable ? CardFace : CardTooDearFace;
                 GUI.DrawTexture(new Rect(area.x + 2f, area.y + 2f, area.width - 4f, area.height - 4f), Texture2D.whiteTexture);
 
-                // The key that picks it up, in a badge top left.
-                var badge = new Rect(area.x + 6f, area.y + 6f, 22f, 22f);
-                GUI.color = picked ? CardPicked : Badge;
-                GUI.DrawTexture(badge, Texture2D.whiteTexture);
-                GUI.color = picked ? Color.white : Color.black;
-                GUI.Label(badge, (i + 1).ToString(), BadgeStyle);
+                // Two or more of a kind: the count, in a badge top left.
+                if (count > 1)
+                {
+                    var badge = new Rect(area.x + 6f, area.y + 6f, 30f, 22f);
+                    GUI.color = picked ? CardPicked : Badge;
+                    GUI.DrawTexture(badge, Texture2D.whiteTexture);
+                    GUI.color = picked ? Color.white : Color.black;
+                    GUI.Label(badge, $"×{count}", BadgeStyle);
+                }
 
                 // Name, what it does, and the price.
                 Color ink = affordable ? Color.white : new Color(1f, 0.7f, 0.7f, 0.9f);
@@ -273,7 +334,32 @@ namespace Paniq.Presentation
             }
 
             GUI.color = Color.white;
-            GUI.Label(new Rect(20f, barArea.y - 26f, 900f, 22f), hint);
+            GUI.Label(new Rect(20f, barArea.y - 26f, 900f, 22f), hint + "   (right click or Escape puts it down)");
+        }
+
+        /// <summary>The kinds in hand in the order they were first dealt, and how many of each: the stacks the hand is drawn as.</summary>
+        private static readonly List<PlayerCommandType> stackKinds = new List<PlayerCommandType>();
+        private static readonly List<int> stackCounts = new List<int>();
+
+        private static int CountStacks(IReadOnlyList<PlayerCommandType> hand)
+        {
+            stackKinds.Clear();
+            stackCounts.Clear();
+            for (int i = 0; i < hand.Count; i++)
+            {
+                int at = stackKinds.IndexOf(hand[i]);
+                if (at < 0)
+                {
+                    stackKinds.Add(hand[i]);
+                    stackCounts.Add(1);
+                }
+                else
+                {
+                    stackCounts[at]++;
+                }
+            }
+
+            return stackKinds.Count;
         }
 
         /// <summary>
@@ -301,26 +387,28 @@ namespace Paniq.Presentation
                 (Colour: new Color(0.7f, 0.85f, 1f), Mark: "*", Means: "frozen with fear"),
                 (Colour: new Color(1f, 0.9f, 0.35f), Mark: "o o o", Means: "out cold"),
                 (Colour: new Color(0.4f, 0.95f, 0.5f), Mark: "star", Means: "somebody is following them"),
+                (Colour: new Color(0.85f, 0.6f, 1f), Mark: "band", Means: "at the ankles: keeping together with the others wearing it"),
                 (Colour: new Color(1f, 0.55f, 0.15f), Mark: "[]", Means: "on fire"),
                 (Colour: new Color(0.55f, 0.15f, 0.15f), Mark: "[]", Means: "lost")
             };
 
             var keys = new[]
             {
-                ("1 - 6", "pick a card up, then click to play it"),
+                ("Click a card", "pick it up, then click the floor to throw it. Two of a kind sit as one card"),
                 ("Cards", "dealt by the dead, one each. Nobody dies, nobody deals"),
                 ("Influence", "paid by the uproar, and by everyone who gets out"),
                 ("Escape", "put the card back down (or right click)"),
-                ("Click a door", $"red is locked. Unlock {snapshot.CostOfDoorClick(DoorState.Locked)}, " +
-                                 $"open {snapshot.CostOfDoorClick(DoorState.Unlocked)}, " +
-                                 $"close {snapshot.CostOfDoorClick(DoorState.Open)}"),
+                ("Click a door", $"open or shut it for {snapshot.CostOfDoorClick(DoorState.Unlocked, false)}; " +
+                                 $"double-click to lock or unlock it for {snapshot.CostOfLockToggle(DoorState.Locked, false)}. " +
+                                 $"Red is locked; the way out costs {snapshot.CostOfLockToggle(DoorState.Locked, true)} to unlock"),
                 ("W A S D", "move the camera"),
                 ("Q E", "turn a quarter"),
                 ("Wheel", "zoom"),
                 ("Tab", "everyone's stats"),
                 ("G", "the floor people can walk on"),
-                ("Space", "start and stop the world"),
-                ("Menu", "the button top right: back to the start card, keeping the seed")
+                ("Space", "start and stop the world (or the Pause button, top right)"),
+                ("Reset", "the button top right: back to the start card, keeping the seed"),
+                ("Trigger event", "the red button bottom centre starts the fire, once, and goes")
             };
 
             int rows = Math.Max(marks.Length, keys.Length);
@@ -366,8 +454,8 @@ namespace Paniq.Presentation
             const float rowHeight = 20f;
             float width = 640f;
             float height = rowHeight * (snapshot.Agents.Count + 3) + 12f;
-            // Below the Menu button, which sits in the top-right corner.
-            var area = new Rect(Screen.width - width - 20f, 60f, width, height);
+            // Below Reset and Pause, which sit in the top-right corner.
+            var area = new Rect(Screen.width - width - 20f, 108f, width, height);
             GUI.color = new Color(0f, 0f, 0f, 0.75f);
             GUI.DrawTexture(area, Texture2D.whiteTexture);
             GUI.color = Color.white;
@@ -471,7 +559,7 @@ namespace Paniq.Presentation
                 case AgentActivityState.StandingUp: return "getting up";
                 case AgentActivityState.GoingToAlarm: return "going for the alarm";
                 case AgentActivityState.PullingAlarm: return "hitting the alarm";
-                case AgentActivityState.Fleeing: return agent.IsComposed ? "walking out" : "running";
+                case AgentActivityState.Fleeing: return "running";
                 default: return agent.ActivityState.ToString().ToLowerInvariant();
             }
         }

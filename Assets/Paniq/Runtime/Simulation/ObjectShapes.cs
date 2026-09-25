@@ -158,6 +158,11 @@
                 case PhysicsObjectKind.RobotVacuum:
                     return new[] { Box(0, 45, 0, size, 90, size) };
 
+                // A fire alarm bell: a plate high on the wall, above every
+                // head, so nobody ever bumps into it.
+                case PhysicsObjectKind.AlarmSounder:
+                    return new[] { Box(0, 2100, 0, size, size, 40) };
+
                 default:
                     return new[] { Box(0, size * 3 / 8, 0, size, size * 3 / 4, size) };
             }
@@ -230,6 +235,8 @@
                     return 250;
                 case PhysicsObjectKind.RobotVacuum:
                     return 90;
+                case PhysicsObjectKind.AlarmSounder:
+                    return 2100 + size / 2;
                 default:
                     return size * 3 / 4;
             }

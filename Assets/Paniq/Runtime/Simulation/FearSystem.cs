@@ -123,45 +123,19 @@
         /// <summary>Startled by something they heard or felt at <paramref name="from"/>; they will turn toward it.</summary>
         public void Alarm(Agent agent, ulong causalParentEventId, AgentAlertSource alertSource, LogicalPosition from)
         {
-            if (alertSource == AgentAlertSource.Alarm)
-            {
-                // A bell tells you there is a fire without showing you one, so
-                // the level-headed simply leave.
-                agent.Fear.Composed = TraitEffects.StaysComposed(agent.Traits, context.Scenario);
-            }
-
+            // A bell tells you there is a fire without showing you one, and
+            // it frightens you just the same: the owner's rule (2026-09-25),
+            // "pull it, and everybody panics". The level-headed used to walk
+            // out at a stroll instead.
             StartAlert(agent, causalParentEventId, alertSource);
             agent.Hearing.SoundPoint = from;
             agent.Hearing.HasSoundPoint = true;
-        }
-
-        /// <summary>
-        /// Composure goes the moment the fire stops being an abstraction: it
-        /// comes at them, somebody knocks them over, they catch light, or they
-        /// see the flames for themselves. From then on they panic like anybody
-        /// else.
-        /// </summary>
-        public void BreakComposure(Agent agent)
-        {
-            if (!agent.Fear.Composed)
-            {
-                return;
-            }
-
-            agent.Fear.Composed = false;
-
-            // Whatever they were doing calmly, they are now running.
-            if (agent.Fear.State == AgentFearState.Scared && agent.Intent.Activity != AgentActivityState.Frozen)
-            {
-                context.ThinkAgainSoon(agent.Intent);
-            }
         }
 
         /// <summary>An alerted person now sees the danger for themselves; <paramref name="rootEventId"/> is what started the threat they saw.</summary>
         public void PromoteAlertToVisual(Agent agent, ulong rootEventId)
         {
             agent.Fear.AlertSource = AgentAlertSource.Visual;
-            BreakComposure(agent);
             CausalEvent alert = context.Events.Append(
                 context.Tick,
                 agent.Id,
@@ -201,9 +175,8 @@
                 agent.Fear.AlertEventId != 0UL ? agent.Fear.AlertEventId : threats.RootEventId);
             agent.Fear.ScaredEventId = scared.EventId;
 
-            if (agent.Personality.Temperament == AgentPanicTemperament.Runner || agent.Fear.Composed)
+            if (agent.Personality.Temperament == AgentPanicTemperament.Runner)
             {
-                // Nobody who is keeping their head freezes; they head for a way out.
                 StartFleeing(agent);
                 return;
             }

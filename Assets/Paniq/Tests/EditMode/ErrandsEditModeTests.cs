@@ -66,10 +66,11 @@ namespace Paniq.Tests.EditMode
         {
             // Home time with the way out unlocked late: person 1018 reached
             // the open front door with nobody near and circled in front of it
-            // for half a minute. They had strolled through the cafeteria's
-            // shortcut earlier, that was still the one doorway they counted
-            // as lined up with, and the wall beside the way out pushed them
-            // off it every time they came near.
+            // for half a minute. They had strolled through a cafeteria door
+            // earlier (its shortcut onto the crossbar, since taken out; the
+            // meeting room's door stands in for it here), that was still the
+            // one doorway they counted as lined up with, and the wall beside
+            // the way out pushed them off it every time they came near.
             ScenarioData data = TheBuilding.WithThePlayerAbleToAct(CalmDay());
             using (var simulation = new Run(data))
             {
@@ -77,7 +78,7 @@ namespace Paniq.Tests.EditMode
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, 2);
                 int person = IndexOf(simulation, 1018UL);
                 Agent walker = simulation.AgentForTests(person);
-                walker.Doors.StrollDoorIndex = DoorIndex(simulation, TheBuilding.CafeteriaShortcut);
+                walker.Doors.StrollDoorIndex = DoorIndex(simulation, TheBuilding.MeetingRoomToCafeteria);
                 simulation.CuesForTests.CallHomeTime(0, 0UL);
 
                 bool walking = false;
@@ -149,8 +150,8 @@ namespace Paniq.Tests.EditMode
 
         private static bool IsInAStall(LogicalPosition where)
         {
-            // The three stalls hang off the bathroom's south wall.
-            return where.X >= 8250 && where.X <= 12750 && where.Z >= -500 && where.Z <= 1000;
+            // The three stalls run the full width of the bathroom's south wall.
+            return where.X >= 8000 && where.X <= 13000 && where.Z >= -500 && where.Z <= 1000;
         }
 
         private static DoorState StateOf(Run simulation, SimulationId doorId)

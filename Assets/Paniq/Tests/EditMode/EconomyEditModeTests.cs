@@ -109,7 +109,8 @@ namespace Paniq.Tests.EditMode
                 first = simulation.GetSnapshot().Hand[0];
                 Assert.That(first, Is.EqualTo(PlayerCommandType.PlayBeefcake)
                     .Or.EqualTo(PlayerCommandType.BlastWall)
-                    .Or.EqualTo(PlayerCommandType.SpawnExtinguisher), "The deck is Beefcake, TNT and the fire extinguisher.");
+                    .Or.EqualTo(PlayerCommandType.SpawnExtinguisher)
+                    .Or.EqualTo(PlayerCommandType.StickTogether), "The deck is Beefcake, TNT, the fire extinguisher and Stick together.");
                 List<CausalEvent> dealt = EventsOfType(simulation, CausalEventType.CardDealt);
                 Assert.That(dealt, Has.Count.EqualTo(1));
                 Assert.That(dealt[0].SourceId.Value, Is.EqualTo(0UL), "Dealt by nobody's death.");

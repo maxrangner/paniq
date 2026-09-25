@@ -64,6 +64,7 @@
                 case PlayerCommandType.SpawnExtinguisher:
                 case PlayerCommandType.BlastWall:
                 case PlayerCommandType.PopFuseBox:
+                case PlayerCommandType.StickTogether:
                     return settings.CardCost;
 
                 // Not a card, but priced like one: always on offer, and paid
@@ -79,17 +80,34 @@
         }
 
         /// <summary>
-        /// What one click on a door in this state would cost. Turning the key
-        /// costs most, walking it open costs less, pulling it shut costs least,
-        /// and a door somebody has already broken down is past charging for.
+        /// What one click on a door in this state would cost: turning the key
+        /// on a locked one (the whole purse at the building's way out), walking
+        /// a shut one open, pulling an open one shut; a door somebody has
+        /// already broken down is past charging for.
         /// </summary>
-        public int CostOfDoorClick(DoorState state)
+        public int CostOfDoorClick(DoorState state, bool leadsOutside)
         {
             switch (state)
             {
-                case DoorState.Locked: return settings.UnlockDoorCost;
+                case DoorState.Locked: return leadsOutside ? settings.UnlockExitCost : settings.UnlockDoorCost;
                 case DoorState.Unlocked: return settings.OpenDoorCost;
                 case DoorState.Open: return settings.CloseDoorCost;
+                default: return 0;
+            }
+        }
+
+        /// <summary>
+        /// What turning the key on a door in this state would cost: unlocking
+        /// a locked one (the whole purse at the way out), locking a shut one,
+        /// or shutting and locking an open one.
+        /// </summary>
+        public int CostOfLockToggle(DoorState state, bool leadsOutside)
+        {
+            switch (state)
+            {
+                case DoorState.Locked: return leadsOutside ? settings.UnlockExitCost : settings.UnlockDoorCost;
+                case DoorState.Unlocked: return settings.LockDoorCost;
+                case DoorState.Open: return settings.CloseDoorCost + settings.LockDoorCost;
                 default: return 0;
             }
         }
@@ -227,6 +245,7 @@
                 case CausalEventType.PowerBlastedWall:
                 case CausalEventType.PowerPoppedFuseBox:
                 case CausalEventType.PowerPulledAlarm:
+                case CausalEventType.PowerStickTogether:
                 case CausalEventType.DoorUnlocked:
                 case CausalEventType.RoundEventTriggered:
                 case CausalEventType.RoundEnded:

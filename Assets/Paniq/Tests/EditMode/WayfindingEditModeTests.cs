@@ -96,7 +96,7 @@ namespace Paniq.Tests.EditMode
             floor.Signs = new ExitSignBehaviour(floor.Context, floor.Geometry);
             floor.Wayfinding = new WayfindingSystem(floor.Context, floor.Geometry, floor.Signs);
             floor.DoorChoice = new DoorBehaviour(floor.Context, crowd, floor.Geometry, floor.Doors, threats, sound,
-                floor.Signs, floor.Wayfinding);
+                floor.Signs, floor.Wayfinding, new GroupSystem(floor.Context, crowd, floor.Wayfinding));
             return floor;
         }
 
@@ -243,9 +243,10 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = scenario.ToRuntimeData();
 
-            // In the middle of the office, pointing south: the only way out of
-            // the office is north, through its door onto the corridor.
-            data.ExitSigns = new[] { new ExitSignDefinition(TheBuilding.Office, 180) };
+            // In the middle of the office, pointing west: the office's doors
+            // are north, onto the corridor, and east, into the stockroom, and
+            // its west wall has nothing in it.
+            data.ExitSigns = new[] { new ExitSignDefinition(TheBuilding.Office, 270) };
             Floor floor = Build(data, (TheBuilding.MeetingRoom, 0));
 
             Assert.That(floor.Wayfinding.WhatSignTeaches(0), Is.Empty);
@@ -286,42 +287,44 @@ namespace Paniq.Tests.EditMode
 
         /// <summary>
         /// A long table across the cafeteria between its two doors. Somebody
-        /// by the corridor door who wants the shortcut cannot walk the line to
-        /// it any more: they go round the table's far end, or out by the
-        /// corridor door and round through the corridor, whichever is the
-        /// shorter walk, and either is far longer than the line. Only the
-        /// shortcut is known, so the route has to name it, and its cost is
-        /// that walk: the same squares the feet will follow.
+        /// by the corridor door who wants the meeting room's door cannot walk
+        /// the line to it any more: they go round the table's far end, which
+        /// is far longer than the line. Only that door is known, so the route
+        /// has to name it, and its cost is that walk: the same squares the
+        /// feet will follow. (It used to be the cafeteria's shortcut onto the
+        /// crossbar, which the owner had taken out on 2026-09-25.)
         /// </summary>
         [Test]
         public void ARoute_CostsTheWalkRoundATable_NotTheLine()
         {
             var byTheCorridorDoor = new LogicalPosition(6000, 9600);
-            long line = IntegerMath.Distance(byTheCorridorDoor, new LogicalPosition(13000, 12000));
+            long line = IntegerMath.Distance(byTheCorridorDoor, new LogicalPosition(2000, 14000));
 
-            long CostOfTheShortcut(ScenarioData data)
+            long CostOfTheDoor(ScenarioData data)
             {
                 Floor floor = Build(data, (byTheCorridorDoor, 0));
                 Agent visitor = floor.Visitor(0);
-                int shortcut = floor.Door(TheBuilding.CafeteriaShortcut);
+                int door = floor.Door(TheBuilding.MeetingRoomToCafeteria);
                 int from = floor.Room(TheBuilding.Cafeteria);
-                int to = floor.Geometry.RoomBeyond(shortcut, from);
+                int to = floor.Geometry.RoomBeyond(door, from);
                 Assert.That(floor.Geometry.TryFindKnownRoute(from, byTheCorridorDoor, to, visitor,
                         out int first, out _, out long cost), Is.True);
-                Assert.That(first, Is.EqualTo(shortcut));
+                Assert.That(first, Is.EqualTo(door));
                 return cost;
             }
 
-            long clear = CostOfTheShortcut(scenario.ToRuntimeData());
+            long clear = CostOfTheDoor(scenario.ToRuntimeData());
             Assert.That(clear, Is.GreaterThan(line * 9 / 10).And.LessThan(line * 13 / 10),
                 "With the floor clear, the walk is about the straight line.");
 
+            // A table from the west wall nearly to the east one, across the
+            // line: the only way round is its far, east end.
             ScenarioData blocked = scenario.ToRuntimeData();
             blocked.Tables = blocked.Tables.Concat(new[]
             {
-                new TableDefinition(new SimulationId(4999UL), new LogicalPosition(7900, 10700), 9800, 1000),
+                new TableDefinition(new SimulationId(4999UL), new LogicalPosition(7100, 10700), 9800, 1000),
             }).ToArray();
-            long round = CostOfTheShortcut(blocked);
+            long round = CostOfTheDoor(blocked);
             Assert.That(round, Is.GreaterThan(line * 3 / 2),
                 "With the table in the way, the route costs a real walk round it, not the line through it.");
         }

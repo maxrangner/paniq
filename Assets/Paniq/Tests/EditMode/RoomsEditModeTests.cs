@@ -92,11 +92,11 @@ namespace Paniq.Tests.EditMode
         public void DefaultScenario_HasAStorageClosetBehindTheEastDoor()
         {
             ScenarioData data = scenario.ToRuntimeData();
-            Assert.That(data.Rooms, Has.Length.EqualTo(11),
+            Assert.That(data.Rooms, Has.Length.EqualTo(12),
                 "Office, closet, corridor, cafeteria, meeting room, bathroom, maintenance,\n"
-                + "the crossbar of the T, and three bathroom stalls.");
+                + "the crossbar of the T, three bathroom stalls, and the stockroom.");
             LogicalBounds b = data.Rooms[1].Bounds;
-            Assert.That((b.MaxX - b.MinX) * (long)(b.MaxZ - b.MinZ), Is.EqualTo(9000000L), "2 × 4.5 m: a storeroom, not a cupboard.");
+            Assert.That((b.MaxX - b.MinX) * (long)(b.MaxZ - b.MinZ), Is.EqualTo(13000000L), "2 × 6.5 m: a storeroom, not a cupboard.");
 
             // Its door is an inside door: shut, but not locked.
             DoorDefinition door = Array.Find(data.Doors, d => d.DoorId == ClosetDoor);
@@ -137,7 +137,7 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
             }
 
-            Assert.That(BurningInCloset(simulation, data), Is.EqualTo(36), "The whole closet should burn.");
+            Assert.That(BurningInCloset(simulation, data), Is.EqualTo(52), "The whole closet should burn: 4 by 13 squares.");
 
             // The first side-room square was lit from the main-room square right next to it, through the door gap.
             FireCellSnapshot first = default;

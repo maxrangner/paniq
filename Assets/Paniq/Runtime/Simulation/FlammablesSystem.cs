@@ -146,7 +146,7 @@ namespace Paniq.Simulation
                     for (int c = 0; c < near.Count; c++)
                     {
                         int i = near[c];
-                        if (things[i].State == ObjectBurnState.Intact && Touches(things[i], agent))
+                        if (things[i].State == ObjectBurnState.Intact && !IsNowhere(things[i]) && Touches(things[i], agent))
                         {
                             Ignite(things[i], agent.Burning.EventId);
                         }
@@ -167,8 +167,14 @@ namespace Paniq.Simulation
             {
                 Flammable thing = things[i];
 
-                // Ignite time 0 means this thing never catches at all (a potted plant).
-                if (thing.State != ObjectBurnState.Intact || thing.IgniteTicks <= 0)
+                // Ignite time 0 means this thing never catches at all (a potted
+                // plant); and a thing that is not in the world yet (a spare
+                // extinguisher the card has not put down, a lamp's shade while
+                // the lamp stands) is nowhere for the flames to reach. Until
+                // 2026-09-25 a dormant shade authored at its lamp's spot could
+                // be lit by a fire in that corner and light the floor from
+                // nowhere.
+                if (thing.State != ObjectBurnState.Intact || thing.IgniteTicks <= 0 || IsNowhere(thing))
                 {
                     continue;
                 }
@@ -261,6 +267,9 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>A loose thing that is not in the world yet: dormant until something puts it there.</summary>
+        private bool IsNowhere(Flammable thing) => !thing.IsTable && objects.IsDormant(thing.Index);
+
         /// <summary>The event of the flames heating this thing (the earliest-lit square, or a burning thing), or 0 when nothing is close.</summary>
         private ulong HeatSource(Flammable thing)
         {
@@ -344,8 +353,49 @@ namespace Paniq.Simulation
 
             // The blast itself belongs to the things, not to the flames: the
             // fire reaching it is only one of the reasons something goes off.
-            objects.Detonate(thing.Index, thing.Id, thing.EventId);
+            ulong bang = objects.Detonate(thing.Index, thing.Id, thing.EventId);
+            if (bang == 0UL)
+            {
+                return;
+            }
+
+            ObjectKindSettings kind = settings.Of(objects.KindOf(thing.Index));
+            if (!kind.PopDouses)
+            {
+                return;
+            }
+
+            // A bottle bursting empties itself over everything around it:
+            // every burning square in its circle goes out, nearest first,
+            // then everything and everybody alight in it -- the bottle itself
+            // included, which is then spent. Squares, things, people: the
+            // order the spray uses, so a replay agrees.
+            LogicalPosition centre = objects.PositionOf(thing.Index);
+            int reach = kind.PopRadiusMillimetres;
+            fire.CollectBurningWithin(centre, reach, burst);
+            for (int i = 0; i < burst.Count; i++)
+            {
+                fire.Douse(burst[i], thing.Id, bang);
+            }
+
+            DouseWithin(centre, reach, bang, 0, 180);
+            objects.UseFuel(thing.Index, int.MaxValue);
+            using (Crowd.Nearby near = crowd.Within(centre, reach))
+            {
+                for (int c = 0; c < near.Count; c++)
+                {
+                    Agent other = crowd.All[near[c]];
+                    if (other.IsParticipating && other.Burning.IsBurning &&
+                        LogicalPosition.DistanceSquared(other.Body.Position, centre) <= (long)reach * reach)
+                    {
+                        body.PutOutPerson(other, bang);
+                    }
+                }
+            }
         }
+
+        /// <summary>The burning squares a bursting bottle reaches, reused each time one goes.</summary>
+        private readonly List<int> burst = new List<int>();
 
         /// <summary>A burning thing that stays in one square for a moment sets that square alight.</summary>
         private void LightTheFloor(Flammable thing)

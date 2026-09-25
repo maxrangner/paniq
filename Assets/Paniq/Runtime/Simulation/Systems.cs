@@ -55,6 +55,7 @@ namespace Paniq.Simulation
         public ExtinguisherBehaviour Extinguishers;
         public LeaderBehaviour Leaders;
         public AlarmSystem Alarms;
+        public GroupSystem Groups;
         public AlarmBehaviour AlarmBehaviour;
         public BarricadeBehaviour Barricades;
         public CueSystem Cues;

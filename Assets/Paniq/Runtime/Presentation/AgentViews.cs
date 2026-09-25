@@ -50,7 +50,16 @@ namespace Paniq.Presentation
             public float EscapedSince = -1f;
             public Vector3 EscapePosition;
             public FlameEmitter Flames;
+
+            /// <summary>A band round the ankles, coloured by the group a "Stick together" throw bound them to (2026-09-25).</summary>
+            public Renderer Band;
         }
+
+        /// <summary>One colour per group, by its number; a fifth group starts over.</summary>
+        private static readonly Color[] GroupColours =
+        {
+            new Color(0.85f, 0.6f, 1f), new Color(1f, 0.8f, 0.3f), new Color(0.4f, 0.9f, 0.9f), new Color(1f, 0.55f, 0.75f)
+        };
 
         private readonly ScenarioData scenario;
         private readonly PresentationMaterials materials;
@@ -74,6 +83,20 @@ namespace Paniq.Presentation
                 agentRenderer.sharedMaterial = materials.Agent;
                 ShowThroughWalls(agentObject, materials);
 
+                // The group band: a thin ring round the ankles, a child of the
+                // capsule so it runs and falls with it. In capsule space the
+                // body runs from -1 to 1 along Y.
+                GameObject band = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                band.name = "Group band";
+                RemoveCollider(band);
+                band.transform.SetParent(agentObject.transform, false);
+                band.transform.localPosition = new Vector3(0f, -0.82f, 0f);
+                band.transform.localScale = new Vector3(1.2f, 0.03f, 1.2f);
+                Renderer bandRenderer = band.GetComponent<Renderer>();
+                bandRenderer.sharedMaterial = materials.Box;
+                ShowThroughWalls(band, materials);
+                band.SetActive(false);
+
                 var visionObject = new GameObject($"Agent {definition.AgentId.Value} vision cone (presentation)");
                 visionObject.transform.SetParent(parent, false);
                 LineRenderer vision = visionObject.AddComponent<LineRenderer>();
@@ -93,7 +116,8 @@ namespace Paniq.Presentation
                     Icons = new AgentIconViews($"Agent {definition.AgentId.Value}", number.ToString(), materials.Icon,
                         definition.AgentId.Value % 60UL, parent),
                     Vision = vision,
-                    ShakePhase = definition.AgentId.Value % 97UL
+                    ShakePhase = definition.AgentId.Value % 97UL,
+                    Band = bandRenderer
                 });
             }
         }
@@ -402,6 +426,19 @@ namespace Paniq.Presentation
                 : agent.FearState == AgentFearState.Calm ? CalmColor
                 : frozen ? FrozenColor : ScaredColor;
             materials.SetColor(view.Renderer, bodyColor);
+
+            // The band, for as long as they are somebody's group.
+            bool grouped = participating && agent.GroupId >= 0;
+            if (view.Band.gameObject.activeSelf != grouped)
+            {
+                view.Band.gameObject.SetActive(grouped);
+            }
+
+            if (grouped)
+            {
+                materials.SetColor(view.Band, GroupColours[agent.GroupId % GroupColours.Length]);
+            }
+
             // Capsule space: the body runs from -1 to 1 along Y, radius 0.5.
             view.Flames.Update(burning, new Vector3(0f, -0.7f, 0f), new Vector3(0.45f, 2f, 0.45f), 0.42f);
 

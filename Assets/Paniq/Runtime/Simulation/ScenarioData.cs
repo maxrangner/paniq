@@ -206,6 +206,7 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private int widthMillimetres;
         [UnityEngine.SerializeField] private bool startsLocked;
         [UnityEngine.SerializeField] private bool isOpening;
+        [UnityEngine.SerializeField] private bool swings;
 
         public DoorDefinition(
             SimulationId doorId,
@@ -214,7 +215,8 @@ namespace Paniq.Simulation
             int centreAlongWallMillimetres,
             int widthMillimetres,
             bool startsLocked = true,
-            bool isOpening = false)
+            bool isOpening = false,
+            bool swings = false)
         {
             this.doorId = doorId;
             this.roomId = roomId;
@@ -223,6 +225,7 @@ namespace Paniq.Simulation
             this.widthMillimetres = widthMillimetres;
             this.startsLocked = startsLocked;
             this.isOpening = isOpening;
+            this.swings = swings;
         }
 
         public SimulationId DoorId => doorId;
@@ -245,6 +248,17 @@ namespace Paniq.Simulation
         /// them. It behaves exactly as a hole blown in a wall already does.
         /// </summary>
         public bool IsOpening => isOpening;
+
+        /// <summary>
+        /// A pair of swing doors (2026-09-25): leaves that push open ahead of
+        /// whoever walks through and swing shut behind them. Nobody opens,
+        /// shuts, locks or batters them, so for people, sight and sound the
+        /// doorway is always open; the fire, though, has a door in its way,
+        /// which holds half as long as a shut door before it burns through --
+        /// unless something lying in the gap props the leaves open. A swing
+        /// door is never an archway and never starts locked.
+        /// </summary>
+        public bool Swings => swings;
     }
 
     /// <summary>
@@ -695,7 +709,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "76";
+        public string ContentRevision = "79";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -797,7 +811,20 @@ namespace Paniq.Simulation
         // 64: the deck is three cards (Beefcake, TNT, fire extinguisher), a
         // round opens with 30 influence and one card drawn from it, and the
         // player can pull a fire alarm for 30.
-        public int SimulationCompatibilityVersion = 64;
+        // 65: the third playtest round (2026-09-25): a stockroom behind the
+        // bathroom with a door into the office and one into the crossbar's
+        // south end, the bathroom squared off and the closet reaching the
+        // stalls' line, swing doors into the cafeteria that the fire burns
+        // through in half the time, bells on the walls that pop and re-ring
+        // and a bell that frightens everybody, the brave pulling the alarm,
+        // nobody barricading a building that is not burning, extinguishers
+        // that burst, a purse of a hundred with the key the player's to turn
+        // (ToggleLock), and the Stick together card (StickTogether,
+        // PowerStickTogether, GroupSystem).
+        // 66: the cafeteria's door onto the crossbar's north arm (2009) is
+        // gone, at the owner's request: nobody has a private door beside
+        // the way out.
+        public int SimulationCompatibilityVersion = 66;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -817,6 +844,7 @@ namespace Paniq.Simulation
         public FlammableSettings Flammables = new FlammableSettings();
         public ExtinguisherSettings Extinguishers = new ExtinguisherSettings();
         public LeadershipSettings Leadership = new LeadershipSettings();
+        public GroupSettings Groups = new GroupSettings();
         public ItemSettings Items = new ItemSettings();
         public HelpSettings Help = new HelpSettings();
         public InfluenceSettings Influence = new InfluenceSettings();
@@ -913,6 +941,7 @@ namespace Paniq.Simulation
             copy.Flammables = Flammables?.Clone();
             copy.Extinguishers = Extinguishers?.Clone();
             copy.Leadership = Leadership?.Clone();
+            copy.Groups = Groups?.Clone();
             copy.Items = Items?.Clone();
             copy.Help = Help?.Clone();
             copy.Influence = Influence?.Clone();
@@ -950,7 +979,7 @@ namespace Paniq.Simulation
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
                 ObjectPhysics == null || PhysicsFeel == null || Traits == null || Flammables == null || Items == null || Help == null ||
                 Influence == null || Alarm == null || Blockades == null || Blast == null ||
-                Extinguishers == null || Leadership == null || Day == null)
+                Extinguishers == null || Leadership == null || Groups == null || Day == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -972,6 +1001,7 @@ namespace Paniq.Simulation
             Flammables.Validate();
             Extinguishers.Validate();
             Leadership.Validate();
+            Groups.Validate();
             Items.Validate();
             Help.Validate();
             Influence.Validate();
@@ -1413,6 +1443,11 @@ namespace Paniq.Simulation
                     door.CentreAlongWallMillimetres + half > wallMax - radius)
                 {
                     throw new InvalidOperationException($"Door {door.DoorId} does not fit in its wall.");
+                }
+
+                if (door.Swings && (door.IsOpening || door.StartsLocked))
+                {
+                    throw new InvalidOperationException($"Door {door.DoorId} swings: it can be neither an archway nor locked.");
                 }
 
                 ValidateDoorNeighbour(door, roomIndex, half);

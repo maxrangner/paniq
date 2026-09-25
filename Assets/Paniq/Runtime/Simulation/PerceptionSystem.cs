@@ -35,15 +35,16 @@ namespace Paniq.Simulation
 
         public void Update(Agent agent)
         {
-            if (!threats.AnyActive)
-            {
-                return;
-            }
-
+            // Seeing the danger needs a danger to see; being startled by
+            // somebody bolting, and a startle turning into fright, do not.
+            // Before 2026-09-25 nothing here ran until the fire existed, so
+            // an alarm bell pulled before it left everybody standing
+            // startled, facing the bell, until the flames came.
+            bool anyDanger = threats.AnyActive;
             bool enteredAlert = false;
             if (agent.Fear.State == AgentFearState.Calm)
             {
-                if (SeesDanger(agent, out ulong seenRoot))
+                if (anyDanger && SeesDanger(agent, out ulong seenRoot))
                 {
                     // Seeing danger: startled, and yelling about it.
                     ulong alertEventId = fear.StartAlert(agent, seenRoot, AgentAlertSource.Visual);
@@ -68,7 +69,7 @@ namespace Paniq.Simulation
                     }
                 }
 
-                if (agent.Fear.State == AgentFearState.Calm)
+                if (agent.Fear.State == AgentFearState.Calm && anyDanger)
                 {
                     // Also while looking toward some other noise: a fire
                     // crackling is not drowned out by a thud in the next room.
@@ -81,7 +82,8 @@ namespace Paniq.Simulation
                 return;
             }
 
-            if (!enteredAlert && agent.Fear.AlertSource != AgentAlertSource.Visual && SeesDanger(agent, out ulong root))
+            if (!enteredAlert && anyDanger && agent.Fear.AlertSource != AgentAlertSource.Visual &&
+                SeesDanger(agent, out ulong root))
             {
                 fear.PromoteAlertToVisual(agent, root);
             }

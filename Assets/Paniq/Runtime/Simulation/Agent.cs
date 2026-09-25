@@ -78,6 +78,7 @@
         public readonly AgentSitting Sitting = new AgentSitting();
         public readonly AgentLeading Leading = new AgentLeading();
         public readonly AgentAlarm Alarm = new AgentAlarm();
+        public readonly AgentGroup Group = new AgentGroup();
         public readonly AgentBarricade Barricade = new AgentBarricade();
         public readonly AgentHome Home = new AgentHome();
         public readonly AgentErrand Errand = new AgentErrand();
@@ -177,9 +178,9 @@
                 Traits,
                 Burning.IsBurning,
                 Leading.LedCount > 0,
-                Fear.Composed,
                 Body.Pose,
-                Sitting.SeatedPercent);
+                Sitting.SeatedPercent,
+                Group.GroupId);
         }
     }
 
@@ -280,14 +281,6 @@
         public int FreezeEndTick;
         public ulong FrozeEventId;
         public int NextShoutTick;
-
-        /// <summary>
-        /// Told about the fire by an alarm bell rather than by seeing it, and
-        /// level-headed enough to walk out instead of panicking: no sprinting,
-        /// no zig-zagging, no dithering and no freezing. It lasts until the fire
-        /// actually comes at them (<see cref="FearSystem.BreakComposure"/>).
-        /// </summary>
-        public bool Composed;
     }
 
     internal sealed class AgentIntent
@@ -582,6 +575,22 @@
     {
         /// <summary>The fire alarm they are walking over to hit, or -1.</summary>
         public int AlarmIndex = -1;
+    }
+
+    /// <summary>Bound by a "Stick together" throw (see <see cref="GroupSystem"/>).</summary>
+    internal sealed class AgentGroup
+    {
+        /// <summary>The group they belong to, or -1.</summary>
+        public int GroupId = -1;
+
+        /// <summary>The throw that bound them, so what they learn from the others names it.</summary>
+        public ulong CauseEventId;
+
+        /// <summary>When the pull toward the others begins: a few ticks after the throw, like every reaction.</summary>
+        public int FromTick;
+
+        /// <summary>When they next compare notes on the way out with the others.</summary>
+        public int NextShareTick;
     }
 
     /// <summary>

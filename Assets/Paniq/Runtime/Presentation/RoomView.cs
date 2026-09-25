@@ -45,6 +45,29 @@ namespace Paniq.Presentation
             public float ShakeStart = -10f;
             public DoorState State;
             public int DamagePercent;
+
+            /// <summary>
+            /// A pair of swing doors (2026-09-25): a second hinge and leaf at
+            /// the far end of the gap, and instead of a state to follow, a
+            /// spring. Somebody in the doorway pushes the leaves ahead of them;
+            /// let go, they flap back past shut and settle.
+            /// </summary>
+            public bool Swings;
+            public Transform Hinge2;
+            public Vector3 Hinge2Position;
+            public Renderer Leaf2;
+
+            /// <summary>How far open the leaves are: +1 fully out of the room, -1 fully into it, 0 shut. Overshoots.</summary>
+            public float Open;
+            public float OpenVelocity;
+
+            /// <summary>Which way the leaves are being pushed right now, or 0.</summary>
+            public int Push;
+
+            /// <summary>The gap, for telling who is in it: its middle, the wall's direction, and half its width.</summary>
+            public Vector3 GapCentre;
+            public Vector3 Along;
+            public float HalfWidth;
         }
 
         private readonly PresentationMaterials materials;
@@ -75,7 +98,7 @@ namespace Paniq.Presentation
         /// <summary>Every table's parts (top and legs), recoloured as it heats, burns and chars.</summary>
         private readonly Dictionary<SimulationId, TableView> tables = new Dictionary<SimulationId, TableView>();
 
-        /// <summary>The boxes on the walls, which all flash together.</summary>
+        /// <summary>The pull stations on the walls.</summary>
         private readonly List<Renderer> alarms = new List<Renderer>();
 
         /// <summary>
@@ -99,6 +122,11 @@ namespace Paniq.Presentation
         private static readonly Color RubbleColor = new Color(0.45f, 0.42f, 0.40f);
 
         private static readonly Color AlarmRestingColor = new Color(0.75f, 0.12f, 0.12f);
+        private static readonly Color SwingDoorColor = new Color(0.62f, 0.55f, 0.42f);
+
+        /// <summary>The leaves' spring: stiff enough to fly open ahead of a runner, damped little enough to flap back past shut.</summary>
+        private const float SwingStiffness = 120f;
+        private const float SwingDamping = 8f;
 
         public RoomView(ScenarioData scenario, PresentationMaterials materials, ParticleEffects effects,
             Transform parent)
@@ -129,26 +157,37 @@ namespace Paniq.Presentation
         }
 
         /// <summary>
-        /// A small red box on the wall. It sits still until somebody hits it,
-        /// and then flashes for the rest of the run so the player can see at a
-        /// glance that the building has been told.
+        /// A pull station: a small red box at hand height with a white bar
+        /// across it, the thing people and the player pull. It sits still;
+        /// the bells that flash are things on the walls (see BoxViews).
         /// </summary>
         private void CreateAlarm(AlarmDefinition alarm)
         {
             const float height = 1.1f;
             Vector3 at = ToUnityPosition(alarm.Position) + Vector3.up * height;
             GameObject box = CreatePrimitive($"Fire alarm {alarm.AlarmId.Value} (presentation)", PrimitiveType.Cube,
-                parent, at, new Vector3(0.18f, 0.24f, 0.18f), materials.Box);
+                parent, at, new Vector3(0.12f, 0.16f, 0.12f), materials.Box);
             var view = box.GetComponent<Renderer>();
             materials.SetColor(view, AlarmRestingColor);
             alarms.Add(view);
+
+            // The bar you pull down, in the box's own scaled units.
+            GameObject bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            bar.name = "Handle";
+            Object.Destroy(bar.GetComponent<Collider>());
+            bar.transform.SetParent(box.transform, false);
+            bar.transform.localPosition = new Vector3(0f, -0.1f, 0f);
+            bar.transform.localScale = new Vector3(1.2f, 0.18f, 1.2f);
+            Renderer barView = bar.GetComponent<Renderer>();
+            barView.sharedMaterial = materials.Box;
+            materials.SetColor(barView, new Color(0.95f, 0.95f, 0.92f));
 
             // The player can pull it (2026-09-24), so it needs a collider to
             // click, and a bigger one than the box: the box is a hand's width,
             // and a click on a hand's width from across the room is a miss.
             // Half a metre about the box, in the box's own scaled units.
             var handle = box.AddComponent<BoxCollider>();
-            handle.size = new Vector3(2.5f, 2f, 2.5f);
+            handle.size = new Vector3(4f, 3f, 4f);
             alarmByCollider.Add(handle, alarm.AlarmId);
         }
 
@@ -156,23 +195,6 @@ namespace Paniq.Presentation
         public bool TryGetAlarm(Collider collider, out SimulationId alarmId)
         {
             return alarmByCollider.TryGetValue(collider, out alarmId);
-        }
-
-        /// <summary>Every bell flashes while the alarms are ringing.</summary>
-        public void UpdateAlarms(RunSnapshot snapshot, float time)
-        {
-            for (int i = 0; i < alarms.Count; i++)
-            {
-                Color colour = AlarmRestingColor;
-                if (snapshot.AlarmsRinging)
-                {
-                    // Two flashes a second, bright enough to catch the eye.
-                    float pulse = Mathf.Repeat(time * 4f, 2f) < 1f ? 1f : 0.25f;
-                    colour = Color.Lerp(AlarmRestingColor, Color.white, pulse);
-                }
-
-                materials.SetColor(alarms[i], colour);
-            }
         }
 
         /// <summary>
@@ -461,7 +483,11 @@ namespace Paniq.Presentation
             CreatePrimitive("Blasted ground", PrimitiveType.Cube, root, stripAt, stripSize, materials.Outside);
         }
 
-        /// <summary>A door leaf hinged at one side of the gap, which swings outward when the door opens.</summary>
+        /// <summary>
+        /// A door leaf hinged at one side of the gap, which swings outward when
+        /// the door opens; or, for swing doors, two leaves hinged at either end
+        /// that meet in the middle, each half the gap wide.
+        /// </summary>
         private void CreateDoor(DoorDefinition door, bool alongX, float wallLine)
         {
             float width = Metres(door.WidthMillimetres);
@@ -472,20 +498,9 @@ namespace Paniq.Presentation
                 : door.Side == WallSide.East ? Vector3.right
                 : Vector3.left;
             Vector3 gapCentre = alongX ? new Vector3(centre, 0f, wallLine) : new Vector3(wallLine, 0f, centre);
+            float leafWidth = door.Swings ? width * 0.5f : width;
 
-            var hinge = new GameObject($"Door {door.DoorId.Value} hinge (presentation)").transform;
-            hinge.SetParent(parent, false);
-            hinge.position = gapCentre - along * (width * 0.5f);
-            GameObject leaf = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            leaf.name = $"Door {door.DoorId.Value} (click target)";
-            leaf.transform.SetParent(hinge, false);
-            leaf.transform.localPosition = new Vector3(width * 0.5f, DoorHeight * 0.5f, 0f);
-            leaf.transform.localScale = new Vector3(width - 0.04f, DoorHeight, 0.08f);
-            Renderer leafRenderer = leaf.GetComponent<Renderer>();
-            leafRenderer.sharedMaterial = materials.Door;
-
-            // A shut door hides whoever is behind it just as a wall does.
-            MarkAsWall(leaf, materials);
+            Transform hinge = CreateLeaf(door, gapCentre - along * (width * 0.5f), leafWidth, leafWidth * 0.5f, "");
 
             // A strip of ground outside, as far as the doorway reaches (an inside door opens into the next room's floor).
             float depth = Metres(scenario.Exits.DoorwayDepthMillimetres);
@@ -502,9 +517,7 @@ namespace Paniq.Presentation
                 DoorId = door.DoorId,
                 Hinge = hinge,
                 HingePosition = hinge.position,
-
-
-                Leaf = leafRenderer,
+                Leaf = hinge.GetChild(0).GetComponent<Renderer>(),
                 ClosedYaw = YawOf(along),
 
                 // A door swings both ways, so the leaf has an open position on
@@ -513,11 +526,46 @@ namespace Paniq.Presentation
                 OpenYawOut = YawOf(outward),
                 OpenYawIn = YawOf(-outward),
                 OutwardDirection = outward,
-                State = DoorState.Locked
+                State = door.Swings ? DoorState.Open : DoorState.Locked,
+                Swings = door.Swings,
+                GapCentre = gapCentre,
+                Along = along,
+                HalfWidth = width * 0.5f
             };
+
+            if (door.Swings)
+            {
+                // The second leaf hangs from the far end of the gap and
+                // reaches back toward the first, so they meet in the middle.
+                Transform hinge2 = CreateLeaf(door, gapCentre + along * (width * 0.5f), leafWidth, -leafWidth * 0.5f, " second");
+                view.Hinge2 = hinge2;
+                view.Hinge2Position = hinge2.position;
+                view.Leaf2 = hinge2.GetChild(0).GetComponent<Renderer>();
+                hinge2.rotation = Quaternion.Euler(0f, view.ClosedYaw, 0f);
+            }
+
             hinge.rotation = Quaternion.Euler(0f, view.ClosedYaw, 0f);
             doors.Add(door.DoorId, view);
+        }
+
+        /// <summary>One hinge with one leaf on it, the leaf reaching <paramref name="reach"/> along the hinge's own X from it, and clickable.</summary>
+        private Transform CreateLeaf(DoorDefinition door, Vector3 at, float leafWidth, float reach, string suffix)
+        {
+            var hinge = new GameObject($"Door {door.DoorId.Value}{suffix} hinge (presentation)").transform;
+            hinge.SetParent(parent, false);
+            hinge.position = at;
+            GameObject leaf = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            leaf.name = $"Door {door.DoorId.Value}{suffix} (click target)";
+            leaf.transform.SetParent(hinge, false);
+            leaf.transform.localPosition = new Vector3(reach, DoorHeight * 0.5f, 0f);
+            leaf.transform.localScale = new Vector3(leafWidth - 0.04f, DoorHeight, 0.08f);
+            Renderer leafRenderer = leaf.GetComponent<Renderer>();
+            leafRenderer.sharedMaterial = materials.Door;
+
+            // A shut door hides whoever is behind it just as a wall does.
+            MarkAsWall(leaf, materials);
             doorByCollider.Add(leaf.GetComponent<Collider>(), door.DoorId);
+            return hinge;
         }
 
         /// <summary>Which door a clicked collider belongs to, if any.</summary>
@@ -587,19 +635,67 @@ namespace Paniq.Presentation
 
             foreach (DoorView view in doors.Values)
             {
-                float target = view.State == DoorState.Open ? 1f : 0f;
-                view.Swing = Mathf.MoveTowards(view.Swing, target, deltaTime / DoorSwingSeconds);
-                float openYaw = view.OpenSide >= 0 ? view.OpenYawOut : view.OpenYawIn;
-                float yaw = Mathf.LerpAngle(view.ClosedYaw, openYaw, Mathf.SmoothStep(0f, 1f, view.Swing));
-
-                float shakeAge = time - view.ShakeStart;
-                if (shakeAge < 0.3f && view.State != DoorState.Open && view.State != DoorState.Broken)
+                float yaw;
+                float yaw2 = 0f;
+                if (view.Swings)
                 {
-                    yaw += Mathf.Sin(shakeAge * 70f) * 4f * (1f - shakeAge / 0.3f);
+                    // Swing doors have no state to follow: somebody in the
+                    // doorway pushes the leaves ahead of them, and once the gap
+                    // is empty a spring flaps them back past shut and settles
+                    // them. Which way they are pushed is decided by which side
+                    // the first body came from and held until the gap clears,
+                    // so the leaves never swing back through somebody halfway.
+                    int push = 0;
+                    foreach (AgentSnapshot person in snapshot.Agents)
+                    {
+                        if (person.Participation != AgentParticipation.Participating)
+                        {
+                            continue;
+                        }
+
+                        Vector3 offset = ToUnityPosition(person.Position) - view.GapCentre;
+                        float along = Vector3.Dot(offset, view.Along);
+                        float across = Vector3.Dot(offset, view.OutwardDirection);
+                        if (Mathf.Abs(along) <= view.HalfWidth + 0.3f && Mathf.Abs(across) <= 0.6f)
+                        {
+                            push = view.Push != 0 ? view.Push : across < 0f ? 1 : -1;
+                            break;
+                        }
+                    }
+
+                    view.Push = push;
+                    float step = Mathf.Min(deltaTime, 0.05f);
+                    view.OpenVelocity += ((push - view.Open) * SwingStiffness - view.OpenVelocity * SwingDamping) * step;
+                    view.Open += view.OpenVelocity * step;
+                    float amount = Mathf.Clamp01(Mathf.Abs(view.Open));
+                    bool outward = view.Open >= 0f;
+                    yaw = Mathf.LerpAngle(view.ClosedYaw, outward ? view.OpenYawOut : view.OpenYawIn, amount);
+                    // The second leaf reaches back from its hinge, so it opens
+                    // the other way round to end up on the same side.
+                    yaw2 = Mathf.LerpAngle(view.ClosedYaw, outward ? view.OpenYawIn : view.OpenYawOut, amount);
+                }
+                else
+                {
+                    float target = view.State == DoorState.Open ? 1f : 0f;
+                    view.Swing = Mathf.MoveTowards(view.Swing, target, deltaTime / DoorSwingSeconds);
+                    float openYaw = view.OpenSide >= 0 ? view.OpenYawOut : view.OpenYawIn;
+                    yaw = Mathf.LerpAngle(view.ClosedYaw, openYaw, Mathf.SmoothStep(0f, 1f, view.Swing));
+
+                    float shakeAge = time - view.ShakeStart;
+                    if (shakeAge < 0.3f && view.State != DoorState.Open && view.State != DoorState.Broken)
+                    {
+                        yaw += Mathf.Sin(shakeAge * 70f) * 4f * (1f - shakeAge / 0.3f);
+                    }
                 }
 
                 view.Hinge.rotation = Quaternion.Euler(0f, yaw, 0f);
                 view.Hinge.position = view.HingePosition;
+                if (view.Hinge2 != null)
+                {
+                    view.Hinge2.rotation = Quaternion.Euler(0f, yaw2, 0f);
+                    view.Hinge2.position = view.Hinge2Position;
+                }
+
                 if (view.State == DoorState.Broken)
                 {
                     // Burst off its hinges: the leaf slams down flat outside the doorway.
@@ -613,9 +709,17 @@ namespace Paniq.Presentation
                     float tip = 90f * fallDirection * view.Fall * view.Fall;
                     view.Hinge.rotation = Quaternion.Euler(0f, view.ClosedYaw, 0f) * Quaternion.Euler(tip, 0f, 0f);
                     view.Hinge.position = view.HingePosition + Vector3.up * (0.05f * view.Fall);
+                    if (view.Hinge2 != null)
+                    {
+                        view.Hinge2.rotation = Quaternion.Euler(0f, view.ClosedYaw, 0f) * Quaternion.Euler(tip, 0f, 0f);
+                        view.Hinge2.position = view.Hinge2Position + Vector3.up * (0.05f * view.Fall);
+                    }
                 }
 
-                Color color = view.State == DoorState.Locked ? PresentationMaterials.LockedDoorColor
+                // Swing doors are never locked or unlocked, so they are neither
+                // red nor green: plain wood, charring as they scorch.
+                Color color = view.Swings && view.State != DoorState.Broken ? SwingDoorColor
+                    : view.State == DoorState.Locked ? PresentationMaterials.LockedDoorColor
                     : view.State == DoorState.Broken ? BrokenDoorColor
                     : UnlockedDoorColor;
 
@@ -630,6 +734,10 @@ namespace Paniq.Presentation
                 }
 
                 materials.SetColors(view.Leaf, color, color * 0.35f);
+                if (view.Leaf2 != null)
+                {
+                    materials.SetColors(view.Leaf2, color, color * 0.35f);
+                }
             }
         }
     }

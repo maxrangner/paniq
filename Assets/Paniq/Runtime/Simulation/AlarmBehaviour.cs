@@ -2,9 +2,10 @@ namespace Paniq.Simulation
 {
     /// <summary>
     /// Raising the alarm. Somebody who has taken in that there is a fire, who
-    /// thinks of other people or is used to being listened to, and who is not in
-    /// immediate danger, breaks off to hit the alarm on the wall of the room they
-    /// are in before running. Everyone else leaves it to somebody else.
+    /// is brave, thinks of other people or is used to being listened to, and
+    /// who is not in immediate danger, breaks off to hit the alarm on the wall
+    /// of the room they are in before running. Everyone else leaves it to
+    /// somebody else.
     /// <para>
     /// Built like <see cref="ExtinguisherBehaviour"/>: one step in the panic
     /// decision that returns what the body should do, or nothing at all when
@@ -40,7 +41,7 @@ namespace Paniq.Simulation
             return activity == AgentActivityState.GoingToAlarm || activity == AgentActivityState.PullingAlarm;
         }
 
-        /// <summary>Who thinks of it: a leader, or somebody who thinks of other people.</summary>
+        /// <summary>Who thinks of it: a leader, somebody who thinks of other people, or somebody brave (the owner asked for the brave, 2026-09-25).</summary>
         private bool WouldRaiseIt(Agent agent)
         {
             if (agent.Carry.ItemIndex >= 0 || agent.Help.TargetIndex >= 0 || agent.Body.State != AgentBodyState.Upright)
@@ -49,7 +50,8 @@ namespace Paniq.Simulation
             }
 
             return agent.Traits.Leadership >= settings.PullMinimumLeadership ||
-                   agent.Traits.Compassion >= settings.PullMinimumCompassion;
+                   agent.Traits.Compassion >= settings.PullMinimumCompassion ||
+                   agent.Traits.Bravery >= settings.PullMinimumBravery;
         }
 
         /// <summary>

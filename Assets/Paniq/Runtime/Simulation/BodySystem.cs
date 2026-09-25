@@ -87,8 +87,6 @@ namespace Paniq.Simulation
         /// <param name="closingSpeed">How hard the hit was; harder hits knock people out more often.</param>
         public void KnockDown(Agent agent, ulong collisionEventId, int closingSpeed)
         {
-            // Being knocked about or set alight ends any composure.
-            fear.BreakComposure(agent);
             int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
             CausalEvent down = context.Events.Append(
                 context.Tick,
@@ -144,7 +142,6 @@ namespace Paniq.Simulation
                 return;
             }
 
-            fear.BreakComposure(agent);
             int speed = people.SpeedToSlide(distance);
             people.FallTowards(agent, away);
             people.Push(agent, away, speed, speed * liftPercent / 100);
@@ -176,7 +173,6 @@ namespace Paniq.Simulation
                 return;
             }
 
-            fear.BreakComposure(agent);
             int duration = context.Random.NextIntInclusive(settings.KnockdownMinimumTicks, settings.KnockdownMaximumTicks);
             CausalEvent crushed = context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentCrushed,
                 agent.Body.Position, squeeze, duration, cause);
@@ -220,8 +216,6 @@ namespace Paniq.Simulation
         /// <summary>Knocked off balance: reeling for a moment, jolted a little to one side.</summary>
         public void Stagger(Agent agent, ulong causeEventId)
         {
-            // Being knocked about or set alight ends any composure.
-            fear.BreakComposure(agent);
             int duration = context.Random.NextIntInclusive(settings.StaggerMinimumTicks, settings.StaggerMaximumTicks);
             int side = context.Random.NextIntInclusive(0, 1) == 0 ? -1 : 1;
             agent.Body.Heading = IntegerMath.NormalizeDegrees(agent.Body.Heading +
@@ -232,8 +226,6 @@ namespace Paniq.Simulation
         /// <summary>A stumble: on your own, over someone on the floor, or over a box. It makes a thud.</summary>
         public void Trip(Agent agent, ulong causalParentEventId)
         {
-            // Being knocked about or set alight ends any composure.
-            fear.BreakComposure(agent);
             int duration = context.Random.NextIntInclusive(settings.TripMinimumTicks, settings.TripMaximumTicks);
             CausalEvent trip = context.Events.Append(
                 context.Tick,
@@ -288,8 +280,6 @@ namespace Paniq.Simulation
         /// </summary>
         public void CatchFire(Agent agent, ulong causeEventId)
         {
-            // Being knocked about or set alight ends any composure.
-            fear.BreakComposure(agent);
             if (!agent.IsParticipating || agent.Burning.IsBurning)
             {
                 return;

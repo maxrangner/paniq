@@ -38,6 +38,11 @@ namespace Paniq.Simulation
         private PowerSystem power;
         private CueSystem cues;
         private AlarmSystem alarms;
+        private GroupSystem groups;
+
+        /// <summary>Who a "Stick together" throw caught, and each one's event, gathered before anything is written.</summary>
+        private readonly List<int> caughtIndices = new List<int>();
+        private readonly List<ulong> caughtEvents = new List<ulong>();
 
         public PlayerCommandSystem(SimulationContext context)
         {
@@ -60,6 +65,7 @@ namespace Paniq.Simulation
             body = systems.Body;
             geometry = systems.Geometry;
             cues = systems.Cues;
+            groups = systems.Groups;
         }
 
         /// <summary>Every command queued so far, in sequence order.</summary>
@@ -96,6 +102,7 @@ namespace Paniq.Simulation
             switch (commandType)
             {
                 case PlayerCommandType.ClickDoor:
+                case PlayerCommandType.ToggleLock:
                     if (doors.IndexOf(targetId) < 0)
                     {
                         throw new ArgumentException($"Unknown door ID {targetId}.", nameof(targetId));
@@ -125,6 +132,7 @@ namespace Paniq.Simulation
                 case PlayerCommandType.TriggerEvent:
                 case PlayerCommandType.PopFuseBox:
                 case PlayerCommandType.CallHomeTime:
+                case PlayerCommandType.StickTogether:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(commandType), $"Unknown command type {commandType}.");
@@ -158,13 +166,33 @@ namespace Paniq.Simulation
                 // card table. Same rule as a card: a click they cannot pay for,
                 // or one the door refuses, does nothing and costs nothing.
                 int door = doors.IndexOf(command.TargetId);
-                int price = influence.CostOfDoorClick(doors.StateOf(door));
+                int price = influence.CostOfDoorClick(doors.StateOf(door), geometry.DoorLeadsOutside(door));
                 if (!influence.CanAfford(price))
                 {
                     return;
                 }
 
                 if (doors.ClickDoor(door))
+                {
+                    influence.Spend(price);
+                }
+
+                return;
+            }
+
+            // The key is the player's to turn (2026-09-25): priced by the
+            // door and by what turning it does, and paid for only when the
+            // door actually changed.
+            if (command.CommandType == PlayerCommandType.ToggleLock)
+            {
+                int door = doors.IndexOf(command.TargetId);
+                int price = influence.CostOfLockToggle(doors.StateOf(door), geometry.DoorLeadsOutside(door));
+                if (!influence.CanAfford(price))
+                {
+                    return;
+                }
+
+                if (doors.ToggleLock(door))
                 {
                     influence.Spend(price);
                 }
@@ -246,6 +274,9 @@ namespace Paniq.Simulation
                     break;
                 case PlayerCommandType.PopFuseBox:
                     played = PopFuseBox(command);
+                    break;
+                case PlayerCommandType.StickTogether:
+                    played = StickTogether(command);
                     break;
                 default:
                     played = false;
@@ -364,6 +395,52 @@ namespace Paniq.Simulation
             }
 
             return caught;
+        }
+
+        /// <summary>
+        /// "Stick together", thrown at a patch of floor: everybody standing
+        /// inside it becomes one group (see <see cref="GroupSystem"/>). Two
+        /// or more make a group; a throw that catches one person or none is a
+        /// miss, free, and writes nothing -- the log is append-only, so who
+        /// was caught is settled before the first event goes in. The crowd
+        /// is walked in ascending order, so the events land in the same order
+        /// on every replay.
+        /// </summary>
+        private bool StickTogether(PlayerCommand command)
+        {
+            long radius = context.Scenario.Influence.CardPatchRadiusMillimetres;
+            int price = influence.CostOf(command.CommandType);
+            caughtIndices.Clear();
+            caughtEvents.Clear();
+            using (Crowd.Nearby inside = crowd.Within(command.Point, radius))
+            {
+                for (int i = 0; i < inside.Count; i++)
+                {
+                    Agent agent = crowd.All[inside[i]];
+                    if (!agent.IsParticipating ||
+                        LogicalPosition.DistanceSquared(agent.Body.Position, command.Point) > radius * radius)
+                    {
+                        continue;
+                    }
+
+                    caughtIndices.Add(agent.Index);
+                }
+            }
+
+            if (caughtIndices.Count < 2)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < caughtIndices.Count; i++)
+            {
+                Agent agent = crowd.All[caughtIndices[i]];
+                caughtEvents.Add(context.Events.Append(
+                    context.Tick, agent.Id, CausalEventType.PowerStickTogether, agent.Body.Position, price, 0, 0UL, agent.Id).EventId);
+            }
+
+            groups.Form(caughtIndices, caughtEvents);
+            return true;
         }
 
         /// <summary>A fire where the player pointed, if that square is floor, dry and not already alight.</summary>

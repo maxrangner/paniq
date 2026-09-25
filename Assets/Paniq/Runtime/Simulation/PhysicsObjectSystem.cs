@@ -679,7 +679,8 @@ namespace Paniq.Simulation
         /// </summary>
         private bool IsFixedInPlace(int index) =>
             bodies[index].Kind == PhysicsObjectKind.WallSocket ||
-            bodies[index].Kind == PhysicsObjectKind.FuseBox;
+            bodies[index].Kind == PhysicsObjectKind.FuseBox ||
+            bodies[index].Kind == PhysicsObjectKind.AlarmSounder;
 
         public SimulationId IdOf(int index) => bodies[index].Id;
 

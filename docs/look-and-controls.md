@@ -43,9 +43,12 @@ every zoom level.
 | **Hold right mouse button and drag** | swing the view to any angle at all; it stays where you let go |
 | **Q / E** | snap a quarter turn to the next corner view, from wherever the view is now |
 | **Mouse wheel** | zoom in and out, tilting the camera as described above |
-| **Left mouse button** | interact with the world under the pointer: a door, a red fire alarm box (pulled for 30), or the floor a card is aimed at |
+| **Left mouse button** | on a card along the bottom: pick it up (or put it down again); on the floor with a card in hand: throw it there; on a door: open or shut it; on a red pull station: pull the fire alarm (30) |
+| **Double click a door** | turn its key: lock a shut door, unlock a locked one, or shut and lock an open one. Ten on an inside door; the building's way out costs 100 to unlock |
 | **Right click** (without dragging) | put down the card in hand |
-| **Menu** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
+| **Reset** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
+| **Pause** (the button under Reset) | stop and start the world, as Space does |
+| **Trigger event** (the red button bottom centre) | start the fire. It goes the moment it is pressed |
 
 Chosen on the owner's behalf:
 
@@ -64,12 +67,27 @@ Chosen on the owner's behalf:
   told apart by how far the pointer travelled before the button came back up,
   which is why the card is dropped on the button's *release* rather than on its
   press — at the moment of pressing, nobody yet knows which one it is.
+- **A single click on a door waits a third of a second** before it is sent,
+  because until then nobody knows whether a second click is coming. Acting on
+  the first click at once would have opened the door, and charged for it,
+  before the double click that meant "lock it" was complete. A third of a
+  second is about fifteen ticks, less than the delay people already take to
+  react to anything, so the wait is never seen. A single click on a locked
+  door sends nothing: its key is the double click, and the line under the
+  score says so.
+- **A click on a card or a button never reaches the world.** Every card and
+  button claims its patch of screen as it is drawn, and the next frame's
+  click checks those patches first; until 2026-09-25 a click on "Trigger
+  event" with a door under it clicked the door too.
+- **The number keys are gone** (2026-09-25). Cards are clicked, and two of a
+  kind sit as one card with the count on it, so there is nothing for a
+  number to name.
 - The angles, zoom limits and how far the tilt travels are presentation values,
   chosen when the camera was built and listed below.
 
-Keys the prototype already uses, which these live alongside: **1–6** pick a
-card, **Tab** shows the table of everyone's traits, **G** paints the floor
-people can walk on, and **Space** pauses.
+Keys the prototype already uses, which these live alongside: **Tab** shows
+the table of everyone's traits, **G** paints the floor people can walk on,
+and **Space** pauses.
 
 The values chosen when the camera was built, recorded in
 [technical decisions](technical-decisions.md): the view pans at 14 metres a

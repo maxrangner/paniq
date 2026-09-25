@@ -788,6 +788,14 @@ namespace Paniq.Simulation
         /// </summary>
         public int DoorBurnThroughTicks = 900;
 
+        /// <summary>
+        /// How long a pair of swing doors stands in the flames before it
+        /// goes: half a shut door's time (the owner's rule, 2026-09-25 --
+        /// "swinging doors stop fire half as good as normal ones"). Two thin
+        /// leaves that meet in the middle rather than a slab in a frame.
+        /// </summary>
+        public int SwingDoorBurnThroughTicks = 450;
+
         // Closing doors. Only the cruel shut the door behind them as they
         // leave a room or the building, and only the cruellest lock it.
         // Shutting a door with fire beyond it is a different act and open to
@@ -886,7 +894,7 @@ namespace Paniq.Simulation
                              ChoiceNoiseMillimetres >= 0 && InFirePenaltyMillimetres >= 0 &&
                              CurrentRoomBonusMillimetres >= 0 && RefugeNoFireMillimetres >= 0 &&
                              RefugeClearRoomMillimetres >= 0 && RefugeSpacePerPersonMillimetres > 0, "door scoring");
-            Settings.Require(DoorStrength >= 1 && DoorBurnThroughTicks >= 1, "door strength");
+            Settings.Require(DoorStrength >= 1 && DoorBurnThroughTicks >= 1 && SwingDoorBurnThroughTicks >= 1, "door strength");
             Settings.Require(CloseReachMillimetres >= 0 && CloseApproachRadiusMillimetres >= 0 &&
                              FireAtDoorRadiusMillimetres >= 0 && EvilCloseMinimum >= 0 &&
                              CallousCompassionMaximum >= 0 && EvilLockMinimum >= EvilCloseMinimum,
@@ -1174,6 +1182,68 @@ namespace Paniq.Simulation
         }
     }
 
+    /// <summary>
+    /// Sticking together (the "Stick together" card, 2026-09-25): how hard
+    /// the people a throw catches keep to each other once frightened, and
+    /// how much the door their most leaderly member picks sways the rest.
+    /// </summary>
+    [Serializable]
+    public sealed class GroupSettings
+    {
+        /// <summary>Members further apart than this have lost each other, and the pull is off.</summary>
+        public int ReachMillimetres = 8000;
+
+        /// <summary>Members this near the middle of the group are together already: no pull, no hanging back.</summary>
+        public int CloseEnoughMillimetres = 1000;
+
+        /// <summary>
+        /// The pull comes on gradually over this distance beyond close enough,
+        /// rather than at full strength the moment they part: a full-strength
+        /// pull at running speed steered members straight into each other,
+        /// and a hard collision puts both on the floor.
+        /// </summary>
+        public int PullRampMillimetres = 2000;
+
+        /// <summary>No pull at all while another member is within arm's reach: they are together, whatever the middle of the group says.</summary>
+        public int ElbowRoomMillimetres = 800;
+
+        /// <summary>
+        /// The pull toward the rest of the group, as a percentage of a full
+        /// step: this, plus per point of nervousness, less per point of
+        /// bravery, less again per point of evil. Nought to a hundred.
+        /// </summary>
+        public int CohesionBasePercent = 60;
+        public int CohesionPercentPerNervousness = 3;
+        public int CohesionPercentPerBravery = 2;
+        public int CohesionPercentPerEvil = 6;
+
+        /// <summary>Evil this high walks off: they ignore the group as they ignore a leader.</summary>
+        public int IgnoreMinimumEvil = 7;
+
+        /// <summary>
+        /// How much somebody with the rest of the group behind them slows to
+        /// let them catch up, as a percentage of their pull: at full pull a
+        /// sprinter drops to this much less than their pace. Steering only
+        /// turns a person; waiting is a matter of pace.
+        /// </summary>
+        public int HangBackPercent = 70;
+
+        /// <summary>How much the door the group's anchor runs for is worth to the others, in walk-millimetres of scoring.</summary>
+        public int ChoiceBonusMillimetres = 3000;
+
+        /// <summary>How often, give or take, members compare notes on the way out.</summary>
+        public int ShareEveryTicks = 100;
+
+        public GroupSettings Clone() => (GroupSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(ReachMillimetres >= 0 && CloseEnoughMillimetres >= 0 && ChoiceBonusMillimetres >= 0 &&
+                             ShareEveryTicks >= 1 && IgnoreMinimumEvil >= 0 && PullRampMillimetres >= 1 &&
+                             ElbowRoomMillimetres >= 0 && HangBackPercent >= 0 && HangBackPercent <= 100, "sticking together");
+        }
+    }
+
     /// <summary>Taking charge: who leads, who follows, and what leaders tell people to do.</summary>
     [Serializable]
     public sealed class LeadershipSettings
@@ -1344,7 +1414,7 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ObjectKindSettings
     {
-        public const int KindCount = 21;
+        public const int KindCount = 22;
 
         public PhysicsObjectKind Kind;
         public int FrictionPercent = 100;
@@ -1378,6 +1448,14 @@ namespace Paniq.Simulation
         /// the three values above; only when it happens differs.
         /// </summary>
         public bool PopsWhenBurntOut;
+
+        /// <summary>
+        /// When it goes off it empties itself over everything around it: a
+        /// fire extinguisher bursting in the flames puts out every burning
+        /// square, thing and person within its pop radius, the way a spray
+        /// would, and is spent (2026-09-25).
+        /// </summary>
+        public bool PopDouses;
 
         /// <summary>
         /// What this kind of thing is for, rather than what it is made of.
@@ -1449,8 +1527,13 @@ namespace Paniq.Simulation
                 // throw burning plastic onto the desk it was sitting on.
                 Popping(Entry(PhysicsObjectKind.Laptop, 55, 200, 200, 400), 900, 45, 1),
 
-                // Steel: it never catches, and it is equipment rather than clutter.
-                Equipment(Entry(PhysicsObjectKind.Extinguisher, 90, 0, 0, 0)),
+                // Steel, and full of pressure: equipment rather than clutter,
+                // and it takes four seconds in the flames to heat through,
+                // then bursts (the owner asked, 2026-09-25): a bang the size
+                // of a socket's, everyone within 1.6 m off their feet, no
+                // fresh fire, and its contents over every flame in that
+                // circle. After that it is a spent bottle nobody fetches.
+                Dousing(Equipment(Popping(Entry(PhysicsObjectKind.Extinguisher, 90, 200, 1, 1), 1600, 60, 0))),
 
                 // Stiff leather: it slides less than a soft bag and burns slowly.
                 Entry(PhysicsObjectKind.Briefcase, 110, 175, 350, 600),
@@ -1507,7 +1590,12 @@ namespace Paniq.Simulation
                 // once alight it rides about burning for half a minute to a
                 // minute -- a lot of health, the owner asked -- before its
                 // battery goes off with a laptop-sized bang.
-                SelfDriving(PoppingAtTheEnd(Entry(PhysicsObjectKind.RobotVacuum, 60, 120, 1500, 3000), 1000, 45, 2), 16)
+                SelfDriving(PoppingAtTheEnd(Entry(PhysicsObjectKind.RobotVacuum, 60, 120, 1500, 3000), 1000, 45, 2), 16),
+
+                // A fire alarm bell: bolted to the wall like a socket, and the
+                // flames reaching it set it off with a laptop-sized crack.
+                // After that it is silent.
+                Popping(Entry(PhysicsObjectKind.AlarmSounder, 1000, 80, 20, 40), 800, 40, 1)
             };
         }
 
@@ -1546,6 +1634,13 @@ namespace Paniq.Simulation
         private static ObjectKindSettings Equipment(ObjectKindSettings kind)
         {
             kind.IsEquipment = true;
+            return kind;
+        }
+
+        /// <summary>The same kind, but one whose pop puts the fire out around it rather than spreading it.</summary>
+        private static ObjectKindSettings Dousing(ObjectKindSettings kind)
+        {
+            kind.PopDouses = true;
             return kind;
         }
 
@@ -1875,11 +1970,12 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
-    /// Fire alarms. Somebody who has taken in that there is a fire and who
-    /// thinks of other people walks over to the nearest alarm and hits it; every
-    /// alarm in the building then rings, and everybody who hears one knows there
-    /// is a fire. What they do about it depends who they are: the brave and
-    /// level-headed walk briskly out, while the nervous stampede.
+    /// Fire alarms. Somebody who has taken in that there is a fire and who is
+    /// brave, thinks of other people or is used to being listened to walks
+    /// over to the nearest pull station and hits it; every bell in the
+    /// building then rings, and everybody who hears one takes fright exactly
+    /// as if they had seen the flames (the owner's rule, 2026-09-25). The
+    /// bells ring again every few seconds, each on its own beat.
     /// </summary>
     [Serializable]
     public sealed class AlarmSettings
@@ -1903,25 +1999,29 @@ namespace Paniq.Simulation
         public int BellHearingRadiusMillimetres = 14000;
         public int BellAlarmRadiusMillimetres = 14000;
 
-        /// <summary>Who thinks to raise the alarm: a leader, or somebody who thinks of others.</summary>
+        /// <summary>Who thinks to raise the alarm: a leader, somebody who thinks of others, or somebody brave (the owner asked for the brave, 2026-09-25).</summary>
         public int PullMinimumLeadership = 6;
         public int PullMinimumCompassion = 6;
+        public int PullMinimumBravery = 6;
 
         /// <summary>
-        /// Bravery minus nervousness at least this much, and the bell makes them
-        /// leave briskly rather than panic. Everyone else stampedes.
+        /// How often a ringing bell rings again, give or take: each bell draws
+        /// its own beat, so no two ring on one tick. Six seconds: somebody who
+        /// was out of earshot behind a shut door hears the next one once the
+        /// door opens.
         /// </summary>
-        public int ComposureGap = 2;
+        public int RepeatTicks = 300;
 
         public AlarmSettings Clone() => (AlarmSettings)MemberwiseClone();
 
         internal void Validate()
         {
             Settings.Require(ReachMillimetres >= 0 && ArrivalMillimetres > 0 && PressTicks >= 1 &&
-                             FetchTimeoutTicks >= 1, "fire alarms");
+                             FetchTimeoutTicks >= 1 && RepeatTicks >= 1, "fire alarms");
             Settings.Require(BellHearingRadiusMillimetres >= 0 &&
                              BellAlarmRadiusMillimetres <= BellHearingRadiusMillimetres, "alarm bells");
-            Settings.Require(PullMinimumLeadership >= 0 && PullMinimumCompassion >= 0, "who raises the alarm");
+            Settings.Require(PullMinimumLeadership >= 0 && PullMinimumCompassion >= 0 && PullMinimumBravery >= 0,
+                "who raises the alarm");
         }
     }
 
@@ -1940,16 +2040,20 @@ namespace Paniq.Simulation
         /// one random card, and 30 activity points"). It was nothing, so that
         /// the building had to get into trouble before there was anything to
         /// spend; thirty is one move before it does -- enough to raise the
-        /// alarm on a fire nobody else has seen, and not enough to open the
-        /// way out (80) before anybody is in trouble.
+        /// alarm on a fire nobody else has seen, and nowhere near the way out
+        /// (100) before anybody is in trouble.
         /// </summary>
         public int Starting = 30;
 
         /// <summary>Earned for each person who gets out alive, rescued or under their own steam.</summary>
         public int PerPersonSaved = 15;
 
-        /// <summary>The most influence the player can bank, so saving everybody does not leave a meaningless pile.</summary>
-        public int Maximum = 300;
+        /// <summary>
+        /// The most influence the player can bank: a hundred (the owner's
+        /// call, 2026-09-25), which is exactly what the way out costs to
+        /// unlock, so a full purse is the one thing that opens it.
+        /// </summary>
+        public int Maximum = 100;
 
         /// <summary>
         /// Cards the player is holding before anybody has died. Empty in the
@@ -2013,16 +2117,19 @@ namespace Paniq.Simulation
         public int UproarBig = 6;
 
         /// <summary>
-        /// What a door click costs. Reaching into the building and working a
-        /// door is the player's commonest move, and it used to be free, so
+        /// What working a door costs. Reaching into the building and working
+        /// a door is the player's commonest move, and it used to be free, so
         /// there was never a reason not to fling every door in the place open.
-        /// Each click pays for what that click does, so unlocking a far-off
-        /// door and leaving the people inside to open it themselves is cheaper
-        /// than walking it open yourself.
+        /// Each click pays for what that click does. Ten for anything done to
+        /// an inside door -- opening, shutting, locking, unlocking (the owner's
+        /// call, 2026-09-25) -- and the whole purse to unlock the building's
+        /// way out, which is the round's one big decision.
         /// </summary>
-        public int UnlockDoorCost = 50;
-        public int OpenDoorCost = 30;
+        public int UnlockDoorCost = 10;
+        public int OpenDoorCost = 10;
         public int CloseDoorCost = 10;
+        public int LockDoorCost = 10;
+        public int UnlockExitCost = 100;
 
         public InfluenceSettings Clone()
         {
@@ -2040,6 +2147,7 @@ namespace Paniq.Simulation
         internal void Validate()
         {
             Settings.Require(Starting >= 0 && PerPersonSaved >= 0 && Maximum >= Starting, "influence");
+            Settings.Require(LockDoorCost >= 0 && UnlockExitCost >= 0, "the key");
             Settings.Require(CardCost >= 0 && PullAlarmCost >= 0 && OpeningDrawCount >= 0, "card costs");
             Settings.Require(CardPatchRadiusMillimetres > 0, "how wide a card's patch is");
             Settings.Require(UproarSmall >= 0 && UproarMiddling >= 0 && UproarBig >= 0, "what the uproar pays");

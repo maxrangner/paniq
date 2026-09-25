@@ -82,10 +82,13 @@ namespace Paniq.Simulation
                 return Update(agent, inDanger);
             }
 
-            if (eager)
+            if (eager || !threats.AnyActive)
             {
                 // A way out stands open in front of them: nobody starts
-                // wedging themselves into a room while that is true.
+                // wedging themselves into a room while that is true. Nor
+                // does anybody wedge the doors of a building with nothing
+                // burning in it: a bell alone sends people to the doors, not
+                // to blocking them.
                 return null;
             }
 
@@ -308,7 +311,7 @@ namespace Paniq.Simulation
                 return FaceTowards(agent, thing, 0);
             }
 
-            LogicalPosition spot = WedgeSpot(door, room);
+            LogicalPosition spot = WedgeSpot(door, room, item);
             if (agent.Intent.Activity == AgentActivityState.Barricading)
             {
                 if (context.Tick < agent.Intent.ActivityEndTick)
@@ -346,11 +349,25 @@ namespace Paniq.Simulation
             return FaceTowards(agent, spot, 0);
         }
 
-        /// <summary>Dead centre of the gap, just short of the wall, on their side of it.</summary>
-        private LogicalPosition WedgeSpot(int door, int room)
+        /// <summary>
+        /// Dead centre of the gap, just short of the wall, on their side of it
+        /// -- and at least the thing's own half-width in, so a crate wider
+        /// than the office's boxes is not set down into the wall. It used to
+        /// be a fixed 275 mm, which the stockroom's 600-800 mm crates could
+        /// not be set down at, so the set-down failed and the nervous stood at
+        /// the door trying it over and over (seed 41, 2026-09-25). A crate
+        /// that deep still counts as wedged: the doorway reaches a thing's own
+        /// half-width plus the block gap past the wall.
+        /// </summary>
+        private int WedgeDepth(int item)
         {
-            int outward = -(context.Scenario.World.OccupancyRadiusMillimetres / 2 + settings.BarricadeSpotGapMillimetres);
-            return geometry.DoorPointFrom(door, room, 0, outward);
+            int reachIn = context.Scenario.World.OccupancyRadiusMillimetres / 2 + settings.BarricadeSpotGapMillimetres;
+            return System.Math.Max(reachIn, objects.RadiusOf(item) + 25);
+        }
+
+        private LogicalPosition WedgeSpot(int door, int room, int item)
+        {
+            return geometry.DoorPointFrom(door, room, 0, -WedgeDepth(item));
         }
 
         /// <summary>
@@ -360,8 +377,7 @@ namespace Paniq.Simulation
         private LogicalPosition StandingSpot(int door, int room, int item)
         {
             int clear = context.Scenario.World.OccupancyRadiusMillimetres + objects.RadiusOf(item) + 40;
-            int outward = -(context.Scenario.World.OccupancyRadiusMillimetres / 2 + settings.BarricadeSpotGapMillimetres + clear);
-            return geometry.DoorPointFrom(door, room, 0, outward);
+            return geometry.DoorPointFrom(door, room, 0, -(WedgeDepth(item) + clear));
         }
 
         /// <summary>

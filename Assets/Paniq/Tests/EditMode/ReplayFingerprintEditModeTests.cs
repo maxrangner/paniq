@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0xEDEAE75664A43B9EUL)]
-        [TestCase(42UL, true, 0xF7FA2697E8C2FB06UL)]
-        [TestCase(40UL, false, 0x0C240D9D7ADCBB9DUL)]
-        [TestCase(40UL, true, 0xE086925DB36E971DUL)]
-        [TestCase(46UL, false, 0x44D0947857A46555UL)]
-        [TestCase(46UL, true, 0xB3469ABBB07A39BEUL)]
+        [TestCase(42UL, false, 0x9F79BF5A027CE758UL)]
+        [TestCase(42UL, true, 0xF677C36DE63B2D04UL)]
+        [TestCase(40UL, false, 0x032EBDBDE6BD43D2UL)]
+        [TestCase(40UL, true, 0x8321B2038482E1CFUL)]
+        [TestCase(46UL, false, 0x0A474CFEBF984269UL)]
+        [TestCase(46UL, true, 0x64E70B705B774D0CUL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
         /// well as by their own tests, so the whole command path is covered by
         /// replay. This run waits to be triggered, as a played level does.
         /// </summary>
-        [TestCase(42UL, 0x67253090274D2964UL)]
-        [TestCase(40UL, 0x6A92EC6C634EE277UL)]
+        [TestCase(42UL, 0x940D06F88BC088ECUL)]
+        [TestCase(40UL, 0x05B37A5F771B305CUL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -59,8 +59,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0x42A86A780E038331UL)]
-        [TestCase(40UL, 0x589ED9883D2DB4E2UL)]
+        [TestCase(42UL, 0x6F7DA4575A18D578UL)]
+        [TestCase(40UL, 0x0E76733D48229FC8UL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -113,10 +113,18 @@ namespace Paniq.Tests.EditMode
         /// frightens it too, so all three now genuinely compare a floor of
         /// staff against a floor with strangers on it.
         /// </para>
+        /// <para>
+        /// A change to the building moves them as well, staff and strangers
+        /// alike, and that is not a change to how anybody behaves: when the
+        /// pull station beside the way out came out (2026-09-25, content
+        /// revision 79), the seed 42 cases were re-recorded because somebody
+        /// who used to run for that station now runs for another. Seeds 40,
+        /// 41 and 46 did not move at all.
+        /// </para>
         /// </summary>
-        [TestCase(41UL, RecordedRun.DoorsLocked, 0xCB2815C565957275UL)]
-        [TestCase(41UL, RecordedRun.DoorsOpened, 0x3368E81914ED3CC1UL)]
-        [TestCase(42UL, RecordedRun.CardsPlayed, 0x94F867397D2611EFUL)]
+        [TestCase(41UL, RecordedRun.DoorsLocked, 0x120F4A6B698272B2UL)]
+        [TestCase(41UL, RecordedRun.DoorsOpened, 0x512CCE2992D8EDF6UL)]
+        [TestCase(42UL, RecordedRun.CardsPlayed, 0x4C602CB878F049B0UL)]
         public void WithNoVisitors_TheFloorReplaysExactlyAsItDidBefore(ulong seed, RecordedRun run, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();

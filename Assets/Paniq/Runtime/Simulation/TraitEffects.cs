@@ -142,10 +142,9 @@ namespace Paniq.Simulation
 
         public static int SwerveChancePercent(Agent agent, ScenarioData scenario)
         {
-            if (agent.Fear.Composed || agent.Intent.SetOnAWayOut)
+            if (agent.Intent.SetOnAWayOut)
             {
-                // Somebody walking out because a bell rang does not zig-zag, and
-                // nor does anybody with a way out in front of them standing open.
+                // Nobody with a way out in front of them standing open zig-zags.
                 return 0;
             }
 
@@ -155,7 +154,7 @@ namespace Paniq.Simulation
 
         public static int HesitateChancePercent(Agent agent, ScenarioData scenario)
         {
-            if (agent.Fear.Composed || agent.Intent.SetOnAWayOut)
+            if (agent.Intent.SetOnAWayOut)
             {
                 // Nor do they stop and dither.
                 return 0;
@@ -166,18 +165,11 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// How fast somebody heads for the way out: a sprint, or a brisk walk
-        /// for whoever is keeping their head after an alarm.
+        /// How fast somebody heads for the way out: a sprint. (Until
+        /// 2026-09-25 whoever kept their head after a bell walked out briskly
+        /// instead; the owner ruled that a bell panics everybody.)
         /// </summary>
-        public static int FleeSpeed(Agent agent)
-        {
-            // A level head is a brisk walk while the fire is somebody else's
-            // problem, but a door to the street standing open is worth running
-            // for whoever you are.
-            return agent.Fear.Composed && !agent.Intent.SetOnAWayOut
-                ? agent.Personality.CalmSpeed
-                : agent.Personality.PanicSpeed;
-        }
+        public static int FleeSpeed(Agent agent) => agent.Personality.PanicSpeed;
 
         public static int TripChancePercent(Agent agent, ScenarioData scenario)
         {
@@ -190,15 +182,6 @@ namespace Paniq.Simulation
         {
             ExtinguisherSettings settings = scenario.Extinguishers;
             return Math.Max(0, settings.SweepDegrees - settings.SweepDegreesPerStrengthPoint * agent.Traits.Strength);
-        }
-
-        /// <summary>
-        /// Whether a bell is enough to make this person leave briskly rather
-        /// than panic: brave enough, and not too nervous.
-        /// </summary>
-        public static bool StaysComposed(AgentTraitValues traits, ScenarioData scenario)
-        {
-            return traits.Bravery - traits.Nervousness >= scenario.Alarm.ComposureGap;
         }
 
         // ---------------------------------------------------------------- compassion and evil

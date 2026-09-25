@@ -677,6 +677,15 @@ namespace Paniq.Simulation
                 }
 
                 DoorRuntime d = doors[door];
+                if (d.Swings && d.State != DoorState.Broken && !d.Obstructed)
+                {
+                    // Swing doors are open to everybody but the fire: their
+                    // leaves are shut whenever nobody is pushing through, and
+                    // the flames have to burn them through, or find them
+                    // propped open by something lying in the gap.
+                    continue;
+                }
+
                 bool alongX = d.Side == WallSide.North || d.Side == WallSide.South;
                 int shareMin = alongX ? Math.Max(cellA.MinX, cellB.MinX) : Math.Max(cellA.MinZ, cellB.MinZ);
                 int shareMax = alongX ? Math.Min(cellA.MaxX, cellB.MaxX) : Math.Min(cellA.MaxZ, cellB.MaxZ);

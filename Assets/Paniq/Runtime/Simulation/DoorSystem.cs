@@ -56,6 +56,22 @@ namespace Paniq.Simulation
         /// be clear again before it can be shut.
         /// </summary>
         public int OpenSide;
+
+        /// <summary>
+        /// A pair of swing doors: always <see cref="DoorState.Open"/> for people,
+        /// sight and sound, never shut, locked or battered, and a door in the
+        /// fire's way all the same until it burns through (in half a shut
+        /// door's time) or something wedged in the gap props it open.
+        /// </summary>
+        public bool Swings;
+
+        /// <summary>
+        /// Something is lying in the doorway, as worked out at the end of the
+        /// last tick (see <see cref="DoorSystem.ResolveBlockages"/>). Written
+        /// here so the geometry, which has no door system to ask, can tell
+        /// that a swing door is propped and the fire may come through.
+        /// </summary>
+        public bool Obstructed;
     }
 
     /// <summary>
@@ -106,6 +122,7 @@ namespace Paniq.Simulation
             this.geometry = geometry;
             blockedBy = new int[doors.Length];
             openedThisTick = new int[doors.Length];
+            proppedThisTick = new int[doors.Length];
             for (int i = 0; i < blockedBy.Length; i++)
             {
                 blockedBy[i] = -1;
@@ -127,7 +144,23 @@ namespace Paniq.Simulation
         public int OpeningAt(int index) => openedThisTick[index];
 
         /// <summary>Everybody has been told; start the next tick's list empty.</summary>
-        public void ClearOpenings() => openedCount = 0;
+        public void ClearOpenings()
+        {
+            openedCount = 0;
+            proppedCount = 0;
+        }
+
+        /// <summary>
+        /// The swing doors something got wedged into this tick, so the fire on
+        /// either side can be told the way is open now. Nobody else cares: to
+        /// people the doorway was open already.
+        /// </summary>
+        private readonly int[] proppedThisTick;
+        private int proppedCount;
+
+        public int ProppingsThisTick => proppedCount;
+
+        public int ProppingAt(int index) => proppedThisTick[index];
 
         /// <summary>A door became a way through: note it for the end of the tick.</summary>
         private void RecordOpening(int door)
@@ -184,8 +217,13 @@ namespace Paniq.Simulation
                     // fire walks through it. The only difference is that this
                     // one was there from the start rather than being made.
                     IsHole = definitions[i].IsOpening,
-                    State = definitions[i].IsOpening
-                        ? DoorState.Broken
+
+                    // Swing doors stand open from the start and stay so:
+                    // nothing below ever shuts them. Only the fire treats
+                    // them as a door.
+                    Swings = definitions[i].Swings,
+                    State = definitions[i].IsOpening || definitions[i].Swings
+                        ? definitions[i].IsOpening ? DoorState.Broken : DoorState.Open
                         : definitions[i].StartsLocked ? DoorState.Locked : DoorState.Unlocked
                 };
             }
@@ -340,9 +378,17 @@ namespace Paniq.Simulation
                 }
 
                 blockedBy[door] = found;
+                doors[door].Obstructed = found >= 0;
                 if (found >= 0)
                 {
                     objects.RecordBlockage(found, doors[door].Id, geometry.DoorCentre(door));
+                    if (doors[door].Swings && doors[door].State != DoorState.Broken)
+                    {
+                        // Propped open: the fire, which had this door in its
+                        // way, is told the way is clear now, or a burning
+                        // square that had nowhere to go would never wake.
+                        proppedThisTick[proppedCount++] = door;
+                    }
                 }
                 else
                 {
@@ -378,10 +424,7 @@ namespace Paniq.Simulation
             switch (d.State)
             {
                 case DoorState.Locked:
-                    // The player is the cause, so this is a root event.
-                    d.State = DoorState.Unlocked;
-                    d.UnlockedEventId = context.Events.Append(
-                        context.Tick, d.Id, CausalEventType.DoorUnlocked, geometry.DoorCentre(door)).EventId;
+                    UnlockByPlayer(door);
                     return true;
                 case DoorState.Unlocked:
                     return Open(door, d.UnlockedEventId);
@@ -392,6 +435,61 @@ namespace Paniq.Simulation
                     // Broken down: there is nothing left to work.
                     return false;
             }
+        }
+
+        /// <summary>
+        /// The player turns the key (2026-09-25), carried out by
+        /// <see cref="PlayerCommandSystem"/>: a locked door is unlocked, a
+        /// shut one locked, and an open one shut and then locked -- if nobody
+        /// is in the doorway. Returns whether the door actually changed, so a
+        /// key that turned nothing is not charged for. Swing doors, archways
+        /// and holes have no key.
+        /// </summary>
+        public bool ToggleLock(int door)
+        {
+            DoorRuntime d = doors[door];
+            if (d.IsHole || d.Swings)
+            {
+                return false;
+            }
+
+            switch (d.State)
+            {
+                case DoorState.Locked:
+                    UnlockByPlayer(door);
+                    return true;
+                case DoorState.Unlocked:
+                    LockByPlayer(door);
+                    return true;
+                case DoorState.Open:
+                    if (TryClose(door, d.Id, 0UL) == 0UL)
+                    {
+                        return false;
+                    }
+
+                    LockByPlayer(door);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>The player unlocks a door: a root event, with the door as its source.</summary>
+        private void UnlockByPlayer(int door)
+        {
+            DoorRuntime d = doors[door];
+            d.State = DoorState.Unlocked;
+            d.UnlockedEventId = context.Events.Append(
+                context.Tick, d.Id, CausalEventType.DoorUnlocked, geometry.DoorCentre(door)).EventId;
+        }
+
+        /// <summary>The player locks a shut door: a root event, with the door as both its source and its target.</summary>
+        private void LockByPlayer(int door)
+        {
+            DoorRuntime d = doors[door];
+            d.State = DoorState.Locked;
+            context.Events.Append(context.Tick, d.Id, CausalEventType.DoorLocked, geometry.DoorCentre(door),
+                0, 0, 0UL, d.Id);
         }
 
         /// <summary>True when nobody (other than <paramref name="ignore"/>) is in the way of the door swinging shut.</summary>
@@ -431,8 +529,10 @@ namespace Paniq.Simulation
         public ulong TryClose(int door, SimulationId closer, ulong causalParentEventId, Agent ignore = null)
         {
             DoorRuntime d = doors[door];
-            if (d.State != DoorState.Open || !IsDoorwayClear(door, ignore))
+            if (d.State != DoorState.Open || d.Swings || !IsDoorwayClear(door, ignore))
             {
+                // Nothing to shut: swing doors shut themselves behind
+                // whoever went through, and stand open to whoever comes next.
                 return 0UL;
             }
 
@@ -574,15 +674,18 @@ namespace Paniq.Simulation
         public void ScorchInTheFire(FireSystem fire)
         {
             int reach = context.Scenario.Exits.FireAtDoorRadiusMillimetres;
-            int through = context.Scenario.Exits.DoorBurnThroughTicks;
             for (int door = 0; door < Count; door++)
             {
                 DoorRuntime d = doors[door];
-                if (d.IsHole || d.State == DoorState.Open || d.State == DoorState.Broken)
+                if (d.IsHole || d.State == DoorState.Broken || (d.State == DoorState.Open && !d.Swings) ||
+                    (d.Swings && d.Obstructed))
                 {
-                    // Nothing standing in the way for the flames to eat.
+                    // Nothing standing in the way for the flames to eat: an
+                    // open door, a hole, or swing doors propped open.
                     continue;
                 }
+
+                int through = BurnThroughTicksOf(d);
 
                 // Only flames in a room the door opens onto can reach it. It
                 // used to be any flames within reach in a straight line, wall
@@ -611,9 +714,13 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>How long this door stands in the flames before it goes: swing doors half as long as a shut door.</summary>
+        private int BurnThroughTicksOf(DoorRuntime d) =>
+            d.Swings ? context.Scenario.Exits.SwingDoorBurnThroughTicks : context.Scenario.Exits.DoorBurnThroughTicks;
+
         /// <summary>How far through burning this door is, nought to a hundred, for the display.</summary>
         private int ScorchPercent(DoorRuntime d) =>
-            Math.Min(100, d.Scorch * 100 / context.Scenario.Exits.DoorBurnThroughTicks);
+            Math.Min(100, d.Scorch * 100 / BurnThroughTicksOf(d));
 
         public SimulationId IdOf(int door) => doors[door].Id;
 
@@ -627,7 +734,7 @@ namespace Paniq.Simulation
             int damagePercent = Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength);
             return new DoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent,
                 ScorchPercent(d),
-                d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door));
+                d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door), d.Swings);
         }
 
         public DoorSnapshot[] GetSnapshots()

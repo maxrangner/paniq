@@ -822,7 +822,13 @@ namespace Paniq.Simulation
         /// The player pulled a fire alarm. A root event: the bells that ring
         /// name it as their cause. Target: the alarm.
         /// </summary>
-        PowerPulledAlarm
+        PowerPulledAlarm,
+
+        /// <summary>
+        /// The player threw "Stick together": one of these per person the
+        /// throw caught, who is now bound to the others. Target: the person.
+        /// </summary>
+        PowerStickTogether
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -945,7 +951,14 @@ namespace Paniq.Simulation
         LampShade,
 
         /// <summary>A robot vacuum: trundles about the floor by itself, turning at walls and desks, and burns like plastic.</summary>
-        RobotVacuum
+        RobotVacuum,
+
+        /// <summary>
+        /// A fire alarm bell, high on the wall: it rings when any pull station
+        /// is hit, and when the flames reach it it goes off with a crack and
+        /// falls silent (2026-09-25).
+        /// </summary>
+        AlarmSounder
     }
 
     /// <summary>
@@ -1015,7 +1028,21 @@ namespace Paniq.Simulation
         /// card: it is always on offer, priced like one, and does nothing for
         /// nothing when the bells are already ringing.
         /// </summary>
-        PullAlarm
+        PullAlarm,
+
+        /// <summary>
+        /// The player turns a door's key (the target is the door's ID): a
+        /// locked door is unlocked, a shut one locked, and an open one shut
+        /// and locked if nobody is in the doorway. Priced by the door: the
+        /// building's way out costs the whole purse to unlock (2026-09-25).
+        /// </summary>
+        ToggleLock,
+
+        /// <summary>
+        /// Stick together: everybody the throw catches becomes one group that
+        /// keeps together once frightened (see <see cref="GroupSystem"/>).
+        /// </summary>
+        StickTogether
     }
 
     /// <summary>

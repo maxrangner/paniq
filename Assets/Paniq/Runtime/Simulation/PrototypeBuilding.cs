@@ -19,12 +19,18 @@
     /// meeting room and the cafeteria sit along its north side and the open
     /// office and the bathroom along its south, each with a door onto it. At
     /// the east end the corridor Ts: the building's one way out is up the
-    /// north arm, and the south arm is a dead end. The cafeteria has a second
-    /// door onto that north arm, so from the cafeteria there is a short way
-    /// out and a long one. At the far west end, past everything, is the
-    /// maintenance room. The bathroom has three stalls, each its own little
-    /// room with its own door, exactly as the storage closet hangs off the
-    /// office.
+    /// north arm. The south arm runs down past the bathroom into the
+    /// stockroom, a long room full of cardboard boxes behind the bathroom and
+    /// the closet, which also has a door into the office's east wall -- so
+    /// from the office there are two ways to the way out, north through the
+    /// corridor or south-east through the boxes (2026-09-25; the owner asked
+    /// for every room but the bathroom to have two ways out). The cafeteria
+    /// used to have a second door straight onto the north arm beside the way
+    /// out; the owner had it taken out (2026-09-25), so the cafeteria empties
+    /// through its swing doors or through the meeting room like everybody
+    /// else. At the far west end, past everything, is the maintenance room. The bathroom is one rectangle with three stalls
+    /// across the full width of its south wall, each its own little room with
+    /// its own door, exactly as the storage closet hangs off the office.
     /// </para>
     /// <para>
     /// <b>Held still on purpose.</b> The open office keeps its old rectangle
@@ -32,8 +38,9 @@
     /// its old floor. Dozens of tests name places inside them by coordinate,
     /// and moving them would have meant rewriting tests that have nothing to
     /// do with the shape of the building. The closet grew north to the
-    /// corridor wall on 2026-09-24 (the owner asked for a bigger one); every
-    /// place a test names in it is still inside it.
+    /// corridor wall on 2026-09-24 (the owner asked for a bigger one) and
+    /// south to the stalls' line on 2026-09-25; every place a test names in
+    /// it is still inside it.
     /// </para>
     /// </summary>
     internal static class PrototypeBuilding
@@ -41,7 +48,7 @@
         /// <summary>The open-plan office. The first room, and unchanged since prototype 1.</summary>
         public static readonly SimulationId Office = new SimulationId(5001UL);
 
-        /// <summary>The storage closet off the office's east wall: 2 m wide and, since 2026-09-24, 4.5 m long.</summary>
+        /// <summary>The storage closet off the office's east wall: 2 m wide and, since 2026-09-25, 6.5 m long, from the corridor wall down to the stalls' line.</summary>
         public static readonly SimulationId Closet = new SimulationId(5002UL);
 
         /// <summary>
@@ -65,14 +72,22 @@
 
         /// <summary>
         /// The crossbar of the T at the east end. The way out is at the north
-        /// end of it; the south end is a dead end, which is somewhere wrong for
-        /// a frightened person to run.
+        /// end of it; the south end used to be a dead end, and since 2026-09-25
+        /// runs on down past the bathroom to the stockroom's door.
         /// </summary>
         public static readonly SimulationId Crossbar = new SimulationId(5009UL);
 
         public static readonly SimulationId StallOne = new SimulationId(5011UL);
         public static readonly SimulationId StallTwo = new SimulationId(5012UL);
         public static readonly SimulationId StallThree = new SimulationId(5013UL);
+
+        /// <summary>
+        /// The stockroom behind the bathroom and the closet: 10 m by 5.5 m of
+        /// cardboard boxes, with a door into the office's east wall and one
+        /// into the crossbar's south end. It is the office's second way to
+        /// the way out -- and a fire that reaches it turns it into a furnace.
+        /// </summary>
+        public static readonly SimulationId Stockroom = new SimulationId(5014UL);
 
         /// <summary>
         /// The building. Every edge is a multiple of 250 mm, the size of a
@@ -85,24 +100,33 @@
             {
                 // The office is unchanged from prototype 1, and deliberately
                 // so. The closet keeps its door and its old floor (z 1500 to
-                // 3500) and runs on north to the corridor wall.
+                // 3500), runs north to the corridor wall and south to the
+                // line of the stalls, so the whole east side of the office
+                // shares one straight edge with the stockroom below.
                 new RoomDefinition(Office, new LogicalBounds(-6000, 6000, -6000, 6000)),
-                new RoomDefinition(Closet, new LogicalBounds(6000, 8000, 1500, 6000)),
+                new RoomDefinition(Closet, new LogicalBounds(6000, 8000, -500, 6000)),
 
                 new RoomDefinition(Corridor, new LogicalBounds(-6000, 13000, 6000, 9000)),
                 new RoomDefinition(Cafeteria, new LogicalBounds(2000, 13000, 9000, 17000)),
                 new RoomDefinition(MeetingRoom, new LogicalBounds(-6000, 2000, 9000, 17000)),
                 new RoomDefinition(Bathroom, new LogicalBounds(8000, 13000, 1000, 6000)),
                 new RoomDefinition(Maintenance, new LogicalBounds(-9000, -6000, 6000, 9000)),
-                new RoomDefinition(Crossbar, new LogicalBounds(13000, 16000, 2000, 17000)),
+                new RoomDefinition(Crossbar, new LogicalBounds(13000, 16000, -500, 17000)),
 
-                // The stalls: 1.5 m square apiece, hung off the bathroom's
-                // south wall. Small, but a person is half a metre across and
-                // the navigation squares are a quarter of one, so there is
-                // real room to stand and turn round inside each.
-                new RoomDefinition(StallOne, new LogicalBounds(8250, 9750, -500, 1000), RoomUse.Stall),
-                new RoomDefinition(StallTwo, new LogicalBounds(9750, 11250, -500, 1000), RoomUse.Stall),
-                new RoomDefinition(StallThree, new LogicalBounds(11250, 12750, -500, 1000), RoomUse.Stall)
+                // The stalls, across the full width of the bathroom's south
+                // wall so the bathroom is one clean rectangle: two of 1.5 m
+                // and a wide one of 2 m in the middle. Small, but a person is
+                // half a metre across and the navigation squares are a
+                // quarter of one, so there is real room to stand and turn
+                // round inside each. (They used to stop 250 mm short of the
+                // bathroom's side walls, and those walls sat on fire-square
+                // centres, so two columns of floor could never burn.)
+                new RoomDefinition(StallOne, new LogicalBounds(8000, 9500, -500, 1000), RoomUse.Stall),
+                new RoomDefinition(StallTwo, new LogicalBounds(9500, 11500, -500, 1000), RoomUse.Stall),
+                new RoomDefinition(StallThree, new LogicalBounds(11500, 13000, -500, 1000), RoomUse.Stall),
+
+                // The stockroom, last so every room above keeps its index.
+                new RoomDefinition(Stockroom, new LogicalBounds(6000, 16000, -6000, -500))
             };
         }
 
@@ -193,9 +217,11 @@
 
         /// <summary>
         /// The signs pointing the way out: three down the corridor pointing
-        /// east toward the T, and one in each arm of the T pointing north at
-        /// the door. The south arm gets one too, because somebody who has run
-        /// down the dead end needs telling they have.
+        /// east toward the T, one in each arm of the T pointing north at the
+        /// door, and two in the stockroom -- one at its west end pointing
+        /// east along the lane, one under its door into the crossbar pointing
+        /// north. The south arm keeps its sign: somebody who has come out of
+        /// the stockroom needs telling which way the door is.
         /// </summary>
         public static ExitSignDefinition[] DefaultExitSigns()
         {
@@ -207,7 +233,9 @@
                 new ExitSignDefinition(new LogicalPosition(3000, 8600), East),
                 new ExitSignDefinition(new LogicalPosition(9000, 8600), East),
                 new ExitSignDefinition(new LogicalPosition(14500, 11000), North),
-                new ExitSignDefinition(new LogicalPosition(14500, 4000), North)
+                new ExitSignDefinition(new LogicalPosition(14500, 4000), North),
+                new ExitSignDefinition(new LogicalPosition(7500, -3200), East),
+                new ExitSignDefinition(new LogicalPosition(14500, -1200), North)
             };
         }
 
@@ -280,10 +308,10 @@
         /// The doors. There is exactly one way out of the building, at the end
         /// of the corridor's north arm, and it starts locked: it is the
         /// player's to open. Every room opens onto the long stretch of corridor
-        /// that runs past them all, and the cafeteria has a second door onto
-        /// the arm nearer the exit, so from there the choice is a short route
-        /// or a long one. Everything inside starts shut but unlocked, so people
-        /// can work the doors themselves.
+        /// that runs past them all, the meeting room and the cafeteria share a
+        /// door, and the office has a second door into the stockroom and out
+        /// through the crossbar's south end. Everything inside starts shut but
+        /// unlocked, so people can work the doors themselves.
         /// </summary>
         public static DoorDefinition[] DefaultDoors()
         {
@@ -297,23 +325,35 @@
                 new DoorDefinition(new SimulationId(2006UL), MeetingRoom, WallSide.South, -2000, 1000, false),
 
                 // The meeting room's second door, straight into the cafeteria
-                // (the owner asked for it, 2026-09-24). From the meeting table
-                // it is now shorter to leave through the cafeteria and its
-                // shortcut than down the corridor to the T.
+                // (the owner asked for it, 2026-09-24).
                 new DoorDefinition(new SimulationId(2017UL), MeetingRoom, WallSide.East, 14000, 1000, false),
-                new DoorDefinition(new SimulationId(2011UL), Cafeteria, WallSide.South, 6000, 1000, false),
+                // The cafeteria's corridor door, the far one from the way out,
+                // is a pair of swing doors 2 m wide (the owner asked,
+                // 2026-09-25): people push straight through, nobody works
+                // them, and the fire burns through them in half the time.
+                new DoorDefinition(new SimulationId(2011UL), Cafeteria, WallSide.South, 6000, 2000, false, swings: true),
                 new DoorDefinition(new SimulationId(2012UL), Bathroom, WallSide.North, 10500, 1000, false),
 
-                // The cafeteria's second door, onto the arm nearer the exit.
-                new DoorDefinition(new SimulationId(2009UL), Cafeteria, WallSide.East, 12000, 1000, false),
+                // The cafeteria's door onto the arm nearer the exit (2009) was
+                // taken out on 2026-09-25 at the owner's request: the
+                // cafeteria goes out through its swing doors or the meeting
+                // room, and nobody has a private door beside the way out.
 
                 // The maintenance room at the dead west end.
                 new DoorDefinition(new SimulationId(2010UL), Corridor, WallSide.West, 7500, 1000, false),
 
-                // The bathroom stalls.
-                new DoorDefinition(new SimulationId(2013UL), StallOne, WallSide.North, 9000, 800, false),
+                // The bathroom stalls, each door in the middle of its stall.
+                new DoorDefinition(new SimulationId(2013UL), StallOne, WallSide.North, 8750, 800, false),
                 new DoorDefinition(new SimulationId(2014UL), StallTwo, WallSide.North, 10500, 800, false),
-                new DoorDefinition(new SimulationId(2015UL), StallThree, WallSide.North, 12000, 800, false),
+                new DoorDefinition(new SimulationId(2015UL), StallThree, WallSide.North, 12250, 800, false),
+
+                // The stockroom (2026-09-25): into the office's east wall at
+                // its south end, as far from the office's corridor door as
+                // the wall allows, so a fire at one door leaves the other;
+                // and into the crossbar's south end, straight under the way
+                // out. The room's own doors, in its own walls.
+                new DoorDefinition(new SimulationId(2018UL), Stockroom, WallSide.West, -4000, 1000, false),
+                new DoorDefinition(new SimulationId(2019UL), Stockroom, WallSide.North, 14500, 1000, false),
 
                 // The T itself: an archway rather than a door, because a
                 // corridor that turns a corner is two rectangles and there is
@@ -554,10 +594,16 @@
                 Shelves(3423UL, 7550, 4200, East),
                 Shelves(3424UL, 7550, 5300, East),
 
-                // The copier against the office's east wall, and another
-                // parked in the corridor by the cafeteria door, which a crowd
-                // will shove along in front of it.
-                CopyMachine(3431UL, 5500, -2000, East),
+                // The copier against the office's west wall, the one wall of
+                // the office with no door in it, and another parked in the
+                // corridor by the cafeteria door, which a crowd will shove
+                // along in front of it. The office's copier stood by the east
+                // wall until 2026-09-25, when the stockroom door went into
+                // that wall: a crowd rolled the copier along the wall into the
+                // doorway's approach, and two people pushed it from opposite
+                // sides for the rest of the round (seed 42). A thing on
+                // castors belongs against a wall it can never block a door in.
+                CopyMachine(3431UL, -5550, -2000, West),
                 CopyMachine(3432UL, 8000, 8550),
 
                 // Whiteboards on wheels: one at the head of the meeting table,
@@ -578,15 +624,81 @@
 
                 // Robot vacuums trundling about the office and the cafeteria.
                 RobotVacuum(3471UL, 0, -3000),
-                RobotVacuum(3472UL, 8000, 15500)
+                RobotVacuum(3472UL, 8000, 15500),
+
+                // The stockroom's stores (2026-09-25): boxes of every size,
+                // many stacked in pairs. Loose things are not on the map
+                // people steer by -- they only dodge them when they get there
+                // -- so the straight line from the office door (6000, -4000)
+                // to the crossbar door (14500, -500) is kept clear of all of
+                // them by a metre either side, and nothing stands within
+                // 1.5 m of either doorway, where a box at rest would jam the
+                // door.
+                //
+                // A row of stacks along the south wall.
+                Box(3501UL, 8000, -5650, 600, 13000),
+                Box(3502UL, 8000, -5650, 400, 6000, restsOnTheOneBelow: true),
+                Box(3503UL, 9000, -5550, 800, 24000),
+                Box(3504UL, 9000, -5550, 500, 9000, restsOnTheOneBelow: true),
+                Box(3505UL, 10000, -5700, 500, 9000),
+                Box(3506UL, 10000, -5700, 300, 3000, restsOnTheOneBelow: true),
+                Box(3507UL, 11000, -5600, 700, 18000),
+                Box(3508UL, 11000, -5600, 400, 6000, restsOnTheOneBelow: true),
+                Box(3509UL, 12000, -5650, 600, 13000),
+                Box(3510UL, 12000, -5650, 350, 4000, restsOnTheOneBelow: true),
+                Box(3511UL, 13000, -5550, 800, 24000),
+                Box(3512UL, 13000, -5550, 450, 7500, restsOnTheOneBelow: true),
+                Box(3513UL, 14000, -5700, 500, 9000),
+                Box(3514UL, 14000, -5700, 300, 3000, restsOnTheOneBelow: true),
+                Box(3515UL, 15000, -5600, 700, 18000),
+                Box(3516UL, 15000, -5600, 400, 6000, restsOnTheOneBelow: true),
+
+                // Crates along the north wall, under the closet and the
+                // bathroom, stopping where the lane comes up to the wall.
+                Box(3517UL, 6700, -1000, 700, 18000),
+                Box(3518UL, 7600, -1000, 600, 13000),
+                Box(3519UL, 8500, -1000, 500, 9000),
+                Box(3520UL, 9300, -1000, 700, 18000),
+                Box(3521UL, 10200, -1000, 600, 13000),
+                Box(3522UL, 10200, -1000, 400, 6000, restsOnTheOneBelow: true),
+                Box(3523UL, 6600, -2000, 500, 9000),
+
+                // An island south of the lane.
+                Box(3524UL, 10000, -4100, 600, 13000),
+                Box(3525UL, 10000, -4100, 400, 6000, restsOnTheOneBelow: true),
+                Box(3526UL, 10800, -4200, 500, 9000),
+                Box(3527UL, 9300, -4300, 450, 7500),
+                Box(3528UL, 12500, -4600, 350, 4000),
+                Box(3529UL, 13500, -4500, 400, 6000),
+
+                // A column against the east wall, clear of the crossbar door.
+                Box(3530UL, 15600, -4000, 600, 13000),
+                Box(3531UL, 15600, -3000, 700, 18000),
+                Box(3532UL, 15600, -2000, 500, 9000),
+
+                // The fire alarm bells (2026-09-25), one high on a wall of
+                // every room people use, including the stockroom and the
+                // crossbar. They ring when any pull station below is hit, and
+                // the flames reaching one set it off and silence it.
+                Sounder(3601UL, -5850, -1500, West),
+                Sounder(3602UL, 0, 8850, North),
+                Sounder(3603UL, 8000, 16850, North),
+                Sounder(3604UL, -5850, 11000, West),
+                Sounder(3605UL, 12850, 3000, East),
+                Sounder(3606UL, 12000, -650, North),
+                Sounder(3607UL, 15850, 8000, East)
             };
         }
 
         /// <summary>
-        /// One alarm on a wall of each big room, just inside it so somebody can
-        /// stand at it, and well clear of the doorways -- an alarm beside a
-        /// door turns into a queue. The closet, the stalls and the maintenance
-        /// room have none: they are cupboards.
+        /// The pull stations: one on a wall of each big room, just inside it so
+        /// somebody can stand at it, and well clear of the doorways -- an alarm
+        /// beside a door turns into a queue. The closet, the stalls and the
+        /// maintenance room have none: they are cupboards. The crossbar has
+        /// none either: it had one on its east wall below the way out (6006)
+        /// until the owner had it taken out (2026-09-25), so nobody stops
+        /// beside the exit to hit a switch. The bells that ring are things on
+        /// the walls (see <see cref="Sounder"/>).
         /// </summary>
         public static AlarmDefinition[] DefaultAlarms()
         {
@@ -595,7 +707,8 @@
                 new AlarmDefinition(new SimulationId(6001UL), new LogicalPosition(-5700, 2000)),
                 new AlarmDefinition(new SimulationId(6002UL), new LogicalPosition(3000, 8700)),
                 new AlarmDefinition(new SimulationId(6003UL), new LogicalPosition(7000, 16700)),
-                new AlarmDefinition(new SimulationId(6004UL), new LogicalPosition(-5700, 16700))
+                new AlarmDefinition(new SimulationId(6004UL), new LogicalPosition(-5700, 16700)),
+                new AlarmDefinition(new SimulationId(6005UL), new LogicalPosition(6300, -2500))
             };
         }
 
@@ -737,6 +850,14 @@
         {
             return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.WallSocket, new LogicalPosition(x, z), 160, 60000,
+                initialFacingDegrees: facing);
+        }
+
+        /// <summary>A fire alarm bell: bolted high on the wall like a socket, and it pops when the flames reach it.</summary>
+        private static PhysicsObjectDefinition Sounder(ulong id, int x, int z, int facing = North)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.AlarmSounder, new LogicalPosition(x, z), 200, 60000,
                 initialFacingDegrees: facing);
         }
 

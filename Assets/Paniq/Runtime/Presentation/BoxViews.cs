@@ -294,6 +294,16 @@ namespace Paniq.Presentation
                     Part("Light", PrimitiveType.Cube, new Vector3(0f, height + 0.01f, size * 0.25f), new Vector3(0.05f, 0.02f, 0.05f));
                     break;
 
+                case PhysicsObjectKind.AlarmSounder:
+                    // A fire alarm bell high on the wall, above every head: a
+                    // red plate with a dome on its front. It flashes while the
+                    // bells ring (see Update) and goes dark once it has popped.
+                    height = 2.1f + size * 0.5f;
+                    colour = new Color(0.78f, 0.12f, 0.12f);
+                    Part("Plate", PrimitiveType.Cube, Vector3.up * 2.1f, new Vector3(size, size, 0.04f));
+                    Part("Dome", PrimitiveType.Sphere, new Vector3(0f, 2.1f, -size * 0.2f), new Vector3(size * 0.6f, size * 0.6f, size * 0.4f));
+                    break;
+
                 default:
                     height = size * 0.5f;
                     colour = new Color(0.55f, 0.57f, 0.60f);
@@ -499,6 +509,20 @@ namespace Paniq.Presentation
                 }
 
                 ShowFire(view, box.BurnState, box.HeatPercent, time);
+
+                // A bell rings by flashing, twice a second, until the flames
+                // have had it; then it is a dark thing on the wall like any
+                // other burnt-out thing.
+                if (view.Kind == PhysicsObjectKind.AlarmSounder && snapshot.AlarmsRinging &&
+                    box.BurnState == ObjectBurnState.Intact)
+                {
+                    float pulse = Mathf.Repeat(time * 4f, 2f) < 1f ? 1f : 0.25f;
+                    Color flash = Color.Lerp(view.Colour, Color.white, pulse);
+                    foreach (Renderer part in view.Renderers)
+                    {
+                        materials.SetColor(part, flash);
+                    }
+                }
             }
         }
 

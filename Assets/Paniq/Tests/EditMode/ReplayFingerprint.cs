@@ -38,7 +38,9 @@ namespace Paniq.Tests.EditMode
             (PlayerCommandType.PlayTerror, default, new LogicalPosition(-2000, 0), 650),
             (PlayerCommandType.BlastWall, default, new LogicalPosition(0, -5900), 800),
             (PlayerCommandType.PlayBastard, default, new LogicalPosition(2000, 0), 850),
-            (PlayerCommandType.PlayColdHeart, default, new LogicalPosition(0, 2000), 900)
+            (PlayerCommandType.PlayColdHeart, default, new LogicalPosition(0, 2000), 900),
+            (PlayerCommandType.StickTogether, default, new LogicalPosition(0, 0), 950),
+            (PlayerCommandType.ToggleLock, new SimulationId(2002UL), default, 1000)
         };
 
         /// <summary>
@@ -109,12 +111,22 @@ namespace Paniq.Tests.EditMode
 
             if (kickBoxes)
             {
-                // Every box slides toward the middle of the room, so they meet
-                // each other and whoever stands in between.
-                LogicalPosition middle = data.Rooms[0].Bounds.Centre;
+                // Every loose thing in the office slides toward the middle of
+                // the room, so they meet each other and whoever stands in
+                // between. Only the office's: the stockroom's thirty-odd boxes
+                // (2026-09-25) hurled through its walls into their own
+                // collapsing stacks made a contact storm the physics engine
+                // did not replay the same twice.
+                LogicalBounds office = data.Rooms[0].Bounds;
+                LogicalPosition middle = office.Centre;
                 for (int i = 0; i < simulation.PhysicsObjectCount; i++)
                 {
                     LogicalPosition from = simulation.GetPhysicsObject(i).Position;
+                    if (!office.ContainsCircle(from, 0))
+                    {
+                        continue;
+                    }
+
                     LogicalPosition velocity = IntegerMath.Displacement(
                         IntegerMath.HeadingOf((long)middle.X - from.X, (long)middle.Z - from.Z, 0), 110);
                     simulation.LaunchObjectForTests(i, velocity.X, velocity.Z);

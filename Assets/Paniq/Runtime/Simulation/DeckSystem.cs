@@ -28,13 +28,15 @@ namespace Paniq.Simulation
         /// </summary>
         private static readonly PlayerCommandType[] Deck =
         {
-            // Three cards, by the owner's choice (2026-09-24): Beefcake, TNT
-            // and the fire extinguisher. The trait cards, the fire and the
-            // fuse box still exist as commands, and a level that wants them
-            // deals them through its StartingHand; the office does not.
+            // Four cards, by the owner's choice (2026-09-24 and 2026-09-25):
+            // Beefcake, TNT, the fire extinguisher and Stick together. The
+            // trait cards, the fire and the fuse box still exist as commands,
+            // and a level that wants them deals them through its
+            // StartingHand; the office does not.
             PlayerCommandType.PlayBeefcake,
             PlayerCommandType.BlastWall,
-            PlayerCommandType.SpawnExtinguisher
+            PlayerCommandType.SpawnExtinguisher,
+            PlayerCommandType.StickTogether
         };
 
         /// <summary>

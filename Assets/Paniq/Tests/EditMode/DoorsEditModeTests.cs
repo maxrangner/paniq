@@ -84,11 +84,11 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = DefaultData();
             var simulation = new Run(data);
-            // Four rooms onto the corridor, the closet, the cafeteria's
-            // shortcut, the meeting room's door into the cafeteria, the
-            // maintenance room, three stalls, the archway where the corridor
-            // Ts, and the one way out.
-            Assert.That(simulation.DoorCount, Is.EqualTo(13));
+            // Four rooms onto the corridor, the closet, the meeting room's
+            // door into the cafeteria, the maintenance room, three stalls,
+            // the archway where the corridor Ts, the stockroom's two doors,
+            // and the one way out.
+            Assert.That(simulation.DoorCount, Is.EqualTo(14));
             var sides = new HashSet<WallSide>();
             int locked = 0;
             for (int i = 0; i < simulation.DoorCount; i++)
@@ -101,6 +101,15 @@ namespace Paniq.Tests.EditMode
                     // and the rules already describe a gap in a wall as broken.
                     Assert.That(door.State, Is.EqualTo(DoorState.Broken),
                         $"The archway {door.DoorId} should stand open from the start.");
+                    continue;
+                }
+
+                if (definition.Swings)
+                {
+                    // Swing doors stand open to people from the start; only
+                    // the fire has to get through them.
+                    Assert.That(door.State, Is.EqualTo(DoorState.Open), $"The swing doors {door.DoorId} should stand open from the start.");
+                    Assert.That(door.Swings, Is.True);
                     continue;
                 }
 
@@ -985,11 +994,12 @@ namespace Paniq.Tests.EditMode
             };
             Assert.Throws<InvalidOperationException>(() => unknownRoom.Validate());
 
-            // A door opening half into the closet and half into its wall.
+            // A door opening half into the closet and half into the stockroom
+            // below it: two rooms behind one gap is a gap nobody can build.
             ScenarioData halfIntoAWall = DefaultData();
             halfIntoAWall.Doors = new[]
             {
-                new DoorDefinition(new SimulationId(9001UL), office, WallSide.East, 1500, 1000)
+                new DoorDefinition(new SimulationId(9001UL), office, WallSide.East, -500, 1000)
             };
             Assert.Throws<InvalidOperationException>(() => halfIntoAWall.Validate());
         }

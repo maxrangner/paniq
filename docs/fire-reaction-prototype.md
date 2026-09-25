@@ -177,8 +177,7 @@ wandering off, and the queue behind them would set solid.
 
 **People with a clear way out are in a hurry.** Anybody on their way to a way
 out they can see open stops dithering: no hesitating on the spot, no zig-zag,
-no drifting with whoever is running past, and a brisk walk becomes a run even
-for somebody an alarm had left composed. The exceptions are the ones who were
+no drifting with whoever is running past. The exceptions are the ones who were
 never going to: people frozen stiff with fear, people alight, anybody with the
 flames already inside their danger distance, and anybody in the middle of
 shaking somebody awake or dragging them out. The cruel still stop to shove.
@@ -373,22 +372,25 @@ direction they happen to be facing, and the cruel aim it at the nearest person.
 It is a reflex rather than a plan, so a briefcase sails off at an angle and
 clatters into a table.
 
-**Fire alarms.** There is a red box on the wall of each room people use. Anyone
-who has taken in that there is a fire, is not in immediate danger, has their
-hands free, and either leads (6+) or thinks of others (compassion 6+) breaks off
-to hit the one in their own room — four paces at most, half a second to press it
-— and then runs. Hitting one rings **every** bell in the building at once, so a
-shut door cannot leave a room in the dark.
+**Fire alarms.** Two kinds of red thing on the walls (2026-09-25): small
+pull stations at hand height in each big room, and bell units high on a wall
+of every room people use. Anyone who has taken in that there is a fire, is
+not in immediate danger, has their hands free, and is brave (6+), leads (6+)
+or thinks of others (compassion 6+) breaks off to hit the station in their
+own room -- four paces at most, half a second to press it -- and then runs.
+Hitting one rings **every** bell in the building at once, so a shut door
+cannot leave a room in the dark, and the bells ring again every six seconds
+or so, each on its own beat, so a door opened later lets the noise through.
+A bell the flames reach goes off with a crack and falls silent; the others
+ring on.
 
-What a bell *does* depends who hears it, because it tells you there is a fire
-without showing you one. Somebody brave and steady keeps their head: they still
-head for a way out, but at a brisk walk, never zig-zagging, never dithering and
-never freezing. Everybody else loses it exactly as they would on seeing the
-flames. Composure lasts only while the fire stays an abstraction — it ends the
-moment the fire comes at them, somebody knocks them down or shoves them, they
-catch light, or they see the flames themselves. So an alarm in a room of cool
-heads empties it neatly, and an alarm in a room of anxious people starts a
-stampede. The whole thing can be switched off in the scenario.
+A bell frightens whoever hears it exactly as the sight of flames would -- the
+runners run, the freezers freeze -- fire or no fire: the owner's rule, "pull
+it, and everybody panics". Until 2026-09-25 the brave and steady walked out
+at a stroll instead, and an alarm pulled before the fire existed left
+everybody standing startled, facing the bell, until the flames came. Nobody
+wedges a door in a building with nothing burning in it, bell or no bell. The
+whole thing can be switched off in the scenario.
 
 **Furniture breaks.** A hurled box or chair that slams into a chair hard enough
 smashes it: it collapses into flatter, lighter wreckage that people still trip
@@ -484,13 +486,18 @@ is paused. The full description is in [look and controls](look-and-controls.md).
 
 ## What the player can do
 
-**Doors,** as before: click to unlock, again to open, again to close.
+**Doors.** Working a door costs 10 whatever you do to an inside one --
+open, shut, lock, unlock -- and unlocking the building's way out costs the
+whole purse, 100 (the owner's rules, 2026-09-25). The key is yours to turn
+both ways: a locked door is yours to unlock and a shut one yours to lock,
+and an open one shut and locked in one go if nobody is in the doorway. Once
+the way out is unlocked the people open it themselves.
 
 **Influence and cards: the dead deal, the uproar pays.** A round opens with
 **thirty** and **one card**, drawn at random from the deck (the owner's call,
 2026-09-24; it used to open with nothing at all). Thirty is one move: a card,
-or a pull of a fire alarm. It is not enough to open the way out (80) before
-anybody is in trouble.
+or a pull of a fire alarm. The purse holds a hundred at most, and unlocking
+the way out costs exactly that, so a full purse is the one thing that opens it.
 
 The meter fills from the building being in uproar: somebody shouting, tripping,
 freezing or running into somebody else pays a little; a knockdown, a shove, a
@@ -503,14 +510,24 @@ building pays nothing, so you cannot act until things are going wrong.
 kills puts one card, drawn at random, on your bar. A round nobody dies in leaves
 you with a full purse, the one card you opened with, and doors as your other
 move. Deaths pay in cards and not in influence, so the two currencies have one
-source each. **The deck is three cards** (the owner's call, 2026-09-24):
-**Beefcake**, **TNT** and the **fire extinguisher**. The four trait cards, "start
-a fire" and "pop the fuse box" still exist as commands and a level may put them
-in its starting hand, but the office never deals them.
+source each. **The deck is four cards** (the owner's calls, 2026-09-24 and
+2026-09-25): **Beefcake**, **TNT**, the **fire extinguisher** and **Stick
+together**. The four trait cards, "start a fire" and "pop the fuse box" still
+exist as commands and a level may put them in its starting hand, but the
+office never deals them.
 
-**Fire alarms are yours to pull, for 30.** Click any red alarm box and every
+**Stick together** is thrown at a patch of crowd like a trait card, and
+everybody caught becomes a group: once frightened, each is pulled toward the
+others, the ones ahead slow for the ones behind, they go for the door the
+most leaderly of them goes for, and a visitor bound to somebody who works
+here is told the way out. It is not a leash: the cruel (evil 7+) walk off,
+the brave feel it least and the nervous most, anyone with flames at their
+back runs regardless, and a throw that catches fewer than two people makes
+no group and is free.
+
+**Fire alarms are yours to pull, for 30.** Click any red pull station and every
 bell in the building rings, exactly as when a person hits one: everybody calm
-hears it, and the level-headed walk out rather than run. Pulling one that is
+who hears it takes fright and goes for a way out. Pulling one that is
 already ringing does nothing and costs nothing. It is the one move always on
 offer from the first tick -- a player who has seen a fire nobody else has can
 raise the building before it knows.
@@ -522,10 +539,14 @@ your bar. A card that catches the wrong person is spent, and that is your own
 fault — which is why a circle is drawn on the floor under the pointer showing
 exactly the patch it will catch, brightening when somebody is standing in it.
 
-Press a number key to pick a card up, then click. Escape or a right click puts
-it back down. Point at a red alarm box and the line under the score says what
-pulling it costs; click and the bells ring. **Menu**, top right, goes straight
-back to the start card with the seed kept.
+Click a card to pick it up, then click the floor to throw it (2026-09-25;
+the number keys are gone). Escape or a right click puts it back down. Two of
+a kind sit as one card with the count in its corner. One click on a door
+opens or shuts it; a double click turns its key. Point at a door or a red
+pull station and the line under the score says what a click will do and
+cost. **Reset**, top right, goes straight back to the start card with the
+seed kept; **Pause** sits under it; the red **Trigger event** button sits
+bottom centre and goes the moment it is pressed.
 
 The five **trait cards** are thrown at a patch of floor about a doorway and a
 half across — not at a chosen person — and slam one dial to the end of its scale
@@ -912,21 +933,42 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   `AlarmBehaviour.Decide` sits in the panic chain after helping and before the
   door work, so somebody with an unconscious person in front of them sees to them
   rather than walking off to the bell. A scared, upright, empty-handed person not
-  in danger, with leadership 6+ or compassion 6+, and an unpulled alarm in their
-  own room within 4 m, walks to it (giving up if blocked for 12 ticks, if somebody
-  else rings first, or after 8 s) and presses it for 20 ticks. `AlarmPulled`
-  (source the person, target the alarm, parent their `AgentScared`) is followed by
-  one `AlarmRang` per alarm, in alarm order, each emitting its own noise through
-  the ordinary sound path with a 14 m hearing and alarm reach — so everybody calm
-  in the building is alerted, with a new `AgentAlertSource.Alarm`.
-- **Composure.** `AgentFear.Composed` is set when a bell alerts somebody whose
-  bravery less nervousness is 2 or more. A composed person flees at their calm
-  pace rather than their panic pace, and their swerve and hesitation chances are
-  zero; they never freeze, whatever temperament they were dealt.
-  `FearSystem.BreakComposure` clears it, from the panic decision when the fire is
-  inside their danger distance, and from `KnockDown`, `Stagger`, `Trip`,
-  `CatchFire`, `ShoveBack` and `PromoteAlertToVisual`. A broken composure forces a
-  fresh panic decision on the next tick.
+  in danger, with bravery 6+, leadership 6+ or compassion 6+, and an unpulled
+  station in their own room within 4 m, walks to it (giving up if blocked for
+  12 ticks, if somebody else rings first, or after 8 s) and presses it for 20
+  ticks. `AlarmPulled` (source the person, target the station, parent their
+  `AgentScared`) is followed by one `AlarmRang` per live bell, in bell order
+  (source the sounder), each emitting its own noise through the ordinary sound
+  path with a 14 m hearing and alarm reach -- so everybody calm in the building
+  is alerted, with `AgentAlertSource.Alarm` -- and each bell rings again every
+  `AlarmSettings.RepeatTicks` give or take, on its own beat. A sounder is a
+  `PhysicsObjectKind.AlarmSounder`, and one that is no longer `Intact` is
+  silent. A floor with no sounders rings from its pull stations.
+- **A bell frightens.** Being alerted by a bell becomes being scared when the
+  reaction delay is up, whether or not any threat is active
+  (`PerceptionSystem.Update` gates only seeing and hearing the threat on there
+  being one). There is no composure any more: everybody flees at their panic
+  pace with their own swerve and hesitation, and the temperament they were
+  dealt decides whether they freeze.
+- **Swing doors.** A `DoorDefinition` with `Swings` starts `Open` and is never
+  shut, locked, battered or clicked (a click does nothing and costs nothing).
+  `WorldGeometry.FireCanCross` refuses it until it is `Broken` or
+  `DoorRuntime.Obstructed`; `DoorSystem.ScorchInTheFire` burns it through in
+  `ExitSettings.SwingDoorBurnThroughTicks`, and skips it while it is propped.
+  Something wedged into it counts as an opening for the fire on both sides.
+- **The key.** `PlayerCommandType.ToggleLock`, a root event: `DoorLocked` with
+  the door as source and target (the story says "you locked door N"), or
+  `DoorUnlocked` as a click's unlock. Priced by
+  `InfluenceSystem.CostOfLockToggle`: the exit's unlock price when the door
+  leads outside, else the inside price; an open door pays close plus lock and
+  is refused for nothing if the doorway is not clear.
+- **Groups.** `PowerStickTogether`, one per person caught (target the person,
+  root), written only once two or more are known to be caught. `GroupSystem`
+  keeps a group id per person, a pull toward the others' middle scaled by
+  cohesion and faded near them, a pace below a hundred percent for whoever has
+  the group behind, the anchor's door as a bonus in `DoorBehaviour.ChooseExitDoor`,
+  and `WayfindingSystem.Share` between members every ~100 ticks. Each member's
+  pull begins at their own reaction tick. Nobody in danger is pulled.
 - **Breaking.** Each kind has a `BreakMomentum` in kilograms times millimetres
   per tick; 0 never breaks. An object-on-object hit computes the striker's
   momentum and smashes the thing struck if it is over that kind's figure:
@@ -972,15 +1014,15 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   picking it up. All the timings are fixed rather than seeded, so this adds no
   randomness of its own. The kind never seal a door with somebody beyond it, and
   nobody seals their own chosen way out unless the room beyond it is alight.
-- **Influence.** Starts at 0. A card that actually does something spends 30.
+- **Influence.** Starts at 30. A card that actually does something spends 30.
   Everything in the tick's new causal events is priced by how much of a commotion
-  it is and credited to the meter, capped at 300; deaths are excluded, and so are
+  it is and credited to the meter, capped at 100; deaths are excluded, and so are
   the player's own cards and fire spreading square by square. Every person whose
   outcome becomes `Escaped` credits 15. All of it is counted at the end of the
   tick rather than reported by the behaviours, so nothing in the simulation has
   to know the purse exists. Influence is not an event, for the same reason
   sitting is not; each card's event records its cost in `Strength`.
-- **The hand.** Empty at the start. Each person whose outcome becomes `Lost`
+- **The hand.** One card at the start, drawn from the deck. Each person whose outcome becomes `Lost`
   deals one card, drawn from `DeckSystem`'s own PCG32 stream (`initseq` 55, from
   the scenario seed) so that dealing never shifts the crowd's randomness. The
   dead are walked in ascending crowd order, so a replay deals the same cards in
@@ -1125,8 +1167,15 @@ camera — all sized to how big the blast is, so a laptop cracks and TNT booms.
 Display only: the scatter of the sparks comes from the event, never from the
 dice.
 
-**What the new things look like.** A fire alarm is a small red box on the wall;
-every box flashes twice a second once the alarms are ringing. A briefcase is a
+**What the new things look like.** A pull station is a small red box at hand
+height with a white bar across it; a fire alarm bell is a red plate with a dome
+high on the wall, which flashes twice a second once the bells are ringing and
+goes dark once the flames have popped it, and a red FIRE ALARM band runs across
+the very top of the screen on the same beat (2026-09-25). Swing doors are two
+plain wooden leaves that meet in the middle, fly open ahead of whoever runs
+through, flap back past shut and settle. Everybody a "Stick together" throw
+bound wears a thin coloured band round the ankles, one colour per group. A
+briefcase is a
 flat slab on its edge with a handle; a microwave is a boxy appliance with a dark
 door; a wall socket is a small pale plate that never moves. A smashed thing
 squashes to a third of its height and tilts; a collapsed table drops to a flat
@@ -1141,12 +1190,16 @@ makes the shover lunge. The office's later things (2026-09-24): a vending machin
 **The player's own controls** are the hand along the bottom, the influence
 bar above it, and the line above that saying what a click will do. Since
 2026-09-24 the hand is drawn as portrait cards, 96 × 132 pixels, each with
-the key that picks it up in a badge, its name, a line on what it does and its
-price; a card the player cannot afford is dimmed red with the shortfall
-written on it, and the one in hand lifts and turns blue. They were 210 × 34
-bars of text. Clicking a place is worked out against the mathematical ground
-plane, so no collider is needed for it; door leaves and the fire alarm boxes
-are the only colliders in the scene.
+its name, a line on what it does and its price; a card the player cannot
+afford is dimmed red with the shortfall written on it, and the one in hand
+lifts and turns blue. Since 2026-09-25 each card is a button, two of a kind
+are one card with the count in a badge, and a single click on a door is held
+for a third of a second in case a second one makes it a double click
+(`DoorClicks`, plain arithmetic with no scene in it). Every card and button
+claims its patch of screen as it is drawn (`HudHitTest`), so a click on one
+never also reaches the floor behind it. Clicking a place is worked out against
+the mathematical ground plane, so no collider is needed for it; door leaves
+and the pull stations are the only colliders in the scene.
 
 This prototype deliberately remains ordinary GameObjects and C# code. The next
 stone is chosen by the owner after playing it. Profile a standalone build

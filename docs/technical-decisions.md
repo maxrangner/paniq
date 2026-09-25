@@ -424,6 +424,23 @@ commit was written without a Unity editor, so it shipped ten knowingly-stale
 fingerprints and two test files -- 690 lines -- that had never been run once.
 Both are now recorded and run: 391 passing, 0 failing.
 
+## Prototype 2 decision: the branch history condensed (2026-09-25)
+
+Chosen by the owner on 2026-09-25. `feat/prototype-2-round-and-controls` had
+grown to 74 commits, too many to read as a story. Its main line was rewritten
+as 15 commits, one per stage of the work, in the order the work happened. The
+three side strands, the review refactor, the building's day
+(`feat/cue-system`) and the test gear (`chore/test-routine`), keep every
+commit they had, fork from the same points and merge back at the same points,
+so the graph keeps its shape: 36 commits in all, four of them merges.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| One commit per stage on the main line, not per layer (**owner**) | Each new main-line commit gathers everything one stage of prototype 2 added, across game, controls and visuals, and its message lists the original commits it absorbs | The owner asked for few commits with good grouping, and explicitly not one. From here new work lands as few commits per batch, usually one (see *How much goes in one commit* in `AGENTS.md`) | Never for this branch |
+| The graph keeps its shape (**owner**) | The side strands were rebuilt commit for commit, same files, messages, authors and dates, on top of the new main line, and the branch names `feat/cue-system` and `chore/test-routine` were moved to the rebuilt tips | The owner reads the graph as much as the log. A first attempt folded the merges into a straight line, which made the side branches vanish from the picture, and was redone | Never |
+| Snapshots, not replays | Every new commit reuses, byte for byte, the file tree of an old commit; condensed commits take the tree of the last old commit in their group | Nothing was merged, rebased or re-typed, so nothing could conflict and nothing could break; every new commit is a state the branch really was in and was tested in. The new tip's files are identical to the old tip's, apart from this section | Never |
+| The old history is kept | Local tags `backup/prototype-2-before-condense-2026-09-25` (old tip), `backup/cue-system-before-regraft-2026-09-25` and `backup/test-routine-before-regraft-2026-09-25` (old side tips); never pushed | The full messages of the 74 commits remain readable under the tags, and each condensed message names the commits it came from | Delete the tags once the branch is merged into `main` |
+
 ## Prototype 2 decision: the test suite reviewed
 
 Chosen on 2026-09-23, after a play-mode test sat broken for a day because every
@@ -1168,6 +1185,67 @@ Every bump of `SimulationCompatibilityVersion` (the rules) and `ContentRevision`
 | 6 → 7 and 14 → 15 (2026-09-19) | hard knocks (knock-outs, door damage and breaking, stronger people forcing doors more often) and a fix: trait draws, pace jitter, shout and panic-decision timing now advance the run's random generator instead of a copy of it, so those numbers are no longer tied to the next draw. |
 | 5 → 6 and 13 → 14 (2026-09-19) | personalities: pace, reaction delay, danger distance, shouting, panic decisions, swerves, hesitation, trips, dodging, ramming, knockdowns and box shoves now depend on traits, and the temperament deck is dealt by fearfulness. |
 | 4 → 5 and 12 → 13 (2026-09-19; previously 3 → 4 and 11 → 12 for doors and boxes, 2 → 3 and 10 → 11 for temperaments, hearing and collisions) |  |
+
+## Prototype 2: playtest fixes, third round, the game layer (2026-09-25)
+
+The owner's seventeen notes, the game half. Every default below was chosen on
+the owner's behalf and is theirs to overturn; the owner's own rules are marked.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **Where the stockroom is** | `(6000..16000, -6000..-500)`: 10 m by 5.5 m, the building's south edge straight | "Behind the bathroom", reaching the arm of the corridor away from the exit, leaves one shape; a straight south edge suits the tower look | A different footprint: four numbers and the box layout, an afternoon |
+| **Which corridor it joins** | The crossbar's south arm, no longer a dead end | The only corridor a room behind the bathroom can touch; "corridor opposite the exit" read as the arm of the T away from the exit arm | The owner meant something else |
+| **Stall widths** | 1500 / 2000 / 1500 (the middle stall wide) | 5 m does not split into three on the 250 mm grid; a wide accessible stall is what real bathrooms have | Never |
+| **The stockroom's doors** | In the office's east wall at z -4000, and in the crossbar's south wall at x 14500 | As far from the office's corridor door as the wall allows, so a fire at one door leaves the other; the crossbar door straight under the way out | Never |
+| **Fire start areas** | Unchanged: no stockroom fire | Adding an area changes which room every seed starts in, and the owner plays seeds 41 and 42 as reference | The owner wants stockroom fires |
+| **The boxes** | Thirty-two, ids 3501 onward, sizes 250-800 mm, along the walls and in an island south of the lane; the straight line from door to door kept a metre clear; the first row 1.5 m from either doorway | Loose things are not on the map people steer by (`NavigationGrid` takes rooms, tables, walls and doorways), so people are steered along the door-to-door line and only dodge a box when they reach it; a box at rest in a doorway jams the door | Somebody is seen stuck in the stores |
+| **Swing doors and sight, sound, routing** | Open for everything but the fire: `DoorState.Open` from the start, never shut, locked or battered | The simplest model that is coherent everywhere `IsDoorOpen` is asked; cafeteria swing doors have windows | Sound through them should be muffled, or a lock wanted |
+| **Swing door fire time** | `ExitSettings.SwingDoorBurnThroughTicks` 450, half a shut door's 900 | **The owner's rule:** "swinging doors stop fire half as good as normal ones" | One number |
+| **Propped swing doors** | Something wedged in the gap lets the fire through: `DoorRuntime.Obstructed`, written by `DoorSystem.ResolveBlockages`, read by `WorldGeometry.FireCanCross`; the fire beside a door just propped is woken as beside a door just opened | The geometry holds no door system to ask, and a burning square with nowhere to go is retired for good until woken | Never |
+| **Sounders** | A new kind of thing, `PhysicsObjectKind.AlarmSounder`: bolted to the wall like a socket, a plate 2.1 m up above every head, ignites after 80 ticks and pops like a laptop; seven, one per room people use | Reuses ignition, the bang, the fling, the story and the signs for free; a bell that pops is a thing on the wall the flames reached | Never |
+| **Which bells ring** | Every sounder still `Intact`; a floor authored with no sounders rings from its pull stations | So every test building still sounds; `Wreck` never marks a kind without `BreakMomentum`, so burn state is the only test | Never |
+| **Re-ringing** | `AlarmSettings.RepeatTicks` 300, each bell drawing its own beat (a seeded offset at the pull, then jittered) | A door opened later lets the news through; the owner's rule that nothing happens to a whole group on one tick | One number |
+| **The composed walk-out** | Deleted outright: `Composed`, `BreakComposure`, `StaysComposed`, `ComposureGap`, `IsComposed`, the calm flee pace | **The owner's rule:** "pull it, and everybody panics". Dead code that described the old rule would mislead the next reader | Restore from git if a fire-drill cue ever wants it |
+| **A bell before any fire** | `PerceptionSystem` gates only seeing and hearing the threat on there being one; a startle turning into fright runs regardless | An alarm pulled before the fire left everybody startled and staring at the bell until the flames came, which is what the owner saw | Never |
+| **Who pulls the alarm** | Bravery 6+, or leadership 6+, or compassion 6+ (`AlarmSettings.PullMinimumBravery`) | **The owner asked** for the brave; the other two stay because they are people who think of others | Numbers |
+| **Barricading with no fire** | Off until a threat is active (`BarricadeBehaviour.Decide`) | A bell alone should send people to the doors, not to blocking them | Never |
+| **Extinguisher burst** | Ignites after 200 ticks of heat, pops at once with radius 1600, speed 60, no fresh fire; `ObjectKindSettings.PopDouses` empties it over the circle (squares, then things, then people, the spray's order) from `FlammablesSystem.Pop`; a burst bottle has no fuel, which is all "spent" needs | **The owner asked** for the explosion; a full bottle bursting sprays its contents, so an unfetched card becomes a small rescue rather than a bomb | The dousing reads as a free extinguisher |
+| **Dormant things and heat** | `FlammablesSystem` skips a dormant loose thing in the heat pass and the touch pass | The spares sit at (0, 0) in the office until placed; and the dormant lamp shade at its lamp's spot could already be lit and light the floor from nowhere | Never |
+| **Prices** | `Maximum` 100; `OpenDoorCost` 10, `CloseDoorCost` 10, `UnlockDoorCost` 10, new `LockDoorCost` 10, new `UnlockExitCost` 100 | **The owner's rules:** open and lock cost 10, the purse holds 100, the way out costs 100 to unlock; unlocking an inside door was not named, so it costs what any inside-door move costs | Numbers |
+| **The key** | `PlayerCommandType.ToggleLock` (appended): locked to unlocked, shut to locked, open to shut-and-locked when the doorway is clear, refused for nothing otherwise; `ClickDoor` keeps its old meaning so forty tests that unlock the way out with two clicks stand | The input layer decides which click sends which command; the commands stay general | Never |
+| **Locking the way out** | Allowed, at the inside lock price | Unspecified; symmetrical with the bully | The owner objects |
+| **Stick together** | `GroupSystem`: a pull toward the middle of the other members within 8 m, scaled by cohesion `60 + 3 × nervousness - 2 × bravery - 6 × evil` (evil 7+ ignores it), fading in over 2 m past the first metre and off while another member is within 0.8 m; whoever has the group behind them drops to 70 % of their cohesion off their pace; the door the most leaderly member runs for scores +3000; members share wayfinding every ~100 ticks; all round long | **The owner asked** for a card whose people "stay as a group, not a 100 % hard rule, personality should still play in". Steering only turns a person, so waiting had to be a matter of pace; a full-strength pull at running speed steered members into each other and a hard collision put both on the floor | Playtesters say the knot looks tethered, or falls apart |
+| **A group of one** | Two or more make a group; a throw that catches one or none is a miss, free, and writes nothing | A group of one is no group; the log is append-only, so who was caught is settled before the first event goes in | Never |
+| **The deck** | Beefcake, TNT, the fire extinguisher, Stick together | The owner said "add card" | The owner |
+| **The cafeteria's shortcut** | Door 2009, the cafeteria's door onto the crossbar's north arm, removed; the cafeteria keeps its swing doors and the meeting room's door | **The owner asked** (2026-09-25): "remove the door from the cafeteria closest to the exit" | The owner |
+| **The switch beside the way out** | Pull station 6006, on the crossbar's east wall in the north arm below the exit, removed; five stations remain, one in each big room, and the seven bells are untouched. `ContentRevision` 78 -> 79, `SimulationCompatibilityVersion` stays 66 (content, not a rule); the seed 42 fingerprints were re-recorded because somebody who used to run for that station now runs for another, and seeds 40, 41 and 46 did not move | **The owner asked** (2026-09-25): "remove the fire alarm switch in the corridor next to the exit" | The owner |
+| **The office's copier** | Moved from the east wall (5500, -2000) to the west wall (-5550, -2000), the one office wall with no door in it | With the stockroom door in the east wall, the crowd rolled the copier along that wall into the doorway's approach and two people pushed it from opposite sides for the rest of the round (seed 42, found by the seed 41/42 harness). "Blocked" resets whenever a body creeps a millimetre, so neither ever gave up; that is the deeper fault, left for a stone of its own | Somebody is seen pushing furniture against somebody else |
+| Versions | `SimulationCompatibilityVersion` 64 -> 65 -> 66; `ContentRevision` 76 -> 77 -> 78. All thirteen recorded fingerprints re-recorded twice: the floor plan alone moves every run | Where the walls are, what a bell does and what a door costs are rules of the run | Never |
+| Tests | `StockroomEditModeTests`, `SwingDoorsEditModeTests`, `GroupsEditModeTests` new; `AlarmsEditModeTests` rewritten around "everybody panics", the re-ring and the popping bell; `PowersEditModeTests` for the key and the purse; the frozen-person tolerance in `SimulationEditModeTests` is now "never a step of their own, and never shoved more than four metres" | -- | -- |
+
+## Prototype 2: playtest fixes, third round, the controls (2026-09-25)
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **The click gate** | `HudHitTest`: every card and button claims its rectangle as it is drawn in `OnGUI`, and the next frame's `Update` treats a pointer over any of them as the HUD's, with no hover and no world click. The rectangles are a frame old | The world is read in `Update` and the HUD drawn later in the same frame, with nothing between them: a click on "Trigger event" with a door under it clicked the door too, and a click on a card with another in hand would have thrown it at the floor behind | A layout that moves under the pointer |
+| **The double click** | `DoorClicks`, plain arithmetic: a single click waits `WindowSeconds` 0.3 for a second one on the same door, then is sent; a second click inside the window turns the key (`ToggleLock`) instead; a click on another door settles the first as the single click it was; pausing or a card going up forgets it | Acting on the first click at once would open the door, and charge for it, before the double click was known; 0.3 s is about fifteen ticks, less than the lag everybody already reacts with | A playtester feels the wait |
+| **A single click on a locked door** | Sends nothing; the hover line says "double-click to unlock" and the price | **The owner's rule:** single click open/close, double click lock/unlock | The owner wants one click to unlock |
+| **Number keys** | Removed, with `Pick` and the key badge | **The owner said** "clickable instead of using numbers", and a stack of two has no number to name | A playtester misses them |
+| **Stacks** | The hand is drawn grouped by kind in first-dealt order, with "×N" in the badge; `SelectedCard` is a kind and `DeckSystem.Discard` already removes one of a kind, so the run needed nothing | **The owner's rule:** cards of the same type stack | Never |
+| **Buttons** | Reset (the old Menu) at the top right, y 36; Pause under it, y 72; Trigger event bottom centre, 220 × 36, gone once pressed (no grey "Event triggered" placeholder), kept right of the hand on a narrow screen; the "PAUSED" label dropped, the pause panel says it | **The owner asked** for each of these | Never |
+| Tests | `DoorClicksEditModeTests` for the pure decision class and the hit test. The locked-door rule and the card buttons live in `PlayerInput` and IMGUI, which the play-mode tests do not drive; checked in the editor instead | -- | -- |
+
+## Prototype 2: playtest fixes, third round, the drawing (2026-09-25)
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **Swing leaves** | Two hinges at the gap's ends, each with a leaf half the gap wide and its own click collider; a spring on an "open" value (stiffness 120, damping 8, underdamped) whose target is +1 or -1 while a body is in the doorway strip and 0 otherwise; the side is set by where the first body came from and held until the gap clears | **The owner asked** for leaves that swing open and closed with some bounce, pushed through dynamically; an underdamped spring flaps past shut and settles, which is the bounce; holding the side stops the leaves swinging back through somebody halfway | The flap looks wrong |
+| **Which way a pusher pushes** | Somebody inside the door's room pushes the leaves outward; somebody outside pushes them in | Away from the pusher, as a real door gives | Never |
+| **The bell and the station** | `BoxViews` draws an `AlarmSounder` as a red plate with a dome at 2.1 m, flashing twice a second while ringing and only while intact; `RoomView` draws a pull station as a smaller red box with a white bar at 1.1 m, steady, with the same big click collider | **The owner asked** for the noise-makers and the triggers to be different things; the flash moved from the station to the bell because the bell is the thing making the noise | Never |
+| **The banner** | A 28-pixel band across the very top, deep red, "FIRE ALARM" in bold, alpha pulsing on the bells' beat; the band's height is kept whether or not it shows | **The owner asked** for a red banner; keeping the space stops the lines under it jumping when the bells start | Never |
+| **The packed top** | Four lines at y 36, 58, 80 and 104: tick and fire together, the head count, the round's score on its dark backing (moved out of `RoundScreens`), the hover line; the stats panel under the buttons at y 108 | **The owner asked** for the screen packed toward the top; the round's score belongs with the other numbers | Never |
+| **The group band** | A thin cylinder child of the capsule at ankle height, coloured from a four-colour palette by group number | **The owner's card** needs its people telling apart; a child of the capsule runs and falls with them for free | Groups outnumber the palette |
+| Tests | None of this reaches the run; `RoundPresentationPlayModeTests` and `BootstrapSceneFlowTests` still draw and still find the door leaf by name | -- | -- |
 
 ## Review refactor, phase 6: the documents say what the code does
 

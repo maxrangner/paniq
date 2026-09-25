@@ -47,11 +47,13 @@ namespace Paniq.Simulation
             HelpBehaviour help,
             ChairBehaviour chairs,
             ExitSignBehaviour exitSigns,
-            Locomotion locomotion)
+            Locomotion locomotion,
+            GroupSystem groups)
         {
             this.help = help;
             this.chairs = chairs;
             this.exitSigns = exitSigns;
+            this.groups = groups;
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.crowd = crowd;
@@ -85,6 +87,9 @@ namespace Paniq.Simulation
 
         /// <summary>The loose things and the tables, for heaving a table out of the way.</summary>
         private PhysicsObjectSystem objects;
+
+        /// <summary>Who is sticking together with whom.</summary>
+        private readonly GroupSystem groups;
 
         /// <summary>
         /// Stuck with a table between them and where they are going: they
@@ -132,12 +137,6 @@ namespace Paniq.Simulation
             long fireDistanceSquared = threats.NearestDistanceSquared(agent.Body.Position, out LogicalPosition firePoint, out _);
             long danger = TraitEffects.DangerDistance(agent, context.Scenario);
             bool inDanger = fireDistanceSquared < danger * danger;
-            if (inDanger)
-            {
-                // The fire is on them now: whatever composure the bell left them
-                // with is gone.
-                fear.BreakComposure(agent);
-            }
 
             if (intent.Activity == AgentActivityState.Frozen)
             {
@@ -303,9 +302,19 @@ namespace Paniq.Simulation
                 FollowNearbyRunners(agent, out followX, out followZ);
             }
 
+            int pace = 100;
+            if (!inDanger && !eager)
+            {
+                // Sticking together: pulled toward the rest of their group,
+                // and slowed for the ones behind, unless the flames are at
+                // their back or a way out stands open right in front of them.
+                pace = groups.PullToward(agent, goalHeading, ref followX, ref followZ);
+            }
+
             goalHeading = locomotion.Steer(agent, goalHeading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
                 settings.WallAvoidPercent, settings.ObjectAvoidPercent, followX, followZ, settings.TableAvoidPercent);
-            return PanicIntent.WalkTowards(agent, goalHeading, settings);
+            MotorIntent run = PanicIntent.WalkTowards(agent, goalHeading, settings);
+            return pace < 100 ? PanicIntent.MoveAt(agent, run.GoalHeading, run.GoalSpeed * pace / 100, settings) : run;
         }
 
         private MotorIntent LookIntent(Agent agent)

@@ -141,7 +141,10 @@ namespace Paniq.Presentation
                 case CausalEventType.DoorUnlocked: return $"{who} was unlocked";
                 case CausalEventType.DoorOpened: return $"{who} was opened";
                 case CausalEventType.DoorClosed: return $"{who} shut {whom}";
-                case CausalEventType.DoorLocked: return $"{who} locked {whom}";
+                case CausalEventType.DoorLocked:
+                    // The player's own turn of the key names the door as its
+                    // source and its target both.
+                    return record.SourceId == record.TargetId ? $"you locked {whom}" : $"{who} locked {whom}";
                 case CausalEventType.DoorBrokenDown: return $"{who} shouldered {whom} off its hinges";
                 case CausalEventType.DoorBurntThrough: return $"{who} burnt through and the fire came on";
                 case CausalEventType.DoorBlocked: return $"{who} came to rest in {whom} and jammed it";
@@ -195,6 +198,7 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerBlastedWall: return "you blew a hole through a wall";
                 case CausalEventType.PowerPoppedFuseBox: return "you popped the fuse box";
                 case CausalEventType.PowerPulledAlarm: return "you pulled a fire alarm";
+                case CausalEventType.PowerStickTogether: return $"you told {whom} to stick together";
 
                 case CausalEventType.PowerSparkStarted:
                     return $"a spark set off along the cable from {Name(record.SourceId)} " +
@@ -287,6 +291,7 @@ namespace Paniq.Presentation
                 case PhysicsObjectKind.StandingLamp: return "a standing lamp";
                 case PhysicsObjectKind.LampShade: return "a lamp shade";
                 case PhysicsObjectKind.RobotVacuum: return "the robot vacuum";
+                case PhysicsObjectKind.AlarmSounder: return "a fire alarm bell";
                 default: return "something";
             }
         }

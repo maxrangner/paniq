@@ -270,6 +270,12 @@ namespace Paniq.Gameplay
             Simulation.QueueCommand(PlayerCommandType.ClickDoor, doorId, Simulation.Tick + 1);
         }
 
+        /// <summary>The player turning a door's key (a double click), queued for the next tick that has not started.</summary>
+        public void QueueLockToggle(SimulationId doorId)
+        {
+            Simulation.QueueCommand(PlayerCommandType.ToggleLock, doorId, Simulation.Tick + 1);
+        }
+
         /// <summary>The player pulling a fire alarm, queued for the next tick that has not started.</summary>
         public void QueueAlarmPull(SimulationId alarmId)
         {

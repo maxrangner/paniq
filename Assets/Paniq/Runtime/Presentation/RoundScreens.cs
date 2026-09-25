@@ -17,7 +17,6 @@ namespace Paniq.Presentation
     {
         private const float CardWidth = 460f;
         private static readonly Color CardBack = new Color(0f, 0f, 0f, 0.86f);
-        private static readonly Color StripBack = new Color(0f, 0f, 0f, 0.55f);
         private static readonly Color Cleared = new Color(0.45f, 0.95f, 0.55f);
         private static readonly Color NotCleared = new Color(1f, 0.6f, 0.45f);
         private static readonly Color TriggerReady = new Color(0.75f, 0.2f, 0.15f, 0.95f);
@@ -46,42 +45,39 @@ namespace Paniq.Presentation
         private string LevelId => runner.Level != null ? runner.Level.LevelId : "the-office";
         private string LevelName => runner.Level != null ? runner.Level.DisplayName : "The Office";
 
-        /// <summary>The running score, the trigger and the pause button, along the top.</summary>
+        /// <summary>Reset and Pause in the top-right corner, and Trigger event bottom centre. (The running score is drawn by the HUD, packed under the alarm band.)</summary>
         public void DrawStrip(RunSnapshot snapshot)
         {
             // Back to the start card, quick, from anywhere in the round or
             // from the end card (the owner asked, 2026-09-24). The seed is
             // kept, so the same day can be played again from the card, or a
-            // new one typed in.
-            if (!runner.IsWaitingToStart && GUI.Button(new Rect(Screen.width - 130f, 20f, 110f, 30f), "Menu"))
+            // new one typed in. It says Reset (2026-09-25), because that is
+            // what it does.
+            if (!runner.IsWaitingToStart)
             {
-                LevelLoader.BackToTheStart(runner.Seed);
-                return;
+                var reset = new Rect(Screen.width - 130f, 36f, 110f, 30f);
+                HudHitTest.Claim(reset);
+                if (GUI.Button(reset, "Reset"))
+                {
+                    LevelLoader.BackToTheStart(runner.Seed);
+                    return;
+                }
             }
 
-            var strip = new Rect(20f, 140f, 720f, 30f);
-            GUI.color = StripBack;
-            GUI.DrawTexture(strip, Texture2D.whiteTexture);
-            GUI.color = Color.white;
-            GUI.Label(new Rect(strip.x + 10f, strip.y + 5f, strip.width - 20f, 22f),
-                $"Saved {snapshot.SavedCount}   Lost {snapshot.LostCount}   Still inside {snapshot.RemainingCount}" +
-                $"      Need {snapshot.TargetSavedCount} of {snapshot.CrowdSize} to clear      Seed {runner.Seed}");
-
-            float y = strip.yMax + 8f;
+            // The trigger sits bottom centre and goes the moment it is pressed
+            // (the owner asked, 2026-09-25): nothing left to press means the
+            // fire has been set going. Kept clear of the hand on a narrow
+            // screen.
             if (!snapshot.EventTriggered)
             {
+                var trigger = new Rect(Mathf.Max(Screen.width * 0.5f - 110f, 460f), Screen.height - 64f, 220f, 36f);
+                HudHitTest.Claim(trigger);
                 GUI.backgroundColor = TriggerReady;
-                if (GUI.Button(new Rect(20f, y, 200f, 30f), "Trigger event"))
+                if (GUI.Button(trigger, "Trigger event"))
                 {
                     runner.QueueTriggerEvent();
                 }
 
-                GUI.backgroundColor = Color.white;
-            }
-            else
-            {
-                GUI.backgroundColor = Spent;
-                GUI.Button(new Rect(20f, y, 200f, 30f), "Event triggered");
                 GUI.backgroundColor = Color.white;
             }
 
@@ -90,20 +86,14 @@ namespace Paniq.Presentation
                 return;
             }
 
-            if (GUI.Button(new Rect(228f + (snapshot.EventTriggered ? 0f : 470f), y, 130f, 30f),
-                    runner.IsPaused ? "Resume (Space)" : "Pause (Space)"))
+            // Pause, under Reset. The pause screen itself says PAUSED.
+            var pause = new Rect(Screen.width - 130f, 72f, 110f, 30f);
+            HudHitTest.Claim(pause);
+            if (GUI.Button(pause, runner.IsPaused ? "Resume (Space)" : "Pause (Space)"))
             {
                 runner.TogglePause();
             }
-
-            if (runner.IsPaused)
-            {
-                GUI.color = new Color(1f, 0.95f, 0.5f);
-                GUI.Label(new Rect(20f, y + 36f, 720f, 22f), "PAUSED");
-                GUI.color = Color.white;
-            }
         }
-
         /// <summary>The card before the round: the level, the target, the best so far, and the seed.</summary>
         public void DrawStartCard(RunSnapshot snapshot)
         {

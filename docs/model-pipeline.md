@@ -1,5 +1,9 @@
 # Making models: from a description to a thing in the game
 
+**Status: implemented and in use (2026-09-26).** The pipeline is merged into
+`main` and has made its first model, the wet-floor sign. Models are not yet
+drawn in the game; see [what is not done yet](#what-is-not-done-yet).
+
 You describe a thing ("a vending machine, ordinary office size, with a flap
 at the bottom that swings") or show a sketch, and back come a picture of it
 from two angles and a model file the game can use. You ask for changes in
@@ -9,9 +13,10 @@ of that.
 This page is written for the owner. Why it is built this way is in the
 [decision log](technical-decisions.md#tooling-decision-models-are-code-2026-09-25);
 how it works underneath is in
-[development workflow](development-workflow.md#building-a-model). Nothing has
-been made with it yet: the pipeline landed before its first model, and the
-game still draws people as capsules and props as stacked blocks.
+[development workflow](development-workflow.md#building-a-model). The first
+model made with it is the yellow wet-floor sign
+([picture](models/previews/WetFloorSign.png)); the game itself still draws
+people as capsules and props as stacked blocks.
 
 ## How it works for you
 
@@ -210,11 +215,12 @@ revisit.
 
 ## What is not done yet
 
-- **No model has been made.** The first one starts with a request like the
-  ones above. A prop is the right first model, not a person: a person mesh
-  arrives with a different kind of renderer (because of shape keys) and one
-  line of the see-through-walls code has to learn about it first. That is
-  recorded in the decision log as a prerequisite.
+- **One model so far: `WetFloorSign`,** a waist-high yellow A-frame
+  "Caution: floor slippery when wet" sign. The game has no wet-floor sign
+  among its props yet, so the model waits for one. No person model yet: a
+  person mesh arrives with a different kind of renderer (because of shape
+  keys) and one line of the see-through-walls code has to learn about it
+  first. That is recorded in the decision log as a prerequisite.
 - **Models are not shown in the game.** A later stone replaces the capsule
   and the block-built props kind by kind. Until then the preview picture is
   where a model lives.

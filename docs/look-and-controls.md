@@ -132,8 +132,10 @@ something you could pick up.
   [model pipeline](model-pipeline.md).
 
 Concept art goes under `docs/reference/`, and the
-[model pipeline](model-pipeline.md) turns a description or a picture into a
-mesh. Nothing is there yet.
+[model pipeline](model-pipeline.md), in use since 2026-09-26, turns a
+description or a picture into a mesh. Its first model is the wet-floor sign;
+the game still draws capsules and blocks until a later stone puts models on
+screen.
 
 ## Walls and what they hide
 

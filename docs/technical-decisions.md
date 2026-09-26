@@ -1372,6 +1372,10 @@ with the editor open, then `-All`, is the verification.
 
 ## Tooling decision: models are code (2026-09-25)
 
+**Status: implemented and in use.** Merged into `main` on 2026-09-26 with
+its first model, the wet-floor sign (below). Models are not drawn in the
+game yet; that is a later stone.
+
 **What the owner asked for.** A way to describe a thing in words, or show
 concept art, and get a real mesh for the game out of it; to change a model
 afterwards by asking again; real meshes rather than stacked primitives; crude
@@ -1386,8 +1390,9 @@ through Blender in the background, which checks it, exports an FBX into
 and writes a report. Unity applies fixed import settings
 (`ModelImportSettings`), and a calibration box under the test fixtures is the
 ruler that `ModelsEditModeTests` measures. It is tooling beside the
-prototype, not a stone of it, on a branch from `main` (`chore/model-pipeline`)
-because it shares no code with the prototype. Everything below was chosen on
+prototype, not a stone of it, built on a branch from `main`
+(`chore/model-pipeline`, merged 2026-09-26) because it shares no code with
+the prototype. Everything below was chosen on
 the owner's behalf.
 
 | Item | Decision | Why now | Revisit when |
@@ -1405,6 +1410,23 @@ the owner's behalf.
 | One file per thing, named after it | `<PhysicsObjectKind>.fbx` for a prop, `Person.fbx` for people; the script's name and the model's name must match, and the build refuses otherwise | The stone that puts models on screen can look a mesh up by its kind's name without a table | Several looks for one kind (three different chairs); then a suffix and a small table |
 | Previews and reports are committed; copies are gated by a hash | `docs/models/previews/<Name>.png` (the game's view and a front view) and `<Name>.json` are committed. The FBX and the picture are only rewritten when the geometry hash or the export recipe changed, because an FBX carries a timestamp and never matches byte for byte | The owner sees every model in the repository without opening anything, and `-All` does not rewrite every file | Previews get large (many models); then keep them out of git and render on demand |
 | No Git LFS yet | Crude FBX files are tens of kilobytes and previews under half a megabyte, so the foundation's rule stands. Reference pictures are asked to stay under 5 MB each | Nothing large has entered the repository | `docs/reference` passes about 50 MB in total or one file passes 5 MB; then LFS for `*.png`, `*.jpg` and `*.blend` |
+
+### The first model: a wet-floor sign (2026-09-26)
+
+**The owner asked for** a "slippery when wet" floor sign, about waist high,
+from a photo of a yellow folding A-frame sign (`docs/reference/WetFloorSign.jpg`).
+It is `tools/models/models/WetFloorSign.py`: two panels leaning from a
+rounded top bar, each with a handle hole, a recessed field with a raised
+rim, a printed label and two feet, 228 triangles. Chosen on the owner's
+behalf:
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| Height | 900 mm to the top of the bar, 420 mm wide, each panel leaning 13°, so the feet stand about 440 mm apart | "About waist high" on an adult is 0.9–1.0 m; models are built at real size and the game scales them, so the game's 1 m-tall capsule people do not set the number. Real signs of this kind are 600–650 mm; the owner's waist-high wins | The sign reads too big or too small once it is on screen beside people; one number |
+| Name | `WetFloorSign`, although `PhysicsObjectKind` has no such kind yet | The model is named for the kind it would be, so the stone that adds the prop finds it without a table | The kind is added under another name; rename the script |
+| Two surfaces | `Body` (the yellow plastic) and `Label` (the printed warning), a label on both faces | The photo's warning is printing on a plain panel; a separate surface lets it become a picture later without touching the plastic. Real signs are printed on both sides | Never, unless the look wants the ribbed chevrons at the foot as a third surface |
+| It does not fold | No hinge part; the sign is one rigid mesh | Nobody asked for it to fold, and a knocked-over sign tumbles whole under physics | Somebody is meant to fold it or kick it flat |
+| `rotate` added to the kit | `Piece.rotate(degrees, axis, about)` turns a piece round a line, the right-hand way | An A-frame is two tilted panels, and every kit piece was upright. The docs already said to add kit operations when the first model needed them | Never; it is a general operation |
 
 Blender's side is documented in the Blender 5.2 manual under
 [FBX](https://docs.blender.org/manual/en/latest/files/import_export/fbx.html)

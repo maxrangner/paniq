@@ -87,7 +87,7 @@ in the editor that is already open:
 .\tools\RunUnityTests.ps1 -PlayMode                  # the play-mode tests
 .\tools\RunUnityTests.ps1 -Category UnityPhysics     # the physics-foundation checks, the one category in use
 .\tools\RunUnityTests.ps1 -Reset                     # the bridge is stuck on a run Unity dropped
-.\tools\BuildModel.ps1 -Name VendingMachine          # build one model from its script with Blender (see model-pipeline.md)
+.\tools\BuildModel.ps1 -Name WetFloorSign            # build one model from its script with Blender (see model-pipeline.md)
 ```
 
 The editor must be open on the project and not in play mode. If nothing
@@ -205,15 +205,18 @@ right, metres, and every piece's `at` is its bottom centre. Pieces:
 `box(name, size, at, bevel, bevel_segments, parent, surface)` and
 `cylinder(name, radius, height, at, segments, axis, bevel, bevel_segments,
 parent, surface)`; each returns a `Piece` with chainable
-`bevel(width, segments)`, `inset(face, thickness, depth)` and
-`extrude(face, distance, scale)`, where `face` is one of `up`, `down`,
-`front`, `back`, `left`, `right`. `surface` defaults to `Body`; a surface
+`bevel(width, segments)`, `inset(face, thickness, depth)`,
+`extrude(face, distance, scale)` and `rotate(degrees, axis, about)`, where
+`face` is one of `up`, `down`, `front`, `back`, `left`, `right`. `rotate`
+turns a piece the right-hand way round a line along `X`, `Y` or `Z` through
+`about` (a leaning panel); face names pick faces by where they look after
+the turn, so inset and extrude first. `surface` defaults to `Body`; a surface
 name is one capitalised word. `part(name, hinge_at)` makes a named child
 object with its origin at the hinge; pieces join it with `parent=`.
 `shape_key(name, move)` stores a deformation of the body, `move` mapping a
 vertex position to where it goes at full strength. Taper, mirror and join
-are not in the kit yet; add them to `paniq_models/__init__.py` when the
-first model needs them.
+are not in the kit yet; add them to `paniq_models/__init__.py` when a
+model needs them.
 
 **What `build.py` does**, in order: realise the objects (one body named
 after the model plus one child per part, in a `Model` collection; one

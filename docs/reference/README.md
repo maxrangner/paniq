@@ -13,4 +13,5 @@ What helps the assistant most, in this order:
 
 Keep single files under about 5 MB; the repository has no large-file storage
 yet (see the decision log). How a picture becomes a model is in
-[model-pipeline.md](../model-pipeline.md). Nothing is here yet.
+[model-pipeline.md](../model-pipeline.md). The first picture here is
+`WetFloorSign.jpg`, the photo the wet-floor sign was built from.

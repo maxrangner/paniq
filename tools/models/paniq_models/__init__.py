@@ -109,6 +109,19 @@ class Piece:
                 vert.co = centre + (vert.co - centre) * scale
         return self
 
+    def rotate(self, degrees, axis="X", about=(0.0, 0.0, 0.0)):
+        """
+        Turns the block ``degrees`` round a line along ``axis`` ("X", "Y" or
+        "Z") through the point ``about``, the right-hand way: a leaning
+        panel, a tilted lid. Face names in later ``inset`` and ``extrude``
+        calls pick the face that looks most that way after the turn, so do
+        those first.
+        """
+        if axis not in ("X", "Y", "Z"):
+            raise ModelError(f"A turn's axis is 'X', 'Y' or 'Z', not '{axis}'.")
+        bmesh.ops.rotate(self.bm, cent=about, matrix=Matrix.Rotation(radians(degrees), 3, axis), verts=self.bm.verts[:])
+        return self
+
     def _face(self, direction):
         if direction not in DIRECTIONS:
             raise ModelError(f"'{direction}' is not a face name; use one of {', '.join(DIRECTIONS)}.")

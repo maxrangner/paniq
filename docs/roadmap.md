@@ -9,11 +9,13 @@ finished game.
 -- is finished and merged into `main`. Prototype 2 is under way in the same
 scene: it is the stone of *game*, and its first five stones are listed below.
 
-**Beside the prototype, not a stone of it (2026-09-25):** the
-[model pipeline](model-pipeline.md), the way a thing described in words or
-sketched on paper becomes a mesh the game can draw. It is tooling and
-documentation only; no model has been made with it yet, and nothing on
-screen has changed.
+**Beside the prototype, not a stone of it: implemented and in use
+(2026-09-26).** The [model pipeline](model-pipeline.md), the way a thing
+described in words or sketched on paper becomes a mesh the game can draw, is
+merged into `main` and has made its first model, a wet-floor sign. Asking
+for a model is now part of normal work. Nothing on screen has changed yet:
+the stone that draws models in place of capsules and blocks is still to
+come.
 
 ## Foundation (complete)
 

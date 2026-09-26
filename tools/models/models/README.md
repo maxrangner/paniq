@@ -6,4 +6,5 @@ for a prop (`VendingMachine.py`), `Person.py` for people. Each defines
 does the rest. How to ask for a model, and the rules every model follows,
 are in [docs/model-pipeline.md](../../../docs/model-pipeline.md).
 
-Nothing here yet: the pipeline landed before its first model.
+A model may exist before its kind does: `WetFloorSign.py` was made on
+request before the simulation had a wet-floor sign.

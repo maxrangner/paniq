@@ -1,6 +1,7 @@
-﻿# Movement and spatial-world rules
+# Movement and spatial-world rules
 
-**Status:** decided foundation. This note defines the logical ground plane,
+**Status:** decided foundation, amended by the physics engine (2026-09-21) and
+checked against the code on 2026-09-26. This note defines the logical ground plane,
 authored world constraints, occupancy, and basic movement resolution. It does
 not define navigation, hazards, player intervention, or autonomous decisions.
 
@@ -52,7 +53,7 @@ positions; it is not an authored list and does not use Unity object references.
 The simulation creates the initial positions at tick zero from the authored
 scenario. A newly created participating agent receives a valid logical position
 through the deterministic creation path before it can submit movement. When an
-agent becomes `NoLongerParticipating`, its retained `AgentState` remains
+agent becomes `NoLongerParticipating`, its retained `Agent` record remains
 available for replay and debugging, but its circle is immediately removed from
 occupancy.
 
@@ -101,48 +102,35 @@ Coordinate units and limits, constraint semantics, occupancy radius, movement
 step limit, integer collision rules, and circular resolution order are
 replay-relevant. Changes follow the [simulation compatibility policy](simulation-contract.md#simulation-compatibility-policy).
 
-## Deferred work
+## What was deferred, and where it went
 
-Pathfinding, navigation meshes, steering/avoidance, slopes, vertical positions,
-multi-level spaces, variable footprints, agent-specific speeds, hazards, and
-player interventions remain deferred. Revisit the shared-radius and
-maximum-step defaults only when a tested scenario demonstrates that they block
-the intended experience.
+This note deferred pathfinding, steering, varied speeds, varied footprints,
+vertical positions and several storeys. As of 2026-09-26:
 
-When spatial runtime code is introduced, its edit-mode tests must cover swept
-obstacle contact, boundary contact, circle touching semantics, agent occupancy,
-and numeric limits. The current prototype is obstacle-free; those focused
-tests validate obstacle semantics without introducing navigation requirements.
+- **Finding the way** is built: the floor is a grid of 250 mm squares
+  (`NavigationGrid`), and people follow flow fields (`FlowField`,
+  `Navigation`) round furniture and across the building; see "Several rooms"
+  below and the roadmap's foundations rebuilt.
+- **Steering and pushing** are the physics engine's: see "Bodies in 3D".
+- **Speeds** vary per person, from the speed trait
+  (see the [agent state model](agent-state-model.md)).
+- **Height** is real for bodies (see "Bodies in 3D"), but the floor plan is
+  still one flat storey. **Storeys are decided, not built**: a room or a
+  position may carry a storey number and a stair is a kind of door between
+  storeys, and nothing new may assume one storey
+  ([design constraints](technical-decisions.md#design-constraints-for-future-expansion)).
+- **Footprints** are still one shared radius for every person.
 
-## Fire-reaction prototype notes
+## Before the physics engine
 
-The [fire-reaction prototype](fire-reaction-prototype.md) follows these rules
-with two documented extensions. First, each agent has its own seeded speed,
-always within the shared maximum step. Second, the agent's own steering picks
-a valid displacement before submitting it: it keeps the along-wall part of a
-step at the boundary, or tries a small side-step around a person. The resolver
-itself still never slides, reroutes, or retries. The swept-circle test uses the
-exact point-to-segment distance (`IntegerMath.SegmentPassesWithin`), which is
-correct for moves in any direction, not only along the axes.
-
-**Doorways.** Each wall may have doors. A closed door is wall. An open door adds
-a walkable strip as wide as the door, from 1 m inside the wall to 2 m outside
-it. Only a person heading for that door, or already outside the room, may use
-the strip, so calm people still treat every door as wall. A destination is
-valid when the whole footprint fits in the room or in a strip the person may
-use, and the sweep never passes within one body radius of either door-frame
-corner. A person 0.8 m or more outside the wall, lined up with an open door,
-has escaped and leaves occupancy at once.
-
-**Physical objects.** Boxes are round footprints (diameter = box width) that
-also occupy space: a person's sweep may not pass through one, and a box's sweep
-may not pass through a person or another box. Box positions keep hundredths of
-a millimetre so slow slides do not round away, but every overlap test uses
-whole millimetres. Objects stay inside the room and treat doorways as wall (they never pass through one), but an object may come to rest *in* a doorway, against the wall line, and one that does jams that door.
+Until 2026-09-23 this note also described doorway strips, a swept-circle
+movement test and round box footprints. Those rules were replaced by the
+physics bodies below and their code was deleted in the review refactor; the
+old text is kept in [history](history/spatial-rules-before-physics.md).
 
 ## Prototype extension: tables
 
-The fire-reaction prototype adds fixed tables to the room. A table is an
+The office level adds fixed tables to the room. A table is an
 axis-aligned rectangle in scenario data. A person's footprint may not overlap
 the rectangle grown by the person's radius: the physics step keeps bodies out
 of it, and the navigation squares under it are not walkable. `WorldGeometry`
@@ -158,14 +146,15 @@ strip joins the rooms on either side of it. `WorldGeometry` numbers the rooms
 so fire, sight and sound can respect walls, and answers "how do I walk from
 this room to that one" by searching the rooms as a graph, with each door
 costing the distance from the door walked in through to the door walked out
-of. The first room is where the fire starts.
+of. The first room is the open-plan office; where a fire may start is the
+level's to say (on the office level, the meeting room).
 
 A scenario is refused if two rooms overlap, if a door names a room that does
 not exist, or if a door would open half into a room and half into its wall.
 
 ## Prototype extensions
 
-These are rules the fire-reaction prototype added on top of the foundation
+These are rules the office level added on top of the foundation
 above. They are recorded here because they change what the shape of the world
 means, not just what happens in it.
 

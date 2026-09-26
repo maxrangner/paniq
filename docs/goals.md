@@ -64,9 +64,13 @@ point phase 3 can be described.
 ### Rules for prototype work
 
 - Add one stone at a time and keep the prototype playable after each.
+- Stones may be built in batches with a playtest between them, but only in the
+  same scene and code, adding up to **one combined level** that exercises
+  everything (the owner, 2026-09-19: "Final goal is still one combined level
+  trying everything").
 - Every stone still obeys the foundation notes (replayable seeded
   simulation, stable IDs, cause-and-effect events, visuals that only observe).
-- Each stone updates its own prototype note, the
+- Each stone updates the level's page ([the office level](the-office-level.md)), the
   [prototype roadmap](roadmap.md), and any defaults in
   [technical decisions](technical-decisions.md).
 - Plain GameObjects and C# only. Scale tooling waits for profiling evidence.

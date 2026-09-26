@@ -265,7 +265,7 @@ treated as settled.
   deliberately: it hurts the percentage and buys options, so it is a hard
   choice rather than a free lunch. What is now unproven is the *wait* at the
   start of a round — see the measurement in
-  [technical decisions](technical-decisions.md).
+  [technical decisions](history/decisions-prototype-2.md#prototype-2-decision-the-dead-deal-the-uproar-pays).
 - **The cascade curve.** Contagion tends to either fizzle out or run away, and
   the interesting middle is narrow. The Director is the intended cure and is
   unproven.
@@ -285,7 +285,7 @@ treated as settled.
   style they sit in is settled in [look and controls](look-and-controls.md).
 - Which feelings beyond fear arrive first, and with which danger or card.
   (Crowd size and level size are decided above: large. Influence numbers and
-  the card list are settled for now in [technical decisions](technical-decisions.md).)
+  the card list are settled for now in [technical decisions](history/decisions-prototype-2.md#prototype-2-decision-three-cards-thirty-to-start-and-the-alarm-2026-09-24).)
 - Relationships between people, and which information is hidden from the player.
 
 Locations and situations will vary; no single narrative setting is committed.

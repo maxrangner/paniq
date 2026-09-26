@@ -1,28 +1,49 @@
-﻿# Fire-reaction prototype
+# The office level
 
-**Status:** the project's prototype scene, and the only one. Prototype 1 was
-built here; it is finished and merged into `main` (2026-09-22). Prototype 2
-will be built in this same scene rather than a new one. Stones are laid one at
-a time (see the [prototype roadmap](roadmap.md)). So far it shows that
-agents can move deterministically in a life-like way, react to a spreading
-hazard, and leave an explainable causal event trail.
+**Status:** the game's one level, and the scene every stone so far has been
+built in: prototype 1 (the fire-reaction office, finished and merged into
+`main` on 2026-09-22), prototype 2 (the round) and prototype 3 (gameplay, under
+way). This page says how the level plays *today*; how it got here is in the
+[prototype roadmap](roadmap.md) and its history. The scene is still called
+`FireReactionPrototype` and the scenario `fire-reaction-prototype`; only this
+page was renamed (it was `fire-reaction-prototype.md`).
+
+The building, the cast, the doors and the furniture below were checked against
+the code on 2026-09-26. The behaviour rules have been kept up to date stone by
+stone and were not re-audited then. Where this page and the code disagree, the
+code is right and this page is the bug.
 
 ## Experience
 
-The `FireReactionPrototype` scene shows a small office floor plan: a 12 m by
-12 m open-plan office with a door in each wall, a 2 × 4.5 m storage closet and a 3 m
-corridor behind its east wall, and a smaller 10 m by 9 m meeting room beyond
-that. Twenty people (capsules) share it, ten in each big room. The office holds
-three wooden desks with chairs pulled up to them and a laptop on each, cardboard
-boxes against the walls with some stacked in pairs, waste bins, potted plants,
-bags, a microwave, wall sockets, a fire extinguisher and a fire alarm.
+The `FireReactionPrototype` scene shows one office floor. A 3 m wide corridor
+runs the length of the building. Along its north side sit the **meeting room**
+and the **cafeteria**; along its south side the **open-plan office** (12 × 12 m,
+unchanged since prototype 1) and the **bathroom**, whose three stalls are each
+a little room with its own door. At the east end the corridor meets a
+crossbar, making a T: the building's **one way out** is at the top of the
+T's north arm, and it starts locked. The south arm runs down past the bathroom
+to the **stockroom**, a 10 × 5.5 m room full of cardboard boxes with a lane
+through them, which also has a door into the office's east wall. So from the
+office there are two ways to the way out: along the corridor, or through the
+stockroom. The **storage closet** hangs off the office's east wall, and the
+**maintenance room**, with the fuse box, is at the far west end, past
+everything. Every room but the bathroom has two ways out (the owner's rule,
+2026-09-25).
 
-The meeting room is a meeting already under way: one long table with nine
-chairs pulled up to it, nine people sitting in them facing the table, six
-laptops open in front of them, and a tenth person standing at the near end of
-the table presenting. Its east wall holds the building's only way out, at the
-far end from the corridor. The office has no way out of its own, so everybody
-in it has to cross the corridor and the meeting room to escape.
+Twenty people (capsules) work there or are visiting: eight in the office, six
+in a meeting, four in the cafeteria and two in the bathroom. The office holds
+three wooden desks with a chair and a laptop each, cardboard boxes against the
+walls with some stacked in pairs, waste bins, potted plants, a microwave, wall
+sockets and a fire extinguisher. Since prototype 3 a **tower of boxes**, two
+stacks four high, stands in the corner where the corridor meets the T; see the
+[roadmap](roadmap.md) for the trap it is part of. The building has **one
+fire-alarm pull station**, at the far west end of the corridor, and alarm bells
+high on the walls.
+
+The meeting is a client visit already under way: six people sit round one long
+table, five of them visitors who came up in the lift and do not know the way
+out, and their host, the strongest leader in the building. Since prototype 3
+the fire always starts somewhere in the meeting room.
 
 **It is one floor of a tower.** The floor plan is not a plan floating in the
 dark: it sits on a concrete slab that overhangs the outside walls by about half
@@ -36,23 +57,34 @@ strength, speed, bravery, compassion, evil, nervousness and leadership. 5 is an
 ordinary person. A number floats beside each head; press **Tab** for a table of
 everyone's traits, how they will panic, and what they are doing now. The people
 are authored as a cast (a scenario can also leave traits out and let the seed
-draw them). The ten in the office:
+draw them), in `PrototypeBuilding.DefaultAgents`:
 
-| # | Who | Str | Spd | Brv | Cmp | Evl | Nrv | Ldr |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | ordinary | 5 | 5 | 5 | 5 | 2 | 5 | 4 |
-| 2 | the brute | 9 | 6 | 6 | 3 | 6 | 3 | 3 |
-| 3 | the hero | 8 | 6 | 8 | 8 | 1 | 3 | 8 |
-| 4 | the saint | 4 | 4 | 7 | 9 | 0 | 4 | 5 |
-| 5 | the villain | 6 | 6 | 5 | 1 | 8 | 4 | 6 |
-| 6 | the nervous wreck | 3 | 5 | 1 | 5 | 2 | 10 | 1 |
-| 7 | the sprinter | 5 | 10 | 5 | 5 | 3 | 6 | 4 |
-| 8 | the bully | 7 | 5 | 4 | 2 | 9 | 5 | 5 |
-| 9 | the coward | 3 | 4 | 2 | 4 | 3 | 8 | 2 |
-| 10 | ordinary | 5 | 5 | 5 | 6 | 3 | 5 | 5 |
+| # | Where | Who | Str | Spd | Brv | Cmp | Evl | Nrv | Ldr |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | office | ordinary | 5 | 5 | 5 | 5 | 2 | 5 | 4 |
+| 2 | office | the brute (briefcase) | 9 | 6 | 6 | 3 | 6 | 3 | 3 |
+| 3 | office | the hero | 8 | 6 | 8 | 8 | 1 | 3 | 8 |
+| 4 | office | the saint (bag) | 4 | 4 | 7 | 9 | 0 | 4 | 5 |
+| 5 | office | the villain | 6 | 6 | 5 | 1 | 8 | 4 | 6 |
+| 6 | office | the nervous wreck | 3 | 5 | 1 | 5 | 2 | 10 | 1 |
+| 7 | office | the sprinter | 5 | 10 | 5 | 5 | 3 | 6 | 4 |
+| 8 | office | the bully | 7 | 5 | 4 | 2 | 9 | 5 | 5 |
+| 9 | meeting, visitor | ordinary | 5 | 5 | 6 | 5 | 3 | 4 | 4 |
+| 10 | meeting, visitor | the strong one | 9 | 4 | 7 | 6 | 2 | 3 | 5 |
+| 11 | meeting, visitor | the worrier (bag) | 4 | 7 | 3 | 7 | 1 | 7 | 2 |
+| 12 | meeting, visitor | the timid carer (briefcase) | 3 | 6 | 2 | 8 | 0 | 9 | 1 |
+| 13 | meeting, visitor | the chancer | 7 | 8 | 8 | 4 | 7 | 2 | 6 |
+| 14 | meeting | the other hero, the host | 6 | 5 | 7 | 9 | 1 | 3 | 9 |
+| 15 | cafeteria, seated | ordinary | 5 | 5 | 4 | 5 | 4 | 6 | 4 |
+| 16 | cafeteria, seated | the other bully | 8 | 6 | 6 | 2 | 8 | 4 | 6 |
+| 17 | cafeteria | the runner | 4 | 9 | 5 | 6 | 2 | 6 | 3 |
+| 18 | cafeteria | the coward | 3 | 4 | 2 | 4 | 3 | 8 | 2 |
+| 19 | bathroom | ordinary | 5 | 5 | 5 | 6 | 3 | 5 | 5 |
+| 20 | bathroom | ordinary | 6 | 7 | 6 | 4 | 5 | 4 | 6 |
 
-The brute and the saint walk in carrying something; so do two of the ten in the
-meeting room.
+The eight in the office each have a desk chair that is theirs, and the two
+seated in the cafeteria have theirs; over the day people drift back to them.
+The visitors and their host have no home on this floor.
 
 What the traits do:
 - **Speed** sets walking pace (1.0–1.6 m/s) and sprinting pace (3–5.5 m/s).
@@ -104,11 +136,15 @@ within 8 m and along a line of sight, is startled by that alone; the brave
 look up first. Since 2026-09-24 the first shout comes with the first stride
 rather than two to five seconds in, and people see 12 m rather than 3.
 
-**People panic in different ways.** In a room of ten, the most fearful are dealt:
-- five **runners**, who sprint at 3.5–5 m/s and shout every 2–5 s;
-- three who **freeze** with a snowflake over their head, trembling, for 2–6 s,
+**People panic in different ways.** Panics are dealt like a deck across the
+whole building rather than rolled one by one, and the most fearful (nervous
+and not brave) get the freezing ones first. Of the twenty:
+- eleven are **runners**, who sprint at 3.5–5 m/s and shout every 2–5 s;
+- six **freeze** with a snowflake over their head, trembling, for 2–6 s,
   then snap out of it and run (at once if the fire gets within 1.5 m); and
-- two who **freeze for good** and never move again.
+- three **freeze for good** and never move again.
+
+(The level sets the shares: 30 in 100 freeze for a while, 15 in 100 for good.)
 
 While running, people:
 - change their mind about where to run every 0.4–1.2 s;
@@ -134,13 +170,12 @@ While running, people:
 Collisions and trips make a thud that calm people within 3 m turn toward. The
 counter at the top left shows calm, scared (and frozen), down and lost people.
 
-**Doors.** Each wall has a 1 m door, set off-centre. Every door starts locked
-and is drawn red. The player clicks a door once to unlock it (it turns green),
-again to open it (it swings outward), and again to close it (it stays
-unlocked); a door with someone standing in the doorway cannot be closed.
-Clicking a broken door does nothing.
-Hovering over a door brightens it and the top-left text says what a click will
-do.
+**Doors.** Doors are 1 m wide. The one way out starts locked; every door
+inside the building starts shut but unlocked, so people work them
+themselves. The player clicks a door to open or shut it, double-clicks it to
+turn its key, and (since prototype 3) holds the button down on it to keep it
+shut; the full controls are in [look and controls](look-and-controls.md). On
+this level none of it costs anything. Clicking a broken door does nothing.
 
 Runners head for a door. People can see that a door is open, but a shut door
 looks the same to them whether it is locked or not; red and green are only for
@@ -191,25 +226,22 @@ beside an open door, not lined up with the gap, steps aside against the wall
 for half a second to a second so whoever is lined up can go first, instead of
 two people jamming the doorway shoulder to shoulder.
 
-**The building is rooms joined by doors.** The 12 × 12 m open-plan office is
-where the fire starts. Behind its east wall are a 2 × 4.5 m storage closet and a
-3 m wide corridor; the corridor leads to a 10 × 9 m meeting room. Ten people
-start in the office and ten in the meeting room, where they cannot see the fire
-and only learn of it from the shouting. There is one door in an outside wall
-and it is the player's: it is in the meeting room, at the far end from the
-corridor, and it starts locked. The office has none of its own, so the whole
-building funnels through the corridor to reach it, and the queue at each
-doorway is the thing to watch. The three inside doors (the closet, and the
-corridor at each end) start shut but unlocked, so people open them themselves.
+**The building is rooms joined by doors.** Every room opens onto the long
+corridor; the meeting room and the cafeteria also share a door, and the office
+has a second door into the stockroom. The fire starts in the meeting room, so
+the people elsewhere cannot see it and learn of it from the shouting, the
+noise and the alarm. There is one door in an outside wall and it is the
+player's: at the top of the T's north arm, locked at the start. The whole
+building funnels towards it, down the corridor or round through the
+stockroom, and the queue at each doorway is the thing to watch.
 
 **Getting round what is in the way.** Somebody whose way is blocked tries a
 step 30°, then 60°, then 90° to either side before giving up for the tick. The
 sideways step is what lets a person pressed against a wall beside a doorway
 slide along it instead of standing there until the crowd in front moves.
 
-**A meeting is under way.** Nine of the meeting room's ten begin sitting at its
-table, each in a chair that faces it; the tenth is on their feet at the end of
-it. Somebody sitting who hears something turns in the seat to look, and stays
+**A meeting is under way.** The meeting room's six begin sitting at its long
+table, each in a chair that faces it. Somebody sitting who hears something turns in the seat to look, and stays
 in the chair; if what they see frightens them, getting out of it costs them a
 moment, and the nervous are quicker out than the placid. Laptops stand on the
 desks and the meeting table, and boxes stand in stacked pairs: while a thing
@@ -293,7 +325,9 @@ if the person wakes up, or if they cannot reach them within 5 s. Nobody
 helps someone already close to the fire. In the default cast the saint, the
 hero and one ordinary person shake people awake; only the hero drags.
 
-**Tables and chairs.** Three 1.2 × 0.7 m tables stand in the room. A table is
+**Tables and chairs.** Three 1.2 × 0.7 m desks stand in the office, one
+5.4 × 1 m table runs down the middle of the meeting room, and two 1.2 m square
+tables stand in the cafeteria. A table is
 a thing like any other, not part of the building: it weighs 25 kg for each
 square metre of floor it covers (so a desk is 21 kg and the meeting table
 135 kg), and a crowd pressed against one shoves it, a blast turns it over, and
@@ -333,7 +367,8 @@ faster the stronger the thrower and the lighter the item, and because it
 strikes the body rather than the feet it hits three times as hard as a
 sliding one, enough for a chair to knock someone off balance.
 
-**Boxes.** Eight cardboard boxes, 0.3–0.6 m wide and 3–20 kg, sit on the floor.
+**Boxes.** Cardboard boxes, 0.3–0.6 m wide and 3–20 kg, stand against the
+office walls, fill the stockroom and make up the tower at the T.
 Calm people walk around them. Runners barely look: they kick a box sliding
 across the floor, and at running speed they may trip over it instead, more
 often the faster they go and the bigger the box. A kicked box slides about a
@@ -365,8 +400,8 @@ with fear can be heaved aside too: they never move of their own accord, but this
 is somebody else's doing. One shove per person every 0.8 s, so a bully clears a
 doorway over several seconds rather than at a stroke.
 
-**Bags and briefcases.** Four people walk in holding something: the brute and
-the other bully with briefcases, the saint and the worrier with bags. It is
+**Bags and briefcases.** Four people are holding something: the brute and
+the timid carer with briefcases, the saint and the worrier with bags. It is
 theirs, so they keep hold of it while they are calm rather than tidying it
 away. The moment something frightens them they let go — the very nervous fumble
 it onto the floor, everybody else flings it away from them in whatever
@@ -762,7 +797,7 @@ The other four are aimed at the building:
   lock logs `DoorLocked` (parent: that close).
 - **Doors and escape.** See [spatial-world-rules.md](spatial-world-rules.md)
   for the doorway strip. A panic decision first scores the doors (see
-  [technical decisions](technical-decisions.md)) and targets a point 0.6 m
+  [prototype 1's decisions](history/decisions-prototype-1.md)) and targets a point 0.6 m
   inside the chosen door, or 1.5 m outside once it is open and the runner is
   lined up. Near the door, swerves and following are switched off and the
   runner is not pushed away from that wall. A runner blocked for 12 ticks

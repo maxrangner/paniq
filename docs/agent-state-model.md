@@ -1,6 +1,6 @@
 # Agent state model
 
-**Status:** decided foundation. This note defines the minimum stable,
+**Status:** decided foundation, checked against the code on 2026-09-26. This note defines the minimum stable,
 simulation-owned runtime state for an autonomous agent. It does not define
 agent decision logic, crowd behaviour, hazards, movement, or content-specific
 reactions and outcomes.
@@ -20,14 +20,16 @@ presentation.
 
 ## Minimum agent record
 
-Each autonomous agent has one simulation-owned `AgentState` record containing:
+Each autonomous agent has one simulation-owned record: the `Agent` class in
+`Assets/Paniq/Runtime/Simulation/Agent.cs` (this note called it `AgentState`
+before the code existed). Its foundation part is two fields:
 
 | Field | Meaning |
 | --- | --- |
 | Agent ID | The agent's opaque, stable ID. It identifies the record, commands, events, and presentation mapping for the life of the run. |
 | Participation status | Either `Participating` or `NoLongerParticipating`. It determines whether the agent is eligible for future autonomous simulation updates. |
 
-`AgentState` is mutable run state, not authored scenario data. The state record
+The record is mutable run state, not authored scenario data. The state record
 is keyed and processed by Agent ID. It contains no `GameObject`, `Component`,
 `Transform`, or other Unity scene-object reference.
 
@@ -39,12 +41,12 @@ debugging. It does not keep the agent eligible for autonomous updates.
 ## Lifecycle
 
 At logical tick zero, each authored initial-agent record creates an
-`AgentState` record with the same stable Agent ID and a `Participating` status.
+`Agent` record with the same stable Agent ID and a `Participating` status.
 The scenario remains read-only; the new record belongs only to that run.
 
 When a future system creates an agent during a run, it first receives an Agent
 ID from the deterministic creation path required by the simulation contract.
-It then receives a `Participating` `AgentState` record.
+It then receives a `Participating` `Agent` record.
 
 Only the simulation may change participation status. A transition to
 `NoLongerParticipating` must also emit an immutable causal event using the
@@ -58,17 +60,21 @@ the transition is traceable.
   Agent ID order whenever order could affect a simulation outcome, random draw,
   or emitted event.
 - Presentation may temporarily map an Agent ID to a Unity object to display an
-  agent. It cannot create, remove, or modify `AgentState`, nor can destroying a
+  agent. It cannot create, remove, or modify an `Agent`, nor can destroying a
   displayed object change an agent's participation status.
 - A later system may attach additional simulation-owned state to an Agent ID,
   but it must define that state in its own design note and obey this model's
   identity, ownership, and deterministic-order rules.
 
-The following are deliberately not fields of `AgentState` yet: movement intent,
-perception, goals, decision state, panic, health, abilities, relationships, and
-hazard effects. The [spatial-world rules](spatial-world-rules.md) own logical
-position; later agent, hazard, and player-power work owns the remaining
-concepts.
+Everything else a person has -- their body, personality, fear, intent,
+hearing, what they know of the doors and rooms, whether they are burning,
+carrying, helping, sitting, leading, pulling an alarm, in a group,
+barricading, where they belong, their errand, and whether they have been
+poked -- is prototype state attached to the same record as named parts
+(`Body`, `Personality`, `Fear`, `Intent` and so on; the list is at the top of
+`Agent.cs`). None of it is part of the neutral foundation, and each part obeys
+this model's identity, ownership and ordering rules. The
+[spatial-world rules](spatial-world-rules.md) own logical position.
 
 `NoLongerParticipating` is intentionally neutral. A later design may use it
 for death, evacuation, rescue, or another terminal outcome without changing
@@ -76,12 +82,14 @@ this foundation model.
 
 ## Prototype terminal outcome extension
 
-The [fire-reaction prototype](fire-reaction-prototype.md) adds a separate,
-simulation-owned `AgentTerminalOutcome` record keyed by Agent ID. Its allowed
-values are currently `Unresolved` and `Lost`; every initial agent starts
-`Unresolved`. This is prototype-owned runtime state, not a new field or status
-value in the neutral `AgentState` foundation. A later prototype stone that adds
-a way to be rescued may add a `Saved` value.
+The [office level](the-office-level.md) adds a simulation-owned
+`AgentTerminalOutcome` (the record's `Outcome`). Its values are `Unresolved`,
+`Lost`, `Escaped` (walked out of the building) and `Survived` (alive at the end
+of the round, still inside, somewhere the hazard could not reach; it counts as
+saved exactly as escaping does). Every initial agent starts `Unresolved`. New
+values are only ever appended, because each value's number is part of the
+replay fingerprint. This is prototype-owned runtime state, not a new status
+value in the neutral foundation.
 
 When the prototype resolves an agent as lost, it changes that outcome from
 `Unresolved`, changes the agent's participation status to
@@ -92,8 +100,8 @@ or presentation state.
 
 ## Prototype temperament and body extension
 
-The fire-reaction prototype also keeps two more simulation-owned records per
-Agent ID:
+The office level also keeps two more simulation-owned parts per
+person:
 
 - `AgentPanicTemperament` (`Runner`, `FreezeThenRun`, `FreezeForever`) is
   dealt once, at tick zero, from the scenario seed. It decides how the person
@@ -105,8 +113,8 @@ Agent ID:
   they are back up. A person who is not upright requests no movement but
   still occupies space and can still be caught by fire.
 
-Like the terminal outcome, these are prototype runtime state, not fields of
-the neutral `AgentState` foundation.
+Like the terminal outcome, these are prototype runtime state, not part of the
+neutral foundation.
 
 `AgentBurning` (whether the person is on fire, when they will collapse, and
 the `AgentCaughtFire` event that started it) is a third such record. A person
@@ -115,31 +123,30 @@ then happens as described above, with the catch as its cause.
 
 ## Prototype personality extension
 
-`AgentTraitValues` (strength, speed, bravery, compassion, evil, nervousness,
-each 0–10) is simulation-owned runtime state keyed by Agent ID. It is set at
-tick zero from the scenario's authored traits, or drawn from the seed when a
-person has none. Only the simulation may change it; nothing does yet, but a
-later player power (such as "super strength") would be a player command that
-does. Traits are read through `TraitEffects` whenever they are used, so such a
+`AgentTraitValues` (strength, speed, bravery, compassion, evil, nervousness
+and leadership, each 0–10, 5 being ordinary) is simulation-owned runtime state
+keyed by Agent ID. It is set at tick zero from the scenario's authored traits,
+or drawn from the seed when a person has none. Only the simulation may change
+it, and only in answer to a player command (the Beefcake card, below). Traits are read through `TraitEffects` whenever they are used, so such a
 change would take effect at once, except for walking and sprinting pace, which
 `TraitEffects.ApplyPace` sets and must be called again.
 
 ## Replay relevance
 
-The meaning and allowed values of `AgentState`, plus the prototype's terminal
+The meaning and allowed values of the foundation fields, plus the prototype's terminal
 outcome record and lifecycle, are replay-relevant. Changes follow the
 [simulation compatibility policy](simulation-contract.md#simulation-compatibility-policy).
 
 ## Deferred implementation
 
-This note does not add runtime classes, decision algorithms, navigation,
-hazards, save files, or presentation. The [causal event log](causal-event-log.md)
+This note defines the record, not decision algorithms, navigation, hazards,
+save files, or presentation. The [causal event log](causal-event-log.md)
 defines the event retention this model needs, and the [spatial-world rules](spatial-world-rules.md)
 define its logical-world data.
 
 ## Prototype additions
 
-The fire-reaction prototype added these to the record above.
+The office level added these to the record above.
 
 **Feelings, not event names (decided 2026-09-24).** What a person does follows
 from their fear state, what alerted them, their temperament and their traits,

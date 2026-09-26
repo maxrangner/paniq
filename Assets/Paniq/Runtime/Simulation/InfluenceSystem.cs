@@ -58,13 +58,35 @@
         /// </summary>
         public bool Enabled => settings.Enabled;
 
-        public int CostOf(PlayerCommandType card)
-        {
-            if (!settings.Enabled)
-            {
-                return 0;
-            }
+        /// <summary>What a card (or a pull of the alarm) costs: nothing when there is no purse.</summary>
+        public int CostOf(PlayerCommandType card) => Priced(ListPriceOf(card));
 
+        /// <summary>
+        /// What one click on a door in this state would cost: turning the key
+        /// on a locked one (the whole purse at the building's way out), walking
+        /// a shut one open, pulling an open one shut; a door somebody has
+        /// already broken down is past charging for. Nothing when there is no
+        /// purse.
+        /// </summary>
+        public int CostOfDoorClick(DoorState state, bool leadsOutside) => Priced(ListPriceOfDoorClick(state, leadsOutside));
+
+        /// <summary>
+        /// What turning the key on a door in this state would cost: unlocking
+        /// a locked one (the whole purse at the way out), locking a shut one,
+        /// or shutting and locking an open one. Nothing when there is no purse.
+        /// </summary>
+        public int CostOfLockToggle(DoorState state, bool leadsOutside) => Priced(ListPriceOfLockToggle(state, leadsOutside));
+
+        /// <summary>
+        /// Every price the run charges passes through here, so a purse that
+        /// is switched off charges nothing wherever a price is asked for. A
+        /// new thing with a price is written as another list price and
+        /// another one-line cost above, and cannot forget the switch.
+        /// </summary>
+        private int Priced(int listPrice) => settings.Enabled ? listPrice : 0;
+
+        private int ListPriceOf(PlayerCommandType card)
+        {
             switch (card)
             {
                 case PlayerCommandType.PlayBeefcake:
@@ -91,19 +113,8 @@
             }
         }
 
-        /// <summary>
-        /// What one click on a door in this state would cost: turning the key
-        /// on a locked one (the whole purse at the building's way out), walking
-        /// a shut one open, pulling an open one shut; a door somebody has
-        /// already broken down is past charging for.
-        /// </summary>
-        public int CostOfDoorClick(DoorState state, bool leadsOutside)
+        private int ListPriceOfDoorClick(DoorState state, bool leadsOutside)
         {
-            if (!settings.Enabled)
-            {
-                return 0;
-            }
-
             switch (state)
             {
                 case DoorState.Locked: return leadsOutside ? settings.UnlockExitCost : settings.UnlockDoorCost;
@@ -113,18 +124,8 @@
             }
         }
 
-        /// <summary>
-        /// What turning the key on a door in this state would cost: unlocking
-        /// a locked one (the whole purse at the way out), locking a shut one,
-        /// or shutting and locking an open one.
-        /// </summary>
-        public int CostOfLockToggle(DoorState state, bool leadsOutside)
+        private int ListPriceOfLockToggle(DoorState state, bool leadsOutside)
         {
-            if (!settings.Enabled)
-            {
-                return 0;
-            }
-
             switch (state)
             {
                 case DoorState.Locked: return leadsOutside ? settings.UnlockExitCost : settings.UnlockDoorCost;
@@ -349,6 +350,10 @@
         /// </summary>
         public void GiveForTests(int amount) => Credit(amount);
 
+        /// <summary>
+        /// Every payment into the purse passes through here, so a purse that
+        /// is switched off is paid nothing, whatever the uproar.
+        /// </summary>
         private void Credit(int amount)
         {
             if (amount <= 0 || !settings.Enabled)

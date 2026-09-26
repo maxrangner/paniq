@@ -356,12 +356,14 @@ namespace Paniq.Simulation
         /// stays on it and it shuts the moment the doorway clears (see
         /// <see cref="KeepHeldDoorsShut"/>). Returns whether anything
         /// changed: a door already held, a swing door, a hole or a broken
-        /// door is nothing to hold.
+        /// door is nothing to hold, and a locked door needs no hand on it --
+        /// its lock already holds it, and a hand there would have let the
+        /// strong through it in one push, which a lock does not.
         /// </summary>
         public bool HoldShut(int door)
         {
             DoorRuntime d = doors[door];
-            if (d.HeldShut || d.IsHole || d.Swings || d.State == DoorState.Broken)
+            if (d.HeldShut || d.IsHole || d.Swings || d.State == DoorState.Broken || d.State == DoorState.Locked)
             {
                 return false;
             }
@@ -772,6 +774,9 @@ namespace Paniq.Simulation
             DoorRuntime d = doors[door];
             d.State = DoorState.Broken;
             d.OpenSide = fallsToward;
+
+            // Nothing left to hold: whoever had a hand on it has lost it.
+            d.HeldShut = false;
             RecordOpening(door);
             d.OpenedEventId = context.Events.Append(
                 context.Tick,

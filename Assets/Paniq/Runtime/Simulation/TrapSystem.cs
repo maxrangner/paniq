@@ -60,6 +60,13 @@ namespace Paniq.Simulation
         private readonly ulong[] triggerEventId;
         private readonly ulong[] fellEventId;
 
+        /// <summary>
+        /// The middle of each standing tower: what "near the tower" is
+        /// measured from. Worked out once, because a standing tower's boxes
+        /// are pinned and cannot move until it falls.
+        /// </summary>
+        private readonly LogicalPosition[] centreOf;
+
         public TrapSystem(SimulationContext context, Crowd crowd, WorldGeometry geometry, DoorSystem doors,
             PhysicsObjectSystem objects, FlammablesSystem flammables, FireSystem fire, BodySystem body, SoundSystem sound,
             PeopleBodies people)
@@ -82,6 +89,7 @@ namespace Paniq.Simulation
             fallTick = new int[traps.Length];
             triggerEventId = new ulong[traps.Length];
             fellEventId = new ulong[traps.Length];
+            centreOf = new LogicalPosition[traps.Length];
             for (int t = 0; t < traps.Length; t++)
             {
                 doorOf[t] = doors.IndexOf(traps[t].DoorId);
@@ -107,12 +115,21 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                long x = 0;
+                long z = 0;
                 for (int b = 0; b < boxesOf[t].Length; b++)
                 {
-                    // Standing, the tower is pinned: the crowd walking past it
-                    // all day must not be the thing that brings it down.
+                    // Standing, the tower is pinned and nobody may take from
+                    // it: the crowd walking past it all day must not be the
+                    // thing that brings it down, and neither may somebody
+                    // tidying up or a strong runner barging past.
                     objects.Pin(boxesOf[t][b]);
+                    LogicalPosition p = objects.PositionOf(boxesOf[t][b]);
+                    x += p.X;
+                    z += p.Z;
                 }
+
+                centreOf[t] = new LogicalPosition((int)(x / boxesOf[t].Length), (int)(z / boxesOf[t].Length));
             }
         }
 
@@ -125,25 +142,7 @@ namespace Paniq.Simulation
         public bool IsSprung(int trap) => phase[trap] != TrapPhase.Standing;
 
         /// <summary>The middle of the standing tower's footprint: what "near the tower" is measured from.</summary>
-        public LogicalPosition CentreOf(int trap)
-        {
-            int[] boxes = boxesOf[trap];
-            if (boxes.Length == 0)
-            {
-                return geometry.DoorCentre(doorOf[trap]);
-            }
-
-            long x = 0;
-            long z = 0;
-            for (int b = 0; b < boxes.Length; b++)
-            {
-                LogicalPosition p = context.Scenario.PhysicsObjects[DefinitionIndexOf(boxes[b])].InitialPosition;
-                x += p.X;
-                z += p.Z;
-            }
-
-            return new LogicalPosition((int)(x / boxes.Length), (int)(z / boxes.Length));
-        }
+        public LogicalPosition CentreOf(int trap) => centreOf[trap];
 
         /// <summary>How many of this trap's boxes are lying unburnt in its doorway right now.</summary>
         public int BoxesInTheDoorway(int trap)
@@ -289,9 +288,11 @@ namespace Paniq.Simulation
                 }
 
                 LogicalPosition spot = geometry.DoorPoint(door, along + size / 2, -settings.PileBeyondMillimetres);
+                // Let go, put down, and held again -- as part of the heap now,
+                // which people may take from: that is how it is cleared.
                 objects.Unpin(box);
                 objects.PlaceAt(box, spot, rowBottom, heading, fell);
-                objects.Pin(box);
+                objects.Pin(box, mayBeTaken: true);
                 nextRowBottom = Math.Max(nextRowBottom, rowBottom + ObjectShapes.TopHeight(objects.KindOf(box), size));
                 along += size;
                 placedInRow++;
@@ -379,7 +380,7 @@ namespace Paniq.Simulation
                     inTheHeap++;
                     if (!objects.IsPinned(box) && objects.HolderOf(box) < 0 && !objects.IsMoving(box))
                     {
-                        objects.Pin(box);
+                        objects.Pin(box, mayBeTaken: true);
                     }
                 }
                 else if (objects.IsPinned(box))
@@ -423,21 +424,6 @@ namespace Paniq.Simulation
 
             return geometry.IsObjectInDoorway(door, objects.PositionOf(box), objects.RadiusOf(box),
                 context.Scenario.Blockades.BlockGapMillimetres);
-        }
-
-        private int DefinitionIndexOf(int box)
-        {
-            PhysicsObjectDefinition[] definitions = context.Scenario.PhysicsObjects;
-            SimulationId id = objects.IdOf(box);
-            for (int d = 0; d < definitions.Length; d++)
-            {
-                if (definitions[d].ObjectId == id)
-                {
-                    return d;
-                }
-            }
-
-            throw new InvalidOperationException($"The trap's box {id} is not in the scenario.");
         }
     }
 }

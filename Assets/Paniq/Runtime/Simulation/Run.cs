@@ -115,7 +115,6 @@ namespace Paniq.Simulation
                 var sound = new SoundSystem(context, crowd, threats, fear, geometry);
                 perception = new PerceptionSystem(context, threats, fear, sound, crowd, geometry);
                 body = new BodySystem(context, threats, sound, fear);
-                pokes = new PokeSystem(context, crowd, body);
                 objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound, fire, physics);
                 people = new PeopleBodies(context, crowd, physics, threats, objects.Count);
                 power = new PowerSystem(context, objects);
@@ -136,6 +135,7 @@ namespace Paniq.Simulation
                 cues = new CueSystem(context, crowd, geometry);
                 errands = new ErrandBehaviour(context, crowd, geometry, objects, doors, chairs, sound, cues);
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues, sound);
+                pokes = new PokeSystem(context, crowd, body, calm);
                 director = new DirectorSystem(context, cues, geometry, traps);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
@@ -683,6 +683,9 @@ namespace Paniq.Simulation
         /// <summary>The way out this person is running for, or -1.</summary>
         internal int ExitDoorForTests(int index) => agents[index].Doors.ExitDoorIndex;
         internal Agent AgentForTests(int index) => agents[index];
+
+        /// <summary>Tests only: the loose things, for asking whether somebody could take one.</summary>
+        internal PhysicsObjectSystem ObjectsForTests => objects;
 
         /// <summary>Frightens somebody at once, as if they had seen the fire: for tests of what the frightened do.</summary>
         internal void FrightenForTests(int index) => fear.MakeScared(agents[index]);

@@ -17,6 +17,14 @@ namespace Paniq.Tests.EditMode
         public const int DeepestSqueezeMillimetres = 75;
 
         /// <summary>
+        /// How far a body lying in a bathroom stall may be held into the
+        /// stall's wall, in millimetres (seed 45: 96 mm). Past this -- well
+        /// short of a body's half-width of 250 mm -- it is not being held
+        /// against the wall but going through it.
+        /// </summary>
+        public const int DeepestLyingInAStallMillimetres = 150;
+
+        /// <summary>
         /// A knock may sink deeper than a squeeze for this many ticks in a row,
         /// and no more.
         /// <para>
@@ -69,13 +77,17 @@ namespace Paniq.Tests.EditMode
         /// nowhere for it to pass into. Once the fire moved to the meeting
         /// room (prototype 3, 2026-09-25) seed 45 had somebody go down in the
         /// third stall while fleeing, and stay pressed for as long as they
-        /// lay there.
+        /// lay there. Only that shallow a press is let off: a body sinking
+        /// further into a stall's wall than <see cref="DeepestLyingInAStallMillimetres"/>
+        /// is on its way through it, and is still caught.
         /// </para>
         /// </summary>
         public void Check(Run simulation, string context)
         {
+            bool lyingInAStall = simulation.DeepestPressIsABodyLyingInAStallForTests &&
+                                 simulation.DeepestPressMillimetres <= DeepestLyingInAStallMillimetres;
             if (simulation.DeepestPressMillimetres <= DeepestSqueezeMillimetres || simulation.DeepestPressIsIntoTheFloorForTests ||
-                simulation.DeepestPressIsABodyLyingInAStallForTests)
+                lyingInAStall)
             {
                 deepTicks = 0;
                 return;

@@ -907,14 +907,18 @@ namespace Paniq.Simulation
                         return true;
                     }
 
-                    if (doors.IsHeldShut(door))
+                    if (doors.IsHeldShut(door) && state == DoorState.Unlocked)
                     {
                         // The player is holding it shut (the owner's rule,
                         // 2026-09-25): somebody strong enough to batter a door
                         // at all gets through a held one in a single push, and
                         // it is off its hinges for good; everybody else rattles
                         // it, gives up, and comes back once it is let go of.
-                        if (!agent.Doors.ShutByThem[door] && TraitEffects.DoorShoveDamage(agent, context.Scenario) > 0)
+                        // Whether they once shut it themselves does not come
+                        // into it: it is the player's hand holding it now, not
+                        // their own doing. A held door somebody has also
+                        // locked is a locked door, and battered as one below.
+                        if (TraitEffects.DoorShoveDamage(agent, context.Scenario) > 0)
                         {
                             CausalEvent push = context.Events.Append(
                                 tick,

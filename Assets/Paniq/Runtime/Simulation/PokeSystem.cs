@@ -22,13 +22,15 @@ namespace Paniq.Simulation
         private readonly SimulationContext context;
         private readonly Crowd crowd;
         private readonly BodySystem body;
+        private readonly CalmBehaviour calm;
         private readonly PokeSettings settings;
 
-        public PokeSystem(SimulationContext context, Crowd crowd, BodySystem body)
+        public PokeSystem(SimulationContext context, Crowd crowd, BodySystem body, CalmBehaviour calm)
         {
             this.context = context;
             this.crowd = crowd;
             this.body = body;
+            this.calm = calm;
             settings = context.Scenario.Poke;
         }
 
@@ -56,8 +58,18 @@ namespace Paniq.Simulation
 
             poke.CountInARow++;
             poke.LastPokeTick = tick;
-            poke.PokeEventId = poked;
-            poke.ReactAtTick = context.ReactionTick();
+
+            // A reaction already due -- to a poke a tick or two ago -- is
+            // kept, and this poke is folded into it, the way somebody jabbed
+            // twice in quick succession turns round once. It is neither
+            // pushed later nor handed to the newer poke, which is the rule
+            // ThinkAgainSoon keeps for decisions. The folded poke still
+            // counts toward annoyance, which is judged when they turn.
+            if (poke.ReactAtTick <= 0)
+            {
+                poke.PokeEventId = poked;
+                poke.ReactAtTick = context.ReactionTick();
+            }
         }
 
         /// <summary>Everybody whose reaction is due: looking round, or getting annoyed.</summary>
@@ -104,18 +116,13 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                // Stop and glare for a moment, facing a little off where they
-                // were; then the calm behaviour picks something else to do.
-                // Annoyed, they cut the glare short and get on with it, which
-                // is how somebody walks off in a huff.
-                int side = context.Random.NextIntInclusive(0, 1) == 0 ? -1 : 1;
-                agent.Intent.LookHeading = IntegerMath.NormalizeDegrees(
-                    agent.Body.Heading + side * context.Random.NextIntInclusive(45, 120));
-                agent.Intent.LooksRemaining = 0;
-                agent.Intent.Activity = AgentActivityState.LookingAround;
-                agent.Intent.ActivityEndTick = checked(tick + context.Jittered(annoyed ? settings.HuffTicks / 3 : settings.HuffTicks));
+                // Stop and look round for whoever did it, the way a calm
+                // person looks round anyway; then the calm behaviour picks
+                // something else to do. Annoyed, they give it one glance and
+                // get on with it, which is how somebody walks off in a huff.
                 agent.Intent.SocialPartnerIndex = -1;
                 agent.Doors.StrollDoorIndex = -1;
+                calm.LookRound(agent, annoyed ? 1 : 2);
             }
         }
 

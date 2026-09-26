@@ -1,0 +1,37 @@
+{
+  "blender": "5.2.2 LTS",
+  "bounds_max_m": [
+    0.21,
+    0.2215,
+    0.9
+  ],
+  "bounds_min_m": [
+    -0.21,
+    -0.2215,
+    -0.0
+  ],
+  "budget_tris": 500,
+  "fbx": "Assets/Paniq/Content/Models/WetFloorSign.fbx",
+  "footprint_mm": [
+    420,
+    450
+  ],
+  "hash": "ea76dfd3d0d38746",
+  "height_mm": 900,
+  "name": "WetFloorSign",
+  "parts": [],
+  "preview": true,
+  "recipe": "yaw=90;forward=-Z;up=Y;apply_transform;scale=FBX_SCALE_ALL;triangles;uv=smart66/0.02;surfaces",
+  "shape_keys": [],
+  "surfaces": [
+    {
+      "mesh": "WetFloorSign",
+      "names": [
+        "Body",
+        "Label"
+      ]
+    }
+  ],
+  "triangles": 228,
+  "vertices": 144
+}

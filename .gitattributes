@@ -7,6 +7,13 @@
 *.unity text
 *.json text
 *.md text
+*.py text
+*.ps1 text
+
+# Built models and pictures of them.
+*.fbx binary
+*.blend binary
+*.png binary
 
 # Git LFS is intentionally not configured yet. Add it only when large source
 # art or audio assets enter the repository.

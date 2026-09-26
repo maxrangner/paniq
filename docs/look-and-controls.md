@@ -108,6 +108,12 @@ something you could pick up.
 
 - **Models are crude and simple.** No detailed characters, no realistic
   proportions.
+- **Surfaces will be textured.** The crude prototype draws everything in
+  flat colours; later prototypes and the game give every item textures and
+  materials that react to light (decided 2026-09-26). Crude is the shape,
+  not the surface. Which texture look, painted-toy colours, painted
+  pictures or a mix, is open until concept art settles it; every model is
+  built ready for either (see the [model pipeline](model-pipeline.md)).
 - **Depth of field** is wanted to strengthen the miniature feeling: blurring
   the very front and very back of the scene is what makes a photograph of a
   real street look like a toy. This is blocked for now by the orthographic
@@ -120,10 +126,16 @@ something you could pick up.
   alight, frozen or sitting keeps their own movement instead. This means
   movement is animated procedurally — the transform is moved, bounced and
   rocked in code, as the fire cubes already are — with **no character rigs, no
-  Animator controllers, and no animation packages**.
+  Animator controllers, and no animation packages**. A model may carry a few
+  stored deformations (a lean, a flinch) and a named moving part (a lid), but
+  the amount of each is set in code, so this rule stands; see the
+  [model pipeline](model-pipeline.md).
 
-Concept art is to be added under `docs/reference/` as it is produced. Nothing
-is there yet.
+Concept art goes under `docs/reference/`, and the
+[model pipeline](model-pipeline.md), in use since 2026-09-26, turns a
+description or a picture into a mesh. Its first model is the wet-floor sign;
+the game still draws capsules and blocks until a later stone puts models on
+screen.
 
 ## Walls and what they hide
 

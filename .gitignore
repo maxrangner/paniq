@@ -32,3 +32,5 @@ Thumbs.db
 # reproducible.
 
 PRIVATE_TODO_NO_LMM_KEEP-OUT.md
+# Python bytecode from the Blender model scripts
+__pycache__/

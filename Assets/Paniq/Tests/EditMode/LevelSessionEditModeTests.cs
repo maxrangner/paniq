@@ -30,6 +30,25 @@ namespace Paniq.Tests.EditMode
             PlayerPrefs.Save();
         }
 
+        /// <summary>
+        /// A new level has a purse unless it is switched off on purpose, as the
+        /// office's is. The switch used to default to off, so any new level
+        /// asset would have played with everything free.
+        /// </summary>
+        [Test]
+        public void ANewLevel_HasAPurse()
+        {
+            LevelDefinition level = LevelDefinition.CreateDefault();
+            try
+            {
+                Assert.That(level.ToRuntimeData().Influence.Enabled, Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(level);
+            }
+        }
+
         [Test]
         public void ASeedAskedFor_IsTheSeedTheRunGets()
         {

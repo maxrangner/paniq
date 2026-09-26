@@ -44,6 +44,18 @@ namespace Paniq.Presentation
         /// </summary>
         private const float TorsoHeight = 0.5f;
 
+        /// <summary>
+        /// How often, in seconds, the person under an idle pointer is looked
+        /// for. Finding them means putting everybody in the building on the
+        /// screen, which is fine for a click and wasteful sixty times a
+        /// second for a hover line in a large crowd; a click always looks
+        /// afresh.
+        /// </summary>
+        private const float PersonHoverSeconds = 0.1f;
+
+        private SimulationId? personUnderPointer;
+        private float nextPersonLook = float.NegativeInfinity;
+
         private readonly RunDriver runner;
         private readonly RoomView room;
         private readonly DoorClicks clicks = new DoorClicks();
@@ -192,7 +204,16 @@ namespace Paniq.Presentation
                 SimulationId? taken = clicks.Hold(now, buttonDown);
                 if (taken.HasValue)
                 {
-                    runner.QueueHoldDoor(taken.Value);
+                    if (CanBeHeld(snapshot, taken.Value))
+                    {
+                        runner.QueueHoldDoor(taken.Value);
+                    }
+                    else
+                    {
+                        // Swing doors, holes, broken and locked doors take no
+                        // hand: nothing is sent, and nothing is thought held.
+                        clicks.Release(false);
+                    }
                 }
 
                 // A single click whose double-click window has closed is sent now.
@@ -289,12 +310,47 @@ namespace Paniq.Presentation
             }
 
             // Nothing solid under the pointer: somebody, perhaps. Poking is
-            // a click, never a hold, so it is sent at once.
-            HoveredPerson = NearestPerson(camera, snapshot, pointer);
+            // a click, never a hold, so it is sent at once, and a click always
+            // looks for the person afresh; the hover line looks ten times a
+            // second.
+            if (clicked || now >= nextPersonLook)
+            {
+                personUnderPointer = NearestPerson(camera, snapshot, pointer);
+                nextPersonLook = now + PersonHoverSeconds;
+            }
+
+            HoveredPerson = personUnderPointer;
             if (clicked && HoveredPerson.HasValue)
             {
                 runner.QueuePoke(HoveredPerson.Value);
             }
+        }
+
+        /// <summary>
+        /// Whether a hand can go on this door, as the run last drew it: a
+        /// door in a frame that is shut or open, not locked, broken, a pair of
+        /// swing doors or a hole. The run decides again when the command
+        /// lands; this only keeps the screen from believing in a hold the run
+        /// was never going to take.
+        /// </summary>
+        private static bool CanBeHeld(RunSnapshot snapshot, SimulationId door)
+        {
+            if (snapshot == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < snapshot.Doors.Count; i++)
+            {
+                DoorSnapshot d = snapshot.Doors[i];
+                if (d.DoorId == door)
+                {
+                    return !d.Swings && !d.IsHole &&
+                           (d.State == DoorState.Unlocked || d.State == DoorState.Open);
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

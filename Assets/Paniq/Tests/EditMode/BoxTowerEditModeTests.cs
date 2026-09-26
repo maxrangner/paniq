@@ -156,6 +156,71 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// Nobody may take a box from the standing tower, however strong:
+        /// every way of taking a thing -- tidying it away, wedging it in a
+        /// door, throwing it clear, hurling it aside at a run -- asks whether
+        /// it can be lifted, and the answer for a standing tower box is no.
+        /// Once it has fallen into the heap the answer is yes again, because
+        /// lifting boxes off the heap is how the heap is cleared. A strong
+        /// runner used to fling a standing box across the room by barging
+        /// past it, and a tidy person used to carry one off to a desk.
+        /// </summary>
+        [Test]
+        public void NobodyMayTakeABoxFromTheStandingTower_ButAnybodyMayFromTheHeap()
+        {
+            ScenarioData data = OnePersonByTheTower(NearTheTower, new AgentTraitValues(10, 5, 9, 5, 2, 3, 4), 60);
+            using (var simulation = new Run(data, 42UL))
+            {
+                PhysicsObjectSystem objects = simulation.ObjectsForTests;
+                Agent strongest = simulation.AgentForTests(0);
+                simulation.Step();
+                for (int i = 0; i < objects.Count; i++)
+                {
+                    Assert.That(objects.CanLift(strongest, i), Is.False,
+                        $"Box {objects.IdOf(i)} of the standing tower could be taken by somebody as strong as anyone can be.");
+                    Assert.That(objects.CanThrowClear(strongest, i), Is.False);
+                }
+
+                Advance(simulation, 3 * Run.TicksPerSecond);
+                Assert.That(EventsOfType(simulation, CausalEventType.BoxTowerFell), Has.Count.EqualTo(1));
+                for (int i = 0; i < objects.Count; i++)
+                {
+                    Assert.That(objects.IsPinned(i), Is.True, $"Box {objects.IdOf(i)} should be held in the heap.");
+                    Assert.That(objects.CanLift(strongest, i), Is.True,
+                        $"Box {objects.IdOf(i)} in the heap should be there for the taking.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// A calm person with every chance to tidy things away never picks up
+        /// a box from the standing tower, all day long.
+        /// </summary>
+        [Test]
+        public void ATidyPerson_NeverCarriesOffABoxFromTheStandingTower()
+        {
+            ScenarioData data = OnePersonByTheTower(NearTheTower, new AgentTraitValues(8, 5, 5, 5, 2, 5, 4), int.MaxValue);
+            data.Calm.DecisionMinimumTicks = 20;
+            data.Calm.DecisionMaximumTicks = 40;
+            using (var simulation = new Run(data, 42UL))
+            {
+                for (int t = 0; t < 60 * Run.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                    foreach (PhysicsObjectSnapshot box in TowerBoxes(simulation))
+                    {
+                        Assert.That(box.IsHeld, Is.False, $"Tick {simulation.Tick}: box {box.ObjectId} was picked up off the standing tower.");
+                    }
+                }
+
+                foreach (PhysicsObjectSnapshot box in TowerBoxes(simulation))
+                {
+                    Assert.That(box.Position.X, Is.GreaterThan(13300), $"Box {box.ObjectId} should still be standing in the corner.");
+                }
+            }
+        }
+
         [Test]
         public void SomebodyStandingWhereTheBoxesLand_IsKnockedClearAsTheyComeDown()
         {

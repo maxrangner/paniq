@@ -36,7 +36,7 @@ namespace Paniq.Gameplay
         [SerializeField] private int targetSavedPercent = 75;
 
         [Tooltip("On: the player has a purse of influence that doors, alarms and cards cost. Off (the office since prototype 3): everything is free and no purse is shown.")]
-        [SerializeField] private bool influenceEnabled;
+        [SerializeField] private bool influenceEnabled = true;
 
         public string LevelId => string.IsNullOrEmpty(levelId) ? name : levelId;
         public string DisplayName => string.IsNullOrEmpty(displayName) ? name : displayName;

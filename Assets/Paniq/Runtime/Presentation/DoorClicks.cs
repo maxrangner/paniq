@@ -45,20 +45,24 @@ namespace Paniq.Presentation
         /// door inside the window: the key is to be turned and no single click
         /// is sent. Otherwise the click waits, and a click that was waiting on
         /// some other door is handed back in <paramref name="settled"/> to be
-        /// sent as the single click it was. Either way the press is remembered,
-        /// because if the button stays down it becomes a hold.
+        /// sent as the single click it was, and the press is remembered,
+        /// because if the button stays down it becomes a hold. The second half
+        /// of a double click is not remembered: turning the key and then
+        /// keeping the button down a moment too long is still only turning
+        /// the key, never a hand on the door as well.
         /// </summary>
         public bool Press(SimulationId door, float now, out SimulationId? settled)
         {
             settled = null;
-            pressed = door;
-            pressedAt = now;
             if (pending.HasValue && pending.Value == door && now - pendingSince <= WindowSeconds)
             {
                 pending = null;
+                pressed = null;
                 return true;
             }
 
+            pressed = door;
+            pressedAt = now;
             settled = pending;
             pending = door;
             pendingSince = now;

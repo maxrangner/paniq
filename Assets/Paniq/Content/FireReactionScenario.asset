@@ -16,7 +16,7 @@ MonoBehaviour:
     ScenarioId: fire-reaction-prototype
     ContentRevision: 80
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 67
+    SimulationCompatibilityVersion: 68
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -861,7 +861,6 @@ MonoBehaviour:
       LurchMillimetres: 200
       AnnoyedWindowTicks: 500
       AnnoyedAfterPokes: 3
-      HuffTicks: 60
     Agents:
     - agentId:
         value: 1001

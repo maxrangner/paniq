@@ -139,7 +139,63 @@ namespace Paniq.Tests.EditMode
                 Assert.That(broken, Has.Count.EqualTo(1), "And the door is off its hinges.");
                 Assert.That(broken[0].CausalParentEventId, Is.EqualTo(pushed[0].EventId));
                 Assert.That(Door(simulation, OfficeWayOut).State, Is.EqualTo(DoorState.Broken));
+                Assert.That(Door(simulation, OfficeWayOut).IsHeld, Is.False,
+                    "Burst off its hinges, there is nothing left for the player to hold.");
             }
+        }
+
+        /// <summary>
+        /// Somebody who once shut the door themselves still bursts it when the
+        /// player is holding it: the hand on it is the player's doing, not
+        /// theirs. The rule that people never batter a door they shut
+        /// themselves used to stop them here, however strong they were.
+        /// </summary>
+        [Test]
+        public void SomebodyStrongWhoOnceShutTheDoorThemselves_StillBurstsItWhenHeld()
+        {
+            ScenarioData data = RunnerAtAnUnlockedWayOut(Strong);
+            using (var simulation = new Run(data, 42UL))
+            {
+                int door = DoorIndex(simulation, OfficeWayOut);
+                simulation.AgentForTests(0).Doors.ShutByThem[door] = true;
+                simulation.QueueCommand(PlayerCommandType.HoldDoor, OfficeWayOut, 1);
+                Advance(simulation, 5 * Run.TicksPerSecond);
+
+                Assert.That(EventsOfType(simulation, CausalEventType.DoorBrokenDown), Has.Count.EqualTo(1),
+                    "Strong enough, they get through the held door in one push, whoever shut it last.");
+            }
+        }
+
+        /// <summary>
+        /// A locked door takes no hand: its lock already holds it, and a hand
+        /// there used to let the strong through a locked door in one push.
+        /// </summary>
+        [Test]
+        public void ALockedDoor_CannotBeHeld()
+        {
+            using (var simulation = new Run(QuietRoom(TheBuilding.Office), 42UL))
+            {
+                simulation.QueueCommand(PlayerCommandType.ToggleLock, ClosetDoor, 1);
+                simulation.QueueCommand(PlayerCommandType.HoldDoor, ClosetDoor, 2);
+                Advance(simulation, 3);
+
+                Assert.That(Door(simulation, ClosetDoor).State, Is.EqualTo(DoorState.Locked));
+                Assert.That(Door(simulation, ClosetDoor).IsHeld, Is.False);
+                Assert.That(EventsOfType(simulation, CausalEventType.PowerHeldDoor), Is.Empty);
+            }
+        }
+
+        private static int DoorIndex(Run simulation, SimulationId id)
+        {
+            for (int i = 0; i < simulation.DoorCount; i++)
+            {
+                if (simulation.GetDoor(i).DoorId == id)
+                {
+                    return i;
+                }
+            }
+
+            throw new KeyNotFoundException(id.ToString());
         }
 
         [Test]

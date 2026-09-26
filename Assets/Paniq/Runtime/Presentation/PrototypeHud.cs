@@ -171,9 +171,10 @@ namespace Paniq.Presentation
                 bool affordable = snapshot.Influence >= (locked ? key : price);
                 string action = door.Swings ? "Swing doors: people push straight through, and there is nothing to work"
                     : door.IsPiled ? "THE BOXES ARE LYING ACROSS IT - nobody gets through until enough of them are gone"
-                    : door.IsHeld ? "You are holding it shut. Let go of the button to let go of the door"
-                    : door.IsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted"
                     : door.State == DoorState.Broken ? "Broken down"
+                    : door.IsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted" +
+                                      (door.IsHeld ? ", and you are holding it as well" : "")
+                    : door.IsHeld ? "You are holding it shut. Let go of the button to let go of the door"
                     : !affordable ? $"NOT ENOUGH INFLUENCE - it costs {(locked ? key : price)}, and you have {snapshot.Influence}"
                     : locked ? $"Locked. Double-click to unlock{Price(snapshot, key)}"
                     : door.State == DoorState.Unlocked ? $"Click to open{Price(snapshot, price)}; double-click to lock{Price(snapshot, key)}; hold to keep it shut"
@@ -196,7 +197,7 @@ namespace Paniq.Presentation
                 GUI.Label(new Rect(20f, 104f, 900f, 22f), $"Fire alarm {hoveredAlarm.Value.Value}: {action}");
                 GUI.color = Color.white;
             }
-            else if (input.HeldDoor.HasValue)
+            else if (input.HeldDoor.HasValue && IsHeldInTheRun(snapshot, input.HeldDoor.Value))
             {
                 GUI.color = new Color(0.6f, 0.8f, 1f);
                 GUI.Label(new Rect(20f, 104f, 900f, 22f),
@@ -207,6 +208,25 @@ namespace Paniq.Presentation
             {
                 GUI.Label(new Rect(20f, 104f, 900f, 22f), $"Person {input.HoveredPerson.Value.Value}: click to poke them");
             }
+        }
+
+        /// <summary>
+        /// Whether the run itself has this door held: the line says so only
+        /// once the hold has landed, and stops the moment it ends -- let go,
+        /// or burst off its hinges by somebody strong -- rather than trusting
+        /// the button.
+        /// </summary>
+        private static bool IsHeldInTheRun(RunSnapshot snapshot, SimulationId door)
+        {
+            for (int i = 0; i < snapshot.Doors.Count; i++)
+            {
+                if (snapshot.Doors[i].DoorId == door)
+                {
+                    return snapshot.Doors[i].IsHeld;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>A price in brackets, or nothing at all on a level with no purse (prototype 3).</summary>

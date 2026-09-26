@@ -455,8 +455,19 @@ namespace Paniq.Simulation
 
         private void StartLookingAround(Agent agent)
         {
+            LookRound(agent, context.Random.NextIntInclusive(1, 3));
+        }
+
+        /// <summary>
+        /// A look round: this many glances to one side or the other, each a
+        /// moment long, then on with the day. A calm person's own idle, and
+        /// somebody poked looking for whoever did it (<see cref="PokeSystem"/>),
+        /// so the two always look alike.
+        /// </summary>
+        internal void LookRound(Agent agent, int glances)
+        {
             agent.Intent.Activity = AgentActivityState.LookingAround;
-            agent.Intent.LooksRemaining = context.Random.NextIntInclusive(1, 3);
+            agent.Intent.LooksRemaining = glances;
             NextGlance(agent);
         }
 

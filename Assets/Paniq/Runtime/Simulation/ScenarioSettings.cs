@@ -2447,14 +2447,12 @@ namespace Paniq.Simulation
         /// <summary>The poke that makes them annoyed: the third in a row.</summary>
         public int AnnoyedAfterPokes = 3;
 
-        /// <summary>How long a calm person stands and glares after a poke before getting on with something else.</summary>
-        public int HuffTicks = 60;
 
         public PokeSettings Clone() => (PokeSettings)MemberwiseClone();
 
         internal void Validate()
         {
-            Settings.Require(LurchMillimetres >= 0 && AnnoyedWindowTicks >= 0 && AnnoyedAfterPokes >= 1 && HuffTicks >= 1,
+            Settings.Require(LurchMillimetres >= 0 && AnnoyedWindowTicks >= 0 && AnnoyedAfterPokes >= 1,
                 "poking");
         }
     }

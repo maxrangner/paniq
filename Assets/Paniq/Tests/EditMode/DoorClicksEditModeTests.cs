@@ -87,6 +87,21 @@ namespace Paniq.Tests.EditMode
             Assert.That(clicks.Release(false), Is.Null, "And only once.");
         }
 
+        /// <summary>
+        /// A double click that turns the key, with the button kept down a
+        /// moment too long afterwards, is only the key: it used to take hold
+        /// of the door as well.
+        /// </summary>
+        [Test]
+        public void ADoubleClickHeldDownAfterwards_TurnsTheKey_AndTakesNoHold()
+        {
+            var clicks = new DoorClicks();
+            clicks.Press(A, 0f, out _);
+            Assert.That(clicks.Press(A, 0.1f, out _), Is.True, "A double click.");
+            Assert.That(clicks.Hold(0.1f + DoorClicks.WindowSeconds + 0.01f, true), Is.Null, "No hold after the key.");
+            Assert.That(clicks.Held, Is.Null);
+        }
+
         /// <summary>A quick click, the button up again inside the window, is a click and never a hold.</summary>
         [Test]
         public void AQuickClick_IsStillAClick_NotAHold()

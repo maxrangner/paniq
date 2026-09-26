@@ -368,7 +368,11 @@ strikes the body rather than the feet it hits three times as hard as a
 sliding one, enough for a chair to knock someone off balance.
 
 **Boxes.** Cardboard boxes, 0.3–0.6 m wide and 3–20 kg, stand against the
-office walls, fill the stockroom and make up the tower at the T.
+office walls, fill the stockroom and make up the tower at the T. The tower's
+boxes are the exception to everything below until it falls: nobody kicks,
+lifts, carries or hurls a box from the standing tower, however strong. Once
+it has fallen into the archway its boxes are there for the taking, which is
+how the heap is cleared.
 Calm people walk around them. Runners barely look: they kick a box sliding
 across the floor, and at running speed they may trip over it instead, more
 often the faster they go and the bigger the box. A kicked box slides about a

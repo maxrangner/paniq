@@ -158,6 +158,15 @@ namespace Paniq.Simulation
             /// </summary>
             public bool Pinned;
 
+            /// <summary>
+            /// A pinned thing people may still take: a box lying in the heap,
+            /// which is cleared by being lifted, thrown or shoved off it. A
+            /// pinned thing without this (a box in the standing tower) cannot
+            /// be lifted, carried, hurled or shoved by anybody, however
+            /// strong, until whatever pinned it lets it go.
+            /// </summary>
+            public bool MayBeTaken;
+
             public LogicalPosition Position => new LogicalPosition(
                 (int)FloorDivide(X, SubMillimetre),
                 (int)FloorDivide(Z, SubMillimetre));
@@ -870,13 +879,17 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Holds a thing where it is: the engine stops moving it and nothing
-        /// here pushes it. It still stands in everybody's way, still heats,
-        /// burns and can be picked up; picking it up or throwing it clear
-        /// unpins it.
+        /// here pushes it. It still stands in everybody's way, and still heats
+        /// and burns. With <paramref name="mayBeTaken"/> people can still lift
+        /// it, throw it clear or shove it (a box in the heap), and doing so
+        /// unpins it; without it nobody can (a box in the standing tower,
+        /// which a strong runner barging past used to fling across the room,
+        /// and a tidy person used to carry off to a desk).
         /// </summary>
-        public void Pin(int index)
+        public void Pin(int index, bool mayBeTaken = false)
         {
             PhysicsBody thing = bodies[index];
+            thing.MayBeTaken = mayBeTaken;
             if (thing.Pinned)
             {
                 return;
@@ -901,8 +914,12 @@ namespace Paniq.Simulation
             }
 
             thing.Pinned = false;
+            thing.MayBeTaken = false;
             world.SetPinned(index, false);
         }
+
+        /// <summary>Pinned where nobody may take it: a box in the standing tower.</summary>
+        private bool IsOffLimits(int index) => bodies[index].Pinned && !bodies[index].MayBeTaken;
 
         /// <summary>
         /// Puts a thing straight down at a spot, its underside this high off
@@ -956,6 +973,14 @@ namespace Paniq.Simulation
         public void ShoveAside(int index, Agent shover, int heading, int speed, ulong causeEventId)
         {
             PhysicsBody thing = bodies[index];
+            if (IsOffLimits(index))
+            {
+                return;
+            }
+
+            // A box in the heap is shoved off it like anything wedged in a
+            // doorway: let go of first, or the shove would move nothing.
+            Unpin(index);
             LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
             SetMotion(index, (long)velocity.X * SubMillimetre, 0L, (long)velocity.Z * SubMillimetre);
             thing.Thrown = false;
@@ -1183,7 +1208,10 @@ namespace Paniq.Simulation
         /// <summary>Whether this person could lift this item at all (items are boxes and chairs; the limit grows with strength).</summary>
         public bool CanLift(Agent agent, int index)
         {
-            return bodies[index].OccupiedBy < 0 &&
+            // Every way of taking a thing asks this -- tidying it away,
+            // wedging it in a door, throwing it clear, hurling it aside at a
+            // run -- so a thing nobody may take is refused here, once.
+            return bodies[index].OccupiedBy < 0 && !IsOffLimits(index) &&
                    bodies[index].MassGrams <= TraitEffects.CarryLimitGrams(agent, context.Scenario);
         }
 

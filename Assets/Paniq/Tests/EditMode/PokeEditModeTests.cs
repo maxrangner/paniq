@@ -114,6 +114,32 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// Two pokes a tick apart are one jolt: they turn round once, when the
+        /// first poke's reaction was due, naming the first poke. The second
+        /// used to push the reaction later and take it over, and the first
+        /// poke was left with no reaction at all.
+        /// </summary>
+        [Test]
+        public void TwoPokesInQuickSuccession_AreOneLookRound_AtTheFirstPokesTime()
+        {
+            ScenarioData data = QuietRoom();
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.QueueCommand(PlayerCommandType.PokePerson, Somebody, 1);
+                simulation.QueueCommand(PlayerCommandType.PokePerson, Somebody, 2);
+                Advance(simulation, 20);
+
+                List<CausalEvent> poked = EventsOfType(simulation, CausalEventType.PowerPoked);
+                Assert.That(poked, Has.Count.EqualTo(2));
+                List<CausalEvent> looked = EventsOfType(simulation, CausalEventType.AgentPoked);
+                Assert.That(looked, Has.Count.EqualTo(1), "One look round for the pair.");
+                Assert.That(looked[0].CausalParentEventId, Is.EqualTo(poked[0].EventId), "It answers the first poke.");
+                Assert.That(looked[0].Tick - poked[0].Tick, Is.InRange(1, data.Perception.ReactionLagMaximumTicks),
+                    "At the first poke's own reaction tick, not pushed later by the second.");
+            }
+        }
+
         [Test]
         public void ThreePokesFarApart_AnnoyNobody()
         {

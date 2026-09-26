@@ -901,7 +901,16 @@ namespace Paniq.Simulation
         // (HoldDoor, ReleaseDoor: nobody opens one, the strong burst it in
         // one push); people the player pokes (PokePerson, AgentPoked,
         // AgentAnnoyed). Fingerprints re-recorded: the fire moved.
-        public int SimulationCompatibilityVersion = 67;
+        // 68: the code review of prototype 3's first batch (2026-09-26).
+        // Nobody may take a box from the standing tower (a strong runner used
+        // to fling one aside and a tidy person carry one off); a box in the
+        // heap may be taken, and shoved. A locked door takes no hand, a door
+        // that breaks lets go of the hand on it, and the strong burst a held
+        // door whoever shut it last. A quick second poke folds into the look
+        // round already due; the look round is the calm one (PokeSettings
+        // loses HuffTicks). Fingerprints re-recorded: in ten of the thirteen
+        // recorded runs somebody used to take or knock a box off the tower.
+        public int SimulationCompatibilityVersion = 68;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0x3CD4636B3E14BC26UL)]
-        [TestCase(42UL, true, 0x82A6B9B709403BE2UL)]
-        [TestCase(40UL, false, 0xC2CEEB2F20BA5696UL)]
-        [TestCase(40UL, true, 0x7E184D4E854EC00AUL)]
+        [TestCase(42UL, false, 0xB8B2D7DB2234798EUL)]
+        [TestCase(42UL, true, 0x0452F66B4460CB96UL)]
+        [TestCase(40UL, false, 0xFAD0CB5360C55D24UL)]
+        [TestCase(40UL, true, 0xE649A1286AF6DC43UL)]
         [TestCase(46UL, false, 0x8E68F01C76DF6563UL)]
-        [TestCase(46UL, true, 0x63639CD336E5F94AUL)]
+        [TestCase(46UL, true, 0xBC3839F4615F85DBUL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -41,7 +41,7 @@ namespace Paniq.Tests.EditMode
         /// well as by their own tests, so the whole command path is covered by
         /// replay. This run waits to be triggered, as a played level does.
         /// </summary>
-        [TestCase(42UL, 0x0C21DBAD864FD574UL)]
+        [TestCase(42UL, 0x7A7171863BDDE01CUL)]
         [TestCase(40UL, 0x5506C370E9E70916UL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
@@ -59,8 +59,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0xFCC5EAAF69EF90CEUL)]
-        [TestCase(40UL, 0x280294979F535B23UL)]
+        [TestCase(42UL, 0xCCF22F62F1F7D9A9UL)]
+        [TestCase(40UL, 0x56039DA00FA915FBUL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -129,9 +129,14 @@ namespace Paniq.Tests.EditMode
         /// day, so all three cases were re-recorded along with the other ten;
         /// how somebody who knows the building finds their way did not change.
         /// </para>
+        /// <para>
+        /// Version 68 (2026-09-26): nobody may take a box from the standing
+        /// tower any more. The two seed 41 cases moved because somebody used to
+        /// take or knock a box off it; the seed 42 cards case did not move.
+        /// </para>
         /// </summary>
-        [TestCase(41UL, RecordedRun.DoorsLocked, 0x0BF8AD33A6519866UL)]
-        [TestCase(41UL, RecordedRun.DoorsOpened, 0xEA24698B8B47E2F4UL)]
+        [TestCase(41UL, RecordedRun.DoorsLocked, 0xB0CB65467F6ABE69UL)]
+        [TestCase(41UL, RecordedRun.DoorsOpened, 0xD8F64CBE7C34767AUL)]
         [TestCase(42UL, RecordedRun.CardsPlayed, 0x2C35C1690EF2D5F1UL)]
         public void WithNoVisitors_TheFloorReplaysExactlyAsItDidBefore(ulong seed, RecordedRun run, ulong expected)
         {

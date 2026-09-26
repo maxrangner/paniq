@@ -45,7 +45,7 @@ every zoom level.
 | **Mouse wheel** | zoom in and out, tilting the camera as described above |
 | **Left mouse button** | on a card along the bottom: pick it up (or put it down again); on the floor with a card in hand: throw it there; on a door: open or shut it; on a red pull station: pull the fire alarm; on a person, with nothing in hand: poke them |
 | **Double click a door** | turn its key: lock a shut door, unlock a locked one, or shut and lock an open one |
-| **Hold the button down on a door** | a hand on it (prototype 3): an open door pulls shut as soon as the doorway is clear, and nobody opens it while you hold it, locked or not. Somebody strong enough bursts through in one push. Let go of the button and it is a door again |
+| **Hold the button down on a door** | a hand on it (prototype 3): an open door pulls shut as soon as the doorway is clear, and nobody opens it while you hold it. Somebody strong enough bursts through in one push, and then there is nothing left to hold. A locked door needs no hand, and swing doors and gaps take none. Let go of the button and it is a door again |
 | **Click a person** | poke them (prototype 3): they lurch and look round a beat later. Three pokes in ten seconds and they get annoyed |
 | **Right click** (without dragging) | put down the card in hand |
 | **Reset** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
@@ -87,9 +87,12 @@ Chosen on the owner's behalf:
 - **A press that outlasts the double-click window is a hold** (prototype 3,
   2026-09-25). The same third of a second decides both: a button up again
   inside it is a click, a button still down when it closes is a hand on the
-  door, and the click that began the hold is never sent. Pausing lets go of
-  a held door, because nothing pressed while the world is stopped reaches
-  it. On this level nothing costs anything: the office has no purse (the
+  door, and the click that began the hold is never sent. A double click that
+  turns the key stays only that, however long the button is kept down after
+  it. The line under the score says a door is held only once the run has
+  taken the hold, so a door that cannot be held never claims to be. Pausing
+  lets go of a held door, because nothing pressed while the world is stopped
+  reaches it. On this level nothing costs anything: the office has no purse (the
   owner's call), so the prices the lines above used to quote are gone from
   the screen.
 - **A poke is a click, never a hold**, and it goes to whoever is drawn

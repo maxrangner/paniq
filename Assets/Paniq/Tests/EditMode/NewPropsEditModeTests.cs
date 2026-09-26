@@ -201,8 +201,8 @@ namespace Paniq.Tests.EditMode
             bool staysUp)
         {
             ScenarioData data = OneThing(kind, size, mass);
-            data.Influence.Starting = 1000;
-            data.Influence.Maximum = 1000;
+            data.Purse.Starting = 1000;
+            data.Purse.Maximum = 1000;
             using (var simulation = new Run(data))
             {
                 simulation.Step();

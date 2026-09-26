@@ -39,6 +39,7 @@
         /// <summary>Wired up after construction: both are built after this system is.</summary>
         private FlammablesSystem flammables;
         private DoorSystem doors;
+        private DirectorSystem director;
 
         /// <summary>
         /// Where everybody was standing when the stall clock last started, so
@@ -70,6 +71,7 @@
         {
             flammables = systems.Flammables;
             doors = systems.Doors;
+            director = systems.Director;
         }
 
         /// <summary>Where the round has got to.</summary>
@@ -174,6 +176,14 @@
         /// </summary>
         private bool SomethingIsStillHappening()
         {
+            // The Director has a socket crackling, or the next rung of its
+            // ladder on its way: an office that has settled back to work after
+            // a fire was put out is not a round that is over.
+            if (director != null && director.HasSomethingComing)
+            {
+                return true;
+            }
+
             long moved = settings.StallMoveMillimetres;
             for (int i = 0; i < agents.Length; i++)
             {

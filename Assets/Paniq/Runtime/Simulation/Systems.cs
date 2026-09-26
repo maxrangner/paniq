@@ -31,7 +31,7 @@ namespace Paniq.Simulation
         public PowerSystem Power;
         public DoorSystem Doors;
         public PlayerCommandSystem PlayerCommands;
-        public InfluenceSystem Influence;
+        public PurseSystem Purse;
         public DeckSystem Deck;
         public RoundSystem Round;
         public SoundSystem Sound;
@@ -61,7 +61,8 @@ namespace Paniq.Simulation
         public CueSystem Cues;
         public DirectorSystem Director;
         public ErrandBehaviour Errands;
-        public PokeSystem Pokes;
+        public NudgeSystem Nudges;
+        public InfluenceSystem Influence;
         public TrapSystem Traps;
 
         /// <summary>Hands every system that asked for it the finished set, in a fixed order.</summary>
@@ -69,7 +70,7 @@ namespace Paniq.Simulation
         {
             IBindable[] bindable =
             {
-                Doors, Body, Objects, People, DoorBehaviour, Help, Panic, Round, PlayerCommands
+                Doors, Body, Objects, People, DoorBehaviour, Help, Panic, Round, PlayerCommands, Director, Fear, Calm
             };
 
             for (int i = 0; i < bindable.Length; i++)

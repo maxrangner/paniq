@@ -5,12 +5,14 @@ The prototype is built stone by stone (see [goals](goals.md) for what
 next one is chosen. It is not a schedule and not a feature list for the
 finished game.
 
-**Where things stand (2026-09-25).** Prototype 1 -- the fire-reaction office
+**Where things stand (2026-09-26).** Prototype 1 -- the fire-reaction office
 -- is finished and merged into `main`. Prototype 2, the stone of *game*, made
 the same scene a round you can play and is recorded in
-[finished stones](history/roadmap-finished-stones.md). Prototype 3 has
-begun in the same scene: it is the stone of *gameplay*, where the level
-itself pushes back (its first batch is under "Prototype 3" further down).
+[finished stones](history/roadmap-finished-stones.md). Prototype 3 is under way
+in the same scene: it is the stone of *gameplay*, where the level itself pushes
+back. Its first batch put a trap in the building; its second gives the round a
+build-up (the Director's ladder) and the player an everyday move (influence).
+Both are under "Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -135,9 +137,11 @@ only playing it answers.
 
 *From Prototype 2: the building has a day (2026-09-24):*
 
-**What this deliberately left out.** The reactive Director that watches the
-run and adds or eases pressure; cues after the disaster has started (nobody
-returns to calm yet); a third person joining a chat; refusing a cue by trait;
+**What this deliberately left out.** ~~The reactive Director that watches the
+run and adds or eases pressure~~ (its first ladder built 2026-09-26; easing
+pressure still to come); cues after the disaster has started (~~nobody returns
+to calm yet~~ -- calming down built 2026-09-26; "back to work" cues still to
+come); a third person joining a chat; refusing a cue by trait;
 the host walking the visitors out; a home-time card and button; and a
 "lunch ends" line on the timetable for the two who start seated in the
 cafeteria. All named in the [cue system](cue-system.md) note.
@@ -160,8 +164,9 @@ take a lock.
 
 *From Prototype 2: playtest fixes, third round (2026-09-25):*
 
-**One thing to watch at the next playtest.** The alarm can be pulled before
-the fire is triggered, for 30 of the opening 30. Everybody then crowds the
+**One thing to watch at the next playtest.** *Settled 2026-09-26: on the
+office only people pull alarms, so the player can no longer do this.* The alarm
+can be pulled before the fire is triggered, for 30 of the opening 30. Everybody then crowds the
 locked way out, and the strong may batter it down before the fire exists.
 Escapes before the trigger pay the purse nothing, but the round's saved count
 still counts them. Whether that is a tactic or an exploit is the owner's call.
@@ -199,6 +204,54 @@ or as a maze is the question this batch exists to ask. The second is whether
 the crash is noticed at all from the far end of the building; the sign says
 "the boxes came down!" beside whoever set it off, and the crash is heard
 twelve metres.
+
+## Prototype 3: gameplay, second batch (2026-09-26)
+
+The owner was working on the game loop: what the player does over and over,
+and why. The answer this batch builds: **the Director adds things people are
+pushed away from, the player adds places people are pulled toward, and every
+person weighs both by their personality.** One batch, on
+`feat/prototype-3-gameplay`, from a brainstorm and two rounds of questions.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| A round that builds up | System | Half a minute to a minute and a half of ordinary day (or less, if you press the button), then a waste bin in the meeting room catches. It smoulders about ten seconds, then spreads slowly while young. An extinguisher hangs on the meeting room's wall |
+| The Director's ladder | System | Put the bin out and, twenty to forty seconds later, a socket crackles for five seconds and pops in the busiest calm room; put that out and the fuse box goes, and every socket with it. A fire that gets out of its room is the real fire: the Director stops, and only then can the tower of boxes fall |
+| The cable runs one way | System | A socket going off is a bang and a small fire, nothing more. The fuse box going sends sparks down to every socket within about two and a half seconds. A bang no longer lights floor through a wall |
+| Danger is danger | Behaviour | A burning bin, a burning chair, a person on fire: people see them and are frightened, as by burning floor. The owner's rule: people sense danger, never "floor on fire", so a zombie will fit the same way |
+| Calming down | Behaviour | A frightened person who sees and hears nothing frightening for a while settles, at their own pace -- the brave in seconds, the very nervous never -- and goes back to their desk, rattled for a while. The bells stop about ten seconds after a fire is put out (the all-clear) |
+| Only people pull alarms | System | Clicking a pull station draws people to it instead; the brave may pull it |
+| Influence | System | Click a door, a thing or the floor: one step of pull a click, up to twenty, fading over forty seconds, felt within twelve metres in the same room. The nervous and visitors follow, leaders and the cruel mostly ignore it, nobody follows it into fire; calm people drift to it and the easily led get up for it. A sparkling aura on the place, a sparkling line to everybody pulled |
+| New door controls | System | Click a door: draw people to it. Hold: keep it shut. Right click: turn the key (how the way out is opened). No double click |
+| The nudge | Behaviour | Click a person: they step away from the click. Three quickly and they are annoyed, shake, and ignore nudges for twenty seconds |
+| The heap is seen | Behaviour | Anybody who can see the fallen tower and cannot heave it goes round; the strong give it about eight seconds first. (Found when a strong visitor pushed at the heap for two minutes in a test run) |
+| The purse is "the purse" | Rename | The old currency is called the purse in code and docs, so "influence" means only the new idea |
+
+**What this deliberately left out.** A menu of incidents (one ladder, fire
+only); easing pressure after a massacre; influence reaching through open doors
+into the next room; talking about the fire afterwards, and the timetable
+resuming after a put-out; the scene baker authoring a ladder; any score for a
+round the player contained rather than evacuated.
+
+**Things to watch at the next playtest.**
+
+- Whether a contained round should score better than an early evacuation. The
+  score is still the share saved, and the ladder always ends in the fuse box.
+- Whether unlimited influence turns into painting the whole floor, and whether
+  twelve metres and two seconds a step feel right (both single numbers in
+  `InfluenceSettings`).
+- Whether the sparkling lines read clearly or clutter a crowded room.
+- Whether anybody ever puts the bin out. That depends on somebody brave
+  enough being in the meeting room, and on the extinguisher by the door.
+- People calming during a big fire and panicking again when it reaches them.
+
+**Found on the way, and open.** The physics engine does not always replay a
+person walking into two boxes at once the same way when its work is spread
+over several processor threads (found 2026-09-26; see "The physics engine and
+threads" in [technical decisions](technical-decisions.md)). One replay
+fingerprint, seed 41 with the way out opened and nobody a visitor, can fail
+about one run in five because of it. Choosing between replays that always
+agree and speed with big crowds is the owner's to make.
 
 ## Foundations reviewed (2026-09-23)
 
@@ -300,8 +353,10 @@ a door they have never opened.
   deals them. What is left of the idea is the other direction of each dial (a
   *coward* card, a *saint* card) and cards for speed and leadership.
 - **The Director.** The background system that adds and eases pressure. Its
-  seam exists (`DirectorSystem`, which today calls the level's timetable; see
-  [the cue system](cue-system.md)); the reactive part is still to build.
+  first reactive form is built (2026-09-26): the ladder of small incidents on
+  the office, from a bin to a socket to the fuse box (see prototype 3's second
+  batch above and [the cue system](cue-system.md)). Still to build: easing
+  pressure after a massacre, and a menu of incidents rather than one ladder.
 - **Zombies**, rather than the generic hunter below: the vision's *contagious
   plus hunting* mix. The owner chose the fiction; the work is still the seam
   between "afraid of the fire" and "afraid of a threat".

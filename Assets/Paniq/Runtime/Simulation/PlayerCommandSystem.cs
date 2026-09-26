@@ -29,7 +29,7 @@ namespace Paniq.Simulation
         private FireSystem fire;
         private PhysicsObjectSystem objects;
         private Crowd crowd;
-        private InfluenceSystem influence;
+        private PurseSystem purse;
         private DeckSystem deck;
         private SoundSystem sound;
         private BodySystem body;
@@ -39,7 +39,8 @@ namespace Paniq.Simulation
         private CueSystem cues;
         private AlarmSystem alarms;
         private GroupSystem groups;
-        private PokeSystem pokes;
+        private NudgeSystem nudges;
+        private InfluenceSystem influence;
 
         /// <summary>Who a "Stick together" throw caught, and each one's event, gathered before anything is written.</summary>
         private readonly List<int> caughtIndices = new List<int>();
@@ -60,14 +61,15 @@ namespace Paniq.Simulation
             fire = systems.Fire;
             objects = systems.Objects;
             crowd = systems.Crowd;
-            influence = systems.Influence;
+            purse = systems.Purse;
             deck = systems.Deck;
             sound = systems.Sound;
             body = systems.Body;
             geometry = systems.Geometry;
             cues = systems.Cues;
             groups = systems.Groups;
-            pokes = systems.Pokes;
+            nudges = systems.Nudges;
+            influence = systems.Influence;
         }
 
         /// <summary>Every command queued so far, in sequence order.</summary>
@@ -113,7 +115,24 @@ namespace Paniq.Simulation
                     }
 
                     break;
-                case PlayerCommandType.PokePerson:
+                case PlayerCommandType.InfluenceDoor:
+                    if (doors.IndexOf(targetId) < 0)
+                    {
+                        throw new ArgumentException($"Unknown door ID {targetId}.", nameof(targetId));
+                    }
+
+                    break;
+                case PlayerCommandType.InfluenceThing:
+                    if (objects.IndexOf(targetId) < 0)
+                    {
+                        throw new ArgumentException($"Unknown thing ID {targetId}.", nameof(targetId));
+                    }
+
+                    break;
+                case PlayerCommandType.InfluenceSpot:
+                    break;
+                case PlayerCommandType.NudgePerson:
+                case PlayerCommandType.NudgePersonFrom:
                     if (crowd.IndexOf(targetId) < 0)
                     {
                         throw new ArgumentException($"Unknown person ID {targetId}.", nameof(targetId));
@@ -177,15 +196,15 @@ namespace Paniq.Simulation
                 // card table. Same rule as a card: a click they cannot pay for,
                 // or one the door refuses, does nothing and costs nothing.
                 int door = doors.IndexOf(command.TargetId);
-                int price = influence.CostOfDoorClick(doors.StateOf(door), geometry.DoorLeadsOutside(door));
-                if (!influence.CanAfford(price))
+                int price = purse.CostOfDoorClick(doors.StateOf(door), geometry.DoorLeadsOutside(door));
+                if (!purse.CanAfford(price))
                 {
                     return;
                 }
 
                 if (doors.ClickDoor(door))
                 {
-                    influence.Spend(price);
+                    purse.Spend(price);
                 }
 
                 return;
@@ -197,15 +216,15 @@ namespace Paniq.Simulation
             if (command.CommandType == PlayerCommandType.ToggleLock)
             {
                 int door = doors.IndexOf(command.TargetId);
-                int price = influence.CostOfLockToggle(doors.StateOf(door), geometry.DoorLeadsOutside(door));
-                if (!influence.CanAfford(price))
+                int price = purse.CostOfLockToggle(doors.StateOf(door), geometry.DoorLeadsOutside(door));
+                if (!purse.CanAfford(price))
                 {
                     return;
                 }
 
                 if (doors.ToggleLock(door))
                 {
-                    influence.Spend(price);
+                    purse.Spend(price);
                 }
 
                 return;
@@ -218,15 +237,15 @@ namespace Paniq.Simulation
             // the building.
             if (command.CommandType == PlayerCommandType.PullAlarm)
             {
-                int price = influence.CostOf(PlayerCommandType.PullAlarm);
-                if (!influence.CanAfford(price))
+                int price = purse.CostOf(PlayerCommandType.PullAlarm);
+                if (!purse.CanAfford(price))
                 {
                     return;
                 }
 
                 if (alarms.PullByPlayer(alarms.IndexOf(command.TargetId)))
                 {
-                    influence.Spend(price);
+                    purse.Spend(price);
                 }
 
                 return;
@@ -247,16 +266,42 @@ namespace Paniq.Simulation
                 return;
             }
 
-            // A poke (prototype 3, 2026-09-25): free, not a card, and nothing
+            // A nudge (prototype 3, 2026-09-25): free, not a card, and nothing
             // at all to somebody already out of the building or dead.
-            if (command.CommandType == PlayerCommandType.PokePerson)
+            if (command.CommandType == PlayerCommandType.NudgePerson ||
+                command.CommandType == PlayerCommandType.NudgePersonFrom)
             {
-                Agent poked = crowd.All[crowd.IndexOf(command.TargetId)];
-                if (poked.IsParticipating)
+                Agent nudged = crowd.All[crowd.IndexOf(command.TargetId)];
+                if (nudged.IsParticipating)
                 {
-                    pokes.Poke(poked);
+                    nudges.Nudge(nudged, command.Point, command.CommandType == PlayerCommandType.NudgePersonFrom);
                 }
 
+                return;
+            }
+
+            // Influence (2026-09-26): free, not a card, one step a click. A
+            // spot off the floor is no place at all, and nothing is written.
+            if (command.CommandType == PlayerCommandType.InfluenceDoor)
+            {
+                influence.OnDoor(doors.IndexOf(command.TargetId), command.TargetId);
+                return;
+            }
+
+            if (command.CommandType == PlayerCommandType.InfluenceThing)
+            {
+                int thing = objects.IndexOf(command.TargetId);
+                if (!objects.IsDormant(thing))
+                {
+                    influence.OnThing(thing, command.TargetId, objects.PositionOf(thing));
+                }
+
+                return;
+            }
+
+            if (command.CommandType == PlayerCommandType.InfluenceSpot)
+            {
+                influence.TryOnSpot(command.Point, out _);
                 return;
             }
 
@@ -279,7 +324,7 @@ namespace Paniq.Simulation
             }
 
             // A card they are not holding is not theirs to play. Cards are not
-            // bought -- the dead deal them -- so having the influence for one is
+            // bought -- the dead deal them -- so having the purse points for one is
             // only half of being able to play it.
             if (!deck.Holds(command.CommandType))
             {
@@ -287,7 +332,7 @@ namespace Paniq.Simulation
             }
 
             // A card the player cannot pay for does nothing at all.
-            if (!influence.CanAfford(command.CommandType))
+            if (!purse.CanAfford(command.CommandType))
             {
                 return;
             }
@@ -324,10 +369,10 @@ namespace Paniq.Simulation
 
             // Only a card that actually did something is paid for, and only a
             // card that is paid for leaves the hand. A throw that caught
-            // nobody was a miss: it costs neither the influence nor the card.
+            // nobody was a miss: it costs neither the purse nor the card.
             if (played)
             {
-                influence.Spend(command.CommandType);
+                purse.Spend(command.CommandType);
                 deck.Discard(command.CommandType);
             }
         }
@@ -402,8 +447,8 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            long radius = context.Scenario.Influence.CardPatchRadiusMillimetres;
-            int price = influence.CostOf(command.CommandType);
+            long radius = context.Scenario.Purse.CardPatchRadiusMillimetres;
+            int price = purse.CostOf(command.CommandType);
             bool caught = false;
 
             using (Crowd.Nearby inside = crowd.Within(command.Point, radius))
@@ -447,8 +492,8 @@ namespace Paniq.Simulation
         /// </summary>
         private bool StickTogether(PlayerCommand command)
         {
-            long radius = context.Scenario.Influence.CardPatchRadiusMillimetres;
-            int price = influence.CostOf(command.CommandType);
+            long radius = context.Scenario.Purse.CardPatchRadiusMillimetres;
+            int price = purse.CostOf(command.CommandType);
             caughtIndices.Clear();
             caughtEvents.Clear();
             using (Crowd.Nearby inside = crowd.Within(command.Point, radius))
@@ -494,7 +539,7 @@ namespace Paniq.Simulation
             }
 
             CausalEvent card = context.Events.Append(context.Tick, default, CausalEventType.PowerSpawnedFire,
-                command.Point, influence.CostOf(command.CommandType));
+                command.Point, purse.CostOf(command.CommandType));
             fire.TryIgniteForPlayer(cell, card.EventId, out ulong _);
             return true;
         }
@@ -526,14 +571,14 @@ namespace Paniq.Simulation
 
             ulong played = context.Events.Append(context.Tick, default,
                 CausalEventType.PowerPoppedFuseBox, command.Point,
-                influence.CostOf(command.CommandType), 0, 0UL).EventId;
+                purse.CostOf(command.CommandType), 0, 0UL).EventId;
             power.PopTheFuseBoxNear(command.Point, played);
             return true;
         }
 
         private bool BlastWall(PlayerCommand command)
         {
-            ulong blasted = doors.TryBlastWall(command.Point, influence.CostOf(command.CommandType));
+            ulong blasted = doors.TryBlastWall(command.Point, purse.CostOf(command.CommandType));
             if (blasted == 0UL)
             {
                 return false;
@@ -575,7 +620,7 @@ namespace Paniq.Simulation
 
             context.Events.Append(context.Tick, objects.IdOf(index),
                 CausalEventType.PowerSpawnedExtinguisher, command.Point,
-                influence.CostOf(command.CommandType), 0, 0UL, objects.IdOf(index));
+                purse.CostOf(command.CommandType), 0, 0UL, objects.IdOf(index));
             OfferItToWhoeverCanSeeIt(command.Point);
             return true;
         }

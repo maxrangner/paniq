@@ -134,7 +134,8 @@ word is the feature's name. These are the ones that are not:
 
 | Code changed | Filter words |
 | --- | --- |
-| `InfluenceSystem`, `DeckSystem`, `PlayerCommandSystem` (the player's purse, cards and clicks) | `Powers,Economy,UproarTable,TraitCards` |
+| `PurseSystem`, `DeckSystem`, `PlayerCommandSystem` (the player's purse, cards and clicks) | `Powers,Economy,UproarTable,TraitCards` |
+| `InfluenceSystem` (drawing people to a place) | `Influence,ReplayFingerprint` |
 | `Run` (the tick itself) | `Simulation,ReplayFingerprint` |
 | `UniformGridIndex` (who is near here) | `SpatialIndex` |
 | `IThreat`, `Threats` (what a danger is) | `ThreatSeam,ReplayFingerprint` |
@@ -145,14 +146,17 @@ word is the feature's name. These are the ones that are not:
 | `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered,HeldDoors,BoxTower` |
 | `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
 | `GroupSystem` (sticking together) | `Groups,TraitCards` |
-| `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking,HeldDoors,Poke` |
+| `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking,HeldDoors,Nudge` |
 | `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |
-| `TrapSystem`, `DirectorSystem` (the tower of boxes) | `BoxTower,Cues,Doors,Stockroom` |
-| `PokeSystem` (poking people) | `Poke` |
+| `TrapSystem`, `DirectorSystem` (the tower of boxes, the Director's ladder) | `BoxTower,DirectorLadder,Cues,Doors,Stockroom` |
+| `NudgeSystem` (nudging people) | `Nudge` |
+| `FearSystem.Settle` (calming down) | `CalmingDown,CorridorStarers,ReplayFingerprint` |
+| `BurningThingsThreat`, `BurningPeopleThreat` (danger is danger) | `DangerIsDanger,ThreatSeam,Extinguisher,ReplayFingerprint` |
+| `PowerSystem` (the cable) | `PowerSystem,DirectorLadder` |
 | `PerceptionSystem`, `SoundSystem` (what a person sees and hears) | `Perception,Hearing,Simulation` |
 
-`FearSystem`, `PanicBehaviour`, `CalmBehaviour`, `Locomotion`, `Crowd` and
-the causal event log have no tests of their own; they are checked only
+`PanicBehaviour`, `CalmBehaviour`, `Locomotion`, `Crowd`, the rest of
+`FearSystem` and the causal event log have no tests of their own; they are checked only
 through whole runs. A change there means `ReplayFingerprint` in the small
 gear and the full run before the commit, without exception. When a test file
 is added or renamed, this table is updated in the same commit.
@@ -204,7 +208,14 @@ are not.
   failing case prints `fingerprint is 0x...UL`, ready to paste into its
   `[TestCase]`. There are thirteen cases (older notes say ten). Run the filter
   a second time after pasting: a number that moves between two identical runs
-  is a determinism bug, not a new recording.
+  is a determinism bug, not a new recording. To find where two runs part,
+  play the seed many times in one test and compare every body's position,
+  turn and speed bit for bit each tick (`BitConverter.SingleToInt32Bits` on
+  the engine's own floats: the simulation's readings round away the first
+  crumbs). If it only parts with the engine on several threads (set
+  `JobsUtility.JobWorkerCount = 0` in the test and it stops), it is the
+  physics engine, not Paniq's code; see "The physics engine and threads" in
+  the technical decisions.
 - Never set a loose physical body's rotation between physics steps: it made
   the busiest runs differ from one run to the next. Turn a loose body by giving
   it spin (`SetSpin`) towards the heading you want.

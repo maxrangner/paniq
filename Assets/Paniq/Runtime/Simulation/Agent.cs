@@ -82,7 +82,7 @@
         public readonly AgentBarricade Barricade = new AgentBarricade();
         public readonly AgentHome Home = new AgentHome();
         public readonly AgentErrand Errand = new AgentErrand();
-        public readonly AgentPoke Poke = new AgentPoke();
+        public readonly AgentNudge Nudge = new AgentNudge();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -159,7 +159,7 @@
             }
         }
 
-        public AgentSnapshot ToSnapshot()
+        public AgentSnapshot ToSnapshot(int tick)
         {
             return new AgentSnapshot(
                 Id,
@@ -181,7 +181,9 @@
                 Leading.LedCount > 0,
                 Body.Pose,
                 Sitting.SeatedPercent,
-                Group.GroupId);
+                Group.GroupId,
+                tick < Nudge.AnnoyedUntilTick,
+                Fear.IsRattledAt(tick));
         }
     }
 
@@ -282,6 +284,25 @@
         public int FreezeEndTick;
         public ulong FrozeEventId;
         public int NextShoutTick;
+
+        // Calming down (prototype 3, 2026-09-26; see FearSystem.Settle).
+
+        /// <summary>The last tick anything frightening was going on around them: in sight, in earshot, in their room.</summary>
+        public int LastFrightTick;
+
+        /// <summary>How long nothing frightening has to go on before their fear starts to drain: their own, drawn when they took fright.</summary>
+        public int QuietTicks;
+
+        /// <summary>The tick they settle on, once their fear has drained below the line; 0 while it has not.</summary>
+        public int CalmsAtTick;
+
+        /// <summary>Until this tick they are rattled: calm, but a thud or a bang frightens them outright.</summary>
+        public int RattledUntilTick;
+
+        /// <summary>Whether they saw the danger this time, rather than only heard about it: seeing it rattles them for longer.</summary>
+        public bool SawTheThreat;
+
+        public bool IsRattledAt(int tick) => tick < RattledUntilTick;
     }
 
     internal sealed class AgentIntent
@@ -311,6 +332,9 @@
         /// the crowd, no starting to wedge themselves in.
         /// </summary>
         public bool SetOnAWayOut;
+
+        /// <summary>They got up, or left an errand, because the player's influence drew them: what they choose next is to go to it.</summary>
+        public bool GoingToTheInfluence;
     }
 
     /// <summary>
@@ -417,6 +441,9 @@
         /// <summary>The room they were in last tick, or -1; a change is the moment to think about the door behind them.</summary>
         public int CurrentRoom = -1;
 
+        /// <summary>The room they were in before the one they are in now, or -1: influence never pulls them straight back through the door they came in by.</summary>
+        public int PreviousRoom = -1;
+
         /// <summary>
         /// A doorway this person may walk through that is not a way out they
         /// are running for: a calm person strolling into the next room, say.
@@ -447,6 +474,10 @@
 
         /// <summary>Until this tick they stand aside beside their open door, letting whoever is lined up with it through first.</summary>
         public int GiveWayUntilTick;
+
+        /// <summary>The heaped doorway somebody strong is having a go at, and the tick they give it up at.</summary>
+        public int HeapDoor = -1;
+        public int GiveUpOnTheHeapTick;
 
         public ulong AttemptEventId;
         public int NextShoveTick;
@@ -616,23 +647,29 @@
     }
 
     /// <summary>
-    /// Being poked by the player (prototype 3, 2026-09-25; see
-    /// <see cref="PokeSystem"/>): how many pokes in a row, when the last one
+    /// Being nudged by the player (prototype 3, 2026-09-25; see
+    /// <see cref="NudgeSystem"/>): how many nudges in a row, when the last one
     /// was, and when the reaction to it is due.
     /// </summary>
-    internal sealed class AgentPoke
+    internal sealed class AgentNudge
     {
-        /// <summary>Pokes close enough together to count as one bout of it.</summary>
+        /// <summary>Nudges close enough together to count as one bout of it.</summary>
         public int CountInARow;
 
-        /// <summary>The tick of the last poke, so a poke long after the last starts the count again.</summary>
-        public int LastPokeTick = int.MinValue / 2;
+        /// <summary>The tick of the last nudge, so a nudge long after the last starts the count again.</summary>
+        public int LastNudgeTick = int.MinValue / 2;
 
         /// <summary>When they look round for whoever did it, or 0 when nothing is due.</summary>
         public int ReactAtTick;
 
-        /// <summary>The poke the reaction names as its cause.</summary>
-        public ulong PokeEventId;
+        /// <summary>The nudge the reaction names as its cause.</summary>
+        public ulong NudgeEventId;
+
+        /// <summary>
+        /// Until this tick they are annoyed: shaking with it, and further
+        /// nudges do nothing to them (the owner's rule, 2026-09-26).
+        /// </summary>
+        public int AnnoyedUntilTick;
     }
 
     internal sealed class AgentSitting

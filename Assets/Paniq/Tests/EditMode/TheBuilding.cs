@@ -140,7 +140,7 @@ namespace Paniq.Tests.EditMode
         /// The building with the economy taken out of the way: a deep purse, a
         /// deep hand, and an uproar that pays nothing.
         /// <para>
-        /// A played round opens with nothing -- no influence and no cards --
+        /// A played round opens with nothing -- no purse and no cards --
         /// and fills the purse from the uproar while the dead deal the cards.
         /// That is the game, and it has its own tests. But a test about what a
         /// crowd does once a door is open is not a test of the economy: it
@@ -158,13 +158,13 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         public static ScenarioData WithThePlayerAbleToAct(ScenarioData data)
         {
-            data.Influence.Starting = 100000;
-            data.Influence.Maximum = 100000;
-            data.Influence.StartingHand = EveryCard();
-            data.Influence.OpeningDrawCount = 0;
-            data.Influence.UproarSmall = 0;
-            data.Influence.UproarMiddling = 0;
-            data.Influence.UproarBig = 0;
+            data.Purse.Starting = 100000;
+            data.Purse.Maximum = 100000;
+            data.Purse.StartingHand = EveryCard();
+            data.Purse.OpeningDrawCount = 0;
+            data.Purse.UproarSmall = 0;
+            data.Purse.UproarMiddling = 0;
+            data.Purse.UproarBig = 0;
             return data;
         }
 

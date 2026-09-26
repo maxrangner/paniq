@@ -107,9 +107,12 @@ namespace Paniq.Simulation
             // to have to be in the room they were standing in, because setting
             // off for a fire anywhere else only walked them into a wall. Now
             // they can be anywhere they could walk to.
+            // A burning waste bin with not a square of floor alight yet is a
+            // fire worth fighting too (2026-09-26): the Director's first
+            // incident is exactly that, and it used to be invisible here.
             int room = geometry.RoomOf(agent);
             if (burningPerson < 0 &&
-                (fire.BurningCount == 0 || fire.BurningCount > settings.FightMaximumFireCells ||
+                (fire.BurningCount + flammables.BurningCount == 0 || fire.BurningCount > settings.FightMaximumFireCells ||
                  room < 0 || !CanReachTheFlames(agent)))
             {
                 return null;
@@ -135,12 +138,30 @@ namespace Paniq.Simulation
         /// </summary>
         private bool CanReachTheFlames(Agent agent)
         {
-            if (fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition flames) == long.MaxValue)
+            if (NearestFlames(agent.Body.Position, out LogicalPosition flames) == long.MaxValue)
             {
                 return false;
             }
 
             return geometry.Routes.CanGetFromHereToThere(agent.Body.Position, NextToTheFlames(flames), bodyRadius);
+        }
+
+        /// <summary>
+        /// The nearest flames of any sort, floor or thing, and the squared
+        /// distance to them (long.MaxValue when nothing burns). A burning floor
+        /// square wins a tie, as it did when it was the only sort there was.
+        /// </summary>
+        private long NearestFlames(LogicalPosition from, out LogicalPosition flames)
+        {
+            long nearest = fire.NearestDistanceSquared(from, out flames);
+            long thing = flammables.NearestBurning(from, out LogicalPosition edge, out _);
+            if (thing < nearest)
+            {
+                nearest = thing;
+                flames = edge;
+            }
+
+            return nearest;
         }
 
         /// <summary>How far around a burning spot to look for floor somebody could fight it from.</summary>
@@ -169,7 +190,9 @@ namespace Paniq.Simulation
             // With the bottle in their hands they will stand closer to the
             // flames than they otherwise would, but not in them.
             long nerve = TraitEffects.DangerDistance(agent, context.Scenario) * settings.DangerTolerancePercent / 100L;
-            bool tooClose = agent.Carry.Holding ? fire.AnyCloserThan(agent.Body.Position, (int)nerve) : inDanger;
+            bool tooClose = agent.Carry.Holding
+                ? NearestFlames(agent.Body.Position, out _) < nerve * nerve
+                : inDanger;
             bool gettingNowhere = agent.Body.BlockedTicks >= settings.BlockedGiveUpTicks;
             if (item < 0 || tooClose || !agent.Body.IsOnTheirFeet || agent.Burning.IsBurning ||
                 tick >= agent.Intent.ActivityEndTick || gettingNowhere)
@@ -224,7 +247,7 @@ namespace Paniq.Simulation
             {
                 target = crowd.All[burningPerson].Body.Position;
             }
-            else if (fire.NearestDistanceSquared(agent.Body.Position, out LogicalPosition flames) < long.MaxValue &&
+            else if (NearestFlames(agent.Body.Position, out LogicalPosition flames) < long.MaxValue &&
                      geometry.Routes.CanGetFromHereToThere(agent.Body.Position, NextToTheFlames(flames), bodyRadius))
             {
                 target = flames;

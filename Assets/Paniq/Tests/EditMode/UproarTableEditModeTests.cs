@@ -17,7 +17,7 @@ namespace Paniq.Tests.EditMode
         {
             foreach (CausalEventType type in Enum.GetValues(typeof(CausalEventType)))
             {
-                Assert.That(() => InfluenceSystem.UproarTierOf(type), Throws.Nothing,
+                Assert.That(() => PurseSystem.UproarTierOf(type), Throws.Nothing,
                     $"{type} does not say what it pays into the meter.");
             }
         }
@@ -30,7 +30,7 @@ namespace Paniq.Tests.EditMode
         [TestCase(CausalEventType.PowerBeefcake, UproarTier.Nothing)]
         public void TheTiers_AreAsTheDecisionLogSays(CausalEventType type, UproarTier expected)
         {
-            Assert.That(InfluenceSystem.UproarTierOf(type), Is.EqualTo(expected));
+            Assert.That(PurseSystem.UproarTierOf(type), Is.EqualTo(expected));
         }
     }
 }

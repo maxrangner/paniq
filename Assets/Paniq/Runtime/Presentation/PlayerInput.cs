@@ -8,11 +8,23 @@ using UnityEngine.InputSystem;
 namespace Paniq.Presentation
 {
     /// <summary>
-    /// The player's pointer and keys. With no card picked, a left click on a
-    /// door leaf works that door, a double click turns its key, and the
-    /// button held down on it is a hand holding it shut until it comes back
-    /// up (prototype 3, 2026-09-25); a left click on a person with nothing
-    /// else under the pointer pokes them (prototype 3 too). With a card
+    /// The player's pointer and keys. With no card picked (2026-09-26):
+    /// <list type="bullet">
+    /// <item>a left click on a door, a thing or an empty patch of floor puts
+    /// one step of influence on it, and clicking again adds another;</item>
+    /// <item>the left button held down on a door is a hand holding it shut
+    /// until it comes back up (prototype 3, 2026-09-25);</item>
+    /// <item>a right click on a door turns its key -- how the way out is
+    /// unlocked;</item>
+    /// <item>a left click on a person nudges them away from where it
+    /// landed;</item>
+    /// <item>a fire alarm is pulled only on a level that lets the player; on
+    /// the office a click on one puts influence beside it, so the people
+    /// drawn there might pull it.</item>
+    /// </list>
+    /// A click near a place already influenced adds to it even with somebody
+    /// standing there, so frantic clicking on a busy corridor builds a pull
+    /// rather than nudging whoever walks under the pointer. With a card
     /// picked, a left click plays it on the spot on the floor under the
     /// pointer. A card is picked up by clicking it on the screen (2026-09-25;
     /// the number keys are gone) and put down with Escape or a right click.
@@ -53,6 +65,15 @@ namespace Paniq.Presentation
         /// </summary>
         private const float PersonHoverSeconds = 0.1f;
 
+        /// <summary>How near the pointer must be to a thing, on the screen, to count as pointing at it.</summary>
+        private const float PickThingPixels = 30f;
+
+        /// <summary>A click this near an influenced place adds to it, whoever is standing there (the influence's own stacking reach, in metres).</summary>
+        private const float StackMetres = 1f;
+
+        /// <summary>How far in front of where the pointer meets somebody's body a nudge is taken to come from, toward the camera, in metres.</summary>
+        private const float NudgeFromMetres = 0.3f;
+
         private SimulationId? personUnderPointer;
         private float nextPersonLook = float.NegativeInfinity;
 
@@ -81,11 +102,17 @@ namespace Paniq.Presentation
         /// <summary>The fire alarm under the pointer, for the hover line.</summary>
         public SimulationId? HoveredAlarm { get; private set; }
 
-        /// <summary>The person under the pointer: with a person-card picked, or with nothing picked (a poke).</summary>
+        /// <summary>The person under the pointer: with a person-card picked, or with nothing picked (a nudge).</summary>
         public SimulationId? HoveredPerson { get; private set; }
 
         /// <summary>Where on the floor the pointer is, while a place-card is picked.</summary>
         public LogicalPosition? HoveredSpot { get; private set; }
+
+        /// <summary>The thing under the pointer, with nothing picked: a click influences it.</summary>
+        public SimulationId? HoveredThing { get; private set; }
+
+        /// <summary>The patch of floor under the pointer, with nothing picked: a click influences it.</summary>
+        public LogicalPosition? HoveredFloor { get; private set; }
 
         /// <summary>
         /// The cards the player is holding, in the order they were dealt.
@@ -155,14 +182,17 @@ namespace Paniq.Presentation
         /// The pointer is over a card or a button. A click there is the HUD's
         /// and never the world's, and nothing in the world is hovered.
         /// </param>
-        /// <param name="now">The clock the double-click window is measured on, in seconds.</param>
+        /// <param name="now">The clock a click is told from a hold on, in seconds.</param>
         public void Update(Camera camera, RunSnapshot snapshot, bool lookOnly = false,
             bool turningTheView = false, bool pointerOverHud = false, float now = 0f)
         {
+            SimulationId? doorLastFrame = HoveredDoor;
             HoveredDoor = null;
             HoveredAlarm = null;
             HoveredPerson = null;
             HoveredSpot = null;
+            HoveredThing = null;
+            HoveredFloor = null;
             Hand = snapshot != null ? snapshot.Hand : Array.Empty<PlayerCommandType>();
 
             // A card that has just been played, or that was never theirs, is
@@ -189,12 +219,12 @@ namespace Paniq.Presentation
             }
             else
             {
-                ReadKeys(turningTheView);
+                ReadKeys(turningTheView, doorLastFrame);
 
                 // A hand on a door comes off when the button does, and goes
                 // on once the button has stayed down for the whole window;
-                // the hold is asked for before the single click settles,
-                // because the two turn on the same instant.
+                // the hold is asked for before the click, because the two
+                // turn on the same instant.
                 SimulationId? released = clicks.Release(buttonDown);
                 if (released.HasValue)
                 {
@@ -216,8 +246,12 @@ namespace Paniq.Presentation
                     }
                 }
 
-                // A single click whose double-click window has closed is sent now.
-                SendSingleClick(clicks.Settle(now));
+                // A press let go of inside the window: one step of influence.
+                SimulationId? clickedDoor = clicks.Clicked(buttonDown);
+                if (clickedDoor.HasValue)
+                {
+                    runner.QueueInfluenceDoor(clickedDoor.Value);
+                }
             }
 
             if (mouse == null || camera == null || snapshot == null || pointerOverHud)
@@ -266,7 +300,7 @@ namespace Paniq.Presentation
         /// <summary>
         /// With nothing in hand: a fire alarm or a door under the pointer
         /// first (they are solid things the ray can hit), and failing those,
-        /// the nearest person on the screen, whom a click pokes.
+        /// the nearest person on the screen, whom a click nudges.
         /// </summary>
         private void UpdateWorldClick(Camera camera, RunSnapshot snapshot, Vector2 pointer, bool clicked, float now)
         {
@@ -275,14 +309,22 @@ namespace Paniq.Presentation
             Ray ray = camera.ScreenPointToRay(pointer);
             if (Physics.Raycast(ray, out RaycastHit hit, 200f))
             {
-                // A fire alarm is clicked like a door: pulled for a price, which
-                // the run decides (see PlayerCommandSystem).
+                // A fire alarm: pulled, where the level lets the player (the
+                // run decides the price, see PlayerCommandSystem); on the
+                // office only people pull them, and a click draws people to it.
                 if (room.TryGetAlarm(hit.collider, out SimulationId alarmId))
                 {
                     HoveredAlarm = alarmId;
                     if (clicked)
                     {
-                        runner.QueueAlarmPull(alarmId);
+                        if (snapshot.PlayerMayPullAlarms)
+                        {
+                            runner.QueueAlarmPull(alarmId);
+                        }
+                        else if (TryAlarmPosition(alarmId, out LogicalPosition at))
+                        {
+                            runner.QueueInfluenceSpot(at);
+                        }
                     }
 
                     return;
@@ -291,28 +333,34 @@ namespace Paniq.Presentation
                 if (room.TryGetDoor(hit.collider, out SimulationId doorId))
                 {
                     HoveredDoor = doorId;
-                    if (!clicked)
+                    if (clicked)
                     {
-                        return;
+                        // A click or a hold: which, the button coming back up
+                        // decides (see DoorClicks).
+                        clicks.Press(doorId, now);
                     }
 
-                    // One click works the door, held back for the double-click
-                    // window; a second click inside it turns the key instead;
-                    // and a press that outlasts the window is a hand on it.
-                    if (clicks.Press(doorId, now, out SimulationId? settled))
-                    {
-                        runner.QueueLockToggle(doorId);
-                    }
-
-                    SendSingleClick(settled);
                     return;
                 }
             }
 
-            // Nothing solid under the pointer: somebody, perhaps. Poking is
-            // a click, never a hold, so it is sent at once, and a click always
-            // looks for the person afresh; the hover line looks ten times a
-            // second.
+            bool onTheFloor = TryGroundPoint(camera, pointer, out LogicalPosition floor);
+
+            // Near a place already influenced: another step on it, whoever is
+            // walking under the pointer.
+            if (onTheFloor && NearAnInfluencedSpot(runner.Simulation.Scenario, snapshot, floor))
+            {
+                HoveredFloor = floor;
+                if (clicked)
+                {
+                    runner.QueueInfluenceSpot(floor);
+                }
+
+                return;
+            }
+
+            // Somebody, perhaps. A click always looks for the person afresh;
+            // the hover line looks ten times a second.
             if (clicked || now >= nextPersonLook)
             {
                 personUnderPointer = NearestPerson(camera, snapshot, pointer);
@@ -320,10 +368,160 @@ namespace Paniq.Presentation
             }
 
             HoveredPerson = personUnderPointer;
-            if (clicked && HoveredPerson.HasValue)
+            if (HoveredPerson.HasValue)
             {
-                runner.QueuePoke(HoveredPerson.Value);
+                if (clicked)
+                {
+                    runner.QueueNudge(HoveredPerson.Value,
+                        WhereANudgeComesFrom(camera, pointer, snapshot, HoveredPerson.Value));
+                }
+
+                return;
             }
+
+            // A thing: influence on it draws people to where it stands.
+            HoveredThing = NearestThing(camera, snapshot, pointer);
+            if (HoveredThing.HasValue)
+            {
+                if (clicked)
+                {
+                    runner.QueueInfluenceThing(HoveredThing.Value);
+                }
+
+                return;
+            }
+
+            // Otherwise the floor itself.
+            if (onTheFloor)
+            {
+                HoveredFloor = floor;
+                if (clicked)
+                {
+                    runner.QueueInfluenceSpot(floor);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether a spot is within stacking reach of a patch of floor or a
+        /// thing already influenced in the same room, as the simulation stacks
+        /// them: a place the other side of a wall is not this one.
+        /// </summary>
+        private static bool NearAnInfluencedSpot(ScenarioData scenario, RunSnapshot snapshot, LogicalPosition spot)
+        {
+            long reach = (long)(StackMetres * Run.MillimetresPerMetre);
+            for (int i = 0; i < snapshot.InfluencePlaces.Count; i++)
+            {
+                InfluencePlaceSnapshot place = snapshot.InfluencePlaces[i];
+                if (!place.IsDoor && LogicalPosition.DistanceSquared(place.At, spot) <= reach * reach &&
+                    InOneRoom(scenario, place.At, spot))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether some room holds both points, strictly inside it as the simulation counts rooms.</summary>
+        private static bool InOneRoom(ScenarioData scenario, LogicalPosition a, LogicalPosition b)
+        {
+            foreach (RoomDefinition room in scenario.Rooms)
+            {
+                LogicalBounds r = room.Bounds;
+                if (a.X > r.MinX && a.X < r.MaxX && a.Z > r.MinZ && a.Z < r.MaxZ &&
+                    b.X > r.MinX && b.X < r.MaxX && b.Z > r.MinZ && b.Z < r.MaxZ)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Where a nudge comes from: where the pointer meets the body at chest
+        /// height, pulled back a little toward the camera. A click on their
+        /// left side pushes them right; one dead centre pushes them away from
+        /// the camera.
+        /// </summary>
+        private static LogicalPosition WhereANudgeComesFrom(Camera camera, Vector2 pointer, RunSnapshot snapshot,
+            SimulationId person)
+        {
+            Vector3 forward = camera.transform.forward;
+            forward.y = 0f;
+            forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+            Ray ray = camera.ScreenPointToRay(pointer);
+            var chest = new Plane(Vector3.up, -TorsoHeight);
+            Vector3 hit = chest.Raycast(ray, out float distance)
+                ? ray.GetPoint(distance)
+                : PresentationUtility.ToUnityPosition(PositionOf(snapshot, person));
+            Vector3 from = hit - forward * NudgeFromMetres;
+            return new LogicalPosition(
+                Mathf.RoundToInt(from.x * Run.MillimetresPerMetre),
+                Mathf.RoundToInt(from.z * Run.MillimetresPerMetre));
+        }
+
+        private static LogicalPosition PositionOf(RunSnapshot snapshot, SimulationId person)
+        {
+            for (int i = 0; i < snapshot.Agents.Count; i++)
+            {
+                if (snapshot.Agents[i].AgentId == person)
+                {
+                    return snapshot.Agents[i].Position;
+                }
+            }
+
+            return default;
+        }
+
+        /// <summary>The loose thing drawn nearest the pointer, if any is near enough: one in the world, not held, not wreckage.</summary>
+        private static SimulationId? NearestThing(Camera camera, RunSnapshot snapshot, Vector2 pointer)
+        {
+            float best = PickThingPixels * PickThingPixels;
+            SimulationId? found = null;
+            for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
+            {
+                PhysicsObjectSnapshot thing = snapshot.PhysicsObjects[i];
+                if (thing.Dormant || thing.IsHeld || thing.Wrecked)
+                {
+                    continue;
+                }
+
+                Vector3 middle = PresentationUtility.ToUnityPosition(thing.Position) +
+                                 Vector3.up * Mathf.Min(0.5f, thing.SizeMillimetres / 2000f);
+                Vector3 onScreen = camera.WorldToScreenPoint(middle);
+                if (onScreen.z <= 0f)
+                {
+                    continue;
+                }
+
+                float distance = (new Vector2(onScreen.x, onScreen.y) - pointer).sqrMagnitude;
+                if (distance <= best)
+                {
+                    best = distance;
+                    found = thing.ObjectId;
+                }
+            }
+
+            return found;
+        }
+
+        /// <summary>Where a fire alarm is on the wall, from the level's own list of them.</summary>
+        private bool TryAlarmPosition(SimulationId alarmId, out LogicalPosition at)
+        {
+            AlarmDefinition[] alarms = runner.Simulation.Scenario.Alarms;
+            for (int i = 0; i < alarms.Length; i++)
+            {
+                if (alarms[i].AlarmId == alarmId)
+                {
+                    at = alarms[i].Position;
+                    return true;
+                }
+            }
+
+            at = default;
+            return false;
         }
 
         /// <summary>
@@ -354,30 +552,16 @@ namespace Paniq.Presentation
         }
 
         /// <summary>
-        /// The single click on a door, once it is certain to be one. A locked
-        /// door gets nothing from a single click: its key is a double click,
-        /// and the hover line says so.
-        /// </summary>
-        private void SendSingleClick(SimulationId? door)
-        {
-            if (!door.HasValue || room.StateOf(door.Value) == DoorState.Locked)
-            {
-                return;
-            }
-
-            runner.QueueDoorClick(door.Value);
-        }
-
-        /// <summary>
-        /// Escape or a right click puts the card in hand back down.
+        /// Escape or a right click puts the card in hand back down; with no
+        /// card in hand, a right click on a door turns its key (2026-09-26).
         /// <para>
-        /// The card is dropped on the right button being <em>released</em>
-        /// rather than pressed, because at the moment of pressing nobody yet
-        /// knows whether this is a click or the start of a drag that swings
-        /// the camera. By the time it comes back up, they do.
+        /// Both happen on the right button being <em>released</em> rather than
+        /// pressed, because at the moment of pressing nobody yet knows whether
+        /// this is a click or the start of a drag that swings the camera. By
+        /// the time it comes back up, they do.
         /// </para>
         /// </summary>
-        private void ReadKeys(bool turningTheView)
+        private void ReadKeys(bool turningTheView, SimulationId? doorUnderThePointer)
         {
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null)
@@ -388,6 +572,12 @@ namespace Paniq.Presentation
             bool rightClicked = Mouse.current != null &&
                                 Mouse.current.rightButton.wasReleasedThisFrame &&
                                 !turningTheView;
+            if (rightClicked && SelectedCard == null && doorUnderThePointer.HasValue)
+            {
+                runner.QueueLockToggle(doorUnderThePointer.Value);
+                return;
+            }
+
             if (keyboard.escapeKey.wasPressedThisFrame || rightClicked)
             {
                 SelectedCard = null;

@@ -33,7 +33,7 @@ namespace Paniq.Presentation
         private static readonly Color StarYellow = new Color(1f, 0.9f, 0.2f);
         private static readonly Color NumberWhite = new Color(1f, 1f, 1f, 0.85f);
 
-        /// <summary>The scribble over somebody annoyed at being poked (prototype 3).</summary>
+        /// <summary>The scribble over somebody annoyed at being nudged (prototype 3).</summary>
         private static readonly Color AnnoyedOrange = new Color(1f, 0.5f, 0.15f);
         private const float AnnoyedDuration = 1.6f;
 
@@ -135,7 +135,7 @@ namespace Paniq.Presentation
         /// <summary>The person just yelled: play the sound-wave arcs.</summary>
         public void Yell(float time) => yellTime = time;
 
-        /// <summary>The person is annoyed at being poked: an orange scribble, shaking.</summary>
+        /// <summary>The person is annoyed at being nudged: an orange scribble, shaking.</summary>
         public void Annoyed(float time) => annoyedTime = time;
 
         public void HideAll()

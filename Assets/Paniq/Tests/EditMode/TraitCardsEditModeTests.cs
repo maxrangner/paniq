@@ -10,7 +10,7 @@ namespace Paniq.Tests.EditMode
     /// floor, not at a chosen person, and slams one dial to the end of its
     /// scale for everybody standing inside it, for the rest of the round.
     /// <para>
-    /// A throw that catches nobody is a miss and costs neither influence nor
+    /// A throw that catches nobody is a miss and costs neither the purse nor
     /// the card. A throw that catches the wrong person is spent: that is the
     /// whole of the player's accuracy, and it is why the game draws a circle on
     /// the floor before they let go.
@@ -103,7 +103,7 @@ namespace Paniq.Tests.EditMode
 
             using (var simulation = new Run(data))
             {
-                Assume.That(data.Influence.CardPatchRadiusMillimetres, Is.EqualTo(1500));
+                Assume.That(data.Purse.CardPatchRadiusMillimetres, Is.EqualTo(1500));
                 simulation.QueueCommand(PlayerCommandType.PlayCourage, new LogicalPosition(0, 0), 1);
                 simulation.Step();
                 simulation.Step();
@@ -132,15 +132,15 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
 
                 Assert.That(simulation.GetAgent(0).Traits.Bravery, Is.EqualTo(AgentTraitValues.Ordinary));
-                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting), "So the throw was a miss.");
+                Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting), "So the throw was a miss.");
             }
         }
 
         [Test]
-        public void AThrowThatCatchesNobody_CostsNeitherInfluenceNorTheCard()
+        public void AThrowThatCatchesNobody_CostsNeitherPurseNorTheCard()
         {
             ScenarioData data = QuietRoomWith(new LogicalPosition(0, 0));
-            data.Influence.StartingHand = new[] { PlayerCommandType.PlayCourage };
+            data.Purse.StartingHand = new[] { PlayerCommandType.PlayCourage };
 
             using (var simulation = new Run(data))
             {
@@ -148,7 +148,7 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
                 simulation.Step();
 
-                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting));
+                Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting));
                 Assert.That(simulation.GetSnapshot().Hand.Count, Is.EqualTo(1), "The card is still in hand.");
             }
         }
@@ -161,7 +161,7 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = QuietRoomWith(new LogicalPosition(0, 0), new LogicalPosition(700, 0));
             data.Agents[0] = new AgentDefinition(new SimulationId(1UL), new LogicalPosition(0, 0),
                 CardinalDirection.North, AgentTraitValues.AllOrdinary.With(AgentTrait.Bravery, AgentTraitValues.Maximum));
-            data.Influence.StartingHand = new[] { PlayerCommandType.PlayCourage };
+            data.Purse.StartingHand = new[] { PlayerCommandType.PlayCourage };
 
             using (var simulation = new Run(data))
             {
@@ -169,8 +169,8 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
                 simulation.Step();
 
-                Assert.That(simulation.Influence,
-                    Is.EqualTo(data.Influence.Starting - data.Influence.CardCost), "It is paid for.");
+                Assert.That(simulation.Purse,
+                    Is.EqualTo(data.Purse.Starting - data.Purse.CardCost), "It is paid for.");
                 Assert.That(simulation.GetSnapshot().Hand, Is.Empty, "And it leaves the hand.");
                 Assert.That(EventsOfType(simulation, CausalEventType.PowerCourage).Count, Is.EqualTo(1),
                     "Only the person it actually changed is in the log.");
@@ -183,7 +183,7 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = QuietRoomWith(new LogicalPosition(0, 0));
             data.Agents[0] = new AgentDefinition(new SimulationId(1UL), new LogicalPosition(0, 0),
                 CardinalDirection.North, AgentTraitValues.AllOrdinary.With(AgentTrait.Bravery, AgentTraitValues.Maximum));
-            data.Influence.StartingHand = new[] { PlayerCommandType.PlayCourage };
+            data.Purse.StartingHand = new[] { PlayerCommandType.PlayCourage };
 
             using (var simulation = new Run(data))
             {
@@ -191,7 +191,7 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
                 simulation.Step();
 
-                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting),
+                Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting),
                     "A card that moved nobody's dial did nothing, and a card that does nothing is free.");
                 Assert.That(simulation.GetSnapshot().Hand.Count, Is.EqualTo(1));
             }
@@ -203,7 +203,7 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = QuietRoomWith(new LogicalPosition(0, 0));
             data.Fire.ActivationTick = 10;
             TheBuilding.FireAt(data, new LogicalPosition(0, 0));
-            data.Influence.StartingHand = new[] { PlayerCommandType.PlayCourage };
+            data.Purse.StartingHand = new[] { PlayerCommandType.PlayCourage };
 
             using (var simulation = new Run(data))
             {
@@ -215,7 +215,7 @@ namespace Paniq.Tests.EditMode
                 Assume.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Lost),
                     "Standing in the fire is meant to be fatal.");
 
-                int purse = simulation.Influence;
+                int purse = simulation.Purse;
                 simulation.QueueCommand(PlayerCommandType.PlayCourage, simulation.GetAgent(0).Position,
                     simulation.Tick + 1);
                 simulation.Step();
@@ -223,7 +223,7 @@ namespace Paniq.Tests.EditMode
 
                 Assert.That(EventsOfType(simulation, CausalEventType.PowerCourage), Is.Empty,
                     "The dead are out of the run and out of the patch.");
-                Assert.That(simulation.Influence, Is.GreaterThanOrEqualTo(purse), "So the throw was a miss.");
+                Assert.That(simulation.Purse, Is.GreaterThanOrEqualTo(purse), "So the throw was a miss.");
             }
         }
 

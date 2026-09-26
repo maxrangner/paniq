@@ -37,6 +37,12 @@ namespace Paniq.Simulation
 
             /// <summary>It goes off at the end of its burn rather than the moment it catches.</summary>
             public bool PopsWhenBurntOut;
+
+            /// <summary>Its kind's own time in one place before the floor under it catches, or 0 for the shared one.</summary>
+            public int KindFloorRestTicks;
+
+            /// <summary>This burn's time in one place before the floor under it catches, drawn when it caught.</summary>
+            public int FloorRestTicks;
         }
 
         private readonly SimulationContext context;
@@ -90,7 +96,8 @@ namespace Paniq.Simulation
                     IgniteTicks = kind.IgniteTicks,
                     BurnMinimumTicks = kind.BurnMinimumTicks,
                     BurnMaximumTicks = kind.BurnMaximumTicks,
-                    PopsWhenBurntOut = kind.PopsWhenBurntOut
+                    PopsWhenBurntOut = kind.PopsWhenBurntOut,
+                    KindFloorRestTicks = kind.FloorIgniteRestTicks
                 };
 
                 things[i].Slot = i;
@@ -325,6 +332,14 @@ namespace Paniq.Simulation
             thing.RestCell = -1;
             thing.RestTicks = 0;
 
+            // A kind with a smoulder of its own (a waste bin) draws this
+            // burn's length of it, a little different each time, so two bins
+            // lit together never set their carpet alight on the same tick. The
+            // rest share one fixed moment and draw nothing, as they always did.
+            thing.FloorRestTicks = thing.KindFloorRestTicks > 0
+                ? context.Jittered(thing.KindFloorRestTicks)
+                : settings.FloorIgniteRestTicks;
+
             // Something electrical does not sit and burn: it goes off -- now,
             // or, for a thing whose row says so, at the end of its burn.
             if (!thing.PopsWhenBurntOut)
@@ -415,14 +430,116 @@ namespace Paniq.Simulation
             }
 
             thing.RestTicks++;
-            if (thing.RestTicks == settings.FloorIgniteRestTicks)
+            if (thing.RestTicks == thing.FloorRestTicks)
             {
                 fire.IgniteCell(cell, thing.EventId);
             }
         }
 
+        /// <summary>
+        /// Sets one loose thing alight on purpose: the Director's waste bin
+        /// (prototype 3, 2026-09-26). The same as the flames reaching it, cause
+        /// and all. False when it cannot catch: already burning or burnt, not
+        /// in the world, or something that never burns.
+        /// </summary>
+        public bool IgniteObject(int objectIndex, ulong causeEventId)
+        {
+            Flammable thing = things[objectIndex];
+            if (thing.State != ObjectBurnState.Intact || thing.IgniteTicks <= 0 || IsNowhere(thing))
+            {
+                return false;
+            }
+
+            Ignite(thing, causeEventId);
+            return true;
+        }
+
+        /// <summary>Everything burning goes out and is left charred: for a test that needs a fire put out.</summary>
+        internal void PutOutEverythingForTests()
+        {
+            while (alight.Count > 0)
+            {
+                Flammable thing = things[alight[alight.Count - 1]];
+                StopBurning(thing);
+                context.Events.Append(context.Tick, thing.Id, CausalEventType.ObjectBurntOut, PositionOf(thing), 0, 0, 0UL);
+            }
+        }
+
         /// <summary>How many things are burning right now, for telling a settled building from a busy one.</summary>
         public int BurningCount => alight.Count;
+
+        /// <summary>The <paramref name="k"/>-th thing alight, in the fixed order of things: the event that set it burning.</summary>
+        public ulong AlightEventId(int k) => things[alight[k]].EventId;
+
+        /// <summary>Where the <paramref name="k"/>-th thing alight is: its middle.</summary>
+        public LogicalPosition AlightPosition(int k) => PositionOf(things[alight[k]]);
+
+        /// <summary>
+        /// The nearest edge of anything alight, the event that set it burning,
+        /// and the squared distance to it (long.MaxValue when nothing burns).
+        /// The first of equals in the fixed order of things wins. What the
+        /// danger of burning things and the extinguisher both aim at.
+        /// </summary>
+        public long NearestBurning(LogicalPosition from, out LogicalPosition point, out ulong causeEventId)
+        {
+            long nearest = long.MaxValue;
+            point = from;
+            causeEventId = 0UL;
+            for (int k = 0; k < alight.Count; k++)
+            {
+                LogicalPosition edge = AlightNearestPoint(k, from);
+                long distance = LogicalPosition.DistanceSquared(from, edge);
+                if (distance < nearest)
+                {
+                    nearest = distance;
+                    point = edge;
+                    causeEventId = AlightEventId(k);
+                }
+            }
+
+            return nearest;
+        }
+
+        /// <summary>The nearest point of the <paramref name="k"/>-th thing alight to somewhere: the edge of a table, or of a loose thing's circle.</summary>
+        public LogicalPosition AlightNearestPoint(int k, LogicalPosition from)
+        {
+            Flammable thing = things[alight[k]];
+            if (thing.IsTable)
+            {
+                return geometry.TableBounds(thing.Index).ClosestPoint(from);
+            }
+
+            LogicalPosition centre = objects.PositionOf(thing.Index);
+            long radius = objects.RadiusOf(thing.Index);
+            long dx = (long)from.X - centre.X;
+            long dz = (long)from.Z - centre.Z;
+            long gap = IntegerMath.Sqrt(dx * dx + dz * dz);
+            if (gap <= radius)
+            {
+                return from;
+            }
+
+            return new LogicalPosition((int)(centre.X + dx * radius / gap), (int)(centre.Z + dz * radius / gap));
+        }
+
+        /// <summary>
+        /// Whether anything alight is in a room not marked in
+        /// <paramref name="rooms"/>: the Director's test of a fire that has got
+        /// away. A thing in a doorway, in no room at all, has not got away yet.
+        /// </summary>
+        public bool AnythingBurningOutside(bool[] rooms)
+        {
+            for (int i = 0; i < alight.Count; i++)
+            {
+                int at = geometry.RoomAtPoint(PositionOf(things[alight[i]]));
+                if (at >= 0 && !rooms[at])
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <summary>
         /// Whether anything in this room is alight. A burning chair in a room

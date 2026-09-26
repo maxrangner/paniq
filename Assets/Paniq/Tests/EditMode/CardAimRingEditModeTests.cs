@@ -102,7 +102,7 @@ namespace Paniq.Tests.EditMode
                 new LogicalPosition(0, 2600),
                 new LogicalPosition(4000, -3000));
 
-            int radius = data.Influence.CardPatchRadiusMillimetres;
+            int radius = data.Purse.CardPatchRadiusMillimetres;
             var aimedAt = new[]
             {
                 new LogicalPosition(0, 0),
@@ -149,7 +149,7 @@ namespace Paniq.Tests.EditMode
             {
                 simulation.Step();
                 Assert.That(Counted(simulation, new LogicalPosition(5000, 5000),
-                    data.Influence.CardPatchRadiusMillimetres), Is.Zero);
+                    data.Purse.CardPatchRadiusMillimetres), Is.Zero);
             }
         }
 
@@ -197,7 +197,7 @@ namespace Paniq.Tests.EditMode
                 Assume.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Lost),
                     "The floor is arranged so this person burns.");
                 Assert.That(Counted(simulation, simulation.GetAgent(0).Position,
-                    data.Influence.CardPatchRadiusMillimetres), Is.Zero);
+                    data.Purse.CardPatchRadiusMillimetres), Is.Zero);
             }
         }
     }

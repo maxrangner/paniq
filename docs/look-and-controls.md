@@ -43,11 +43,13 @@ every zoom level.
 | **Hold right mouse button and drag** | swing the view to any angle at all; it stays where you let go |
 | **Q / E** | snap a quarter turn to the next corner view, from wherever the view is now |
 | **Mouse wheel** | zoom in and out, tilting the camera as described above |
-| **Left mouse button** | on a card along the bottom: pick it up (or put it down again); on the floor with a card in hand: throw it there; on a door: open or shut it; on a red pull station: pull the fire alarm; on a person, with nothing in hand: poke them |
-| **Double click a door** | turn its key: lock a shut door, unlock a locked one, or shut and lock an open one |
+| **Left mouse button** | on a card along the bottom: pick it up (or put it down again); on the floor with a card in hand: throw it there |
+| **Click a door, a thing or the floor** (nothing in hand) | influence (2026-09-26): one step of pull toward it, drawing people near it -- in the same room, within about twelve metres, more the nearer they are -- to go there or use it. Each click adds a step, up to twenty, so click frantically for a strong pull; it loses a step every two seconds and cannot be taken back. A sparkling aura shows it, and a sparkling line runs to everybody feeling it, brighter the harder they are pulled |
+| **Click a person** (nothing in hand) | nudge them: they step away from where the click landed. Three nudges in ten seconds and they are annoyed -- they shake with it, and for about twenty seconds more nudges do nothing |
+| **Click a red pull station** | on the office, only people pull alarms (2026-09-26): a click draws people to it instead, and the brave among them may pull it. A level that lets the player pull alarms pulls it |
 | **Hold the button down on a door** | a hand on it (prototype 3): an open door pulls shut as soon as the doorway is clear, and nobody opens it while you hold it. Somebody strong enough bursts through in one push, and then there is nothing left to hold. A locked door needs no hand, and swing doors and gaps take none. Let go of the button and it is a door again |
-| **Click a person** | poke them (prototype 3): they lurch and look round a beat later. Three pokes in ten seconds and they get annoyed |
-| **Right click** (without dragging) | put down the card in hand |
+| **Right click a door** (without dragging) | turn its key: unlock a locked one (this is how the way out is opened), lock a shut one, or shut and lock an open one |
+| **Right click** elsewhere (without dragging) | put down the card in hand |
 | **Reset** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
 | **Pause** (the button under Reset) | stop and start the world, as Space does |
 | **Trigger event** (the red button bottom centre) | start the fire. It goes the moment it is pressed |
@@ -69,14 +71,13 @@ Chosen on the owner's behalf:
   told apart by how far the pointer travelled before the button came back up,
   which is why the card is dropped on the button's *release* rather than on its
   press — at the moment of pressing, nobody yet knows which one it is.
-- **A single click on a door waits a third of a second** before it is sent,
-  because until then nobody knows whether a second click is coming. Acting on
-  the first click at once would have opened the door, and charged for it,
-  before the double click that meant "lock it" was complete. A third of a
-  second is about fifteen ticks, less than the delay people already take to
-  react to anything, so the wait is never seen. A single click on a locked
-  door sends nothing: its key is the double click, and the line under the
-  score says so.
+- **A click on a door is sent when the button comes back up** (2026-09-26).
+  There is no double click any more -- the key moved to the right button so
+  that frantic clicking stacks up influence rather than turning the key -- so
+  nothing has to wait for a second click. A press let go of inside a third of
+  a second is a click; one still down when the third of a second is up is a
+  hold. Until 2026-09-26 a click opened or shut the door and a double click
+  turned its key; people open and shut doors themselves now.
 - **A click on a card or a button never reaches the world.** Every card and
   button claims its patch of screen as it is drawn, and the next frame's
   click checks those patches first; until 2026-09-25 a click on "Trigger
@@ -84,20 +85,27 @@ Chosen on the owner's behalf:
 - **The number keys are gone** (2026-09-25). Cards are clicked, and two of a
   kind sit as one card with the count on it, so there is nothing for a
   number to name.
-- **A press that outlasts the double-click window is a hold** (prototype 3,
+- **A press that outlasts the window is a hold** (prototype 3,
   2026-09-25). The same third of a second decides both: a button up again
   inside it is a click, a button still down when it closes is a hand on the
-  door, and the click that began the hold is never sent. A double click that
-  turns the key stays only that, however long the button is kept down after
-  it. The line under the score says a door is held only once the run has
+  door, and the press that began the hold is never a click. The line under
+  the score says a door is held only once the run has
   taken the hold, so a door that cannot be held never claims to be. Pausing
   lets go of a held door, because nothing pressed while the world is stopped
   reaches it. On this level nothing costs anything: the office has no purse (the
   owner's call), so the prices the lines above used to quote are gone from
   the screen.
-- **A poke is a click, never a hold**, and it goes to whoever is drawn
+- **A nudge is a click, never a hold**, and it goes to whoever is drawn
   nearest the pointer on the screen, the way a card used to be aimed. A
-  door or a pull station under the pointer wins over a person behind it.
+  door or a pull station under the pointer wins over a person behind it. It
+  comes from where the pointer meets their body at chest height, pulled back
+  a little toward the camera, so a click on someone's left side sends them
+  right and one in the middle sends them away from the camera.
+- **A click near a patch already influenced adds to it**, whoever is walking
+  under the pointer (2026-09-26): within a metre of a patch of floor or a
+  thing with influence on it, the click is influence and not a nudge.
+  Otherwise the order is: a person, then a thing drawn nearest the pointer,
+  then the floor itself.
 - The angles, zoom limits and how far the tilt travels are presentation values,
   chosen when the camera was built and listed below.
 
@@ -152,6 +160,25 @@ Standing rules from the owner, not to be undone by a later change:
   gameplay clean"). Over a head go the person's number and the marks that say
   what they are doing (the `!`, the snowflake, the star); traits and state go
   in the panel **Tab** opens. No always-on trait bars.
+
+What prototype 3's second batch added to the picture (2026-09-26):
+
+- **Influence glows.** Every influenced door, thing or patch of floor has a
+  pale gold ring that breathes and flickers and throws off little sparks --
+  faint at one click, wide and bright at twenty -- and everybody feeling a
+  pull has a thin gold line from their chest to it, shimmering toward the
+  place, faint for a gentle pull and bright for a strong one. The owner asked
+  for "a glowing sparkling aura" and "a glowing sparkling line between object
+  and agent, faint first, more intense the more influence". Gold rather than
+  the orange of fire or the blue of a held door, so none of the three is
+  mistaken for another. The lines are the answer to "is my influence doing
+  anything?": without them, "more likely to go there" is invisible.
+- **The annoyed shake.** Somebody nudged three times quickly huffs from side
+  to side on the spot, bigger than the tremble of the frozen, for as long as
+  they are annoyed.
+- **A socket about to go crackles.** For the five seconds before the Director
+  pops a socket or the fuse box, it spits little showers of bright sparks,
+  faster as the moment nears, with a ring on the floor for the crackle.
 
 Concept art is to be added under `docs/reference/` as it is produced. Nothing
 is there yet.

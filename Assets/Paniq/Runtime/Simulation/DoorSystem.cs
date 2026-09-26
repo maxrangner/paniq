@@ -539,8 +539,8 @@ namespace Paniq.Simulation
         /// <summary>
         /// The player's click, carried out by
         /// <see cref="PlayerCommandSystem"/> at the start of its tick. Returns
-        /// whether the door actually did anything, because a click now costs
-        /// influence and a door that will not budge must not be charged for.
+        /// whether the door actually did anything, because a click can cost
+        /// purse points and a door that will not budge must not be charged for.
         /// </summary>
         public bool ClickDoor(int door)
         {

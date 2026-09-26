@@ -431,7 +431,7 @@ namespace Paniq.Tests.EditMode
                 Assert.That(new HashSet<int>(setOff.Values).Count, Is.GreaterThanOrEqualTo(5),
                     "People set off each in their own time, never the whole building at once.");
                 Assert.That(simulation.Phase, Is.EqualTo(RoundPhase.BeforeEvent), "Nothing has gone wrong, so no round has begun, let alone ended.");
-                Assert.That(simulation.InfluenceEarned, Is.Zero, "The purse pays for people saved, not for people who went home.");
+                Assert.That(simulation.PurseEarned, Is.Zero, "The purse pays for people saved, not for people who went home.");
 
                 // Setting the disaster off on an empty building ends the round
                 // on the spot, with everybody accounted for.

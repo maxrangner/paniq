@@ -120,8 +120,31 @@ namespace Paniq.Simulation
             return index < 0 || flammables.ObjectState(index) == ObjectBurnState.Intact;
         }
 
-        /// <summary>Whether the alarms are ringing. They never stop once they start, though a bell the fire reaches does.</summary>
+        /// <summary>
+        /// Whether the alarms are ringing. They ring until the Director gives
+        /// the all-clear (<see cref="Silence"/>), though a bell the fire reaches
+        /// falls silent on its own.
+        /// </summary>
         public bool Ringing { get; private set; }
+
+        /// <summary>
+        /// The all-clear (prototype 3, 2026-09-26): every bell stops, and the
+        /// alarms can be pulled again. Called by the Director a while after a
+        /// fire is put out, so a pulled alarm no longer keeps everybody in
+        /// earshot frightened for the rest of the round. Returns the event, or
+        /// 0 when nothing was ringing.
+        /// </summary>
+        public ulong Silence(ulong causeEventId)
+        {
+            if (!Ringing)
+            {
+                return 0UL;
+            }
+
+            Ringing = false;
+            return context.Events.Append(context.Tick, default, CausalEventType.AllClear,
+                positions.Length > 0 ? positions[0] : default, 0, 0, causeEventId).EventId;
+        }
 
         /// <summary>Turned off in the scenario, so nobody bothers going for one.</summary>
         public bool Enabled => settings.Enabled;
@@ -195,7 +218,7 @@ namespace Paniq.Simulation
         /// </summary>
         public bool PullByPlayer(int alarm)
         {
-            if (Ringing || !settings.Enabled)
+            if (Ringing || !settings.Enabled || !settings.PlayerMayPull)
             {
                 return false;
             }

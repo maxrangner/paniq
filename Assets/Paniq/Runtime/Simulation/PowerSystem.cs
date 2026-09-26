@@ -3,14 +3,26 @@
 namespace Paniq.Simulation
 {
     /// <summary>
-    /// The cable running from socket to socket and back to the fuse box, and
-    /// the spark that runs along it.
+    /// The cable running from the fuse box down to the sockets, and the spark
+    /// that runs along it.
     /// <para>
-    /// When the flames reach a socket it pops, and the cable lights at that
-    /// socket like a fuse on a stick of dynamite. A spark races along the wall
-    /// to whatever is at the far end, which pops in turn, and so on down the
-    /// line. Every run of cable ends at the fuse box, and when the spark gets
-    /// there the box goes off harder than anything else in the building.
+    /// The cable runs one way (the owner's rule, 2026-09-26: "only if the
+    /// fusebox goes, it should quickly cascade down to all outlets, but not
+    /// the other way around"). When the fuse box goes off -- the flames reach
+    /// it, the Director sets it off, or the player's card does -- a spark
+    /// races out along every run of cable leaving it, and every socket it
+    /// reaches pops in turn and passes it on further down the line. A socket
+    /// popping by itself, in the flames or because the Director chose it, is
+    /// a bang and nothing more: it lights no cable, so nothing climbs back up
+    /// to the fuse box. "Down" is measured along the cable: each socket's
+    /// distance from the fuse box, worked out once, and a spark only ever
+    /// travels to something further away than where it set out from.
+    /// </para>
+    /// <para>
+    /// A socket that has already gone does not stop the spark: it arrives,
+    /// finds wreckage, and carries on down the line. (While the cable ran both
+    /// ways the chain beyond a wrecked socket had already been lit from it;
+    /// with one way, it has not.)
     /// </para>
     /// <para>
     /// The blast itself is not this system's: it calls the same
@@ -41,7 +53,6 @@ namespace Paniq.Simulation
             public bool Live;
             public bool FromTheFromEnd;
             public int Travelled;
-            public int ExtraDelay;
             public ulong CauseEventId;
 
             /// <summary>Lit once and finished with: a cable never carries a second spark.</summary>
@@ -54,6 +65,15 @@ namespace Paniq.Simulation
         private readonly bool[] nodeIsFuseBox;
         private readonly bool[] nodeBlown;
 
+        /// <summary>
+        /// How far along the cable each node is from the nearest fuse box, in
+        /// millimetres; a fuse box is 0, and a node no cable joins to a fuse
+        /// box is <see cref="int.MaxValue"/>. A spark only travels to a node
+        /// further away than the one it set out from: that is what "down"
+        /// means.
+        /// </summary>
+        private readonly int[] nodeDistance;
+
         private readonly Line[] lines;
 
         /// <summary>Which lines touch each node, so a pop can light all of them.</summary>
@@ -62,6 +82,9 @@ namespace Paniq.Simulation
         /// <summary>Scratch for the cascade, so a tick allocates nothing.</summary>
         private readonly int[] worklist;
         private int worklistCount;
+
+        /// <summary>Whether a node is already on this tick's worklist: two sparks arriving at one node queue it once.</summary>
+        private readonly bool[] queued;
 
         public PowerSystem(SimulationContext context, PhysicsObjectSystem objects)
         {
@@ -138,6 +161,56 @@ namespace Paniq.Simulation
             }
 
             worklist = new int[nodeIds.Length];
+            queued = new bool[nodeIds.Length];
+            nodeDistance = MeasureFromTheFuseBox();
+        }
+
+        /// <summary>
+        /// Each node's distance along the cable from the nearest fuse box: the
+        /// shortest way round, found by always settling the nearest node not
+        /// yet settled. Ties are settled in ascending node order, so the answer
+        /// never depends on the order the cable was written down in.
+        /// </summary>
+        private int[] MeasureFromTheFuseBox()
+        {
+            var distance = new int[nodeIds.Length];
+            var settled = new bool[nodeIds.Length];
+            for (int n = 0; n < nodeIds.Length; n++)
+            {
+                distance[n] = nodeIsFuseBox[n] ? 0 : int.MaxValue;
+            }
+
+            for (int round = 0; round < nodeIds.Length; round++)
+            {
+                int next = -1;
+                for (int n = 0; n < nodeIds.Length; n++)
+                {
+                    if (!settled[n] && distance[n] != int.MaxValue && (next < 0 || distance[n] < distance[next]))
+                    {
+                        next = n;
+                    }
+                }
+
+                if (next < 0)
+                {
+                    break;
+                }
+
+                settled[next] = true;
+                int[] touching = linesAtNode[next];
+                for (int i = 0; i < touching.Length; i++)
+                {
+                    Line line = lines[touching[i]];
+                    int other = line.FromNode == next ? line.ToNode : line.FromNode;
+                    long through = (long)distance[next] + line.LengthMillimetres;
+                    if (!settled[other] && through < distance[other])
+                    {
+                        distance[other] = (int)through;
+                    }
+                }
+            }
+
+            return distance;
         }
 
         /// <summary>
@@ -150,7 +223,7 @@ namespace Paniq.Simulation
             System.Collections.Generic.List<PowerSparkSnapshot> live = null;
             for (int i = 0; i < lines.Length; i++)
             {
-                if (!lines[i].Live || lines[i].ExtraDelay > 0)
+                if (!lines[i].Live)
                 {
                     continue;
                 }
@@ -193,11 +266,9 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Something electrical has gone off. Every run of cable touching it
-        /// lights, unless it is already lit or already spent, and unless
-        /// whatever is at the far end has gone off too -- a spark crawling
-        /// toward a socket that is already wreckage has nothing to do when it
-        /// arrives.
+        /// Something electrical has gone off: it is wreckage now. A fuse box
+        /// going off lights every run of cable leading down from it; a socket
+        /// lights nothing, because the cable only runs down.
         /// </summary>
         public void SomethingPopped(SimulationId id, ulong causeEventId)
         {
@@ -208,15 +279,16 @@ namespace Paniq.Simulation
             }
 
             nodeBlown[node] = true;
-            LightTheCableAt(node, causeEventId);
+            if (nodeIsFuseBox[node])
+            {
+                LightDownstream(node, causeEventId);
+            }
         }
 
         /// <summary>
-        /// The player's card: pop the fuse box by hand. The spark then runs the
-        /// other way, out of the maintenance room and along the line of sockets,
-        /// which costs no extra code because the cable has no direction of its
-        /// own. Refused, with nothing spent and nothing written down, if there
-        /// is no fuse box within reach or it has already gone.
+        /// The player's card: pop the fuse box by hand. Refused, with nothing
+        /// spent and nothing written down, if there is no fuse box within reach
+        /// or it has already gone.
         /// </summary>
         public bool CanPopTheFuseBoxNear(LogicalPosition where) => FuseBoxNear(where) >= 0;
 
@@ -227,14 +299,94 @@ namespace Paniq.Simulation
         public void PopTheFuseBoxNear(LogicalPosition where, ulong causeEventId)
         {
             int node = FuseBoxNear(where);
-            if (node < 0)
+            if (node >= 0)
             {
-                return;
+                PopNode(node, causeEventId);
+            }
+        }
+
+        /// <summary>
+        /// The Director's last rung: the fuse box goes, and every socket after
+        /// it. Returns the bang, or 0 when there is no fuse box left to go.
+        /// </summary>
+        public ulong PopTheFuseBox(ulong causeEventId)
+        {
+            int node = FuseBoxNode();
+            return node < 0 ? 0UL : PopNode(node, causeEventId);
+        }
+
+        /// <summary>The Director's socket: it goes off, and nothing else does. Returns the bang, or 0.</summary>
+        public ulong PopSocket(int node, ulong causeEventId)
+        {
+            return nodeIsFuseBox[node] ? 0UL : PopNode(node, causeEventId);
+        }
+
+        /// <summary>
+        /// Sets one node off through the ordinary blast, which tells this
+        /// system it popped (<see cref="SomethingPopped"/>); a thing whose blast
+        /// is somehow nothing is still marked as gone, and a fuse box still
+        /// sends its sparks down, so the chain cannot stall on it.
+        /// </summary>
+        private ulong PopNode(int node, ulong causeEventId)
+        {
+            if (nodeBlown[node] || nodeObjectIndex[node] < 0)
+            {
+                return 0UL;
             }
 
-            nodeBlown[node] = true;
             ulong bang = objects.Detonate(nodeObjectIndex[node], nodeIds[node], causeEventId);
-            LightTheCableAt(node, bang == 0UL ? causeEventId : bang);
+            if (!nodeBlown[node])
+            {
+                SomethingPopped(nodeIds[node], causeEventId);
+            }
+
+            return bang;
+        }
+
+        /// <summary>The first fuse box that has not gone yet, or -1.</summary>
+        private int FuseBoxNode()
+        {
+            for (int n = 0; n < nodeIds.Length; n++)
+            {
+                if (nodeIsFuseBox[n] && !nodeBlown[n] && nodeObjectIndex[n] >= 0)
+                {
+                    return n;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>How many sockets and fuse boxes the cable joins, for the Director to choose among.</summary>
+        public int NodeCount => nodeIds.Length;
+
+        /// <summary>Whether this node is a socket (not a fuse box) that is still in one piece.</summary>
+        public bool IsSocketStillWhole(int node) => !nodeIsFuseBox[node] && !nodeBlown[node] && nodeObjectIndex[node] >= 0;
+
+        /// <summary>Whether this node is a fuse box that is still in one piece.</summary>
+        public bool IsFuseBoxStillWhole(int node) => nodeIsFuseBox[node] && !nodeBlown[node] && nodeObjectIndex[node] >= 0;
+
+        /// <summary>The thing on the wall at this node.</summary>
+        public SimulationId NodeId(int node) => nodeIds[node];
+
+        /// <summary>Where this node is.</summary>
+        public LogicalPosition NodePosition(int node) => PositionOfNode(node);
+
+        /// <summary>The fuse box's node, whole or not, or -1 when the building has none.</summary>
+        public int FuseBoxNodeIndex
+        {
+            get
+            {
+                for (int n = 0; n < nodeIds.Length; n++)
+                {
+                    if (nodeIsFuseBox[n])
+                    {
+                        return n;
+                    }
+                }
+
+                return -1;
+            }
         }
 
         /// <summary>A fuse box within the card's reach that has not already gone, or -1.</summary>
@@ -275,13 +427,13 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Phase 2, beside the fire: every live spark crawls on, and anything a
-        /// spark reaches goes off.
+        /// Phase 2, beside the fire: every live spark runs on, and anything a
+        /// spark reaches goes off and passes it on down the line.
         /// <para>
-        /// Arrivals are resolved in ascending cable order, and the pops they
-        /// cause light their own cables afterwards through a worklist rather
-        /// than by calling back into this, so two sparks arriving on the same
-        /// tick always work out the same way round.
+        /// Arrivals are resolved in ascending cable order, and the cables
+        /// further down are lit afterwards through a worklist rather than by
+        /// calling back into this, so two sparks arriving on the same tick
+        /// always work out the same way round.
         /// </para>
         /// </summary>
         public void Advance()
@@ -292,12 +444,6 @@ namespace Paniq.Simulation
             {
                 if (!lines[i].Live)
                 {
-                    continue;
-                }
-
-                if (lines[i].ExtraDelay > 0)
-                {
-                    lines[i].ExtraDelay--;
                     continue;
                 }
 
@@ -316,23 +462,26 @@ namespace Paniq.Simulation
                     CausalEventType.PowerSparkArrived, PositionOfNode(arrivedAt), 0, 0,
                     lines[i].CauseEventId, nodeIds[arrivedAt]);
 
-                // Already wreckage: the spark got there, and there is nothing
-                // left for it to set off. It does not carry on past, either --
-                // the chain beyond was lit when that one went.
-                if (nodeBlown[arrivedAt] || nodeObjectIndex[arrivedAt] < 0)
+                // Whole: it goes off. Already wreckage -- the flames or the
+                // Director got to it first -- it has nothing left to set off,
+                // but the spark carries on past it all the same.
+                if (!nodeBlown[arrivedAt] && nodeObjectIndex[arrivedAt] >= 0)
                 {
-                    continue;
+                    ulong bang = PopNode(arrivedAt, lines[i].CauseEventId);
+                    lines[i].CauseEventId = bang == 0UL ? lines[i].CauseEventId : bang;
                 }
 
-                nodeBlown[arrivedAt] = true;
-                ulong bang = objects.Detonate(nodeObjectIndex[arrivedAt], nodeIds[arrivedAt], lines[i].CauseEventId);
-                worklist[worklistCount++] = arrivedAt;
-                lines[i].CauseEventId = bang == 0UL ? lines[i].CauseEventId : bang;
+                if (!queued[arrivedAt])
+                {
+                    queued[arrivedAt] = true;
+                    worklist[worklistCount++] = arrivedAt;
+                }
             }
 
             for (int w = 0; w < worklistCount; w++)
             {
-                LightTheCableAt(worklist[w], CauseAt(worklist[w]));
+                queued[worklist[w]] = false;
+                LightDownstream(worklist[w], CauseAt(worklist[w]));
             }
         }
 
@@ -351,8 +500,12 @@ namespace Paniq.Simulation
             return 0UL;
         }
 
-        /// <summary>Lights every run of cable leaving this node that is not already lit or finished with.</summary>
-        private void LightTheCableAt(int node, ulong causeEventId)
+        /// <summary>
+        /// Lights every run of cable leading down from this node -- to
+        /// something further from the fuse box than this -- that is not
+        /// already lit or finished with.
+        /// </summary>
+        private void LightDownstream(int node, ulong causeEventId)
         {
             int[] touching = linesAtNode[node];
             for (int i = 0; i < touching.Length; i++)
@@ -365,14 +518,17 @@ namespace Paniq.Simulation
 
                 bool fromTheFromEnd = lines[line].FromNode == node;
                 int farEnd = fromTheFromEnd ? lines[line].ToNode : lines[line].FromNode;
+                if (nodeDistance[farEnd] <= nodeDistance[node])
+                {
+                    // Up the cable, or across to something no nearer the
+                    // end of the line: the spark never goes that way.
+                    continue;
+                }
 
                 lines[line].Live = true;
                 lines[line].FromTheFromEnd = fromTheFromEnd;
                 lines[line].Travelled = 0;
                 lines[line].CauseEventId = causeEventId;
-
-                // A beat of silence before the big one.
-                lines[line].ExtraDelay = nodeIsFuseBox[farEnd] ? settings.FuseBoxExtraDelayTicks : 0;
 
                 context.Events.Append(context.Tick, nodeIds[node], CausalEventType.PowerSparkStarted,
                     PositionOfNode(node), lines[line].LengthMillimetres,
@@ -383,7 +539,7 @@ namespace Paniq.Simulation
         private int TicksToCross(int line)
         {
             int speed = settings.SparkSpeedMillimetresPerTick;
-            return lines[line].ExtraDelay + (lines[line].LengthMillimetres + speed - 1) / speed;
+            return (lines[line].LengthMillimetres + speed - 1) / speed;
         }
 
         private LogicalPosition PositionOfNode(int node)

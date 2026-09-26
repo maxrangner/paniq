@@ -238,6 +238,14 @@ of it is started; each is a stone of its own.
    panics and another works on, for "back to work" and "fire drill" cues,
    and for everything below. Touches `FearSystem`, `PanicBehaviour` and the
    round clock, and is the wall behind every later cue.
+   *Built 2026-09-26 (prototype 3, second batch):* a frightened person who
+   has seen and heard nothing frightening for a while settles, at a pace
+   their personality sets -- the brave in about seven seconds, an ordinary
+   person in twelve, the very nervous never -- and goes back to their desk
+   with the ordinary GoHome cue, rattled for a while (`FearSystem.Settle`,
+   `CalmingSettings`). Bells and bangs keep people frightened; shouting stops
+   once it has gone quiet. Not yet: talking about it afterwards, "back to
+   work" and "fire drill" cues, and the day's timetable resuming.
 4. **The reactive Director** (three to five days, after 3). Reads the count
    of the frightened, the rooms cut off, the burning squares; picks from a
    menu of cues with cooldowns, seeded. A quiet run gets a second problem in
@@ -249,6 +257,20 @@ of it is started; each is a stone of its own.
    once the fire is lit and somebody comes near. One rule, one trap, no
    menu and no cooldowns yet; the traps are data on the scenario
    (`ScenarioData.TrapDefinitions`), so a second is a line, not code.
+   *Its first ladder, 2026-09-26 (prototype 3, second batch):* on a level
+   that switches it on (`DirectorSettings.ClimbsTheLadder`, on for the
+   office), the Director starts the round's trouble itself -- a waste bin in
+   the meeting room catches after half a minute to a minute and a half, or
+   at once on the trigger -- and watches it. Put out (nothing burning, and it
+   never left its room), the bells fall silent about ten seconds later (the
+   all-clear), and twenty to forty seconds on a socket in the busiest calm
+   room crackles for five seconds and pops; put that out and the fuse box
+   crackles and goes, and every socket with it. A fire that gets out of the
+   room it started in is the real fire: the Director adds nothing more, and
+   the tower of boxes is armed by that rather than by the fire being lit.
+   The round's stall clock waits while a rung is still to come. Still to
+   come: easing pressure for a massacre, a menu of incidents rather than one
+   ladder, and incidents for dangers other than fire.
 5. **Visuals for the day** (a visuals commit). A pip over whoever speaks and
    heads turning to them; a home-time button, so the player's path to it
    can be seen; chats that are not two statues. Nothing here decides

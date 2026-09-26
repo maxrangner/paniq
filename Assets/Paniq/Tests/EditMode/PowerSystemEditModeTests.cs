@@ -6,9 +6,10 @@ using Paniq.Simulation;
 namespace Paniq.Tests.EditMode
 {
     /// <summary>
-    /// The cable through the walls. A socket popping lights it like a fuse on
-    /// a stick of dynamite, and the spark crawls along the wall to whatever is
-    /// at the far end, which pops in turn, all the way to the fuse box.
+    /// The cable through the walls, which runs one way (2026-09-26): when the
+    /// fuse box goes, a spark races out along the cable and every socket down
+    /// the line pops in turn. A socket going off by itself lights nothing, so
+    /// nothing ever climbs back up to the fuse box.
     /// </summary>
     public sealed class PowerSystemEditModeTests
     {
@@ -40,8 +41,8 @@ namespace Paniq.Tests.EditMode
                     CardinalDirection.North, AgentTraitValues.AllOrdinary)
             };
             data.Fire.ActivationTick = int.MaxValue;
-            data.Influence.Starting = 500;
-            data.Influence.Maximum = 500;
+            data.Purse.Starting = 500;
+            data.Purse.Maximum = 500;
             return data;
         }
 
@@ -105,19 +106,19 @@ namespace Paniq.Tests.EditMode
         public void PoppingTheFuseBox_CostsItsPriceOnce()
         {
             ScenarioData data = Quiet();
-            int price = data.Influence.CardCost;
+            int price = data.Purse.CardCost;
             var simulation = new Run(data);
             LogicalPosition box = FuseBoxPosition(simulation);
-            int before = simulation.Influence;
+            int before = simulation.Purse;
 
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, box, 1);
             Advance(simulation, 2);
-            Assert.That(simulation.Influence, Is.EqualTo(before - price));
+            Assert.That(simulation.Purse, Is.EqualTo(before - price));
 
             // A second card on a box that has already gone does nothing at all.
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, box, simulation.Tick + 1);
             Advance(simulation, 3);
-            Assert.That(simulation.Influence, Is.EqualTo(before - price), "A refused card is free.");
+            Assert.That(simulation.Purse, Is.EqualTo(before - price), "A refused card is free.");
             Assert.That(EventsOfType(simulation, CausalEventType.PowerPoppedFuseBox), Has.Count.EqualTo(1));
         }
 
@@ -127,12 +128,12 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = Quiet();
             var simulation = new Run(data);
-            int before = simulation.Influence;
+            int before = simulation.Purse;
 
             simulation.QueueCommand(PlayerCommandType.PopFuseBox, TheBuilding.Cafeteria, 1);
             Advance(simulation, 3);
 
-            Assert.That(simulation.Influence, Is.EqualTo(before), "Nothing happened, so nothing was spent.");
+            Assert.That(simulation.Purse, Is.EqualTo(before), "Nothing happened, so nothing was spent.");
             Assert.That(EventsOfType(simulation, CausalEventType.PowerPoppedFuseBox), Is.Empty,
                 "The log should not record something that did not happen.");
             Assert.That(simulation.PowerForTests.FuseBoxHasBlown, Is.False);
@@ -143,8 +144,8 @@ namespace Paniq.Tests.EditMode
         public void WithAnEmptyPurse_TheCardIsRefused()
         {
             ScenarioData data = Quiet();
-            data.Influence.Starting = 1;
-            data.Influence.Maximum = 1;
+            data.Purse.Starting = 1;
+            data.Purse.Maximum = 1;
             var simulation = new Run(data);
             LogicalPosition box = FuseBoxPosition(simulation);
 
@@ -152,7 +153,7 @@ namespace Paniq.Tests.EditMode
             Advance(simulation, 3);
 
             Assert.That(simulation.PowerForTests.FuseBoxHasBlown, Is.False);
-            Assert.That(simulation.Influence, Is.EqualTo(1));
+            Assert.That(simulation.Purse, Is.EqualTo(1));
         }
 
         /// <summary>
@@ -242,18 +243,91 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The spark crawls. It used to travel at six metres a second, which is
-        /// faster than anybody in the building can run, so the whole chain went
-        /// off within a few seconds of the first socket and there was nothing to
-        /// see and nothing to do about it.
+        /// A socket the flames reach goes off with a bang, and that is all: it
+        /// lights no cable, and the fuse box stays where it is. The owner's rule:
+        /// "only if the fusebox goes, it should quickly cascade down to all
+        /// outlets, but not the other way around".
         /// </summary>
         [Test]
-        public void TheSpark_TravelsSlowerThanSomebodyRunning()
+        public void ASocketGoingOffByItself_LightsNoCable_AndNeverReachesTheFuseBox()
         {
-            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
-            int sparkPerTick = data.Power.SparkSpeedMillimetresPerTick;
-            Assert.That(sparkPerTick, Is.LessThan(data.Panic.SpeedMaximum),
-                "A fuse that outruns the people watching it is just a delayed explosion.");
+            ScenarioData data = Quiet();
+            using (var simulation = new Run(data))
+            {
+                Advance(simulation, 2);
+                PhysicsObjectSystem objects = simulation.ObjectsForTests;
+                objects.Detonate(objects.IndexOf(OfficeSocket), OfficeSocket, 0UL);
+                Advance(simulation, 60 * Run.TicksPerSecond);
+
+                Assert.That(EventsOfType(simulation, CausalEventType.PowerSparkStarted), Is.Empty, "No spark set off.");
+                Assert.That(EventsOfType(simulation, CausalEventType.ObjectExploded).Exists(e => e.SourceId == TheFuseBox),
+                    Is.False, "The fuse box never went.");
+                Assert.That(simulation.PowerForTests.FuseBoxHasBlown, Is.False);
+            }
+        }
+
+        /// <summary>
+        /// A socket already wrecked does not stop the spark: it arrives, finds
+        /// nothing to set off, and carries on down the line to the next.
+        /// </summary>
+        [Test]
+        public void TheFuseBox_SendsItsSparkOnPastASocketAlreadyGone()
+        {
+            ScenarioData data = Quiet();
+            using (var simulation = new Run(data))
+            {
+                Advance(simulation, 2);
+                PhysicsObjectSystem objects = simulation.ObjectsForTests;
+                objects.Detonate(objects.IndexOf(OfficeSocket), OfficeSocket, 0UL);
+                simulation.QueueCommand(PlayerCommandType.PopFuseBox, FuseBoxPosition(simulation), simulation.Tick + 1);
+                Advance(simulation, 10 * Run.TicksPerSecond);
+
+                var went = new HashSet<ulong>();
+                foreach (CausalEvent record in EventsOfType(simulation, CausalEventType.ObjectExploded))
+                {
+                    went.Add(record.SourceId.Value);
+                }
+
+                Assert.That(went, Does.Contain(FarSocket.Value), "The socket beyond the wrecked one still went.");
+                Assert.That(went, Does.Contain(new SimulationId(3273UL).Value), "And the one beyond that.");
+            }
+        }
+
+        /// <summary>
+        /// Quick: every socket in the office goes within three seconds of the
+        /// fuse box. The spark used to crawl slower than somebody running,
+        /// while it crept up to the fuse box; now the fuse box going is the big
+        /// moment, and the whole building follows it at once.
+        /// </summary>
+        [Test]
+        public void EverySocket_GoesWithinThreeSecondsOfTheFuseBox()
+        {
+            ScenarioData data = Quiet();
+            using (var simulation = new Run(data))
+            {
+                simulation.QueueCommand(PlayerCommandType.PopFuseBox, FuseBoxPosition(simulation), 1);
+                Advance(simulation, 10 * Run.TicksPerSecond);
+
+                int fuseBoxWent = -1;
+                int lastSocketWent = -1;
+                int sockets = 0;
+                foreach (CausalEvent record in EventsOfType(simulation, CausalEventType.ObjectExploded))
+                {
+                    if (record.SourceId == TheFuseBox)
+                    {
+                        fuseBoxWent = record.Tick;
+                    }
+                    else if (record.SourceId.Value >= 3271UL && record.SourceId.Value <= 3273UL)
+                    {
+                        sockets++;
+                        lastSocketWent = System.Math.Max(lastSocketWent, record.Tick);
+                    }
+                }
+
+                Assert.That(fuseBoxWent, Is.GreaterThan(0));
+                Assert.That(sockets, Is.EqualTo(3), "All three sockets went.");
+                Assert.That(lastSocketWent - fuseBoxWent, Is.LessThanOrEqualTo(3 * Run.TicksPerSecond));
+            }
         }
 
         private static LogicalPosition FuseBoxPosition(Run simulation)

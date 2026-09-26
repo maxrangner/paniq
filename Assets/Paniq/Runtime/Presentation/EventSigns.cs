@@ -288,6 +288,11 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentAnnoyed: return "leave me alone!";
                 case CausalEventType.BoxTowerFell: return "the boxes came down!";
                 case CausalEventType.BoxPileCleared: return "the way is clear!";
+                case CausalEventType.DirectorStartedIncident: return "fire!";
+                case CausalEventType.IncidentPutOut: return "it's out!";
+                case CausalEventType.FireEscapedItsRoom: return "it's spreading!";
+                case CausalEventType.SocketCrackling: return "crackling...";
+                case CausalEventType.AllClear: return "all clear";
                 default: return null;
             }
         }
@@ -306,6 +311,8 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentDoused:
                 case CausalEventType.AgentFoundTheWayOut:
                 case CausalEventType.BoxPileCleared:
+                case CausalEventType.IncidentPutOut:
+                case CausalEventType.AllClear:
                     return true;
                 default:
                     return false;

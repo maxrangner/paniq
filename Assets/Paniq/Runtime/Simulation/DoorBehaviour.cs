@@ -166,6 +166,11 @@ namespace Paniq.Simulation
             int bestWayOut = -1;
             bool bestIsThroughTheHeat = false;
             long bestScore = long.MinValue;
+
+            // The same choice with the player's influence left out, so that a
+            // choice it changed can be written down as its doing.
+            int bestWithoutInfluence = -1;
+            long bestScoreWithoutInfluence = long.MinValue;
             for (int d = 0; d < doors.Count; d++)
             {
                 if (!geometry.DoorLeadsOutside(d) || !agent.Knowledge.Knows(d) ||
@@ -178,6 +183,17 @@ namespace Paniq.Simulation
                 // this room, otherwise the first door along the way.
                 int next = first < 0 ? d : first;
                 bool open = geometry.IsDoorOpen(next);
+                if (!open && SeesAHeapTheyCannotShift(agent, room, position, next))
+                {
+                    // A doorway walled up with fallen boxes, right there in
+                    // their own room: nobody needs to walk up and try it to
+                    // know it is shut. The first batch's rule -- the strong
+                    // heave, everybody else goes round -- used to depend on
+                    // reaching the heap, and in a crush at it the people at the
+                    // back never did, and pushed at it for ever (2026-09-26).
+                    agent.Doors.FoundShut[next] = true;
+                    continue;
+                }
                 if (context.Tick < agent.Doors.AvoidUntilTick[next])
                 {
                     // They have given up on this way for the moment. That
@@ -254,12 +270,36 @@ namespace Paniq.Simulation
                     score -= settings.InFirePenaltyMillimetres;
                 }
 
+                if (score > bestScoreWithoutInfluence)
+                {
+                    bestScoreWithoutInfluence = score;
+                    bestWithoutInfluence = next;
+                }
+
+                // The player's influence, never through the heat.
+                if (!throughTheHeat)
+                {
+                    score += InfluencePull(agent, next, into, nextApproach);
+                }
+
                 if (score > bestScore)
                 {
                     bestScore = score;
                     best = next;
                     bestWayOut = d;
                     bestIsThroughTheHeat = throughTheHeat;
+                }
+            }
+
+            if (influence != null && influence.Count > 0)
+            {
+                ConsiderTheInfluencedDoors(agent, room, position, ref best, ref bestWayOut, ref bestScore,
+                    ref bestIsThroughTheHeat);
+                if (best >= 0 && best != bestWithoutInfluence && best != agent.Doors.ExitDoorIndex)
+                {
+                    InfluenceSystem.Place drawnBy = StrongestPlaceFelt(agent);
+                    context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, position, 0, 0,
+                        drawnBy.EventId, doors.IdOf(best));
                 }
             }
 
@@ -445,6 +485,11 @@ namespace Paniq.Simulation
                     score += exitSigns.ScoreToward(position, spot, pointing);
                 }
 
+                if (influence != null && !threats.AnyCloserThan(spot, danger))
+                {
+                    score += influence.SpotBonus(agent, spot);
+                }
+
                 if (knowledge.Searching && agent.Doors.ExitDoorIndex < 0 && agent.Intent.Target.Equals(spot))
                 {
                     score += settings.CurrentChoiceBonusMillimetres;
@@ -493,6 +538,11 @@ namespace Paniq.Simulation
                 if (readASign)
                 {
                     score += exitSigns.ScoreToward(position, doorway, pointing);
+                }
+
+                if (!threats.IsInRoom(r))
+                {
+                    score += InfluencePull(agent, first, into, doorway);
                 }
 
                 if (first == agent.Doors.ExitDoorIndex)
@@ -582,7 +632,8 @@ namespace Paniq.Simulation
                 long score = RefugeScore(r, routeCost) +
                              context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) -
                              RoutePenalties(agent, position, first) -
-                             (into >= 0 && threats.IsInRoom(into) ? settings.InFirePenaltyMillimetres : 0L);
+                             (into >= 0 && threats.IsInRoom(into) ? settings.InFirePenaltyMillimetres : 0L) +
+                             InfluencePull(agent, first, into, geometry.DoorCentre(first));
                 if (score > bestScore)
                 {
                     bestScore = score;
@@ -1188,6 +1239,52 @@ namespace Paniq.Simulation
             objects.ShoveAside(thing, agent, along, speed, agent.Doors.AttemptEventId);
         }
 
+        /// <summary>
+        /// A doorway with a heap of fallen boxes across it, on a wall of the
+        /// room they are standing in and within sight, that they are not going
+        /// to shift: they are not strong enough to heave it, or they are and
+        /// have had their go (<see cref="BlockadeSettings.StrongGiveUpOnAHeapTicks"/>).
+        /// Draws a number only the first time somebody strong sees a heap.
+        /// </summary>
+        private bool SeesAHeapTheyCannotShift(Agent agent, int room, LogicalPosition position, int door)
+        {
+            if (!doors.IsPiled(door))
+            {
+                return false;
+            }
+
+            int side = geometry.DoorRoom(door);
+            long sight = context.Scenario.Perception.VisionRangeMillimetres;
+            if ((room != side && room != geometry.RoomBeyond(door, side)) ||
+                LogicalPosition.DistanceSquared(position, geometry.DoorCentre(door)) > sight * sight)
+            {
+                return false;
+            }
+
+            BlockadeSettings blockades = context.Scenario.Blockades;
+            if (agent.Traits.Strength < blockades.ShoveMinimumStrength)
+            {
+                return true;
+            }
+
+            // Their patience runs only while they are at it. Further off, the
+            // heap is still a way out to them, and another heap seen on the
+            // way does not reset the clock of the one they are working at.
+            long reach = blockades.StrongTryTheHeapWithinMillimetres;
+            if (LogicalPosition.DistanceSquared(position, geometry.DoorCentre(door)) > reach * reach)
+            {
+                return agent.Doors.HeapDoor == door && context.Tick >= agent.Doors.GiveUpOnTheHeapTick;
+            }
+
+            if (agent.Doors.HeapDoor != door)
+            {
+                agent.Doors.HeapDoor = door;
+                agent.Doors.GiveUpOnTheHeapTick = checked(context.Tick + context.Jittered(blockades.StrongGiveUpOnAHeapTicks));
+            }
+
+            return context.Tick >= agent.Doors.GiveUpOnTheHeapTick;
+        }
+
         /// <summary>Stuck in the crowd on the way to a door: try another for a little while.</summary>
         public void AvoidCrowdedExit(Agent agent)
         {
@@ -1264,6 +1361,115 @@ namespace Paniq.Simulation
         {
             objects = systems.Objects;
             people = systems.People;
+            influence = systems.Influence;
+        }
+
+        /// <summary>The places the player is drawing people toward (2026-09-26).</summary>
+        private InfluenceSystem influence;
+
+        /// <summary>
+        /// The ways out through a door the player is drawing people to, on a
+        /// wall of this room -- a door no way out's shortest walk begins with,
+        /// which otherwise never gets a look in: with one way out of the
+        /// building, the office's door into the stockroom could never beat the
+        /// corridor. Scored exactly like any other way out, with the noise
+        /// fixed at half its range rather than drawn, so considering them draws
+        /// no random numbers. Never through a door into a room alight, a door
+        /// that is shut and given up on, or back the way they came.
+        /// </summary>
+        private void ConsiderTheInfluencedDoors(Agent agent, int room, LogicalPosition position, ref int best,
+            ref int bestWayOut, ref long bestScore, ref bool bestIsThroughTheHeat)
+        {
+            for (int i = 0; i < influence.Count; i++)
+            {
+                int k = influence[i].Door;
+                if (k < 0 || k == best || !agent.Knowledge.Knows(k))
+                {
+                    continue;
+                }
+
+                int side = geometry.DoorRoom(k);
+                int into = side == room ? geometry.RoomBeyond(k, room) : geometry.RoomBeyond(k, side) == room ? side : -1;
+                if (into < 0 || into == agent.Doors.PreviousRoom || threats.IsInRoom(into) ||
+                    (!geometry.IsDoorOpen(k) && (agent.Doors.FoundShut[k] || context.Tick < agent.Doors.AvoidUntilTick[k])))
+                {
+                    continue;
+                }
+
+                LogicalPosition atTheDoor = ApproachPoint(k, room);
+                long pull = InfluencePull(agent, k, into, atTheDoor);
+                if (pull <= 0L ||
+                    threats.AnyCloserThan(atTheDoor, TraitEffects.DangerDistance(agent, context.Scenario)))
+                {
+                    continue;
+                }
+
+                // Everything about the door itself is worked out once; only
+                // the way on from beyond it differs between ways out, and a
+                // route is searched only to a way out worth reaching.
+                LogicalPosition beyond = geometry.DoorPointFrom(k, into, 0, -settings.ApproachInsetMillimetres);
+                long doorScore = settings.ChoiceNoiseMillimetres / 2 - IntegerMath.Distance(position, atTheDoor) -
+                                 RoutePenalties(agent, position, k) + pull;
+                if (k == agent.Doors.ExitDoorIndex)
+                {
+                    doorScore += settings.CurrentChoiceBonusMillimetres;
+                }
+
+                for (int d = 0; d < doors.Count; d++)
+                {
+                    int wayOutRoom = geometry.DoorRoom(d);
+                    if (!geometry.DoorLeadsOutside(d) || !agent.Knowledge.Knows(d) ||
+                        (agent.Doors.FoundShut[d] && !geometry.IsDoorOpen(d)) || threats.IsInRoom(wayOutRoom) ||
+                        !geometry.TryFindKnownRoute(into, beyond, wayOutRoom, agent, out int first, out int last, out long routeCost))
+                    {
+                        continue;
+                    }
+
+                    LogicalPosition approach = ApproachPoint(d, wayOutRoom);
+                    long score = doorScore - (first < 0
+                        ? IntegerMath.Distance(beyond, approach)
+                        : routeCost + IntegerMath.Distance(geometry.DoorCentre(last), approach));
+                    if (geometry.IsDoorOpen(d))
+                    {
+                        score += settings.OpenBonusMillimetres;
+                    }
+
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        best = k;
+                        bestWayOut = d;
+                        bestIsThroughTheHeat = false;
+                    }
+                }
+            }
+        }
+
+        /// <summary>The influenced place this person feels most, for naming as the cause of a choice it changed.</summary>
+        private InfluenceSystem.Place StrongestPlaceFelt(Agent agent)
+        {
+            influence.StrongestFeltBy(agent, out int place);
+            return place >= 0 ? influence[place] : default;
+        }
+
+        /// <summary>
+        /// What the player's influence makes a door worth to somebody, in
+        /// millimetres of walk, for a choice to add: the pull of the door
+        /// itself if it is influenced, and of every influenced spot its way.
+        /// Nothing into a room that is alight, and nothing straight back into
+        /// the room they have just come out of -- or somebody who stepped
+        /// through an influenced door, still close to it, would be pulled
+        /// straight back through. Draws no random numbers.
+        /// </summary>
+        private long InfluencePull(Agent agent, int door, int into, LogicalPosition toward)
+        {
+            if (influence == null || influence.Count == 0 ||
+                (into >= 0 && (threats.IsInRoom(into) || into == agent.Doors.PreviousRoom)))
+            {
+                return 0L;
+            }
+
+            return influence.DoorBonus(agent, door) + influence.SpotBonus(agent, toward);
         }
 
         /// <summary>Everybody's physical body, for hauling somebody down in a doorway through it. Bound after construction like the objects.</summary>
@@ -1616,6 +1822,7 @@ namespace Paniq.Simulation
                 {
                     int previous = agent.Doors.CurrentRoom;
                     agent.Doors.CurrentRoom = room;
+                    agent.Doors.PreviousRoom = previous;
                     if (previous >= 0 && !agent.Burning.IsBurning)
                     {
                         ConsiderSlammingTheDoorBehind(agent, room, previous);

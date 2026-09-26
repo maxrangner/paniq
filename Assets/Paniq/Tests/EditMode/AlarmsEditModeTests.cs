@@ -115,7 +115,7 @@ namespace Paniq.Tests.EditMode
         public void ThePlayer_CanPullAnAlarm_AndEveryBellRings()
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
-            data.Influence.Starting = 30;
+            data.Purse.Starting = 30;
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
@@ -132,7 +132,7 @@ namespace Paniq.Tests.EditMode
                     Assert.That(bell.CausalParentEventId, Is.EqualTo(pulled[0].EventId));
                 }
 
-                Assert.That(simulation.Influence, Is.EqualTo(0), "Thirty of the thirty.");
+                Assert.That(simulation.Purse, Is.EqualTo(0), "Thirty of the thirty.");
                 Assert.That(simulation.GetAgent(1).FearState, Is.Not.EqualTo(AgentFearState.Calm),
                     "Somebody two rooms away heard the bell.");
             }
@@ -142,14 +142,14 @@ namespace Paniq.Tests.EditMode
         public void ThePlayer_TooPoorToPull_RingsNothingAndPaysNothing()
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
-            data.Influence.Starting = 29;
+            data.Purse.Starting = 29;
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
                 Advance(simulation, 1);
                 Assert.That(EventsOfType(simulation, CausalEventType.PowerPulledAlarm), Is.Empty);
                 Assert.That(EventsOfType(simulation, CausalEventType.AlarmRang), Is.Empty);
-                Assert.That(simulation.Influence, Is.EqualTo(29));
+                Assert.That(simulation.Purse, Is.EqualTo(29));
             }
         }
 
@@ -157,14 +157,14 @@ namespace Paniq.Tests.EditMode
         public void PullingAnAlarmThatIsAlreadyRinging_CostsNothing()
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
-            data.Influence.Starting = 60;
+            data.Purse.Starting = 60;
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
                 simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 20);
                 Advance(simulation, 1);
                 Assert.That(EventsOfType(simulation, CausalEventType.PowerPulledAlarm), Has.Count.EqualTo(1));
-                Assert.That(simulation.Influence, Is.EqualTo(30), "The second pull did nothing and cost nothing.");
+                Assert.That(simulation.Purse, Is.EqualTo(30), "The second pull did nothing and cost nothing.");
             }
         }
 
@@ -313,7 +313,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
             data.Round.HazardWaitsForTrigger = true;
-            data.Influence.Starting = 30;
+            data.Purse.Starting = 30;
             var simulation = new Run(data, 42UL);
             LogicalPosition farAwayStart = simulation.GetAgent(FarAway).Position;
             simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
@@ -355,7 +355,7 @@ namespace Paniq.Tests.EditMode
             // The bells on the walls, so there is more than one thing to ring.
             data.PhysicsObjects = System.Array.FindAll(scenario.ToRuntimeData().PhysicsObjects,
                 thing => thing.Kind == PhysicsObjectKind.AlarmSounder);
-            data.Influence.Starting = 30;
+            data.Purse.Starting = 30;
             var simulation = new Run(data, 42UL);
             simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
             Advance(simulation, 16);
@@ -385,7 +385,7 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
             data.PhysicsObjects = System.Array.FindAll(scenario.ToRuntimeData().PhysicsObjects,
                 thing => thing.Kind == PhysicsObjectKind.AlarmSounder);
-            data.Influence.Starting = 30;
+            data.Purse.Starting = 30;
             var officeBell = new SimulationId(3601UL);
 
             // A fire in the office's south-west corner, right under its bell.

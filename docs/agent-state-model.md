@@ -187,3 +187,23 @@ traits are read through `TraitEffects` whenever they are used and never cached,
 every rule that depends on strength picks it up on the next tick. Pace is the
 one exception, as noted above, and Beefcake deliberately leaves speed alone so
 no pace has to be re-drawn and the run's random stream is undisturbed.
+
+**Calming down, and being rattled (2026-09-26).** Fear is no longer one way.
+`AgentFear` gains when anything frightening last went on around them
+(`LastFrightTick`), their own quiet spell before it starts to drain
+(`QuietTicks`, drawn when they take fright), the tick they settle on once it
+has drained below the line (`CalmsAtTick`), until when they stay rattled
+(`RattledUntilTick`), and whether they saw the danger this time rather than
+only heard about it (`SawTheThreat`, which decides how long they stay
+rattled). How frightened they are right now is not stored: `FearSystem.Settle`
+works it out each tick from those and their traits. See
+[the cue system](cue-system.md) and `CalmingSettings`.
+
+**Nudged and annoyed, drawn and remembered (2026-09-26).** `AgentNudge`
+gains `AnnoyedUntilTick`: while it lasts they shake, and a nudge does
+nothing to them. `AgentIntent.GoingToTheInfluence` marks somebody who got up
+or left an errand because the player's influence drew them, so what they
+choose next is to go to it. `AgentDoorMemory.PreviousRoom` is the room they
+were in before this one, so influence never pulls them straight back through
+the door they came in by; `HeapDoor` and `GiveUpOnTheHeapTick` are the
+heaped doorway somebody strong is having a go at, and when they give it up.

@@ -102,7 +102,7 @@ namespace Paniq.Simulation
         /// </summary>
         public void Bang(SimulationId sourceId, LogicalPosition position, int hearingRadius, int alarmRadius, ulong soundEventId)
         {
-            Emit(sourceId, position, hearingRadius, alarmRadius, soundEventId);
+            Emit(sourceId, position, hearingRadius, alarmRadius, soundEventId, keepsTheFrightenedFrightened: true);
         }
 
         /// <summary>
@@ -114,13 +114,21 @@ namespace Paniq.Simulation
         {
             AlarmSettings alarm = context.Scenario.Alarm;
             Emit(alarmId, position, alarm.BellHearingRadiusMillimetres, alarm.BellAlarmRadiusMillimetres, soundEventId,
-                AgentAlertSource.Alarm);
+                AgentAlertSource.Alarm, keepsTheFrightenedFrightened: true);
         }
 
         /// <summary>
         /// Delivers one noise to every other calm participating person, in
         /// ascending ID order. Inside <paramref name="alarmRadius"/> the noise
         /// alarms; inside <paramref name="hearingRadius"/> it only draws attention.
+        /// <para>
+        /// Two things since 2026-09-26, for calming down. A bell or a bang
+        /// (<paramref name="keepsTheFrightenedFrightened"/>) keeps anybody
+        /// frightened who hears it frightened: their fear is full again. A yell
+        /// does not. And somebody rattled -- calm again, but not for long --
+        /// is frightened outright by a noise that would only have turned their
+        /// head, if it is close enough (<see cref="CalmingSettings.RattledStartlePercent"/>).
+        /// </para>
         /// </summary>
         private void Emit(
             SimulationId sourceId,
@@ -129,8 +137,11 @@ namespace Paniq.Simulation
             int alarmRadius,
             ulong soundEventId,
             AgentAlertSource alertSource = AgentAlertSource.Yell,
-            Agent speaker = null)
+            Agent speaker = null,
+            bool keepsTheFrightenedFrightened = false)
         {
+            int tick = context.Tick;
+            int rattledPercent = context.Scenario.Calming.RattledStartlePercent;
             int sourceRoom = geometry.RoomAtPoint(position);
 
             // The furthest a noise could possibly carry. A closed door halves
@@ -141,11 +152,24 @@ namespace Paniq.Simulation
             for (int i = 0; i < listeners.Count; i++)
             {
                 Agent listener = crowd.All[listeners[i]];
-                if (listener.Id == sourceId ||
-                    !listener.IsParticipating ||
-                    listener.Fear.State != AgentFearState.Calm ||
+                if (listener.Id == sourceId || !listener.IsParticipating ||
                     (speaker != null && InTheSameChat(speaker, listener)))
                 {
+                    continue;
+                }
+
+                if (listener.Fear.State != AgentFearState.Calm)
+                {
+                    if (keepsTheFrightenedFrightened && listener.Fear.State == AgentFearState.Scared)
+                    {
+                        int heardFrom = geometry.RoomsOpenToEachOther(sourceRoom, geometry.RoomAtPoint(listener.Body.Position)) ? 1 : 2;
+                        long heardWithin = Math.Max(hearingRadius, alarmRadius) / heardFrom;
+                        if (LogicalPosition.DistanceSquared(listener.Body.Position, position) <= heardWithin * heardWithin)
+                        {
+                            fear.Refresh(listener);
+                        }
+                    }
+
                     continue;
                 }
 
@@ -153,6 +177,12 @@ namespace Paniq.Simulation
                 int divisor = geometry.RoomsOpenToEachOther(sourceRoom, geometry.RoomAtPoint(listener.Body.Position)) ? 1 : 2;
                 long hearing = hearingRadius / divisor;
                 long alarm = alarmRadius / divisor;
+                if (alarm == 0 && speaker == null && listener.Fear.IsRattledAt(tick))
+                {
+                    // Rattled: a thud that close is not a thud any more.
+                    alarm = hearing * rattledPercent / 100;
+                }
+
                 long distanceSquared = LogicalPosition.DistanceSquared(listener.Body.Position, position);
                 if (alarm > 0 && distanceSquared <= alarm * alarm)
                 {

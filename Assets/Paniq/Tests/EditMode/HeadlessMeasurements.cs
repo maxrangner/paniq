@@ -93,8 +93,8 @@ namespace Paniq.Tests.EditMode
             {
                 var report = new StringBuilder();
                 ScenarioData costs = scenario.ToRuntimeData();
-                int wayOut = costs.Influence.UnlockDoorCost + costs.Influence.OpenDoorCost;
-                report.AppendLine($"The way out costs {wayOut}. A card costs {costs.Influence.CardCost}.");
+                int wayOut = costs.Purse.UnlockDoorCost + costs.Purse.OpenDoorCost;
+                report.AppendLine($"The way out costs {wayOut}. A card costs {costs.Purse.CardCost}.");
 
                 for (ulong seed = 40UL; seed <= 46UL; seed++)
                 {
@@ -107,7 +107,7 @@ namespace Paniq.Tests.EditMode
                     for (int tick = 0; tick < 3000; tick++)
                     {
                         simulation.Step();
-                        if (affordedAt < 0 && simulation.Influence >= wayOut)
+                        if (affordedAt < 0 && simulation.Purse >= wayOut)
                         {
                             affordedAt = tick;
                         }
@@ -119,14 +119,14 @@ namespace Paniq.Tests.EditMode
 
                         if (tick == 30 * Run.TicksPerSecond - 1)
                         {
-                            atThirtySeconds = simulation.Influence;
+                            atThirtySeconds = simulation.Purse;
                         }
                     }
 
                     report.AppendLine(
                         $"  seed {seed}: way out affordable at {Seconds(affordedAt)}, " +
                         $"first card at {Seconds(firstCardAt)}, " +
-                        $"purse {atThirtySeconds} at 30 s and {simulation.Influence} at 60 s, " +
+                        $"purse {atThirtySeconds} at 30 s and {simulation.Purse} at 60 s, " +
                         $"{simulation.GetSnapshot().Hand.Count} cards in hand");
                     simulation.Dispose();
                 }

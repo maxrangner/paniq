@@ -70,6 +70,8 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerSparkArrived:
                 case CausalEventType.TrapTriggered:
                 case CausalEventType.AgentSaid:
+                case CausalEventType.PowerInfluenced:
+                case CausalEventType.AgentDrawnByInfluence:
                     return true;
                 default:
                     return false;
@@ -201,13 +203,22 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerPulledAlarm: return "you pulled a fire alarm";
                 case CausalEventType.PowerHeldDoor: return $"you held {who} shut";
                 case CausalEventType.PowerReleasedDoor: return $"you let go of {who}";
-                case CausalEventType.PowerPoked: return $"you poked {whom}";
-                case CausalEventType.AgentPoked: return $"{who} looked round for whoever poked them";
-                case CausalEventType.AgentAnnoyed: return $"{who} got annoyed at being poked";
+                case CausalEventType.PowerNudged: return $"you nudged {whom}";
+                case CausalEventType.AgentNudged: return $"{who} looked round for whoever nudged them";
+                case CausalEventType.AgentAnnoyed: return $"{who} got annoyed at being nudged";
                 case CausalEventType.TrapTriggered: return $"{whom} came too near the tower of boxes";
                 case CausalEventType.BoxTowerFell: return $"the tower of boxes came down across {whom}";
                 case CausalEventType.BoxPileCleared: return $"the way through the boxes at {whom} was clear";
                 case CausalEventType.PowerStickTogether: return $"you told {whom} to stick together";
+                case CausalEventType.DirectorStartedIncident: return $"{who} caught fire";
+                case CausalEventType.IncidentPutOut: return "the fire was put out";
+                case CausalEventType.FireEscapedItsRoom: return "the fire got out of the room it started in";
+                case CausalEventType.SocketCrackling: return $"{who} began to crackle and smoke";
+                case CausalEventType.AllClear: return "the alarms fell silent: all clear";
+                case CausalEventType.AgentCalmedDown: return $"{who} calmed down";
+                case CausalEventType.PowerInfluenced:
+                    return record.HasTarget ? $"you drew people toward {whom}" : "you drew people toward a spot on the floor";
+                case CausalEventType.AgentDrawnByInfluence: return $"{who} went where you were drawing people";
 
                 case CausalEventType.PowerSparkStarted:
                     return $"a spark set off along the cable from {Name(record.SourceId)} " +

@@ -48,7 +48,7 @@ namespace Paniq.Tests.EditMode
         {
             // These tests open the way out in their first two ticks, and a
             // round now opens with an empty purse, so without this the clicks
-            // are refused for want of influence, the exit stays locked and
+            // are refused for want of purse points, the exit stays locked and
             // nobody gets out of the building at all. This file was written
             // before the economy landed; it is a test of where people walk,
             // not of what the player can afford.
@@ -74,6 +74,12 @@ namespace Paniq.Tests.EditMode
             data.Help.ShakeMinimumCompassion = AgentTraitValues.Maximum + 1;
             data.Help.DragMinimumCompassion = AgentTraitValues.Maximum + 1;
             data.Extinguishers.FightMinimumBravery = AgentTraitValues.Maximum + 1;
+
+            // One square of fire that never spreads, far from most of them: a
+            // visitor searching the far rooms would otherwise calm down and
+            // stop looking. These tests are about finding the way, not about
+            // how long a fright lasts.
+            data.Calming.Enabled = false;
             return data;
         }
 

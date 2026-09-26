@@ -21,6 +21,14 @@ namespace Paniq.Simulation
             all.AddRange(threats);
         }
 
+        /// <summary>
+        /// A threat built after the run's first ones, because it reads a
+        /// system that did not exist yet: things on fire, people on fire.
+        /// Added in a fixed order at start-up, so ties still break the same
+        /// way every run.
+        /// </summary>
+        public void Add(IThreat threat) => all.Add(threat);
+
         /// <summary>A threat that is not part of any scenario yet, for a test that wants to frighten people with something other than fire.</summary>
         internal void AddForTests(IThreat threat) => all.Add(threat);
 

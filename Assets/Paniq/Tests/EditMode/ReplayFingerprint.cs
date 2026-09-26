@@ -40,7 +40,18 @@ namespace Paniq.Tests.EditMode
             (PlayerCommandType.PlayBastard, default, new LogicalPosition(2000, 0), 850),
             (PlayerCommandType.PlayColdHeart, default, new LogicalPosition(0, 2000), 900),
             (PlayerCommandType.StickTogether, default, new LogicalPosition(0, 0), 950),
-            (PlayerCommandType.ToggleLock, new SimulationId(2002UL), default, 1000)
+            (PlayerCommandType.ToggleLock, new SimulationId(2002UL), default, 1000),
+
+            // Influence and the nudge from a point (2026-09-26): a door drawn
+            // to, a thing, a patch of the office floor clicked on over and
+            // over, and somebody nudged from beside them.
+            (PlayerCommandType.InfluenceDoor, new SimulationId(2018UL), default, 1050),
+            (PlayerCommandType.InfluenceDoor, new SimulationId(2018UL), default, 1051),
+            (PlayerCommandType.InfluenceThing, new SimulationId(3201UL), default, 1060),
+            (PlayerCommandType.InfluenceSpot, default, new LogicalPosition(3000, -3000), 1070),
+            (PlayerCommandType.InfluenceSpot, default, new LogicalPosition(3200, -3000), 1071),
+            (PlayerCommandType.InfluenceSpot, default, new LogicalPosition(3000, -3200), 1072),
+            (PlayerCommandType.NudgePersonFrom, new SimulationId(1001UL), new LogicalPosition(0, 0), 1100)
         };
 
         /// <summary>
@@ -69,9 +80,9 @@ namespace Paniq.Tests.EditMode
                 // fingerprint identically to the run that does nothing. What is
                 // being guarded here is the simulation's response to a player
                 // acting, not whether they could afford to.
-                data.Influence.Starting = 100000;
-                data.Influence.Maximum = 100000;
-                data.Influence.StartingHand = TheBuilding.EveryCard();
+                data.Purse.Starting = 100000;
+                data.Purse.Maximum = 100000;
+                data.Purse.StartingHand = TheBuilding.EveryCard();
             }
 
             if (playCards)
@@ -92,7 +103,9 @@ namespace Paniq.Tests.EditMode
                 {
                     if (target.Value != 0UL)
                     {
-                        simulation.QueueCommand(card, target, tick);
+                        // A thing, and the place it came from where there is
+                        // one (a nudge); the origin otherwise, as before.
+                        simulation.QueueCommand(card, target, point, tick);
                     }
                     else
                     {

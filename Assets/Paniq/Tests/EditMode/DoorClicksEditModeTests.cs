@@ -6,10 +6,14 @@ using UnityEngine;
 namespace Paniq.Tests.EditMode
 {
     /// <summary>
-    /// One click works a door, a double click turns its key (the owner's
-    /// rule, 2026-09-25), and a click on a card or a button never reaches the
-    /// world behind it. The decisions are plain arithmetic, checked here
-    /// without a scene; the clicks themselves are read in <c>PlayerInput</c>.
+    /// What the left button does on a door (2026-09-26): a quick click is one
+    /// step of influence on it, sent the moment the button comes back up, so
+    /// clicking frantically is so many steps; the button held down past the
+    /// window is a hand holding it shut. The key is the right button's now, so
+    /// there is no double click to wait for. And a click on a card or a button
+    /// never reaches the world behind it. The decisions are plain arithmetic,
+    /// checked here without a scene; the clicks themselves are read in
+    /// <c>PlayerInput</c>.
     /// </summary>
     public sealed class DoorClicksEditModeTests
     {
@@ -17,69 +21,65 @@ namespace Paniq.Tests.EditMode
         private static readonly SimulationId B = new SimulationId(2005UL);
 
         [Test]
-        public void ASingleClick_IsSentOnceTheWindowHasClosed()
+        public void AQuickClick_IsSentTheMomentTheButtonComesBackUp_AndOnlyOnce()
         {
             var clicks = new DoorClicks();
-            Assert.That(clicks.Press(A, 0f, out SimulationId? settled), Is.False, "The first click waits.");
-            Assert.That(settled, Is.Null);
-            Assert.That(clicks.Settle(DoorClicks.WindowSeconds * 0.5f), Is.Null, "Still inside the window.");
-            Assert.That(clicks.Settle(DoorClicks.WindowSeconds + 0.01f), Is.EqualTo(A), "Sent once the window has closed.");
-            Assert.That(clicks.Settle(10f), Is.Null, "And only once.");
+            clicks.Press(A, 0f);
+            Assert.That(clicks.Clicked(true), Is.Null, "Still down: it may yet be a hold.");
+            Assert.That(clicks.Hold(0.1f, true), Is.Null);
+            Assert.That(clicks.Clicked(false), Is.EqualTo(A), "Up inside the window: one click.");
+            Assert.That(clicks.Clicked(false), Is.Null, "And only once.");
+            Assert.That(clicks.Held, Is.Null, "A click is never a hold.");
         }
 
         [Test]
-        public void ASecondClickInsideTheWindow_TurnsTheKey_AndSendsNoSingleClick()
+        public void ThreeQuickClicks_AreThreeClicks()
         {
             var clicks = new DoorClicks();
-            clicks.Press(A, 0f, out _);
-            Assert.That(clicks.Press(A, DoorClicks.WindowSeconds * 0.5f, out SimulationId? settled), Is.True, "A double click.");
-            Assert.That(settled, Is.Null);
-            Assert.That(clicks.Settle(10f), Is.Null, "The single click was never sent.");
-            Assert.That(clicks.Pending, Is.Null);
+            int sent = 0;
+            for (int i = 0; i < 3; i++)
+            {
+                clicks.Press(A, i * 0.1f);
+                sent += clicks.Clicked(false).HasValue ? 1 : 0;
+            }
+
+            Assert.That(sent, Is.EqualTo(3), "Clicking frantically is so many steps of influence, none of them a double click.");
         }
 
         [Test]
-        public void AClickOnAnotherDoor_SendsTheFirstAsTheSingleClickItWas()
+        public void AClickOnAnotherDoor_IsThatDoorsClick()
         {
             var clicks = new DoorClicks();
-            clicks.Press(A, 0f, out _);
-            Assert.That(clicks.Press(B, 0.1f, out SimulationId? settled), Is.False);
-            Assert.That(settled, Is.EqualTo(A), "The first door's click goes as a single click.");
-            Assert.That(clicks.Settle(0.1f + DoorClicks.WindowSeconds + 0.01f), Is.EqualTo(B));
-        }
-
-        [Test]
-        public void AClickAfterTheWindow_IsAFreshSingleClick_NotADoubleClick()
-        {
-            var clicks = new DoorClicks();
-            clicks.Press(A, 0f, out _);
-            Assert.That(clicks.Settle(1f), Is.EqualTo(A));
-            Assert.That(clicks.Press(A, 1.1f, out _), Is.False, "Too late to be the second half of a double click.");
+            clicks.Press(A, 0f);
+            Assert.That(clicks.Clicked(false), Is.EqualTo(A));
+            clicks.Press(B, 0.1f);
+            Assert.That(clicks.Clicked(false), Is.EqualTo(B));
         }
 
         // ------------------------------------------------------------ holding (prototype 3)
 
         /// <summary>
         /// The button kept down on a door past the window is a hand on it:
-        /// the door is taken hold of, and the click that began it is not sent.
+        /// the door is taken hold of, and the press that began it is not a
+        /// click when the button comes back up.
         /// </summary>
         [Test]
         public void AButtonHeldDownPastTheWindow_TakesHoldOfTheDoor_AndIsNotAClick()
         {
             var clicks = new DoorClicks();
-            clicks.Press(A, 0f, out _);
+            clicks.Press(A, 0f);
             Assert.That(clicks.Hold(DoorClicks.WindowSeconds * 0.5f, true), Is.Null, "Still inside the window: it may yet be a click.");
             Assert.That(clicks.Hold(DoorClicks.WindowSeconds + 0.01f, true), Is.EqualTo(A), "The window closed with the button still down.");
             Assert.That(clicks.Held, Is.EqualTo(A));
-            Assert.That(clicks.Settle(DoorClicks.WindowSeconds + 0.01f), Is.Null, "A hold is not a click as well.");
             Assert.That(clicks.Hold(5f, true), Is.Null, "Taken hold of once, not every frame.");
+            Assert.That(clicks.Clicked(false), Is.Null, "A hold is not a click as well.");
         }
 
         [Test]
         public void LettingGoOfTheButton_LetsGoOfTheDoor()
         {
             var clicks = new DoorClicks();
-            clicks.Press(A, 0f, out _);
+            clicks.Press(A, 0f);
             clicks.Hold(DoorClicks.WindowSeconds + 0.01f, true);
             Assert.That(clicks.Release(true), Is.Null, "Still holding.");
             Assert.That(clicks.Release(false), Is.EqualTo(A), "The button came up: the door is let go of.");
@@ -87,39 +87,12 @@ namespace Paniq.Tests.EditMode
             Assert.That(clicks.Release(false), Is.Null, "And only once.");
         }
 
-        /// <summary>
-        /// A double click that turns the key, with the button kept down a
-        /// moment too long afterwards, is only the key: it used to take hold
-        /// of the door as well.
-        /// </summary>
-        [Test]
-        public void ADoubleClickHeldDownAfterwards_TurnsTheKey_AndTakesNoHold()
-        {
-            var clicks = new DoorClicks();
-            clicks.Press(A, 0f, out _);
-            Assert.That(clicks.Press(A, 0.1f, out _), Is.True, "A double click.");
-            Assert.That(clicks.Hold(0.1f + DoorClicks.WindowSeconds + 0.01f, true), Is.Null, "No hold after the key.");
-            Assert.That(clicks.Held, Is.Null);
-        }
-
-        /// <summary>A quick click, the button up again inside the window, is a click and never a hold.</summary>
-        [Test]
-        public void AQuickClick_IsStillAClick_NotAHold()
-        {
-            var clicks = new DoorClicks();
-            clicks.Press(A, 0f, out _);
-            Assert.That(clicks.Hold(0.1f, false), Is.Null, "The button came up.");
-            Assert.That(clicks.Hold(DoorClicks.WindowSeconds + 0.01f, false), Is.Null);
-            Assert.That(clicks.Settle(DoorClicks.WindowSeconds + 0.01f), Is.EqualTo(A), "Sent as the single click it was.");
-            Assert.That(clicks.Held, Is.Null);
-        }
-
         /// <summary>Pausing hands a held door back so it can be let go of, because nothing pressed while the world is stopped reaches it.</summary>
         [Test]
         public void Clearing_HandsBackTheHeldDoor()
         {
             var clicks = new DoorClicks();
-            clicks.Press(A, 0f, out _);
+            clicks.Press(A, 0f);
             clicks.Hold(DoorClicks.WindowSeconds + 0.01f, true);
             Assert.That(clicks.Clear(), Is.EqualTo(A));
             Assert.That(clicks.Held, Is.Null);
@@ -127,12 +100,12 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void Clearing_ForgetsWhateverWasWaiting()
+        public void Clearing_ForgetsAPressUnderWay()
         {
             var clicks = new DoorClicks();
-            clicks.Press(A, 0f, out _);
+            clicks.Press(A, 0f);
             clicks.Clear();
-            Assert.That(clicks.Settle(10f), Is.Null);
+            Assert.That(clicks.Clicked(false), Is.Null);
         }
 
         [Test]

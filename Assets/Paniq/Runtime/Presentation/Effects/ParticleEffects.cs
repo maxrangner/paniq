@@ -344,6 +344,26 @@ namespace Paniq.Presentation
         }
 
         /// <summary>
+        /// The player's influence glittering, for one frame (2026-09-26): a few
+        /// tiny sparks popping up from anywhere across <paramref name="halfWidth"/>
+        /// of <paramref name="at"/> and falling back, more of them the
+        /// <paramref name="strength"/> (0 to 1) of the pull.
+        /// </summary>
+        public void Sparkle(Vector3 at, float halfWidth, float strength, float deltaTime, ref float carry)
+        {
+            Stream sparks = streams[(int)Kind.Sparks];
+            int count = Continuous(sparks, Mathf.Lerp(2f, 24f, Mathf.Clamp01(strength)) * deltaTime, ref carry);
+            for (int i = 0; i < count; i++)
+            {
+                int n = ++sequence;
+                Vector3 start = at + new Vector3((Hash01(n, 6, 3) * 2f - 1f) * halfWidth, Hash01(n, 6, 5) * 0.3f,
+                    (Hash01(n, 6, 7) * 2f - 1f) * halfWidth);
+                Emit(sparks, start, new Vector3((Hash01(n, 6, 9) - 0.5f) * 0.4f, Mathf.Lerp(0.4f, 1.2f, Hash01(n, 6, 11)),
+                    (Hash01(n, 6, 13) - 0.5f) * 0.4f), n, 6, Mathf.Lerp(0.3f, 0.6f, Hash01(n, 6, 15)), 1.2f);
+            }
+        }
+
+        /// <summary>
         /// An extinguisher firing for one frame: a jet of foam from the nozzle
         /// along <paramref name="forward"/>, spreading as it goes, falling to
         /// the floor and settling there, wrapped in a thin mist.

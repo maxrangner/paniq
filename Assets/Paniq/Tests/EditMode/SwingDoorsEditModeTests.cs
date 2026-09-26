@@ -193,7 +193,7 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = SomebodyLeavingByTheCorridorDoor();
             using (var simulation = new Run(data, 7UL))
             {
-                int purse = simulation.Influence;
+                int purse = simulation.Purse;
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, SwingDoors, 1);
                 for (int t = 0; t < 3; t++)
                 {
@@ -201,7 +201,7 @@ namespace Paniq.Tests.EditMode
                 }
 
                 Assert.That(DoorOf(simulation, SwingDoors).State, Is.EqualTo(DoorState.Open));
-                Assert.That(simulation.Influence, Is.EqualTo(purse), "Nothing happened, so nothing is charged.");
+                Assert.That(simulation.Purse, Is.EqualTo(purse), "Nothing happened, so nothing is charged.");
                 Assert.That(EventsAbout(simulation, CausalEventType.DoorClosed, SwingDoors), Is.Empty);
             }
         }

@@ -108,6 +108,12 @@ something you could pick up.
 
 - **Models are crude and simple.** No detailed characters, no realistic
   proportions.
+- **Surfaces will be textured.** The crude prototype draws everything in
+  flat colours; later prototypes and the game give every item textures and
+  materials that react to light (decided 2026-09-26). Crude is the shape,
+  not the surface. Which texture look, painted-toy colours, painted
+  pictures or a mix, is open until concept art settles it; every model is
+  built ready for either (see the [model pipeline](model-pipeline.md)).
 - **Depth of field** is wanted to strengthen the miniature feeling: blurring
   the very front and very back of the scene is what makes a photograph of a
   real street look like a toy. This is blocked for now by the orthographic

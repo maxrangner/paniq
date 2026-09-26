@@ -170,16 +170,101 @@ code defaults in `SimulationEditModeTests`.
 
 ## Building a model
 
-A model (a mesh for a prop or a person) is a short script under
-`tools/models/models/` that `tools\BuildModel.ps1 -Name <Name>` runs through
-Blender in the background: it checks the model against the rules, exports an
-FBX into `Assets/Paniq/Content/Models/`, draws a preview into
-`docs/models/previews/` and writes a report beside it. Nothing needs the
-Unity editor; it picks the file up next time it looks. How to ask for a
-model, what comes back and the rules a model follows are in
-[model-pipeline.md](model-pipeline.md). After any change to the kit under
-`tools/models/paniq_models/` or to the import settings, rebuild the ruler
-(`-Example CalibrationBox`) and run `-Filter Models`.
+The owner's side (how to ask, what comes back, the rules) is in
+[model-pipeline.md](model-pipeline.md). The owner never runs any of this;
+the assistant does. This section is how it works underneath.
+
+**Build.** A model is a script under `tools/models/models/<Name>.py`.
+`tools\BuildModel.ps1 -Name <Name>` runs
+`blender --background --factory-startup --python-exit-code 1 --python tools/models/build.py -- --model <Name> --repo <repo> --scratch Temp\PaniqModels`.
+`-All` builds every script; `-Example <Name>` builds a fixture from
+`tools/models/examples/` into `Assets/Paniq/Tests/Fixtures/Models/`;
+`-KeepBlend` saves a `.blend` beside the raw export to look round in;
+`-Force` redraws the picture of an unchanged model. Lines starting `PANIQ `
+are the human-facing output; everything else is Blender's chatter, shown
+only on failure. Nothing needs the Unity editor; it picks the file up next
+time it looks.
+
+**A model script** defines `build()` and returns a `Model`:
+
+```python
+from paniq_models import Model
+
+def build():
+    m = Model("VendingMachine", footprint_mm=(900, 800), height_mm=1800, budget_tris=500)
+    m.box("Cabinet", size=(0.9, 0.8, 1.8), bevel=0.02).inset("front", 0.06, -0.03)
+    m.box("Window", size=(0.6, 0.02, 1.0), at=(0.0, -0.40, 0.7), surface="Glass")
+    m.box("Base", size=(0.8, 0.7, 0.1))
+    flap = m.part("Flap", hinge_at=(0.0, -0.4, 0.3))
+    m.box("FlapPanel", size=(0.5, 0.02, 0.25), at=(0.0, -0.41, 0.05), parent=flap)
+    return m
+```
+
+The authoring frame is Blender's: +Z up, −Y the front, +X the model's
+right, metres, and every piece's `at` is its bottom centre. Pieces:
+`box(name, size, at, bevel, bevel_segments, parent, surface)` and
+`cylinder(name, radius, height, at, segments, axis, bevel, bevel_segments,
+parent, surface)`; each returns a `Piece` with chainable
+`bevel(width, segments)`, `inset(face, thickness, depth)` and
+`extrude(face, distance, scale)`, where `face` is one of `up`, `down`,
+`front`, `back`, `left`, `right`. `surface` defaults to `Body`; a surface
+name is one capitalised word. `part(name, hinge_at)` makes a named child
+object with its origin at the hinge; pieces join it with `parent=`.
+`shape_key(name, move)` stores a deformation of the body, `move` mapping a
+vertex position to where it goes at full strength. Taper, mirror and join
+are not in the kit yet; add them to `paniq_models/__init__.py` when the
+first model needs them.
+
+**What `build.py` does**, in order: realise the objects (one body named
+after the model plus one child per part, in a `Model` collection; one
+material slot per surface in first-appearance order; a Smart UV Project
+texture map, before any shape key); validate (`validate.py`: floor,
+footprint, height, budget, one texture map inside the unit square, at least
+one surface, names, hinge inside the model); hash the geometry, surfaces,
+texture map and export recipe (`report.py`); if the hash matches the last
+report and the FBX exists, stop with "unchanged"; render the preview
+(`preview.py`: EEVEE, two orthographic views, a pale shade per surface,
+composed with numpy; a render failure is a warning, never a stop); export
+(`export.py`: bake the yaw in `axes.py` into the mesh data, then FBX with
+forward −Z, up Y, apply transform, FBX All scaling, triangles, no
+animation); copy the FBX into place; write the report, which lists each
+mesh's surfaces in sub-mesh order.
+
+**Unity's side.** `Assets/Paniq/Editor/ModelImportSettings.cs` applies the
+import settings to every FBX under `Content/Models` and the fixtures on
+import: file units and scale, axis conversion baked, no imported materials
+(each surface still arrives as its own sub-mesh, in the report's order), no
+collider, no animation, blend shapes on with calculated normals, tangents
+calculated (MikkTSpace) for normal-mapped materials, not readable. A hand
+change in the Inspector does not survive a reimport; raise `GetVersion()` to
+force one after changing the settings.
+
+**The ruler.** `tools/models/examples/CalibrationBox.py` is a 1 m box with
+a bump on top, a bump on the front (a second surface, `Accent`), a bump on
+its right side, a flap hinged along the back top edge and one shape key.
+`ModelsEditModeTests` (filter word `Models`) asserts the bounds (up on +Y,
+front on +X, right on +Z), identity transforms, the flap's pivot and
+extent, the blend shape by name, the surfaces as sub-meshes in report
+order, a texture map and tangents on every mesh, no collider, no material,
+the triangle count against the report, and the importer settings. After any
+change to the kit or the recipe, rebuild it with
+`tools\BuildModel.ps1 -Example CalibrationBox` and run `-Filter Models`.
+
+**When the ruler fails after an upgrade.** A wrong bound on X or Z means the
+front or the right landed elsewhere: change `EXPORT_YAW_DEGREES` in
+`axes.py` (a Blender point (x, y, z) reaches Unity as (x, z, y) today). A
+stray rotation on every transform means the exporter's apply-transform no
+longer bakes it: switch to a Z-up export (`axis_forward='Y', axis_up='Z'`,
+no apply-transform) and let Unity's `bakeAxisConversion` do the work. A
+scale of 100 means the unit scaling moved: `apply_scale_options`. Record
+whatever the fix was in the decision log.
+
+**When materials arrive.** A stone that gives surfaces their materials
+either assigns them by sub-mesh index, reading the order from the report,
+or switches `materialImportMode` on so each sub-mesh arrives with a
+material named after its surface, then remaps those names to the project's
+materials. Either is a change to the import settings and the presentation
+code, not to any model.
 
 ## Building a floor plan
 

@@ -13,8 +13,16 @@ front. Distances are metres. A piece's ``at`` is its bottom centre, so a
 box ``at=(0, 0, 0)`` stands on the floor with its middle over the origin.
 The export step (``export.py``) turns all of that into Unity's frame; a
 model script never thinks about Unity's axes.
+
+Every piece belongs to a named **surface** ("Body" unless it says
+otherwise): the parts of a model that will get different materials, such as
+the glass of a vending machine or the screen of a copier. Each surface
+reaches Unity as a sub-mesh of its own, and every object is given a texture
+map (a UV layout), so a later stone can give each surface its own colour,
+shine, roughness or painted picture without rebuilding a model by hand.
 """
 
+import re
 from math import radians
 
 import bmesh
@@ -31,6 +39,15 @@ DIRECTIONS = {
 }
 
 MODEL_COLLECTION = "Model"
+DEFAULT_SURFACE = "Body"
+SURFACE_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*$")
+
+# The texture map: Blender's Smart UV Project, faces grouped where they meet
+# at under 66 degrees, islands kept at their true relative size and packed
+# into the unit square with a small gap, so a painted picture per model has
+# room for every face and no face shares pixels with another.
+UNWRAP_ANGLE_DEGREES = 66.0
+UNWRAP_ISLAND_MARGIN = 0.02
 
 
 class ModelError(Exception):
@@ -44,9 +61,10 @@ class Piece:
     ``m.box("Cabinet", (0.9, 0.8, 1.8)).inset("front", 0.05, -0.02)``.
     """
 
-    def __init__(self, name, bm):
+    def __init__(self, name, bm, surface):
         self.name = name
         self.bm = bm
+        self.surface = surface
 
     def bevel(self, width, segments=1):
         """Rounds every edge off by ``width`` metres; more segments make a rounder edge."""
@@ -131,17 +149,18 @@ class Model:
         self.body = None
         self.objects = []
 
-    def box(self, name, size, at=(0.0, 0.0, 0.0), bevel=0.0, bevel_segments=1, parent=None):
+    def box(self, name, size, at=(0.0, 0.0, 0.0), bevel=0.0, bevel_segments=1, parent=None,
+            surface=DEFAULT_SURFACE):
         """A block ``size`` = (width, depth, height) metres, its bottom centre ``at``."""
         width, depth, height = size
         bm = bmesh.new()
         bmesh.ops.create_cube(bm, size=1.0)
         bmesh.ops.scale(bm, vec=(width, depth, height), verts=bm.verts[:])
         bmesh.ops.translate(bm, vec=(at[0], at[1], at[2] + height / 2.0), verts=bm.verts[:])
-        return self._add(Piece(name, bm), bevel, bevel_segments, parent)
+        return self._add(Piece(name, bm, _surface(surface)), bevel, bevel_segments, parent)
 
     def cylinder(self, name, radius, height, at=(0.0, 0.0, 0.0), segments=12, axis="Z", bevel=0.0,
-                 bevel_segments=1, parent=None):
+                 bevel_segments=1, parent=None, surface=DEFAULT_SURFACE):
         """
         A drum ``height`` long and ``radius`` wide, standing up (``axis="Z"``)
         or lying along X or Y, its bottom centre ``at``. Twelve segments is
@@ -161,7 +180,7 @@ class Model:
         else:
             raise ModelError(f"A cylinder's axis is 'X', 'Y' or 'Z', not '{axis}'.")
         bmesh.ops.translate(bm, vec=(at[0], at[1], at[2] + lift), verts=bm.verts[:])
-        return self._add(Piece(name, bm), bevel, bevel_segments, parent)
+        return self._add(Piece(name, bm, _surface(surface)), bevel, bevel_segments, parent)
 
     def part(self, name, hinge_at):
         """A named moving part hinged at ``hinge_at``; add its pieces with ``parent=``."""
@@ -189,6 +208,8 @@ class Model:
         Turns the pieces into Blender objects: one body named after the
         model, plus one child object per part with its origin at the hinge,
         all in the ``Model`` collection so the export can pick them out.
+        Each object gets one material slot per surface, in the order the
+        surfaces first appear, and a texture map.
         """
         if not self.pieces:
             raise ModelError(f"{self.name} has no pieces on its body. Add at least one box or cylinder without a parent.")
@@ -213,14 +234,32 @@ class Model:
         return self.objects
 
 
+def _surface(name):
+    if not isinstance(name, str) or not SURFACE_NAME.match(name):
+        raise ModelError(
+            f"'{name}' is not a surface name. Use one word starting with a capital letter, "
+            "such as Body, Glass, Screen or Fabric.")
+    return name
+
+
 def _object_from(name, pieces, origin, collection):
+    surfaces = []
+    for piece in pieces:
+        if piece.surface not in surfaces:
+            surfaces.append(piece.surface)
+
     bm = bmesh.new()
     for piece in pieces:
         scratch = bpy.data.meshes.new(f"{piece.name} (piece)")
         piece.bm.to_mesh(scratch)
         piece.bm.free()
+        before = len(bm.faces)
         bm.from_mesh(scratch)
         bpy.data.meshes.remove(scratch)
+        bm.faces.ensure_lookup_table()
+        slot = surfaces.index(piece.surface)
+        for index in range(before, len(bm.faces)):
+            bm.faces[index].material_index = slot
     if origin.length > 0.0:
         bmesh.ops.translate(bm, vec=-origin, verts=bm.verts[:])
     mesh = bpy.data.meshes.new(name)
@@ -228,10 +267,38 @@ def _object_from(name, pieces, origin, collection):
     bm.free()
     for polygon in mesh.polygons:
         polygon.use_smooth = False
+    for surface in surfaces:
+        mesh.materials.append(bpy.data.materials.get(surface) or bpy.data.materials.new(surface))
     obj = bpy.data.objects.new(name, mesh)
     obj.location = origin
     collection.objects.link(obj)
+    _unwrap(obj)
     return obj
+
+
+def _unwrap(obj):
+    """Gives the object its texture map. Done before shape keys, which texture maps do not follow."""
+    view_layer = bpy.context.view_layer
+    for other in view_layer.objects:
+        other.select_set(False)
+    view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(
+        angle_limit=radians(UNWRAP_ANGLE_DEGREES),
+        island_margin=UNWRAP_ISLAND_MARGIN,
+        area_weight=0.0,
+        correct_aspect=True,
+        scale_to_bounds=False,
+    )
+    bpy.ops.object.mode_set(mode="OBJECT")
+    obj.select_set(False)
+
+
+def surfaces_of(obj):
+    """The surface names of one object, in sub-mesh order."""
+    return [material.name for material in obj.data.materials]
 
 
 def triangle_count(objects):

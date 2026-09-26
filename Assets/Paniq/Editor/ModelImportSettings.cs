@@ -16,7 +16,7 @@ namespace Paniq.EditorTools
         public const string FixtureFolder = "Assets/Paniq/Tests/Fixtures/Models/";
 
         /// <summary>Raise this to make Unity reimport every covered model with changed settings.</summary>
-        public override uint GetVersion() => 1;
+        public override uint GetVersion() => 2;
 
         public static bool Covers(string path)
         {
@@ -44,8 +44,12 @@ namespace Paniq.EditorTools
             // Up and forward are baked into the mesh, so no object carries a stray quarter turn.
             importer.bakeAxisConversion = true;
 
-            // Nothing but the mesh: colour comes from the game's materials, collision from the simulation.
+            // Nothing but the mesh: collision comes from the simulation, and materials from the game.
+            // Each surface still arrives as its own sub-mesh, in the order the build report lists,
+            // with its texture map, so a stone can give each surface its own material.
             importer.materialImportMode = ModelImporterMaterialImportMode.None;
+            importer.importNormals = ModelImporterNormals.Import;
+            importer.importTangents = ModelImporterTangents.CalculateMikk;
             importer.addCollider = false;
             importer.importCameras = false;
             importer.importLights = false;

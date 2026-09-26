@@ -44,7 +44,7 @@ def main():
     sys.path.insert(0, tools)
 
     import bpy
-    from paniq_models import Model, ModelError, export, preview, report, validate
+    from paniq_models import Model, ModelError, export, preview, report, surfaces_of, validate
 
     folder = "examples" if args.fixture else "models"
     script = os.path.join(tools, folder, f"{args.model}.py")
@@ -115,6 +115,7 @@ def main():
         "vertices": sum(len(obj.data.vertices) for obj in objects),
         "parts": [obj.name for obj in objects if obj.parent is not None],
         "shape_keys": [name for name, _ in model.shape_keys],
+        "surfaces": [{"mesh": obj.name, "names": surfaces_of(obj)} for obj in objects],
         "footprint_mm": list(model.footprint_mm),
         "height_mm": model.height_mm,
         "budget_tris": model.budget_tris,
@@ -129,7 +130,8 @@ def main():
         print(f"PANIQ warning {model.name}: built with Blender {bpy.app.version_string}, not the 5.2 LTS the project pins")
     print(
         f"PANIQ built {model.name}: {triangles} triangles, {len(data['parts'])} moving part(s), "
-        f"{len(data['shape_keys'])} shape key(s), {high.x - low.x:.2f} x {high.y - low.y:.2f} x {high.z - low.z:.2f} m, "
+        f"{len(data['shape_keys'])} shape key(s), "
+        f"surfaces {', '.join(sorted({name for entry in data['surfaces'] for name in entry['names']}))}, {high.x - low.x:.2f} x {high.y - low.y:.2f} x {high.z - low.z:.2f} m, "
         f"hash {digest} -> {data['fbx']}")
 
 

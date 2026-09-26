@@ -9,6 +9,7 @@ from . import ModelError, triangle_count
 OVERSIZE_ALLOWED = 1.05
 FLOOR_SLACK = 0.001
 HINGE_SLACK = 0.01
+UV_SLACK = 0.0001
 DEFAULT_NAMES = ("Cube", "Cylinder", "Cone", "Mesh", "Object")
 
 
@@ -49,6 +50,14 @@ def check(model, objects):
             f"{model.name} spends {triangles} triangles against a budget of {model.budget_tris}. "
             "Crude is the style: fewer pieces, fewer bevel segments, fewer cylinder segments.")
     for obj in objects:
+        uv_layers = obj.data.uv_layers
+        if len(uv_layers) != 1:
+            raise ModelError(f"'{obj.name}' has {len(uv_layers)} texture maps; every object needs exactly one.")
+        for loop in uv_layers[0].data:
+            if not (-UV_SLACK <= loop.uv.x <= 1.0 + UV_SLACK and -UV_SLACK <= loop.uv.y <= 1.0 + UV_SLACK):
+                raise ModelError(f"The texture map of '{obj.name}' spills outside the picture it would be painted on.")
+        if not obj.data.materials:
+            raise ModelError(f"'{obj.name}' has no surface.")
         if not obj.name.strip() or obj.name.startswith(DEFAULT_NAMES):
             raise ModelError(f"An object in {model.name} is called '{obj.name}'; every piece and part needs a real name.")
         if obj.parent is not None:

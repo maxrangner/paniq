@@ -6,12 +6,13 @@ script and no human ever chooses them.
 
 import bpy
 
-from . import MODEL_COLLECTION
+from . import MODEL_COLLECTION, UNWRAP_ANGLE_DEGREES, UNWRAP_ISLAND_MARGIN
 from .axes import EXPORT_YAW_DEGREES, export_matrix
 
 # Named in the report and folded into the geometry hash, so a change to the
 # recipe rebuilds every model.
-RECIPE = f"yaw={EXPORT_YAW_DEGREES:.0f};forward=-Z;up=Y;apply_transform;scale=FBX_SCALE_ALL;triangles"
+RECIPE = (f"yaw={EXPORT_YAW_DEGREES:.0f};forward=-Z;up=Y;apply_transform;scale=FBX_SCALE_ALL;triangles;"
+          f"uv=smart{UNWRAP_ANGLE_DEGREES:.0f}/{UNWRAP_ISLAND_MARGIN};surfaces")
 
 
 def export_fbx(objects, path):

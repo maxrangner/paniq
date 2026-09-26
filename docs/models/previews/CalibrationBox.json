@@ -16,16 +16,31 @@
     1200,
     1200
   ],
-  "hash": "d546ba48aea4871a",
+  "hash": "8ae36ce3daf4a83f",
   "height_mm": 1200,
   "name": "CalibrationBox",
   "parts": [
     "Lid"
   ],
   "preview": true,
-  "recipe": "yaw=90;forward=-Z;up=Y;apply_transform;scale=FBX_SCALE_ALL;triangles",
+  "recipe": "yaw=90;forward=-Z;up=Y;apply_transform;scale=FBX_SCALE_ALL;triangles;uv=smart66/0.02;surfaces",
   "shape_keys": [
     "Squash"
+  ],
+  "surfaces": [
+    {
+      "mesh": "CalibrationBox",
+      "names": [
+        "Body",
+        "Accent"
+      ]
+    },
+    {
+      "mesh": "Lid",
+      "names": [
+        "Body"
+      ]
+    }
   ],
   "triangles": 92,
   "vertices": 56

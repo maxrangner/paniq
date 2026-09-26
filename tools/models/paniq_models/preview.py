@@ -1,7 +1,7 @@
 """
 A picture of the model so the owner and the assistant can see it without
 opening Blender or Unity: the game's own view on the left, a straight
-front view on the right. Rendering may fail on a machine with no usable
+front view on the right, each surface in its own pale shade. Rendering may fail on a machine with no usable
 graphics; the FBX never waits for it.
 """
 
@@ -13,7 +13,14 @@ from mathutils import Vector
 
 PREVIEW_COLLECTION = "Preview"
 VIEW_PIXELS = 512
-MODEL_COLOUR = (0.82, 0.80, 0.76, 1.0)
+SURFACE_SHADES = [
+    (0.82, 0.80, 0.76, 1.0),
+    (0.52, 0.66, 0.80, 1.0),
+    (0.86, 0.68, 0.42, 1.0),
+    (0.56, 0.74, 0.52, 1.0),
+    (0.80, 0.56, 0.58, 1.0),
+    (0.64, 0.58, 0.78, 1.0),
+]
 FLOOR_COLOUR = (0.42, 0.43, 0.45, 1.0)
 SKY_COLOUR = (0.78, 0.80, 0.83)
 
@@ -26,46 +33,55 @@ def render(objects, low, high, scratch_dir, out_path):
     centre = (low + high) / 2.0
     extent = max(high.x - low.x, high.y - low.y, high.z - low.z)
 
-    material = _dress(objects)
-    try:
-        _floor(collection, centre, extent)
-        _sun(collection)
-        _world(scene)
-        _render_settings(scene)
+    _tint_surfaces(objects)
+    _floor(collection, centre, extent)
+    _sun(collection)
+    _world(scene)
+    _render_settings(scene)
 
-        views = [
-            # The game's corner-on isometric view: 35.264 degrees down, from the front-right.
-            ("game", Vector((1.0, -1.0, 1.0)).normalized(), extent * 1.9),
-            # Straight at the front, for proportions.
-            ("front", Vector((0.0, -1.0, 0.0)), max(high.x - low.x, high.z - low.z) * 1.3),
-        ]
-        paths = []
-        for name, direction, ortho_scale in views:
-            camera = _camera(collection, name, centre, direction, extent, ortho_scale)
-            scene.camera = camera
-            path = os.path.join(scratch_dir, f"view-{name}.png")
-            scene.render.filepath = path
-            bpy.ops.render.render(write_still=True)
-            paths.append(path)
-        _compose(paths, out_path)
-    finally:
-        _undress(objects, material)
+    views = [
+        # The game's corner-on isometric view: 35.264 degrees down, from the front-right.
+        ("game", Vector((1.0, -1.0, 1.0)).normalized(), extent * 1.9),
+        # Straight at the front, for proportions.
+        ("front", Vector((0.0, -1.0, 0.0)), max(high.x - low.x, high.z - low.z) * 1.3),
+    ]
+    paths = []
+    for name, direction, ortho_scale in views:
+        camera = _camera(collection, name, centre, direction, extent, ortho_scale)
+        scene.camera = camera
+        path = os.path.join(scratch_dir, f"view-{name}.png")
+        scene.render.filepath = path
+        bpy.ops.render.render(write_still=True)
+        paths.append(path)
+    _compose(paths, out_path)
 
 
-def _dress(objects):
-    """A plain light material for the picture only; it is taken off again before the export."""
-    material = bpy.data.materials.new("PreviewModel")
-    material.diffuse_color = MODEL_COLOUR
-    material.roughness = 0.7
+def _tint_surfaces(objects):
+    """
+    Each surface a different pale shade, the first (usually Body) the
+    palest, so the picture shows where one surface ends and the next
+    begins. Unity imports none of these colours; they are for the picture.
+    """
+    names = []
     for obj in objects:
-        obj.data.materials.append(material)
-    return material
+        for material in obj.data.materials:
+            if material.name not in names:
+                names.append(material.name)
+    for index, name in enumerate(names):
+        _colour(bpy.data.materials[name], SURFACE_SHADES[index % len(SURFACE_SHADES)], 0.7)
 
 
-def _undress(objects, material):
-    for obj in objects:
-        obj.data.materials.clear()
-    bpy.data.materials.remove(material)
+def _colour(material, colour, roughness):
+    """Sets a material's colour both where the viewport reads it and where the renderer's shader node does."""
+    material.diffuse_color = colour
+    material.roughness = roughness
+    tree = getattr(material, "node_tree", None)
+    if tree is None:
+        return
+    for node in tree.nodes:
+        if node.type == "BSDF_PRINCIPLED":
+            node.inputs["Base Color"].default_value = colour
+            node.inputs["Roughness"].default_value = roughness
 
 
 def _floor(collection, centre, extent):
@@ -76,8 +92,7 @@ def _floor(collection, centre, extent):
     obj = bpy.data.objects.new("PreviewFloor", mesh)
     obj.location = (centre.x, centre.y, -0.0005)
     material = bpy.data.materials.new("PreviewFloor")
-    material.diffuse_color = FLOOR_COLOUR
-    material.roughness = 0.9
+    _colour(material, FLOOR_COLOUR, 0.9)
     mesh.materials.append(material)
     collection.objects.link(obj)
 

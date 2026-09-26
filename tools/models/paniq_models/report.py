@@ -21,7 +21,11 @@ def geometry_hash(objects, recipe):
             digest.update(_vector(vertex.co))
         for polygon in mesh.polygons:
             digest.update(",".join(str(index) for index in polygon.vertices).encode())
-            digest.update(b";")
+            digest.update(f"m{polygon.material_index};".encode())
+        digest.update(",".join(material.name for material in mesh.materials).encode())
+        for layer in mesh.uv_layers:
+            for loop in layer.data:
+                digest.update(f"{loop.uv.x:.5f},{loop.uv.y:.5f};".encode())
         if mesh.shape_keys is not None:
             for block in mesh.shape_keys.key_blocks:
                 digest.update(block.name.encode())

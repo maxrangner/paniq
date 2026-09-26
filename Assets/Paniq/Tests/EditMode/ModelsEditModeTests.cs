@@ -28,6 +28,14 @@ namespace Paniq.Tests.EditMode
             public int triangles;
             public string[] parts;
             public string[] shape_keys;
+            public Surfaces[] surfaces;
+        }
+
+        [System.Serializable]
+        private sealed class Surfaces
+        {
+            public string mesh;
+            public string[] names;
         }
 
         private GameObject model;
@@ -96,13 +104,64 @@ namespace Paniq.Tests.EditMode
                 "a material was imported");
         }
 
+        /// <summary>
+        /// Every surface arrives as a sub-mesh of its own, in the order the
+        /// build report lists, so a later stone can give each one its own
+        /// material: the box's front bump is "Accent", the rest "Body".
+        /// </summary>
+        [Test]
+        public void EachSurface_ArrivesAsItsOwnSubMesh_InReportOrder()
+        {
+            Report report = ReadReport();
+            Assert.That(report.surfaces.Select(entry => entry.mesh), Is.EquivalentTo(new[] { "CalibrationBox", "Lid" }));
+            foreach (Surfaces entry in report.surfaces)
+            {
+                Transform owner = entry.mesh == "Lid" ? Find("Lid") : BodyTransform();
+                Mesh mesh = MeshOf(owner);
+                Assert.That(mesh.subMeshCount, Is.EqualTo(entry.names.Length), $"sub-meshes of {entry.mesh}");
+                for (int i = 0; i < mesh.subMeshCount; i++)
+                {
+                    Assert.That(mesh.GetSubMesh(i).indexCount, Is.GreaterThan(0), $"{entry.mesh} surface {entry.names[i]} is empty");
+                }
+            }
+
+            Assert.That(report.surfaces.First(entry => entry.mesh == "CalibrationBox").names,
+                Is.EqualTo(new[] { "Body", "Accent" }));
+        }
+
+        /// <summary>
+        /// Every mesh is ready for a painted picture and for light: it has a
+        /// texture map inside the picture's square, and the tangents a bumpy
+        /// (normal-mapped) material needs.
+        /// </summary>
+        [Test]
+        public void EveryMesh_HasATextureMap_AndTangents()
+        {
+            foreach (Transform transform in model.GetComponentsInChildren<Transform>(true))
+            {
+                Mesh mesh = MeshOf(transform);
+                if (mesh == null)
+                {
+                    continue;
+                }
+
+                Assert.That(mesh.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.TexCoord0), Is.True,
+                    $"{transform.name} has no texture map");
+                Assert.That(mesh.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.Tangent), Is.True,
+                    $"{transform.name} has no tangents");
+                foreach (Vector2 uv in mesh.uv)
+                {
+                    Assert.That(uv.x >= -0.0001f && uv.x <= 1.0001f && uv.y >= -0.0001f && uv.y <= 1.0001f, Is.True,
+                        $"{transform.name} has a texture map point outside the square: {uv}");
+                }
+            }
+        }
+
         /// <summary>What Unity got is what Blender said it sent: the report beside the preview agrees.</summary>
         [Test]
         public void WhatUnityGot_MatchesTheBuildReport()
         {
-            string path = Path.Combine(Application.dataPath, "..", ReportPath);
-            Assert.That(File.Exists(path), Is.True, $"{ReportPath} is missing; the build writes it.");
-            Report report = JsonUtility.FromJson<Report>(File.ReadAllText(path));
+            Report report = ReadReport();
 
             int triangles = model.GetComponentsInChildren<Transform>(true)
                 .Select(MeshOf).Where(mesh => mesh != null).Sum(mesh => mesh.triangles.Length / 3);
@@ -125,15 +184,28 @@ namespace Paniq.Tests.EditMode
             Assert.That(importer.importAnimation, Is.False, "importAnimation");
             Assert.That(importer.animationType, Is.EqualTo(ModelImporterAnimationType.None), "animationType");
             Assert.That(importer.importBlendShapes, Is.True, "importBlendShapes");
+            Assert.That(importer.importTangents, Is.EqualTo(ModelImporterTangents.CalculateMikk), "importTangents");
             Assert.That(importer.isReadable, Is.False, "isReadable");
+        }
+
+        private static Report ReadReport()
+        {
+            string path = Path.Combine(Application.dataPath, "..", ReportPath);
+            Assert.That(File.Exists(path), Is.True, $"{ReportPath} is missing; the build writes it.");
+            return JsonUtility.FromJson<Report>(File.ReadAllText(path));
+        }
+
+        private Transform BodyTransform()
+        {
+            Transform body = model.GetComponentsInChildren<Transform>(true)
+                .FirstOrDefault(transform => transform.name != "Lid" && MeshOf(transform) != null);
+            Assert.That(body, Is.Not.Null, "The box's own mesh did not arrive.");
+            return body;
         }
 
         private Mesh BodyMesh()
         {
-            Mesh mesh = model.GetComponentsInChildren<Transform>(true)
-                .Where(transform => transform.name != "Lid").Select(MeshOf).FirstOrDefault(found => found != null);
-            Assert.That(mesh, Is.Not.Null, "The box's own mesh did not arrive.");
-            return mesh;
+            return MeshOf(BodyTransform());
         }
 
         private Transform Find(string name)

@@ -46,6 +46,13 @@ namespace Paniq.Tests.EditMode
             data.Panic.HesitateChancePercent = 0;
             data.Panic.SwerveChancePercent = 0;
             data.Leadership.LeaderMinimum = AgentTraitValues.Maximum + 1;
+
+            // One square of fire that never spreads, in a corner: frightening
+            // enough to set them running, but out of sight and earshot from
+            // most of the office, so with calming down on they would settle
+            // half way across. These tests are about how a group runs, not
+            // about how long a fright lasts.
+            data.Calming.Enabled = false;
             TheBuilding.FireAt(data, new LogicalPosition(4500, -4500));
             return data;
         }
@@ -136,7 +143,7 @@ namespace Paniq.Tests.EditMode
                 Someone(4UL, 2000, 2000, 5));
             using (var simulation = new Run(data, 7UL))
             {
-                int purse = simulation.Influence;
+                int purse = simulation.Purse;
                 simulation.QueueCommand(PlayerCommandType.StickTogether, new LogicalPosition(-3000, 300), 1);
                 simulation.Step();
 
@@ -146,7 +153,7 @@ namespace Paniq.Tests.EditMode
                 Assert.That(simulation.GetAgent(3).GroupId, Is.EqualTo(-1), "Out of the circle: not bound.");
                 List<CausalEvent> bound = EventsOfType(simulation, CausalEventType.PowerStickTogether);
                 Assert.That(bound, Has.Count.EqualTo(3), "One event per person caught.");
-                Assert.That(simulation.Influence, Is.EqualTo(purse - data.Influence.CardCost));
+                Assert.That(simulation.Purse, Is.EqualTo(purse - data.Purse.CardCost));
             }
         }
 
@@ -156,14 +163,14 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = Quiet(Someone(1UL, -3000, 0, 5), Someone(2UL, 2000, 2000, 5));
             using (var simulation = new Run(data, 7UL))
             {
-                int purse = simulation.Influence;
+                int purse = simulation.Purse;
                 int cards = simulation.GetSnapshot().Hand.Count;
                 simulation.QueueCommand(PlayerCommandType.StickTogether, new LogicalPosition(-3000, 0), 1);
                 simulation.Step();
 
                 Assert.That(simulation.GetAgent(0).GroupId, Is.EqualTo(-1), "A group of one is no group.");
                 Assert.That(EventsOfType(simulation, CausalEventType.PowerStickTogether), Is.Empty);
-                Assert.That(simulation.Influence, Is.EqualTo(purse), "A miss is free.");
+                Assert.That(simulation.Purse, Is.EqualTo(purse), "A miss is free.");
                 Assert.That(simulation.GetSnapshot().Hand.Count, Is.EqualTo(cards), "And the card stays in hand.");
             }
         }

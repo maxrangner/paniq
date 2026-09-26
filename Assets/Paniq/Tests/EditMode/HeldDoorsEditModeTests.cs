@@ -253,7 +253,7 @@ namespace Paniq.Tests.EditMode
                 Assert.That(closed, Has.Count.EqualTo(1));
                 Assert.That(closed[0].CausalParentEventId, Is.EqualTo(held[0].EventId), "Shut because it was taken hold of.");
                 Assert.That(EventsOfType(simulation, CausalEventType.DoorLocked), Is.Empty, "A held door is not also locked.");
-                Assert.That(simulation.Influence, Is.EqualTo(simulation.GetSnapshot().InfluenceMaximum - simulation.GetSnapshot().CostOfDoorClick(DoorState.Unlocked, false)),
+                Assert.That(simulation.Purse, Is.EqualTo(simulation.GetSnapshot().PurseMaximum - simulation.GetSnapshot().CostOfDoorClick(DoorState.Unlocked, false)),
                     "The click cost what a click costs; the hold cost nothing.");
 
                 simulation.QueueCommand(PlayerCommandType.ReleaseDoor, ClosetDoor, 4);

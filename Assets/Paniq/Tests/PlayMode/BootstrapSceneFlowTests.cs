@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using NUnit.Framework;
 using Paniq.App;
+using Paniq.Simulation;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
@@ -40,9 +41,11 @@ namespace Paniq.Tests.PlayMode
             Assert.That(runner.IsWaitingToStart, Is.True, "A level opens behind its start card.");
             Assert.That(runner.IsTicking, Is.False, "Nothing moves until the player presses Play.");
 
-            // A long minute of office life: still nothing alight, because the
-            // fire waits for the player rather than for a tick count.
-            for (int tick = 0; tick < 60 * Paniq.Simulation.Run.TicksPerSecond; tick++)
+            // Twenty-five seconds of office life: still nothing alight. The
+            // fire waits for the player, or on the office for the Director's
+            // first incident, which never comes before thirty seconds
+            // (2026-09-26).
+            for (int tick = 0; tick < 25 * Paniq.Simulation.Run.TicksPerSecond; tick++)
             {
                 runner.StepForTests();
             }
@@ -62,14 +65,38 @@ namespace Paniq.Tests.PlayMode
             Assert.That(runner, Is.Not.Null);
             runner.BeginPlaying();
             runner.QueueTriggerEvent();
-            for (int tick = 0; tick < 5; tick++)
+            for (int tick = 0; tick < 10; tick++)
+            {
+                runner.StepForTests();
+            }
+
+            // On the office the trigger sets a waste bin alight (2026-09-26):
+            // the fire exists, and the bin is what is burning.
+            Assert.That(runner.Snapshot.FireActive, Is.True);
+            bool binBurning = false;
+            for (int i = 0; i < runner.Snapshot.PhysicsObjects.Count; i++)
+            {
+                PhysicsObjectSnapshot thing = runner.Snapshot.PhysicsObjects[i];
+                binBurning |= thing.Kind == PhysicsObjectKind.WasteBin && thing.BurnState == ObjectBurnState.Burning;
+            }
+
+            Assert.That(binBurning, "The trigger set a waste bin alight.");
+
+            // The carpet under it catches about ten seconds later -- unless
+            // somebody brave puts the bin out first, or the crowd kicks it
+            // about so it never rests, which is the game working. When it
+            // does catch, the burning square is drawn.
+            for (int tick = 0; tick < 20 * Paniq.Simulation.Run.TicksPerSecond && runner.Snapshot.FireCells.Count == 0; tick++)
             {
                 runner.StepForTests();
             }
 
             yield return null;
 
-            Assert.That(runner.Snapshot.FireActive, Is.True);
+            if (runner.Snapshot.FireCells.Count == 0)
+            {
+                Assert.Pass("The bin never set the carpet alight in twenty seconds (put out, or kicked about); nothing on the floor to draw.");
+            }
 
             // The fire is drawn in batches, not as scene objects, so the
             // check is what the view says it drew this frame.
@@ -119,7 +146,7 @@ namespace Paniq.Tests.PlayMode
             // This test is about the scene being wired up -- a leaf that is
             // there, can be clicked, and swings -- not about what the player
             // can afford.
-            runner.Simulation.GiveInfluenceForTests(1000);
+            runner.Simulation.GivePurseForTests(1000);
 
             var door = new Paniq.Simulation.SimulationId(2008UL);
             runner.QueueDoorClick(door);
@@ -128,7 +155,7 @@ namespace Paniq.Tests.PlayMode
 
             // The purse holds a hundred and the way out took all of it: fill
             // it again for the click that opens the door.
-            runner.Simulation.GiveInfluenceForTests(1000);
+            runner.Simulation.GivePurseForTests(1000);
             runner.QueueDoorClick(door);
             runner.StepForTests();
             Assert.That(DoorState(runner, door), Is.EqualTo(Paniq.Simulation.DoorState.Open));

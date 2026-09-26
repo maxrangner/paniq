@@ -172,10 +172,12 @@ counter at the top left shows calm, scared (and frozen), down and lost people.
 
 **Doors.** Doors are 1 m wide. The one way out starts locked; every door
 inside the building starts shut but unlocked, so people work them
-themselves. The player clicks a door to open or shut it, double-clicks it to
-turn its key, and (since prototype 3) holds the button down on it to keep it
-shut; the full controls are in [look and controls](look-and-controls.md). On
-this level none of it costs anything. Clicking a broken door does nothing.
+themselves. Since 2026-09-26 the player does not open or shut doors: a click
+on a door draws people to use it (influence, below), holding the button down
+on it keeps it shut (since prototype 3), and a right click turns its key --
+which is how the locked way out is opened. The full controls are in
+[look and controls](look-and-controls.md). On this level none of it costs
+anything.
 
 Runners head for a door. People can see that a door is open, but a shut door
 looks the same to them whether it is locked or not; red and green are only for
@@ -453,7 +455,17 @@ burn: the moment the flames reach them they go off. A bang the whole building
 hears, everything loose nearby flung away from it, anybody standing close
 knocked off their feet, a scatter of fresh fire on the floor around it, and the
 thing itself left as wreckage. One pop can start a second fire across the room
-from the first.
+from the first -- but never through a wall: since 2026-09-26 a bang lights
+floor only in its own room, or in a room open to it through a doorway.
+
+**The cable runs one way** (the owner's rule, 2026-09-26: "only if the fusebox
+goes, it should quickly cascade down to all outlets, but not the other way
+around"). A socket going off, in the flames or because the Director chose it,
+is a bang and nothing more. When the **fuse box** goes -- the flames reach it,
+the Director sets it off, or the card -- a spark races out along the cable at
+twenty metres a second and every socket down the line pops in turn: the
+office's three are all gone within about two and a half seconds. A socket
+already wrecked does not stop the spark; it carries on past to the next.
 
 **Wedged doorways.** Anything left resting in a doorway jams that door, from
 either side, and both ways: it cannot be opened and it cannot be shut, and no
@@ -479,14 +491,35 @@ has stopped being a way out.
 
 ## The round
 
-**It starts when you say so.** A card covers the screen before anything moves:
-the level's name, how many of the twenty have to live to clear it, your best
-ever, and a box holding the seed with a **Random** button beside it. Press
-**Play** and the office comes to life — people walking about, the meeting under
-way — with nothing wrong at all. A strip along the top counts *saved*, *lost*
-and *still inside* against the target, and under it sits **Trigger event**.
-Press that and the fire starts, on the square the seed chose. Pressing it twice
-does not light two fires.
+**It builds up** (prototype 3, second batch, 2026-09-26). A card covers the
+screen before anything moves: the level's name, how many of the twenty have to
+live to clear it, your best ever, and a box holding the seed with a **Random**
+button beside it. Press **Play** and the office comes to life — people walking
+about, the meeting under way — with nothing wrong at all. A strip along the top
+counts *saved*, *lost* and *still inside* against the target, and under it sits
+**Trigger event**. Half a minute to a minute and a half in (the seed decides),
+or the moment you press the button, **a waste bin in the meeting room catches
+fire** -- by the door one seed, in the far corner or under the north wall the
+next. It smoulders for about ten seconds before the carpet under it catches,
+and while the fire is young it spreads slowly, so somebody brave has a real
+chance to take the extinguisher off the meeting room's wall and put it out.
+Pressing the button twice does not light two fires.
+
+**If the bin is put out** -- nothing burning anywhere, and it never got out of
+the meeting room -- any bell that was pulled falls silent about ten seconds
+later (the all-clear; pulled again by somebody still frightened, it falls
+silent again), people calm down at their own pace, and twenty to forty
+seconds after the put-out **a wall socket crackles**: in the room with the most
+people still calmly at work, never the room that just had the fire. It spits
+sparks and smokes for five seconds (the curious may wander over to look), then
+goes off: a bang and a small fire. **If that is put out too, the fuse box
+crackles and goes**, and every socket after it. That is the last rung.
+
+**If a fire gets out of the room it started in, it is the real fire.** The
+Director adds nothing more, and only now is the tower of boxes armed: the first
+person near it brings it down. If everybody simply runs out, that is fine too.
+The round does not end as "nothing is happening" while the Director has
+something still to come.
 
 **Pause looks, it does not act.** **Space** stops everything: people mid-stride,
 flames mid-flicker, smoke mid-drift. The camera still answers you so you can go
@@ -526,7 +559,8 @@ to swing the view to any angle at all; it stays where you let go. **Q** and
 now, so the four corners remain somewhere tidy to land. The **mouse wheel**
 zooms, and tilts as it goes: pulled out you look down on the building at the
 isometric angle, pushed in you look along the floor. A right *click* without a
-drag puts down the card in your hand. The camera keeps working while the game
+drag puts down the card in your hand, or, with none in hand, turns the key of
+the door under the pointer. The camera keeps working while the game
 is paused. The full description is in [look and controls](look-and-controls.md).
 
 ## What the player can do
@@ -577,12 +611,55 @@ the brave feel it least and the nervous most, anyone with flames at their
 back runs regardless, and a throw that catches fewer than two people makes
 no group and is free.
 
-**Fire alarms are yours to pull, for 30.** Click any red pull station and every
-bell in the building rings, exactly as when a person hits one: everybody calm
-who hears it takes fright and goes for a way out. Pulling one that is
-already ringing does nothing and costs nothing. It is the one move always on
-offer from the first tick -- a player who has seen a fire nobody else has can
-raise the building before it knows.
+**On the office, only people pull fire alarms** (the owner, 2026-09-26). A
+click on the red pull station puts influence beside it instead, and the brave
+among the people drawn there may pull it. A level that lets the player pull
+alarms (`LevelDefinition.playerPullsAlarms`) prices it like a card, 30: every
+bell in the building rings, exactly as when a person hits one, and pulling one
+that is already ringing does nothing and costs nothing. Either way the bells
+stop about ten seconds after the Director judges a fire put out.
+
+**Influence: draw people to a place** (2026-09-26, the owner's idea). Click a
+door, a thing or a patch of floor and people near it are drawn toward it --
+never ordered there. The owner: "clicking a door once just increases the
+chances of an agent using the door; clicking it a few more times increases it
+more; clicking an empty hallway a few times acts like an attractor influencing
+the agents' own decision making."
+
+- **Each click is one step**, up to twenty: a strong pull takes frantic
+  clicking. It loses a step every two seconds, so a full one fades over about
+  forty, and it cannot be taken back. There is no limit to how many places
+  there are.
+- **It sticks to its place and fades with distance**: anybody within about
+  twelve metres feels it, more the nearer they are, including somebody who
+  wanders in later -- but never from another room (a door's is felt in both
+  rooms it joins).
+- **Everybody weighs it by who they are.** The nervous and visitors follow
+  readily (up to twice an ordinary person); leaders and the cruel mostly ignore
+  it (a tenth, at the extreme). Nobody is drawn into a room that is alight, or
+  through the heat, or straight back through the door they just came in by.
+- **Frightened people** choose their door and where to run with it added in: a
+  full, close pull is worth as much as an exit sign pointing that way, more
+  than a door standing open. An influenced door on the wall of their room is
+  considered as a way round even when it is not on the shortest walk -- the
+  office's stockroom door can beat the corridor.
+- **Calm people feel it too.** With nothing in particular to do, they wander
+  over to it, the likelier the stronger the pull. The easily led -- nervousness
+  7 or more, or a visitor -- may get up from their seat or leave an errand for
+  a strong one, but only between the moving parts of it: never halfway into a
+  chair, mid-conversation, or while somebody is waiting to meet them. The
+  steady carry on. So the player can thin out a meeting
+  before anything happens, but not empty it.
+- **You can see it work.** A sparkling aura on the place, faint at one click and
+  intense at twenty, and a sparkling line from everybody feeling a pull to it,
+  faint for a gentle pull and bright for a strong one. When influence actually
+  changes somebody's mind, the log says so.
+
+**Nudge a person.** Click somebody and they step away from where the click
+landed, stagger, and look round a beat later for whoever did it. Three nudges
+in ten seconds and they are annoyed: "leave me alone!", they shake with it,
+and for about twenty seconds nudging them does nothing at all. A nudge
+frightens nobody.
 
 Every card costs **30**. A card you are not holding does nothing however rich
 you are; a card you cannot pay for does nothing either. **A card that catches
@@ -593,10 +670,10 @@ exactly the patch it will catch, brightening when somebody is standing in it.
 
 Click a card to pick it up, then click the floor to throw it (2026-09-25;
 the number keys are gone). Escape or a right click puts it back down. Two of
-a kind sit as one card with the count in its corner. One click on a door
-opens or shuts it; a double click turns its key. Point at a door or a red
-pull station and the line under the score says what a click will do and
-cost. **Reset**, top right, goes straight back to the start card with the
+a kind sit as one card with the count in its corner. A click on a door draws
+people to it; a right click turns its key. Point at a door, a red pull station,
+a person, a thing or the floor and the line under the score says what a click
+will do. **Reset**, top right, goes straight back to the start card with the
 seed kept; **Pause** sits under it; the red **Trigger event** button sits
 bottom centre and goes the moment it is pressed.
 
@@ -1116,6 +1193,87 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   2.5 m flung at 90 mm/tick, and the people within 1.5 m shoved back 600 mm and
   floored. No fire.
 
+### Prototype 3, second batch (2026-09-26)
+
+- **The Director's ladder** (`DirectorSystem`, `DirectorSettings`; on only when
+  the level says so -- the office does -- so a test building starts its fire
+  the way it always did). At start-up it draws which of the meeting room's bins
+  (only if there is more than one) and when it catches, 1500–4500 ticks; the
+  fire is told not to light its own square (`LeaveTheStartToTheDirector`). On
+  that tick, or on the player's trigger, `FireSystem.StartWithoutFlames` makes
+  the fire exist without a square alight (`FireActivated` at the bin),
+  `DirectorStartedIncident` is written and the bin is set alight
+  (`FlammablesSystem.IgniteObject`). Each tick it watches: anything burning
+  in a room the incident does not own -- floor or thing -- is
+  `FireEscapedItsRoom` and ends the ladder. A bin owns its own room; a socket
+  or the fuse box also owns every room its own bang and spark set alight in
+  the first `BangSettlesTicks` (250) after it went, so the fuse box taking
+  every socket is one incident, not a fire got loose. Nothing burning at all
+  (floor, things or people) is `IncidentPutOut`, followed by the all-clear 500
+  ticks jittered later (`AlarmSystem.Silence`, `AllClear`) and the next rung
+  1000–2000 ticks later. The all-clear stands while nothing burns: a bell
+  pulled again is silenced again, 500 ticks jittered after it started.
+  The socket is chosen among whole sockets outside the last incident's room by
+  the most calm participating people in its room, drawing only on a tie; with
+  none left it is the fuse box. It crackles for 250 ticks (`SocketCrackling`,
+  a crash heard 5 m that frightens nobody) and is popped
+  (`PowerSystem.PopSocket` / `PopTheFuseBox`); its room becomes the new start
+  room. `HasSomethingComing` holds the round's stall clock open. The traps are
+  armed by `EscapedEventId` rather than by the fire being lit.
+- **A young fire spreads slowly** when the Director started it: while fewer
+  than 12 squares burn, each spread wait is three times as long (the same one
+  draw). A waste bin burns 1000–1500 ticks and sets its floor square alight
+  after resting about 500 ticks (`ObjectKindSettings.FloorIgniteRestTicks`,
+  jittered when it catches).
+- **Danger is danger.** `Threats` holds the fire, then `BurningThingsThreat`
+  (everything alight in `FlammablesSystem`: seen, heard at the fire's base
+  reach, nearest point its edge, in a room, near a route) and then
+  `BurningPeopleThreat` (whoever is alight, read once a tick in phase 2: seen
+  and fled from, but never "in a room", "on a route" or "danger right beside
+  me", so the kind can still reach them with a bottle, and never a danger to
+  themselves). Touching and harm stay with the flammables and the burning
+  person. The extinguisher aims at the nearer of a burning square or a burning
+  thing, and fights when only things burn.
+- **Calming down** (`FearSystem.Settle`, after perception, for the frightened
+  only). Every `CheckEveryTicks` on each person's own beat, a danger in their
+  room, in sight or in earshot (half as far through a shut door) refreshes
+  their fear, as do a bell or a bang reaching them (`SoundSystem.Emit`) and
+  being alight. After their own quiet spell (250 ticks jittered, drawn when they
+  took fright) fear drains at `40 + 8 × bravery − 6 × nervousness` per mille a
+  second, at least 10, down to `120 × (nervousness − 5)`; below 400 they settle
+  a reaction lag later on a tick nobody else settles on, once they are only
+  running, dithering, frozen or standing. Settling writes `AgentCalmedDown`,
+  clears the escape, makes them rattled (3000 ticks if they saw the danger,
+  1000 if not, jittered) and hands them the GoHome cue unless their desk's room is
+  alight. Rattled, a noise within half its hearing reach alarms them outright,
+  and the brave need three more bravery to look before they run. Frightened
+  people stop shouting once their quiet spell is over.
+- **Influence** (`InfluenceSystem`, `InfluenceSettings`; commands
+  `InfluenceDoor`, `InfluenceThing`, `InfluenceSpot`, free). A place is a door,
+  a thing's spot or a floor point; a click within 1 m of a floor or thing place
+  (or on the same door or thing) adds a step up to 20, and a place loses a step
+  every 100 ticks since its last click. Felt per mille: `level/20 × (1 −
+  distance/12 m) × susceptibility`, only in the place's room (both rooms for a
+  door), susceptibility `100 + 12 × (nervousness − 5) − 12 × max(0, leadership
+  − 5) − 12 × max(0, evil − 5)`, +50 for a visitor, clamped to 10–200 %. Worth
+  `felt × 6000 / 1000` mm to a door choice (the door itself) and, through the
+  sign's agreement arithmetic, to spots its way. `DoorBehaviour.ChooseExitDoor`
+  adds it except through the heat, into a burning room or back into
+  `PreviousRoom`, and also scores the ways out through every influenced door on
+  this room's wall with the noise fixed at half its range; a choice it changed
+  writes `AgentDrawnByInfluence`. Calm people's `ChooseActivity` wanders to the
+  strongest pull felt with a chance of the pull per mille (drawn only when one
+  is felt); the easily led seated or on an errand weigh it once a second at a
+  tenth of that. Weighing a pull nobody feels draws no random numbers.
+- **Nudge from a point** (`NudgePersonFrom`): the lurch, 300 mm, is away from
+  the point; annoyed (`AgentAnnoyed`), they stay so for 1000 ticks jittered,
+  during which a nudge is written down and does nothing else.
+- **The heap is seen.** A frightened person choosing a door treats a doorway
+  heaped with fallen boxes on a wall of their room, within sight, as found shut
+  -- unless they are strong enough to heave it, in which case they get
+  `StrongGiveUpOnAHeapTicks` (400 jittered) at it first, counted from when
+  they come within `StrongTryTheHeapWithinMillimetres` (3 m) of it.
+
 ## Causal events and presentation
 
 The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
@@ -1244,10 +1402,11 @@ bar above it, and the line above that saying what a click will do. Since
 2026-09-24 the hand is drawn as portrait cards, 96 × 132 pixels, each with
 its name, a line on what it does and its price; a card the player cannot
 afford is dimmed red with the shortfall written on it, and the one in hand
-lifts and turns blue. Since 2026-09-25 each card is a button, two of a kind
-are one card with the count in a badge, and a single click on a door is held
-for a third of a second in case a second one makes it a double click
-(`DoorClicks`, plain arithmetic with no scene in it). Every card and button
+lifts and turns blue. Since 2026-09-25 each card is a button and two of a kind
+are one card with the count in a badge. A click on a door is told from a hold
+by whether the button comes back up inside a third of a second (`DoorClicks`,
+plain arithmetic with no scene in it); since 2026-09-26 there is no double
+click to wait for. Every card and button
 claims its patch of screen as it is drawn (`HudHitTest`), so a click on one
 never also reaches the floor behind it. Clicking a place is worked out against
 the mathematical ground plane, so no collider is needed for it; door leaves

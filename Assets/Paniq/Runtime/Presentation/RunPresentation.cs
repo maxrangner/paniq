@@ -38,6 +38,9 @@ namespace Paniq.Presentation
         private PopBursts pops;
         private CardAimRing aimRing;
 
+        /// <summary>The player's influence: the sparkling auras and the lines to whoever feels them (2026-09-26).</summary>
+        private InfluenceView influence;
+
         /// <summary>How wide a thrown card's patch is, read once when the scene is built.</summary>
         private int cardPatchRadiusMillimetres;
         private EventSigns signs;
@@ -62,6 +65,22 @@ namespace Paniq.Presentation
         private readonly EventLogScreen log = new EventLogScreen();
 
         private RunSnapshot frameSnapshot;
+
+        /// <summary>
+        /// A socket or the fuse box crackling before it goes (the Director's
+        /// warning, 2026-09-26): where, until when, when it next spits, and a
+        /// seed for its sparks.
+        /// </summary>
+        private struct Crackle
+        {
+            public Vector3 At;
+            public float Until;
+            public float NextSpit;
+            public ulong Seed;
+            public int Spits;
+        }
+
+        private readonly System.Collections.Generic.List<Crackle> crackles = new System.Collections.Generic.List<Crackle>();
 
         /// <summary>Why the display could not be built, or null when all is well.</summary>
         private string startupError;
@@ -98,7 +117,8 @@ namespace Paniq.Presentation
                 spray = new SprayView(effects);
                 pops = new PopBursts(materials, effects, root);
                 aimRing = new CardAimRing(materials.Icon, root);
-                cardPatchRadiusMillimetres = scenario.Influence.CardPatchRadiusMillimetres;
+                influence = new InfluenceView(materials.Icon, root, effects);
+                cardPatchRadiusMillimetres = scenario.Purse.CardPatchRadiusMillimetres;
                 signs = new EventSigns(materials, root);
                 cable = new PowerCableView(scenario, materials, root);
                 _ = new ExitSignView(scenario.ExitSigns, materials, root);
@@ -235,6 +255,8 @@ namespace Paniq.Presentation
             fire.Update(frameSnapshot, time);
             spray.Update(frameSnapshot);
             pops.Update(time);
+            UpdateCrackles(time);
+            influence.Update(frameSnapshot, time, Time.deltaTime);
 
             // The patch a card in hand would catch if it were thrown where the
             // pointer is. Nothing is drawn with no card in hand, and nothing is
@@ -358,6 +380,34 @@ namespace Paniq.Presentation
             return null;
         }
 
+        /// <summary>
+        /// Every crackling socket spits a little shower of sparks now and then
+        /// -- more often as it nears going off -- until its time is up.
+        /// </summary>
+        private void UpdateCrackles(float time)
+        {
+            for (int i = crackles.Count - 1; i >= 0; i--)
+            {
+                Crackle crackle = crackles[i];
+                if (time >= crackle.Until)
+                {
+                    crackles.RemoveAt(i);
+                    continue;
+                }
+
+                if (time < crackle.NextSpit)
+                {
+                    continue;
+                }
+
+                effects.Break(crackle.At, 0.15f, true, crackle.Seed + (ulong)crackle.Spits);
+                crackle.Spits++;
+                float left = crackle.Until - time;
+                crackle.NextSpit = time + Mathf.Lerp(0.12f, 0.45f, Mathf.Clamp01(left / 5f));
+                crackles[i] = crackle;
+            }
+        }
+
         /// <summary>Starts icons, ripples, hops and judders for every event since the last frame.</summary>
         private void PlayNewEvents(RunSnapshot snapshot, float time)
         {
@@ -403,7 +453,7 @@ namespace Paniq.Presentation
                         // One big ring from every bell, so the noise is visible.
                         ripples.Start(record.Position, record.Strength, SoundRipples.YellColor, time);
                         break;
-                    case CausalEventType.AgentPoked:
+                    case CausalEventType.AgentNudged:
                         // Looking round for whoever did it.
                         agents.Notice(record.SourceId, time);
                         break;
@@ -437,6 +487,18 @@ namespace Paniq.Presentation
                         ripples.Start(record.Position, scenario.Blast.BangHearingRadiusMillimetres,
                             SoundRipples.ThudColor, time);
                         pops.Start(record.Position, 0.8f, scenario.Blast.ThrowRadiusMillimetres, record.EventId, time);
+                        break;
+                    case CausalEventType.SocketCrackling:
+                        // It spits sparks and smokes until it goes; the
+                        // crackle is heard around the room.
+                        crackles.Add(new Crackle
+                        {
+                            At = ToUnityPosition(record.Position) + Vector3.up * 0.35f,
+                            Until = time + record.Strength / (float)Run.TicksPerSecond,
+                            NextSpit = time,
+                            Seed = record.EventId
+                        });
+                        ripples.Start(record.Position, scenario.Director.CrackleHearingMillimetres, SoundRipples.ThudColor, time);
                         break;
                     case CausalEventType.PowerPoppedFuseBox:
                         // The player reached in and did it themselves; the bang

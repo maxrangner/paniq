@@ -639,7 +639,7 @@ namespace Paniq.Simulation
         AgentShovedObstruction,
 
         // The player's cards. Each is a root event, because the player is the
-        // cause, and its strength is the influence it cost.
+        // cause, and its strength is the purse points it cost.
 
         /// <summary>Beefcake played on somebody (target: the person made strong).</summary>
         PowerBeefcake,
@@ -831,7 +831,7 @@ namespace Paniq.Simulation
         PowerStickTogether,
 
         // Prototype 3 (2026-09-25): the tower of boxes, doors held shut and
-        // people poked. Appended only.
+        // people nudged. Appended only.
 
         /// <summary>
         /// The Director's trap is sprung: with the fire lit, somebody came
@@ -860,20 +860,76 @@ namespace Paniq.Simulation
         /// <summary>The player let go of a door they were holding. A root event. Source and target: the door.</summary>
         PowerReleasedDoor,
 
-        /// <summary>The player poked somebody. A root event. Target: the person.</summary>
-        PowerPoked,
+        /// <summary>The player nudged somebody. A root event. Target: the person.</summary>
+        PowerNudged,
 
         /// <summary>
-        /// Somebody poked a beat ago looks round for whoever did it. Source:
-        /// the person. Cause: the poke.
+        /// Somebody nudged a beat ago looks round for whoever did it. Source:
+        /// the person. Cause: the nudge.
         /// </summary>
-        AgentPoked,
+        AgentNudged,
 
         /// <summary>
-        /// Poked once too often, they are annoyed: they say so and go and
-        /// stand somewhere else. Source: the person. Cause: the last poke.
+        /// Nudged once too often, they are annoyed: they say so and go and
+        /// stand somewhere else. Source: the person. Cause: the last nudge.
         /// </summary>
-        AgentAnnoyed
+        AgentAnnoyed,
+
+        // Prototype 3, second batch (2026-09-26): the Director's ladder,
+        // calming down, and influence. Appended only.
+
+        /// <summary>
+        /// The Director starts an incident: the first one in a waste bin.
+        /// Source: the Director's thing (the bin). Cause: the fire starting,
+        /// or the player's trigger.
+        /// </summary>
+        DirectorStartedIncident,
+
+        /// <summary>
+        /// Nothing is burning any more, and the fire never got out of the room
+        /// it started in: the incident is over. Source: none. Cause: the
+        /// incident. Strength: the room's index.
+        /// </summary>
+        IncidentPutOut,
+
+        /// <summary>
+        /// The fire got out of the room it started in: this is the real fire,
+        /// and the Director adds nothing more. Source: none. Cause: the
+        /// incident. Strength: the room it started in.
+        /// </summary>
+        FireEscapedItsRoom,
+
+        /// <summary>
+        /// A socket or the fuse box starts to crackle and smoke: it will go off
+        /// in a few seconds. Source: the thing. Strength: how many ticks of
+        /// crackle are left. Cause: the fire that was put out before it.
+        /// </summary>
+        SocketCrackling,
+
+        /// <summary>The bells stop: the all-clear after a fire was put out. Cause: the put-out.</summary>
+        AllClear,
+
+        /// <summary>
+        /// Somebody frightened has seen and heard nothing frightening for long
+        /// enough to calm down, at their own pace. Source: the person.
+        /// Strength: how long they will stay rattled, in ticks. Cause: what
+        /// frightened them.
+        /// </summary>
+        AgentCalmedDown,
+
+        /// <summary>
+        /// The player puts influence on a door, a thing or a patch of floor:
+        /// one step more of pull. A root event. Target: the door or thing, or
+        /// none for floor. Strength: the level it now has.
+        /// </summary>
+        PowerInfluenced,
+
+        /// <summary>
+        /// Influence changed somebody's mind: without it they would have gone
+        /// somewhere else. Source: the person. Cause: the influence's last
+        /// click. Target: the door or thing, if it was on one.
+        /// </summary>
+        AgentDrawnByInfluence
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -1015,7 +1071,7 @@ namespace Paniq.Simulation
         /// <summary>Locked becomes unlocked; unlocked becomes open; open closes (unless someone is in the doorway). Broken stays broken.</summary>
         ClickDoor,
 
-        // The cards. Each one spends influence, and each names either a person
+        // The cards. Each one spends purse points, and each names either a person
         // or a place. Appended only.
 
         /// <summary>Beefcake: the named person becomes as strong as anyone can be, for good.</summary>
@@ -1102,11 +1158,32 @@ namespace Paniq.Simulation
         ReleaseDoor,
 
         /// <summary>
-        /// The player pokes a person (the target is the person's ID;
+        /// The player nudges a person (the target is the person's ID;
         /// prototype 3, 2026-09-25): they lurch, look round a beat later, and
-        /// after a few pokes in a row get annoyed. Free, and not a card.
+        /// after a few nudges in a row get annoyed. Free, and not a card.
         /// </summary>
-        PokePerson
+        NudgePerson,
+
+        // Prototype 3, second batch (2026-09-26): influence, and a nudge that
+        // knows where it came from. Appended only.
+
+        /// <summary>One click of influence on a door (the target is the door's ID): people nearby are drawn to use it. Free.</summary>
+        InfluenceDoor,
+
+        /// <summary>One click of influence on a thing (the target is the thing's ID): people nearby are drawn toward where it stands. Free.</summary>
+        InfluenceThing,
+
+        /// <summary>One click of influence on the floor at the point: people nearby are drawn toward it. Free.</summary>
+        InfluenceSpot,
+
+        /// <summary>
+        /// The player nudges a person (the target is the person's ID) from a
+        /// point: where the click landed, on the floor under the pointer. They
+        /// step away from it. Free, and not a card. What the controls send
+        /// since 2026-09-26; <see cref="NudgePerson"/> shoves them backwards
+        /// from the way they face, for recorded runs.
+        /// </summary>
+        NudgePersonFrom
     }
 
     /// <summary>

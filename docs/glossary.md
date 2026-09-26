@@ -32,7 +32,7 @@ and not everyday English, add it.
 | **Rules version / content revision** | Two numbers stored with a level (`SimulationCompatibilityVersion`, `ContentRevision`). One goes up when the rules change, the other when the building changes, so an old replay is never played against new rules. See the [version history](history/version-history.md). |
 | **Causal event** | A record of one thing that happened (a shout, a door forced, someone catching fire) and what caused it, so every outcome can be traced back. See the [causal event log](causal-event-log.md). |
 | **Snapshot** | A copy of the simulation's state at one tick, which the presentation draws from. |
-| **Threat** | Anything a person can be afraid of. The fire is one; a future hunter would be another (`IThreat`). People react to threats and feelings, never to a named event. |
+| **Threat** | Anything a person can be afraid of: the burning floor, a thing on fire, a person on fire; a future hunter would be another (`IThreat`). People react to danger and feelings, never to a named event or to "floor on fire" as such. |
 | **Navigation square / flow field** | The floor is cut into 250 mm squares. A flow field is a map over those squares that tells everyone heading for the same place which way to step, so a crowd finds its way round furniture cheaply. |
 
 ## People
@@ -43,6 +43,8 @@ and not everyday English, add it.
 | **Traits** | Seven numbers from 0 to 10 per person (strength, speed, bravery, compassion, evil, nervousness, leadership), 5 being ordinary. |
 | **Temperament** | How a person panics: runs, freezes for a while, or freezes for good. Dealt like a deck at the start, most fearful first. |
 | **Fear states** | Calm, alert, scared: how far along being frightened a person is. Freezing is a temperament, not a fear state. |
+| **Calming down** | A frightened person who sees and hears nothing frightening for a while settles, at a pace set by their personality: the brave in seconds, the very nervous never. See [the agent state model](agent-state-model.md). |
+| **Rattled** | Calm again after a fright, but jumpy for a while (a minute if they saw the danger): a thud or a bang frightens them outright. |
 | **Reaction lag** | The few ticks between something happening and anyone reacting to it. The owner's rule: nobody reacts on the tick a thing happens, and no group acts on the same tick. See [`AGENTS.md`](../AGENTS.md). |
 | **Visitor / host** | People who do not know the building (the meeting's clients) and the person who does and can lead them out. |
 | **Home** | The chair or spot a person belongs to, which they drift back to during the day. |
@@ -53,10 +55,14 @@ and not everyday English, add it.
 | --- | --- |
 | **Cue** | Something on the level's timetable or in the world that gives people a reason to act: a meeting ending, a noise to go and look at. See [the cue system](cue-system.md). |
 | **Errand** | What a person does about a cue, as a list of steps: walk there, open the door, sit, come back. |
-| **Director** | The unseen part of the game that paces a run, like a stage director. Today it calls the timetable's cues (the meeting ending) and springs one trap; the [game vision](game-vision.md) has it reacting to how the run is going. |
+| **Director** | The unseen part of the game that paces a run, like a stage director. It calls the timetable's cues (the meeting ending), climbs a ladder of small incidents, and springs the trap. See [the cue system](cue-system.md). |
+| **Ladder / rung** | The Director's escalation on the office: a waste bin catches; put out, a socket crackles and pops in the busiest calm room; put out, the fuse box goes. Each step is a rung. A fire that gets out of its room ends the ladder. |
+| **All-clear** | The bells falling silent about ten seconds after a fire is put out, so people can calm down. |
 | **Trap** | Something in the level the Director can set off, such as the tower of boxes that falls across the archway. |
 | **Card** | A move the player throws into the crowd or at the building (Beefcake, TNT, the extinguisher, Stick together). See [the office level](the-office-level.md). |
-| **Influence / purse** | The currency cards and doors used to cost. The office level has it switched off; the rules are still in the code for later levels. |
+| **Purse** | The currency cards and doors used to cost (called influence until 2026-09-26). The office level has it switched off; the rules are still in the code for later levels (`PurseSystem`). |
+| **Influence** | The player clicking a door, a thing or a patch of floor to draw people toward it: one step a click, up to twenty, fading on its own, felt within about twelve metres in the same room, and weighed by each person's character. Never an order. (`InfluenceSystem`.) |
+| **Nudge** | The player clicking a person: they step away from the click. Three quick nudges and they are annoyed, shake, and ignore nudges for a while. (`NudgeSystem`.) |
 | **Trigger event** | The red button that starts the disaster, so the round opens calm and the player looks around first. |
 | **The way out** | The one door in an outside wall. Walking out through it is escaping. |
 

@@ -13,9 +13,12 @@ namespace Paniq.Simulation
     /// to the toilet, home at the end of the day (see <see cref="ErrandBehaviour"/>
     /// and <see cref="CueSystem"/>).
     /// </summary>
-    internal sealed class CalmBehaviour
+    internal sealed class CalmBehaviour : IBindable
     {
         private readonly SimulationContext context;
+
+        /// <summary>Built after this: the places the player is drawing people toward (2026-09-26).</summary>
+        private InfluenceSystem influence;
 
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
         private readonly int bodyRadius;
@@ -53,9 +56,15 @@ namespace Paniq.Simulation
             settings = context.Scenario.Calm;
         }
 
+        public void Bind(Systems systems)
+        {
+            influence = systems.Influence;
+        }
+
         public MotorIntent Decide(Agent agent)
         {
             int tick = context.Tick;
+            MaybeLeaveForTheInfluence(agent, tick);
             AgentIntent intent = agent.Intent;
             int goalHeading = agent.Body.Heading;
             int goalSpeed = 0;
@@ -276,6 +285,11 @@ namespace Paniq.Simulation
         private void ChooseActivity(Agent agent, bool justMoved)
         {
             agent.Body.BlockedTicks = 0;
+            if (TryWanderToTheInfluence(agent))
+            {
+                return;
+            }
+
             int roll = context.Random.NextIntInclusive(0, 99);
             if (justMoved)
             {
@@ -445,6 +459,134 @@ namespace Paniq.Simulation
             return cues.SendHome(agent) && errands.StartIfDue(agent);
         }
 
+        // ---------------------------------------------------------------- influence (2026-09-26)
+
+        /// <summary>
+        /// Somebody with nothing in particular to do weighs the strongest pull
+        /// they feel: the stronger it is, and the more easily led they are,
+        /// the likelier they wander over to it. Somebody who got up for it
+        /// goes without weighing it again. Draws a number only when they feel
+        /// a pull at all, so an influence nobody is near changes no run.
+        /// </summary>
+        private bool TryWanderToTheInfluence(Agent agent)
+        {
+            bool gotUpForIt = agent.Intent.GoingToTheInfluence;
+            agent.Intent.GoingToTheInfluence = false;
+            if (influence == null || influence.Count == 0 || agent.Errand.Has || agent.Carry.ItemIndex >= 0)
+            {
+                return false;
+            }
+
+            int felt = influence.StrongestFeltBy(agent, out int place);
+            if (felt <= 0)
+            {
+                return false;
+            }
+
+            LogicalPosition target = WhereToStandFor(agent, place);
+            long there = context.Scenario.Calm.StrollArrivalDistanceMillimetres * 2L;
+            if (LogicalPosition.DistanceSquared(agent.Body.Position, target) <= there * there)
+            {
+                // Already there and still feeling it: they linger rather than
+                // wander off, which is how a pull gathers people, until it
+                // fades.
+                StartStanding(agent);
+                return true;
+            }
+
+            InfluenceSettings rules = context.Scenario.Influence;
+            if (!gotUpForIt &&
+                context.Random.NextIntInclusive(0, 999) >= Math.Min(1000, felt) * rules.WanderToItPerMille / 1000)
+            {
+                return false;
+            }
+
+            StartStrollTo(agent, target);
+            InfluenceSystem.Place drawnBy = influence[place];
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
+                felt, 0, drawnBy.EventId, drawnBy.Target);
+            return true;
+        }
+
+        /// <summary>
+        /// The easily led -- the nervous, and visitors -- sitting in a chair or
+        /// out on an errand may get up for a strong enough pull. Checked once a
+        /// second, each on their own beat; somebody steady never does, however
+        /// hard the player clicks. Nobody leaves a stall, a door they are
+        /// waiting at, or a conversation.
+        /// </summary>
+        private void MaybeLeaveForTheInfluence(Agent agent, int tick)
+        {
+            InfluenceSettings rules = context.Scenario.Influence;
+            if (influence == null || influence.Count == 0 || (tick + agent.Index) % rules.LeaveTaskCheckTicks != 0 ||
+                !IsEasilyLed(agent, rules))
+            {
+                return;
+            }
+
+            // Only between the moving parts of a task: settled in the chair,
+            // or walking or standing about on an errand of their own. Never
+            // halfway into or out of a seat, and never in the middle of a
+            // conversation or a meeting-up somebody else is waiting on.
+            bool seated = agent.Sitting.OnIt && agent.Sitting.Phase == SitPhase.None &&
+                          agent.Intent.Activity == AgentActivityState.Sitting;
+            bool onAnErrand = agent.Errand.Active && agent.Intent.Activity == AgentActivityState.RunningAnErrand &&
+                              (agent.Errand.Phase == ErrandPhase.Walking || agent.Errand.Phase == ErrandPhase.Standing) &&
+                              agent.Errand.PartnerIndex < 0 && !ErrandBehaviour.IsStayingPut(agent);
+            if (!seated && !onAnErrand)
+            {
+                return;
+            }
+
+            int felt = influence.StrongestFeltBy(agent, out _);
+            if (felt <= 0 ||
+                context.Random.NextIntInclusive(0, 999) >= Math.Min(1000, felt) * rules.LeaveTaskChancePerMille / 1000)
+            {
+                return;
+            }
+
+            agent.Intent.GoingToTheInfluence = true;
+            if (seated)
+            {
+                // Up out of the chair; choosing what next leads them to it.
+                chairs.StartStandingUp(agent);
+                return;
+            }
+
+            agent.Errand.Clear();
+            agent.Intent.Activity = AgentActivityState.Standing;
+            agent.Intent.ActivityEndTick = checked(tick + context.ReactionLag());
+        }
+
+        private static bool IsEasilyLed(Agent agent, InfluenceSettings rules) =>
+            agent.Traits.Nervousness >= rules.EasilyLedNervousness || !agent.Knowledge.KnowsEverything;
+
+        /// <summary>Where to walk to for a place: the spot itself, or for a door, just inside this room in front of it.</summary>
+        private LogicalPosition WhereToStandFor(Agent agent, int place)
+        {
+            InfluenceSystem.Place pull = influence[place];
+            if (pull.Door < 0)
+            {
+                return pull.At;
+            }
+
+            int room = geometry.RoomOf(agent);
+            return room >= 0 ? geometry.DoorPointFrom(pull.Door, room, 0, -1000) : pull.At;
+        }
+
+        /// <summary>A stroll to one place, rather than to somewhere drawn at random.</summary>
+        private void StartStrollTo(Agent agent, LogicalPosition target)
+        {
+            int tick = context.Tick;
+            AgentIntent intent = agent.Intent;
+            intent.Activity = AgentActivityState.Strolling;
+            intent.ActivityEndTick = checked(tick + context.Jittered(settings.StrollTimeoutTicks));
+            intent.WanderOffset = 0;
+            intent.NextWanderTick = checked(tick + context.Random.NextIntInclusive(25, 60));
+            intent.Target = target;
+            agent.Doors.StrollDoorIndex = -1;
+        }
+
         private void StartStanding(Agent agent)
         {
             agent.Intent.Activity = AgentActivityState.Standing;
@@ -461,7 +603,7 @@ namespace Paniq.Simulation
         /// <summary>
         /// A look round: this many glances to one side or the other, each a
         /// moment long, then on with the day. A calm person's own idle, and
-        /// somebody poked looking for whoever did it (<see cref="PokeSystem"/>),
+        /// somebody nudged looking for whoever did it (<see cref="NudgeSystem"/>),
         /// so the two always look alike.
         /// </summary>
         internal void LookRound(Agent agent, int glances)

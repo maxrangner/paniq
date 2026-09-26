@@ -166,6 +166,53 @@ namespace Paniq.Simulation
         /// <summary>Whether the fire has been asked to start, whether or not it has lit yet.</summary>
         public bool StartRequested => startRequested || active;
 
+        /// <summary>
+        /// Set by a Director that climbs a ladder of small incidents
+        /// (prototype 3, 2026-09-26): the fire no longer lights its own square
+        /// when it is due, because the Director starts it in a thing -- a
+        /// waste bin -- instead; and while it is young it spreads slowly, so
+        /// somebody brave has a real chance to put it out.
+        /// </summary>
+        private bool theDirectorStartsIt;
+
+        /// <summary>See <see cref="theDirectorStartsIt"/>. Called once, before the first tick.</summary>
+        public void LeaveTheStartToTheDirector() => theDirectorStartsIt = true;
+
+        /// <summary>
+        /// The Director's start: the fire exists from now on -- things near
+        /// flames heat, bangs light the floor -- but not one square of floor is
+        /// alight. Whatever the Director sets burning next is where the flames
+        /// come from. Returns the activation event; asking twice changes
+        /// nothing and returns the first.
+        /// </summary>
+        public ulong StartWithoutFlames(LogicalPosition where, ulong causeEventId)
+        {
+            if (active)
+            {
+                return activationEventId;
+            }
+
+            active = true;
+            startRequested = true;
+            activationEventId = context.Events.Append(context.Tick, new SimulationId(Run.FireHazardIdValue),
+                CausalEventType.FireActivated, where, 0, 0, causeEventId).EventId;
+            return activationEventId;
+        }
+
+        /// <summary>Whether any floor square is burning in a room not marked in <paramref name="rooms"/>.</summary>
+        public bool BurningOutside(bool[] rooms)
+        {
+            for (int r = 0; r < burningPerRoom.Length; r++)
+            {
+                if (!rooms[r] && burningPerRoom[r] > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         /// <summary>Phase 2: the fire starts when it is due, then spreads.</summary>
         public void Advance()
         {
@@ -175,9 +222,10 @@ namespace Paniq.Simulation
                 // Either the player sets it off, or it sets itself off on its
                 // own tick count -- never both, so a level cannot surprise a
                 // player who was told nothing would happen until they pressed.
-                bool due = context.Scenario.Round.HazardWaitsForTrigger
+                // A Director that climbs a ladder starts it itself, in a bin.
+                bool due = !theDirectorStartsIt && (context.Scenario.Round.HazardWaitsForTrigger
                     ? startRequested
-                    : tick >= settings.ActivationTick;
+                    : tick >= settings.ActivationTick);
                 if (due)
                 {
                     active = true;
@@ -265,9 +313,23 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// How long a square waits before it spreads again. A fire the
+        /// Director started in a thing spreads slowly while it is young --
+        /// fewer than <see cref="FireSettings.YoungFireSquares"/> squares
+        /// alight -- which is the owner's "a trashcan fire should be slow and
+        /// spread slow, so people have a chance to fight it if the right
+        /// personality is there". The same one draw either way.
+        /// </summary>
         private int NextSpreadDelay()
         {
-            return context.Random.NextIntInclusive(settings.SpreadMinimumTicks, settings.SpreadMaximumTicks);
+            int delay = context.Random.NextIntInclusive(settings.SpreadMinimumTicks, settings.SpreadMaximumTicks);
+            if (theDirectorStartsIt && burningCells.Count < settings.YoungFireSquares)
+            {
+                delay = (int)((long)delay * settings.YoungFireSpreadPercent / 100L);
+            }
+
+            return delay;
         }
 
         private void CollectUnburntNeighbours(int cell)
@@ -419,6 +481,17 @@ namespace Paniq.Simulation
             return true;
         }
 
+        /// <summary>Every square out at once, as though sprayed until it went: for a test that needs a fire put out.</summary>
+        internal void PutOutEverythingForTests()
+        {
+            while (burningCells.Count > 0)
+            {
+                int cell = burningCells[burningCells.Count - 1];
+                cellSprayedTicks[cell] = settings.DouseTicksPerCell;
+                Douse(cell, default, 0UL);
+            }
+        }
+
         /// <summary>Every burning square with any part of it inside this circle, nearest first.</summary>
         public void CollectBurningWithin(LogicalPosition centre, int reach, List<int> into)
         {
@@ -522,7 +595,11 @@ namespace Paniq.Simulation
         /// Lights up to <paramref name="cells"/> floor squares within
         /// <paramref name="radius"/> of a blast, row by row so a replay agrees.
         /// Squares that are not floor, already alight or still wet are skipped
-        /// and do not count against the limit.
+        /// and do not count against the limit, and so are squares behind a
+        /// wall: only the blast's own room, or a room open to it through a
+        /// doorway, catches (2026-09-26). A socket used to light the corridor
+        /// through the office wall, which made every socket fire "escape its
+        /// room" the moment it started.
         /// </summary>
         public void IgniteAround(LogicalPosition centre, int radius, int cells, ulong causeEventId)
         {
@@ -532,6 +609,7 @@ namespace Paniq.Simulation
                 return;
             }
 
+            int blastRoom = geometry.RoomAtPoint(centre);
             int lit = 0;
             CellRange range = CellsWithin(centre, radius);
             for (int row = range.FirstRow; row <= range.LastRow && lit < cells; row++)
@@ -539,7 +617,7 @@ namespace Paniq.Simulation
                 for (int column = range.FirstColumn; column <= range.LastColumn && lit < cells; column++)
                 {
                     int cell = row * gridColumns + column;
-                    if (!CanIgniteForPlayer(cell) ||
+                    if (!CanIgniteForPlayer(cell) || !Reaches(blastRoom, cell) ||
                         CellBounds(cell).DistanceSquaredTo(centre) > (long)radius * radius)
                     {
                         continue;

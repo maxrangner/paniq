@@ -270,7 +270,7 @@ namespace Paniq.Gameplay
             Simulation.QueueCommand(PlayerCommandType.ClickDoor, doorId, Simulation.Tick + 1);
         }
 
-        /// <summary>The player turning a door's key (a double click), queued for the next tick that has not started.</summary>
+        /// <summary>The player turning a door's key (a right click since 2026-09-26), queued for the next tick that has not started.</summary>
         public void QueueLockToggle(SimulationId doorId)
         {
             Simulation.QueueCommand(PlayerCommandType.ToggleLock, doorId, Simulation.Tick + 1);
@@ -288,10 +288,34 @@ namespace Paniq.Gameplay
             Simulation.QueueCommand(PlayerCommandType.ReleaseDoor, doorId, Simulation.Tick + 1);
         }
 
-        /// <summary>The player poking somebody (prototype 3), queued for the next tick that has not started.</summary>
-        public void QueuePoke(SimulationId personId)
+        /// <summary>The player nudging somebody (prototype 3), queued for the next tick that has not started.</summary>
+        public void QueueNudge(SimulationId personId)
         {
-            Simulation.QueueCommand(PlayerCommandType.PokePerson, personId, Simulation.Tick + 1);
+            Simulation.QueueCommand(PlayerCommandType.NudgePerson, personId, Simulation.Tick + 1);
+        }
+
+        /// <summary>The player nudging somebody from a point on the floor: they step away from it (2026-09-26).</summary>
+        public void QueueNudge(SimulationId personId, LogicalPosition from)
+        {
+            Simulation.QueueCommand(PlayerCommandType.NudgePersonFrom, personId, from, Simulation.Tick + 1);
+        }
+
+        /// <summary>One click of influence on a door (2026-09-26), queued for the next tick that has not started.</summary>
+        public void QueueInfluenceDoor(SimulationId doorId)
+        {
+            Simulation.QueueCommand(PlayerCommandType.InfluenceDoor, doorId, Simulation.Tick + 1);
+        }
+
+        /// <summary>One click of influence on a thing.</summary>
+        public void QueueInfluenceThing(SimulationId thingId)
+        {
+            Simulation.QueueCommand(PlayerCommandType.InfluenceThing, thingId, Simulation.Tick + 1);
+        }
+
+        /// <summary>One click of influence on a patch of floor, in whole millimetres.</summary>
+        public void QueueInfluenceSpot(LogicalPosition spot)
+        {
+            Simulation.QueueCommand(PlayerCommandType.InfluenceSpot, spot, Simulation.Tick + 1);
         }
 
         /// <summary>The player pulling a fire alarm, queued for the next tick that has not started.</summary>

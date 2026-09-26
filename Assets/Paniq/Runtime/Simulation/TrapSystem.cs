@@ -160,17 +160,24 @@ namespace Paniq.Simulation
             return count;
         }
 
-        /// <summary>Every trap, in authored order: armed by the fire, sprung by the first person near, landing a beat later.</summary>
-        public void Advance()
+        /// <summary>
+        /// Every trap, in authored order: armed by the Director, sprung by the
+        /// first person near, landing a beat later. Armed once the fire is lit
+        /// -- or, with the Director climbing its ladder (2026-09-26), once a
+        /// fire has got out of the room it started in, so a bin put out in the
+        /// meeting room never brings the tower down. <paramref name="cause"/>
+        /// is what armed it, for the trigger to name.
+        /// </summary>
+        public void Advance(bool armed, ulong cause)
         {
             for (int t = 0; t < traps.Length; t++)
             {
                 switch (phase[t])
                 {
                     case TrapPhase.Standing:
-                        if (fire.Active)
+                        if (armed)
                         {
-                            Watch(t);
+                            Watch(t, cause);
                         }
 
                         break;
@@ -194,7 +201,7 @@ namespace Paniq.Simulation
         /// their own reaction lag later, because nothing happens on the tick
         /// a thing is caused.
         /// </summary>
-        private void Watch(int trap)
+        private void Watch(int trap, ulong cause)
         {
             int radius = traps[trap].TriggerRadiusMillimetres > 0
                 ? traps[trap].TriggerRadiusMillimetres
@@ -226,10 +233,10 @@ namespace Paniq.Simulation
 
             phase[trap] = TrapPhase.Falling;
             fallTick[trap] = context.ReactionTick();
-            // Sprung because the fire was lit: the fire's own first event is
-            // its cause, so the story can trace the fallen boxes back to it.
+            // Sprung because the fire was lit, or got loose: that event is its
+            // cause, so the story can trace the fallen boxes back to it.
             triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
-                centre, 0, 0, fire.ActivationEventId, nearest.Id).EventId;
+                centre, 0, 0, cause, nearest.Id).EventId;
         }
 
         /// <summary>

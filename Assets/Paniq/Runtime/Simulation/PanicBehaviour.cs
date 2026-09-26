@@ -79,6 +79,7 @@ namespace Paniq.Simulation
         public void Bind(Systems systems)
         {
             objects = systems.Objects;
+            influence = systems.Influence;
             options = new IPanicOption[]
             {
                 systems.Leaders, systems.Extinguishers, systems.Help, systems.AlarmBehaviour, systems.Barricades
@@ -87,6 +88,9 @@ namespace Paniq.Simulation
 
         /// <summary>The loose things and the tables, for heaving a table out of the way.</summary>
         private PhysicsObjectSystem objects;
+
+        /// <summary>The places the player is drawing people toward (2026-09-26).</summary>
+        private InfluenceSystem influence;
 
         /// <summary>Who is sticking together with whom.</summary>
         private readonly GroupSystem groups;
@@ -160,7 +164,13 @@ namespace Paniq.Simulation
                          agent.Body.State == AgentBodyState.Upright;
             intent.SetOnAWayOut = eager;
 
-            if (tick >= agent.Fear.NextShoutTick)
+            // Shouting about it for as long as it is frightening, and a quiet
+            // spell after: somebody who has seen and heard nothing for a while
+            // stops, or a crowd would keep itself frightened by shouting about
+            // a fire that was put out (2026-09-26).
+            bool stillShouting = !context.Scenario.Calming.Enabled ||
+                                 tick < (long)agent.Fear.LastFrightTick + agent.Fear.QuietTicks;
+            if (stillShouting && tick >= agent.Fear.NextShoutTick)
             {
                 sound.Yell(agent, agent.Fear.ScaredEventId);
                 agent.Fear.NextShoutTick = checked(tick + TraitEffects.ShoutInterval(agent, context.Scenario, ref context.Random));
@@ -409,6 +419,13 @@ namespace Paniq.Simulation
                 if (threats.RoutePassesNear(position, candidate, settings.EscapeRouteClearanceMillimetres))
                 {
                     score -= settings.EscapeRoutePenaltyMillimetres;
+                }
+                else if (influence != null)
+                {
+                    // Drawn by the player's influence: a spot its way is worth
+                    // more, by as much as they feel it -- but never a spot
+                    // whose way passes the flames.
+                    score += influence.SpotBonus(agent, candidate);
                 }
 
                 if (geometry.RouteCrossesTable(position, candidate))

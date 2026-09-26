@@ -1110,6 +1110,15 @@ namespace Paniq.Simulation
                 return;
             }
 
+            // Held and let go of on the grid: the pose is snapped to a
+            // hundredth of a millimetre and a millionth of a turn first, so the
+            // body starts its new life from exactly the same state every run.
+            // Without it, crumbs of floating point the engine carried below a
+            // millimetre -- invisible to everything the simulation reads --
+            // were magnified by a box thrown off the fallen tower's heap into
+            // a different run (seed 46, 2026-09-26).
+            SnapToTheGrid(body.Rigidbody);
+
             if (!kinematic)
             {
                 body.Rigidbody.isKinematic = false;
@@ -1121,6 +1130,27 @@ namespace Paniq.Simulation
             body.Rigidbody.linearVelocity = Vector3.zero;
             body.Rigidbody.angularVelocity = Vector3.zero;
             body.Rigidbody.isKinematic = true;
+        }
+
+        private static void SnapToTheGrid(Rigidbody rigidbody)
+        {
+            const float Step = 0.00001f;
+            const float Turn = 0.000001f;
+            Vector3 p = rigidbody.position;
+            var snapped = new Vector3(
+                Mathf.Round(p.x / Step) * Step,
+                Mathf.Round(p.y / Step) * Step,
+                Mathf.Round(p.z / Step) * Step);
+            Quaternion q = rigidbody.rotation;
+            var turned = new Quaternion(
+                Mathf.Round(q.x / Turn) * Turn,
+                Mathf.Round(q.y / Turn) * Turn,
+                Mathf.Round(q.z / Turn) * Turn,
+                Mathf.Round(q.w / Turn) * Turn);
+            turned.Normalize();
+            rigidbody.position = snapped;
+            rigidbody.rotation = turned;
+            rigidbody.transform.SetPositionAndRotation(snapped, turned);
         }
 
         /// <summary>Puts a body straight at a spot (hundredths of a millimetre), stopped, standing upright at this heading.</summary>

@@ -242,15 +242,21 @@
         /// <summary>The floor's main fuse box, on the maintenance room wall.</summary>
         public static readonly SimulationId FuseBox = new SimulationId(3281UL);
 
+        /// <summary>The meeting room's three waste bins: the Director's first fire starts in one of them.</summary>
+        public static SimulationId[] MeetingRoomBins() => new[]
+        {
+            new SimulationId(3205UL), new SimulationId(3206UL), new SimulationId(3207UL)
+        };
+
         /// <summary>
         /// The cable, run as a chain: each socket back to the one before it,
         /// and the first of them back to the fuse box in the maintenance room.
         /// Every leg follows a wall, because that is where cable goes.
         /// <para>
-        /// A socket popping lights the cable at both its ends, so the spark
-        /// travels outward along the chain whichever link it starts on -- and
-        /// the card that pops the fuse box sends it the other way, out of the
-        /// maintenance room and along the line of sockets.
+        /// The cable runs one way (2026-09-26): when the fuse box goes, the
+        /// spark races out of the maintenance room and down the chain,
+        /// setting off each socket in turn. A socket popping by itself lights
+        /// nothing, so it never climbs back up to the fuse box.
         /// </para>
         /// </summary>
         public static PowerLineDefinition[] DefaultPowerLines()
@@ -525,6 +531,13 @@
                 Bin(3202UL, 5400, -3200),
                 Bin(3203UL, 11000, 15000),
                 Bin(3204UL, 8600, 2000),
+
+                // The meeting room's three bins (2026-09-26): one of them is
+                // where the Director's first fire starts, drawn per round --
+                // beside the door, in the far corner, or under the north wall.
+                Bin(3205UL, -600, 9400),
+                Bin(3206UL, -5400, 16400),
+                Bin(3207UL, 0, 16500),
                 Plant(3211UL, -5400, -3400),
                 Plant(3212UL, 5400, 5400),
                 Plant(3213UL, 2600, 16400),
@@ -566,9 +579,13 @@
                 OfficeChair(3247UL, 5000, 13000, South),
                 OfficeChair(3248UL, 5000, 11000, North),
 
-                // One extinguisher in the office and one in the cafeteria.
+                // One extinguisher in the office, one in the cafeteria, and
+                // (2026-09-26) one on the meeting room's wall beside its door,
+                // so a small fire in there can be put out by somebody brave
+                // before it is a big one.
                 Extinguisher(3301UL, -1000, -5700),
                 Extinguisher(3302UL, 4000, 16300),
+                Extinguisher(3303UL, -3300, 9250),
 
                 // Electrical things, which go off when the flames reach them.
                 // The microwaves are a bank of them along the cafeteria's far

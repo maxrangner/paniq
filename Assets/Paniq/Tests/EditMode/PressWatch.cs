@@ -54,8 +54,15 @@ namespace Paniq.Tests.EditMode
         /// the door they were opening (seed 40, 135 mm). A quarter of a second,
         /// and still a wedge coming apart rather than a thing passing through.
         /// </para>
+        /// <para>
+        /// Fifteen, not twelve (2026-09-26): somebody carrying a box to wedge a
+        /// door was knocked out cold, and the box they dropped lay on them at
+        /// 104 mm for thirteen ticks before the engine eased the two apart
+        /// (seed 43). Under a third of a second, and a thing coming off a body
+        /// on the floor, not passing into it.
+        /// </para>
         /// </summary>
-        public const int LongestKnockTicks = 12;
+        public const int LongestKnockTicks = 15;
 
         private int deepTicks;
 

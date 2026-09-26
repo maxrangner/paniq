@@ -58,9 +58,13 @@ namespace Paniq.Simulation
             bool isLeading = false,
             BodyPose pose = default,
             int seatedPercent = 0,
-            int groupId = -1)
+            int groupId = -1,
+            bool isAnnoyed = false,
+            bool isRattled = false)
         {
             GroupId = groupId;
+            IsAnnoyed = isAnnoyed;
+            IsRattled = isRattled;
             Pose = pose;
             SeatedPercent = seatedPercent;
             Traits = traits;
@@ -83,6 +87,12 @@ namespace Paniq.Simulation
         }
 
         public SimulationId AgentId { get; }
+
+        /// <summary>Annoyed at being nudged: they shake with it, and another nudge does nothing (2026-09-26).</summary>
+        public bool IsAnnoyed { get; }
+
+        /// <summary>Calm again after a fright, but jumpy: a thud frightens them outright (2026-09-26).</summary>
+        public bool IsRattled { get; }
 
         /// <summary>
         /// How high their feet are off the floor and how their body is turned,
@@ -366,6 +376,54 @@ namespace Paniq.Simulation
     /// the drawn spark is always exactly where the run has it.
     /// </para>
     /// </summary>
+    /// <summary>One place the player's influence is on (2026-09-26): where, what, and how strong now.</summary>
+    public readonly struct InfluencePlaceSnapshot
+    {
+        public InfluencePlaceSnapshot(SimulationId target, bool isDoor, LogicalPosition at, int level, int maximumLevel)
+        {
+            Target = target;
+            IsDoor = isDoor;
+            At = at;
+            Level = level;
+            MaximumLevel = maximumLevel;
+        }
+
+        /// <summary>The door or thing clicked, or the default ID for a patch of floor.</summary>
+        public SimulationId Target { get; }
+
+        public bool IsDoor { get; }
+
+        /// <summary>Where the pull comes from.</summary>
+        public LogicalPosition At { get; }
+
+        /// <summary>How many steps it has now, from 1 up to <see cref="MaximumLevel"/>.</summary>
+        public int Level { get; }
+
+        public int MaximumLevel { get; }
+    }
+
+    /// <summary>Somebody feeling a pull: who, from which place, and how strongly (per mille of a full pull on an ordinary person).</summary>
+    public readonly struct InfluencePullSnapshot
+    {
+        public InfluencePullSnapshot(SimulationId agentId, int agentIndex, int place, int feltPerMille)
+        {
+            AgentId = agentId;
+            AgentIndex = agentIndex;
+            Place = place;
+            FeltPerMille = feltPerMille;
+        }
+
+        public SimulationId AgentId { get; }
+
+        /// <summary>Where they are in <see cref="RunSnapshot.Agents"/>, so nobody has to be looked up by ID.</summary>
+        public int AgentIndex { get; }
+
+        /// <summary>An index into <see cref="RunSnapshot.InfluencePlaces"/>.</summary>
+        public int Place { get; }
+
+        public int FeltPerMille { get; }
+    }
+
     public readonly struct PowerSparkSnapshot
     {
         public PowerSparkSnapshot(int lineIndex, int travelledMillimetres, bool runsForward)
@@ -526,6 +584,21 @@ namespace Paniq.Simulation
             PowerSparks = System.Array.Empty<PowerSparkSnapshot>();
         }
 
+        private readonly List<InfluencePlaceSnapshot> influencePlaces = new List<InfluencePlaceSnapshot>();
+        private readonly List<InfluencePullSnapshot> influencePulls = new List<InfluencePullSnapshot>();
+
+        internal List<InfluencePlaceSnapshot> InfluencePlaceBuffer => influencePlaces;
+        internal List<InfluencePullSnapshot> InfluencePullBuffer => influencePulls;
+
+        /// <summary>Every place the player's influence is on, oldest first (2026-09-26).</summary>
+        public IReadOnlyList<InfluencePlaceSnapshot> InfluencePlaces => influencePlaces;
+
+        /// <summary>Everybody feeling a pull, and from where: what the sparkling lines are drawn from.</summary>
+        public IReadOnlyList<InfluencePullSnapshot> InfluencePulls => influencePulls;
+
+        /// <summary>Whether the player may pull a fire alarm on this level (the office: no, only people do).</summary>
+        public bool PlayerMayPullAlarms { get; internal set; } = true;
+
         // The buffers the run writes into. Internal: the display only reads.
         internal AgentSnapshot[] AgentBuffer => agents;
         internal PhysicsObjectSnapshot[] PhysicsObjectBuffer => physicsObjects;
@@ -543,11 +616,11 @@ namespace Paniq.Simulation
             IReadOnlyList<CausalEvent> events,
             int clearOfFireCount,
             bool alarmsRinging,
-            bool influenceEnabled,
-            int influence,
-            int influenceMaximum,
-            int influenceSpent,
-            int influenceEarned,
+            bool purseEnabled,
+            int purse,
+            int purseMaximum,
+            int purseSpent,
+            int purseEarned,
             int blastChargesRemaining,
             IReadOnlyList<PowerSparkSnapshot> powerSparks,
             RoundPhase roundPhase,
@@ -561,11 +634,11 @@ namespace Paniq.Simulation
             this.events = events;
             ClearOfFireCount = clearOfFireCount;
             AlarmsRinging = alarmsRinging;
-            InfluenceEnabled = influenceEnabled;
-            Influence = influence;
-            InfluenceMaximum = influenceMaximum;
-            InfluenceSpent = influenceSpent;
-            InfluenceEarned = influenceEarned;
+            PurseEnabled = purseEnabled;
+            Purse = purse;
+            PurseMaximum = purseMaximum;
+            PurseSpent = purseSpent;
+            PurseEarned = purseEarned;
             BlastChargesRemaining = blastChargesRemaining;
             PowerSparks = powerSparks;
             RoundPhase = roundPhase;
@@ -585,13 +658,13 @@ namespace Paniq.Simulation
         /// the office does not). Off, everything is free and the display
         /// draws no purse and no prices.
         /// </summary>
-        public bool InfluenceEnabled { get; private set; } = true;
+        public bool PurseEnabled { get; private set; } = true;
 
         /// <summary>What the player has left to spend, and what they have spent and earned.</summary>
-        public int Influence { get; private set; }
-        public int InfluenceMaximum { get; private set; }
-        public int InfluenceSpent { get; private set; }
-        public int InfluenceEarned { get; private set; }
+        public int Purse { get; private set; }
+        public int PurseMaximum { get; private set; }
+        public int PurseSpent { get; private set; }
+        public int PurseEarned { get; private set; }
 
         /// <summary>
         /// The cards the player is holding, in the order the dead dealt them.

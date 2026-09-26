@@ -775,7 +775,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "80";
+        public string ContentRevision = "81";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -849,7 +849,7 @@ namespace Paniq.Simulation
         // 40: the tick schedule gained a phase. The cable between the sockets
         // and the fuse box advances its sparks beside the fire, in phase 2, so
         // a run recorded before this one cannot be replayed against it.
-        // 39: doors cost influence to work, a shut door standing in the flames
+        // 39: doors cost purse points to work, a shut door standing in the flames
         // burns through instead of holding them off for ever, the round runs
         // until everybody is out or dead rather than until they are merely out
         // of reach, nobody shuts a door they are about to run through, chairs
@@ -875,7 +875,7 @@ namespace Paniq.Simulation
         // 63: somebody down inside an open doorway with the crowd pressing on
         // them is carried on through it by the press instead of plugging it.
         // 64: the deck is three cards (Beefcake, TNT, fire extinguisher), a
-        // round opens with 30 influence and one card drawn from it, and the
+        // round opens with 30 in the purse and one card drawn from it, and the
         // player can pull a fire alarm for 30.
         // 65: the third playtest round (2026-09-25): a stockroom behind the
         // bathroom with a door into the office and one into the crossbar's
@@ -899,18 +899,38 @@ namespace Paniq.Simulation
         // west end, and an alarm reach of eight metres; a purse that can be
         // switched off (free when it is); doors the player holds shut
         // (HoldDoor, ReleaseDoor: nobody opens one, the strong burst it in
-        // one push); people the player pokes (PokePerson, AgentPoked,
+        // one push); people the player nudges (NudgePerson, AgentNudged,
         // AgentAnnoyed). Fingerprints re-recorded: the fire moved.
         // 68: the code review of prototype 3's first batch (2026-09-26).
         // Nobody may take a box from the standing tower (a strong runner used
         // to fling one aside and a tidy person carry one off); a box in the
         // heap may be taken, and shoved. A locked door takes no hand, a door
         // that breaks lets go of the hand on it, and the strong burst a held
-        // door whoever shut it last. A quick second poke folds into the look
-        // round already due; the look round is the calm one (PokeSettings
+        // door whoever shut it last. A quick second nudge folds into the look
+        // round already due; the look round is the calm one (NudgeSettings
         // loses HuffTicks). Fingerprints re-recorded: in ten of the thirteen
         // recorded runs somebody used to take or knock a box off the tower.
-        public int SimulationCompatibilityVersion = 68;
+        // 69: prototype 3's second batch (2026-09-26). People sense danger,
+        // never "floor on fire": things and people on fire frighten whoever
+        // sees them (BurningThingsThreat, BurningPeopleThreat), and the
+        // extinguisher goes for a burning thing. Frightened people calm down
+        // at their own pace and stay rattled (FearSystem.Settle, Calming);
+        // bells and bangs keep them frightened, and they stop shouting once
+        // it has gone quiet. The cable runs one way, fast, from the fuse box
+        // down; a bang lights floor only in its own room. Three waste bins
+        // and an extinguisher in the meeting room; a bin smoulders before the
+        // carpet catches. The Director's ladder (off in the code defaults, on
+        // for the office level): a bin, then a crackling socket in the
+        // busiest calm room, then the fuse box, and the tower armed only by a
+        // fire that has got out of its room; the all-clear. Influence
+        // (InfluenceDoor, InfluenceThing, InfluenceSpot) and a nudge from a
+        // point (NudgePersonFrom) that the annoyed ignore. Anybody who can see
+        // the fallen heap and cannot shift it goes round; a body pinned or let
+        // go of is snapped to the grid first, so a thrown heap box replays the
+        // same every run. New events from
+        // DirectorStartedIncident to AgentDrawnByInfluence. Fingerprints
+        // re-recorded: nearly everything above moves a run.
+        public int SimulationCompatibilityVersion = 69;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -933,13 +953,16 @@ namespace Paniq.Simulation
         public GroupSettings Groups = new GroupSettings();
         public ItemSettings Items = new ItemSettings();
         public HelpSettings Help = new HelpSettings();
-        public InfluenceSettings Influence = new InfluenceSettings();
+        public PurseSettings Purse = new PurseSettings();
         public AlarmSettings Alarm = new AlarmSettings();
         public BlockadeSettings Blockades = new BlockadeSettings();
         public BlastSettings Blast = new BlastSettings();
         public DaySettings Day = new DaySettings();
         public TrapSettings Traps = new TrapSettings();
-        public PokeSettings Poke = new PokeSettings();
+        public NudgeSettings Nudge = new NudgeSettings();
+        public DirectorSettings Director = new DirectorSettings();
+        public CalmingSettings Calming = new CalmingSettings();
+        public InfluenceSettings Influence = new InfluenceSettings();
 
         public AgentDefinition[] Agents = PrototypeBuilding.DefaultAgents();
         public DoorDefinition[] Doors = PrototypeBuilding.DefaultDoors();
@@ -1039,13 +1062,16 @@ namespace Paniq.Simulation
             copy.Groups = Groups?.Clone();
             copy.Items = Items?.Clone();
             copy.Help = Help?.Clone();
-            copy.Influence = Influence?.Clone();
+            copy.Purse = Purse?.Clone();
             copy.Alarm = Alarm?.Clone();
             copy.Blockades = Blockades?.Clone();
             copy.Blast = Blast?.Clone();
             copy.Day = Day?.Clone();
             copy.Traps = Traps?.Clone();
-            copy.Poke = Poke?.Clone();
+            copy.Nudge = Nudge?.Clone();
+            copy.Director = Director?.Clone();
+            copy.Calming = Calming?.Clone();
+            copy.Influence = Influence?.Clone();
             copy.Agents = (AgentDefinition[])Agents?.Clone();
             copy.Doors = (DoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (PhysicsObjectDefinition[])PhysicsObjects?.Clone();
@@ -1076,9 +1102,9 @@ namespace Paniq.Simulation
             if (World == null || Perception == null || Fire == null || Round == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
                 ObjectPhysics == null || PhysicsFeel == null || Traits == null || Flammables == null || Items == null || Help == null ||
-                Influence == null || Alarm == null || Blockades == null || Blast == null ||
+                Purse == null || Alarm == null || Blockades == null || Blast == null ||
                 Extinguishers == null || Leadership == null || Groups == null || Day == null ||
-                Traps == null || Poke == null)
+                Traps == null || Nudge == null || Director == null || Calming == null || Influence == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -1103,14 +1129,17 @@ namespace Paniq.Simulation
             Groups.Validate();
             Items.Validate();
             Help.Validate();
-            Influence.Validate();
+            Purse.Validate();
             Alarm.Validate();
             Blockades.Validate();
             Blast.Validate();
             Power.Validate();
             Day.Validate();
             Traps.Validate();
-            Poke.Validate();
+            Nudge.Validate();
+            Director.Validate();
+            Calming.Validate();
+            Influence.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");

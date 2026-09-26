@@ -1,74 +1,87 @@
 namespace Paniq.Simulation
 {
     /// <summary>
-    /// Poking people (prototype 3, 2026-09-25): the player clicks somebody
+    /// Nudging people (prototype 3, 2026-09-25): the player clicks somebody
     /// and they get a jab. The jab itself is the player's act and lands at
     /// once -- a lurch backwards and a stagger, if they are on their feet --
     /// but the person's own reaction obeys the rule every reaction obeys:
     /// it comes a few ticks later, at their reaction tick. Then they look
     /// round for whoever did it (the red "!"), and a calm person stops what
-    /// they were doing to glare for a moment. Poked once too often in a row
+    /// they were doing to glare for a moment. Nudged once too often in a row
     /// they are annoyed: they say so, and a calm person goes and stands
     /// somewhere else.
     /// <para>
-    /// A poke never frightens anybody. It is a nuisance, not a threat, and
+    /// A nudge never frightens anybody. It is a nuisance, not a threat, and
     /// the crowd's fear is for threats.
     /// </para>
     /// Phase 1½: the reactions due this tick are written here, before anybody
     /// decides anything, so phase 4 already sees them.
     /// </summary>
-    internal sealed class PokeSystem
+    internal sealed class NudgeSystem
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
         private readonly BodySystem body;
         private readonly CalmBehaviour calm;
-        private readonly PokeSettings settings;
+        private readonly NudgeSettings settings;
 
-        public PokeSystem(SimulationContext context, Crowd crowd, BodySystem body, CalmBehaviour calm)
+        public NudgeSystem(SimulationContext context, Crowd crowd, BodySystem body, CalmBehaviour calm)
         {
             this.context = context;
             this.crowd = crowd;
             this.body = body;
             this.calm = calm;
-            settings = context.Scenario.Poke;
+            settings = context.Scenario.Nudge;
         }
 
-        /// <summary>The player's poke, carried out by <see cref="PlayerCommandSystem"/> on its tick.</summary>
-        public void Poke(Agent agent)
+        /// <summary>
+        /// The player's nudge, carried out by <see cref="PlayerCommandSystem"/>
+        /// on its tick. With <paramref name="hasFrom"/>, they step away from
+        /// <paramref name="from"/> -- where the click landed (the owner's rule,
+        /// 2026-09-26); without, backwards from the way they face, as the first
+        /// batch had it. Somebody already annoyed only shakes: the nudge is
+        /// written down and does nothing else.
+        /// </summary>
+        public void Nudge(Agent agent, LogicalPosition from, bool hasFrom)
         {
             int tick = context.Tick;
-            AgentPoke poke = agent.Poke;
-            ulong poked = context.Events.Append(tick, default, CausalEventType.PowerPoked, agent.Body.Position,
+            AgentNudge nudge = agent.Nudge;
+            ulong nudged = context.Events.Append(tick, default, CausalEventType.PowerNudged, agent.Body.Position,
                 0, 0, 0UL, agent.Id).EventId;
+            if (tick < nudge.AnnoyedUntilTick)
+            {
+                return;
+            }
 
-            // The jab: somebody on their feet lurches back from the way they
-            // face and staggers; somebody sitting, lying or out cold only
-            // feels it.
+            // The jab: somebody on their feet lurches away from it and
+            // staggers; somebody sitting, lying or out cold only feels it.
             if (agent.Body.IsOnTheirFeet && !agent.Sitting.OnIt)
             {
-                body.Slide(agent, IntegerMath.NormalizeDegrees(agent.Body.Heading + 180), settings.LurchMillimetres);
-                body.Stagger(agent, poked);
+                int away = hasFrom && (from.X != agent.Body.Position.X || from.Z != agent.Body.Position.Z)
+                    ? IntegerMath.HeadingBetween(from, agent.Body.Position, agent.Body.Heading + 180)
+                    : IntegerMath.NormalizeDegrees(agent.Body.Heading + 180);
+                body.Slide(agent, away, settings.LurchMillimetres);
+                body.Stagger(agent, nudged);
             }
 
-            if (tick - poke.LastPokeTick > settings.AnnoyedWindowTicks)
+            if (tick - nudge.LastNudgeTick > settings.AnnoyedWindowTicks)
             {
-                poke.CountInARow = 0;
+                nudge.CountInARow = 0;
             }
 
-            poke.CountInARow++;
-            poke.LastPokeTick = tick;
+            nudge.CountInARow++;
+            nudge.LastNudgeTick = tick;
 
-            // A reaction already due -- to a poke a tick or two ago -- is
-            // kept, and this poke is folded into it, the way somebody jabbed
+            // A reaction already due -- to a nudge a tick or two ago -- is
+            // kept, and this nudge is folded into it, the way somebody jabbed
             // twice in quick succession turns round once. It is neither
-            // pushed later nor handed to the newer poke, which is the rule
-            // ThinkAgainSoon keeps for decisions. The folded poke still
+            // pushed later nor handed to the newer nudge, which is the rule
+            // ThinkAgainSoon keeps for decisions. The folded nudge still
             // counts toward annoyance, which is judged when they turn.
-            if (poke.ReactAtTick <= 0)
+            if (nudge.ReactAtTick <= 0)
             {
-                poke.PokeEventId = poked;
-                poke.ReactAtTick = context.ReactionTick();
+                nudge.NudgeEventId = nudged;
+                nudge.ReactAtTick = context.ReactionTick();
             }
         }
 
@@ -80,25 +93,28 @@ namespace Paniq.Simulation
             for (int i = 0; i < all.Length; i++)
             {
                 Agent agent = all[i];
-                AgentPoke poke = agent.Poke;
-                if (poke.ReactAtTick <= 0 || tick < poke.ReactAtTick)
+                AgentNudge nudge = agent.Nudge;
+                if (nudge.ReactAtTick <= 0 || tick < nudge.ReactAtTick)
                 {
                     continue;
                 }
 
-                poke.ReactAtTick = 0;
+                nudge.ReactAtTick = 0;
                 if (!agent.IsParticipating)
                 {
                     continue;
                 }
 
-                bool annoyed = poke.CountInARow >= settings.AnnoyedAfterPokes;
-                context.Events.Append(tick, agent.Id, annoyed ? CausalEventType.AgentAnnoyed : CausalEventType.AgentPoked,
-                    agent.Body.Position, 0, 0, poke.PokeEventId);
+                bool annoyed = nudge.CountInARow >= settings.AnnoyedAfterNudges;
+                context.Events.Append(tick, agent.Id, annoyed ? CausalEventType.AgentAnnoyed : CausalEventType.AgentNudged,
+                    agent.Body.Position, 0, 0, nudge.NudgeEventId);
                 if (annoyed)
                 {
-                    // Said their piece: the next poke starts the count again.
-                    poke.CountInARow = 0;
+                    // Said their piece: the next nudge starts the count again,
+                    // and for a while nudging them does nothing but make them
+                    // shake with it.
+                    nudge.CountInARow = 0;
+                    nudge.AnnoyedUntilTick = checked(tick + context.Jittered(settings.AnnoyedForTicks));
                 }
 
                 if (agent.Fear.State != AgentFearState.Calm)

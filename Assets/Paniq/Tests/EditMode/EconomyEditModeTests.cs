@@ -75,7 +75,7 @@ namespace Paniq.Tests.EditMode
             data.Fire.ActivationTick = 1;
 
             // No opening card, so every card in hand was dealt by a death.
-            data.Influence.OpeningDrawCount = 0;
+            data.Purse.OpeningDrawCount = 0;
 
             // Nobody puts it out, and nobody hauls them clear.
             data.Extinguishers.FightMinimumBravery = AgentTraitValues.Maximum + 1;
@@ -102,11 +102,11 @@ namespace Paniq.Tests.EditMode
         public void WithThePurseSwitchedOff_EverythingIsFree_AndNothingIsPaidIn()
         {
             ScenarioData data = QuietRoom();
-            data.Influence.Enabled = false;
-            data.Influence.Starting = 0;
+            data.Purse.Enabled = false;
+            data.Purse.Starting = 0;
             using (var simulation = new Run(data, 42UL))
             {
-                Assert.That(simulation.GetSnapshot().InfluenceEnabled, Is.False);
+                Assert.That(simulation.GetSnapshot().PurseEnabled, Is.False);
                 Assert.That(simulation.GetSnapshot().CostOfDoorClick(DoorState.Locked, true), Is.Zero, "The way out is free to unlock.");
                 Assert.That(simulation.GetSnapshot().CostOf(PlayerCommandType.PullAlarm), Is.Zero);
                 Assert.That(simulation.GetSnapshot().Hand, Has.Count.EqualTo(1), "The opening card is still dealt.");
@@ -120,8 +120,8 @@ namespace Paniq.Tests.EditMode
 
                 Assert.That(EventsOfType(simulation, CausalEventType.DoorUnlocked), Has.Count.EqualTo(1), "Unlocked, with an empty purse.");
                 Assert.That(EventsOfType(simulation, CausalEventType.PowerPulledAlarm), Has.Count.EqualTo(1), "Pulled, with an empty purse.");
-                Assert.That(simulation.Influence, Is.Zero, "Nothing paid in by the uproar of the bells.");
-                Assert.That(simulation.InfluenceSpent, Is.Zero);
+                Assert.That(simulation.Purse, Is.Zero, "Nothing paid in by the uproar of the bells.");
+                Assert.That(simulation.PurseSpent, Is.Zero);
             }
         }
 
@@ -138,7 +138,7 @@ namespace Paniq.Tests.EditMode
             PlayerCommandType first;
             using (var simulation = new Run(data, 42UL))
             {
-                Assert.That(simulation.Influence, Is.EqualTo(30), "One move's worth to start.");
+                Assert.That(simulation.Purse, Is.EqualTo(30), "One move's worth to start.");
                 Assert.That(simulation.GetSnapshot().Hand, Has.Count.EqualTo(1), "And one card to spend it on.");
                 first = simulation.GetSnapshot().Hand[0];
                 Assert.That(first, Is.EqualTo(PlayerCommandType.PlayBeefcake)
@@ -161,9 +161,9 @@ namespace Paniq.Tests.EditMode
         public void WithAnEmptyHand_ACardDoesNothingHoweverRichThePlayerIs()
         {
             ScenarioData data = QuietRoom();
-            data.Influence.Starting = 100000;
-            data.Influence.Maximum = 100000;
-            data.Influence.StartingHand = new PlayerCommandType[0];
+            data.Purse.Starting = 100000;
+            data.Purse.Maximum = 100000;
+            data.Purse.StartingHand = new PlayerCommandType[0];
 
             using (var simulation = new Run(data, 42UL))
             {
@@ -171,7 +171,7 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
                 simulation.Step();
 
-                Assert.That(simulation.Influence, Is.EqualTo(100000), "A card they are not holding costs nothing.");
+                Assert.That(simulation.Purse, Is.EqualTo(100000), "A card they are not holding costs nothing.");
                 Assert.That(EventsOfType(simulation, CausalEventType.PowerSpawnedFire), Is.Empty,
                     "And does nothing.");
             }
@@ -181,13 +181,13 @@ namespace Paniq.Tests.EditMode
         public void PlayingACard_TakesItOutOfTheHand()
         {
             ScenarioData data = QuietRoom();
-            data.Influence.Starting = 100000;
-            data.Influence.Maximum = 100000;
-            data.Influence.UproarSmall = 0;
-            data.Influence.UproarMiddling = 0;
-            data.Influence.UproarBig = 0;
-            data.Influence.StartingHand = new[] { PlayerCommandType.SpawnFire, PlayerCommandType.SpawnFire };
-            data.Influence.OpeningDrawCount = 0;
+            data.Purse.Starting = 100000;
+            data.Purse.Maximum = 100000;
+            data.Purse.UproarSmall = 0;
+            data.Purse.UproarMiddling = 0;
+            data.Purse.UproarBig = 0;
+            data.Purse.StartingHand = new[] { PlayerCommandType.SpawnFire, PlayerCommandType.SpawnFire };
+            data.Purse.OpeningDrawCount = 0;
 
             using (var simulation = new Run(data, 42UL))
             {
@@ -196,21 +196,21 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
 
                 Assert.That(simulation.GetSnapshot().Hand.Count, Is.EqualTo(1), "One of the two was spent.");
-                Assert.That(simulation.Influence, Is.EqualTo(100000 - data.Influence.CardCost));
+                Assert.That(simulation.Purse, Is.EqualTo(100000 - data.Purse.CardCost));
             }
         }
 
         [Test]
-        public void ACardThatDoesNothing_CostsNeitherInfluenceNorTheCard()
+        public void ACardThatDoesNothing_CostsNeitherPurseNorTheCard()
         {
             ScenarioData data = QuietRoom();
-            data.Influence.Starting = 100000;
-            data.Influence.Maximum = 100000;
-            data.Influence.UproarSmall = 0;
-            data.Influence.UproarMiddling = 0;
-            data.Influence.UproarBig = 0;
-            data.Influence.StartingHand = new[] { PlayerCommandType.SpawnFire, PlayerCommandType.SpawnFire };
-            data.Influence.OpeningDrawCount = 0;
+            data.Purse.Starting = 100000;
+            data.Purse.Maximum = 100000;
+            data.Purse.UproarSmall = 0;
+            data.Purse.UproarMiddling = 0;
+            data.Purse.UproarBig = 0;
+            data.Purse.StartingHand = new[] { PlayerCommandType.SpawnFire, PlayerCommandType.SpawnFire };
+            data.Purse.OpeningDrawCount = 0;
 
             using (var simulation = new Run(data, 42UL))
             {
@@ -219,14 +219,14 @@ namespace Paniq.Tests.EditMode
                 simulation.QueueCommand(PlayerCommandType.SpawnFire, new LogicalPosition(1000, 1000), 1);
                 simulation.Step();
                 simulation.Step();
-                int afterTheFirst = simulation.Influence;
+                int afterTheFirst = simulation.Purse;
 
                 simulation.QueueCommand(PlayerCommandType.SpawnFire, new LogicalPosition(1000, 1000),
                     simulation.Tick + 1);
                 simulation.Step();
                 simulation.Step();
 
-                Assert.That(simulation.Influence, Is.EqualTo(afterTheFirst), "A miss costs no influence.");
+                Assert.That(simulation.Purse, Is.EqualTo(afterTheFirst), "A miss costs nothing.");
                 Assert.That(simulation.GetSnapshot().Hand.Count, Is.EqualTo(1), "And the card is still in hand.");
             }
         }
@@ -237,13 +237,13 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
             using (var simulation = new Run(data, 42UL))
             {
-                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting));
+                Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting));
                 for (int tick = 0; tick < 1500; tick++)
                 {
                     simulation.Step();
                 }
 
-                Assert.That(simulation.Influence, Is.GreaterThan(data.Influence.Starting),
+                Assert.That(simulation.Purse, Is.GreaterThan(data.Purse.Starting),
                     "A building well alight should have paid the player something.");
             }
         }
@@ -273,16 +273,16 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void ADeath_PaysInCardsRatherThanInInfluence()
+        public void ADeath_PaysInCardsRatherThanInPurse()
         {
             ScenarioData data = FloorWithACertainDeath();
 
-            // Nothing pays but a death, so any influence at all would have had
+            // Nothing pays but a death, so any purse points at all would have had
             // to come from one.
-            data.Influence.UproarSmall = 0;
-            data.Influence.UproarMiddling = 0;
-            data.Influence.UproarBig = 0;
-            data.Influence.PerPersonSaved = 0;
+            data.Purse.UproarSmall = 0;
+            data.Purse.UproarMiddling = 0;
+            data.Purse.UproarBig = 0;
+            data.Purse.PerPersonSaved = 0;
 
             using (var simulation = new Run(data, 42UL))
             {
@@ -293,7 +293,7 @@ namespace Paniq.Tests.EditMode
 
                 Assume.That(EventsOfType(simulation, CausalEventType.AgentLost), Is.Not.Empty,
                     "The floor is arranged so somebody burns.");
-                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting), "A death fills no meter.");
+                Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting), "A death fills no meter.");
                 Assert.That(simulation.GetSnapshot().Hand, Is.Not.Empty, "It deals a card instead.");
             }
         }

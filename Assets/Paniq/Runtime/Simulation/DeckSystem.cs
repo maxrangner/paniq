@@ -8,7 +8,7 @@ namespace Paniq.Simulation
     /// 2026-09-24: "start with one random card"), and every time somebody is
     /// killed one more is drawn and put on the player's bar.
     /// <para>
-    /// This is the other half of the purse (see <see cref="InfluenceSystem"/>).
+    /// This is the other half of the purse (see <see cref="PurseSystem"/>).
     /// The uproar fills the meter and the dead deal the cards, so the two
     /// currencies have one source each and neither pays twice for the same
     /// thing. A round nobody dies in leaves the player with money and nothing
@@ -66,7 +66,7 @@ namespace Paniq.Simulation
         {
             this.context = context;
             draws = new Pcg32(context.Seed, DeckSequence);
-            PlayerCommandType[] opening = context.Scenario.Influence.StartingHand;
+            PlayerCommandType[] opening = context.Scenario.Purse.StartingHand;
             if (opening != null)
             {
                 hand.AddRange(opening);
@@ -75,7 +75,7 @@ namespace Paniq.Simulation
             // The opening draw: from the deck's own stream, so it moves no
             // other random number in the run, and written down as dealt by
             // nobody. Both finite cards are still in supply at the start.
-            for (int i = 0; i < context.Scenario.Influence.OpeningDrawCount; i++)
+            for (int i = 0; i < context.Scenario.Purse.OpeningDrawCount; i++)
             {
                 Deal(default, default, 0UL, true, true);
             }
@@ -92,7 +92,7 @@ namespace Paniq.Simulation
         /// <summary>
         /// Takes one card off the bar. Called only once the card has actually
         /// done something, for the same reason its price is: a card that caught
-        /// nobody was a miss, and a miss costs neither influence nor the card.
+        /// nobody was a miss, and a miss costs neither the purse nor the card.
         /// </summary>
         public void Discard(PlayerCommandType card)
         {

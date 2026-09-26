@@ -6,7 +6,7 @@ using Paniq.Simulation;
 namespace Paniq.Tests.EditMode
 {
     /// <summary>
-    /// The player's influence and what they spend it on. Influence starts at a
+    /// The player's purse and what they spend it on. The purse starts at a
     /// set amount, every card and every door click that actually does something
     /// takes its price, anything nobody can pay for does nothing at all, and the
     /// only thing that pays any back is somebody getting out alive.
@@ -108,9 +108,9 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
 
                 Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Open));
-                Assert.That(simulation.Influence,
-                    Is.EqualTo(data.Influence.Starting - data.Influence.OpenDoorCost));
-                Assert.That(simulation.InfluenceSpent, Is.EqualTo(data.Influence.OpenDoorCost));
+                Assert.That(simulation.Purse,
+                    Is.EqualTo(data.Purse.Starting - data.Purse.OpenDoorCost));
+                Assert.That(simulation.PurseSpent, Is.EqualTo(data.Purse.OpenDoorCost));
             }
         }
 
@@ -124,15 +124,15 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
                 Assert.That(StateOf(simulation, WayOut), Is.EqualTo(DoorState.Unlocked),
                     "One click turns the key and leaves it shut, so the people inside can open it themselves.");
-                Assert.That(simulation.Influence,
-                    Is.EqualTo(data.Influence.Starting - data.Influence.UnlockExitCost),
+                Assert.That(simulation.Purse,
+                    Is.EqualTo(data.Purse.Starting - data.Purse.UnlockExitCost),
                     "The way out costs the exit's price to unlock, not an inside door's.");
 
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, WayOut, 2);
                 simulation.Step();
                 Assert.That(StateOf(simulation, WayOut), Is.EqualTo(DoorState.Open));
-                Assert.That(simulation.Influence, Is.EqualTo(
-                    data.Influence.Starting - data.Influence.UnlockExitCost - data.Influence.OpenDoorCost));
+                Assert.That(simulation.Purse, Is.EqualTo(
+                    data.Purse.Starting - data.Purse.UnlockExitCost - data.Purse.OpenDoorCost));
             }
         }
 
@@ -146,7 +146,7 @@ namespace Paniq.Tests.EditMode
                 simulation.QueueCommand(PlayerCommandType.ToggleLock, ClosetDoor, 1);
                 simulation.Step();
                 Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Locked), "Locked by the player.");
-                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.LockDoorCost));
+                Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting - data.Purse.LockDoorCost));
                 List<CausalEvent> locked = EventsOfType(simulation, CausalEventType.DoorLocked);
                 Assert.That(locked, Has.Count.EqualTo(1));
                 Assert.That(locked[0].SourceId, Is.EqualTo(ClosetDoor), "The player's own doing: the door names itself.");
@@ -155,14 +155,14 @@ namespace Paniq.Tests.EditMode
                 simulation.QueueCommand(PlayerCommandType.ToggleLock, ClosetDoor, 2);
                 simulation.Step();
                 Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Unlocked), "And unlocked again.");
-                Assert.That(simulation.Influence, Is.EqualTo(
-                    data.Influence.Starting - data.Influence.LockDoorCost - data.Influence.UnlockDoorCost));
+                Assert.That(simulation.Purse, Is.EqualTo(
+                    data.Purse.Starting - data.Purse.LockDoorCost - data.Purse.UnlockDoorCost));
 
                 simulation.QueueCommand(PlayerCommandType.ToggleLock, WayOut, 3);
                 simulation.Step();
                 Assert.That(StateOf(simulation, WayOut), Is.EqualTo(DoorState.Unlocked));
-                Assert.That(simulation.Influence, Is.EqualTo(
-                    data.Influence.Starting - data.Influence.LockDoorCost - data.Influence.UnlockDoorCost - data.Influence.UnlockExitCost));
+                Assert.That(simulation.Purse, Is.EqualTo(
+                    data.Purse.Starting - data.Purse.LockDoorCost - data.Purse.UnlockDoorCost - data.Purse.UnlockExitCost));
             }
         }
 
@@ -179,8 +179,8 @@ namespace Paniq.Tests.EditMode
 
                 Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Locked), "Shut and locked.");
                 Assert.That(EventsOfType(simulation, CausalEventType.DoorClosed), Has.Count.EqualTo(1));
-                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting -
-                    data.Influence.OpenDoorCost - data.Influence.CloseDoorCost - data.Influence.LockDoorCost));
+                Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting -
+                    data.Purse.OpenDoorCost - data.Purse.CloseDoorCost - data.Purse.LockDoorCost));
             }
         }
 
@@ -189,16 +189,16 @@ namespace Paniq.Tests.EditMode
         public void TheShippedPurse_HoldsAHundred_AndTheWayOutCostsAllOfIt()
         {
             ScenarioData data = scenario.ToRuntimeData();
-            Assert.That(data.Influence.Maximum, Is.EqualTo(100));
-            Assert.That(data.Influence.UnlockExitCost, Is.EqualTo(data.Influence.Maximum));
-            Assert.That(data.Influence.OpenDoorCost, Is.EqualTo(10));
-            Assert.That(data.Influence.CloseDoorCost, Is.EqualTo(10));
-            Assert.That(data.Influence.LockDoorCost, Is.EqualTo(10));
-            Assert.That(data.Influence.UnlockDoorCost, Is.EqualTo(10));
+            Assert.That(data.Purse.Maximum, Is.EqualTo(100));
+            Assert.That(data.Purse.UnlockExitCost, Is.EqualTo(data.Purse.Maximum));
+            Assert.That(data.Purse.OpenDoorCost, Is.EqualTo(10));
+            Assert.That(data.Purse.CloseDoorCost, Is.EqualTo(10));
+            Assert.That(data.Purse.LockDoorCost, Is.EqualTo(10));
+            Assert.That(data.Purse.UnlockDoorCost, Is.EqualTo(10));
             using (var simulation = new Run(data))
             {
-                simulation.GiveInfluenceForTests(1000);
-                Assert.That(simulation.Influence, Is.EqualTo(100), "The purse never holds more than a hundred.");
+                simulation.GivePurseForTests(1000);
+                Assert.That(simulation.Purse, Is.EqualTo(100), "The purse never holds more than a hundred.");
             }
         }
 
@@ -214,8 +214,8 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
 
                 Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Unlocked), "Shut again.");
-                Assert.That(simulation.Influence, Is.EqualTo(
-                    data.Influence.Starting - data.Influence.OpenDoorCost - data.Influence.CloseDoorCost));
+                Assert.That(simulation.Purse, Is.EqualTo(
+                    data.Purse.Starting - data.Purse.OpenDoorCost - data.Purse.CloseDoorCost));
             }
         }
 
@@ -223,7 +223,7 @@ namespace Paniq.Tests.EditMode
         public void ADoorTheyCannotPayFor_StaysExactlyAsItWas()
         {
             ScenarioData data = QuietRoom();
-            data.Influence.Starting = data.Influence.OpenDoorCost - 1;
+            data.Purse.Starting = data.Purse.OpenDoorCost - 1;
             using (var simulation = new Run(data))
             {
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, ClosetDoor, 1);
@@ -231,7 +231,7 @@ namespace Paniq.Tests.EditMode
 
                 Assert.That(StateOf(simulation, ClosetDoor), Is.EqualTo(DoorState.Unlocked),
                     "Shut, as it started: they could not afford to open it.");
-                Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting),
+                Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting),
                     "And it cost them nothing to find that out.");
             }
         }
@@ -246,7 +246,7 @@ namespace Paniq.Tests.EditMode
                 // it, and there is nothing left to charge for working.
                 simulation.QueueCommand(PlayerCommandType.BlastWall, new LogicalPosition(-5900, 0), 1);
                 simulation.Step();
-                int after = simulation.Influence;
+                int after = simulation.Purse;
 
                 for (int i = 0; i < simulation.DoorCount; i++)
                 {
@@ -258,7 +258,7 @@ namespace Paniq.Tests.EditMode
 
                     simulation.QueueCommand(PlayerCommandType.ClickDoor, door.DoorId, simulation.Tick + 1);
                     simulation.Step();
-                    Assert.That(simulation.Influence, Is.EqualTo(after),
+                    Assert.That(simulation.Purse, Is.EqualTo(after),
                         "There is nothing left of it to open, shut or unlock.");
                     return;
                 }
@@ -268,14 +268,14 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void Influence_StartsAtWhatTheScenarioSays()
+        public void Purse_StartsAtWhatTheScenarioSays()
         {
             ScenarioData data = QuietRoom();
             var simulation = new Run(data);
 
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting));
-            Assert.That(simulation.InfluenceSpent, Is.Zero);
-            Assert.That(simulation.InfluenceEarned, Is.Zero);
+            Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting));
+            Assert.That(simulation.PurseSpent, Is.Zero);
+            Assert.That(simulation.PurseEarned, Is.Zero);
         }
 
         // ---------------------------------------------------------------- Beefcake
@@ -289,13 +289,13 @@ namespace Paniq.Tests.EditMode
             simulation.Step();
 
             Assert.That(simulation.GetAgent(0).Traits.Strength, Is.EqualTo(AgentTraitValues.Maximum));
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.CardCost));
+            Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting - data.Purse.CardCost));
 
             List<CausalEvent> played = EventsOfType(simulation, CausalEventType.PowerBeefcake);
             Assert.That(played, Is.Not.Empty, "Playing Beefcake should be in the log.");
             Assert.That(played[0].TargetId, Is.EqualTo(new SimulationId(1UL)), "It names who it was played on.");
             Assert.That(played[0].CausalParentEventId, Is.Zero, "The player is the cause, so it is a root event.");
-            Assert.That(played[0].Strength, Is.EqualTo(data.Influence.CardCost), "It records what it cost.");
+            Assert.That(played[0].Strength, Is.EqualTo(data.Purse.CardCost), "It records what it cost.");
         }
 
         [Test]
@@ -339,7 +339,7 @@ namespace Paniq.Tests.EditMode
             // Beefcake used to name a person, and naming somebody who was not
             // there threw. It is thrown at a patch of floor now, so the same
             // mistake is a miss instead: it catches nobody, and a card that
-            // catches nobody costs neither influence nor the card.
+            // catches nobody costs neither the purse nor the card.
             ScenarioData data = QuietRoom();
             var simulation = new Run(data);
             simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new LogicalPosition(4000, 4000), 1);
@@ -348,7 +348,7 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(simulation.GetAgent(0).Traits.Strength, Is.EqualTo(AgentTraitValues.Ordinary),
                 "The person across the room is untouched.");
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting), "A miss is free.");
+            Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting), "A miss is free.");
             Assert.That(EventsOfType(simulation, CausalEventType.PowerBeefcake), Is.Empty);
         }
 
@@ -362,7 +362,7 @@ namespace Paniq.Tests.EditMode
             simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new LogicalPosition(0, 0), 1);
             simulation.Step();
 
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting), "A card that does nothing is free.");
+            Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting), "A card that does nothing is free.");
             Assert.That(EventsOfType(simulation, CausalEventType.PowerBeefcake), Is.Empty);
         }
 
@@ -380,7 +380,7 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(simulation.FireActive, Is.True, "The player's card should have started the fire.");
             Assert.That(simulation.FireCellCount, Is.EqualTo(1));
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.CardCost));
+            Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting - data.Purse.CardCost));
 
             List<CausalEvent> card = EventsOfType(simulation, CausalEventType.PowerSpawnedFire);
             Assert.That(card, Is.Not.Empty);
@@ -417,7 +417,7 @@ namespace Paniq.Tests.EditMode
             simulation.Step();
 
             Assert.That(simulation.FireActive, Is.False);
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting), "A card that does nothing is free.");
+            Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting), "A card that does nothing is free.");
             Assert.That(EventsOfType(simulation, CausalEventType.PowerSpawnedFire), Is.Empty,
                 "A card that could not be played leaves nothing in the log.");
         }
@@ -433,7 +433,7 @@ namespace Paniq.Tests.EditMode
             simulation.Step();
             simulation.Step();
 
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.CardCost),
+            Assert.That(simulation.Purse, Is.EqualTo(data.Purse.Starting - data.Purse.CardCost),
                 "The second card should have been refused.");
         }
 
@@ -450,8 +450,8 @@ namespace Paniq.Tests.EditMode
             simulation.Step();
 
             Assert.That(CountBottlesInTheWorld(simulation), Is.EqualTo(bottlesBefore + 1));
-            Assert.That(simulation.Influence,
-                Is.EqualTo(data.Influence.Starting - data.Influence.CardCost));
+            Assert.That(simulation.Purse,
+                Is.EqualTo(data.Purse.Starting - data.Purse.CardCost));
 
             List<CausalEvent> card = EventsOfType(simulation, CausalEventType.PowerSpawnedExtinguisher);
             Assert.That(card, Is.Not.Empty);
@@ -462,8 +462,8 @@ namespace Paniq.Tests.EditMode
         public void SpawnExtinguisher_RunsOutOfSpares()
         {
             ScenarioData data = QuietRoom();
-            data.Influence.Starting = 10000;
-            data.Influence.Maximum = 10000;
+            data.Purse.Starting = 10000;
+            data.Purse.Maximum = 10000;
             var simulation = new Run(data);
             int spares = CountSpares(simulation);
             Assert.That(spares, Is.GreaterThan(0), "The scenario should keep some spares aside.");
@@ -510,7 +510,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = DoorsEditModeTests.RunnerByTheWayOut(
                 TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()), 0, AgentTraitValues.AllOrdinary);
-            int starting = data.Influence.Starting;
+            int starting = data.Purse.Starting;
             var simulation = new Run(data);
             simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, 1);
             simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, 2);
@@ -523,17 +523,17 @@ namespace Paniq.Tests.EditMode
             Assert.That(simulation.GetAgent(0).Outcome, Is.EqualTo(AgentTerminalOutcome.Escaped), "Nobody got out.");
             // Two clicks to get the door open -- the key, then the door -- and
             // then somebody walks out through it and pays some of it back.
-            int doorCost = data.Influence.UnlockExitCost + data.Influence.OpenDoorCost;
-            Assert.That(simulation.Influence, Is.EqualTo(starting - doorCost + data.Influence.PerPersonSaved),
-                "Getting somebody out should pay influence back, on top of what the door cost.");
-            Assert.That(simulation.InfluenceEarned, Is.EqualTo(data.Influence.PerPersonSaved));
+            int doorCost = data.Purse.UnlockExitCost + data.Purse.OpenDoorCost;
+            Assert.That(simulation.Purse, Is.EqualTo(starting - doorCost + data.Purse.PerPersonSaved),
+                "Getting somebody out should pay the purse back, on top of what the door cost.");
+            Assert.That(simulation.PurseEarned, Is.EqualTo(data.Purse.PerPersonSaved));
         }
 
         [Test]
         public void ACardNobodyCanPayFor_DoesNothing()
         {
             ScenarioData data = QuietRoom();
-            data.Influence.Starting = 0;
+            data.Purse.Starting = 0;
             var simulation = new Run(data);
             simulation.QueueCommand(PlayerCommandType.PlayBeefcake, new LogicalPosition(0, 0), 1);
             simulation.QueueCommand(PlayerCommandType.SpawnFire, new LogicalPosition(3000, 3000), 2);
@@ -542,7 +542,7 @@ namespace Paniq.Tests.EditMode
 
             Assert.That(simulation.GetAgent(0).Traits.Strength, Is.EqualTo(AgentTraitValues.Ordinary));
             Assert.That(simulation.FireActive, Is.False);
-            Assert.That(simulation.Influence, Is.Zero);
+            Assert.That(simulation.Purse, Is.Zero);
         }
 
         // ReplayingTheSameCards_GivesTheSameRun compared nothing but the

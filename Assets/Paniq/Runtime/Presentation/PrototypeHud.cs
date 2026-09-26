@@ -7,7 +7,7 @@ namespace Paniq.Presentation
 {
     /// <summary>
     /// The text at the top left: tick, fire, the head count, and what a door
-    /// click will do and cost. Along the bottom, the influence the player has
+    /// click will do and cost. Along the bottom, the purse the player has
     /// left and the cards they can spend it on. Tab toggles a plain table of
     /// everyone's traits and state.
     /// <para>
@@ -159,26 +159,24 @@ namespace Paniq.Presentation
 
             if (hoveredDoor.HasValue)
             {
-                // A door with something wedged in it will not move however many
-                // times you click, so say so rather than letting the click look
-                // as though it did nothing. Same for a door they cannot pay for:
-                // without this the click simply vanishes. One click works the
-                // door; a double click turns its key (2026-09-25).
+                // A door with something wedged in it will not move, so say so
+                // rather than letting a click look as though it did nothing.
+                // Since 2026-09-26 a click draws people to the door (a step of
+                // influence), holding keeps it shut, and the key is a right click.
                 DoorSnapshot door = hoveredDoor.Value;
-                int price = snapshot.CostOfDoorClick(door.State, door.LeadsOutside);
                 int key = snapshot.CostOfLockToggle(door.State, door.LeadsOutside);
                 bool locked = door.State == DoorState.Locked;
-                bool affordable = snapshot.Influence >= (locked ? key : price);
-                string action = door.Swings ? "Swing doors: people push straight through, and there is nothing to work"
+                bool affordable = !locked || snapshot.Purse >= key;
+                string pull = $"click to draw people to it ({InfluenceLevel(snapshot, door.DoorId, true)}/{MaximumInfluence(snapshot)})";
+                string action = door.Swings ? $"Swing doors: people push straight through. {Capital(pull)}"
                     : door.IsPiled ? "THE BOXES ARE LYING ACROSS IT - nobody gets through until enough of them are gone"
-                    : door.State == DoorState.Broken ? "Broken down"
+                    : door.State == DoorState.Broken ? $"Broken down. {Capital(pull)}"
                     : door.IsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted" +
                                       (door.IsHeld ? ", and you are holding it as well" : "")
                     : door.IsHeld ? "You are holding it shut. Let go of the button to let go of the door"
-                    : !affordable ? $"NOT ENOUGH INFLUENCE - it costs {(locked ? key : price)}, and you have {snapshot.Influence}"
-                    : locked ? $"Locked. Double-click to unlock{Price(snapshot, key)}"
-                    : door.State == DoorState.Unlocked ? $"Click to open{Price(snapshot, price)}; double-click to lock{Price(snapshot, key)}; hold to keep it shut"
-                    : $"Click to close{Price(snapshot, price)}, if nobody is in the doorway; double-click to shut and lock{Price(snapshot, key)}; hold to shut and keep it shut";
+                    : !affordable ? $"Locked. NOT ENOUGH IN THE PURSE to unlock it - it costs {key}, and you have {snapshot.Purse}"
+                    : locked ? $"Locked. Right-click to unlock{Price(snapshot, key)}; {pull}"
+                    : $"{Capital(pull)}; hold to keep it shut; right-click to lock{Price(snapshot, key)}";
                 GUI.color = door.IsJammed || door.IsPiled || !affordable ? new Color(1f, 0.7f, 0.6f)
                     : door.IsHeld ? new Color(0.6f, 0.8f, 1f) : Color.white;
                 GUI.Label(new Rect(20f, 104f, 900f, 22f), $"Door {door.DoorId.Value}: {action}");
@@ -187,11 +185,14 @@ namespace Paniq.Presentation
             else if (hoveredAlarm.HasValue)
             {
                 // A fire alarm is priced like a card and refused for nothing
-                // once the bells are ringing; say which before the click.
+                // once the bells are ringing; say which before the click. On a
+                // level where only people pull them (the office, 2026-09-26),
+                // a click draws people to it instead.
                 int price = snapshot.CostOf(PlayerCommandType.PullAlarm);
-                bool affordable = snapshot.Influence >= price;
+                bool affordable = !snapshot.PlayerMayPullAlarms || snapshot.Purse >= price;
                 string action = snapshot.AlarmsRinging ? "already ringing"
-                    : !affordable ? $"NOT ENOUGH INFLUENCE - it costs {price}, and you have {snapshot.Influence}"
+                    : !snapshot.PlayerMayPullAlarms ? "only the people in the building pull it. Click to draw people to it"
+                    : !affordable ? $"NOT ENOUGH IN THE PURSE - it costs {price}, and you have {snapshot.Purse}"
                     : $"Click to pull it{Price(snapshot, price)}: every bell in the building rings";
                 GUI.color = affordable || snapshot.AlarmsRinging ? Color.white : new Color(1f, 0.7f, 0.6f);
                 GUI.Label(new Rect(20f, 104f, 900f, 22f), $"Fire alarm {hoveredAlarm.Value.Value}: {action}");
@@ -206,9 +207,55 @@ namespace Paniq.Presentation
             }
             else if (input.HoveredPerson.HasValue)
             {
-                GUI.Label(new Rect(20f, 104f, 900f, 22f), $"Person {input.HoveredPerson.Value.Value}: click to poke them");
+                bool annoyed = IsAnnoyed(snapshot, input.HoveredPerson.Value);
+                GUI.Label(new Rect(20f, 104f, 900f, 22f), annoyed
+                    ? $"Person {input.HoveredPerson.Value.Value}: annoyed with you - nudging them does nothing for a while"
+                    : $"Person {input.HoveredPerson.Value.Value}: click to nudge them away from the click");
+            }
+            else if (input.HoveredThing.HasValue)
+            {
+                GUI.Label(new Rect(20f, 104f, 900f, 22f),
+                    $"Click to draw people to it ({InfluenceLevel(snapshot, input.HoveredThing.Value, false)}/{MaximumInfluence(snapshot)}): click again for a stronger pull");
+            }
+            else if (input.HoveredFloor.HasValue)
+            {
+                GUI.Label(new Rect(20f, 104f, 900f, 22f), "Click to draw people here: click again, and again, for a stronger pull");
             }
         }
+
+        /// <summary>How many steps of influence a door or a thing has now, for the hover line.</summary>
+        private static int InfluenceLevel(RunSnapshot snapshot, SimulationId target, bool isDoor)
+        {
+            for (int i = 0; i < snapshot.InfluencePlaces.Count; i++)
+            {
+                InfluencePlaceSnapshot place = snapshot.InfluencePlaces[i];
+                if (place.IsDoor == isDoor && place.Target == target)
+                {
+                    return place.Level;
+                }
+            }
+
+            return 0;
+        }
+
+        private static int MaximumInfluence(RunSnapshot snapshot) =>
+            snapshot.InfluencePlaces.Count > 0 ? snapshot.InfluencePlaces[0].MaximumLevel : 20;
+
+        private static bool IsAnnoyed(RunSnapshot snapshot, SimulationId person)
+        {
+            for (int i = 0; i < snapshot.Agents.Count; i++)
+            {
+                if (snapshot.Agents[i].AgentId == person)
+                {
+                    return snapshot.Agents[i].IsAnnoyed;
+                }
+            }
+
+            return false;
+        }
+
+        private static string Capital(string words) =>
+            string.IsNullOrEmpty(words) ? words : char.ToUpperInvariant(words[0]) + words.Substring(1);
 
         /// <summary>
         /// Whether the run itself has this door held: the line says so only
@@ -230,7 +277,7 @@ namespace Paniq.Presentation
         }
 
         /// <summary>A price in brackets, or nothing at all on a level with no purse (prototype 3).</summary>
-        private static string Price(RunSnapshot snapshot, int price) => snapshot.InfluenceEnabled ? $" ({price})" : "";
+        private static string Price(RunSnapshot snapshot, int price) => snapshot.PurseEnabled ? $" ({price})" : "";
 
         private static readonly Color StripBack = new Color(0f, 0f, 0f, 0.55f);
 
@@ -273,18 +320,18 @@ namespace Paniq.Presentation
             // purse (the office since prototype 3) the space is kept and
             // nothing is drawn in it, so the hint line above it stays put.
             var barArea = new Rect(20f, cardsTop - CardGap - 16f, handWidth, 16f);
-            if (snapshot.InfluenceEnabled)
+            if (snapshot.PurseEnabled)
             {
                 GUI.color = BarBack;
                 GUI.DrawTexture(barArea, Texture2D.whiteTexture);
                 GUI.color = BarFill;
-                float fraction = snapshot.InfluenceMaximum <= 0
+                float fraction = snapshot.PurseMaximum <= 0
                     ? 0f
-                    : Mathf.Clamp01(snapshot.Influence / (float)snapshot.InfluenceMaximum);
+                    : Mathf.Clamp01(snapshot.Purse / (float)snapshot.PurseMaximum);
                 GUI.DrawTexture(new Rect(barArea.x, barArea.y, barArea.width * fraction, barArea.height), Texture2D.whiteTexture);
                 GUI.color = Color.white;
                 GUI.Label(new Rect(barArea.x + barArea.width + 10f, barArea.y - 3f, 400f, 22f),
-                    $"Influence {snapshot.Influence} of {snapshot.InfluenceMaximum}   (spent {snapshot.InfluenceSpent}, taken in {snapshot.InfluenceEarned})");
+                    $"Purse {snapshot.Purse} of {snapshot.PurseMaximum}   (spent {snapshot.PurseSpent}, taken in {snapshot.PurseEarned})");
             }
 
             // The hand. One card at the start of a round and then only what
@@ -304,7 +351,7 @@ namespace Paniq.Presentation
                 PlayerCommandType card = stackKinds[i];
                 int count = stackCounts[i];
                 int cost = snapshot.CostOf(card);
-                bool affordable = snapshot.Influence >= cost;
+                bool affordable = snapshot.Purse >= cost;
                 bool picked = selected == card;
                 var area = new Rect(20f + i * (CardWidth + CardGap), bottom - CardHeight - (picked ? CardLift : 0f),
                     CardWidth, CardHeight);
@@ -340,9 +387,9 @@ namespace Paniq.Presentation
                 GUI.color = affordable ? new Color(0.85f, 0.85f, 0.85f) : ink;
                 GUI.Label(new Rect(area.x + 6f, area.y + 76f, area.width - 12f, 32f), BlurbOf(card), CardBlurbStyle);
                 GUI.color = ink;
-                if (snapshot.InfluenceEnabled)
+                if (snapshot.PurseEnabled)
                 {
-                    GUI.Label(new Rect(area.x, area.yMax - 24f, area.width, 20f), affordable ? cost.ToString() : $"{cost} (you have {snapshot.Influence})",
+                    GUI.Label(new Rect(area.x, area.yMax - 24f, area.width, 20f), affordable ? cost.ToString() : $"{cost} (you have {snapshot.Purse})",
                         affordable ? CardCostStyle : CardBlurbStyle);
                 }
             }
@@ -429,7 +476,7 @@ namespace Paniq.Presentation
                 (Colour: new Color(1f, 0.25f, 0.2f), Mark: "!", Means: "just noticed something"),
                 (Colour: new Color(0.45f, 0.9f, 1f), Mark: ")))", Means: "shouting"),
                 (Colour: new Color(1f, 0.85f, 0.3f), Mark: "?", Means: "what was that noise?"),
-                (Colour: new Color(1f, 0.5f, 0.15f), Mark: "#!", Means: "annoyed at being poked"),
+                (Colour: new Color(1f, 0.5f, 0.15f), Mark: "#!", Means: "annoyed at being nudged"),
                 (Colour: new Color(0.8f, 0.8f, 0.8f), Mark: "...", Means: "idling"),
                 (Colour: new Color(0.7f, 0.85f, 1f), Mark: "*", Means: "frozen with fear"),
                 (Colour: new Color(1f, 0.9f, 0.35f), Mark: "o o o", Means: "out cold"),
@@ -439,20 +486,20 @@ namespace Paniq.Presentation
                 (Colour: new Color(0.55f, 0.15f, 0.15f), Mark: "[]", Means: "lost")
             };
 
-            string doorHelp = snapshot.InfluenceEnabled
-                ? $"open or shut it for {snapshot.CostOfDoorClick(DoorState.Unlocked, false)}; " +
-                  $"double-click to lock or unlock it for {snapshot.CostOfLockToggle(DoorState.Locked, false)}. " +
+            string doorHelp = snapshot.PurseEnabled
+                ? $"draw people to use it; right-click to lock or unlock it for {snapshot.CostOfLockToggle(DoorState.Locked, false)}. " +
                   $"Red is locked; the way out costs {snapshot.CostOfLockToggle(DoorState.Locked, true)} to unlock"
-                : "open or shut it; double-click to lock or unlock it. Red is locked";
+                : "draw people to use it, one step a click; right-click to lock or unlock it. Red is locked";
             var keys = new[]
             {
                 ("Click a card", "pick it up, then click the floor to throw it. Two of a kind sit as one card"),
                 ("Cards", "dealt by the dead, one each. Nobody dies, nobody deals"),
-                ("Influence", snapshot.InfluenceEnabled ? "paid by the uproar, and by everyone who gets out" : "none on this level: everything is free"),
+                ("Purse", snapshot.PurseEnabled ? "paid by the uproar, and by everyone who gets out" : "none on this level: everything is free"),
                 ("Escape", "put the card back down (or right click)"),
                 ("Click a door", doorHelp),
                 ("Hold a door", "keep the button down on it and nobody can open it; the strong burst it in one push. Let go and it is a door again"),
-                ("Click a person", "poke them: they lurch and look round. Keep it up and they get annoyed"),
+                ("Click a person", "nudge them away from the click. Three quick ones and they are annoyed, and shake"),
+                ("Click the floor", "draw people there, one step a click, up to twenty; it fades on its own. Things too"),
                 ("W A S D", "move the camera"),
                 ("Q E", "turn a quarter"),
                 ("Wheel", "zoom"),

@@ -140,7 +140,7 @@ namespace Paniq.Presentation
             }
         }
 
-        /// <summary>A red scribble for being annoyed at the player's poking.</summary>
+        /// <summary>A red scribble for being annoyed at the player's nudging.</summary>
         public void Annoyed(SimulationId agentId, float time)
         {
             if (agents.TryGetValue(agentId, out AgentView view))
@@ -286,6 +286,14 @@ namespace Paniq.Presentation
                         roll = Mathf.Sin(time * 22f + view.ShakePhase) * 18f;
                         twist = 0f;
                         lean += Mathf.Sin(time * 15f + view.ShakePhase * 0.7f) * 8f;
+                    }
+                    else if (agent.IsAnnoyed)
+                    {
+                        // Shaking with annoyance at being nudged (2026-09-26):
+                        // a quick side-to-side huff, bigger than a tremble.
+                        Vector3 side = Quaternion.Euler(0f, yaw + 90f, 0f) * Vector3.forward;
+                        shake = side * (Mathf.Sin(time * 34f + view.ShakePhase) * 0.05f);
+                        roll = Mathf.Sin(time * 34f + view.ShakePhase) * 7f;
                     }
                     else if (frozen)
                     {

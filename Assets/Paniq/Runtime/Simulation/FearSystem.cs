@@ -2,19 +2,32 @@
 {
     /// <summary>
     /// Fear state changes: calm to alert, alert to scared, freezing and
-    /// snapping out of it. Each change is logged with its cause. This system
-    /// decides nothing on its own; perception, sound and collisions call it
-    /// when something frightens a person.
+    /// snapping out of it -- and, since prototype 3's second batch
+    /// (2026-09-26), calming down again (<see cref="Settle"/>). Each change is
+    /// logged with its cause. Perception, sound and collisions call it when
+    /// something frightens a person; calming down it watches for itself.
     /// </summary>
-    internal sealed class FearSystem
+    internal sealed class FearSystem : IBindable
     {
         private readonly SimulationContext context;
         private readonly Threats threats;
+
+        /// <summary>Built after this system: where people are, where their desks are, and the errand that sends them back to one.</summary>
+        private WorldGeometry geometry;
+        private PhysicsObjectSystem objects;
+        private CueSystem cues;
 
         public FearSystem(SimulationContext context, Threats threats)
         {
             this.context = context;
             this.threats = threats;
+        }
+
+        public void Bind(Systems systems)
+        {
+            geometry = systems.Geometry;
+            objects = systems.Objects;
+            cues = systems.Cues;
         }
 
         /// <summary>
@@ -77,17 +90,24 @@
         /// Processing order decides who waits, so a replay agrees, and no
         /// random number is drawn.
         /// </summary>
-        private int Staggered(int tick, int delay)
+        private int Staggered(int tick, int delay) => Staggered(reactionEndsTaken, tick, delay);
+
+        /// <summary>
+        /// The same stagger against any set of ticks already taken: startles
+        /// keep one set, settling down another, so a startle and a settle may
+        /// share a tick but no two of either do.
+        /// </summary>
+        private int Staggered(System.Collections.Generic.HashSet<int> taken, int tick, int delay)
         {
-            reactionEndsTaken.RemoveWhere(taken => taken < tick);
+            taken.RemoveWhere(end => end < tick);
             int stagger = context.Scenario.Perception.StartleStaggerTicks;
-            int end = checked(tick + delay);
-            while (!reactionEndsTaken.Add(end))
+            int due = checked(tick + delay);
+            while (!taken.Add(due))
             {
-                end = checked(end + stagger);
+                due = checked(due + stagger);
             }
 
-            return end - tick;
+            return due - tick;
         }
 
         /// <summary>Startled: stop, draw a seeded reaction delay, and log what caused it.</summary>
@@ -96,6 +116,7 @@
             int tick = context.Tick;
             agent.Fear.State = AgentFearState.Alert;
             agent.Fear.AlertSource = alertSource;
+            agent.Fear.SawTheThreat = alertSource == AgentAlertSource.Visual;
             agent.Intent.Activity = AgentActivityState.Reacting;
             agent.Intent.SocialPartnerIndex = -1;
             agent.Hearing.HasSoundPoint = false;
@@ -136,6 +157,7 @@
         public void PromoteAlertToVisual(Agent agent, ulong rootEventId)
         {
             agent.Fear.AlertSource = AgentAlertSource.Visual;
+            agent.Fear.SawTheThreat = true;
             CausalEvent alert = context.Events.Append(
                 context.Tick,
                 agent.Id,
@@ -160,6 +182,14 @@
 
             int tick = context.Tick;
             agent.Fear.State = AgentFearState.Scared;
+            agent.Fear.LastFrightTick = tick;
+            agent.Fear.CalmsAtTick = 0;
+            if (context.Scenario.Calming.Enabled)
+            {
+                // Their own quiet spell, a little different from everybody
+                // else's, so a room frightened together never settles together.
+                agent.Fear.QuietTicks = context.Jittered(context.Scenario.Calming.QuietTicks);
+            }
 
             // Whatever the day had them doing is over: fear has its own rules.
             // Cleared here as well as on the way into being alert, because a
@@ -242,6 +272,216 @@
             }
 
             return new MotorIntent(goalHeading, 0, agent.Personality.PanicTurnRate, context.Scenario.Panic.Acceleration);
+        }
+
+        // ---------------------------------------------------------------- calming down
+
+        /// <summary>The ticks on which somebody is due to settle, so no two settle on the same one.</summary>
+        private readonly System.Collections.Generic.HashSet<int> calmEndsTaken = new System.Collections.Generic.HashSet<int>();
+
+        /// <summary>
+        /// Something frightening again -- a bell, a bang, the danger back in
+        /// sight: their fear is full again and the quiet spell starts over.
+        /// </summary>
+        public void Refresh(Agent agent)
+        {
+            if (agent.Fear.State != AgentFearState.Scared)
+            {
+                return;
+            }
+
+            agent.Fear.LastFrightTick = context.Tick;
+            agent.Fear.CalmsAtTick = 0;
+        }
+
+        /// <summary>
+        /// Phase 4, straight after they have looked and listened: a frightened
+        /// person who has seen and heard nothing frightening for a while
+        /// settles, at their own pace (prototype 3, 2026-09-26). The owner's
+        /// rule: "the ones that saw the fire stay rattled for a while, the
+        /// nervous might freak out more, the calm and brave don't really care
+        /// -- this should be the personality system in play, not scripted."
+        /// <para>
+        /// Fear is full the moment it is refreshed. After their own quiet spell
+        /// it drains at a pace their bravery quickens and their nervousness
+        /// slows, down to a floor their nervousness sets; below the line they
+        /// settle, a few ticks late like every reaction and never on the same
+        /// tick as anybody else. Somebody whose floor is above the line never
+        /// settles: the very nervous keep heading out. The numbers and the
+        /// cast they give are in <see cref="CalmingSettings"/>.
+        /// </para>
+        /// <para>
+        /// What keeps somebody frightened: being alight, any danger in sight
+        /// or in their room, a danger's own noise within earshot (through a
+        /// shut door, half as far), and -- delivered by <see cref="SoundSystem"/>
+        /// -- a bell or a bang. A yell does not: a crowd that has stopped
+        /// being frightened of anything would otherwise keep itself frightened
+        /// by shouting about it. Each person looks every
+        /// <see cref="CalmingSettings.CheckEveryTicks"/>, on their own beat.
+        /// </para>
+        /// It draws a number only when somebody's moment to settle is set.
+        /// </summary>
+        public void Settle(Agent agent)
+        {
+            CalmingSettings calming = context.Scenario.Calming;
+            if (!calming.Enabled || agent.Fear.State != AgentFearState.Scared || !agent.IsParticipating)
+            {
+                return;
+            }
+
+            int tick = context.Tick;
+            AgentFear fear = agent.Fear;
+            if (agent.Burning.IsBurning ||
+                ((tick + agent.Index) % calming.CheckEveryTicks == 0 && StillFrightening(agent)))
+            {
+                Refresh(agent);
+                return;
+            }
+
+            if (fear.CalmsAtTick > 0)
+            {
+                if (tick >= fear.CalmsAtTick)
+                {
+                    CalmDown(agent);
+                }
+
+                return;
+            }
+
+            if (FearFloorPerMille(agent, calming) >= calming.CalmBelowPerMille)
+            {
+                // The very nervous never settle.
+                return;
+            }
+
+            long drainTicks = (long)(1000 - calming.CalmBelowPerMille) * Run.TicksPerSecond / DrainPerMillePerSecond(agent, calming);
+            if (tick < (long)fear.LastFrightTick + fear.QuietTicks + drainTicks)
+            {
+                return;
+            }
+
+            fear.CalmsAtTick = checked(tick + Staggered(calmEndsTaken, tick, context.ReactionLag()));
+        }
+
+        /// <summary>How fast somebody's fear drains once the quiet spell is over: the brave fast, the nervous slowly.</summary>
+        private static int DrainPerMillePerSecond(Agent agent, CalmingSettings calming)
+        {
+            int rate = calming.DrainBasePerMillePerSecond + calming.DrainPerBravery * agent.Traits.Bravery -
+                       calming.DrainPerNervousness * agent.Traits.Nervousness;
+            return System.Math.Max(calming.DrainMinimumPerMillePerSecond, rate);
+        }
+
+        /// <summary>How low somebody's fear can drain at all: nothing for the steady, most of the way for the very nervous.</summary>
+        private static int FearFloorPerMille(Agent agent, CalmingSettings calming)
+        {
+            return System.Math.Max(0, calming.FloorPerNervousness * (agent.Traits.Nervousness - 5));
+        }
+
+        /// <summary>Whether anything frightening is still in sight, in their room, or in earshot.</summary>
+        private bool StillFrightening(Agent agent)
+        {
+            if (!threats.AnyActive)
+            {
+                return false;
+            }
+
+            LogicalPosition at = agent.Body.Position;
+            int room = geometry != null ? geometry.RoomAt(at) : -1;
+            if (room >= 0 && threats.IsInRoom(room))
+            {
+                return true;
+            }
+
+            if (threats.IsVisibleFrom(at, agent.Body.Heading, context.Scenario.Perception.VisionRangeMillimetres, out _))
+            {
+                agent.Fear.SawTheThreat = true;
+                return true;
+            }
+
+            if (!threats.HeardNearby(at, out LogicalPosition noise, out _, out long reach))
+            {
+                return false;
+            }
+
+            // Through a wall or a shut door a noise carries half as far, as
+            // every other noise does.
+            if (geometry != null && !geometry.RoomsOpenToEachOther(geometry.RoomAtPoint(noise), room))
+            {
+                long muffled = reach / 2;
+                return LogicalPosition.DistanceSquared(at, noise) <= muffled * muffled;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Somebody frightened settles. Only while they are running, dithering
+        /// or frozen -- never mid-way through forcing a door, hosing the fire,
+        /// hauling somebody out or pulling the alarm, and never while they are
+        /// off their feet: they finish that first, and settle after. They are
+        /// rattled for a while (longer if they saw the danger), and those with
+        /// a desk head back to it -- unless the danger is in that room.
+        /// </summary>
+        private void CalmDown(Agent agent)
+        {
+            AgentActivityState activity = agent.Intent.Activity;
+            bool free = activity == AgentActivityState.Fleeing || activity == AgentActivityState.Hesitating ||
+                        activity == AgentActivityState.Frozen || activity == AgentActivityState.Standing;
+            if (!free || agent.Body.State != AgentBodyState.Upright || agent.Help.TargetIndex >= 0 ||
+                agent.Sitting.Phase == SitPhase.LeapingUp)
+            {
+                return;
+            }
+
+            int tick = context.Tick;
+            AgentFear fear = agent.Fear;
+            CalmingSettings calming = context.Scenario.Calming;
+            int rattled = fear.SawTheThreat ? calming.RattledAfterSeeingTicks : calming.RattledAfterHearingTicks;
+            fear.State = AgentFearState.Calm;
+            fear.AlertSource = AgentAlertSource.None;
+            fear.CalmsAtTick = 0;
+            fear.FreezeEndTick = 0;
+            fear.RattledUntilTick = checked(tick + context.Jittered(rattled));
+            fear.SawTheThreat = false;
+
+            // The escape is over: whatever they meant to run for, they no
+            // longer do. What they learned about the building -- doors found
+            // shut, the way out -- they keep.
+            AgentIntent intent = agent.Intent;
+            intent.Activity = AgentActivityState.Standing;
+            intent.ActivityEndTick = tick;
+            intent.SetOnAWayOut = false;
+            intent.SwerveOffset = 0;
+            intent.SwerveEndTick = 0;
+            agent.Doors.ExitDoorIndex = -1;
+            agent.Doors.WayOutDoorIndex = -1;
+            agent.Doors.HasLookedForAWayOut = false;
+            agent.Doors.DashingUntilTick = 0;
+            agent.Leading.FollowingIndex = -1;
+            agent.Hearing.HasSoundPoint = false;
+            agent.Hearing.ClearPending();
+            agent.Body.BlockedTicks = 0;
+
+            context.Events.Append(tick, agent.Id, CausalEventType.AgentCalmedDown, agent.Body.Position, rattled, 0,
+                fear.ScaredEventId);
+
+            if (cues != null && agent.Home.Exists && !threats.IsInRoom(HomeRoom(agent)))
+            {
+                cues.SendHome(agent);
+            }
+        }
+
+        private int HomeRoom(Agent agent)
+        {
+            if (geometry == null)
+            {
+                return -1;
+            }
+
+            LogicalPosition home = agent.Home.Chair >= 0 && objects != null
+                ? objects.PositionOf(agent.Home.Chair)
+                : agent.Home.Spot;
+            return geometry.RoomAtPoint(home);
         }
     }
 }

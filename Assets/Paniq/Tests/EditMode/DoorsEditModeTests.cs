@@ -134,8 +134,8 @@ namespace Paniq.Tests.EditMode
             // Working one door four times over costs more than a round's purse
             // holds, and this test is about what the clicks do rather than what
             // they cost: PowersEditModeTests owns the prices.
-            data.Influence.Starting = 1000;
-            data.Influence.Maximum = 1000;
+            data.Purse.Starting = 1000;
+            data.Purse.Maximum = 1000;
             var simulation = new Run(data);
             Click(simulation, OfficeWayOut);
             simulation.Step();
@@ -272,8 +272,8 @@ namespace Paniq.Tests.EditMode
                 // never touched. This test is about what open doors do, not
                 // about what they cost -- PowersEditModeTests owns
                 // the prices.
-                data.Influence.Starting = 2000;
-                data.Influence.Maximum = 2000;
+                data.Purse.Starting = 2000;
+                data.Purse.Maximum = 2000;
                 var simulation = new Run(data, seed);
                 OpenEveryDoor(simulation);
                 // Bodies give a little: in a packed, shoving crowd two people on
@@ -959,8 +959,8 @@ namespace Paniq.Tests.EditMode
                     case CausalEventType.PowerReleasedDoor:
                         Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, $"{record.EventType} names the doorway.");
                         break;
-                    case CausalEventType.PowerPoked:
-                        Assert.That(agents, Does.Contain(record.TargetId), "A poke names the person poked.");
+                    case CausalEventType.PowerNudged:
+                        Assert.That(agents, Does.Contain(record.TargetId), "A nudge names the person nudged.");
                         break;
                     case CausalEventType.CueCalled:
                         // A cue names the room it was called in or the person

@@ -1,369 +1,383 @@
-﻿namespace Paniq.Simulation
+using System.Collections.Generic;
+
+namespace Paniq.Simulation
 {
     /// <summary>
-    /// What the player has left to spend. The round opens with nothing, and
-    /// the meter fills from the uproar: people shouting, running into each
-    /// other, going down, catching fire, doors coming off their hinges,
-    /// appliances going off. Saving somebody pays too. So the player cannot do
-    /// anything at all until the building is in trouble, and the worse it gets
-    /// the more they can do about it.
+    /// Influence (prototype 3, second batch, 2026-09-26): the player clicks a
+    /// door, a thing or a patch of floor, and people are drawn toward it. It
+    /// is never an order. Every person weighs it against their own fear,
+    /// habits and character, and it only tips the ones who were undecided.
+    /// The owner's words: "clicking a door once just increases the chances of
+    /// an agent using the door; clicking it a few more times increases it
+    /// more; clicking an empty hallway a few times acts like an attractor
+    /// influencing the agents' own decision making."
     /// <para>
-    /// Deaths are deliberately not in here. A death deals a card instead (see
-    /// <see cref="DeckSystem"/>), so it pays once rather than twice and the two
-    /// currencies keep one source each: the uproar fills the meter, the dead
-    /// deal the cards.
+    /// Each click adds one step, up to <see cref="InfluenceSettings.MaximumLevel"/>;
+    /// a strong pull takes frantic clicking. It ticks down a step at a time
+    /// on its own and cannot be cancelled. It sticks to its place: anybody who
+    /// comes near it later feels it too, more the nearer they are, and not at
+    /// all from another room. There is no limit to how many places there are.
     /// </para>
     /// <para>
-    /// Influence is bookkeeping rather than something that happens in the
-    /// world, so it is not an event in the causal log — for the same reason
-    /// sitting down is not. Each card's own event records what it cost, so the
-    /// log still accounts for where the influence went.
+    /// How much a person feels it is arithmetic on where they stand and who
+    /// they are (<see cref="FeltBy"/>), so asking draws no random numbers and
+    /// an influence nobody is near changes no run. Places are kept in the
+    /// order they were first clicked, so a replay agrees.
     /// </para>
     /// </summary>
-    /// <summary>How much of a commotion one kind of event is, to the player's meter.</summary>
-    public enum UproarTier
-    {
-        Nothing,
-        Small,
-        Middling,
-        Big
-    }
-
     internal sealed class InfluenceSystem
     {
-        private readonly InfluenceSettings settings;
-        private readonly SimulationContext context;
-        private int eventsRead;
+        /// <summary>One influenced place.</summary>
+        internal struct Place
+        {
+            /// <summary>A door's index, or -1.</summary>
+            public int Door;
 
-        public InfluenceSystem(SimulationContext context)
+            /// <summary>A thing's index, or -1.</summary>
+            public int Thing;
+
+            /// <summary>What was clicked, for the log and the display: the door or the thing, or none for floor.</summary>
+            public SimulationId Target;
+
+            /// <summary>Where the pull comes from: the doorway's middle, the thing where it stood, or the spot.</summary>
+            public LogicalPosition At;
+
+            /// <summary>The rooms it is felt in: its own, and for a door the room on the other side too.</summary>
+            public int RoomA;
+            public int RoomB;
+
+            /// <summary>Its level at the last click, and when that was; it has lost a step for every stretch since.</summary>
+            public int LevelAtClick;
+            public int ClickTick;
+
+            /// <summary>The last click's event: what somebody drawn by it names as the cause.</summary>
+            public ulong EventId;
+        }
+
+        private readonly SimulationContext context;
+        private readonly WorldGeometry geometry;
+        private readonly InfluenceSettings settings;
+        private readonly List<Place> places = new List<Place>();
+
+        public InfluenceSystem(SimulationContext context, WorldGeometry geometry)
         {
             this.context = context;
+            this.geometry = geometry;
             settings = context.Scenario.Influence;
-            Influence = settings.Starting;
         }
 
-        /// <summary>What is left to spend.</summary>
-        public int Influence { get; private set; }
+        /// <summary>How many places are influenced right now.</summary>
+        public int Count => places.Count;
 
-        /// <summary>How much has been earned back by saving people, for the display.</summary>
-        public int Earned { get; private set; }
+        /// <summary>The <paramref name="i"/>-th place.</summary>
+        public Place this[int i] => places[i];
 
-        /// <summary>How much has been spent on cards, for the display.</summary>
-        public int Spent { get; private set; }
+        /// <summary>A place's level now: its level at the last click, less a step for each stretch since.</summary>
+        public int LevelOf(int i) => LevelNow(places[i]);
 
-        /// <summary>
-        /// Whether there is a purse at all (<see cref="InfluenceSettings.Enabled"/>).
-        /// Off, everything costs nothing and nothing is paid in, so every
-        /// check below passes and the display draws no purse.
-        /// </summary>
-        public bool Enabled => settings.Enabled;
-
-        /// <summary>What a card (or a pull of the alarm) costs: nothing when there is no purse.</summary>
-        public int CostOf(PlayerCommandType card) => Priced(ListPriceOf(card));
-
-        /// <summary>
-        /// What one click on a door in this state would cost: turning the key
-        /// on a locked one (the whole purse at the building's way out), walking
-        /// a shut one open, pulling an open one shut; a door somebody has
-        /// already broken down is past charging for. Nothing when there is no
-        /// purse.
-        /// </summary>
-        public int CostOfDoorClick(DoorState state, bool leadsOutside) => Priced(ListPriceOfDoorClick(state, leadsOutside));
-
-        /// <summary>
-        /// What turning the key on a door in this state would cost: unlocking
-        /// a locked one (the whole purse at the way out), locking a shut one,
-        /// or shutting and locking an open one. Nothing when there is no purse.
-        /// </summary>
-        public int CostOfLockToggle(DoorState state, bool leadsOutside) => Priced(ListPriceOfLockToggle(state, leadsOutside));
-
-        /// <summary>
-        /// Every price the run charges passes through here, so a purse that
-        /// is switched off charges nothing wherever a price is asked for. A
-        /// new thing with a price is written as another list price and
-        /// another one-line cost above, and cannot forget the switch.
-        /// </summary>
-        private int Priced(int listPrice) => settings.Enabled ? listPrice : 0;
-
-        private int ListPriceOf(PlayerCommandType card)
+        private int LevelNow(Place place)
         {
-            switch (card)
+            int lost = (context.Tick - place.ClickTick) / settings.TicksPerStepLost;
+            return System.Math.Max(0, place.LevelAtClick - lost);
+        }
+
+        /// <summary>
+        /// One click on a door. Returns the level it now has. The door must be
+        /// one the building has; the command system has checked.
+        /// </summary>
+        public int OnDoor(int door, SimulationId doorId)
+        {
+            int roomA = geometry.DoorRoom(door);
+            int roomB = geometry.RoomBeyond(door, roomA);
+            return Click(door, -1, doorId, geometry.DoorCentre(door), roomA, roomB);
+        }
+
+        /// <summary>One click on a thing: the pull comes from where it stands now, and stays there.</summary>
+        public int OnThing(int thing, SimulationId thingId, LogicalPosition at)
+        {
+            int room = geometry.RoomAtPoint(at);
+            return Click(-1, thing, thingId, at, room, room);
+        }
+
+        /// <summary>One click on the floor. False, and nothing written, when the spot is not floor in any room.</summary>
+        public bool TryOnSpot(LogicalPosition at, out int level)
+        {
+            level = 0;
+            int room = geometry.RoomAtPoint(at);
+            if (room < 0)
             {
-                case PlayerCommandType.PlayBeefcake:
-                case PlayerCommandType.PlayCourage:
-                case PlayerCommandType.PlayTerror:
-                case PlayerCommandType.PlayBastard:
-                case PlayerCommandType.PlayColdHeart:
-                case PlayerCommandType.SpawnFire:
-                case PlayerCommandType.SpawnExtinguisher:
-                case PlayerCommandType.BlastWall:
-                case PlayerCommandType.PopFuseBox:
-                case PlayerCommandType.StickTogether:
-                    return settings.CardCost;
-
-                // Not a card, but priced like one: always on offer, and paid
-                // for only when the bells actually start.
-                case PlayerCommandType.PullAlarm:
-                    return settings.PullAlarmCost;
-
-                // A door click is priced by what the door is doing, not by the
-                // command, so it is asked for separately; setting the disaster
-                // going is the start button and is not spent on at all.
-                default: return 0;
-            }
-        }
-
-        private int ListPriceOfDoorClick(DoorState state, bool leadsOutside)
-        {
-            switch (state)
-            {
-                case DoorState.Locked: return leadsOutside ? settings.UnlockExitCost : settings.UnlockDoorCost;
-                case DoorState.Unlocked: return settings.OpenDoorCost;
-                case DoorState.Open: return settings.CloseDoorCost;
-                default: return 0;
-            }
-        }
-
-        private int ListPriceOfLockToggle(DoorState state, bool leadsOutside)
-        {
-            switch (state)
-            {
-                case DoorState.Locked: return leadsOutside ? settings.UnlockExitCost : settings.UnlockDoorCost;
-                case DoorState.Unlocked: return settings.LockDoorCost;
-                case DoorState.Open: return settings.CloseDoorCost + settings.LockDoorCost;
-                default: return 0;
-            }
-        }
-
-        public bool CanAfford(PlayerCommandType card) => Influence >= CostOf(card);
-
-        public bool CanAfford(int cost) => Influence >= cost;
-
-        /// <summary>
-        /// Takes the price of a card. Call it only once the card has actually
-        /// done something, so a refused card is free.
-        /// </summary>
-        public void Spend(PlayerCommandType card) => Spend(CostOf(card));
-
-        /// <summary>
-        /// Takes a price worked out elsewhere, for the things whose cost
-        /// depends on what they found rather than on which button was pressed.
-        /// Same rule: only once it has actually done something.
-        /// </summary>
-        public void Spend(int cost)
-        {
-            Influence -= cost;
-            Spent += cost;
-        }
-
-        /// <summary>Somebody got out alive.</summary>
-        public void CreditPersonSaved()
-        {
-            Credit(settings.PerPersonSaved);
-        }
-
-        /// <summary>
-        /// Everything that has happened since the last time this was asked,
-        /// priced by how much of a commotion it is. Read off the causal log
-        /// rather than reported by the behaviours, so nothing in the simulation
-        /// has to know the player's purse exists — the same arrangement the
-        /// head count uses.
-        /// </summary>
-        public void CreditUproar()
-        {
-            var log = context.Events.Events;
-            for (int i = eventsRead; i < log.Count; i++)
-            {
-                Credit(UproarValueOf(log[i].EventType));
+                return false;
             }
 
-            eventsRead = log.Count;
-        }
-
-        /// <summary>What one thing happening is worth to the meter: nothing, or one of three sizes.</summary>
-        private int UproarValueOf(CausalEventType what)
-        {
-            switch (UproarTierOf(what))
-            {
-                case UproarTier.Big: return settings.UproarBig;
-                case UproarTier.Middling: return settings.UproarMiddling;
-                case UproarTier.Small: return settings.UproarSmall;
-                default: return 0;
-            }
+            level = Click(-1, -1, default, at, room, room);
+            return true;
         }
 
         /// <summary>
-        /// Which size of commotion each kind of event is. Three sizes: somebody
-        /// shouting or tripping is small, somebody going down or a door coming
-        /// off its hinges is middling, and somebody catching fire or an
-        /// appliance going off is big.
-        /// <para>
-        /// Every event type is named here, including the ones that pay nothing,
-        /// and an event type left out is an error rather than a silent zero. It
-        /// used to be a switch with a default of nothing, so a new event landed
-        /// in the wrong tier by omission and no test could tell. A test now
-        /// walks every value of the enum through this.
-        /// </para>
-        /// <para>
-        /// The groups that pay nothing, each for its own reason. A death deals
-        /// a card instead. Somebody escaping is already paid for by the head
-        /// count. The player's own cards would otherwise refund themselves.
-        /// Fire spreading square by square fires dozens of times a second in a
-        /// room nobody is standing in: the fire pays through what it does to
-        /// people and things, not through its own arithmetic. Somebody thinking
-        /// (looking for a way out, finding one) is not a commotion. And the
-        /// rest are bookkeeping.
-        /// </para>
+        /// A click adds a step to whatever it lands on: the same door, the same
+        /// thing, or a place on the floor (or a thing) within
+        /// <see cref="InfluenceSettings.StackRadiusMillimetres"/> in the same
+        /// room -- so frantic clicking on a patch of corridor builds one strong
+        /// pull rather than twenty weak ones, and a click just the other side
+        /// of a wall starts a place of its own there.
         /// </summary>
-        internal static UproarTier UproarTierOf(CausalEventType what)
+        private int Click(int door, int thing, SimulationId target, LogicalPosition at, int roomA, int roomB)
         {
-            switch (what)
+            int tick = context.Tick;
+            int found = Find(door, thing, at, roomA);
+            int level;
+            if (found >= 0)
             {
-                case CausalEventType.AgentCaughtFire:
-                case CausalEventType.AgentPassedOut:
-                case CausalEventType.AgentCrushed:
-                case CausalEventType.ObjectExploded:
-                case CausalEventType.DoorBrokenDown:
-                    return UproarTier.Big;
+                Place place = places[found];
+                level = System.Math.Min(settings.MaximumLevel, LevelNow(place) + 1);
+                place.LevelAtClick = level;
+                place.ClickTick = tick;
+                place.EventId = Log(place.Target, place.At, level);
+                places[found] = place;
+                return level;
+            }
 
-                case CausalEventType.AgentKnockedDown:
-                case CausalEventType.AgentShoved:
-                case CausalEventType.AgentGrabbed:
-                case CausalEventType.AgentForcedDoor:
-                case CausalEventType.AgentBarricadedDoor:
-                case CausalEventType.ObjectBroke:
-                case CausalEventType.DoorBurntThrough:
-                case CausalEventType.BoxHitAgent:
-                case CausalEventType.AlarmPulled:
-                case CausalEventType.TableHeaved:
-                case CausalEventType.BoxTowerFell:
-                    return UproarTier.Middling;
+            if (places.Count >= settings.MaximumPlaces)
+            {
+                DropTheWeakest();
+            }
 
-                case CausalEventType.AgentYelled:
-                case CausalEventType.AgentScared:
-                case CausalEventType.AgentTripped:
-                case CausalEventType.AgentFroze:
-                case CausalEventType.AgentsCollided:
-                case CausalEventType.AgentShovedObstruction:
-                case CausalEventType.ObjectCaughtFire:
-                case CausalEventType.ItemThrown:
-                case CausalEventType.BoxBumped:
-                case CausalEventType.ObjectPopped:
-                    return UproarTier.Small;
+            level = 1;
+            places.Add(new Place
+            {
+                Door = door,
+                Thing = thing,
+                Target = target,
+                At = at,
+                RoomA = roomA,
+                RoomB = roomB,
+                LevelAtClick = level,
+                ClickTick = tick,
+                EventId = Log(target, at, level)
+            });
+            return level;
+        }
 
-                // A death deals a card; the head count pays for an escape.
-                case CausalEventType.AgentLost:
-                case CausalEventType.AgentEscaped:
-                case CausalEventType.AgentRescued:
-                case CausalEventType.AgentSurvived:
-                case CausalEventType.CardDealt:
+        private ulong Log(SimulationId target, LogicalPosition at, int level)
+        {
+            return context.Events.Append(context.Tick, default, CausalEventType.PowerInfluenced, at, level, 0, 0UL, target)
+                .EventId;
+        }
 
-                // The player's own doing.
-                case CausalEventType.PowerBeefcake:
-                case CausalEventType.PowerCourage:
-                case CausalEventType.PowerTerror:
-                case CausalEventType.PowerBastard:
-                case CausalEventType.PowerColdHeart:
-                case CausalEventType.PowerSpawnedFire:
-                case CausalEventType.PowerSpawnedExtinguisher:
-                case CausalEventType.PowerBlastedWall:
-                case CausalEventType.PowerPoppedFuseBox:
-                case CausalEventType.PowerPulledAlarm:
-                case CausalEventType.PowerStickTogether:
-                case CausalEventType.PowerHeldDoor:
-                case CausalEventType.PowerReleasedDoor:
-                case CausalEventType.PowerPoked:
-                case CausalEventType.DoorUnlocked:
-                case CausalEventType.RoundEventTriggered:
-                case CausalEventType.RoundEnded:
+        private int Find(int door, int thing, LogicalPosition at, int room)
+        {
+            long stack = settings.StackRadiusMillimetres;
+            for (int i = 0; i < places.Count; i++)
+            {
+                Place place = places[i];
+                if (door >= 0)
+                {
+                    if (place.Door == door)
+                    {
+                        return i;
+                    }
 
-                // The hazard's own arithmetic.
-                case CausalEventType.FireActivated:
-                case CausalEventType.FireSpread:
-                case CausalEventType.FireDoused:
-                case CausalEventType.ObjectBurntOut:
-                case CausalEventType.PowerSparkStarted:
-                case CausalEventType.PowerSparkArrived:
+                    continue;
+                }
 
-                // Somebody thinking, or somebody being told.
-                case CausalEventType.AgentAlerted:
-                case CausalEventType.AgentNoticedSound:
-                case CausalEventType.AgentUnfroze:
-                case CausalEventType.AgentLookedForAWayOut:
-                case CausalEventType.AgentFoundADeadEnd:
-                case CausalEventType.AgentFoundTheWayOut:
-                case CausalEventType.AgentDashedThroughHeat:
-                case CausalEventType.AgentHidFromTheHeat:
-                case CausalEventType.AgentCarriedThroughDoorway:
-                case CausalEventType.LeaderCalledPeopleOn:
-                case CausalEventType.LeaderOrderedDoorBroken:
-                case CausalEventType.LeaderOrderedFireFought:
+                if (thing >= 0 && place.Thing == thing)
+                {
+                    return i;
+                }
 
-                // The building's day: a cue called, a remark made, the player
-                // calling it a day. Calm life is not uproar.
-                case CausalEventType.CueCalled:
-                case CausalEventType.AgentSaid:
-                case CausalEventType.PowerCalledHomeTime:
-                case CausalEventType.AgentIgnoredCue:
-                case CausalEventType.AgentPoked:
-                case CausalEventType.AgentAnnoyed:
+                if (place.Door < 0 && place.RoomA == room &&
+                    LogicalPosition.DistanceSquared(place.At, at) <= stack * stack)
+                {
+                    return i;
+                }
+            }
 
-                // The Director's own doing: the trap watching, and the way
-                // opening again. The fall itself is a commotion, above.
-                case CausalEventType.TrapTriggered:
-                case CausalEventType.BoxPileCleared:
+            return -1;
+        }
 
-                // Bookkeeping: things happening quietly to people, things and doors.
-                case CausalEventType.AgentGotUp:
-                case CausalEventType.AgentCameTo:
-                case CausalEventType.AgentRolled:
-                case CausalEventType.AgentDoused:
-                case CausalEventType.AgentBlasted:
-                case CausalEventType.AgentShookAwake:
-                case CausalEventType.AgentDropped:
-                case CausalEventType.AgentTriedDoor:
-                case CausalEventType.AgentGaveUpOnDoor:
-                case CausalEventType.AgentTookExtinguisher:
-                case CausalEventType.ExtinguisherSprayed:
-                case CausalEventType.ExtinguisherEmptied:
-                case CausalEventType.ItemDropped:
-                case CausalEventType.BoxesCollided:
-                case CausalEventType.DoorOpened:
-                case CausalEventType.DoorClosed:
-                case CausalEventType.DoorLocked:
-                case CausalEventType.DoorBlocked:
-                case CausalEventType.DoorUnblocked:
-                case CausalEventType.AlarmRang:
-                    return UproarTier.Nothing;
+        /// <summary>A safety net, never the player's limit: the faintest place goes, the oldest of equals.</summary>
+        private void DropTheWeakest()
+        {
+            int weakest = 0;
+            for (int i = 1; i < places.Count; i++)
+            {
+                if (LevelNow(places[i]) < LevelNow(places[weakest]))
+                {
+                    weakest = i;
+                }
+            }
 
-                default:
-                    throw new System.ArgumentOutOfRangeException(nameof(what),
-                        $"{what} has no uproar tier. Every event type must say what it pays, even if that is nothing.");
+            places.RemoveAt(weakest);
+        }
+
+        /// <summary>Phase 1's tail: places that have faded to nothing are gone, in order.</summary>
+        public void Advance()
+        {
+            for (int i = places.Count - 1; i >= 0; i--)
+            {
+                if (LevelNow(places[i]) <= 0)
+                {
+                    places.RemoveAt(i);
+                }
             }
         }
 
         /// <summary>
-        /// Puts influence in the purse for a test whose subject is something
-        /// else. A round opens with nothing, so a test that wants to work a
-        /// door in its first tick -- checking the scene is wired up, say --
-        /// cannot get there by playing properly.
+        /// How strongly this person feels this place, per mille of a full pull
+        /// felt by an ordinary person standing on it: the place's level, less
+        /// the further off they are, times how easily led they are
+        /// (<see cref="Susceptibility"/>). Nothing from another room, and
+        /// nothing from beyond <see cref="InfluenceSettings.ReachMillimetres"/>.
         /// </summary>
-        public void GiveForTests(int amount) => Credit(amount);
+        public int FeltBy(Agent agent, int i)
+        {
+            Place place = places[i];
+            int level = LevelNow(place);
+            if (level <= 0)
+            {
+                return 0;
+            }
+
+            int room = geometry.RoomAt(agent.Body.Position);
+            if (room < 0 || (room != place.RoomA && room != place.RoomB))
+            {
+                return 0;
+            }
+
+            long reach = settings.ReachMillimetres;
+            long distance = IntegerMath.Distance(agent.Body.Position, place.At);
+            if (distance >= reach)
+            {
+                return 0;
+            }
+
+            long felt = 1000L * level / settings.MaximumLevel * (reach - distance) / reach;
+            return (int)(felt * Susceptibility(agent) / 100L);
+        }
 
         /// <summary>
-        /// Every payment into the purse passes through here, so a purse that
-        /// is switched off is paid nothing, whatever the uproar.
+        /// How easily led somebody is, in percent of an ordinary person: the
+        /// nervous and strangers to the building more, leaders and the cruel
+        /// much less. Nobody feels nothing at all, and nobody more than twice.
         /// </summary>
-        private void Credit(int amount)
+        public int Susceptibility(Agent agent)
         {
-            if (amount <= 0 || !settings.Enabled)
+            AgentTraitValues traits = agent.Traits;
+            int percent = 100 + settings.PercentPerNervousness * (traits.Nervousness - 5) -
+                          settings.PercentPerLeadership * System.Math.Max(0, traits.Leadership - 5) -
+                          settings.PercentPerEvil * System.Math.Max(0, traits.Evil - 5) +
+                          (agent.Knowledge.KnowsEverything ? 0 : settings.VisitorPercent);
+            return System.Math.Max(settings.MinimumPercent, System.Math.Min(settings.MaximumPercent, percent));
+        }
+
+        /// <summary>
+        /// For the display: every place, and everybody still in the building
+        /// who feels one, with the strongest pull they feel. Fills the buffers
+        /// it is given, so a tick allocates nothing.
+        /// </summary>
+        public void FillSnapshot(List<InfluencePlaceSnapshot> intoPlaces, List<InfluencePullSnapshot> intoPulls, Agent[] agents)
+        {
+            intoPlaces.Clear();
+            intoPulls.Clear();
+            for (int i = 0; i < places.Count; i++)
+            {
+                Place place = places[i];
+                intoPlaces.Add(new InfluencePlaceSnapshot(place.Target, place.Door >= 0, place.At, LevelNow(place),
+                    settings.MaximumLevel));
+            }
+
+            if (places.Count == 0)
             {
                 return;
             }
 
-            int before = Influence;
-            Influence = System.Math.Min(settings.Maximum, Influence + amount);
-            Earned += Influence - before;
+            for (int a = 0; a < agents.Length; a++)
+            {
+                if (!agents[a].IsParticipating)
+                {
+                    continue;
+                }
+
+                int felt = StrongestFeltBy(agents[a], out int strongest);
+                if (felt > 0)
+                {
+                    intoPulls.Add(new InfluencePullSnapshot(agents[a].Id, a, strongest, felt));
+                }
+            }
+        }
+
+        /// <summary>The strongest pull this person feels, and from which place; 0 and -1 when none.</summary>
+        public int StrongestFeltBy(Agent agent, out int strongest)
+        {
+            strongest = -1;
+            int best = 0;
+            for (int i = 0; i < places.Count; i++)
+            {
+                int felt = FeltBy(agent, i);
+                if (felt > best)
+                {
+                    best = felt;
+                    strongest = i;
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>
+        /// What running for this door is worth to somebody, in millimetres, for
+        /// the door choice to add: the full bonus for a strong pull felt close
+        /// to it, nothing when the door is not influenced or they cannot feel it.
+        /// </summary>
+        public long DoorBonus(Agent agent, int door)
+        {
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door == door)
+                {
+                    return (long)FeltBy(agent, i) * settings.FullPullBonusMillimetres / 1000L;
+                }
+            }
+
+            return 0L;
+        }
+
+        /// <summary>
+        /// What heading for a spot is worth to somebody, in millimetres: for
+        /// every place on the floor or on a thing they can feel, its pull times
+        /// how far the way to the candidate agrees with the way to the place
+        /// (the full pull for straight toward it, nothing square to it, the
+        /// same off for straight away). Doors are left to <see cref="DoorBonus"/>.
+        /// </summary>
+        public long SpotBonus(Agent agent, LogicalPosition candidate)
+        {
+            if (places.Count == 0)
+            {
+                return 0L;
+            }
+
+            long total = 0L;
+            LogicalPosition from = agent.Body.Position;
+            for (int i = 0; i < places.Count; i++)
+            {
+                Place place = places[i];
+                if (place.Door >= 0)
+                {
+                    continue;
+                }
+
+                int felt = FeltBy(agent, i);
+                if (felt <= 0)
+                {
+                    continue;
+                }
+
+                int towardIt = IntegerMath.HeadingBetween(from, place.At, agent.Body.Heading);
+                long agreement = ExitSignBehaviour.Agreement(from, candidate, towardIt);
+                total += (long)felt * settings.FullPullBonusMillimetres / 1000L * agreement / IntegerMath.TrigScale;
+            }
+
+            return total;
         }
     }
 }

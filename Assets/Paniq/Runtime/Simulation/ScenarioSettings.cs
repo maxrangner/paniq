@@ -172,31 +172,26 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
-    /// The cable between the sockets and the fuse box, and how fast a spark
-    /// runs along it once something sets it off.
+    /// The cable from the fuse box down to the sockets, and how fast a spark
+    /// runs along it once the fuse box goes.
     /// </summary>
     [Serializable]
     public sealed class PowerSettings
     {
         /// <summary>
-        /// How fast the spark crawls, in millimetres a tick. 45 is a little
-        /// over two metres a second -- a brisk walk, and slower than somebody
-        /// running.
+        /// How fast the spark runs, in millimetres a tick. 400 is twenty
+        /// metres a second: the office's three sockets go within about two
+        /// and a half seconds of the fuse box.
         /// <para>
-        /// It started at 120, which is six metres a second. That is faster than
-        /// anybody in the building can run, so the whole chain of sockets went
-        /// off within a few seconds of the first one and there was nothing to
-        /// watch and nothing to do about it. A fuse has to crawl or it is just
-        /// a delayed explosion.
+        /// It was 45 (a crawl slower than somebody running) while a socket
+        /// popping lit the cable in both directions and a spark crept up to
+        /// the fuse box. Since 2026-09-26 the cable runs one way only -- the
+        /// owner's rule: "only if the fusebox goes, it should quickly cascade
+        /// down to all outlets, but not the other way around" -- so the fuse
+        /// box going is the big moment, and it has to be quick.
         /// </para>
         /// </summary>
-        public int SparkSpeedMillimetresPerTick = 45;
-
-        /// <summary>
-        /// A beat of silence at the fuse box before the big one. Half a second
-        /// of nothing is what makes it land.
-        /// </summary>
-        public int FuseBoxExtraDelayTicks = 25;
+        public int SparkSpeedMillimetresPerTick = 400;
 
         /// <summary>How near the player has to click the fuse box for the card to find it.</summary>
         public int CardReachMillimetres = 2500;
@@ -206,7 +201,6 @@ namespace Paniq.Simulation
         internal void Validate()
         {
             Settings.Require(SparkSpeedMillimetresPerTick >= 1, "spark speed");
-            Settings.Require(FuseBoxExtraDelayTicks >= 0, "fuse box delay");
             Settings.Require(CardReachMillimetres >= 0, "fuse box card reach");
         }
     }
@@ -243,6 +237,23 @@ namespace Paniq.Simulation
         public int CellSizeMillimetres = 500;
         public int SpreadMinimumTicks = 40;
         public int SpreadMaximumTicks = 120;
+
+        /// <summary>
+        /// A fire the Director starts in a thing (a waste bin) counts as young
+        /// while fewer squares than this are alight: a patch about the size of
+        /// a meeting table. Only such a fire is ever young.
+        /// </summary>
+        public int YoungFireSquares = 12;
+
+        /// <summary>
+        /// How much longer a young fire's squares wait before spreading, as a
+        /// share of the usual wait: three times as long, so it takes about
+        /// half a minute to grow from the bin to the size of a table. Enough
+        /// time for somebody brave to fetch the bottle off the wall, not so
+        /// much that nobody ever needs to (the owner, 2026-09-26: slow, so
+        /// people have a chance to fight it if the right personality is there).
+        /// </summary>
+        public int YoungFireSpreadPercent = 300;
 
         /// <summary>How long someone on fire runs around before collapsing.</summary>
         public int BurnMinimumTicks = 150;
@@ -301,6 +312,7 @@ namespace Paniq.Simulation
             }
             Settings.Require(ActivationTick >= 0 && CellSizeMillimetres >= 100, "fire timing and cell size");
             Settings.Require(SpreadMinimumTicks > 0 && SpreadMaximumTicks >= SpreadMinimumTicks, "fire spread interval");
+            Settings.Require(YoungFireSquares >= 0 && YoungFireSpreadPercent >= 1, "a young fire's spread");
             Settings.Require(Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1) &&
                              Settings.Range(BurningTurnMinimumTicks, BurningTurnMaximumTicks, 1) &&
                              BurningBlockedTurnTicks >= 1 &&
@@ -1499,6 +1511,15 @@ namespace Paniq.Simulation
         /// <summary>How fast a thing that drives itself goes, in millimetres per tick.</summary>
         public int CruiseSpeedMillimetresPerTick;
 
+        /// <summary>
+        /// How long this kind burns in one place before the floor under it
+        /// catches, stretched or squeezed a little each time it catches. Zero
+        /// means the shared <see cref="FlammableSettings.FloorIgniteRestTicks"/>.
+        /// A waste bin smoulders about ten seconds first (2026-09-26): long
+        /// enough for somebody brave to reach it with a bottle.
+        /// </summary>
+        public int FloorIgniteRestTicks;
+
         public ObjectKindSettings Clone() => (ObjectKindSettings)MemberwiseClone();
 
         /// <summary>The office's things, in enum order.</summary>
@@ -1515,7 +1536,12 @@ namespace Paniq.Simulation
 
                 // Castors: it rolls away across the floor.
                 SatOn(Entry(PhysicsObjectKind.OfficeChair, 35, 175, 600, 900)),
-                Entry(PhysicsObjectKind.WasteBin, 80, 50, 250, 450),
+                // Paper in a plastic tub: it catches quickly, then smoulders
+                // a good while before the carpet under it goes (2026-09-26,
+                // the owner's slow bin fire, so somebody brave has time to
+                // reach it). It used to burn out in five to nine seconds,
+                // before the floor ever caught.
+                SmouldersFor(Entry(PhysicsObjectKind.WasteBin, 80, 50, 1000, 1500), 500),
 
                 // Earth and green leaves: it never catches.
                 Entry(PhysicsObjectKind.PottedPlant, 200, 0, 0, 0),
@@ -1607,6 +1633,13 @@ namespace Paniq.Simulation
             return kind;
         }
 
+        /// <summary>The same kind, but one that burns this long in one place before the floor under it catches.</summary>
+        private static ObjectKindSettings SmouldersFor(ObjectKindSettings kind, int floorIgniteRestTicks)
+        {
+            kind.FloorIgniteRestTicks = floorIgniteRestTicks;
+            return kind;
+        }
+
         /// <summary>The same kind, but one that pops the first time it goes over, and may shed the parts authored onto it.</summary>
         private static ObjectKindSettings TipsAndPops(ObjectKindSettings kind, bool sheds)
         {
@@ -1679,6 +1712,7 @@ namespace Paniq.Simulation
             Settings.Require(BreakMomentum >= 0 && PopRadiusMillimetres >= 0 && PopSpeed >= 0 && PopIgniteCells >= 0,
                 "breaking and popping");
             Settings.Require(IgniteTicks == 0 || Settings.Range(BurnMinimumTicks, BurnMaximumTicks, 1), "object burn time");
+            Settings.Require(FloorIgniteRestTicks >= 0, "how long a thing smoulders before the floor catches");
             Settings.Require(CruiseSpeedMillimetresPerTick >= 0 && (!DrivesItself || CruiseSpeedMillimetresPerTick > 0),
                 "a thing that drives itself needs a speed");
         }
@@ -1933,6 +1967,26 @@ namespace Paniq.Simulation
         public int ShoveSpeedBase = 30;
         public int ShoveSpeedPerStrength = 8;
 
+        /// <summary>
+        /// How long somebody strong keeps at a doorway heaped with fallen boxes
+        /// before they too give it up and go round: eight seconds, a little
+        /// different for each of them -- a real go at it, never ten seconds of
+        /// standing still. Everybody else goes round the moment
+        /// they see the heap (2026-09-26). Without a limit, a strong person
+        /// wedged against the heap where they could not work it pushed at it
+        /// for the rest of the round.
+        /// </summary>
+        public int StrongGiveUpOnAHeapTicks = 400;
+
+        /// <summary>
+        /// How near a strong person must be to a heaped doorway before that
+        /// patience starts to run: three metres, close enough to be having a
+        /// go at it. Seen from across the room, the heap is simply where they
+        /// are heading; the clock starting there would have them give up
+        /// before they arrived.
+        /// </summary>
+        public int StrongTryTheHeapWithinMillimetres = 3000;
+
         /// <summary>This nervous, and somebody sheltering wedges the door of the room they are in.</summary>
         public int BarricadeNervousMinimum = 7;
 
@@ -1961,6 +2015,8 @@ namespace Paniq.Simulation
         internal void Validate()
         {
             Settings.Require(BlockGapMillimetres >= 0 && BarricadeSpotGapMillimetres >= 0, "wedging doorways");
+            Settings.Require(StrongGiveUpOnAHeapTicks >= 1 && StrongTryTheHeapWithinMillimetres >= 0,
+                "how long the strong keep at a heap");
             Settings.Require(ShoveMinimumStrength >= 0 && ShoveTicks >= 1 && ShoveSpeedBase >= 0 &&
                              ShoveSpeedPerStrength >= 0, "heaving an obstruction clear");
             Settings.Require(BarricadeNervousMinimum >= 0 && BarricadeEvilMinimum >= 0 &&
@@ -1982,6 +2038,13 @@ namespace Paniq.Simulation
     {
         /// <summary>Turn the alarms off altogether, to see the building without them.</summary>
         public bool Enabled = true;
+
+        /// <summary>
+        /// Whether the player may pull an alarm by clicking it. On in the code
+        /// defaults, for a later level; the office switches it off
+        /// (2026-09-26, the owner: "player can't pull alarm, only agents").
+        /// </summary>
+        public bool PlayerMayPull = true;
 
         /// <summary>
         /// How far somebody will divert to hit an alarm, as a walk. Eight
@@ -2032,13 +2095,13 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
-    /// The player's influence, and what each card costs. Influence starts at
+    /// The player's purse, and what each card costs. The purse starts at
     /// <see cref="Starting"/>, every card spends some, and every person who gets
     /// out alive pays some back. Nothing else refills it, so a run where nobody
     /// is saved runs the player dry.
     /// </summary>
     [Serializable]
-    public sealed class InfluenceSettings
+    public sealed class PurseSettings
     {
         /// <summary>
         /// Whether there is a purse at all. Off (the office level since
@@ -2067,7 +2130,7 @@ namespace Paniq.Simulation
         public int PerPersonSaved = 15;
 
         /// <summary>
-        /// The most influence the player can bank: a hundred (the owner's
+        /// The most the purse can hold: a hundred (the owner's
         /// call, 2026-09-25), which is exactly what the way out costs to
         /// unlock, so a full purse is the one thing that opens it.
         /// </summary>
@@ -2149,9 +2212,9 @@ namespace Paniq.Simulation
         public int LockDoorCost = 10;
         public int UnlockExitCost = 100;
 
-        public InfluenceSettings Clone()
+        public PurseSettings Clone()
         {
-            var copy = (InfluenceSettings)MemberwiseClone();
+            var copy = (PurseSettings)MemberwiseClone();
 
             // The shallow copy would hand both scenarios the same array, so a
             // level that dealt itself an opening card would deal it to every
@@ -2164,7 +2227,7 @@ namespace Paniq.Simulation
 
         internal void Validate()
         {
-            Settings.Require(Starting >= 0 && PerPersonSaved >= 0 && Maximum >= Starting, "influence");
+            Settings.Require(Starting >= 0 && PerPersonSaved >= 0 && Maximum >= Starting, "purse");
             Settings.Require(LockDoorCost >= 0 && UnlockExitCost >= 0, "the key");
             Settings.Require(CardCost >= 0 && PullAlarmCost >= 0 && OpeningDrawCount >= 0, "card costs");
             Settings.Require(CardPatchRadiusMillimetres > 0, "how wide a card's patch is");
@@ -2431,29 +2494,283 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
-    /// Poking people (prototype 3, 2026-09-25): a click on somebody makes
-    /// them lurch, look round a beat later, and after a few pokes in a row
-    /// get annoyed (<see cref="PokeSystem"/>).
+    /// The Director's ladder of small incidents (prototype 3, 2026-09-26,
+    /// <see cref="DirectorSystem"/>): the round starts with a waste bin
+    /// catching fire; put it out and, a while later, a socket crackles and
+    /// pops in the busiest room; put that out and the fuse box goes, and every
+    /// socket with it. A fire that gets out of the room it started in is the
+    /// real fire, and the Director stops adding to it.
     /// </summary>
     [Serializable]
-    public sealed class PokeSettings
+    public sealed class DirectorSettings
     {
-        /// <summary>How far the poke shoves them, backwards from the way they face.</summary>
-        public int LurchMillimetres = 200;
+        /// <summary>
+        /// Whether the Director climbs the ladder at all. Off in the code
+        /// defaults, so a test building starts its fire the way it always
+        /// did; the office level switches it on (<c>LevelDefinition</c>).
+        /// </summary>
+        public bool ClimbsTheLadder;
 
-        /// <summary>Pokes this close together count as "in a row".</summary>
-        public int AnnoyedWindowTicks = 500;
+        /// <summary>
+        /// The things the first incident may start in: one is drawn per run.
+        /// The office's three waste bins in the meeting room, so the fire
+        /// still starts somewhere different there each round -- by the door
+        /// one seed, by the far wall the next (the owner's rule from the first
+        /// batch).
+        /// </summary>
+        public SimulationId[] FirstIncidentThings = PrototypeBuilding.MeetingRoomBins();
 
-        /// <summary>The poke that makes them annoyed: the third in a row.</summary>
-        public int AnnoyedAfterPokes = 3;
+        /// <summary>
+        /// How long the working day runs before the bin catches, drawn per
+        /// run: thirty to ninety seconds. Time for the player to read the
+        /// office and set up their influence; the red button skips it.
+        /// </summary>
+        public int FirstIncidentMinimumTicks = 1500;
+        public int FirstIncidentMaximumTicks = 4500;
 
+        /// <summary>
+        /// How long after a fire is put out the next rung comes, drawn each
+        /// time: twenty to forty seconds. Long enough for the office to settle
+        /// back to work, short enough that the round does not go slack.
+        /// </summary>
+        public int NextRungMinimumTicks = 1000;
+        public int NextRungMaximumTicks = 2000;
 
-        public PokeSettings Clone() => (PokeSettings)MemberwiseClone();
+        /// <summary>
+        /// How long a socket or the fuse box crackles and smokes before it
+        /// goes: five seconds of warning, the owner's choice ("crackle first"),
+        /// so a player who is watching can pull people away.
+        /// </summary>
+        public int CrackleTicks = 250;
+
+        /// <summary>How far the crackle is heard: the room it is in, more or less. It frightens nobody; the curious go and look.</summary>
+        public int CrackleHearingMillimetres = 5000;
+
+        /// <summary>
+        /// How long after a fire is put out any bell that was pulled falls
+        /// silent: the all-clear, about ten seconds later. Without it a pulled
+        /// alarm kept everybody in earshot frightened for the rest of the round.
+        /// </summary>
+        public int AllClearAfterTicks = 500;
+
+        /// <summary>
+        /// For this long after a socket or the fuse box goes, any room it sets
+        /// alight belongs to the incident: five seconds, long enough for the
+        /// fuse box's spark to reach the last socket (about two and a half)
+        /// with room to spare. Fire reaching a new room after that has got
+        /// loose. A bin has no bang, so its incident is its own room.
+        /// </summary>
+        public int BangSettlesTicks = 250;
+
+        public DirectorSettings Clone()
+        {
+            var copy = (DirectorSettings)MemberwiseClone();
+            copy.FirstIncidentThings = (SimulationId[])FirstIncidentThings?.Clone();
+            return copy;
+        }
 
         internal void Validate()
         {
-            Settings.Require(LurchMillimetres >= 0 && AnnoyedWindowTicks >= 0 && AnnoyedAfterPokes >= 1,
-                "poking");
+            Settings.Require(FirstIncidentThings != null, "the first incident's things");
+            Settings.Require(Settings.Range(FirstIncidentMinimumTicks, FirstIncidentMaximumTicks, 1) &&
+                             Settings.Range(NextRungMinimumTicks, NextRungMaximumTicks, 1) &&
+                             CrackleTicks >= 1 && CrackleHearingMillimetres >= 0 && AllClearAfterTicks >= 1 &&
+                             BangSettlesTicks >= 0,
+                "the Director's ladder");
+        }
+    }
+
+    /// <summary>
+    /// Calming down (prototype 3, 2026-09-26): a frightened person who sees
+    /// and hears nothing frightening for a while settles, at a pace their own
+    /// personality sets -- the owner's "the ones that saw the fire stay
+    /// rattled for a while, the nervous might freak out more, the calm and
+    /// brave don't really care; this should be the personality system in
+    /// play, not scripted". See <see cref="FearSystem.Settle"/>.
+    /// <para>
+    /// Fear is a level from 1000 (just frightened) down. After a quiet spell
+    /// it drains by
+    /// <c>DrainBase + DrainPerBravery x bravery - DrainPerNervousness x nervousness</c>
+    /// a second (never less than <see cref="DrainMinimumPerMillePerSecond"/>),
+    /// but never below <c>FloorPerNervousness x (nervousness - 5)</c>; below
+    /// <see cref="CalmBelowPerMille"/> they calm down. So a hero (bravery 10,
+    /// nervousness 1) settles about seven seconds after the quiet begins, an
+    /// ordinary person (5 and 5) in about twelve, a worrier in half a minute,
+    /// and anybody with nervousness 9 or more never does: their floor is above
+    /// the line, and they keep heading out.
+    /// </para>
+    /// </summary>
+    [Serializable]
+    public sealed class CalmingSettings
+    {
+        /// <summary>Off, and frightened people stay frightened for the rest of the round, as they did before.</summary>
+        public bool Enabled = true;
+
+        /// <summary>How long nothing frightening has to go on before fear starts to drain at all: five seconds, a little different per person.</summary>
+        public int QuietTicks = 250;
+
+        public int CalmBelowPerMille = 400;
+        public int DrainBasePerMillePerSecond = 40;
+        public int DrainPerBravery = 8;
+        public int DrainPerNervousness = 6;
+        public int DrainMinimumPerMillePerSecond = 10;
+        public int FloorPerNervousness = 120;
+
+        /// <summary>How long somebody who saw the danger stays rattled once they have calmed down: a minute.</summary>
+        public int RattledAfterSeeingTicks = 3000;
+
+        /// <summary>How long somebody who only heard about it stays rattled: twenty seconds.</summary>
+        public int RattledAfterHearingTicks = 1000;
+
+        /// <summary>
+        /// While rattled, a noise -- a thud, a crash, a bang -- frightens them
+        /// outright within this share of the distance it is heard at, where
+        /// before it only turned their head.
+        /// </summary>
+        public int RattledStartlePercent = 50;
+
+        /// <summary>
+        /// While rattled, the brave need this much more bravery before they
+        /// look up at somebody bolting rather than bolt with them.
+        /// </summary>
+        public int RattledBraveryPenalty = 3;
+
+        /// <summary>
+        /// How often each frightened person checks whether anything frightening
+        /// is still going on: every fifth of a second, each on their own beat,
+        /// so a crowd of five hundred costs a hundred looks a tick, not five
+        /// hundred.
+        /// </summary>
+        public int CheckEveryTicks = 10;
+
+        public CalmingSettings Clone() => (CalmingSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(QuietTicks >= 1 && CalmBelowPerMille >= 0 && CalmBelowPerMille <= 1000 &&
+                             DrainMinimumPerMillePerSecond >= 1 && FloorPerNervousness >= 0 &&
+                             RattledAfterSeeingTicks >= 0 && RattledAfterHearingTicks >= 0 &&
+                             Settings.Percent(RattledStartlePercent) && CheckEveryTicks >= 1, "calming down");
+        }
+    }
+
+    /// <summary>
+    /// Nudging people (prototype 3, 2026-09-25): a click on somebody makes
+    /// them lurch, look round a beat later, and after a few nudges in a row
+    /// get annoyed (<see cref="NudgeSystem"/>).
+    /// </summary>
+    [Serializable]
+    public sealed class NudgeSettings
+    {
+        /// <summary>How far the nudge shoves them: a step, away from where the click landed (300 since 2026-09-26; it was 200).</summary>
+        public int LurchMillimetres = 300;
+
+        /// <summary>Nudges this close together count as "in a row".</summary>
+        public int AnnoyedWindowTicks = 500;
+
+        /// <summary>The nudge that makes them annoyed: the third in a row.</summary>
+        public int AnnoyedAfterNudges = 3;
+
+        /// <summary>
+        /// How long they stay annoyed: twenty seconds, a little different each
+        /// time, shaking with it, and while it lasts a nudge does nothing to
+        /// them (the owner's rule, 2026-09-26).
+        /// </summary>
+        public int AnnoyedForTicks = 1000;
+
+
+        public NudgeSettings Clone() => (NudgeSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(LurchMillimetres >= 0 && AnnoyedWindowTicks >= 0 && AnnoyedAfterNudges >= 1 && AnnoyedForTicks >= 1,
+                "nudging");
+        }
+    }
+
+    /// <summary>
+    /// Influence (prototype 3, second batch, 2026-09-26; <see cref="InfluenceSystem"/>):
+    /// the player clicks a door, a thing or a patch of floor and people are
+    /// drawn toward it, each by as much as their character lets them.
+    /// </summary>
+    [Serializable]
+    public sealed class InfluenceSettings
+    {
+        /// <summary>The most steps a place can have: twenty clicks' worth (the owner's "maybe steps 0-20").</summary>
+        public int MaximumLevel = 20;
+
+        /// <summary>How long a place keeps each step: two seconds, so a full twenty fades over forty.</summary>
+        public int TicksPerStepLost = 100;
+
+        /// <summary>
+        /// How far a place's pull reaches, fading to nothing: twelve metres, a
+        /// big room across. The owner: further than four metres, weaker the
+        /// further off, and never into another room for now.
+        /// </summary>
+        public int ReachMillimetres = 12000;
+
+        /// <summary>A click this near a place on the floor adds to it rather than starting another.</summary>
+        public int StackRadiusMillimetres = 1000;
+
+        /// <summary>
+        /// What a full pull, felt by an ordinary person standing on it, is worth
+        /// to their choices, in millimetres of walk: six metres, the same as
+        /// reading an exit sign pointing that way, and more than a door
+        /// standing open (four) or the rest of a group going that way (three).
+        /// One click at the edge of its reach is worth next to nothing.
+        /// </summary>
+        public int FullPullBonusMillimetres = 6000;
+
+        /// <summary>How easily led somebody is: percent more for each point of nervousness above five (less below).</summary>
+        public int PercentPerNervousness = 12;
+
+        /// <summary>Percent less for each point of leadership above five: leaders go their own way.</summary>
+        public int PercentPerLeadership = 12;
+
+        /// <summary>Percent less for each point of evil above five: the cruel ignore it.</summary>
+        public int PercentPerEvil = 12;
+
+        /// <summary>Percent more for a visitor, who does not know the building and takes any hint going.</summary>
+        public int VisitorPercent = 50;
+
+        public int MinimumPercent = 10;
+        public int MaximumPercent = 200;
+
+        /// <summary>A safety net against a stuck mouse button, never the player's limit: past this many places, the faintest goes.</summary>
+        public int MaximumPlaces = 64;
+
+        /// <summary>
+        /// Calm people who are easily led -- this nervous, or a visitor -- may
+        /// get up from a chair or leave an errand for a strong enough pull.
+        /// </summary>
+        public int EasilyLedNervousness = 7;
+
+        /// <summary>How often an easily led person, sitting or busy, weighs up a pull: every second, on their own beat.</summary>
+        public int LeaveTaskCheckTicks = 50;
+
+        /// <summary>
+        /// The chance, per mille, that they get up at a check, for a full pull
+        /// felt: one in ten. A faint pull, proportionally less. So within ten
+        /// seconds or so of frantic clicking the nervous start drifting out of
+        /// a meeting, while the steady sit on.
+        /// </summary>
+        public int LeaveTaskChancePerMille = 100;
+
+        /// <summary>
+        /// The chance, per mille of a full pull felt, that a calm person with
+        /// nothing in particular to do picks the pull as where to wander next.
+        /// </summary>
+        public int WanderToItPerMille = 1000;
+
+        public InfluenceSettings Clone() => (InfluenceSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(MaximumLevel >= 1 && TicksPerStepLost >= 1 && ReachMillimetres >= 1 &&
+                             StackRadiusMillimetres >= 0 && FullPullBonusMillimetres >= 0 &&
+                             MinimumPercent >= 0 && MaximumPercent >= MinimumPercent && MaximumPlaces >= 1 &&
+                             LeaveTaskCheckTicks >= 1 && LeaveTaskChancePerMille >= 0 && WanderToItPerMille >= 0,
+                "influence");
         }
     }
 

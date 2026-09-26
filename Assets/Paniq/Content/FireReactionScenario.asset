@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 80
+    ContentRevision: 81
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 68
+    SimulationCompatibilityVersion: 69
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -41,6 +41,8 @@ MonoBehaviour:
       CellSizeMillimetres: 500
       SpreadMinimumTicks: 40
       SpreadMaximumTicks: 120
+      YoungFireSquares: 12
+      YoungFireSpreadPercent: 300
       BurnMinimumTicks: 150
       BurnMaximumTicks: 300
       BurningTurnMinimumTicks: 10
@@ -57,8 +59,7 @@ MonoBehaviour:
       RollMaximumTicks: 120
       RollPutsOutChancePercent: 35
     Power:
-      SparkSpeedMillimetresPerTick: 45
-      FuseBoxExtraDelayTicks: 25
+      SparkSpeedMillimetresPerTick: 400
       CardReachMillimetres: 2500
     Round:
       HazardWaitsForTrigger: 0
@@ -305,6 +306,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 1
         FrictionPercent: 120
         IgniteTicks: 150
@@ -322,6 +324,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 2
         FrictionPercent: 35
         IgniteTicks: 175
@@ -339,11 +342,12 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 3
         FrictionPercent: 80
         IgniteTicks: 50
-        BurnMinimumTicks: 250
-        BurnMaximumTicks: 450
+        BurnMinimumTicks: 1000
+        BurnMaximumTicks: 1500
         BreakMomentum: 0
         PopRadiusMillimetres: 0
         PopSpeed: 0
@@ -356,6 +360,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 500
       - Kind: 4
         FrictionPercent: 200
         IgniteTicks: 0
@@ -373,6 +378,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 5
         FrictionPercent: 90
         IgniteTicks: 100
@@ -390,6 +396,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 6
         FrictionPercent: 55
         IgniteTicks: 200
@@ -407,6 +414,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 7
         FrictionPercent: 90
         IgniteTicks: 200
@@ -424,6 +432,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 8
         FrictionPercent: 110
         IgniteTicks: 175
@@ -441,6 +450,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 9
         FrictionPercent: 150
         IgniteTicks: 120
@@ -458,6 +468,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 10
         FrictionPercent: 1000
         IgniteTicks: 90
@@ -475,6 +486,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 11
         FrictionPercent: 250
         IgniteTicks: 0
@@ -492,6 +504,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 12
         FrictionPercent: 1000
         IgniteTicks: 110
@@ -509,6 +522,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 13
         FrictionPercent: 150
         IgniteTicks: 220
@@ -526,6 +540,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 14
         FrictionPercent: 140
         IgniteTicks: 180
@@ -543,6 +558,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 15
         FrictionPercent: 130
         IgniteTicks: 110
@@ -560,6 +576,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 16
         FrictionPercent: 30
         IgniteTicks: 150
@@ -577,6 +594,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 17
         FrictionPercent: 30
         IgniteTicks: 200
@@ -594,6 +612,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 18
         FrictionPercent: 100
         IgniteTicks: 150
@@ -611,6 +630,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 1
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 19
         FrictionPercent: 90
         IgniteTicks: 100
@@ -628,6 +648,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       - Kind: 20
         FrictionPercent: 60
         IgniteTicks: 120
@@ -645,6 +666,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 1
         CruiseSpeedMillimetresPerTick: 16
+        FloorIgniteRestTicks: 0
       - Kind: 21
         FrictionPercent: 1000
         IgniteTicks: 80
@@ -662,6 +684,7 @@ MonoBehaviour:
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
         CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
       BoxIgniteTicks: 75
       ChairIgniteTicks: 150
       TableIgniteTicks: 250
@@ -779,7 +802,7 @@ MonoBehaviour:
       DragGiveUpBlockedTicks: 40
       ReachMillimetres: 150
       ReachTimeoutTicks: 250
-    Influence:
+    Purse:
       Enabled: 1
       Starting: 30
       PerPersonSaved: 15
@@ -799,6 +822,7 @@ MonoBehaviour:
       UnlockExitCost: 100
     Alarm:
       Enabled: 1
+      PlayerMayPull: 1
       ReachMillimetres: 8000
       ArrivalMillimetres: 500
       PressTicks: 20
@@ -816,6 +840,8 @@ MonoBehaviour:
       ShoveTicks: 40
       ShoveSpeedBase: 30
       ShoveSpeedPerStrength: 8
+      StrongGiveUpOnAHeapTicks: 400
+      StrongTryTheHeapWithinMillimetres: 3000
       BarricadeNervousMinimum: 7
       BarricadeEvilMinimum: 7
       BarricadeFetchRangeMillimetres: 5000
@@ -857,10 +883,56 @@ MonoBehaviour:
       CrashSoundRadiusMillimetres: 12000
       KnockClearMillimetres: 800
       PileBeyondMillimetres: 350
-    Poke:
-      LurchMillimetres: 200
+    Nudge:
+      LurchMillimetres: 300
       AnnoyedWindowTicks: 500
-      AnnoyedAfterPokes: 3
+      AnnoyedAfterNudges: 3
+      AnnoyedForTicks: 1000
+    Director:
+      ClimbsTheLadder: 0
+      FirstIncidentThings:
+      - value: 3205
+      - value: 3206
+      - value: 3207
+      FirstIncidentMinimumTicks: 1500
+      FirstIncidentMaximumTicks: 4500
+      NextRungMinimumTicks: 1000
+      NextRungMaximumTicks: 2000
+      CrackleTicks: 250
+      CrackleHearingMillimetres: 5000
+      AllClearAfterTicks: 500
+      BangSettlesTicks: 250
+    Calming:
+      Enabled: 1
+      QuietTicks: 250
+      CalmBelowPerMille: 400
+      DrainBasePerMillePerSecond: 40
+      DrainPerBravery: 8
+      DrainPerNervousness: 6
+      DrainMinimumPerMillePerSecond: 10
+      FloorPerNervousness: 120
+      RattledAfterSeeingTicks: 3000
+      RattledAfterHearingTicks: 1000
+      RattledStartlePercent: 50
+      RattledBraveryPenalty: 3
+      CheckEveryTicks: 10
+    Influence:
+      MaximumLevel: 20
+      TicksPerStepLost: 100
+      ReachMillimetres: 12000
+      StackRadiusMillimetres: 1000
+      FullPullBonusMillimetres: 6000
+      PercentPerNervousness: 12
+      PercentPerLeadership: 12
+      PercentPerEvil: 12
+      VisitorPercent: 50
+      MinimumPercent: 10
+      MaximumPercent: 200
+      MaximumPlaces: 64
+      EasilyLedNervousness: 7
+      LeaveTaskCheckTicks: 50
+      LeaveTaskChancePerMille: 100
+      WanderToItPerMille: 1000
     Agents:
     - agentId:
         value: 1001
@@ -1785,6 +1857,45 @@ MonoBehaviour:
       partOfObjectId:
         value: 0
     - objectId:
+        value: 3205
+      kind: 3
+      initialPosition:
+        x: -600
+        z: 9400
+      sizeMillimetres: 300
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3206
+      kind: 3
+      initialPosition:
+        x: -5400
+        z: 16400
+      sizeMillimetres: 300
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3207
+      kind: 3
+      initialPosition:
+        x: 0
+        z: 16500
+      sizeMillimetres: 300
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+    - objectId:
         value: 3211
       kind: 4
       initialPosition:
@@ -2154,6 +2265,19 @@ MonoBehaviour:
       initialPosition:
         x: 4000
         z: 16300
+      sizeMillimetres: 250
+      massGrams: 7000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+    - objectId:
+        value: 3303
+      kind: 7
+      initialPosition:
+        x: -3300
+        z: 9250
       sizeMillimetres: 250
       massGrams: 7000
       startsDormant: 0

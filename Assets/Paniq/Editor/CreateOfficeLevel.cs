@@ -47,7 +47,9 @@ namespace Paniq.EditorTools
             serialized.FindProperty("displayName").stringValue = "The Office";
             serialized.FindProperty("hazardWaitsForTrigger").boolValue = true;
             serialized.FindProperty("targetSavedPercent").intValue = 75;
-            serialized.FindProperty("influenceEnabled").boolValue = false;
+            serialized.FindProperty("purseEnabled").boolValue = false;
+            serialized.FindProperty("directorClimbsTheLadder").boolValue = true;
+            serialized.FindProperty("playerPullsAlarms").boolValue = false;
             serialized.FindProperty("scenario").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<ScenarioAsset>(ScenarioPath);
             serialized.FindProperty("physicsFeel").objectReferenceValue =

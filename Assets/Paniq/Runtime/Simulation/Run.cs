@@ -22,12 +22,12 @@ namespace Paniq.Simulation
         private readonly Agent[] agents;
         private readonly FireSystem fire;
 
-        /// <summary>Everything the crowd is afraid of. Today that is the fire alone.</summary>
+        /// <summary>Everything the crowd is afraid of: the fire, things on fire, and people on fire.</summary>
         private readonly Threats threats;
         private readonly PowerSystem power;
         private readonly DoorSystem doors;
         private readonly PlayerCommandSystem playerCommands;
-        private readonly InfluenceSystem influence;
+        private readonly PurseSystem purse;
         private readonly DeckSystem deck;
         private readonly RoundSystem round;
 
@@ -61,7 +61,10 @@ namespace Paniq.Simulation
         private readonly CueSystem cues;
         private readonly ErrandBehaviour errands;
         private readonly DirectorSystem director;
-        private readonly PokeSystem pokes;
+        private readonly NudgeSystem nudges;
+
+        /// <summary>The places the player has drawn people toward (2026-09-26).</summary>
+        private readonly InfluenceSystem influence;
         private readonly TrapSystem traps;
         private readonly WorldGeometry geometry;
         private readonly Crowd crowd;
@@ -109,7 +112,7 @@ namespace Paniq.Simulation
                 BuildTheBuildingInThePhysics();
                 doors = new DoorSystem(context, doorStates, geometry);
                 playerCommands = new PlayerCommandSystem(context);
-                influence = new InfluenceSystem(context);
+                purse = new PurseSystem(context);
                 deck = new DeckSystem(context);
                 round = new RoundSystem(context, agents, geometry, threats);
                 var sound = new SoundSystem(context, crowd, threats, fear, geometry);
@@ -129,14 +132,22 @@ namespace Paniq.Simulation
                 RememberHomes();
                 locomotion = new Locomotion(context, crowd, geometry, objects);
                 flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
+
+                // People sense danger, never "floor on fire" (the owner's rule,
+                // 2026-09-26): a thing on fire and a person on fire frighten
+                // whoever sees them, the way burning floor does. After the fire,
+                // so the fire still wins every tie it used to.
+                threats.Add(new BurningThingsThreat(context, geometry, flammables));
+                threats.Add(new BurningPeopleThreat(context, geometry, crowd));
                 traps = new TrapSystem(context, crowd, geometry, doors, objects, flammables, fire, body, sound, people);
                 items = new ItemBehaviour(context, geometry, objects, flammables);
                 chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
                 cues = new CueSystem(context, crowd, geometry);
                 errands = new ErrandBehaviour(context, crowd, geometry, objects, doors, chairs, sound, cues);
+                influence = new InfluenceSystem(context, geometry);
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues, sound);
-                pokes = new PokeSystem(context, crowd, body, calm);
-                director = new DirectorSystem(context, cues, geometry, traps);
+                nudges = new NudgeSystem(context, crowd, body, calm);
+                director = new DirectorSystem(context, cues, geometry, traps, fire, flammables, power, objects, crowd, sound);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
                 groups = new GroupSystem(context, crowd, wayfinding);
@@ -158,14 +169,14 @@ namespace Paniq.Simulation
                 {
                     Context = context, Geometry = geometry, Crowd = crowd, Physics = physics, Fire = fire,
                     Threats = threats, Power = power, Doors = doors, PlayerCommands = playerCommands,
-                    Influence = influence, Deck = deck, Round = round, Sound = sound, Fear = fear,
+                    Purse = purse, Deck = deck, Round = round, Sound = sound, Fear = fear,
                     Perception = perception, Body = body, Objects = objects, People = people,
                     Collisions = collisions, Locomotion = locomotion, Flammables = flammables, Items = items,
                     Chairs = chairs, Calm = calm, ExitSigns = exitSigns, Wayfinding = wayfinding,
                     DoorBehaviour = doorBehaviour, Help = help, Panic = panic, Burning = burning,
                     Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms, Groups = groups,
                     AlarmBehaviour = alarmBehaviour, Barricades = barricades,
-                    Cues = cues, Errands = errands, Director = director, Pokes = pokes, Traps = traps
+                    Cues = cues, Errands = errands, Director = director, Nudges = nudges, Traps = traps, Influence = influence
                 };
                 systems.BindAll();
             }
@@ -473,27 +484,27 @@ namespace Paniq.Simulation
         public bool AlarmsRinging => alarms.Ringing;
 
         /// <summary>What the player has left to spend on cards.</summary>
-        public int Influence => influence.Influence;
+        public int Purse => purse.Purse;
 
         /// <summary>How many bells ring when an alarm is pulled: the sounders on the walls, or the pull stations on a floor without any.</summary>
         public int BellCount => alarms.BellCount;
 
-        /// <summary>Influence earned back by getting people out, and spent on cards, for the display.</summary>
-        public int InfluenceEarned => influence.Earned;
-        public int InfluenceSpent => influence.Spent;
+        /// <summary>Purse points earned back by getting people out, and spent on cards, for the display.</summary>
+        public int PurseEarned => purse.Earned;
+        public int PurseSpent => purse.Spent;
 
         /// <summary>How many sticks of TNT the player has left.</summary>
         public int BlastChargesRemaining => doors.BlastChargesRemaining;
 
         /// <summary>What a card costs, so the display can grey out what the player cannot afford.</summary>
-        public int CostOf(PlayerCommandType card) => influence.CostOf(card);
+        public int CostOf(PlayerCommandType card) => purse.CostOf(card);
 
         /// <summary>Every command queued so far, in sequence order. Replaying them gives the same run.</summary>
         public IReadOnlyList<PlayerCommand> Commands => playerCommands.Commands;
 
         public int PhysicsObjectCount => objects.Count;
 
-        public AgentSnapshot GetAgent(int index) => agents[index].ToSnapshot();
+        public AgentSnapshot GetAgent(int index) => agents[index].ToSnapshot(context.Tick);
 
         /// <summary>
         /// Whether this person is on their way to the given way out: it is the
@@ -515,7 +526,7 @@ namespace Paniq.Simulation
                 throw new KeyNotFoundException($"Unknown agent ID {id}.");
             }
 
-            return agents[i].ToSnapshot();
+            return agents[i].ToSnapshot(context.Tick);
         }
 
         public DoorSnapshot GetDoor(int index) => doors.GetSnapshot(index);
@@ -560,9 +571,36 @@ namespace Paniq.Simulation
 
         /// <summary>Tests only: the fire system, to check its queries against a brute-force answer.</summary>
         /// <summary>Tops up the purse for a test that is not about the economy.</summary>
-        public void GiveInfluenceForTests(int amount) => influence.GiveForTests(amount);
+        public void GivePurseForTests(int amount) => purse.GiveForTests(amount);
 
         internal FireSystem FireForTests => fire;
+
+        /// <summary>Every flame in the building out at once -- floor, things and people -- as though somebody had been very busy with a bottle.</summary>
+        internal void PutEverythingOutForTests()
+        {
+            fire.PutOutEverythingForTests();
+            flammables.PutOutEverythingForTests();
+            for (int i = 0; i < agents.Length; i++)
+            {
+                if (agents[i].IsParticipating && agents[i].Burning.IsBurning)
+                {
+                    body.PutOutPerson(agents[i], 0UL);
+                }
+            }
+        }
+
+        internal DirectorSystem DirectorForTests => director;
+
+        internal InfluenceSystem InfluenceForTests => influence;
+
+        internal FlammablesSystem FlammablesForTests => flammables;
+
+        /// <summary>Sets somebody alight, as touching the flames would.</summary>
+        internal void SetAlightForTests(int index) => body.CatchFire(agents[index], 0UL);
+
+        internal FearSystem FearForTests => fear;
+
+        internal AlarmSystem AlarmsForTests => alarms;
 
         internal WorldGeometry GeometryForTests => geometry;
 
@@ -726,6 +764,15 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Queues a player action aimed at a thing from a place: a nudge that
+        /// knows where the click landed. Same rules as the overloads above.
+        /// </summary>
+        public PlayerCommand QueueCommand(PlayerCommandType commandType, SimulationId targetId, LogicalPosition point, int targetTick)
+        {
+            return playerCommands.Queue(commandType, targetId, point, targetTick);
+        }
+
+        /// <summary>
         /// One logical tick, in the simulation contract's order:
         /// 1 player commands, 1½ the building's day (the Director's cues),
         /// 2 hazard, 3 hazard contact, 4 decisions
@@ -744,12 +791,15 @@ namespace Paniq.Simulation
             alarms.Update();
             doors.KeepHeldDoorsShut();
 
+            // Influence that has faded to nothing is gone before anybody weighs it.
+            influence.Advance();
+
             // Phase 1½: what the building's day holds. A cue called here
             // reaches people at their own reaction tick in phase 4, so nobody
             // moves on the tick it is called. The same for the Director's
-            // traps and for anybody poked a beat ago.
+            // traps and for anybody nudged a beat ago.
             director.Advance();
-            pokes.Advance();
+            nudges.Advance();
             threats.Advance();
 
             // Phase 2 as well: a fuse burning along a wall toward a socket is
@@ -773,6 +823,10 @@ namespace Paniq.Simulation
                 }
 
                 perception.Update(agent);
+
+                // Having looked and listened: settling, at their own pace, if
+                // nothing frightening is left in sight or earshot.
+                fear.Settle(agent);
 
                 // Whatever doors and corners they can see, before they decide
                 // anything: somebody who has just come round a corner and seen
@@ -897,7 +951,7 @@ namespace Paniq.Simulation
             {
                 for (int saved = escapedLastTick; saved < escaped; saved++)
                 {
-                    influence.CreditPersonSaved();
+                    purse.CreditPersonSaved();
                 }
             }
 
@@ -909,7 +963,7 @@ namespace Paniq.Simulation
                 lostLastTick = lost;
             }
 
-            influence.CreditUproar();
+            purse.CreditUproar();
         }
 
         /// <summary>
@@ -1018,10 +1072,10 @@ namespace Paniq.Simulation
         {
             return new RunSnapshot(agents.Length, geometry.DoorSlotCount, objects.Count, geometry.TableCount,
                 cardCosts ??= CardCosts(),
-                doorClickCosts ??= DoorCosts(state => influence.CostOfDoorClick(state, false)),
-                exitClickCosts ??= DoorCosts(state => influence.CostOfDoorClick(state, true)),
-                lockToggleCosts ??= DoorCosts(state => influence.CostOfLockToggle(state, false)),
-                exitLockToggleCosts ??= DoorCosts(state => influence.CostOfLockToggle(state, true)));
+                doorClickCosts ??= DoorCosts(state => purse.CostOfDoorClick(state, false)),
+                exitClickCosts ??= DoorCosts(state => purse.CostOfDoorClick(state, true)),
+                lockToggleCosts ??= DoorCosts(state => purse.CostOfLockToggle(state, false)),
+                exitLockToggleCosts ??= DoorCosts(state => purse.CostOfLockToggle(state, true)));
         }
 
         /// <summary>Writes the run as it stands into a snapshot from <see cref="NewSnapshotBuffer"/>.</summary>
@@ -1030,7 +1084,7 @@ namespace Paniq.Simulation
             AgentSnapshot[] people = into.AgentBuffer;
             for (int i = 0; i < agents.Length; i++)
             {
-                people[i] = agents[i].ToSnapshot();
+                people[i] = agents[i].ToSnapshot(context.Tick);
             }
 
             // Only the openings that are really there: a spare hole slot has no
@@ -1057,6 +1111,9 @@ namespace Paniq.Simulation
                 held.Items[i] = deck.Hand[i];
             }
 
+            influence.FillSnapshot(into.InfluencePlaceBuffer, into.InfluencePullBuffer, agents);
+            into.PlayerMayPullAlarms = context.Scenario.Alarm.PlayerMayPull;
+
             into.Fill(
                 context.Tick,
                 fire.Active,
@@ -1066,11 +1123,11 @@ namespace Paniq.Simulation
                 context.Events.View(),
                 CountClearOfFire(),
                 alarms.Ringing,
-                influence.Enabled,
-                influence.Influence,
-                context.Scenario.Influence.Maximum,
-                influence.Spent,
-                influence.Earned,
+                purse.Enabled,
+                purse.Purse,
+                context.Scenario.Purse.Maximum,
+                purse.Spent,
+                purse.Earned,
                 doors.BlastChargesRemaining,
                 power.Sparks(),
                 round.Phase,
@@ -1090,7 +1147,7 @@ namespace Paniq.Simulation
             var costs = new int[System.Enum.GetValues(typeof(PlayerCommandType)).Length];
             for (int i = 0; i < costs.Length; i++)
             {
-                costs[i] = influence.CostOf((PlayerCommandType)i);
+                costs[i] = purse.CostOf((PlayerCommandType)i);
             }
 
             return costs;

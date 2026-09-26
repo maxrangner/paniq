@@ -218,6 +218,18 @@ way; a third would need a reason just as clear.
   a targeted run is reported as a targeted check, naming what ran. Do not run
   the full suite between the steps of one task: it re-proves what the step
   could not have touched, at three minutes a time.
+- **Tooling the game never runs is guarded by the checks that can see it,
+  not by the full run.** A commit confined to the model pipeline
+  (`tools/models`, `tools/BuildModel.ps1`, `ModelImportSettings`, the model
+  fixtures and tests, the models themselves while no stone draws them), to
+  other scripts under `tools/`, or to documentation cannot change how a run
+  plays, so the full suite would only re-prove the game. Check it with what
+  exercises it: a model's build, its rule checks and a look at its picture;
+  and, whenever it reaches into Unity (the import settings, the export
+  recipe, the calibration fixture), `-Filter Models`. Say in the report that
+  this was the guard, not the full run. A commit that also touches
+  `Assets/Paniq/Runtime`, a scene, or content the game loads is back under
+  the full run.
 - A new test that plays a whole run (3,000 ticks, a minute of game time) says
   in its commit why a shorter one would not do. `-Slowest 10` shows what the
   suite already pays for.

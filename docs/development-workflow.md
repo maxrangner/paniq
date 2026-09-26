@@ -123,6 +123,18 @@ could not have touched. So checking work has two gears:
 The full run happens once per task whatever its size, so a larger task per
 prompt waits less in total than the same work split into small prompts.
 
+**Tooling is the exception.** A commit confined to the model pipeline, other
+scripts under `tools/`, or documentation is guarded by the checks that can
+see it instead of `-All`: for models, the build and its rule checks, a look
+at the picture, and `-Filter Models` whenever the change reaches Unity's
+side (import settings, export recipe, the calibration fixture). The rule is
+in [`AGENTS.md`](../AGENTS.md). When the editor has another copy of the
+project open (a worktree, say), Unity's own batch runner can run those tests
+on this copy with no window:
+`Unity.exe -batchmode -projectPath <this copy> -runTests -testPlatform EditMode -testFilter Models -testResults <file> -logFile <file>`.
+It only works while no editor has this copy open, and only for tests that do
+not build a run, which the `Models` tests do not.
+
 `-Slowest 10` after any run, or `-Slowest 10 -LastRun` afterwards with no
 editor, lists the tests the suite spends its time on. Trim on that evidence,
 not by feel.

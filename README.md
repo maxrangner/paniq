@@ -30,7 +30,9 @@ technical tool or package is adopted, its current official documentation should
 be researched and the decision recorded in
 [`docs/technical-decisions.md`](docs/technical-decisions.md).
 
-Three terms used in this project:
+Every word this project uses in its own way (a *stone*, a *tick*, a *seed*,
+a *fingerprint*, a *cue*) is explained in the [glossary](docs/glossary.md).
+Three terms to start with:
 
 - **Unity** is the game editor and runtime used to build and run Paniq.
 - **URP** is Unity's rendering setup: it draws the 3D world while keeping a
@@ -59,10 +61,13 @@ do in Unity yourself.
    highlighted in the Project window. Commit the generated assets and updated
    project settings.
 5. Open `Assets/Paniq/Scenes/Bootstrap.unity` and press Play. It loads the
-   `FireReactionPrototype` scene: an open-plan office and a meeting room joined
-   by a corridor, twenty people between them, and a single way out of the
-   whole building. A fire made of small glowing cubes starts after a few
-   seconds and spreads across the floor. Some people run, collide and trip,
+   `FireReactionPrototype` scene, the [office level](docs/the-office-level.md):
+   one office floor with a meeting room, a cafeteria, an open-plan office, a
+   bathroom and a stockroom along a corridor, twenty people going about their
+   day, and a single way out of the whole building, locked until you open it.
+   Press the red **Trigger event** button at the bottom of the screen and a
+   fire made of small glowing cubes starts in the meeting room and spreads
+   across the floor. Some people run, collide and trip,
    some freeze in fear, the kind ones stop to help, and the cruel shove past
    and shut doors behind them. Press **Tab** for a table of everyone's traits.
    If Unity ever opens with no scene at all (the title bar says `Untitled`),

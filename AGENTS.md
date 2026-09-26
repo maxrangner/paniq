@@ -112,6 +112,11 @@ Every completed task ends with a report in this shape:
   from a correctly named branch) before it's pushed.
 - **Merges**: always use `--no-ff`, so every integration leaves a visible
   merge commit in the log, even when the merge could fast-forward.
+- **The graph keeps its shape.** Rewriting history happens only when the
+  owner asks. When they do (condensing commits, for example), never flatten
+  it: every side branch still forks and merges at the same points, because the
+  owner reads the graph as much as the log. Tag the old tips first and push
+  with `--force-with-lease`.
 
 ### How much goes in one commit
 
@@ -176,6 +181,29 @@ way; a third would need a reason just as clear.
 - Record every default chosen on the owner's behalf in
   [`docs/technical-decisions.md`](docs/technical-decisions.md), so a decision
   made silently is still a decision the owner can find and overturn.
+- **Live pages first, history on demand.** `docs/roadmap.md` and
+  `docs/technical-decisions.md` hold only the current stone, the standing
+  rules and what is still open. Finished stones' records live unchanged in
+  `docs/history/`: search them for a specific name or reason instead of
+  reading them whole. When a stone is finished, move its sections there and
+  carry anything it left open into the roadmap's *Left open* list; bumps of
+  the rules or building version go in `docs/history/version-history.md`.
+- **Read the page for the task, not every page.** Unfamiliar words are in
+  [`docs/glossary.md`](docs/glossary.md).
+
+  | Task | Read first |
+  | --- | --- |
+  | Any task: where things stand, what is open | `docs/roadmap.md` (top and *Left open*) |
+  | A playtest note, or how the level plays | `docs/the-office-level.md` |
+  | How people behave: fear, panic, helping, doors | `docs/the-office-level.md`, `docs/agent-state-model.md` |
+  | Randomness, ticks, order, replays | `docs/simulation-contract.md` |
+  | Rooms, walls, bodies, finding the way | `docs/spatial-world-rules.md` |
+  | The calm day: meetings, errands, the Director | `docs/cue-system.md` |
+  | Camera, controls, HUD, how things look | `docs/look-and-controls.md` |
+  | The game's direction, a new mechanic | `docs/game-vision.md`, `docs/goals.md` |
+  | Tests, tools, building a floor plan, pitfalls | `docs/development-workflow.md` |
+  | A default to choose or a technology to add | `docs/technical-decisions.md` |
+  | The reason behind older code | search `docs/history/` for its name |
 
 ## Simulation rules
 

@@ -103,7 +103,7 @@ the table of everyone's traits, **G** paints the floor people can walk on,
 and **Space** pauses.
 
 The values chosen when the camera was built, recorded in
-[technical decisions](technical-decisions.md): the view pans at 14 metres a
+[technical decisions](history/decisions-prototype-2.md#prototype-2-decision-building-the-round): the view pans at 14 metres a
 second and more slowly the closer it is zoomed, the wheel zooms in twelve
 notches from the whole building down to about a sixth of it, and the tilt
 travels from 35.264 degrees at full zoom-out to 18 degrees fully in — held flat
@@ -134,6 +134,21 @@ something you could pick up.
   movement is animated procedurally — the transform is moved, bounced and
   rocked in code, as the fire cubes already are — with **no character rigs, no
   Animator controllers, and no animation packages**.
+
+Standing rules from the owner, not to be undone by a later change:
+
+- **A seated person looks exactly like a standing one, only higher.** In the
+  owner's words (2026-09-24): "Seated person looks exactly the same as
+  standing. No leaning, no squashing, no deforming. They should be higher off
+  the ground than a standing person, representing them sitting on the flat part
+  of the chair." A seated head about half a metre above a standing one is
+  accepted.
+- **Signs stand upright**, as signs on a wall do (the owner's request; they
+  used to lie flat to face the camera).
+- **The play view stays clean** (the owner, 2026-09-19: "Let's try to keep
+  gameplay clean"). Over a head go the person's number and the marks that say
+  what they are doing (the `!`, the snowflake, the star); traits and state go
+  in the panel **Tab** opens. No always-on trait bars.
 
 Concept art is to be added under `docs/reference/` as it is produced. Nothing
 is there yet.

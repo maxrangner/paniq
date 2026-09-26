@@ -168,6 +168,80 @@ its own way live in the editor's suite: the fixed timestep in
 `SimulationContractEditModeTests`, and the saved scenario asset matching the
 code defaults in `SimulationEditModeTests`.
 
+### Traps that cost a test cycle
+
+Each of these was found the slow way. They look like your own breakage and
+are not.
+
+**The test bridge**
+- `-Filter` matches plain text, and a comma separates names
+  (`-Filter Doors,ClosingDoors`). `A|B` is not a pattern here and matches
+  nothing.
+- The bridge compiles `Assets` at the start of every request. Do not edit a
+  `.cs` file under `Assets` while a run is in flight.
+- `Temp/PaniqTestBridge/result.txt` holds only the latest run: a play-mode run
+  overwrites an edit-mode one. The editor console is drowned in physics
+  warnings, so read the file and look for lines starting `FAILED`, `passed=`
+  and `failed=`.
+- From Bash, run it as
+  `powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunUnityTests.ps1 ...`.
+  Without the bypass the script is refused.
+- A play-mode run can leave `Assets/InitTestScene*.unity` behind, and a
+  dialog offering to save it stops the bridge. Delete the file, never commit
+  it.
+
+**Settings, content and replays**
+- The scenario asset (`Assets/Paniq/Content/FireReactionScenario.asset`) holds a
+  baked copy of every setting and of the two version numbers. After changing
+  any settings default or authored content, run
+  `.\tools\RunUnityTests.ps1 -Menu "Paniq/Rewrite Scenario Asset From Code Defaults"`,
+  or `ScenarioAsset_MatchesTheCodeDefaults` fails.
+- An editor command that asks for confirmation before doing something
+  destructive must check `SessionState.GetBool("Paniq.NobodyIsHereToAsk")`
+  and take the yes as given, as `RewriteScenarioAsset` does. Otherwise it
+  freezes the editor when the bridge runs it.
+- To re-record the replay fingerprints, run `-Filter ReplayFingerprint`: each
+  failing case prints `fingerprint is 0x...UL`, ready to paste into its
+  `[TestCase]`. There are thirteen cases (older notes say ten). Run the filter
+  a second time after pasting: a number that moves between two identical runs
+  is a determinism bug, not a new recording.
+- Never set a loose physical body's rotation between physics steps: it made
+  the busiest runs differ from one run to the next. Turn a loose body by giving
+  it spin (`SetSpin`) towards the heading you want.
+- A test helper called `Run(...)` hides the type `Run` inside its class; call
+  helpers `Advance`.
+
+**Pressing Play without the owner**
+- `.\tools\RunUnityTests.ps1 -Menu "Edit/Play Mode/Play"` presses Play in the
+  open editor (`Edit/Play` is the pre-Unity 6.3 name and no longer exists).
+  The result is in `%LOCALAPPDATA%\Unity\Editor\Editor.log`.
+- `EditorApplication.delayCall` does not fire while the Unity window is
+  minimised. Editor automation uses a one-shot `EditorApplication.update`
+  handler instead, as the bridge does.
+- The editor window's title names the open scene
+  (`Get-Process Unity | % MainWindowTitle`): the quickest way to see what the
+  editor has open without touching it.
+
+**Unity batch mode** (only on a *second* checkout: batch mode cannot open the
+folder the editor has open)
+- `Unity.exe -batchmode -nographics -projectPath <worktree> -runTests -testPlatform EditMode -testResults <file> -logFile <file>`.
+  Here `-testFilter` *is* a regular expression. Put the results file outside
+  `Temp/`, which Unity empties on exit. The first import takes about five
+  minutes.
+- Every batch run rewrites `ProjectSettings/TagManager.asset` without its
+  byte-order mark; `git checkout --` it before committing.
+
+**Editing files**
+- About half the files under `Runtime/Simulation` begin with a byte-order mark
+  (an invisible marker at the start of a text file). Keep it when rewriting a
+  file whole; the line endings are plain LF throughout.
+- Long shell heredocs containing quotes or `\n` get mangled. Write the script
+  to a file first, then run it.
+- Never read `PRIVATE_TODO_NO_LMM_KEEP-OUT.md`. It is the owner's, is usually
+  modified in the working tree, and differs between branches, so
+  `git checkout <branch>` can refuse; use a temporary `git worktree` for work
+  on another branch.
+
 ## Building a floor plan
 
 A building used to be four typed coordinates per room in a C# file, with no

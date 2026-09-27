@@ -893,6 +893,12 @@ namespace Paniq.Simulation
         {
             AgentErrand errand = agent.Errand;
             int door = errand.Door;
+            if (doors.NeedsKeycard(door) && KeycardSystem.Has(agent))
+            {
+                // The card door, and the card is in their pocket (2026-09-27).
+                doors.SwipeKeycard(door, agent, errand.CauseEventId);
+            }
+
             if (doors.CanBePushedOpen(door))
             {
                 errand.Phase = ErrandPhase.OpeningTheDoor;
@@ -1146,6 +1152,12 @@ namespace Paniq.Simulation
             if (geometry.IsDoorOpen(errand.Door))
             {
                 return CarryOnThroughTheDoor(agent);
+            }
+
+            if (doors.NeedsKeycard(errand.Door) && KeycardSystem.Has(agent))
+            {
+                // Somebody handed them the card while they stood there.
+                doors.SwipeKeycard(errand.Door, agent, errand.CauseEventId);
             }
 
             if (doors.CanBePushedOpen(errand.Door))

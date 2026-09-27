@@ -158,7 +158,7 @@ namespace Paniq.Simulation
         }
 
         /// <summary>A 45-degree half-angle either side of the way they face: |sideways| is at most forward.</summary>
-        private static bool InVisionCone(LogicalPosition eye, LogicalPosition direction, LogicalPosition point)
+        internal static bool InVisionCone(LogicalPosition eye, LogicalPosition direction, LogicalPosition point)
         {
             long offsetX = (long)point.X - eye.X;
             long offsetZ = (long)point.Z - eye.Z;

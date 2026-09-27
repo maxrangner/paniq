@@ -174,11 +174,13 @@ namespace Paniq.Presentation
                     : door.IsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted" +
                                       (door.IsHeld ? ", and you are holding it as well" : "")
                     : door.IsHeld ? "You are holding it shut. Let go of the button to let go of the door"
+                    : door.NeedsKeycard ? $"NEEDS THE KEYCARD - whoever has it swipes it open; nobody batters it and you have no key to it. {Capital(pull)}"
                     : !affordable ? $"Locked. NOT ENOUGH IN THE PURSE to unlock it - it costs {key}, and you have {snapshot.Purse}"
                     : locked ? $"Locked. Right-click to unlock{Price(snapshot, key)}; {pull}"
                     : $"{Capital(pull)}; hold to keep it shut; right-click to lock{Price(snapshot, key)}";
                 GUI.color = door.IsJammed || door.IsPiled || !affordable ? new Color(1f, 0.7f, 0.6f)
-                    : door.IsHeld ? new Color(0.6f, 0.8f, 1f) : Color.white;
+                    : door.IsHeld ? new Color(0.6f, 0.8f, 1f)
+                    : door.NeedsKeycard ? new Color(1f, 0.9f, 0.5f) : Color.white;
                 GUI.Label(new Rect(20f, 104f, 900f, 22f), $"Door {door.DoorId.Value}: {action}");
                 GUI.color = Color.white;
             }
@@ -208,9 +210,10 @@ namespace Paniq.Presentation
             else if (input.HoveredPerson.HasValue)
             {
                 bool annoyed = IsAnnoyed(snapshot, input.HoveredPerson.Value);
+                string card = HasTheKeycard(snapshot, input.HoveredPerson.Value) ? " - HAS THE KEYCARD" : "";
                 GUI.Label(new Rect(20f, 104f, 900f, 22f), annoyed
-                    ? $"Person {input.HoveredPerson.Value.Value}: annoyed with you - nudging them does nothing for a while"
-                    : $"Person {input.HoveredPerson.Value.Value}: click to nudge them away from the click");
+                    ? $"Person {input.HoveredPerson.Value.Value}{card}: annoyed with you - nudging them does nothing for a while"
+                    : $"Person {input.HoveredPerson.Value.Value}{card}: click to nudge them away from the click");
             }
             else if (input.HoveredThing.HasValue)
             {
@@ -248,6 +251,21 @@ namespace Paniq.Presentation
                 if (snapshot.Agents[i].AgentId == person)
                 {
                     return snapshot.Agents[i].IsAnnoyed;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether the keycard is in this person's pocket: the card is a thing held by them.</summary>
+        private static bool HasTheKeycard(RunSnapshot snapshot, SimulationId person)
+        {
+            for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
+            {
+                PhysicsObjectSnapshot thing = snapshot.PhysicsObjects[i];
+                if (thing.Kind == PhysicsObjectKind.Keycard && thing.HeldBy == person)
+                {
+                    return true;
                 }
             }
 
@@ -489,7 +507,8 @@ namespace Paniq.Presentation
             string doorHelp = snapshot.PurseEnabled
                 ? $"draw people to use it; right-click to lock or unlock it for {snapshot.CostOfLockToggle(DoorState.Locked, false)}. " +
                   $"Red is locked; the way out costs {snapshot.CostOfLockToggle(DoorState.Locked, true)} to unlock"
-                : "draw people to use it, one step a click; right-click to lock or unlock it. Red is locked";
+                : "draw people to use it, one step a click; right-click to lock or unlock it. Red is locked. " +
+                  "The way out needs the keycard: whoever has it swipes it open, and you have no key to it";
             var keys = new[]
             {
                 ("Click a card", "pick it up, then click the floor to throw it. Two of a kind sit as one card"),
@@ -567,11 +586,12 @@ namespace Paniq.Presentation
             {
                 AgentSnapshot agent = snapshot.Agents[i];
                 AgentTraitValues t = agent.Traits;
+                string card = HasTheKeycard(snapshot, agent.AgentId) ? " (has the keycard)" : "";
                 DrawRow(x, y, rowHeight, new[]
                 {
                     (i + 1).ToString(), t.Strength.ToString(), t.Speed.ToString(), t.Bravery.ToString(),
                     t.Compassion.ToString(), t.Evil.ToString(), t.Nervousness.ToString(), t.Leadership.ToString(),
-                    TemperamentText(agent.Temperament), StateText(agent)
+                    TemperamentText(agent.Temperament), StateText(agent) + card
                 });
                 y += rowHeight;
             }
@@ -658,6 +678,7 @@ namespace Paniq.Presentation
                 case AgentActivityState.StandingUp: return "getting up";
                 case AgentActivityState.GoingToAlarm: return "going for the alarm";
                 case AgentActivityState.PullingAlarm: return "hitting the alarm";
+                case AgentActivityState.FetchingKeycard: return "going for the keycard";
                 case AgentActivityState.Fleeing: return "running";
                 default: return agent.ActivityState.ToString().ToLowerInvariant();
             }

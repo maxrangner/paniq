@@ -39,6 +39,7 @@ namespace Paniq.Tests.EditMode
                 new PhysicsObjectDefinition(new SimulationId(3001UL), kind, new LogicalPosition(-4000, 0),
                     sizeMillimetres, massGrams)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = int.MaxValue;
             return data;
         }

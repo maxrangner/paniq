@@ -85,7 +85,8 @@ in the editor that is already open:
 .\tools\RunUnityTests.ps1 -Slowest 10 -LastRun       # what the last run spent its time on
 .\tools\RunUnityTests.ps1                            # every edit-mode test
 .\tools\RunUnityTests.ps1 -PlayMode                  # the play-mode tests
-.\tools\RunUnityTests.ps1 -Category UnityPhysics     # the physics-foundation checks, the one category in use
+.\tools\RunUnityTests.ps1 -Category UnityPhysics     # the physics-foundation checks
+.\tools\RunUnityTests.ps1 -Filter HandsOffBaseline -ShowPassed  # the office left alone, ten seeds: a measurement (Category Measure), skipped by normal runs
 .\tools\RunUnityTests.ps1 -Reset                     # the bridge is stuck on a run Unity dropped
 ```
 
@@ -207,7 +208,7 @@ are not.
   freezes the editor when the bridge runs it.
 - To re-record the replay fingerprints, run `-Filter ReplayFingerprint`: each
   failing case prints `fingerprint is 0x...UL`, ready to paste into its
-  `[TestCase]`. There are thirteen cases (older notes say ten). Run the filter
+  `[TestCase]`. There are fifteen cases (older notes say ten or thirteen). Run the filter
   a second time after pasting: a number that moves between two identical runs
   is a determinism bug, not a new recording. To find where two runs part,
   play the seed many times in one test and compare every body's position,

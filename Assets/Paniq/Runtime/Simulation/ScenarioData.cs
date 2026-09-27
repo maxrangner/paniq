@@ -313,6 +313,7 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private bool startsLocked;
         [UnityEngine.SerializeField] private bool isOpening;
         [UnityEngine.SerializeField] private bool swings;
+        [UnityEngine.SerializeField] private bool needsKeycard;
 
         public DoorDefinition(
             SimulationId doorId,
@@ -322,7 +323,8 @@ namespace Paniq.Simulation
             int widthMillimetres,
             bool startsLocked = true,
             bool isOpening = false,
-            bool swings = false)
+            bool swings = false,
+            bool needsKeycard = false)
         {
             this.doorId = doorId;
             this.roomId = roomId;
@@ -332,6 +334,7 @@ namespace Paniq.Simulation
             this.startsLocked = startsLocked;
             this.isOpening = isOpening;
             this.swings = swings;
+            this.needsKeycard = needsKeycard;
         }
 
         public SimulationId DoorId => doorId;
@@ -365,6 +368,15 @@ namespace Paniq.Simulation
         /// door is never an archway and never starts locked.
         /// </summary>
         public bool Swings => swings;
+
+        /// <summary>
+        /// A card door (2026-09-27): the way out that only the keycard opens.
+        /// Nobody batters it, the fire does not burn through it, and the
+        /// player's key does not fit it; whoever has the card swipes it, and
+        /// from then on it is an ordinary door. Only a locked door to the
+        /// street can be one. See <see cref="KeycardSettings"/>.
+        /// </summary>
+        public bool NeedsKeycard => needsKeycard && StartsLocked;
     }
 
     /// <summary>
@@ -829,7 +841,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "83";
+        public string ContentRevision = "84";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -1019,7 +1031,18 @@ namespace Paniq.Simulation
         // box five to ten seconds after the socket's fire is put out. A sign
         // pointing down a lane teaches the nearest way out. Fingerprints
         // re-recorded: nearly everything above moves a run.
-        public int SimulationCompatibilityVersion = 71;
+        //
+        // 72: the keycard (2026-09-27, the owner's idea). The way out is a
+        // card door: nobody batters it, the fire does not burn through it,
+        // the player's key does not fit it. A keycard (a new kind of thing,
+        // carried in a pocket, never burnt, never tidied) starts each round
+        // in a member of staff's pocket or on an office desk, drawn from its
+        // own random stream; staff know where, anybody who sees it learns
+        // where; somebody frightened who found the way out locked and is
+        // brave enough goes and gets it; whoever is out cold or dead drops it; whoever
+        // has it swipes the door open for good. Fingerprints re-recorded: the
+        // way out is now opened by a person or not at all.
+        public int SimulationCompatibilityVersion = 72;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -1052,6 +1075,7 @@ namespace Paniq.Simulation
         public DirectorSettings Director = new DirectorSettings();
         public CalmingSettings Calming = new CalmingSettings();
         public InfluenceSettings Influence = new InfluenceSettings();
+        public KeycardSettings Keycard = new KeycardSettings();
 
         public AgentDefinition[] Agents = PrototypeBuilding.DefaultAgents();
         public DoorDefinition[] Doors = PrototypeBuilding.DefaultDoors();
@@ -1161,6 +1185,7 @@ namespace Paniq.Simulation
             copy.Director = Director?.Clone();
             copy.Calming = Calming?.Clone();
             copy.Influence = Influence?.Clone();
+            copy.Keycard = Keycard?.Clone();
             copy.Agents = (AgentDefinition[])Agents?.Clone();
             copy.Doors = (DoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (PhysicsObjectDefinition[])PhysicsObjects?.Clone();
@@ -1193,7 +1218,8 @@ namespace Paniq.Simulation
                 ObjectPhysics == null || PhysicsFeel == null || Traits == null || Flammables == null || Items == null || Help == null ||
                 Purse == null || Alarm == null || Blockades == null || Blast == null ||
                 Extinguishers == null || Leadership == null || Groups == null || Day == null ||
-                Traps == null || Nudge == null || Director == null || Calming == null || Influence == null)
+                Traps == null || Nudge == null || Director == null || Calming == null || Influence == null ||
+                Keycard == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -1229,6 +1255,7 @@ namespace Paniq.Simulation
             Director.Validate();
             Calming.Validate();
             Influence.Validate();
+            Keycard.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");
@@ -1304,6 +1331,7 @@ namespace Paniq.Simulation
             ValidateTables(ids);
             ValidatePhysicsObjects(ids);
             ValidateStartingPossessions();
+            ValidateTheKeycard();
             ValidateAlarms(ids);
             ValidateBlastHoles(ids);
             ValidatePowerLines();
@@ -1552,6 +1580,41 @@ namespace Paniq.Simulation
         /// Everything somebody walks in holding must be a thing this scenario
         /// has, light enough for them to hold, and held by only one person.
         /// </summary>
+        /// <summary>
+        /// One keycard at most (the run only knows one: a second would lie
+        /// there for ever, nobody able to take it), and one there at all
+        /// whenever a door needs it -- or that door is a way out nobody can
+        /// ever open, and every round on the level ends with everybody inside.
+        /// </summary>
+        private void ValidateTheKeycard()
+        {
+            int cards = 0;
+            for (int i = 0; i < PhysicsObjects.Length; i++)
+            {
+                cards += PhysicsObjects[i].Kind == PhysicsObjectKind.Keycard ? 1 : 0;
+            }
+
+            if (cards > 1)
+            {
+                throw new InvalidOperationException($"The building has {cards} keycards; it may have one at most.");
+            }
+
+            if (!Keycard.Enabled || cards == 1)
+            {
+                return;
+            }
+
+            for (int i = 0; i < Doors.Length; i++)
+            {
+                if (Doors[i].NeedsKeycard)
+                {
+                    throw new InvalidOperationException(
+                        $"Door {Doors[i].DoorId} needs the keycard, but the building has none: nobody could ever open it. " +
+                        "Put a keycard in the building, or switch the keycard off (Keycard.Enabled).");
+                }
+            }
+        }
+
         private void ValidateStartingPossessions()
         {
             var taken = new HashSet<SimulationId>();
@@ -1746,7 +1809,11 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Door {door.DoorId} swings: it can be neither an archway nor locked.");
                 }
 
-                ValidateDoorNeighbour(door, roomIndex, half);
+                bool leadsOutside = ValidateDoorNeighbour(door, roomIndex, half);
+                if (door.NeedsKeycard && !leadsOutside)
+                {
+                    throw new InvalidOperationException($"Door {door.DoorId} needs the keycard: only a door to the street can.");
+                }
 
                 for (int previous = 0; previous < i; previous++)
                 {
@@ -1765,9 +1832,10 @@ namespace Paniq.Simulation
         /// What lies beyond a door: either nothing (it leads outside) or one
         /// room flush against the far side of that wall, whose wall covers
         /// the whole gap. A room that only half covers the gap would leave a
-        /// doorway opening into a wall, so it is rejected.
+        /// doorway opening into a wall, so it is rejected. Returns whether the
+        /// door leads outside (no room lies beyond it).
         /// </summary>
-        private void ValidateDoorNeighbour(DoorDefinition door, int roomIndex, int half)
+        private bool ValidateDoorNeighbour(DoorDefinition door, int roomIndex, int half)
         {
             LogicalBounds room = Rooms[roomIndex].Bounds;
             bool alongX = door.Side == WallSide.North || door.Side == WallSide.South;
@@ -1811,8 +1879,10 @@ namespace Paniq.Simulation
                         $"Door {door.DoorId} opens partly into room {Rooms[r].RoomId} and partly into a wall.");
                 }
 
-                return;
+                return false;
             }
+
+            return true;
         }
 
         private void ValidatePhysicsObjects(HashSet<SimulationId> ids)

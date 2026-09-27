@@ -368,7 +368,14 @@ namespace Paniq.Simulation
         RunningAnErrand,
 
         /// <summary>Stood talking to somebody, facing them.</summary>
-        Chatting
+        Chatting,
+
+        /// <summary>
+        /// Frightened, and on the way to the keycard (2026-09-27): the way
+        /// out was found locked, they know where the card is, and they are
+        /// going to get it. See <see cref="KeycardSystem"/>.
+        /// </summary>
+        FetchingKeycard
     }
 
     /// <summary>
@@ -979,7 +986,35 @@ namespace Paniq.Simulation
         /// 2026-09-27). Source: the person. Cause: the nudge. The knock-down
         /// that follows has this as its cause.
         /// </summary>
-        AgentKnockedOffChair
+        AgentKnockedOffChair,
+
+        /// <summary>
+        /// Where the keycard was when the round began (2026-09-27): in
+        /// somebody's pocket (source: that person, target: the card) or lying
+        /// on a desk (source and target: the card). A root event, at tick 0.
+        /// </summary>
+        KeycardStarted,
+
+        /// <summary>
+        /// Somebody pocketed the keycard: fetched it because the way out was
+        /// locked, or picked it up because the player's pull asked. Source:
+        /// the person. Target: the card. Cause: their fright, or the pull.
+        /// </summary>
+        AgentTookKeycard,
+
+        /// <summary>
+        /// The keycard fell out of somebody's pocket where they went down --
+        /// knocked over, out cold, crushed or dead. Source: the person.
+        /// Target: the card. Cause: what floored them.
+        /// </summary>
+        KeycardDropped,
+
+        /// <summary>
+        /// Somebody with the keycard reached the way out and swiped it: the
+        /// door is unlocked for good. Source: the person. Target: the door.
+        /// Cause: their try at the door.
+        /// </summary>
+        DoorUnlockedWithKeycard
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -1109,7 +1144,15 @@ namespace Paniq.Simulation
         /// is hit, and when the flames reach it it goes off with a crack and
         /// falls silent (2026-09-25).
         /// </summary>
-        AlarmSounder
+        AlarmSounder,
+
+        /// <summary>
+        /// The keycard that opens the way out (2026-09-27): a small plastic
+        /// card carried in a pocket rather than the arms, so its holder's
+        /// hands stay free. It never burns, never jams a door, and is never
+        /// tidied away; it is dropped only by somebody who goes down.
+        /// </summary>
+        Keycard
     }
 
     /// <summary>

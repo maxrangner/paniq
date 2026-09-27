@@ -48,9 +48,12 @@ procedure with the scenario seed as `initstate` and a fixed `initseq` of `54`.
   | --- | --- | --- | --- |
   | The run | `54` | `SimulationContext.Random`, shared | Everything the world and the crowd decide |
   | The deck | `55` | `DeckSystem`, owned outright | Which card a death deals the player |
+  | The keycard | `56` | `KeycardSystem`, owned outright | Where the keycard starts a round: whose pocket, or which desk (2026-09-27) |
 
-  Both derive from the same scenario seed as `initstate`, so a replay of a seed
-  reproduces both. The deck is separate because dealing a card must not shift
+  All derive from the same scenario seed as `initstate`, so a replay of a seed
+  reproduces them all. The keycard's is separate so a level without a card
+  replays exactly as it did before cards existed, and so the card's start
+  never shifts the run's own start-up draws. The deck is separate because dealing a card must not shift
   everybody else's randomness: while it shared the run's generator, one death
   drew a number and from that tick on every person in the building panicked,
   tripped and froze differently than they had before the deck existed. A third

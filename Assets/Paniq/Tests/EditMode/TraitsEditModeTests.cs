@@ -190,6 +190,7 @@ namespace Paniq.Tests.EditMode
                 Person(2UL, 2000, -4000, new AgentTraitValues(5, 5, 5, 5, 5, 0))
             };
             data.PhysicsObjects = Array.Empty<PhysicsObjectDefinition>();
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Temperament.FreezeForeverPercent = 0;
             data.Temperament.FreezeThenRunPercent = 0;
             data.Fire.ActivationTick = 10;

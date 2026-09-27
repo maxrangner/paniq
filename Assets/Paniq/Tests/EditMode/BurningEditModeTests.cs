@@ -51,6 +51,7 @@ namespace Paniq.Tests.EditMode
             people.AddRange(others);
             data.Agents = people.ToArray();
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = 1;
             data.Fire.SpawnBounds = new LogicalBounds(250, 250, 250, 250);
 

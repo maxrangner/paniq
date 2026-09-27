@@ -66,6 +66,7 @@ namespace Paniq.Tests.EditMode
                 new AgentDefinition(new SimulationId(1UL), new LogicalPosition(-5000, -5000), CardinalDirection.North)
             };
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Tables = new TableDefinition[0];
             data.Fire.ActivationTick = 1;
             data.Fire.SpawnBounds = new LogicalBounds(5750, 5750, 2250, 2250);
@@ -167,6 +168,7 @@ namespace Paniq.Tests.EditMode
                     AgentTraitValues.AllOrdinary)
             };
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Tables = new TableDefinition[0];
             data.Temperament.FreezeForeverPercent = 0;
             data.Temperament.FreezeThenRunPercent = 0;
@@ -207,6 +209,7 @@ namespace Paniq.Tests.EditMode
                 new AgentDefinition(new SimulationId(2UL), new LogicalPosition(4500, 2000), CardinalDirection.East)
             };
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Tables = new TableDefinition[0];
             data.Fire.ActivationTick = 1;
             data.Fire.SpawnBounds = new LogicalBounds(5250, 5250, 2250, 2250);

@@ -149,6 +149,15 @@ namespace Paniq.Presentation
                     Part("Bag", PrimitiveType.Sphere, Vector3.up * (height * 0.5f), new Vector3(size, height, size * 0.75f));
                     break;
 
+                case PhysicsObjectKind.Keycard:
+                    // A flat bright card with a dark stripe, unmistakable on a
+                    // desk and held up on whoever pockets it (2026-09-27).
+                    height = 0.02f;
+                    colour = new Color(1f, 0.85f, 0.1f);
+                    Part("Card", PrimitiveType.Cube, Vector3.up * 0.006f, new Vector3(size, 0.012f, size * 0.65f));
+                    Part("Stripe", PrimitiveType.Cube, new Vector3(0f, 0.014f, size * 0.2f), new Vector3(size, 0.004f, size * 0.12f));
+                    break;
+
                 case PhysicsObjectKind.Microwave:
                     // A boxy appliance with a dark door on the front.
                     height = size * 0.6f;

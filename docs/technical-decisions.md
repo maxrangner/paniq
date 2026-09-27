@@ -188,6 +188,97 @@ owner should know this is why a fallen box does not slide when walked into.
 | Versions | `SimulationCompatibilityVersion` 70 → 71; `ContentRevision` 82 → 83. All fifteen fingerprints re-recorded | Nearly everything above moves a run | Never |
 | Tests | New: `HeavyThingsEditModeTests` (on the map, held still, the heave, the cut-off door), `StockroomTrapEditModeTests` (the stack falls, cuts the lane, a landing outside its room refused), `FrightenedWalksEditModeTests` (doors opened for a bottle and for the flames, a locked one given up). Changed: `BoxTowerEditModeTests` (nobody carries a fallen crate, the strong heave), `DirectorLadderEditModeTests` (5 s after the fall, 5–10 s after a put-out, the busiest room), `NavigationGridEditModeTests` (heavy things in the clearance oracle), `StockroomEditModeTests` (the crossing test runs with no traps: the stack would fall for its runner), `NewPropsEditModeTests` (61 boxes), `DoorsEditModeTests` (a fall with no doorway), `TheBuilding` (the stack, the bend) | -- | -- |
 
+## Prototype 3: the keycard (2026-09-27)
+
+The owner's answers, after a step back to look at the game loop: left alone
+about a quarter should live; the way out needs a keycard, in a member of
+staff's pocket or on a desk, "random B or C"; once swiped the door stays
+unlocked for good; the card is fireproof; the end card says what would have
+happened left alone, in this same batch; one commit. Every default below was
+chosen on the owner's behalf and is theirs to overturn.
+
+**The measurement that started it.** Ten rounds of the office with nobody
+at the controls, seeds 40 to 49, before this batch:
+
+| Left alone, before | |
+| --- | --- |
+| Cleared the 75% bar | 7 of 10 |
+| Saved on average | 16.2 of 20 |
+| Worst and best | 8 and 20 |
+| Somebody put the bin out | 1 of 10 |
+| Somebody pulled the alarm | 9 of 10 |
+| The tower fell | 10 of 10, five to seven seconds after the bin caught |
+
+After this batch, same seeds: **3 of 10 cleared, 5.9 of 20 saved on
+average**; the three seeds where a member of staff started with the card
+saved 16, 18 and 20, one desk seed saved 5 (the hero fetched it), the other
+six saved nobody. That is after a tuning pass on the owner's word ("retune"),
+below; at the first values it was 8.6 of 20 and 5 of 10 (6.6 and 3 of 10
+before the code review's fixes, when a fetcher who tripped handed the card on
+to somebody across the building).
+
+**The tuning pass.** Measured over the same ten seeds, nobody at the
+controls:
+
+| Bravery to go for it | Grab in passing | Saved on average | Cleared |
+| --- | --- | --- | --- |
+| 4 (first value) | 6 m (first value) | 8.6 | 5 |
+| 6 | 6 m | 7.7 | 4 |
+| 8 | 6 m | 6.7 | 3 |
+| 6 | 4 m | 7.2 | 3 |
+| 6 | 2 m | 6.3 | 3 |
+| 7 | 3 m | 6.6 | 3 |
+| **8** | **3 m** | **5.9** | **3** |
+| 4 or 6 | none | 5.4 | 3 |
+
+About 5.4 is the floor for these knobs: the seeds where somebody starts with
+the card in their pocket open the door whatever they are set to. No grabbing
+in passing at all reaches it, but then a card on a desk is never fetched and
+every desk seed is a total loss; bravery 8 and three metres keeps a chance
+there (the hero). How often the card starts on a desk was not touched: it is
+the owner's half-and-half. Three things were measured on the way and are now
+rules, each recorded in its row: a card in a pocket was lost to every trip in
+the crush, so only being out cold or dead drops it; a card on a desk was
+never fetched, because by the time anybody had found the door shut the
+fallen boxes had cut the office off from the crossbar, so staff grab it in
+passing; the host fought the bin for forty seconds with the card in his
+pocket and died in the corridor, so a holder makes straight for the door and
+swipes it from a couple of metres.
+
+**The code review of the batch (same day), and what changed.** Eight
+findings, all fixed in the same commit: a fetch for the player that came to
+nothing left a flag behind that stopped that person ever tidying again; the
+hands-off round never got the player's Trigger event press, so on a level
+with no Director it never burnt and reported everybody alive; a fetcher who
+died mid-fetch held the card's claim for ever; a card door with no keycard
+in the building (or two keycards) was accepted; the hands-off round ran
+twenty unbudgeted ticks a frame and was built on the first frame of play;
+fetchers were steered by where the card really was rather than where they
+believed it was; the meeting-room test excused too much; the test helper
+that hands somebody the card did not tell them so. Two things were measured
+while fixing them and became rules: releasing the claim on any fall sent a
+second person 25 metres for a card the first, who had tripped beside the
+desk, was standing next to; and a fetcher arriving where they believed the
+card lay gave up when it had only been nudged 80 mm.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **The kind** | `PhysicsObjectKind.Keycard`, appended; 150 mm, 50 g, friction 120, `IgniteTicks` 0 (never burns), `Pocketable`; authored as 3950 on desk 4001 beside its laptop, resting. Never on the map, never jams a door (under the 160 mm radius), never tidied, wedged, thrown clear or hurled (`CanLift` refuses a pocketable thing) | **The owner's rule**: fireproof. A pocketable thing is a new flag on the kind table, as equipment was | A second pocketable thing |
+| **A pocket, not the arms** | `Agent.Keycard` (`AgentKeycard`: `Held`, what they believe, `MayFetchFromTick`, `PocketingUntilTick`) beside `Agent.Carry`, never in it; the world object is held (`PickUp`, non-solid, `FollowPocket` 150 mm behind the carrier); `Release(..., onTheFloor: true)` sets it down where they lie | A holder keeps free hands for a bottle or a box, is not slowed, and trips none of the `Carry.ItemIndex` guards that would have made them ignore influence, alarms and help | Never |
+| **Where it starts** | `KeycardSystem.PlaceAtTheStart`, in the `Run` constructor after everything is built, drawing only from `Pcg32(seed, 56)`: `OnADeskPercent` 50 → one of the tables in the card's authored room, uniform, near the east end (`PlaceOnATable`); else a uniform member of staff (`Knowledge.KnowsEverything`, the host included). `KeycardStarted` at tick 0 (source the holder, or the card itself for a desk). `Keycard.Enabled` false puts the card away (dormant) and no door needs it | **The owner's choice**: random B or C. Its own stream, on the deck's terms (see the simulation contract), so the start-up draws and every level without a card replay as before | A card authored on a person |
+| **Who knows** | Staff believe where it started; visitors nothing. `Notice(agent)` after perception: a sighting (vision range, the 45° cone, `CanSeeBetween`) that disagrees with what they believe, and with any sighting still pending, starts a pending belief committed at `ReactionTick()`; a holder in sight means "with that person" | The owner's rule that nobody reacts on the tick a thing happens; one draw per change seen, not per tick | Belief that goes stale (a card kicked out of sight) |
+| **Going for it** | An `IPanicOption`, **first** (before the leaders: a follower was never asked otherwise). Conditions: upright, not in danger, not helping, bravery ≥ `FetchBraveryMinimum` 8 (4 before the tuning pass), believes it lies free, nobody holds it, unclaimed (one fetcher at a time; a claim lapses when its fetcher is out cold, dead or doing something else, not when they trip), within `FetchRangeMillimetres` 30000 as the crow flies, a route to its room, and where they *believe* it lies not within `FlamesKeepAwayMillimetres` 1500 of any threat; and either found a card door shut (`DoorBehaviour.GiveUp` sets `MayFetchFromTick = ReactionTick()`, once) or staff with the card within `GrabOnTheWayRangeMillimetres` 3000 (6000 before the tuning pass). Walks with `FrightenedWalk` to floor beside it (`NearestStandableTo`), pockets it within `PickUpDistanceMillimetres` 700 after `PocketTicks` 25 jittered; gives up on danger, fire, `FetchTimeoutTicks` 1500, `BlockedGiveUpTicks` 50, the claim gone to somebody else, or seeing it taken or in the fire. Arrived where they believed it lay, they look about them 1.5 m (`LooksAroundMillimetres`) and go to it; further, or in a pocket, they were wrong and no longer believe they know. The truth only counts once they are over it (then flames at the card itself still stop them) | Measured: with 12 m range nobody ever went (the desks are 24 m from the door); with 400 mm nobody could reach a card on a desk from the floor; with "found the door shut" alone a desk card was never fetched | A weaker person asking a stronger to go |
+| **The holder** | `PanicBehaviour` skips every other option for somebody with the card: no fire-fighting, following, helping, alarm or wedging. `SwipeIfInReach`: a frightened holder within `SwipeReachMillimetres` 2000 of a card door, in its room, swipes it; `StartAttempt` at the handle swipes too, and a calm errand (`TryTheDoor`, `WaitAtTheDoor`) | Measured: the host fought the bin with the card and died; holders were knocked down in the crush a metre from the handle | A holder should hold the door for the rest |
+| **The swipe** | `DoorSystem.SwipeKeycard`: `NeedsKeycard` off, `Unlocked`, `DoorUnlockedWithKeycard` (source the holder, target the door, cause their fright or their try); whoever is rattling it opens it next tick, and `AnnounceWaysOut` wakes everybody as the player's unlock did | **The owner's choice**: unlocked for good | Never |
+| **Losing it** | `DropIfOutCold` (Unconscious) and `DropFromLost` (death): `KeycardDropped`, set on the floor beside them. A trip, a knock-down, a fright, being alight and upright: kept | **The owner's words**: "knocked out", "dies". Measured otherwise, every holder lost it to a stumble | A cruel person taking it off somebody |
+| **The card door** | `DoorDefinition.needsKeycard` (appended; valid only on a locked door to the street, and only with exactly one keycard in the building while `Keycard.Enabled`: `ValidateTheKeycard` refuses none, and refuses two anywhere); `DoorRuntime.NeedsKeycard` while `Keycard.Enabled`; `Batter` does nothing, the force roll is skipped, the leader does not send anyone, `ScorchInTheFire` skips it, `ClickDoor` and `ToggleLock` refuse it (no charge); in `DoorSignature` and `DoorSnapshot`. TNT in the outer wall still works; an evil escapee may still slam and lock it afterwards, and then the key or a shoulder works as before | **The owner's rule**: nobody batters it | A card door inside the building |
+| **Influence on the card** | `ItemBehaviour.FetchForTheInfluence` with `Carry.Pocket`: fetched like a bottle, pocketed on pick-up (`AgentTookKeycard`, cause `InfluenceSpent`) | The owner's rule that what is pointed at is used | Never |
+| **Uproar** | `DoorUnlockedWithKeycard` middling; `KeycardStarted`, `AgentTookKeycard`, `KeycardDropped` nothing | As a door forced | Never |
+| **Left alone** | `LeftAloneRunner` (gameplay): the same `ScenarioData` (`RunDriver.BuildScenarioData`, feel included) on the same seed, built in `RunDriver.Awake` with the scene (a whole second run would be a hitch on a frame of play). Until the real round's disaster has started it goes no further than the real round's tick, so the player's Trigger event press is copied onto the same tick (`MirrorTrigger`): when the disaster starts is the round both are compared on, not help. Then up to 20 ticks a `FixedUpdate`, paused or not, and never more than 3 ms of work, until `RoundPhase.Over` or 12,000 ticks, where everybody still alive counts as having lived; disposed with the runner; skipped while tuning live. `RoundScreens.DrawEndCard` prints the line, or "still working it out". The physics engine on several threads can replay a busy seed to one of two answers about one run in five, so the line may differ from a truly hands-off play by the odd person | **The owner's choice**, in this batch. Deterministic runs make it an answer, not a guess | Playtesters read it as a spoiler |
+| **The measurement** | `HandsOffBaselineMeasurements` (Explicit, `Measure`): `TheOffice.asset` as the level plays it, seeds 40–49, prints saved/escaped/survived/lost, the end, the card's story, and why nobody went | The number the owner tunes by | Never |
+| Versions | `SimulationCompatibilityVersion` 71 → 72; `ContentRevision` 83 → 84. All fifteen fingerprints re-recorded, and held over two runs | Everything moves: the way out is opened by a person or not at all | Never |
+| Tests | New: `KeycardEditModeTests` (21: where it starts, a level without it, only a door to the street, the strong give it up, the key does not fit, the swipe, the fetch from a desk, the tidier leaves it, the pull pockets it, kept when frightened and alight and knocked off a chair, picked up off the floor, never burns, left alone equals a hands-off run; and from the code review: left alone copies the trigger and keeps in step until then, the budget, no card or two cards refused, a fetcher knocked out lets somebody else go, a fetcher who trips keeps the claim, a tidy-up after a failed fetch for the player, a visitor handed the card knows it). The fetch test now uses two brave staff at the way out rather than the whole cast, where a card knocked off its desk unseen made it one seed's luck. Changed: `TheBuilding.WithThePlayerAbleToAct` puts the card away (`WithAnOrdinaryWayOut`); `ReplayFingerprint.Of` likewise for the opened runs; `CuesEditModeTests`/`ErrandsEditModeTests` calm days, `EconomyEditModeTests` and three `SimulationEditModeTests` that read the log by position put it away; `PossessionsEditModeTests` counts things in arms only; `MeetingRoomEditModeTests` excuses only the tick somebody knocked down stands up, and holds it to the stand-up reach; the 27 places in fourteen test classes that build a building of their own with no keycard in it now say so (`Keycard.Enabled = false`), which the new validation requires | -- | -- |
+
 ## Alignment with the three requirements for the finished game (2026-09-24)
 
 The owner stated three requirements for the finished game (recorded in the

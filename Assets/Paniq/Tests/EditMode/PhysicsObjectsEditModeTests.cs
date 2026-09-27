@@ -40,6 +40,7 @@ namespace Paniq.Tests.EditMode
                 new AgentDefinition(new SimulationId(1UL), new LogicalPosition(0, 0), CardinalDirection.North)
             };
             data.PhysicsObjects = new[] { Box(3001UL, boxX, 0, size, massGrams) };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = int.MaxValue;
             return data;
         }
@@ -344,14 +345,17 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData overlapping = DefaultData();
             overlapping.PhysicsObjects = new[] { Box(9001UL, -2000, 2000, 400, 5000), Box(9002UL, -1800, 2000, 400, 5000) };
+            overlapping.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             Assert.Throws<InvalidOperationException>(() => overlapping.Validate());
 
             ScenarioData onAPerson = DefaultData();
             onAPerson.PhysicsObjects = new[] { Box(9001UL, 0, -5000, 400, 5000) };
+            onAPerson.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             Assert.Throws<InvalidOperationException>(() => onAPerson.Validate());
 
             ScenarioData outside = DefaultData();
             outside.PhysicsObjects = new[] { Box(9001UL, 5900, 0, 400, 5000) };
+            outside.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             Assert.Throws<InvalidOperationException>(() => outside.Validate());
         }
     }

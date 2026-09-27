@@ -861,6 +861,13 @@ namespace Paniq.Simulation
                 0,
                 agent.Fear.ScaredEventId,
                 doors.IdOf(door)).EventId;
+            if (doors.NeedsKeycard(door) && agent.Keycard.Held >= 0)
+            {
+                // The card door, and they have the card (2026-09-27): a swipe,
+                // and it is an unlocked door they open like any other.
+                doors.SwipeKeycard(door, agent, agent.Doors.AttemptEventId);
+            }
+
             if (doors.CanBePushedOpen(door))
             {
                 agent.Intent.Activity = AgentActivityState.OpeningDoor;
@@ -1028,8 +1035,10 @@ namespace Paniq.Simulation
 
                     // A door they shut themselves they never batter, however long
                     // ago it was and however badly it has trapped them: they
-                    // give up on it as on any door that will not open.
-                    if (!agent.Doors.ShutByThem[door] &&
+                    // give up on it as on any door that will not open. Nor a
+                    // card door (2026-09-27): no shoulder marks it, so nobody
+                    // tries.
+                    if (!agent.Doors.ShutByThem[door] && !doors.NeedsKeycard(door) &&
                         context.Random.NextPercent(TraitEffects.DoorForceChancePercent(agent, context.Scenario)))
                     {
                         agent.Intent.Activity = AgentActivityState.ForcingDoor;
@@ -1101,6 +1110,12 @@ namespace Paniq.Simulation
                 settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
             agent.Doors.FoundShut[door] = writeItOff;
             agent.Doors.ExitDoorIndex = -1;
+            if (doors.NeedsKeycard(door))
+            {
+                // The card door (2026-09-27): from a beat later, they may go
+                // back for the card if they know where it is.
+                keycards.NoteTheDoorNeedsTheCard(agent);
+            }
 
             int next = ChooseExitDoor(agent);
             agent.Intent.Activity = AgentActivityState.Hesitating;
@@ -1456,7 +1471,11 @@ namespace Paniq.Simulation
             objects = systems.Objects;
             people = systems.People;
             influence = systems.Influence;
+            keycards = systems.Keycards;
         }
+
+        /// <summary>The keycard (2026-09-27): told when somebody finds the card door shut.</summary>
+        private KeycardSystem keycards;
 
         /// <summary>The places the player is drawing people toward (2026-09-26).</summary>
         private InfluenceSystem influence;

@@ -33,7 +33,11 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = scenario.ToRuntimeData();
             data.Fire.ActivationTick = int.MaxValue;
             data.Round.HazardWaitsForTrigger = true;
-            return data;
+
+            // No keycard (2026-09-27): everybody who catches sight of it draws
+            // a reaction lag, which moves every timing these tests read; the
+            // card has tests of its own.
+            return TheBuilding.WithAnOrdinaryWayOut(data);
         }
 
         private static void Advance(Run simulation, int ticks)

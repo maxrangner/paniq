@@ -343,7 +343,7 @@ namespace Paniq.Presentation
                 }
                 else if (frameSnapshot.RoundIsOver)
                 {
-                    screens.DrawEndCard(frameSnapshot);
+                    screens.DrawEndCard(frameSnapshot, runner.LeftAloneSavedCount, runner.LeftAloneStillWorking);
                 }
 
                 // The end card only asks; taking the request here is what
@@ -551,6 +551,14 @@ namespace Paniq.Presentation
                     case CausalEventType.DoorBrokenDown:
                     case CausalEventType.DoorClosed:
                         ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        break;
+                    case CausalEventType.DoorUnlockedWithKeycard:
+                        // The swipe: a small lunge at the reader and a beep's worth of ripple.
+                        agents.Lunge(record.SourceId, time);
+                        ripples.Start(record.Position, thudReach / 2, SoundRipples.ThudColor, time);
+                        break;
+                    case CausalEventType.AgentTookKeycard:
+                        agents.Notice(record.SourceId, time);
                         break;
                     case CausalEventType.AgentForcedDoor:
                         agents.Lunge(record.SourceId, time);

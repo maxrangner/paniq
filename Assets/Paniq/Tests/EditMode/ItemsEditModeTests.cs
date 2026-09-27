@@ -57,6 +57,7 @@ namespace Paniq.Tests.EditMode
             {
                 new PhysicsObjectDefinition(BoxId, PhysicsObjectKind.Box, new LogicalPosition(-4000, -3400), 400, massGrams)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = int.MaxValue;
             data.Items.TidyChancePercent = 100;
             data.Calm.DecisionMinimumTicks = 1;

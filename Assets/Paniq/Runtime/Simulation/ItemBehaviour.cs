@@ -15,11 +15,13 @@ namespace Paniq.Simulation
     internal sealed class ItemBehaviour : IBindable
     {
         private InfluenceSystem influence;
+        private KeycardSystem keycards;
 
         /// <summary>Built after this behaviour.</summary>
         public void Bind(Systems systems)
         {
             influence = systems.Influence;
+            keycards = systems.Keycards;
         }
 
         private readonly SimulationContext context;
@@ -87,6 +89,11 @@ namespace Paniq.Simulation
             }
 
             agent.Carry.ItemIndex = best;
+
+            // Clutter, to carry off: nothing left over from a fetch for the
+            // player may make this one a bottle to keep or a card to pocket.
+            agent.Carry.KeepIt = false;
+            agent.Carry.Pocket = false;
             agent.Intent.Activity = AgentActivityState.FetchingItem;
             agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(calm.StrollTimeoutTicks));
             return true;
@@ -114,15 +121,20 @@ namespace Paniq.Simulation
         }
 
         /// <summary>What they are fetching may still be taken: for a thing to keep, anything they could lift; for clutter, clutter.</summary>
-        private bool MayTake(Agent agent, int index) => agent.Carry.KeepIt ? IsTakeable(agent, index) : IsFreeToTake(agent, index);
+        private bool MayTake(Agent agent, int index) =>
+            agent.Carry.Pocket ? keycards.CanBePocketed(agent, index)
+            : agent.Carry.KeepIt ? IsTakeable(agent, index)
+            : IsFreeToTake(agent, index);
 
         /// <summary>
         /// A thing the player has pointed at that this person could pick up
         /// (2026-09-27): free, light enough, and not a chair -- a bottle on
-        /// its wall included, which tidying never takes.
+        /// its wall included, which tidying never takes, and the keycard,
+        /// which goes in a pocket.
         /// </summary>
         public bool CanFetchForTheInfluence(Agent agent, int index) =>
-            agent.Carry.ItemIndex < 0 && !objects.CanBeSatOn(index) && IsTakeable(agent, index);
+            agent.Carry.ItemIndex < 0 && !objects.CanBeSatOn(index) &&
+            (IsTakeable(agent, index) || keycards.CanBePocketed(agent, index));
 
         /// <summary>
         /// Sets off to fetch a thing the player pointed at (2026-09-27): a
@@ -139,6 +151,7 @@ namespace Paniq.Simulation
 
             agent.Carry.ItemIndex = index;
             agent.Carry.KeepIt = objects.IsEquipment(index);
+            agent.Carry.Pocket = objects.IsPocketable(index);
             agent.Intent.Activity = AgentActivityState.FetchingItem;
             agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(calm.StrollTimeoutTicks));
             return true;
@@ -165,6 +178,7 @@ namespace Paniq.Simulation
                     {
                         agent.Carry.ItemIndex = -1;
                         agent.Carry.KeepIt = false;
+                        agent.Carry.Pocket = false;
                         return false;
                     }
 
@@ -192,6 +206,18 @@ namespace Paniq.Simulation
                     {
                         agent.Carry.ItemIndex = -1;
                         agent.Carry.KeepIt = false;
+                        agent.Carry.Pocket = false;
+                        return false;
+                    }
+
+                    if (agent.Carry.Pocket)
+                    {
+                        // The keycard, fetched because the player pointed at
+                        // it: into the pocket, the pull spent, the arms free.
+                        agent.Carry.ItemIndex = -1;
+                        agent.Carry.Pocket = false;
+                        ulong pull = influence != null ? influence.Spend(agent, -1, item) : 0UL;
+                        keycards.Pocket(agent, item, pull);
                         return false;
                     }
 

@@ -209,6 +209,7 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentDoused:
                 case CausalEventType.AgentFoundTheWayOut:
                 case CausalEventType.RoundEnded:
+                case CausalEventType.DoorUnlockedWithKeycard:
                     return Good;
 
                 default:

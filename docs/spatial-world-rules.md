@@ -136,6 +136,16 @@ the rectangle grown by the person's radius: the physics step keeps bodies out
 of it, and the navigation squares under it are not walkable. `WorldGeometry`
 is the only code that knows where tables are.
 
+Since 2026-09-27 the same is true of **heavy things**: a loose thing too
+heavy for anybody to carry (`WorldSettings.OnTheMapFromGrams`), or a pinned
+one, is on the navigation grid like a table, by the square footprint of its
+size, once it has lain still for half a second; moved a table's worth it is
+re-marked, picked up or wrecked it is lifted. A thing that has lain still
+that long is also held where it lies (pinned) against people, and let go of
+by a heave, a throw, a blast or a pick-up. `PhysicsObjectSystem` tells
+`WorldGeometry` which things those are; the grid itself knows only obstacle
+rectangles.
+
 ## Prototype extension: several rooms
 
 A building is a set of axis-aligned rectangular rooms that never overlap. Two

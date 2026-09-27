@@ -242,7 +242,7 @@ namespace Paniq.Simulation
         }
 
         /// <summary>The nearest thing in their room they can lift and nobody else is using.</summary>
-        private int ChooseItem(Agent agent, int room)
+        internal int ChooseItem(Agent agent, int room)
         {
             int best = -1;
             long bestDistance = (long)settings.BarricadeFetchRangeMillimetres * settings.BarricadeFetchRangeMillimetres;
@@ -365,7 +365,7 @@ namespace Paniq.Simulation
             return System.Math.Max(reachIn, objects.RadiusOf(item) + 25);
         }
 
-        private LogicalPosition WedgeSpot(int door, int room, int item)
+        internal LogicalPosition WedgeSpot(int door, int room, int item)
         {
             return geometry.DoorPointFrom(door, room, 0, -WedgeDepth(item));
         }
@@ -374,7 +374,7 @@ namespace Paniq.Simulation
         /// Where they stand to do it: back from the gap by their own width plus
         /// the thing's, so setting it down never leaves it on top of them.
         /// </summary>
-        private LogicalPosition StandingSpot(int door, int room, int item)
+        internal LogicalPosition StandingSpot(int door, int room, int item)
         {
             int clear = context.Scenario.World.OccupancyRadiusMillimetres + objects.RadiusOf(item) + 40;
             return geometry.DoorPointFrom(door, room, 0, -(WedgeDepth(item) + clear));

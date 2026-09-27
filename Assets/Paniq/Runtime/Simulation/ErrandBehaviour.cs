@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -27,8 +27,11 @@ namespace Paniq.Simulation
     /// <see cref="TryResume"/> carries it on where it left off.
     /// </para>
     /// </summary>
-    internal sealed class ErrandBehaviour
+    internal sealed class ErrandBehaviour : IBindable
     {
+        private InfluenceSystem influence;
+        private BarricadeBehaviour barricades;
+
         private readonly SimulationContext context;
 
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
@@ -157,6 +160,13 @@ namespace Paniq.Simulation
         /// stall, at a door, talking -- who turns to a noise without edging
         /// toward it.
         /// </summary>
+        /// <summary>Both are built after this behaviour.</summary>
+        public void Bind(Systems systems)
+        {
+            influence = systems.Influence;
+            barricades = systems.Barricades;
+        }
+
         public static bool IsStayingPut(Agent agent)
         {
             if (!agent.Errand.Active)
@@ -269,6 +279,8 @@ namespace Paniq.Simulation
                 case ErrandPhase.Walking:
                 case ErrandPhase.OpeningTheDoor:
                 case ErrandPhase.WaitingAtTheDoor:
+                case ErrandPhase.ClearingTheDoor:
+                case ErrandPhase.WedgingTheDoor:
                 case ErrandPhase.Standing:
                     agent.Intent.Activity = AgentActivityState.RunningAnErrand;
                     agent.Body.BlockedTicks = 0;
@@ -393,6 +405,9 @@ namespace Paniq.Simulation
                     agent.Body.BlockedTicks = 0;
                     return true;
 
+                case ErrandStepKind.UseTheDoor:
+                    return BeginUsingTheDoor(agent);
+
                 default:
                     return Finish(agent, "unknown step");
             }
@@ -479,6 +494,22 @@ namespace Paniq.Simulation
                     agent.Intent.Activity = AgentActivityState.RunningAnErrand;
                     agent.Body.BlockedTicks = 0;
                     return true;
+
+                case ErrandTarget.TheInfluence:
+                {
+                    // Drawn to a door by the player (2026-09-27): a spot of
+                    // their own in front of it, in the room they are in.
+                    int room = geometry.RoomOf(agent);
+                    if (errand.Object < 0 || room < 0 || !StillInfluenced(errand.Object))
+                    {
+                        return Finish(agent, "influence faded");
+                    }
+
+                    errand.Destination = CalmBehaviour.StandSpotInFrontOf(geometry, errand.Object, room, agent.Index);
+                    errand.Room = room;
+                    errand.ArriveWithin = calm.StrollArrivalDistanceMillimetres;
+                    break;
+                }
 
                 default:
                     return Finish(agent, "unknown target");
@@ -602,6 +633,10 @@ namespace Paniq.Simulation
                     return OpenTheDoor(agent, out goalHeading);
                 case ErrandPhase.WaitingAtTheDoor:
                     return WaitAtTheDoor(agent, out goalHeading);
+                case ErrandPhase.ClearingTheDoor:
+                    return ClearTheDoor(agent, out goalHeading, out goalSpeed);
+                case ErrandPhase.WedgingTheDoor:
+                    return WedgeTheDoor(agent, out goalHeading, out goalSpeed);
                 case ErrandPhase.Standing:
                     goalHeading = agent.Intent.LookHeading;
                     if (context.Tick < errand.UntilTick)
@@ -867,9 +902,198 @@ namespace Paniq.Simulation
 
             context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentTriedDoor, agent.Body.Position,
                 0, 0, errand.CauseEventId, doors.IdOf(door));
+            if (TryStartClearing(agent))
+            {
+                return true;
+            }
+
             errand.Phase = ErrandPhase.WaitingAtTheDoor;
             errand.UntilTick = checked(context.Tick + context.Jittered(settings.WaitAtLockedDoorTicks));
             return true;
+        }
+
+        /// <summary>
+        /// A door that will not open because something lies wedged in it
+        /// (the owner's rule, 2026-09-27: "if an object is jamming a door, an
+        /// agent should try to unlodge it, if they are not too panicked"):
+        /// somebody calm who can lift the thing walks to it, picks it up and
+        /// sets it down out of the doorway; somebody strong enough heaves
+        /// what they cannot lift along the wall; everybody else waits, as
+        /// before. One go per errand, so a thing that comes straight back
+        /// does not have them at it all day. True when they took it on.
+        /// </summary>
+        private bool TryStartClearing(Agent agent)
+        {
+            AgentErrand errand = agent.Errand;
+            int door = errand.Door;
+            if (errand.ClearedADoor || !doors.IsObstructed(door) || agent.Carry.ItemIndex >= 0)
+            {
+                return false;
+            }
+
+            int thing = doors.ObstructionIn(door);
+            if (thing < 0 || objects.HolderOf(thing) >= 0 || objects.OccupantOf(thing) >= 0 || objects.IsDormant(thing))
+            {
+                return false;
+            }
+
+            bool canLift = objects.CanLift(agent, thing);
+            if (!canLift && agent.Traits.Strength < context.Scenario.Blockades.ShoveMinimumStrength)
+            {
+                return false;
+            }
+
+            errand.ClearedADoor = true;
+            errand.Thing = thing;
+            errand.Phase = ErrandPhase.ClearingTheDoor;
+            errand.Stage = canLift ? 1 : 4;
+            errand.UntilTick = checked(context.Tick + context.Jittered(canLift
+                ? settings.ClearTheDoorWalkTicks
+                : context.Scenario.Blockades.ShoveTicks));
+            return true;
+        }
+
+        /// <summary>
+        /// Clearing the thing wedged in the door, part by part: to it, pick
+        /// it up, set it down out of the way -- or, for the strong, a moment
+        /// braced and then a heave. Then the door is tried again; it reads
+        /// as clear once the things have settled at the end of the tick.
+        /// </summary>
+        private bool ClearTheDoor(Agent agent, out int goalHeading, out int goalSpeed)
+        {
+            AgentErrand errand = agent.Errand;
+            int tick = context.Tick;
+            int door = errand.Door;
+            int thing = errand.Thing;
+            goalHeading = agent.Body.Heading;
+            goalSpeed = 0;
+            if (geometry.IsDoorOpen(door))
+            {
+                // Somebody else shifted it, or the player: on through.
+                LetGoOfTheThing(agent);
+                return CarryOnThroughTheDoor(agent);
+            }
+
+            bool gone = thing < 0 || objects.IsDormant(thing) ||
+                        (objects.HolderOf(thing) >= 0 && objects.HolderOf(thing) != agent.Index);
+            if (gone || (errand.Stage < 3 && !doors.IsObstructed(door)))
+            {
+                // Taken by somebody else, or clear already: back to the door.
+                LetGoOfTheThing(agent);
+                return TryTheDoor(agent);
+            }
+
+            switch (errand.Stage)
+            {
+                case 1:
+                {
+                    if (tick >= errand.UntilTick || agent.Body.BlockedTicks > settings.BlockedGiveUpTicks)
+                    {
+                        return WaitInstead(agent);
+                    }
+
+                    LogicalPosition at = objects.PositionOf(thing);
+                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, at, agent.Body.Heading);
+                    long reach = bodyRadius + (long)objects.RadiusOf(thing) + context.Scenario.Items.ReachMillimetres;
+                    if (LogicalPosition.DistanceSquared(agent.Body.Position, at) <= reach * reach)
+                    {
+                        errand.Stage = 2;
+                        errand.UntilTick = checked(tick + context.Jittered(context.Scenario.Items.PickUpTicks));
+                        return true;
+                    }
+
+                    goalSpeed = agent.Personality.CalmSpeed;
+                    return true;
+                }
+
+                case 2:
+                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, objects.PositionOf(thing), agent.Body.Heading);
+                    if (tick < errand.UntilTick)
+                    {
+                        return true;
+                    }
+
+                    if (!objects.CanLift(agent, thing))
+                    {
+                        return WaitInstead(agent);
+                    }
+
+                    objects.PickUp(thing, agent);
+                    agent.Carry.ItemIndex = thing;
+                    agent.Carry.Holding = true;
+                    errand.Stage = 3;
+                    errand.UntilTick = checked(tick + context.Jittered(context.Scenario.Items.SetDownTicks));
+                    return true;
+
+                case 3:
+                {
+                    goalHeading = FaceTheDoor(agent, door);
+                    if (tick < errand.UntilTick)
+                    {
+                        return true;
+                    }
+
+                    // Out of the doorway's strip, which a put-down spot never
+                    // is; failing that, at their feet, and the engine sorts
+                    // it out.
+                    LogicalPosition spot = objects.FindSpotToPutDown(thing, agent, out LogicalPosition clear)
+                        ? clear
+                        : agent.Body.Position;
+                    objects.Release(thing, spot, 0, 0, errand.CauseEventId);
+                    agent.Carry.ItemIndex = -1;
+                    agent.Carry.Holding = false;
+                    context.Events.Append(tick, agent.Id, CausalEventType.AgentClearedDoorway, spot, 0, 0,
+                        errand.CauseEventId, objects.IdOf(thing));
+                    errand.Thing = -1;
+                    errand.Stage = 0;
+                    return TryTheDoor(agent);
+                }
+
+                case 4:
+                    goalHeading = FaceTheDoor(agent, door);
+                    if (tick < errand.UntilTick)
+                    {
+                        return true;
+                    }
+
+                    doors.HeaveObstructionClear(agent, door, errand.CauseEventId);
+                    errand.Thing = -1;
+                    errand.Stage = 0;
+                    return TryTheDoor(agent);
+
+                default:
+                    errand.Thing = -1;
+                    errand.Stage = 0;
+                    return TryTheDoor(agent);
+            }
+        }
+
+        /// <summary>Clearing it did not work out: back to standing at the door, as before.</summary>
+        private bool WaitInstead(Agent agent)
+        {
+            AgentErrand errand = agent.Errand;
+            LetGoOfTheThing(agent);
+            errand.Thing = -1;
+            errand.Stage = 0;
+            errand.Phase = ErrandPhase.WaitingAtTheDoor;
+            errand.UntilTick = checked(context.Tick + context.Jittered(settings.WaitAtLockedDoorTicks));
+            return true;
+        }
+
+        /// <summary>Whatever they picked up to clear the door is set down where they stand.</summary>
+        private void LetGoOfTheThing(Agent agent)
+        {
+            AgentErrand errand = agent.Errand;
+            if (!agent.Carry.Holding || agent.Carry.ItemIndex < 0 || agent.Carry.ItemIndex != errand.Thing)
+            {
+                return;
+            }
+
+            int thing = agent.Carry.ItemIndex;
+            LogicalPosition spot = objects.FindSpotToPutDown(thing, agent, out LogicalPosition clear) ? clear : agent.Body.Position;
+            objects.Release(thing, spot, 0, 0, errand.CauseEventId);
+            agent.Carry.ItemIndex = -1;
+            agent.Carry.Holding = false;
         }
 
         /// <summary>A moment with a hand on the door, then it is open and they carry on.</summary>
@@ -890,6 +1114,14 @@ namespace Paniq.Simulation
             int side = geometry.SideOf(errand.Door, agent.Body.Position);
             if (doors.Open(errand.Door, errand.CauseEventId, side))
             {
+                if (IsUsingTheDoor(errand))
+                {
+                    // Opened for its own sake, because the player pointed
+                    // at it: not going through, and the pull on it is spent.
+                    influence?.Spend(agent, errand.Door, -1);
+                    return Advance(agent);
+                }
+
                 // Theirs to shut behind them once they are through.
                 errand.OpenedDoor = errand.Door;
                 errand.OpenedFromSide = side;
@@ -923,6 +1155,12 @@ namespace Paniq.Simulation
                 return true;
             }
 
+            if (TryStartClearing(agent))
+            {
+                // Something got wedged in it while they stood there.
+                return true;
+            }
+
             if (context.Tick < errand.UntilTick)
             {
                 return true;
@@ -948,9 +1186,182 @@ namespace Paniq.Simulation
                 return Advance(agent);
             }
 
+            if (IsUsingTheDoor(errand))
+            {
+                // It opened without them: nothing of theirs to do, and the
+                // pull on it stands.
+                return Finish(agent, "the door opened without them");
+            }
+
             errand.Phase = ErrandPhase.Walking;
             errand.UntilTick = checked(context.Tick + context.Jittered(settings.ErrandTimeoutTicks));
             return true;
+        }
+
+        // ---------------------------------------------------------------- influence (2026-09-27)
+
+        /// <summary>Whether the step under way is using the influenced door.</summary>
+        private bool IsUsingTheDoor(AgentErrand errand)
+        {
+            if (!errand.Active || errand.Step < 0)
+            {
+                return false;
+            }
+
+            ErrandStep[] script = ScriptOf(errand);
+            return errand.Step < script.Length && script[errand.Step].Kind == ErrandStepKind.UseTheDoor;
+        }
+
+        /// <summary>The pull on this door has neither faded nor been spent.</summary>
+        private bool StillInfluenced(int door) => influence != null && door >= 0 && influence.PlaceOfDoor(door) >= 0;
+
+        /// <summary>
+        /// Drawn to a door by the player (the owner's rule, 2026-09-27): an
+        /// open door they shut, a shut door they open -- and the cruel wedge
+        /// a shut door with the nearest thing instead, which is what a door
+        /// means to them. Using it spends the pull on it, so the next click
+        /// asks for the opposite. A door they cannot use keeps its pull.
+        /// </summary>
+        private bool BeginUsingTheDoor(Agent agent)
+        {
+            AgentErrand errand = agent.Errand;
+            int door = errand.Object;
+            if (door < 0 || !StillInfluenced(door))
+            {
+                return Finish(agent, "influence faded");
+            }
+
+            agent.Intent.Activity = AgentActivityState.RunningAnErrand;
+            if (geometry.IsDoorOpen(door))
+            {
+                doors.TryClose(door, agent.Id, errand.CauseEventId, agent);
+                if (geometry.IsDoorOpen(door))
+                {
+                    return Finish(agent, "could not shut it");
+                }
+
+                influence.Spend(agent, door, -1);
+                return Advance(agent);
+            }
+
+            int room = geometry.RoomOf(agent);
+            if (barricades != null && room >= 0 && !doors.IsObstructed(door) &&
+                agent.Traits.Evil >= context.Scenario.Blockades.BarricadeEvilMinimum)
+            {
+                int thing = barricades.ChooseItem(agent, room);
+                if (thing >= 0)
+                {
+                    errand.Thing = thing;
+                    errand.Door = door;
+                    errand.Room = room;
+                    errand.Phase = ErrandPhase.WedgingTheDoor;
+                    errand.Stage = 1;
+                    errand.UntilTick = checked(context.Tick + context.Jittered(settings.ClearTheDoorWalkTicks));
+                    return true;
+                }
+            }
+
+            errand.Door = door;
+            return TryTheDoor(agent);
+        }
+
+        /// <summary>
+        /// The cruel at an influenced door: to the thing, pick it up, carry
+        /// it to a stand-off in front of the gap, and wedge it in -- the
+        /// barricade's own spots and timing, at a walk. Anything going wrong
+        /// on the way ends it, with whatever they hold set down.
+        /// </summary>
+        private bool WedgeTheDoor(Agent agent, out int goalHeading, out int goalSpeed)
+        {
+            AgentErrand errand = agent.Errand;
+            int tick = context.Tick;
+            int door = errand.Door;
+            int thing = errand.Thing;
+            int room = errand.Room;
+            goalHeading = agent.Body.Heading;
+            goalSpeed = 0;
+            bool gone = thing < 0 || objects.IsDormant(thing) ||
+                        (objects.HolderOf(thing) >= 0 && objects.HolderOf(thing) != agent.Index);
+            bool tooLong = errand.Stage < 3 && tick >= errand.UntilTick;
+            if (gone || geometry.IsDoorOpen(door) || doors.IsObstructed(door) || tooLong ||
+                agent.Body.BlockedTicks > settings.BlockedGiveUpTicks || geometry.RoomOf(agent) != room)
+            {
+                LetGoOfTheThing(agent);
+                return Finish(agent, "wedging came to nothing");
+            }
+
+            switch (errand.Stage)
+            {
+                case 1:
+                {
+                    LogicalPosition at = objects.PositionOf(thing);
+                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, at, agent.Body.Heading);
+                    long reach = bodyRadius + (long)objects.RadiusOf(thing) + context.Scenario.Items.ReachMillimetres;
+                    if (LogicalPosition.DistanceSquared(agent.Body.Position, at) > reach * reach)
+                    {
+                        goalSpeed = agent.Personality.CalmSpeed;
+                        return true;
+                    }
+
+                    if (!objects.CanLift(agent, thing))
+                    {
+                        return Finish(agent, "too heavy to wedge with");
+                    }
+
+                    objects.PickUp(thing, agent);
+                    agent.Carry.ItemIndex = thing;
+                    agent.Carry.Holding = true;
+                    errand.Stage = 2;
+                    errand.UntilTick = checked(tick + context.Jittered(settings.ErrandTimeoutTicks));
+                    return true;
+                }
+
+                case 2:
+                {
+                    LogicalPosition standing = barricades.StandingSpot(door, room, thing);
+                    long arrival = bodyRadius;
+                    if (LogicalPosition.DistanceSquared(agent.Body.Position, standing) > arrival * arrival)
+                    {
+                        goalHeading = geometry.Routes.HeadingToward(agent.Body.Position, standing, bodyRadius, agent.Body.Heading);
+                        goalSpeed = Pace(agent, IntegerMath.Distance(agent.Body.Position, standing));
+                        return true;
+                    }
+
+                    errand.Stage = 3;
+                    errand.UntilTick = checked(tick + context.Jittered(context.Scenario.Blockades.BarricadeSetDownTicks));
+                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, barricades.WedgeSpot(door, room, thing), agent.Body.Heading);
+                    return true;
+                }
+
+                case 3:
+                {
+                    LogicalPosition spot = barricades.WedgeSpot(door, room, thing);
+                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, spot, agent.Body.Heading);
+                    if (tick < errand.UntilTick)
+                    {
+                        return true;
+                    }
+
+                    if (!objects.TrySetDownAt(thing, spot, errand.CauseEventId))
+                    {
+                        LetGoOfTheThing(agent);
+                        return Finish(agent, "nowhere to wedge it");
+                    }
+
+                    context.Events.Append(tick, agent.Id, CausalEventType.AgentBarricadedDoor, spot, 0, 0,
+                        errand.CauseEventId, doors.IdOf(door));
+                    agent.Carry.ItemIndex = -1;
+                    agent.Carry.Holding = false;
+                    influence?.Spend(agent, door, -1);
+                    errand.Thing = -1;
+                    errand.Stage = 0;
+                    return Advance(agent);
+                }
+
+                default:
+                    LetGoOfTheThing(agent);
+                    return Finish(agent, "wedging stage");
+            }
         }
 
         // ---------------------------------------------------------------- talking

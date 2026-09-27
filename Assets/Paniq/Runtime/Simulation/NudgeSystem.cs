@@ -9,7 +9,15 @@ namespace Paniq.Simulation
     /// round for whoever did it (the red "!"), and a calm person stops what
     /// they were doing to glare for a moment. Nudged once too often in a row
     /// they are annoyed: they say so, and a calm person goes and stands
-    /// somewhere else.
+    /// somewhere else. Annoyed, they are still
+    /// shoved by every nudge (the owner's rule, 2026-09-27), but they neither
+    /// look round for it nor count it.
+    /// <para>
+    /// Three quick pokes also do two things a single one never does (the
+    /// owner's rules, 2026-09-27): somebody frozen with fear snaps out of it
+    /// and runs, frozen for good or not; and somebody sitting down is
+    /// knocked off the chair onto the floor.
+    /// </para>
     /// <para>
     /// A nudge never frightens anybody. It is a nuisance, not a threat, and
     /// the crowd's fear is for threats.
@@ -23,14 +31,16 @@ namespace Paniq.Simulation
         private readonly Crowd crowd;
         private readonly BodySystem body;
         private readonly CalmBehaviour calm;
+        private readonly FearSystem fear;
         private readonly NudgeSettings settings;
 
-        public NudgeSystem(SimulationContext context, Crowd crowd, BodySystem body, CalmBehaviour calm)
+        public NudgeSystem(SimulationContext context, Crowd crowd, BodySystem body, CalmBehaviour calm, FearSystem fear)
         {
             this.context = context;
             this.crowd = crowd;
             this.body = body;
             this.calm = calm;
+            this.fear = fear;
             settings = context.Scenario.Nudge;
         }
 
@@ -39,8 +49,9 @@ namespace Paniq.Simulation
         /// on its tick. With <paramref name="hasFrom"/>, they step away from
         /// <paramref name="from"/> -- where the click landed (the owner's rule,
         /// 2026-09-26); without, backwards from the way they face, as the first
-        /// batch had it. Somebody already annoyed only shakes: the nudge is
-        /// written down and does nothing else.
+        /// batch had it. Somebody already annoyed is shoved like anybody
+        /// (the owner's rule, 2026-09-27) and nothing more: the nudge is
+        /// written down, and neither looked round for nor counted.
         /// </summary>
         public void Nudge(Agent agent, LogicalPosition from, bool hasFrom)
         {
@@ -48,20 +59,21 @@ namespace Paniq.Simulation
             AgentNudge nudge = agent.Nudge;
             ulong nudged = context.Events.Append(tick, default, CausalEventType.PowerNudged, agent.Body.Position,
                 0, 0, 0UL, agent.Id).EventId;
-            if (tick < nudge.AnnoyedUntilTick)
-            {
-                return;
-            }
+            int away = hasFrom && (from.X != agent.Body.Position.X || from.Z != agent.Body.Position.Z)
+                ? IntegerMath.HeadingBetween(from, agent.Body.Position, agent.Body.Heading + 180)
+                : IntegerMath.NormalizeDegrees(agent.Body.Heading + 180);
 
             // The jab: somebody on their feet lurches away from it and
             // staggers; somebody sitting, lying or out cold only feels it.
             if (agent.Body.IsOnTheirFeet && !agent.Sitting.OnIt)
             {
-                int away = hasFrom && (from.X != agent.Body.Position.X || from.Z != agent.Body.Position.Z)
-                    ? IntegerMath.HeadingBetween(from, agent.Body.Position, agent.Body.Heading + 180)
-                    : IntegerMath.NormalizeDegrees(agent.Body.Heading + 180);
                 body.Slide(agent, away, settings.LurchMillimetres);
                 body.Stagger(agent, nudged);
+            }
+
+            if (tick < nudge.AnnoyedUntilTick)
+            {
+                return;
             }
 
             if (tick - nudge.LastNudgeTick > settings.AnnoyedWindowTicks)
@@ -71,6 +83,17 @@ namespace Paniq.Simulation
 
             nudge.CountInARow++;
             nudge.LastNudgeTick = tick;
+
+            if (agent.Sitting.OnIt && nudge.CountInARow >= settings.AnnoyedAfterNudges && agent.Body.State == AgentBodyState.Upright)
+            {
+                // The third quick poke at somebody sitting down knocks them
+                // off the chair, at once: it is the player's act, like the
+                // jab. The chair behaviour takes them off it this tick and
+                // kicks the chair back; they get up as after any fall.
+                ulong knockedOff = context.Events.Append(tick, agent.Id, CausalEventType.AgentKnockedOffChair,
+                    agent.Body.Position, 0, 0, nudged).EventId;
+                body.BlowOver(agent, away, settings.KnockOffChairMillimetres, 0, knockedOff);
+            }
 
             // A reaction already due -- to a nudge a tick or two ago -- is
             // kept, and this nudge is folded into it, the way somebody jabbed
@@ -106,6 +129,20 @@ namespace Paniq.Simulation
                 }
 
                 bool annoyed = nudge.CountInARow >= settings.AnnoyedAfterNudges;
+                if (annoyed && agent.Fear.State == AgentFearState.Scared && agent.Intent.Activity == AgentActivityState.Frozen)
+                {
+                    // Poked awake (the owner's rule, 2026-09-27): three quick
+                    // pokes and somebody frozen with fear -- for a while or
+                    // for good -- snaps out of it and runs. At their reaction
+                    // tick, as everything is; no annoyance, they have other
+                    // things to think about.
+                    nudge.CountInARow = 0;
+                    ulong poked = context.Events.Append(tick, agent.Id, CausalEventType.AgentPokedAwake,
+                        agent.Body.Position, 0, 0, nudge.NudgeEventId).EventId;
+                    fear.Unfreeze(agent, poked);
+                    continue;
+                }
+
                 context.Events.Append(tick, agent.Id, annoyed ? CausalEventType.AgentAnnoyed : CausalEventType.AgentNudged,
                     agent.Body.Position, 0, 0, nudge.NudgeEventId);
                 if (annoyed)

@@ -21,16 +21,19 @@ namespace Paniq.Simulation
         private readonly WorldGeometry geometry;
         private readonly AlarmSystem alarms;
         private readonly Locomotion locomotion;
+        private readonly FrightenedWalk walk;
         private readonly AlarmSettings settings;
         private readonly PanicSettings panic;
 
-        public AlarmBehaviour(SimulationContext context, WorldGeometry geometry, AlarmSystem alarms, Locomotion locomotion)
+        public AlarmBehaviour(SimulationContext context, WorldGeometry geometry, AlarmSystem alarms, Locomotion locomotion,
+            FrightenedWalk walk)
         {
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.geometry = geometry;
             this.alarms = alarms;
             this.locomotion = locomotion;
+            this.walk = walk;
             settings = context.Scenario.Alarm;
             panic = context.Scenario.Panic;
         }
@@ -125,15 +128,17 @@ namespace Paniq.Simulation
                 return FaceIt(agent, spot);
             }
 
-            agent.Intent.Target = spot;
+            // Round what is in the way, and through the doors on the way
+            // (2026-09-27): the alarm is chosen by how far it is to walk to
+            // it, which may be through a doorway, and a shut door used to
+            // stop them dead.
+            if (!walk.TryStep(agent, spot, TraitEffects.FleeSpeed(agent), agent.Fear.ScaredEventId, out MotorIntent step))
+            {
+                GiveUp(agent);
+                return null;
+            }
 
-            // Round what is in the way. The alarm is chosen by how far it is to
-            // walk to it, which may be through a doorway, so walking straight
-            // at it would pick one it then cannot reach.
-            int heading = geometry.Routes.HeadingToward(agent.Body.Position, spot, bodyRadius, agent.Body.Heading);
-            heading = locomotion.Steer(agent, heading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
-                panic.WallAvoidPercent, panic.ObjectAvoidPercent, 0L, 0L);
-            return PanicIntent.WalkTowards(agent, heading, panic);
+            return step;
         }
 
         private MotorIntent FaceIt(Agent agent, LogicalPosition spot)
@@ -149,11 +154,11 @@ namespace Paniq.Simulation
         private void GiveUp(Agent agent)
         {
             agent.Alarm.AlarmIndex = -1;
+            walk.Forget(agent);
             if (IsRaisingTheAlarm(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;
                 context.ThinkAgainSoon(agent.Intent);
-                agent.Body.BlockedTicks = 0;
             }
         }
     }

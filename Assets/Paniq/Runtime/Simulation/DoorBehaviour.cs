@@ -194,6 +194,17 @@ namespace Paniq.Simulation
                     agent.Doors.FoundShut[next] = true;
                     continue;
                 }
+                if (IsCutOff(agent, position, ApproachPoint(next, room)))
+                {
+                    // No way across this room to that door on the map they
+                    // steer by (2026-09-27): the fallen crates lie across
+                    // it. Somebody strong still goes for it and heaves a
+                    // crate out of their way; everybody else picks another
+                    // door, or a spot to keep clear of the flames, rather
+                    // than push at the crates for ever.
+                    continue;
+                }
+
                 if (context.Tick < agent.Doors.AvoidUntilTick[next])
                 {
                     // They have given up on this way for the moment. That
@@ -623,7 +634,8 @@ namespace Paniq.Simulation
 
                 routeCost += IntegerMath.Distance(geometry.DoorCentre(last), geometry.RoomBounds(r).Centre);
 
-                if ((!geometry.IsDoorOpen(first) && context.Tick < agent.Doors.AvoidUntilTick[first]) || IsRoomFull(r, agent))
+                if ((!geometry.IsDoorOpen(first) && context.Tick < agent.Doors.AvoidUntilTick[first]) || IsRoomFull(r, agent) ||
+                    IsCutOff(agent, position, ApproachPoint(first, room)))
                 {
                     continue;
                 }
@@ -709,7 +721,7 @@ namespace Paniq.Simulation
                 penalty += context.Scenario.Panic.EscapeRoutePenaltyMillimetres;
             }
 
-            if (geometry.RouteCrossesTable(position, centre))
+            if (geometry.RouteCrossesObstacle(position, centre))
             {
                 penalty += context.Scenario.Panic.TableRoutePenaltyMillimetres;
             }
@@ -721,6 +733,20 @@ namespace Paniq.Simulation
         private LogicalPosition ApproachPoint(int door, int fromRoom)
         {
             return geometry.DoorPointFrom(door, fromRoom, 0, -settings.ApproachInsetMillimetres);
+        }
+
+        /// <summary>
+        /// Whether this person is cut off from that spot: the map people
+        /// steer by has no way there for a body -- round the tables, and
+        /// (2026-09-27) round the crates lying still on the floor -- and they
+        /// are not strong enough to heave a crate aside
+        /// (<see cref="BlockadeSettings.ShoveMinimumStrength"/>). Never when
+        /// the map has no opinion this tick.
+        /// </summary>
+        private bool IsCutOff(Agent agent, LogicalPosition from, LogicalPosition to)
+        {
+            return agent.Traits.Strength < context.Scenario.Blockades.ShoveMinimumStrength &&
+                   !geometry.Routes.CanGetFromHereToThere(from, to, context.Scenario.World.OccupancyRadiusMillimetres);
         }
 
         /// <summary>
@@ -861,7 +887,7 @@ namespace Paniq.Simulation
         /// is still busy at the door this tick, in which case they keep facing
         /// it; otherwise the running behaviour decides how they move.
         /// </summary>
-        public bool UpdateAttempt(Agent agent, bool inDanger)
+        public bool UpdateAttempt(Agent agent, bool inDanger, bool flamesNear)
         {
             int tick = context.Tick;
             int door = agent.Doors.ExitDoorIndex;
@@ -919,7 +945,7 @@ namespace Paniq.Simulation
                         return true;
                     }
 
-                    HeaveObstructionClear(agent, door);
+                    doors.HeaveObstructionClear(agent, door, agent.Doors.AttemptEventId);
                     agent.Intent.Activity = AgentActivityState.TryingDoor;
                     agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.DoorTryTicks));
                     return true;
@@ -937,8 +963,18 @@ namespace Paniq.Simulation
                         // told to save their own life. Too heavy for them:
                         // somebody strong heaves it along the wall instead, and
                         // anybody else gives up as they would on a locked door.
+                        // Somebody with the flames inside their danger
+                        // distance, or alight, is too panicked to stop and
+                        // work at it (the owner's rule, 2026-09-27): they give
+                        // it up and look elsewhere.
+                        if (flamesNear || agent.Burning.IsBurning)
+                        {
+                            GiveUp(agent, false);
+                            return true;
+                        }
+
                         int thing = doors.ObstructionIn(door);
-                        if (thing >= 0 && CanReachToThrowClear(agent, thing))
+                        if (thing >= 0 && IsWithinReach(agent, thing) && objects.CanThrowClear(agent, thing))
                         {
                             objects.ThrowClear(agent, thing, ClearAwayHeading(agent, doorCentre), agent.Doors.AttemptEventId);
                             agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.DoorTryTicks));
@@ -1167,11 +1203,15 @@ namespace Paniq.Simulation
         /// clear, if they can lift it. Self-preservation, so anybody does it,
         /// not only the strong and not only when told. True when they did.
         /// </summary>
-        public bool TryClearTheWay(Agent agent)
+        public bool TryClearTheWay(Agent agent, bool flamesNear)
         {
             LogicalPosition position = agent.Body.Position;
             LogicalPosition target = agent.Intent.Target;
-            if (objects == null || agent.Body.State != AgentBodyState.Upright || agent.Carry.ItemIndex >= 0 ||
+
+            // Somebody with the flames inside their danger distance is too
+            // panicked to stop and grab at what is in the way (the owner's
+            // rule, 2026-09-27); they push past it or go round.
+            if (objects == null || flamesNear || agent.Body.State != AgentBodyState.Upright || agent.Carry.ItemIndex >= 0 ||
                 position.Equals(target))
             {
                 return false;
@@ -1181,28 +1221,98 @@ namespace Paniq.Simulation
             int heading = IntegerMath.HeadingBetween(position, target, agent.Body.Heading);
             LogicalPosition ahead = position + IntegerMath.Displacement(heading, radius + settings.ClearTheWayReachMillimetres);
             int thing = objects.FindBlocking(position, ahead, radius);
-            if (thing < 0 || !CanReachToThrowClear(agent, thing))
+            if (thing < 0 || !IsWithinReach(agent, thing))
             {
                 return false;
             }
 
-            objects.ThrowClear(agent, thing, ClearAwayHeading(agent, target), agent.Fear.ScaredEventId);
-            agent.Body.BlockedTicks = 0;
-            return true;
+            if (objects.CanThrowClear(agent, thing))
+            {
+                objects.ThrowClear(agent, thing, ClearAwayHeading(agent, target), agent.Fear.ScaredEventId);
+                agent.Body.BlockedTicks = 0;
+                return true;
+            }
+
+            // Too heavy to throw -- a crate off the fallen tower, held still
+            // where it lies (2026-09-27): somebody strong heaves it out of
+            // the way, sideways, to the side it already leans to. Everybody
+            // else gets nowhere here, and their next choice of door leaves
+            // out any door the map says they cannot get to.
+            if (objects.CanHeaveAside(agent, thing))
+            {
+                objects.HeaveAside(agent, thing, HeaveHeading(agent, target, thing), agent.Fear.ScaredEventId);
+                agent.Body.BlockedTicks = 0;
+                return true;
+            }
+
+            return false;
         }
 
-        /// <summary>Whether this thing is within arm's reach and light enough for them to throw clear.</summary>
-        private bool CanReachToThrowClear(Agent agent, int thing)
+        /// <summary>
+        /// Which way to heave a thing out of the way: square across the way
+        /// from here to <paramref name="wayOut"/>, to whichever side has
+        /// more floor before the room's wall, so a crate against one wall is
+        /// heaved towards the other and not into the wall it lies by. With
+        /// as much room either way, to the side it already leans to.
+        /// </summary>
+        private int HeaveHeading(Agent agent, LogicalPosition wayOut, int thing)
         {
-            if (!objects.CanThrowClear(agent, thing))
+            LogicalPosition position = agent.Body.Position;
+            LogicalPosition at = objects.PositionOf(thing);
+            int ahead = IntegerMath.HeadingBetween(position, wayOut, agent.Body.Heading);
+            int right = IntegerMath.NormalizeDegrees(ahead + 90);
+            int left = IntegerMath.NormalizeDegrees(ahead - 90);
+            int room = geometry.RoomAt(position);
+            if (room >= 0)
             {
-                return false;
+                long roomRight = FloorBefore(geometry.RoomBounds(room), at, right);
+                long roomLeft = FloorBefore(geometry.RoomBounds(room), at, left);
+                if (roomRight != roomLeft)
+                {
+                    return roomRight > roomLeft ? right : left;
+                }
             }
 
+            long wayX = wayOut.X - position.X;
+            long wayZ = wayOut.Z - position.Z;
+            long cross = wayX * (at.Z - position.Z) - wayZ * (at.X - position.X);
+            return cross < 0L ? left : right;
+        }
+
+        /// <summary>How far a point could go towards <paramref name="heading"/> before leaving these bounds.</summary>
+        private static long FloorBefore(LogicalBounds bounds, LogicalPosition from, int heading)
+        {
+            LogicalPosition direction = IntegerMath.Direction(heading);
+            long along = long.MaxValue;
+            if (direction.X > 0)
+            {
+                along = System.Math.Min(along, (long)(bounds.MaxX - from.X) * IntegerMath.TrigScale / direction.X);
+            }
+            else if (direction.X < 0)
+            {
+                along = System.Math.Min(along, (long)(from.X - bounds.MinX) * IntegerMath.TrigScale / -direction.X);
+            }
+
+            if (direction.Z > 0)
+            {
+                along = System.Math.Min(along, (long)(bounds.MaxZ - from.Z) * IntegerMath.TrigScale / direction.Z);
+            }
+            else if (direction.Z < 0)
+            {
+                along = System.Math.Min(along, (long)(from.Z - bounds.MinZ) * IntegerMath.TrigScale / -direction.Z);
+            }
+
+            return along;
+        }
+
+        /// <summary>Whether this thing is within arm's reach.</summary>
+        private bool IsWithinReach(Agent agent, int thing)
+        {
             long reach = (long)context.Scenario.World.OccupancyRadiusMillimetres + objects.RadiusOf(thing) +
                          settings.ClearTheWayReachMillimetres;
             return LogicalPosition.DistanceSquared(agent.Body.Position, objects.PositionOf(thing)) <= reach * reach;
         }
+
 
         /// <summary>
         /// Which way to throw a thing clear of the way out: back past themselves,
@@ -1223,22 +1333,6 @@ namespace Paniq.Simulation
         /// the heaver is standing, because nothing ever goes through a doorway.
         /// The stronger they are, the further it goes.
         /// </summary>
-        private void HeaveObstructionClear(Agent agent, int door)
-        {
-            int thing = doors.ObstructionIn(door);
-            if (thing < 0)
-            {
-                return;
-            }
-
-            BlockadeSettings blockades = context.Scenario.Blockades;
-            long offset = geometry.AlongOffset(door, agent.Body.Position);
-            int side = offset < 0L ? -1 : 1;
-            int along = geometry.AlongWallHeading(door, side);
-            int speed = blockades.ShoveSpeedBase + blockades.ShoveSpeedPerStrength * agent.Traits.Strength;
-            objects.ShoveAside(thing, agent, along, speed, agent.Doors.AttemptEventId);
-        }
-
         /// <summary>
         /// A doorway with a heap of fallen boxes across it, on a wall of the
         /// room they are standing in and within sight, that they are not going

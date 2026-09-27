@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -954,6 +954,13 @@ namespace Paniq.Tests.EditMode
                         Assert.That(agents, Does.Contain(record.TargetId), "A sprung trap names who sprang it.");
                         break;
                     case CausalEventType.BoxTowerFell:
+                        // The tower names the archway it fell across; the
+                        // stockroom's stack (2026-09-27) fell across a lane,
+                        // and names no doorway.
+                        Assert.That(!record.HasTarget || doorCentres.ContainsKey(record.TargetId), Is.True,
+                            "A fallen tower names the doorway it fell across, or nothing.");
+                        break;
+                    case CausalEventType.BoxHeapSettled:
                     case CausalEventType.BoxPileCleared:
                     case CausalEventType.PowerHeldDoor:
                     case CausalEventType.PowerReleasedDoor:

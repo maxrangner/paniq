@@ -25,6 +25,7 @@ namespace Paniq.Simulation
         private readonly BodySystem body;
         private readonly FlammablesSystem flammables;
         private readonly ItemBehaviour items;
+        private readonly FrightenedWalk walk;
         private readonly ExtinguisherSettings settings;
 
         /// <summary>Scratch space for the squares under the spray, reused every tick.</summary>
@@ -38,7 +39,8 @@ namespace Paniq.Simulation
             FireSystem fire,
             BodySystem body,
             FlammablesSystem flammables,
-            ItemBehaviour items)
+            ItemBehaviour items,
+            FrightenedWalk walk)
         {
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
@@ -48,6 +50,7 @@ namespace Paniq.Simulation
             this.fire = fire;
             this.body = body;
             this.flammables = flammables;
+            this.walk = walk;
             this.items = items;
             settings = context.Scenario.Extinguishers;
         }
@@ -219,7 +222,7 @@ namespace Paniq.Simulation
                 long gap = IntegerMath.Distance(agent.Body.Position, where);
                 if (gap > settings.PickUpDistanceMillimetres)
                 {
-                    return Walk(agent, where, agent.Personality.PanicSpeed);
+                    return WalkOrGiveUp(agent, where, agent.Personality.PanicSpeed);
                 }
 
                 objects.PickUp(item, agent);
@@ -227,7 +230,7 @@ namespace Paniq.Simulation
                 agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.FightTimeoutTicks));
                 context.Events.Append(tick, agent.Id, CausalEventType.AgentTookExtinguisher,
                     agent.Body.Position, 0, 0, agent.Fear.ScaredEventId, objects.IdOf(item));
-                return Walk(agent, where, 0);
+                return WalkOrGiveUp(agent, where, 0);
             }
 
             if (objects.FuelOf(item) <= 0)
@@ -274,7 +277,7 @@ namespace Paniq.Simulation
             if (distance > closeEnough)
             {
                 agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
-                return Walk(agent, target, agent.Personality.PanicSpeed);
+                return WalkOrGiveUp(agent, target, agent.Personality.PanicSpeed);
             }
 
             if (!spraying)
@@ -429,17 +432,24 @@ namespace Paniq.Simulation
             body.Slide(agent, away, push);
         }
 
-        private MotorIntent Walk(Agent agent, LogicalPosition where, int speed)
+        /// <summary>
+        /// Toward the bottle or the flames, through the doors on the way
+        /// (<see cref="FrightenedWalk"/>, 2026-09-27); when there is no way
+        /// -- a locked door, no route -- they give the fire up. The walk used
+        /// to head along the fields alone, which treat a shut doorway as
+        /// floor: three people from the meeting stood nose to the door
+        /// between them and the cafeteria's extinguisher for as long as the
+        /// errand lasted (seed 41), and a fighter never opened a door at all.
+        /// </summary>
+        private MotorIntent? WalkOrGiveUp(Agent agent, LogicalPosition where, int speed)
         {
-            agent.Intent.Target = where;
+            if (walk.TryStep(agent, where, speed, agent.Fear.ScaredEventId, out MotorIntent step))
+            {
+                return step;
+            }
 
-            // Round what is in the way. The bottle is chosen by how far it is
-            // to walk to it, which may be through two doorways, and this used
-            // to head straight at it: three people from the meeting stood
-            // nose to the wall between them and the cafeteria's extinguisher
-            // for as long as the errand lasted (seed 41).
-            int heading = geometry.Routes.HeadingToward(agent.Body.Position, where, bodyRadius, agent.Body.Heading);
-            return new MotorIntent(heading, speed, agent.Personality.PanicTurnRate, context.Scenario.Panic.Acceleration);
+            GiveUp(agent);
+            return null;
         }
 
         /// <summary>Half the width of the spray cone, in degrees.</summary>
@@ -497,17 +507,30 @@ namespace Paniq.Simulation
             return best;
         }
 
-        /// <summary>The nearest extinguisher with fuel left that nobody is holding, or -1.</summary>
+        /// <summary>
+        /// The nearest extinguisher with fuel left that nobody is holding, or
+        /// -1. One in a room there is no way to from here -- through a door
+        /// they are avoiding, say -- does not count (2026-09-27), or a bottle
+        /// behind a locked door was picked again every decision.
+        /// </summary>
         private int NearestFreeExtinguisher(Agent agent)
         {
             long reach = settings.FetchRangeMillimetres;
             long bestDistance = reach * reach;
             int best = -1;
+            int room = geometry.RoomOf(agent);
             IReadOnlyList<int> bottles = objects.Equipment;
             for (int b = 0; b < bottles.Count; b++)
             {
                 int i = bottles[b];
                 if (objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
+                {
+                    continue;
+                }
+
+                int bottleRoom = geometry.RoomAtPoint(objects.PositionOf(i));
+                if (room >= 0 && bottleRoom >= 0 && bottleRoom != room &&
+                    !geometry.TryFindRoute(room, agent.Body.Position, bottleRoom, agent, out _, out _, out _))
                 {
                     continue;
                 }
@@ -526,6 +549,7 @@ namespace Paniq.Simulation
         /// <summary>Back to running: they stop fighting the fire (whatever they are holding stays in their arms).</summary>
         private void GiveUp(Agent agent)
         {
+            walk.Forget(agent);
             if (IsFighting(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;

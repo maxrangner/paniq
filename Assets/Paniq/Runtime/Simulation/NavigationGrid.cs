@@ -250,8 +250,12 @@ namespace Paniq.Simulation
                     {
                         LogicalPosition at = doorway.PointAt(along, across);
                         int cell = CellAt(at);
-                        if (cell < 0 || cellRoom[cell] != Outside)
+                        if (cell < 0 || cellRoom[cell] != Outside || IsUnder(CentreOfCell(cell), tables))
                         {
+                            // Outside the rooms, but not under a table or a
+                            // crate beside the doorway (2026-09-27): the tower
+                            // standing half a metre from the archway is not
+                            // floor because the archway reaches that far.
                             continue;
                         }
 
@@ -260,6 +264,20 @@ namespace Paniq.Simulation
                     }
                 }
             }
+        }
+
+        private static bool IsUnder(LogicalPosition point, IReadOnlyList<LogicalBounds> tables)
+        {
+            for (int t = 0; t < tables.Count; t++)
+            {
+                LogicalBounds b = tables[t];
+                if (point.X > b.MinX && point.X < b.MaxX && point.Z > b.MinZ && point.Z < b.MaxZ)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static long NearestEdge(List<Wall> edges, LogicalPosition point)

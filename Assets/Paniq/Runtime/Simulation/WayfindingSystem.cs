@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
@@ -285,7 +285,16 @@ namespace Paniq.Simulation
                         continue;
                     }
 
-                    LogicalPosition step = geometry.DoorCentre(first < 0 ? door : first);
+                    // Does the sign point the way the walk to that door
+                    // starts? The walk, not the straight line (2026-09-27):
+                    // a sign in the stockroom's middle lane points south,
+                    // down the lane, while the door it leads to lies
+                    // north-east as the crow flies. With no walk to go by,
+                    // the straight line as before.
+                    int next = first < 0 ? door : first;
+                    LogicalPosition step = geometry.TryWalkStepToward(at, next, room, out int heading)
+                        ? at + IntegerMath.Displacement(heading, 1000)
+                        : geometry.DoorCentre(next);
                     long agreement = ExitSignBehaviour.Agreement(at, step, exitSigns.PointingOf(sign));
                     if (agreement > bestAgreement || (agreement == bestAgreement && best >= 0 && cost < bestCost))
                     {

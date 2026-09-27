@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// What the player has left to spend. The round opens with nothing, and
@@ -307,10 +307,13 @@
                 case CausalEventType.AgentIgnoredCue:
                 case CausalEventType.AgentNudged:
                 case CausalEventType.AgentAnnoyed:
+                case CausalEventType.AgentPokedAwake:
+                case CausalEventType.AgentKnockedOffChair:
 
                 // The Director's own doing: the trap watching, and the way
                 // opening again. The fall itself is a commotion, above.
                 case CausalEventType.TrapTriggered:
+                case CausalEventType.BoxHeapSettled:
                 case CausalEventType.BoxPileCleared:
 
                 // The Director's ladder (2026-09-26): its own doing, and the
@@ -326,6 +329,7 @@
                 // Influence: the player's own doing, and somebody following it.
                 case CausalEventType.PowerInfluenced:
                 case CausalEventType.AgentDrawnByInfluence:
+                case CausalEventType.InfluenceSpent:
 
                 // Bookkeeping: things happening quietly to people, things and doors.
                 case CausalEventType.AgentGotUp:
@@ -336,6 +340,7 @@
                 case CausalEventType.AgentShookAwake:
                 case CausalEventType.AgentDropped:
                 case CausalEventType.AgentTriedDoor:
+                case CausalEventType.AgentClearedDoorway:
                 case CausalEventType.AgentGaveUpOnDoor:
                 case CausalEventType.AgentTookExtinguisher:
                 case CausalEventType.ExtinguisherSprayed:

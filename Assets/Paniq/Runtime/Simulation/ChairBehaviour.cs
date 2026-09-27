@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -11,8 +11,19 @@ namespace Paniq.Simulation
     /// chair than the placid. Sitting causes nothing in the world, so it
     /// logs no events; who is on which chair is in the snapshot.
     /// </summary>
-    internal sealed class ChairBehaviour
+    internal sealed class ChairBehaviour : IBindable
     {
+        private InfluenceSystem influence;
+
+        /// <summary>Built after this behaviour.</summary>
+        public void Bind(Systems systems)
+        {
+            influence = systems.Influence;
+        }
+
+        /// <summary>A chair anybody could sit on right now: free, upright, on the floor. Whose it is does not come into it (an influenced chair, 2026-09-27).</summary>
+        public bool CanSitOn(int chair) => chair >= 0 && objects.CanBeSatOn(chair) && objects.IsFreeChair(chair);
+
         private readonly SimulationContext context;
 
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
@@ -520,6 +531,10 @@ namespace Paniq.Simulation
         private bool SettleIntoTheChair(Agent agent, int chair)
         {
             objects.SitOn(chair, agent);
+
+            // Sat on because the player pointed at it: the pull on it is
+            // spent. Nothing on it, nothing written.
+            influence?.Spend(agent, -1, chair);
             people.MoveSeated(agent, objects.PositionOf(chair), agent.Body.Heading);
             agent.Body.Speed = 0;
             agent.Sitting.Phase = SitPhase.None;

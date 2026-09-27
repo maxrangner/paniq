@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -194,10 +194,11 @@ namespace Paniq.Simulation
     /// <summary>
     /// A trap the Director springs (prototype 3, 2026-09-25): a tower of
     /// boxes standing beside a doorway. Once the fire is lit, the first
-    /// person to come within reach of it brings it down a beat later, and
-    /// the boxes land wedged across the doorway: shut for people and fire
-    /// until enough of them have been carried off, thrown clear or burnt.
-    /// The boxes are ordinary boxes authored stacked at the tower's spot.
+    /// frightened person to run through the doorway's own room brings it
+    /// down a beat later (2026-09-27), and the boxes tumble toward the
+    /// doorway: while enough of them lie in it, it is shut for people and
+    /// fire. The boxes are ordinary boxes authored stacked at the tower's
+    /// spot.
     /// </summary>
     [Serializable]
     public struct TrapDefinition
@@ -205,33 +206,72 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private SimulationId trapId;
         [UnityEngine.SerializeField] private SimulationId doorId;
         [UnityEngine.SerializeField] private SimulationId[] boxIds;
-        [UnityEngine.SerializeField] private int triggerRadiusMillimetres;
+        [UnityEngine.SerializeField] private SimulationId triggerRoomId;
+        [UnityEngine.SerializeField] private LogicalPosition landingCentre;
+        [UnityEngine.SerializeField] private int landingHeadingDegrees;
+        [UnityEngine.SerializeField] private int landingWidthMillimetres;
 
-        public TrapDefinition(SimulationId trapId, SimulationId doorId, SimulationId[] boxIds, int triggerRadiusMillimetres = 0)
+        /// <summary>A tower beside a doorway: the boxes fall across the doorway, which is shut while enough of them lie in it. Sprung by a runner in the doorway's own room.</summary>
+        public TrapDefinition(SimulationId trapId, SimulationId doorId, SimulationId[] boxIds)
         {
             this.trapId = trapId;
             this.doorId = doorId;
             this.boxIds = boxIds;
-            this.triggerRadiusMillimetres = triggerRadiusMillimetres;
+            triggerRoomId = default;
+            landingCentre = default;
+            landingHeadingDegrees = 0;
+            landingWidthMillimetres = 0;
+        }
+
+        /// <summary>
+        /// A stack in a room (2026-09-27): the boxes fall along a line across
+        /// a lane -- <paramref name="landingWidthMillimetres"/> of it, centred
+        /// on <paramref name="landingCentre"/>, running along
+        /// <paramref name="landingHeadingDegrees"/> -- and block it by their
+        /// weight alone. Sprung by a runner in <paramref name="triggerRoomId"/>.
+        /// </summary>
+        public TrapDefinition(SimulationId trapId, SimulationId[] boxIds, SimulationId triggerRoomId,
+            LogicalPosition landingCentre, int landingHeadingDegrees, int landingWidthMillimetres)
+        {
+            this.trapId = trapId;
+            doorId = default;
+            this.boxIds = boxIds;
+            this.triggerRoomId = triggerRoomId;
+            this.landingCentre = landingCentre;
+            this.landingHeadingDegrees = landingHeadingDegrees;
+            this.landingWidthMillimetres = landingWidthMillimetres;
         }
 
         public SimulationId TrapId => trapId;
 
-        /// <summary>The doorway the boxes fall across.</summary>
+        /// <summary>The doorway the boxes fall across, or a zero ID for a trap that falls across a lane.</summary>
         public SimulationId DoorId => doorId;
+
+        /// <summary>Whether this trap falls across a doorway (shutting it) rather than across a lane.</summary>
+        public bool IsDoorTrap => doorId.Value != 0UL;
 
         /// <summary>The boxes that make the tower, lowest first.</summary>
         public SimulationId[] BoxIds => boxIds ?? Array.Empty<SimulationId>();
 
-        /// <summary>How near somebody must come to bring it down; 0 means the scenario's <see cref="TrapSettings"/> value.</summary>
-        public int TriggerRadiusMillimetres => triggerRadiusMillimetres;
+        /// <summary>The room a runner springs a lane trap in.</summary>
+        public SimulationId TriggerRoomId => triggerRoomId;
+
+        /// <summary>The middle of the line a lane trap's boxes are aimed along.</summary>
+        public LogicalPosition LandingCentre => landingCentre;
+
+        /// <summary>Which way that line runs, in whole degrees.</summary>
+        public int LandingHeadingDegrees => landingHeadingDegrees;
+
+        /// <summary>How long that line is.</summary>
+        public int LandingWidthMillimetres => landingWidthMillimetres;
 
         // The boxes are an array: compared box by box, so an asset written
         // from the code compares equal to the code (see CueDefinition).
         public override bool Equals(object obj)
         {
             if (!(obj is TrapDefinition other) || trapId != other.trapId || doorId != other.doorId ||
-                triggerRadiusMillimetres != other.triggerRadiusMillimetres)
+                triggerRoomId != other.triggerRoomId || !landingCentre.Equals(other.landingCentre) ||
+                landingHeadingDegrees != other.landingHeadingDegrees || landingWidthMillimetres != other.landingWidthMillimetres)
             {
                 return false;
             }
@@ -654,6 +694,15 @@ namespace Paniq.Simulation
         /// </summary>
         [UnityEngine.SerializeField] private SimulationId partOfObjectId;
 
+        /// <summary>
+        /// Fixed where it stands for the whole run (2026-09-27): a crate in
+        /// one of the stockroom's walls of crates. Nobody lifts, kicks or
+        /// heaves it, it stands on the map people steer by like a table, and
+        /// it still burns. A stacked crate on top of a pinned one is pinned
+        /// too.
+        /// </summary>
+        [UnityEngine.SerializeField] private bool startsPinned;
+
         public PhysicsObjectDefinition(
             SimulationId objectId,
             PhysicsObjectKind kind,
@@ -663,7 +712,8 @@ namespace Paniq.Simulation
             bool startsDormant = false,
             int initialFacingDegrees = 0,
             bool startsResting = false,
-            SimulationId partOfObjectId = default)
+            SimulationId partOfObjectId = default,
+            bool startsPinned = false)
         {
             this.objectId = objectId;
             this.kind = kind;
@@ -674,6 +724,7 @@ namespace Paniq.Simulation
             this.initialFacingDegrees = initialFacingDegrees;
             this.startsResting = startsResting;
             this.partOfObjectId = partOfObjectId;
+            this.startsPinned = startsPinned;
         }
 
         public SimulationId ObjectId => objectId;
@@ -702,6 +753,9 @@ namespace Paniq.Simulation
 
         /// <summary>The thing this is a part of (a shade's lamp), or a zero ID when it stands on its own.</summary>
         public SimulationId PartOfObjectId => partOfObjectId;
+
+        /// <summary>True when it is fixed where it stands for the whole run: a crate wall.</summary>
+        public bool StartsPinned => startsPinned;
 
         /// <summary>True for a part of another thing, which starts attached to it and comes loose when it goes over.</summary>
         public bool IsPartOfSomething => partOfObjectId.Value != 0UL;
@@ -775,7 +829,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "81";
+        public string ContentRevision = "83";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -930,7 +984,42 @@ namespace Paniq.Simulation
         // same every run. New events from
         // DirectorStartedIncident to AgentDrawnByInfluence. Fingerprints
         // re-recorded: nearly everything above moves a run.
-        public int SimulationCompatibilityVersion = 69;
+        // 70: prototype 3's playtest fixes (2026-09-27). The Director's
+        // ladder is bin, boxes, socket, fuse box: the tower falls for the
+        // first frightened person running along the corridor (armed by the
+        // bin, not by a fire getting loose), the socket's wait is counted from
+        // the fall, and a bin doused before the carpet caught lights another
+        // bin a beat later. The fall is the physics engine's (Topple), each
+        // box aimed at its slot; the heap is whatever boxes lie still in the
+        // archway's own strip, and nothing is pinned after the fall. The
+        // meeting room's extinguisher is gone. Small things never jam a
+        // door, tidied things are never set down in a doorway, a crowd drawn
+        // to a door spreads out in front of it, and calm people on an errand
+        // lift or heave a jam clear while the panicked give it up. Influence
+        // is something to use: a door opened or shut (the cruel wedge it), a
+        // chair sat on, a thing carried off, a bottle taken; using it spends
+        // the pull. Annoyed people are still shoved; three quick pokes wake
+        // the frozen and knock a sitter off the chair. New events from
+        // BoxHeapSettled to AgentKnockedOffChair. Fingerprints re-recorded:
+        // nearly everything above moves a run.
+        // 71: the second round of playtest fixes (2026-09-27). Boxes weigh by
+        // their size (a 600 mm box 40 kg, a 700 mm crate 55 kg), and a thing
+        // too heavy to carry, or pinned, is on the map people steer by like a
+        // table; once it has lain still for half a second it is held where
+        // it lies against people, and only somebody strong heaves it aside
+        // (a struck crate takes the shove on), a blast flings it, and a door
+        // the map says they cannot reach is no way out to anybody else. The
+        // stockroom is a winding lane between crate walls with a stack at
+        // its first bend that the Director drops across the lane (a second
+        // trap, with no doorway). Somebody frightened going for a bottle,
+        // the flames or a pull station opens the shut doors on the way and
+        // gives up a locked one. The socket pops five seconds after the
+        // boxes fall whatever the bin is doing, or five to ten seconds after
+        // a put-out with no fall, in the room with the most people; the fuse
+        // box five to ten seconds after the socket's fire is put out. A sign
+        // pointing down a lane teaches the nearest way out. Fingerprints
+        // re-recorded: nearly everything above moves a run.
+        public int SimulationCompatibilityVersion = 71;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -1260,6 +1349,7 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Trap {trap.TrapId} has no boxes to fall.");
                 }
 
+                int widest = 0;
                 for (int b = 0; b < trap.BoxIds.Length; b++)
                 {
                     int box = Array.FindIndex(PhysicsObjects, o => o.ObjectId == trap.BoxIds[b]);
@@ -1268,11 +1358,32 @@ namespace Paniq.Simulation
                         throw new InvalidOperationException(
                             $"Trap {trap.TrapId} names {trap.BoxIds[b]} as a box, and it is a {PhysicsObjects[box].Kind}.");
                     }
+
+                    if (box >= 0)
+                    {
+                        widest = Math.Max(widest, PhysicsObjects[box].SizeMillimetres);
+                    }
                 }
 
-                if (trap.TriggerRadiusMillimetres < 0)
+                if (!trap.IsDoorTrap)
                 {
-                    throw new InvalidOperationException($"Trap {trap.TrapId} has a negative reach.");
+                    // A lane trap: a room to watch, and a line to fall along
+                    // that is inside it and long enough for its boxes.
+                    if (trap.TriggerRoomId.Value == 0UL)
+                    {
+                        throw new InvalidOperationException($"Trap {trap.TrapId} falls across no doorway and watches no room.");
+                    }
+
+                    int room = Array.FindIndex(Rooms, r => r.RoomId == trap.TriggerRoomId);
+                    if (room >= 0 && !Rooms[room].Bounds.ContainsCircle(trap.LandingCentre, 0))
+                    {
+                        throw new InvalidOperationException($"Trap {trap.TrapId} lands outside the room it watches.");
+                    }
+
+                    if (trap.LandingWidthMillimetres < widest)
+                    {
+                        throw new InvalidOperationException($"Trap {trap.TrapId} falls along a line shorter than its widest box.");
+                    }
                 }
             }
         }
@@ -1765,6 +1876,11 @@ namespace Paniq.Simulation
                 {
                     throw new InvalidOperationException(
                         $"Object {body.ObjectId} starts resting on nothing: put it on a table or on another object.");
+                }
+
+                if (body.StartsPinned && (body.StartsDormant || body.IsPartOfSomething || IsCarriedAtTheStart(body.ObjectId)))
+                {
+                    throw new InvalidOperationException($"Object {body.ObjectId} is pinned but is not standing on the floor.");
                 }
 
                 for (int t = 0; t < Tables.Length && !offTheFloor; t++)

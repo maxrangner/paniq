@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Paniq.Simulation;
 
 namespace Paniq.Presentation
@@ -160,6 +160,7 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentCarriedThroughDoorway: return $"{who}, down in the doorway, was carried through it by the crush";
                 case CausalEventType.AgentBarricadedDoor: return $"{who} wedged something against {whom}";
                 case CausalEventType.AgentShovedObstruction: return $"{who} heaved {whom} out of a doorway";
+                case CausalEventType.AgentClearedDoorway: return $"{who} lifted {whom} out of a doorway";
 
                 case CausalEventType.AgentTookExtinguisher: return $"{who} picked up {whom}";
                 case CausalEventType.ExtinguisherSprayed: return "an extinguisher was sprayed at the fire";
@@ -206,11 +207,14 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerNudged: return $"you nudged {whom}";
                 case CausalEventType.AgentNudged: return $"{who} looked round for whoever nudged them";
                 case CausalEventType.AgentAnnoyed: return $"{who} got annoyed at being nudged";
-                case CausalEventType.TrapTriggered: return $"{whom} came too near the tower of boxes";
-                case CausalEventType.BoxTowerFell: return $"the tower of boxes came down across {whom}";
+                case CausalEventType.TrapTriggered: return $"{whom} ran past the tower of boxes";
+                case CausalEventType.BoxTowerFell:
+                    return record.HasTarget ? $"the tower of boxes came down toward {whom}" : "the crates came down across the lane";
+                case CausalEventType.BoxHeapSettled: return $"the fallen boxes blocked {whom}";
                 case CausalEventType.BoxPileCleared: return $"the way through the boxes at {whom} was clear";
                 case CausalEventType.PowerStickTogether: return $"you told {whom} to stick together";
-                case CausalEventType.DirectorStartedIncident: return $"{who} caught fire";
+                case CausalEventType.DirectorStartedIncident:
+                    return record.Strength > 1 ? $"another bin: {who} caught fire" : $"{who} caught fire";
                 case CausalEventType.IncidentPutOut: return "the fire was put out";
                 case CausalEventType.FireEscapedItsRoom: return "the fire got out of the room it started in";
                 case CausalEventType.SocketCrackling: return $"{who} began to crackle and smoke";
@@ -219,6 +223,9 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerInfluenced:
                     return record.HasTarget ? $"you drew people toward {whom}" : "you drew people toward a spot on the floor";
                 case CausalEventType.AgentDrawnByInfluence: return $"{who} went where you were drawing people";
+                case CausalEventType.InfluenceSpent: return $"{who} did what your pull asked, and it is spent";
+                case CausalEventType.AgentPokedAwake: return $"{who} was poked awake";
+                case CausalEventType.AgentKnockedOffChair: return $"{who} was poked off their chair";
 
                 case CausalEventType.PowerSparkStarted:
                     return $"a spark set off along the cable from {Name(record.SourceId)} " +

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -463,6 +463,28 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Somebody strong heaves whatever is wedged in this doorway out
+        /// along the wall, away from the end they stand nearer: a frightened
+        /// runner at a way out, or (2026-09-27) somebody calm on an errand
+        /// who cannot lift it. Nothing happens when nothing is wedged.
+        /// </summary>
+        public void HeaveObstructionClear(Agent agent, int door, ulong causeEventId)
+        {
+            int thing = ObstructionIn(door);
+            if (thing < 0)
+            {
+                return;
+            }
+
+            BlockadeSettings blockades = context.Scenario.Blockades;
+            long offset = geometry.AlongOffset(door, agent.Body.Position);
+            int side = offset < 0L ? -1 : 1;
+            int along = geometry.AlongWallHeading(door, side);
+            int speed = blockades.ShoveSpeedBase + blockades.ShoveSpeedPerStrength * agent.Traits.Strength;
+            objects.ShoveAside(thing, agent, along, speed, causeEventId);
+        }
+
+        /// <summary>
         /// Phase 8's tail, once every object has finished moving: which doorway
         /// each thing is wedged in. Doors in ascending index and, within a door,
         /// the lowest-numbered thing wins, so a replay always names the same one.
@@ -472,6 +494,7 @@ namespace Paniq.Simulation
         public void ResolveBlockages()
         {
             int gap = context.Scenario.Blockades.BlockGapMillimetres;
+            int smallest = context.Scenario.Blockades.BlockMinimumRadiusMillimetres;
             for (int door = 0; door < Count; door++)
             {
                 int found = -1;
@@ -481,7 +504,8 @@ namespace Paniq.Simulation
                     for (int c = 0; c < candidates.Count; c++)
                     {
                         int i = candidates[c];
-                        if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0)
+                        if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0 ||
+                            objects.RadiusOf(i) < smallest)
                         {
                             continue;
                         }
@@ -618,14 +642,21 @@ namespace Paniq.Simulation
                 0, 0, 0UL, d.Id);
         }
 
-        /// <summary>True when nobody (other than <paramref name="ignore"/>) is in the way of the door swinging shut.</summary>
+        /// <summary>True when nobody (other than <paramref name="ignore"/>) and nothing is in the way of the door swinging shut.</summary>
         public bool IsDoorwayClear(int door, Agent ignore = null)
         {
-            if (IsObstructed(door))
-            {
-                return false;
-            }
+            return !IsObstructed(door) && NobodyInTheDoorway(door, ignore, thingsToo: true);
+        }
 
+        /// <summary>
+        /// True when no person (other than <paramref name="ignore"/>) is in
+        /// the gap -- and, with <paramref name="thingsToo"/>, no part of any
+        /// loose thing either. Without it, whatever lies in the gap is not
+        /// asked about: what the fallen tower asks before its boxes count as
+        /// shutting the doorway, so nobody is left inside the plug.
+        /// </summary>
+        public bool NobodyInTheDoorway(int door, Agent ignore = null, bool thingsToo = false)
+        {
             using (Crowd.Nearby near = crowd.Gather(geometry.PersonDoorwaySearchArea(door)))
             {
                 for (int c = 0; c < near.Count; c++)
@@ -642,7 +673,7 @@ namespace Paniq.Simulation
             // lying across the threshold with only their legs in the gap stops
             // the door as surely as somebody standing in it.
             int ignoreHandle = ignore != null && people != null ? people.HandleOf(ignore) : -1;
-            return physics == null || !physics.IsAnyBodyInDoorway(door, ignoreHandle);
+            return physics == null || !physics.IsAnyBodyInDoorway(door, ignoreHandle, thingsToo);
         }
 
         private PhysicsWorld physics;

@@ -464,9 +464,18 @@ namespace Paniq.Simulation
         /// <summary>
         /// Somebody with nothing in particular to do weighs the strongest pull
         /// they feel: the stronger it is, and the more easily led they are,
-        /// the likelier they wander over to it. Somebody who got up for it
-        /// goes without weighing it again. Draws a number only when they feel
-        /// a pull at all, so an influence nobody is near changes no run.
+        /// the likelier they go to it. Somebody who got up for it goes
+        /// without weighing it again. Draws a number only when they feel a
+        /// pull at all, so an influence nobody is near changes no run.
+        /// <para>
+        /// What "going to it" is depends on what was pointed at (the owner's
+        /// rule, 2026-09-27: an influenced thing is something to interact
+        /// with, not walk over): a door is used -- opened if shut, shut if
+        /// open, an errand of its own; a free chair is sat on; a bottle on
+        /// its wall is taken and held; anything they could carry is carried
+        /// off; and a patch of floor, or a thing with no use, is stood about
+        /// on, as before.
+        /// </para>
         /// </summary>
         private bool TryWanderToTheInfluence(Agent agent)
         {
@@ -483,9 +492,11 @@ namespace Paniq.Simulation
                 return false;
             }
 
+            InfluenceSystem.Place drawnBy = influence[place];
+            bool usable = drawnBy.Door >= 0 || (drawnBy.Thing >= 0 && CanUse(agent, drawnBy.Thing));
             LogicalPosition target = WhereToStandFor(agent, place);
             long there = context.Scenario.Calm.StrollArrivalDistanceMillimetres * 2L;
-            if (LogicalPosition.DistanceSquared(agent.Body.Position, target) <= there * there)
+            if (!usable && LogicalPosition.DistanceSquared(agent.Body.Position, target) <= there * there)
             {
                 // Already there and still feeling it: they linger rather than
                 // wander off, which is how a pull gathers people, until it
@@ -501,11 +512,59 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            StartStrollTo(agent, target);
-            InfluenceSystem.Place drawnBy = influence[place];
+            if (!usable || !TryUse(agent, drawnBy))
+            {
+                StartStrollTo(agent, target);
+            }
+
             context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
                 felt, 0, drawnBy.EventId, drawnBy.Target);
             return true;
+        }
+
+        /// <summary>A thing with a use of its own: a free chair, or anything this person could pick up, a bottle on its wall included.</summary>
+        private bool CanUse(Agent agent, int thing) => chairs.CanSitOn(thing) || items.CanFetchForTheInfluence(agent, thing);
+
+        /// <summary>
+        /// Sets about using what was pointed at. A door is an errand, taken
+        /// up a beat later like any idea; a chair is sat on; a thing is
+        /// fetched. False when it cannot be used after all (a chair taken
+        /// this moment), and they stroll to it instead.
+        /// </summary>
+        private bool TryUse(Agent agent, InfluenceSystem.Place drawnBy)
+        {
+            if (drawnBy.Door >= 0)
+            {
+                if (!cues.FollowTheInfluence(agent, drawnBy.Door, drawnBy.EventId))
+                {
+                    return false;
+                }
+
+                agent.Intent.Activity = AgentActivityState.Standing;
+                agent.Intent.ActivityEndTick = checked(context.Tick + context.ReactionLag());
+                return true;
+            }
+
+            if (chairs.CanSitOn(drawnBy.Thing))
+            {
+                return chairs.TryStartSittingOn(agent, drawnBy.Thing, false);
+            }
+
+            return items.FetchForTheInfluence(agent, drawnBy.Thing);
+        }
+
+        /// <summary>
+        /// A spot of one's own in front of a door, inside <paramref name="room"/>:
+        /// one to one and four fifths of a metre back, a little to one side
+        /// or the other by the person's number, so a crowd drawn to a door
+        /// stands about in front of it rather than on one spot, shoving the
+        /// loose things between them into the gap (2026-09-27).
+        /// </summary>
+        internal static LogicalPosition StandSpotInFrontOf(WorldGeometry geometry, int door, int room, int index)
+        {
+            int along = (index % 3 - 1) * 300;
+            int outward = -(1000 + index / 3 % 3 * 400);
+            return geometry.DoorPointFrom(door, room, along, outward);
         }
 
         /// <summary>
@@ -561,7 +620,14 @@ namespace Paniq.Simulation
         private static bool IsEasilyLed(Agent agent, InfluenceSettings rules) =>
             agent.Traits.Nervousness >= rules.EasilyLedNervousness || !agent.Knowledge.KnowsEverything;
 
-        /// <summary>Where to walk to for a place: the spot itself, or for a door, just inside this room in front of it.</summary>
+        /// <summary>
+        /// Where to walk to for a place: the spot itself, or for a door, a
+        /// spot of their own inside this room in front of it -- one to one
+        /// and four fifths of a metre back, a little to one side or the
+        /// other by their number, so a crowd drawn to a door stands about in
+        /// front of it rather than on one spot, shoving the loose things
+        /// between them into the gap (2026-09-27).
+        /// </summary>
         private LogicalPosition WhereToStandFor(Agent agent, int place)
         {
             InfluenceSystem.Place pull = influence[place];
@@ -571,7 +637,7 @@ namespace Paniq.Simulation
             }
 
             int room = geometry.RoomOf(agent);
-            return room >= 0 ? geometry.DoorPointFrom(pull.Door, room, 0, -1000) : pull.At;
+            return room < 0 ? pull.At : StandSpotInFrontOf(geometry, pull.Door, room, agent.Index);
         }
 
         /// <summary>A stroll to one place, rather than to somewhere drawn at random.</summary>

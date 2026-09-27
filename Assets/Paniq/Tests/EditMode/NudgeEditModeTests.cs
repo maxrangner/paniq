@@ -159,7 +159,7 @@ namespace Paniq.Tests.EditMode
 
         /// <summary>Somebody sitting down feels the nudge and looks round, but keeps their seat.</summary>
         [Test]
-        public void SomebodySeated_KeepsTheirSeat()
+        public void SomebodySeated_KeepsTheirSeatForOneNudge_ButThreeQuickOnes_KnockThemOffIt()
         {
             ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Fire.ActivationTick = int.MaxValue;
@@ -185,6 +185,80 @@ namespace Paniq.Tests.EditMode
                 Assert.That(simulation.GetAgent(seated).ActivityState, Is.EqualTo(AgentActivityState.Sitting), "Still in the chair.");
                 Assert.That(IntegerMath.Distance(before, simulation.GetAgent(seated).Position), Is.LessThan(50), "Not shoved out of it.");
                 Assert.That(EventsOfType(simulation, CausalEventType.AgentNudged), Has.Count.EqualTo(1), "But they felt it.");
+
+                // Two more, quickly: the third knocks them off the chair.
+                simulation.QueueCommand(PlayerCommandType.NudgePerson, seated, simulation.Tick + 1);
+                Advance(simulation, 20);
+                Assert.That(simulation.GetAgent(seated).ActivityState, Is.EqualTo(AgentActivityState.Sitting), "Two is not enough.");
+                simulation.QueueCommand(PlayerCommandType.NudgePerson, seated, simulation.Tick + 1);
+                Advance(simulation, 2);
+                List<CausalEvent> knockedOff = EventsOfType(simulation, CausalEventType.AgentKnockedOffChair);
+                Assert.That(knockedOff, Has.Count.EqualTo(1), "The third quick poke knocks them off it, at once.");
+                Assert.That(knockedOff[0].SourceId, Is.EqualTo(seated));
+                Assert.That(simulation.GetAgent(seated).BodyState, Is.EqualTo(AgentBodyState.Fallen), "Onto the floor.");
+                Assert.That(simulation.GetAgent(seated).SeatedPercent, Is.Zero, "Off the chair.");
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentKnockedDown).Exists(e => e.SourceId == seated && e.CausalParentEventId == knockedOff[0].EventId),
+                    "The fall is traced to the poke.");
+
+                CausalEvent? up = null;
+                for (int t = 0; t < 10 * Run.TicksPerSecond && up == null; t++)
+                {
+                    simulation.Step();
+                    List<CausalEvent> got = EventsOfType(simulation, CausalEventType.AgentGotUp);
+                    up = got.Exists(e => e.SourceId == seated) ? got.Find(e => e.SourceId == seated) : (CausalEvent?)null;
+                }
+
+                Assert.That(up.HasValue, "And they get up again, as after any fall (and may well sit back down).");
+            }
+        }
+
+        /// <summary>
+        /// The owner's rule (2026-09-27): "repeatedly poking a freezed up
+        /// agent should wake it up". Three quick pokes and somebody frozen
+        /// -- even for good -- snaps out of it and runs, a beat after the
+        /// third; one or two do nothing of the kind.
+        /// </summary>
+        [Test]
+        public void ThreeQuickPokes_WakeSomebodyFrozenForGood_ABeatLater_ButOneOrTwoWakeNobody()
+        {
+            ScenarioData data = QuietRoom();
+            data.Temperament.FreezeForeverPercent = 100;
+            data.Temperament.FreezeThenRunPercent = 0;
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 5);
+                simulation.FrightenForTests(0);
+                Advance(simulation, 2);
+                Assert.That(simulation.GetAgent(Somebody).ActivityState, Is.EqualTo(AgentActivityState.Frozen), "Frozen stiff.");
+
+                for (int i = 0; i < 2; i++)
+                {
+                    simulation.QueueCommand(PlayerCommandType.NudgePerson, Somebody, simulation.Tick + 1);
+                    Advance(simulation, 40);
+                }
+
+                Assert.That(simulation.GetAgent(Somebody).ActivityState, Is.EqualTo(AgentActivityState.Frozen), "Two pokes: still frozen.");
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentPokedAwake), Is.Empty);
+
+                simulation.QueueCommand(PlayerCommandType.NudgePerson, Somebody, simulation.Tick + 1);
+                simulation.Step();
+                CausalEvent third = EventsOfType(simulation, CausalEventType.PowerNudged)[2];
+                Assert.That(simulation.GetAgent(Somebody).ActivityState, Is.EqualTo(AgentActivityState.Frozen), "Not on the tick of the poke.");
+                CausalEvent? woken = null;
+                for (int t = 0; t < 20 && woken == null; t++)
+                {
+                    simulation.Step();
+                    List<CausalEvent> found = EventsOfType(simulation, CausalEventType.AgentPokedAwake);
+                    woken = found.Count > 0 ? found[0] : (CausalEvent?)null;
+                }
+
+                Assert.That(woken.HasValue, "The third quick poke wakes them.");
+                Assert.That(woken.Value.Tick - third.Tick, Is.InRange(1, data.Perception.ReactionLagMaximumTicks), "A beat later.");
+                List<CausalEvent> unfroze = EventsOfType(simulation, CausalEventType.AgentUnfroze);
+                Assert.That(unfroze, Has.Count.EqualTo(1));
+                Assert.That(unfroze[0].CausalParentEventId, Is.EqualTo(woken.Value.EventId), "Woken because they were poked.");
+                Assert.That(simulation.GetAgent(Somebody).ActivityState, Is.Not.EqualTo(AgentActivityState.Frozen), "And they run.");
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentAnnoyed), Is.Empty, "Too busy to be annoyed about it.");
             }
         }
 
@@ -240,8 +314,13 @@ namespace Paniq.Tests.EditMode
         /// nothing to them at all: no lurch, no look round (the owner's rule,
         /// 2026-09-26).
         /// </summary>
+        /// <summary>
+        /// The owner's rule (2026-09-27): "an annoyed agent should still be
+        /// able to be pushed around". The shove lands as ever; the look round
+        /// and the counting do not.
+        /// </summary>
         [Test]
-        public void WhileAnnoyed_ANudgeDoesNothingButGetWrittenDown()
+        public void WhileAnnoyed_ANudgeStillShovesThem_ButTheyNeitherLookRoundNorCountIt()
         {
             ScenarioData data = QuietRoom();
             using (var simulation = new Run(data, 42UL))
@@ -260,12 +339,14 @@ namespace Paniq.Tests.EditMode
                 simulation.QueueCommand(PlayerCommandType.NudgePersonFrom, Somebody,
                     new LogicalPosition(before.X - 400, before.Z), simulation.Tick + 1);
                 Advance(simulation, 2);
-                Assert.That(simulation.GetAgent(Somebody).BodyState, Is.Not.EqualTo(AgentBodyState.Staggering),
-                    "Annoyed, a nudge does not jolt them.");
+                Assert.That(simulation.GetAgent(Somebody).BodyState, Is.EqualTo(AgentBodyState.Staggering),
+                    "Annoyed or not, a nudge shoves them.");
                 Advance(simulation, 38);
+                Assert.That(simulation.GetAgent(Somebody).Position.X, Is.GreaterThan(before.X + 30), "Away from where it came from.");
                 Assert.That(EventsOfType(simulation, CausalEventType.AgentNudged), Has.Count.EqualTo(lookedBefore),
-                    "Nor do they look round for it.");
-                Assert.That(EventsOfType(simulation, CausalEventType.PowerNudged), Has.Count.EqualTo(4), "But it is written down.");
+                    "But they do not look round for it.");
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentAnnoyed), Has.Count.EqualTo(1), "Nor does it count toward anything.");
+                Assert.That(EventsOfType(simulation, CausalEventType.PowerNudged), Has.Count.EqualTo(4), "It is written down.");
             }
         }
     }

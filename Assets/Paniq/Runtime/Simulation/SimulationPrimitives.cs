@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -396,7 +396,10 @@ namespace Paniq.Simulation
         GoHome,
 
         /// <summary>Somebody has heard a threat's noise from another room and goes to see what it is. Their own idea.</summary>
-        GoAndLook
+        GoAndLook,
+
+        /// <summary>Somebody drawn to a door by the player's influence goes to it and uses it: opens it if shut, shuts it if open (2026-09-27). Their own idea, and not written down: the pull's own line says why.</summary>
+        FollowTheInfluence
     }
 
     /// <summary>Who a cue reaches. Which of these a cue has decides whether the timetable may call it.</summary>
@@ -453,7 +456,10 @@ namespace Paniq.Simulation
         OpenTheDoor,
 
         /// <summary>Walk out of the building through the nearest way out, waiting at a locked one.</summary>
-        Leave
+        Leave,
+
+        /// <summary>Use the influenced door the errand is about (2026-09-27): shut it if open, open it if shut; the cruel wedge a shut one instead. Spends the pull on it.</summary>
+        UseTheDoor
     }
 
     /// <summary>Where a step is aimed.</summary>
@@ -474,7 +480,10 @@ namespace Paniq.Simulation
         HomeOrWhereTheyStood,
 
         /// <summary>The noise they went to look at: where they heard it come from, stopped short of.</summary>
-        TheNoise
+        TheNoise,
+
+        /// <summary>The door the player's influence drew them to (2026-09-27): a spot of their own in front of it, in their room. An errand aimed here ends when the pull has gone.</summary>
+        TheInfluence
     }
 
     /// <summary>
@@ -841,16 +850,17 @@ namespace Paniq.Simulation
         TrapTriggered,
 
         /// <summary>
-        /// The tower of boxes came down across a doorway, which is shut for
-        /// people and fire until enough of the boxes are gone. Source: the
-        /// trap. Target: the doorway. Cause: the trigger.
+        /// The tower of boxes came down: its boxes are loose and tumbling
+        /// toward a doorway. Source: the trap. Target: the doorway. Cause:
+        /// the trigger. Whether they shut it is <see cref="BoxHeapSettled"/>.
         /// </summary>
         BoxTowerFell,
 
         /// <summary>
-        /// Enough of the fallen boxes have been carried off, thrown clear or
-        /// burnt that the doorway is a way through again. Source: the trap.
-        /// Target: the doorway.
+        /// Enough of the fallen boxes have been carried off, thrown clear,
+        /// kicked out or burnt that the doorway is a way through again.
+        /// Source: the trap. Target: the doorway. Strength: the boxes still
+        /// in the gap. Cause: the heap settling.
         /// </summary>
         BoxPileCleared,
 
@@ -929,7 +939,47 @@ namespace Paniq.Simulation
         /// somewhere else. Source: the person. Cause: the influence's last
         /// click. Target: the door or thing, if it was on one.
         /// </summary>
-        AgentDrawnByInfluence
+        AgentDrawnByInfluence,
+
+        /// <summary>
+        /// Enough of the fallen boxes have come to rest in the doorway that
+        /// it is shut for people and fire (2026-09-27, since the fall is the
+        /// physics engine's). Source: the trap. Target: the doorway.
+        /// Strength: the boxes lying in the gap. Cause: the fall.
+        /// </summary>
+        BoxHeapSettled,
+
+        /// <summary>
+        /// Somebody calm on an errand lifted the thing wedged in a door out
+        /// of its way and set it down clear of the gap (2026-09-27). Source:
+        /// the person. Target: the thing. Cause: the errand's.
+        /// </summary>
+        AgentClearedDoorway,
+
+        /// <summary>
+        /// Somebody did what the player's pull on a place asked (2026-09-27):
+        /// opened or shut the door, sat on the chair, picked the thing up,
+        /// pulled the alarm beside it -- and the pull is spent, whatever
+        /// level it had. Source: the person. Target: the door or thing, or
+        /// none for a spot. Strength: the level spent. Cause: the last click.
+        /// </summary>
+        InfluenceSpent,
+
+        /// <summary>
+        /// Somebody frozen with fear was poked three times in quick
+        /// succession and snapped out of it (the owner's rule, 2026-09-27),
+        /// frozen for good or not. Source: the person. Cause: the nudge.
+        /// The <see cref="AgentUnfroze"/> that follows has this as its cause.
+        /// </summary>
+        AgentPokedAwake,
+
+        /// <summary>
+        /// Somebody sitting down was poked three times in quick succession
+        /// and knocked off the chair onto the floor (the owner's rule,
+        /// 2026-09-27). Source: the person. Cause: the nudge. The knock-down
+        /// that follows has this as its cause.
+        /// </summary>
+        AgentKnockedOffChair
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>

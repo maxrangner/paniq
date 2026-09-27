@@ -11,8 +11,9 @@ the same scene a round you can play and is recorded in
 [finished stones](history/roadmap-finished-stones.md). Prototype 3 is under way
 in the same scene: it is the stone of *gameplay*, where the level itself pushes
 back. Its first batch put a trap in the building; its second gives the round a
-build-up (the Director's ladder) and the player an everyday move (influence).
-Both are under "Prototype 3" further down.
+build-up (the Director's ladder) and the player an everyday move (influence);
+its third (2026-09-27) is the fixes from the first playtest of both. All are
+under "Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -252,6 +253,82 @@ threads" in [technical decisions](technical-decisions.md)). One replay
 fingerprint, seed 41 with the way out opened and nobody a visitor, can fail
 about one run in five because of it. Choosing between replays that always
 agree and speed with big crowds is the owner's to make.
+
+## Prototype 3: playtest fixes (2026-09-27)
+
+The owner played seed 42 with both batches in and came back with twelve
+notes. One batch, one commit, on `feat/prototype-3-gameplay`; the owner
+answered nine questions about them first. The one note parked by the owner
+is a person (number 18, the coward in the cafeteria) turning on the spot
+before the fire: "ignore this for now, I'll get back to it if I see it
+again".
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| Bin, boxes, outlet, fuse box | System | The Director's ladder has the tower of boxes as its second rung. The bin catches as before; the moment the first frightened person runs along the corridor, the tower comes down, whatever the fire is doing (it used to wait for a fire to get out of the meeting room, which is why the owner saw it fall once). Twenty to forty seconds after the boxes fall -- or after a put-out, if nobody ever ran -- the socket crackles and pops in the busiest calm room, and if that is put out the fuse box goes as before |
+| Another bin | System | A bin doused before the carpet under it ever caught was no fire at all: another of the meeting room's three bins catches a beat later. The owner's rule, "if the fire in the meeting room is put out too quickly, light another trashcan straight away". Once the carpet has burnt, a put-out is a put-out |
+| No bottle in the meeting room | System | The meeting room's extinguisher is gone (the owner's rule). The nearest bottles are the office's and the cafeteria's, so the bin is put out only by somebody who fetches one from another room |
+| The boxes really fall | System | The tower is toppled by the physics engine: each box is shoved toward its own slot across the archway and tumbles, bounces and lands wherever it lands. While three or more lie still in the archway's strip for half a second it is shut for people and fire; kicked, carried or thrown out, it opens again; kicked back in, it shuts again. The boxes are ordinary boxes from the fall on -- kicked, carried, hurled, and they hit whoever stands in their way. Measured over ten seeds, three or four of the eight land in the strip every time; the owner chose an honest fall over a guaranteed wall |
+| Fewer jams | Behaviour | Small things (a bin, a laptop, a bottle) never jam a door; somebody tidying up never sets a thing down in a doorway; a crowd drawn to a door spreads out in front of it instead of shoving the loose things between them into the gap. Doors used to jam "for no reason" |
+| Unlodging a jam | Behaviour | Somebody calm on an errand who finds a thing wedged in the door they want lifts it out and sets it aside (or heaves it, if they are strong and it is too heavy), then goes through; once per errand. A frightened runner throws it clear as before, unless the flames are inside their danger distance or they are alight: too panicked, they give the door up and look elsewhere. The owner's rule |
+| Influence is something to use | System | Click a door and somebody drawn to it opens it if shut, or shuts it if open; that spends the pull on it, so the next click asks for the opposite. The cruel (evil 7+) wedge a shut door with the nearest thing instead. Click a chair and somebody sits on it; a box, bin or bag and somebody carries it off; the bottle on the wall and somebody takes it and holds on to it. The floor, and things with no use, gather people as before. Frightened people weigh influence as before. A door they cannot use keeps its pull |
+| Nudges, four ways | Behaviour | Somebody annoyed is still shoved by every click, they just stop looking round for it. The angry shake is a fast shake that passes in about two seconds (the annoyance lasts twenty). Three quick pokes wake somebody frozen with fear -- frozen for good included -- and they run. Three quick pokes knock somebody sitting down off the chair onto the floor |
+
+**What this deliberately left out.** A guaranteed wall of boxes (the owner
+chose the honest fall; a run where the boxes bounce wide leaves the corridor
+open); the spin on seed 42, parked by the owner; influence on a pull station
+still draws people beside it rather than making the brave pull it sooner;
+a bottle taken for the player is held like a bag and let go of when its
+holder takes fright, rather than used by them.
+
+**Things to watch at the next playtest.**
+
+- Whether the heap forms often enough to be the corridor's trap, and
+  whether three boxes in the archway read as a wall or as a scatter.
+- Whether the second bin feels like the Director cheating, and whether
+  anybody ever puts a bin out now that the bottle is two rooms away.
+- Whether calm people clearing jams makes doors too reliable, and whether
+  the cruel wedging an influenced door is a delight or a trap for the player.
+- Whether the socket's wait from the fall, rather than the put-out, reads as
+  a rhythm.
+
+## Prototype 3: playtest fixes, second round (2026-09-27)
+
+The owner played again with the first round in and sent four notes and a
+request for suggestions: the fallen tower was "easily pushed through, so it's
+no real obstacle"; the stockroom should be "more of a zig-zag setup, or
+labyrinth", with heavier boxes stacked higher, "a hazard"; people fetching an
+extinguisher did not go through shut doors; and after a put-out the Director
+should move on sooner. The owner chose: scale the boxes heavier "to suit the
+gameplay, not realism"; a winding lane the Director can topple; the socket
+popping where the crowd is; a sign when another bin is lit; and, at the plan,
+"change socket pop to 5 sec after box topple". Amended into the first round's
+commit, as asked.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| Heavy boxes | System | Boxes weigh by their size: the small office boxes 3 to 10 kg, the 600 mm boxes 40 kg, the stockroom's crates 55 kg. Making them heavier alone did nothing -- in this engine a running person shoves a 110 kg box six metres in five seconds, measured -- so a box too heavy to carry, once it has lain still for half a second, is **held where it lies** against people: nobody walks through the fallen tower any more. It is on the map people steer by, like a table, so routes go round it. Somebody strong (7+) blocked by one heaves it aside, and a crate it is shoved into slides along with it; anybody weaker crosses off a door the map says they cannot reach and picks another, or a spot clear of the flames. A blast sends held crates flying like anything else |
+| The stockroom lane | Level | The stockroom is a winding lane between two walls of crates stacked three high: in at the west door, north up the west lane, round the end of the first wall, south down the middle lane, round the end of the second, north up the east lane to the door by the way out. About fifteen metres of walking where it was nine. Exit signs at each bend; a few light loose boxes in the lanes |
+| The stack at the bend | System | The Director's second trap: four crates stacked against the north wall at the lane's first bend. The moment the first frightened person runs through the stockroom the stack comes down across the lane, and the crates, too heavy to carry, lie where they land and cut the lane on the map: the office's short cut to the way out is gone and the office goes round by the corridor. Sprung by running, like the tower; falls with the physics engine, like the tower |
+| Through shut doors | Behaviour | Somebody frightened going for an extinguisher, for the flames with one, or for a pull station opens the shut doors on the way, as a calm errand does. A locked door is tried once and the bottle behind it given up for the rest of the round. They used to walk into the shut door, push at it for a second, give up, pick the bottle again and walk into it again |
+| The socket, sooner | System | The socket pops five seconds after the boxes fall, whatever the bin is doing (burning, out, or got loose): bin, boxes, outlet is the order. With no fall it pops five to ten seconds after the bin is put out; the fuse box goes five to ten seconds after the socket's fire is put out. It pops in the room with the most people, calm or frightened, never a room the incident already has |
+| Another one! | Presentation | When a second bin catches, "another one!" hangs over it and the story says "another bin: the waste bin caught fire" |
+
+**What this deliberately left out.** Boxes off the heap thrown into the
+corridor (offered; the owner did not pick it); crates that block by weight
+alone (measured, and they cannot in this engine; see the decisions); a
+guaranteed seal of the lane by the fallen stack (four crates do not fit flat
+across the gap, so they scatter, and the map is whatever they leave).
+
+**Things to watch at the next playtest.**
+
+- Whether a held crate reads as a crate that will not budge or as a crate
+  glued to the floor, and whether the strong heaving one aside is seen.
+- Whether the stockroom lane is a hazard or a nuisance to the office, and
+  whether the fallen stack ever traps somebody in the west lane.
+- Whether five seconds from the fall to the socket is a rhythm or a rush.
+- Whether people cut off from a door by crates find another quickly enough,
+  or stand about in the room until somebody strong clears a way.
 
 ## Foundations reviewed (2026-09-23)
 

@@ -99,9 +99,10 @@ namespace Paniq.Tests.EditMode
                     else if (saysGeometry >= 0)
                     {
                         // The only squares inside a room that the grid calls
-                        // outside are the ones under a table.
-                        Assert.That(geometry.TableAt(centre, 0), Is.GreaterThanOrEqualTo(0),
-                            $"The square at ({centre.X}, {centre.Z}) is in room {saysGeometry} with no table on it, " +
+                        // outside are the ones under a table, or under a heavy
+                        // or pinned thing (2026-09-27): the stockroom's crates.
+                        Assert.That(geometry.ObstacleAt(centre, 0), Is.True,
+                            $"The square at ({centre.X}, {centre.Z}) is in room {saysGeometry} with no table or crate on it, " +
                             "but the grid says it is not floor.");
                     }
                 }
@@ -137,6 +138,27 @@ namespace Paniq.Tests.EditMode
                         if (distance < byHand)
                         {
                             byHand = distance;
+                        }
+                    }
+
+                    // The heavy and pinned things on the map (2026-09-27) are
+                    // measured to like tables: edge by edge.
+                    foreach (LogicalBounds b in geometry.HeavyThingsForTests)
+                    {
+                        var edges = new[]
+                        {
+                            new NavigationGrid.Wall(new LogicalPosition(b.MinX, b.MinZ), new LogicalPosition(b.MaxX, b.MinZ)),
+                            new NavigationGrid.Wall(new LogicalPosition(b.MaxX, b.MinZ), new LogicalPosition(b.MaxX, b.MaxZ)),
+                            new NavigationGrid.Wall(new LogicalPosition(b.MaxX, b.MaxZ), new LogicalPosition(b.MinX, b.MaxZ)),
+                            new NavigationGrid.Wall(new LogicalPosition(b.MinX, b.MaxZ), new LogicalPosition(b.MinX, b.MinZ))
+                        };
+                        foreach (NavigationGrid.Wall edge in edges)
+                        {
+                            long distance = edge.DistanceFrom(centre);
+                            if (distance < byHand)
+                            {
+                                byHand = distance;
+                            }
                         }
                     }
 

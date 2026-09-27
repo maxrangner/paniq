@@ -44,8 +44,8 @@ every zoom level.
 | **Q / E** | snap a quarter turn to the next corner view, from wherever the view is now |
 | **Mouse wheel** | zoom in and out, tilting the camera as described above |
 | **Left mouse button** | on a card along the bottom: pick it up (or put it down again); on the floor with a card in hand: throw it there |
-| **Click a door, a thing or the floor** (nothing in hand) | influence (2026-09-26): one step of pull toward it, drawing people near it -- in the same room, within about twelve metres, more the nearer they are -- to go there or use it. Each click adds a step, up to twenty, so click frantically for a strong pull; it loses a step every two seconds and cannot be taken back. A sparkling aura shows it, and a sparkling line runs to everybody feeling it, brighter the harder they are pulled |
-| **Click a person** (nothing in hand) | nudge them: they step away from where the click landed. Three nudges in ten seconds and they are annoyed -- they shake with it, and for about twenty seconds more nudges do nothing |
+| **Click a door, a thing or the floor** (nothing in hand) | influence (2026-09-26): one step of pull toward it, drawing people near it -- in the same room, within about twelve metres, more the nearer they are -- to go there or use it. Since 2026-09-27 what is pointed at is used: a door is opened if shut or shut if open (the cruel wedge it instead), a chair sat on, a box carried off, a bottle taken; using it spends the pull, so the next click asks for the opposite. Each click adds a step, up to twenty, so click frantically for a strong pull; it loses a step every two seconds and cannot be taken back. A sparkling aura shows it, and a sparkling line runs to everybody feeling it, brighter the harder they are pulled |
+| **Click a person** (nothing in hand) | nudge them: they step away from where the click landed. Three nudges in ten seconds and they are annoyed -- a fast shake for a couple of seconds, and for about twenty seconds they are still shoved but stop looking round for it. Three quick pokes wake somebody frozen with fear, or knock somebody sitting down off their chair |
 | **Click a red pull station** | on the office, only people pull alarms (2026-09-26): a click draws people to it instead, and the brave among them may pull it. A level that lets the player pull alarms pulls it |
 | **Hold the button down on a door** | a hand on it (prototype 3): an open door pulls shut as soon as the doorway is clear, and nobody opens it while you hold it. Somebody strong enough bursts through in one push, and then there is nothing left to hold. A locked door needs no hand, and swing doors and gaps take none. Let go of the button and it is a door again |
 | **Right click a door** (without dragging) | turn its key: unlock a locked one (this is how the way out is opened), lock a shut one, or shut and lock an open one |
@@ -173,9 +173,10 @@ What prototype 3's second batch added to the picture (2026-09-26):
   the orange of fire or the blue of a held door, so none of the three is
   mistaken for another. The lines are the answer to "is my influence doing
   anything?": without them, "more likely to go there" is invisible.
-- **The annoyed shake.** Somebody nudged three times quickly huffs from side
-  to side on the spot, bigger than the tremble of the frozen, for as long as
-  they are annoyed.
+- **The annoyed shake.** Somebody nudged three times quickly shakes fast from
+  side to side on the spot, bigger than the tremble of the frozen, for a
+  couple of seconds (the owner's rule, 2026-09-27: "a faster shaking that
+  passes after a few seconds"); the annoyance itself lasts longer.
 - **A socket about to go crackles.** For the five seconds before the Director
   pops a socket or the fuse box, it spits little showers of bright sparks,
   faster as the moment nears, with a ring on the floor for the crackle.

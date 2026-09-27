@@ -20,8 +20,16 @@ namespace Paniq.Simulation
     /// any more.
     /// </para>
     /// </summary>
-    internal sealed class AlarmSystem
+    internal sealed class AlarmSystem : IBindable
     {
+        private InfluenceSystem influence;
+
+        /// <summary>Built after this system.</summary>
+        public void Bind(Systems systems)
+        {
+            influence = systems.Influence;
+        }
+
         private readonly SimulationContext context;
         private readonly SoundSystem sound;
         private readonly WorldGeometry geometry;
@@ -208,6 +216,10 @@ namespace Paniq.Simulation
             ulong pulled = context.Events.Append(context.Tick, puller.Id, CausalEventType.AlarmPulled,
                 positions[alarm], 0, 0, causeEventId, ids[alarm]).EventId;
             Ring(pulled);
+
+            // A click on a pull station puts the player's pull beside it;
+            // pulled, that pull is spent (2026-09-27).
+            influence?.SpendNear(puller, positions[alarm]);
         }
 
         /// <summary>

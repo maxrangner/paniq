@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// One person's runtime state, split by concern so it is clear which
@@ -404,6 +404,15 @@
         public int ExitDoorIndex = -1;
 
         /// <summary>
+        /// A frightened walk somewhere in particular (<see cref="FrightenedWalk"/>,
+        /// 2026-09-27): the door on the way being made for, or -1; the room
+        /// it was chosen from; and, with a hand on a shut door, when it opens.
+        /// </summary>
+        public int WalkDoor = -1;
+        public int WalkFromRoom = -1;
+        public int WalkUntilTick;
+
+        /// <summary>
         /// The way out at the far end of the current route -- not necessarily
         /// <see cref="ExitDoorIndex"/>, which is only the next door along it.
         /// A way out that is currently open is never written off by a stale
@@ -776,6 +785,12 @@
         /// <summary>Stood at a door that will not open, waiting for it to.</summary>
         WaitingAtTheDoor,
 
+        /// <summary>Lifting or heaving whatever is wedged in the door out of its way (2026-09-27); <see cref="AgentErrand.Stage"/> says which part.</summary>
+        ClearingTheDoor,
+
+        /// <summary>Somebody cruel wedging the influenced door shut with the nearest thing (2026-09-27); <see cref="AgentErrand.Stage"/> says which part.</summary>
+        WedgingTheDoor,
+
         /// <summary>Stood still for a while.</summary>
         Standing,
 
@@ -861,6 +876,15 @@
         /// <summary>A moment's wait after which the current step is begun again rather than the next one (a chair still sliding).</summary>
         public bool RetryStep;
 
+        /// <summary>The thing wedged in the door they are clearing, or -1.</summary>
+        public int Thing = -1;
+
+        /// <summary>Which part of clearing the door they are at: 1 walking to the thing, 2 picking it up, 3 setting it aside, 4 heaving it.</summary>
+        public int Stage;
+
+        /// <summary>Whether this errand has already had its one go at clearing a jammed door.</summary>
+        public bool ClearedADoor;
+
         /// <summary>How many times the current step has been begun again.</summary>
         public int Tries;
 
@@ -918,6 +942,9 @@
             ArriveWithin = 0;
             RetryStep = false;
             Tries = 0;
+            Thing = -1;
+            Stage = 0;
+            ClearedADoor = false;
             Origin = default;
             CauseEventId = 0UL;
             NextRemarkTick = 0;
@@ -936,6 +963,8 @@
             Destination = default;
             ArriveWithin = 0;
             RetryStep = false;
+            Thing = -1;
+            Stage = 0;
             NextRemarkTick = 0;
             OpenedDoor = -1;
             OpenedFromSide = 0;
@@ -985,6 +1014,13 @@
         /// only let go of it when something frightens them.
         /// </summary>
         public bool OwnsIt;
+
+        /// <summary>
+        /// Fetching it to keep hold of, not to tidy away (2026-09-27): a
+        /// bottle taken off its wall because the player pointed at it. Once
+        /// it is in their hands it is theirs (<see cref="OwnsIt"/>).
+        /// </summary>
+        public bool KeepIt;
 
         /// <summary>
         /// Until this tick, they have an extinguisher in mind: somebody put one

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
@@ -252,6 +252,175 @@ namespace Paniq.Tests.EditMode
                 "But they should have gone up and tried it.");
             Assert.That(EventsOfType(simulation, CausalEventType.AgentGaveUpOnDoor), Is.Not.Empty,
                 "And then given up on it, as they would on a locked door.");
+        }
+
+        // ------------------------------------------------------- unlodging (2026-09-27)
+
+        private static CausalEvent? AdvanceUntil(Run simulation, CausalEventType type, int limit)
+        {
+            for (int t = 0; t < limit; t++)
+            {
+                List<CausalEvent> found = EventsOfType(simulation, type);
+                if (found.Count > 0)
+                {
+                    return found[0];
+                }
+
+                simulation.Step();
+            }
+
+            List<CausalEvent> last = EventsOfType(simulation, type);
+            return last.Count > 0 ? last[0] : (CausalEvent?)null;
+        }
+
+        private static LogicalPosition PositionOf(Run simulation, SimulationId thing)
+        {
+            for (int i = 0; i < simulation.PhysicsObjectCount; i++)
+            {
+                if (simulation.GetPhysicsObject(i).ObjectId == thing)
+                {
+                    return simulation.GetPhysicsObject(i).Position;
+                }
+            }
+
+            throw new KeyNotFoundException(thing.ToString());
+        }
+
+        /// <summary>
+        /// Somebody calm, sent home through the north door with a box wedged
+        /// in it. Their strength and the box's weight decide whether they lift
+        /// it aside, heave it, or wait as they always did.
+        /// </summary>
+        private ScenarioData CalmPersonLeavingThroughAJammedDoor(int strength, int boxMassGrams)
+        {
+            ScenarioData data = BoxInTheOfficeWayOutway();
+            data.PhysicsObjects = new[]
+            {
+                new PhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box, new LogicalPosition(-2500, 5800), 400, boxMassGrams)
+            };
+            data.Agents = new[]
+            {
+                new AgentDefinition(Somebody, new LogicalPosition(-2500, 2000), CardinalDirection.North,
+                    new AgentTraitValues(strength, 5, 5, 5, 0, 3))
+            };
+
+            // Deciding things at the usual rate, or the errand is never taken up.
+            data.Calm.DecisionMinimumTicks = 50;
+            data.Calm.DecisionMaximumTicks = 100;
+            return data;
+        }
+
+        /// <summary>
+        /// The owner's rule (2026-09-27): "if an object is jamming a door, an
+        /// agent should try to unlodge it, if they are not too panicked".
+        /// Somebody calm who can lift it walks up, picks it up and sets it
+        /// down clear of the gap -- never back in a doorway -- and then the
+        /// door opens for them.
+        /// </summary>
+        [Test]
+        public void ACalmPersonOnAnErrand_LiftsWhatIsWedgedInTheDoor_AndSetsItAside()
+        {
+            var simulation = new Run(CalmPersonLeavingThroughAJammedDoor(5, 12000));
+            simulation.Step();
+            simulation.CuesForTests.CallHomeTime(0, 0UL);
+            CausalEvent? cleared = AdvanceUntil(simulation, CausalEventType.AgentClearedDoorway, 15 * Run.TicksPerSecond);
+            Assert.That(cleared.HasValue, "An ordinary person can lift a twelve-kilogram box, so they lift it out of the way.");
+            Assert.That(cleared.Value.SourceId, Is.EqualTo(Somebody));
+            Assert.That(cleared.Value.TargetId, Is.EqualTo(TheBox));
+            Assert.That(EventsOfType(simulation, CausalEventType.AgentTriedDoor), Is.Not.Empty, "Having tried the handle first.");
+
+            CausalEvent? unblocked = AdvanceUntil(simulation, CausalEventType.DoorUnblocked, 2 * Run.TicksPerSecond);
+            Assert.That(unblocked.HasValue, "Set down clear of the gap, the door is no longer jammed.");
+            LogicalPosition box = PositionOf(simulation, TheBox);
+            Assert.That(System.Math.Abs(box.Z - 6000), Is.GreaterThan(350), "Never set down in a doorway's strip: its edge clear of the 150 mm that jams the door.");
+
+            CausalEvent? opened = AdvanceUntil(simulation, CausalEventType.DoorOpened, 5 * Run.TicksPerSecond);
+            Assert.That(opened.HasValue, "And then they open it and go.");
+        }
+
+        [Test]
+        public void AStrongCalmPerson_HeavesWhatTheyCannotLift()
+        {
+            // Thirty kilograms: too much for anybody, and strength 9 heaves it.
+            var simulation = new Run(CalmPersonLeavingThroughAJammedDoor(9, 30000));
+            simulation.Step();
+            simulation.CuesForTests.CallHomeTime(0, 0UL);
+            CausalEvent? heaved = AdvanceUntil(simulation, CausalEventType.AgentShovedObstruction, 15 * Run.TicksPerSecond);
+            Assert.That(heaved.HasValue, "Too heavy to lift, so somebody strong heaves it along the wall.");
+            Assert.That(heaved.Value.SourceId, Is.EqualTo(Somebody));
+            Assert.That(EventsOfType(simulation, CausalEventType.AgentClearedDoorway), Is.Empty, "Not lifted: heaved.");
+            CausalEvent? unblocked = AdvanceUntil(simulation, CausalEventType.DoorUnblocked, 5 * Run.TicksPerSecond);
+            Assert.That(unblocked.HasValue, "Heaved aside, the doorway is clear again.");
+        }
+
+        [Test]
+        public void AWeakCalmPerson_WaitsAtAJammedDoorAsBefore()
+        {
+            // Strength 2 lifts ten kilograms; the box is twelve.
+            var simulation = new Run(CalmPersonLeavingThroughAJammedDoor(2, 12000));
+            simulation.Step();
+            simulation.CuesForTests.CallHomeTime(0, 0UL);
+            for (int t = 0; t < 10 * Run.TicksPerSecond; t++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(EventsOfType(simulation, CausalEventType.AgentTriedDoor), Is.Not.Empty, "They went up and tried it.");
+            Assert.That(EventsOfType(simulation, CausalEventType.AgentClearedDoorway), Is.Empty, "Too weak to lift it.");
+            Assert.That(EventsOfType(simulation, CausalEventType.AgentShovedObstruction), Is.Empty, "And not strong enough to heave it.");
+            Assert.That(EventsOfType(simulation, CausalEventType.DoorOpened), Is.Empty, "So the door stays jammed, and they wait.");
+        }
+
+        /// <summary>
+        /// Somebody frightened with the flames inside their danger distance
+        /// is too panicked to stop and work at a jam: they give the door up
+        /// and look elsewhere, where a calmer runner would throw the thing
+        /// clear.
+        /// </summary>
+        [Test]
+        public void AFrightenedPersonWithFlamesAtTheirBack_DoesNotStopToClearAJam()
+        {
+            // A thirty-kilogram box: too heavy for anybody to throw, so a strong
+            // runner would heave it -- but not with the flames this close.
+            ScenarioData data = RunnerAtAJammedDoor(9);
+            data.PhysicsObjects = new[]
+            {
+                new PhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box, new LogicalPosition(-2500, 5800), 400, 30000)
+            };
+            data.Panic.DangerDistanceMillimetres = 8000;
+            var simulation = new Run(data);
+            for (int t = 0; t < 10 * Run.TicksPerSecond; t++)
+            {
+                simulation.Step();
+            }
+
+            Assert.That(EventsOfType(simulation, CausalEventType.AgentTriedDoor), Is.Not.Empty, "They reached the door and tried it.");
+            Assert.That(EventsOfType(simulation, CausalEventType.AgentShovedObstruction), Is.Empty, "Too panicked to heave the box.");
+            Assert.That(EventsOfType(simulation, CausalEventType.AgentGaveUpOnDoor), Is.Not.Empty, "They gave it up instead.");
+            Assert.That(EventsOfType(simulation, CausalEventType.DoorUnblocked), Is.Empty, "And the door stays jammed.");
+        }
+
+        /// <summary>
+        /// The small things a crowd shoves about -- a waste bin, a laptop, a
+        /// bottle -- never jam a door (2026-09-27): only something as big as
+        /// a box or a chair stops the leaf.
+        /// </summary>
+        [Test]
+        public void ASmallThingLyingInADoorway_DoesNotJamIt()
+        {
+            ScenarioData data = BoxInTheOfficeWayOutway(0);
+            data.PhysicsObjects = new[]
+            {
+                new PhysicsObjectDefinition(TheBox, PhysicsObjectKind.WasteBin, new LogicalPosition(-2500, 5750), 300, 3000)
+            };
+            var simulation = new Run(data);
+            simulation.Step();
+            simulation.QueueCommand(PlayerCommandType.ClickDoor, OfficeWayOut, simulation.Tick + 1);
+            simulation.Step();
+            simulation.Step();
+
+            Assert.That(EventsOfType(simulation, CausalEventType.DoorBlocked), Is.Empty, "A bin in the gap is no jam.");
+            Assert.That(EventsOfType(simulation, CausalEventType.DoorOpened), Is.Not.Empty, "The door opens over it.");
         }
 
         // ------------------------------------------------------- on purpose

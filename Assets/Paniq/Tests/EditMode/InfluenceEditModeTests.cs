@@ -288,6 +288,189 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        // ------------------------------------------------------- using what is pointed at (2026-09-27)
+
+        private static readonly SimulationId ABox = new SimulationId(3901UL);
+        private static readonly SimulationId AChair = new SimulationId(3902UL);
+        private static readonly SimulationId TheOfficeBottle = new SimulationId(3301UL);
+
+        private static CausalEvent? AdvanceUntil(Run simulation, CausalEventType type, int limit)
+        {
+            for (int t = 0; t < limit; t++)
+            {
+                List<CausalEvent> found = EventsOfType(simulation, type);
+                if (found.Count > 0)
+                {
+                    return found[0];
+                }
+
+                simulation.Step();
+            }
+
+            List<CausalEvent> last = EventsOfType(simulation, type);
+            return last.Count > 0 ? last[0] : (CausalEvent?)null;
+        }
+
+        private static PhysicsObjectSnapshot Thing(Run simulation, SimulationId id)
+        {
+            for (int i = 0; i < simulation.PhysicsObjectCount; i++)
+            {
+                if (simulation.GetPhysicsObject(i).ObjectId == id)
+                {
+                    return simulation.GetPhysicsObject(i);
+                }
+            }
+
+            throw new KeyNotFoundException(id.ToString());
+        }
+
+        private static void ClickTheDoor(Run simulation, SimulationId door, int times)
+        {
+            for (int i = 0; i < times; i++)
+            {
+                simulation.QueueCommand(PlayerCommandType.InfluenceDoor, door, simulation.Tick + 1);
+                simulation.Step();
+            }
+        }
+
+        private static void ClickTheThing(Run simulation, SimulationId thing, int times)
+        {
+            for (int i = 0; i < times; i++)
+            {
+                simulation.QueueCommand(PlayerCommandType.InfluenceThing, thing, simulation.Tick + 1);
+                simulation.Step();
+            }
+        }
+
+        /// <summary>One person in the office, deciding things at the usual rate, with a box and a spare chair near them.</summary>
+        private ScenarioData OfficeWithThingsToUse(int x, int z, AgentTraitValues traits)
+        {
+            ScenarioData data = Office(Person(Somebody, x, z, traits));
+            data.Calm.DecisionMinimumTicks = 50;
+            data.Calm.DecisionMaximumTicks = 100;
+            var things = new List<PhysicsObjectDefinition>(data.PhysicsObjects)
+            {
+                new PhysicsObjectDefinition(ABox, PhysicsObjectKind.Box, new LogicalPosition(x + 1500, z), 400, 8000),
+                new PhysicsObjectDefinition(AChair, PhysicsObjectKind.Chair, new LogicalPosition(x - 1500, z), 450, 5000)
+            };
+            data.PhysicsObjects = things.ToArray();
+            return data;
+        }
+
+        /// <summary>
+        /// The owner's rule (2026-09-27): influencing a door makes people
+        /// want to use it. A shut door is opened; using it spends the pull;
+        /// pointed at again, it is shut.
+        /// </summary>
+        [Test]
+        public void ACalmPerson_DrawnToAShutDoor_OpensIt_AndThePullIsSpent_AndDrawnAgain_ShutsIt()
+        {
+            ScenarioData data = OfficeWithThingsToUse(0, 3000, AgentTraitValues.AllOrdinary);
+            using (var simulation = new Run(data, 42UL))
+            {
+                int door = DoorIndex(TheBuilding.OfficeDoor);
+                ClickTheDoor(simulation, TheBuilding.OfficeDoor, 20);
+                CausalEvent? opened = AdvanceUntil(simulation, CausalEventType.DoorOpened, 20 * Run.TicksPerSecond);
+                Assert.That(opened.HasValue, "Drawn to the shut office door, they open it.");
+                Assert.That(opened.Value.SourceId, Is.EqualTo(TheBuilding.OfficeDoor));
+                CausalEvent? spent = AdvanceUntil(simulation, CausalEventType.InfluenceSpent, 5);
+                Assert.That(spent.HasValue, "Used, the pull on it is spent.");
+                Assert.That(spent.Value.SourceId, Is.EqualTo(Somebody));
+                Assert.That(spent.Value.TargetId, Is.EqualTo(TheBuilding.OfficeDoor));
+                Assert.That(simulation.InfluenceForTests.PlaceOfDoor(door), Is.LessThan(0), "Nothing left on the door.");
+                Advance(simulation, 3 * Run.TicksPerSecond);
+                Assert.That(simulation.GetAgent(Somebody).Position.Z, Is.LessThan(6000), "They did not go through it: it was opened for its own sake.");
+
+                ClickTheDoor(simulation, TheBuilding.OfficeDoor, 20);
+                CausalEvent? shut = AdvanceUntil(simulation, CausalEventType.DoorClosed, 20 * Run.TicksPerSecond);
+                Assert.That(shut.HasValue, "Pointed at again, the open door is shut.");
+                Assert.That(EventsOfType(simulation, CausalEventType.InfluenceSpent), Has.Count.EqualTo(2), "And that pull is spent too.");
+            }
+        }
+
+        [Test]
+        public void ACruelPerson_DrawnToAShutDoor_WedgesAThingInItInstead()
+        {
+            ScenarioData data = OfficeWithThingsToUse(0, 3000, AgentTraitValues.AllOrdinary.With(AgentTrait.Evil, 10));
+            using (var simulation = new Run(data, 42UL))
+            {
+                ClickTheDoor(simulation, TheBuilding.OfficeDoor, 20);
+                CausalEvent? wedged = AdvanceUntil(simulation, CausalEventType.AgentBarricadedDoor, 40 * Run.TicksPerSecond);
+                Assert.That(wedged.HasValue, "The cruel wedge the door shut with the nearest thing instead of opening it.");
+                Assert.That(wedged.Value.SourceId, Is.EqualTo(Somebody));
+                Assert.That(wedged.Value.TargetId, Is.EqualTo(TheBuilding.OfficeDoor));
+                Assert.That(EventsOfType(simulation, CausalEventType.DoorOpened), Is.Empty, "Never opened.");
+                CausalEvent? blocked = AdvanceUntil(simulation, CausalEventType.DoorBlocked, 5);
+                Assert.That(blocked.HasValue, "And it is jammed.");
+                Assert.That(EventsOfType(simulation, CausalEventType.InfluenceSpent), Is.Not.Empty, "That was their use of it: the pull is spent.");
+            }
+        }
+
+        [Test]
+        public void AnInfluencedChair_GetsSatOn_AndThePullIsSpent()
+        {
+            ScenarioData data = OfficeWithThingsToUse(-3000, -3000, AgentTraitValues.AllOrdinary);
+            using (var simulation = new Run(data, 42UL))
+            {
+                ClickTheThing(simulation, AChair, 20);
+                CausalEvent? spent = AdvanceUntil(simulation, CausalEventType.InfluenceSpent, 20 * Run.TicksPerSecond);
+                Assert.That(spent.HasValue, "Drawn to a chair, they sit on it, and the pull is spent.");
+                Assert.That(spent.Value.TargetId, Is.EqualTo(AChair));
+                Assert.That(simulation.GetAgent(Somebody).SeatedPercent, Is.EqualTo(100), "Sat on it.");
+            }
+        }
+
+        [Test]
+        public void AnInfluencedBox_IsCarriedOff()
+        {
+            ScenarioData data = OfficeWithThingsToUse(-3000, -3000, AgentTraitValues.AllOrdinary);
+            using (var simulation = new Run(data, 42UL))
+            {
+                LogicalPosition before = Thing(simulation, ABox).Position;
+                ClickTheThing(simulation, ABox, 20);
+                CausalEvent? spent = AdvanceUntil(simulation, CausalEventType.InfluenceSpent, 20 * Run.TicksPerSecond);
+                Assert.That(spent.HasValue, "Drawn to a box, they pick it up, and the pull is spent.");
+                Assert.That(spent.Value.TargetId, Is.EqualTo(ABox));
+                Assert.That(Thing(simulation, ABox).IsHeld, Is.True, "In their arms.");
+                Advance(simulation, 20 * Run.TicksPerSecond);
+                Assert.That(IntegerMath.Distance(before, Thing(simulation, ABox).Position), Is.GreaterThan(1000), "Carried off and set down somewhere else.");
+            }
+        }
+
+        [Test]
+        public void AnInfluencedExtinguisher_IsTakenAndHeld()
+        {
+            ScenarioData data = OfficeWithThingsToUse(-1000, -3000, AgentTraitValues.AllOrdinary);
+            using (var simulation = new Run(data, 42UL))
+            {
+                ClickTheThing(simulation, TheOfficeBottle, 20);
+                CausalEvent? took = AdvanceUntil(simulation, CausalEventType.AgentTookExtinguisher, 20 * Run.TicksPerSecond);
+                Assert.That(took.HasValue, "Drawn to the bottle on the wall, they take it.");
+                Assert.That(took.Value.SourceId, Is.EqualTo(Somebody));
+                Assert.That(EventsOfType(simulation, CausalEventType.InfluenceSpent).Exists(e => e.TargetId == TheOfficeBottle), Is.True);
+                Advance(simulation, 20 * Run.TicksPerSecond);
+                Assert.That(Thing(simulation, TheOfficeBottle).IsHeld, Is.True, "And keep hold of it, as of their own bag, while nothing frightens them.");
+            }
+        }
+
+        [Test]
+        public void ADoorTheyCannotOpen_KeepsItsInfluence()
+        {
+            ScenarioData data = Office(Person(Somebody, 14500, 9500, AgentTraitValues.AllOrdinary));
+            data.Calm.DecisionMinimumTicks = 50;
+            data.Calm.DecisionMaximumTicks = 100;
+            using (var simulation = new Run(data, 42UL))
+            {
+                int door = DoorIndex(TheBuilding.TheWayOut);
+                ClickTheDoor(simulation, TheBuilding.TheWayOut, 20);
+                CausalEvent? tried = AdvanceUntil(simulation, CausalEventType.AgentTriedDoor, 20 * Run.TicksPerSecond);
+                Assert.That(tried.HasValue, "Drawn to the locked way out, they try it.");
+                Advance(simulation, 5 * Run.TicksPerSecond);
+                Assert.That(EventsOfType(simulation, CausalEventType.InfluenceSpent), Is.Empty, "A door they could not use spends nothing.");
+                Assert.That(simulation.InfluenceForTests.PlaceOfDoor(door), Is.GreaterThanOrEqualTo(0), "The pull on it stands.");
+            }
+        }
+
         private int DoorIndex(SimulationId door)
         {
             using (var simulation = new Run(Office(Person(Somebody, -4000, -4000, AgentTraitValues.AllOrdinary)), 42UL))

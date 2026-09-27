@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("81"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(69));
+            Assert.That(data.ContentRevision, Is.EqualTo("83"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(71));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,

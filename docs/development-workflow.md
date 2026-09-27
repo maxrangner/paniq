@@ -140,15 +140,16 @@ word is the feature's name. These are the ones that are not:
 | `UniformGridIndex` (who is near here) | `SpatialIndex` |
 | `IThreat`, `Threats` (what a danger is) | `ThreatSeam,ReplayFingerprint` |
 | `CollisionSystem`, `BodySystem`, `PhysicsWorld` | `HardKnocks,Shoving,PhysicsFoundation,PhysicsObjects` |
-| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors` |
-| `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting` |
+| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors,HeavyThings` |
+| `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting,HeavyThings` |
 | `TraitEffects` | `Traits,TraitCards` |
 | `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered,HeldDoors,BoxTower` |
 | `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
 | `GroupSystem` (sticking together) | `Groups,TraitCards` |
 | `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking,HeldDoors,Nudge` |
 | `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |
-| `TrapSystem`, `DirectorSystem` (the tower of boxes, the Director's ladder) | `BoxTower,DirectorLadder,Cues,Doors,Stockroom` |
+| `TrapSystem`, `DirectorSystem` (the tower of boxes, the stockroom's stack, the Director's ladder) | `BoxTower,StockroomTrap,DirectorLadder,Cues,Doors,Stockroom` |
+| `FrightenedWalk`, `ExtinguisherBehaviour` (the frightened walk through doors) | `FrightenedWalks,Extinguisher,Alarms,CrossRoom` |
 | `NudgeSystem` (nudging people) | `Nudge` |
 | `FearSystem.Settle` (calming down) | `CalmingDown,CorridorStarers,ReplayFingerprint` |
 | `BurningThingsThreat`, `BurningPeopleThreat` (danger is danger) | `DangerIsDanger,ThreatSeam,Extinguisher,ReplayFingerprint` |

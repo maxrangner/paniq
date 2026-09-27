@@ -157,10 +157,12 @@ namespace Paniq.Simulation
         public DoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state,
             int damagePercent, int scorchPercent = 0, bool isHole = false, bool isBlocked = false,
             bool leadsOutside = false,
-            int openSide = 0, bool isJammed = false, bool swings = false, bool isHeld = false, bool isPiled = false)
+            int openSide = 0, bool isJammed = false, bool swings = false, bool isHeld = false, bool isPiled = false,
+            bool needsKeycard = false)
         {
             IsHeld = isHeld;
             IsPiled = isPiled;
+            NeedsKeycard = needsKeycard;
             Swings = swings;
             IsHole = isHole;
             IsBlocked = isBlocked;
@@ -236,6 +238,9 @@ namespace Paniq.Simulation
         /// are carried off, thrown clear or burnt.
         /// </summary>
         public bool IsPiled { get; }
+
+        /// <summary>A card door still waiting for the keycard (2026-09-27): nobody batters it and the player has no key to it.</summary>
+        public bool NeedsKeycard { get; }
     }
 
     /// <summary>A table: where it stands and whether it is heating up, burning or burnt out.</summary>

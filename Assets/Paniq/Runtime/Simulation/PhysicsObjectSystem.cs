@@ -1377,9 +1377,55 @@ namespace Paniq.Simulation
         {
             // Every way of taking a thing asks this -- tidying it away,
             // wedging it in a door, throwing it clear, hurling it aside at a
-            // run -- so a thing nobody may take is refused here, once.
-            return bodies[index].OccupiedBy < 0 && !IsOffLimits(index) &&
+            // run -- so a thing nobody may take is refused here, once. A
+            // pocketable thing (the keycard) is never in anybody's arms: it
+            // is taken by KeycardSystem alone.
+            return bodies[index].OccupiedBy < 0 && !IsOffLimits(index) && !IsPocketable(index) &&
                    bodies[index].MassGrams <= TraitEffects.CarryLimitGrams(agent, context.Scenario);
+        }
+
+        /// <summary>Carried in a pocket rather than the arms: the keycard (2026-09-27).</summary>
+        public bool IsPocketable(int index) => kinds.Of(bodies[index].Kind).Pocketable;
+
+        /// <summary>
+        /// Keeps a pocketed thing on whoever carries it (2026-09-27): at their
+        /// position, a little behind, so it never draws on top of a bag in
+        /// their arms. It is not solid while held, so nothing meets it.
+        /// </summary>
+        public void FollowPocket(int index, Agent carrier)
+        {
+            PhysicsBody item = bodies[index];
+            LogicalPosition spot = carrier.Body.Position - IntegerMath.Displacement(carrier.Body.Heading, PocketBehindMillimetres);
+            MoveBody(index, (long)spot.X * SubMillimetre, (long)spot.Z * SubMillimetre);
+            item.Heading = carrier.Body.Heading;
+        }
+
+        private const int PocketBehindMillimetres = 150;
+
+        /// <summary>
+        /// Puts a thing away before the round starts (2026-09-27): a keycard
+        /// on a level that has none. Dormant, like a spare bottle the player
+        /// has not put down: not in the world for anybody, and never drawn.
+        /// </summary>
+        public void PutAway(int index)
+        {
+            PhysicsBody thing = bodies[index];
+            if (thing.HeldBy >= 0 || thing.Dormant)
+            {
+                return;
+            }
+
+            thing.Dormant = true;
+            SetMotion(index, 0L, 0L, 0L);
+            thing.Spin = 0;
+            thing.Thrown = false;
+            world.SetSolid(index, false);
+        }
+
+        /// <summary>Puts a thing down on a table top at a spot (2026-09-27): the keycard on a desk.</summary>
+        public void PlaceOnATable(int index, LogicalPosition spot)
+        {
+            PlaceAt(index, spot, feel.TableHeightMillimetres, bodies[index].Heading, 0UL);
         }
 
         /// <summary>Takes an item into someone's arms. It stops moving and touches nothing while held.</summary>
@@ -1504,14 +1550,20 @@ namespace Paniq.Simulation
         /// carrier's hands; thrown, it leaves their hands at a velocity (mm per
         /// tick across the floor) and rises in an arc.
         /// </summary>
-        public void Release(int index, LogicalPosition spot, int velocityX, int velocityZ, ulong causeEventId)
+        /// <param name="onTheFloor">
+        /// It is left on the floor rather than falling from the hands, cause
+        /// or no cause: a keycard slipping out of the pocket of somebody who
+        /// has gone down (2026-09-27).
+        /// </param>
+        public void Release(int index, LogicalPosition spot, int velocityX, int velocityZ, ulong causeEventId,
+            bool onTheFloor = false)
         {
             PhysicsBody item = bodies[index];
             int carrier = item.HeldBy;
             item.HeldBy = -1;
             MoveBody(index, (long)spot.X * SubMillimetre, (long)spot.Z * SubMillimetre);
             bool thrown = velocityX != 0 || velocityZ != 0;
-            bool setDown = !thrown && causeEventId == 0UL;
+            bool setDown = !thrown && (causeEventId == 0UL || onTheFloor);
             long height = setDown ? 0L : (long)HandHeightMillimetres * SubMillimetre;
             world.SetSolid(index, true);
             world.Place(index, item.X, height, item.Z, item.Heading);

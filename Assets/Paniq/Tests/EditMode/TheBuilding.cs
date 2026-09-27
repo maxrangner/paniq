@@ -171,8 +171,27 @@ namespace Paniq.Tests.EditMode
             data.Purse.UproarSmall = 0;
             data.Purse.UproarMiddling = 0;
             data.Purse.UproarBig = 0;
+
+            // A player who can act can open the way out, as they could before
+            // the keycard (2026-09-27): the tests here are about doors,
+            // cards and the crowd, not about the card. KeycardEditModeTests
+            // has the card.
+            return WithAnOrdinaryWayOut(data);
+        }
+
+        /// <summary>
+        /// The way out as a plain locked door (2026-09-27): the keycard put
+        /// away before the round starts, so the player's key opens it and
+        /// the strong batter it, as before the card existed.
+        /// </summary>
+        public static ScenarioData WithAnOrdinaryWayOut(ScenarioData data)
+        {
+            data.Keycard.Enabled = false;
             return data;
         }
+
+        /// <summary>The keycard, authored on the first office desk.</summary>
+        public static readonly SimulationId TheKeycard = new SimulationId(3950UL);
 
         /// <summary>
         /// A deep hand: a dozen of every card there is. Playing one takes it

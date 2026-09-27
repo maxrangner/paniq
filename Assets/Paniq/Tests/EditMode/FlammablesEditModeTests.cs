@@ -54,6 +54,7 @@ namespace Paniq.Tests.EditMode
             {
                 new PhysicsObjectDefinition(BoxId, PhysicsObjectKind.Box, new LogicalPosition(1000, 250), 400, 6000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = 1;
             data.Fire.SpawnBounds = new LogicalBounds(250, 250, 250, 250);
             data.Fire.SpreadMinimumTicks = 10000;
@@ -154,6 +155,7 @@ namespace Paniq.Tests.EditMode
                 new AgentDefinition(new SimulationId(1UL), new LogicalPosition(5000, -5000), CardinalDirection.North)
             };
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = 1;
             data.Fire.SpawnBounds = new LogicalBounds(-1650, -1650, -1500, -1500);
             data.Fire.SpreadMinimumTicks = 10000;

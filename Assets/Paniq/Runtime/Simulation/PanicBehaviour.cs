@@ -80,9 +80,14 @@ namespace Paniq.Simulation
         {
             objects = systems.Objects;
             influence = systems.Influence;
+            // The keycard first (2026-09-27): somebody with a reason to grab
+            // the card does that before following anybody or fighting a
+            // fire. Measured behind the leaders, whoever was following one
+            // was never asked.
             options = new IPanicOption[]
             {
-                systems.Leaders, systems.Extinguishers, systems.Help, systems.AlarmBehaviour, systems.Barricades
+                systems.Keycards, systems.Leaders, systems.Extinguishers, systems.Help, systems.AlarmBehaviour,
+                systems.Barricades
             };
         }
 
@@ -191,12 +196,20 @@ namespace Paniq.Simulation
             }
 
             // Anything they would rather be doing than running, in order.
-            for (int i = 0; i < options.Length; i++)
+            // Whoever has the keycard makes straight for the door it opens
+            // (2026-09-27): no fire to fight, nobody to follow or help, no
+            // door to wedge on the way. Measured otherwise, the host fought
+            // the bin for forty seconds with the card in his pocket and died
+            // in the corridor with it.
+            if (!KeycardSystem.Has(agent))
             {
-                MotorIntent? instead = options[i].Decide(agent, inDanger, eager);
-                if (instead.HasValue)
+                for (int i = 0; i < options.Length; i++)
                 {
-                    return instead.Value;
+                    MotorIntent? instead = options[i].Decide(agent, inDanger, eager);
+                    if (instead.HasValue)
+                    {
+                        return instead.Value;
+                    }
                 }
             }
 

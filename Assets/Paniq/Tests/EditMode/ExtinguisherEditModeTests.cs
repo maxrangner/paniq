@@ -59,6 +59,7 @@ namespace Paniq.Tests.EditMode
                 new PhysicsObjectDefinition(TheExtinguisher, PhysicsObjectKind.Extinguisher,
                     new LogicalPosition(-3600, 0), 250, 7000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = 1;
             data.Fire.SpawnBounds = new LogicalBounds(0, 0, 0, 0);
 

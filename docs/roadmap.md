@@ -12,8 +12,10 @@ the same scene a round you can play and is recorded in
 in the same scene: it is the stone of *gameplay*, where the level itself pushes
 back. Its first batch put a trap in the building; its second gives the round a
 build-up (the Director's ladder) and the player an everyday move (influence);
-its third (2026-09-27) is the fixes from the first playtest of both. All are
-under "Prototype 3" further down.
+its third (2026-09-27) is the fixes from the first playtest of both; its
+fourth (2026-09-27) makes the way out a card door, after a measurement showed
+the office saving itself with nobody playing. All are under "Prototype 3"
+further down.
 
 ## Foundation (complete)
 
@@ -329,6 +331,71 @@ across the gap, so they scatter, and the map is whatever they leave).
 - Whether five seconds from the fall to the socket is a rhythm or a rush.
 - Whether people cut off from a door by crates find another quickly enough,
   or stand about in the room until somebody strong clears a way.
+
+## Prototype 3: the keycard (2026-09-27)
+
+The owner stepped back to look at the game loop and asked for a measurement:
+what does the office come to with nobody at the controls? Ten seeds, left
+alone: seven of ten cleared the 75% bar and sixteen of twenty lived on
+average, because somebody always pulled the alarm and the strong always
+battered the locked way out down. The player's one decisive move, turning
+the key, only made that happen sooner. The owner's answers: left alone,
+about a quarter should live; the way out needs a **keycard** that the seed
+puts in a member of staff's pocket or on a desk ("random B or C"); once
+swiped the door stays open for good; the card does not burn; and the end
+card should say what would have happened left alone. One batch, one commit,
+on `feat/prototype-3-gameplay`.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| A card door | System | The way out no longer gives to a shoulder, the fire does not burn through it, and your right click does nothing on it: "NEEDS THE KEYCARD" when you point at it. Only somebody with the card opens it, and then it is an ordinary door for the rest of the round |
+| The keycard | System | A small bright yellow card. Half the seeds it starts in a member of staff's pocket (never a visitor's); the other half it lies on one of the office's three desks. Point at a person and the line under the score says HAS THE KEYCARD; the Tab table says so too |
+| Who knows | Behaviour | Everybody who works here knows where it started; the visitors do not. Anybody who sees the card, or sees who has it, learns where it is a beat later |
+| Going for it | Behaviour | Somebody frightened and very brave (bravery 8 or more: on the office, the hero) grabs it off the desk beside them as they run, if they work here and it lies within three metres; or goes back across the building for it once they have found the way out shut and know where it lies. One person at a time (a fetcher who trips stays the one going; one knocked out or killed lets somebody else go), never into the flames, and only when they could walk there. They go where they *believe* it lies: a card knocked off its desk unseen sends them to the desk, and they find it gone |
+| The swipe | Behaviour | Whoever has the card makes straight for the way out: no fire to fight, nobody to follow, and swipes the reader from a couple of metres, from the back of the crush in the doorway. The door opens at once for whoever is rattling it |
+| Losing it | Behaviour | Somebody out cold or dead drops the card where they lie, for anybody to pick up. A trip, or a knock-down they get up from, keeps it in their pocket. A card dropped in the fire waits, unburnt, until the flames have passed |
+| Your pull on the card | System | Click the card and somebody calm nearby goes and pockets it, the pull spent |
+| Left alone | System | The end card also says "Left alone, N of 20 would have lived": the same seed played again in the background without your help. It starts its disaster when yours starts (your Trigger event press is copied onto the same moment; everything else you do is left out), then runs ahead, never more than a few milliseconds' work a frame |
+| The measurement | Tooling | `HandsOffBaselineMeasurements` plays the office as the level defines it for seeds 40 to 49 with nobody at the controls and prints what each round came to and the story of the card. The number the owner tunes the level by |
+
+**Left alone, after this batch: 5.9 of 20 on average, three seeds in ten
+clearing** (the owner asked for about a quarter, five of twenty). Tuned on
+the owner's word with the hands-off measurement: going for the card now
+takes bravery 8 (it was 4) and grabbing it in passing reaches three metres
+(it was six); at the old values the office saved 8.6 by itself. About 5.4 is
+the floor for these knobs, because the seeds where a member of staff starts
+with the card in their pocket nearly always open the door (16 to 20 saved);
+the desk seeds now mostly need the player, one in five saving a handful. The
+knobs are in `KeycardSettings`; how often the card starts on a desk is the
+owner's half-and-half and was left alone.
+
+**What this deliberately left out.** People making way for the holder in a
+crush; a leader sending the holder to the door; two cards; a card that burns;
+the card-holder being told where the way out is; the scene baker authoring
+where the card starts (it authors the card door and the card's default spot).
+
+**Things to watch at the next playtest.**
+
+- Whether "who has the card?" reads at a glance, and whether the yellow card
+  is seen at all at the usual zoom.
+- Whether a holder fighting nothing and following nobody reads as purposeful
+  or as rude.
+- Whether the left-alone line lands as the point of the round, or as a
+  spoiler.
+- Whether six of twenty left alone -- the pocket seeds saving themselves,
+  the desk seeds needing the player -- feels like the quarter the owner
+  wanted, or too much like a coin toss.
+- Whether the player has enough of a lever on a desk card once the panic
+  has started: the pull on the card moves the calm, and nobody frightened
+  goes for it unless they are the hero.
+
+**Found on the way, and open.** Somebody knocked down where it is crowded
+gets up in the nearest clear spot, up to the search reach away
+(`PeopleBodies.StandUp`); with the card's new draws, seed 42 had a visitor
+stand up 800 mm from where they lay in a single tick, which reads as a hop.
+The chair-glide guard in `MeetingRoomEditModeTests` now ignores the tick
+somebody gets up on. Worth a shorter reach, or a step rather than a shift,
+if it is seen in play.
 
 ## Foundations reviewed (2026-09-23)
 

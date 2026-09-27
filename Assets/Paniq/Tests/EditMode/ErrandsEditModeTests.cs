@@ -50,7 +50,11 @@ namespace Paniq.Tests.EditMode
             // And nobody takes a fancy to somebody else's desk chair while
             // they are away from it: a chair found taken is its own thing.
             data.Items.SitChancePercent = 0;
-            return data;
+
+            // No keycard (2026-09-27): a calm holder sent home would swipe the
+            // way out open, and everybody who sees the card draws a reaction
+            // lag, which moves every timing these tests read.
+            return TheBuilding.WithAnOrdinaryWayOut(data);
         }
 
         private static void Advance(Run simulation, int ticks)

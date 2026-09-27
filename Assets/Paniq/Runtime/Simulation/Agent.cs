@@ -74,6 +74,7 @@ namespace Paniq.Simulation
         public readonly AgentKnowledge Knowledge;
         public readonly AgentBurning Burning = new AgentBurning();
         public readonly AgentCarry Carry = new AgentCarry();
+        public readonly AgentKeycard Keycard = new AgentKeycard();
         public readonly AgentHelp Help = new AgentHelp();
         public readonly AgentSitting Sitting = new AgentSitting();
         public readonly AgentLeading Leading = new AgentLeading();
@@ -152,6 +153,7 @@ namespace Paniq.Simulation
                     case AgentActivityState.CarryingBarricade:
                     case AgentActivityState.Following:
                     case AgentActivityState.RunningAnErrand:
+                    case AgentActivityState.FetchingKeycard:
                         return true;
                     default:
                         return false;
@@ -1000,6 +1002,47 @@ namespace Paniq.Simulation
         public int StuckTicks;
     }
 
+    /// <summary>
+    /// The keycard (2026-09-27): whether this person has it in their pocket,
+    /// and where they believe it is. Belief is what they last saw, a beat
+    /// after they saw it; staff begin the round knowing where it started,
+    /// visitors knowing nothing. See <see cref="KeycardSystem"/>.
+    /// </summary>
+    internal sealed class AgentKeycard
+    {
+        /// <summary>The card (physical-object index) in their pocket, or -1.</summary>
+        public int Held = -1;
+
+        /// <summary>Whether they believe they know where the card is.</summary>
+        public bool Knows;
+
+        /// <summary>What they believe: in somebody's pocket (<see cref="Holder"/>), or lying at <see cref="Place"/>.</summary>
+        public bool WithSomebody;
+        public int Holder = -1;
+        public LogicalPosition Place;
+
+        /// <summary>
+        /// A sighting not yet taken in: it becomes what they believe at
+        /// <see cref="PendingUntilTick"/>, a reaction lag after they saw it,
+        /// so nobody learns a thing on the tick it happens.
+        /// </summary>
+        public bool Pending;
+        public bool PendingWithSomebody;
+        public int PendingHolder = -1;
+        public LogicalPosition PendingPlace;
+        public int PendingUntilTick;
+
+        /// <summary>
+        /// From this tick they may go for the card: set a beat after they
+        /// found the card door shut. -1 until then: somebody who has never
+        /// tried the way out has no reason to want it.
+        /// </summary>
+        public int MayFetchFromTick = -1;
+
+        /// <summary>Stood over the card, pocketing it; done at this tick. 0 while still walking to it.</summary>
+        public int PocketingUntilTick;
+    }
+
     internal sealed class AgentCarry
     {
         /// <summary>The item (physical-object index) being fetched or carried, or -1.</summary>
@@ -1021,6 +1064,13 @@ namespace Paniq.Simulation
         /// it is in their hands it is theirs (<see cref="OwnsIt"/>).
         /// </summary>
         public bool KeepIt;
+
+        /// <summary>
+        /// Fetching it to pocket (2026-09-27): the keycard, because the
+        /// player pointed at it. It never reaches their arms; on pick-up it
+        /// goes to <see cref="AgentKeycard.Held"/> and the arms stay free.
+        /// </summary>
+        public bool Pocket;
 
         /// <summary>
         /// Until this tick, they have an extinguisher in mind: somebody put one

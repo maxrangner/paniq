@@ -64,6 +64,7 @@ namespace Paniq.Simulation
         public NudgeSystem Nudges;
         public InfluenceSystem Influence;
         public TrapSystem Traps;
+        public KeycardSystem Keycards;
 
         /// <summary>Hands every system that asked for it the finished set, in a fixed order.</summary>
         public void BindAll()

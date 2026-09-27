@@ -298,6 +298,9 @@ namespace Paniq.Presentation
                 case CausalEventType.FireEscapedItsRoom: return "it's spreading!";
                 case CausalEventType.SocketCrackling: return "crackling...";
                 case CausalEventType.AllClear: return "all clear";
+                case CausalEventType.AgentTookKeycard: return "got the card!";
+                case CausalEventType.KeycardDropped: return "the card!";
+                case CausalEventType.DoorUnlockedWithKeycard: return "swiped!";
                 default: return null;
             }
         }
@@ -318,6 +321,8 @@ namespace Paniq.Presentation
                 case CausalEventType.BoxPileCleared:
                 case CausalEventType.IncidentPutOut:
                 case CausalEventType.AllClear:
+                case CausalEventType.AgentTookKeycard:
+                case CausalEventType.DoorUnlockedWithKeycard:
                     return true;
                 default:
                     return false;

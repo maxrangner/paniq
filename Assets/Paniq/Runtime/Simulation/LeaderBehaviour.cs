@@ -114,8 +114,9 @@ namespace Paniq.Simulation
                 // wedged, not only one in the room they happen to be standing
                 // in: the person they send can walk to it now.
                 if (!geometry.DoorLeadsOutside(d) || geometry.IsDoorOpen(d) || !leader.Knowledge.Knows(d) ||
-                    (!leader.Doors.FoundShut[d] && !doors.IsObstructed(d)))
+                    (!leader.Doors.FoundShut[d] && !doors.IsObstructed(d)) || doors.NeedsKeycard(d))
                 {
+                    // A card door is nobody's to break down (2026-09-27).
                     continue;
                 }
 

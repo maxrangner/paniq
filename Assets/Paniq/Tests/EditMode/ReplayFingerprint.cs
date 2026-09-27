@@ -83,6 +83,12 @@ namespace Paniq.Tests.EditMode
                 data.Purse.Starting = 100000;
                 data.Purse.Maximum = 100000;
                 data.Purse.StartingHand = TheBuilding.EveryCard();
+
+                // And the way out theirs to open (2026-09-27): with the
+                // keycard in play the click would be refused, and "doors
+                // opened" would stop meaning the player opened the way out.
+                // The locked runs keep the card, and so cover it.
+                data.Keycard.Enabled = false;
             }
 
             if (playCards)

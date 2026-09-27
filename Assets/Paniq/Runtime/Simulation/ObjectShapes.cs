@@ -93,6 +93,10 @@
                 case PhysicsObjectKind.Bag:
                     return new[] { Box(0, size * 35 / 100, 0, size, size * 7 / 10, size * 3 / 4) };
 
+                // The keycard: a flat scrap of plastic, a finger thick.
+                case PhysicsObjectKind.Keycard:
+                    return new[] { Box(0, 6, 0, size, 12, size * 65 / 100) };
+
                 case PhysicsObjectKind.Microwave:
                     return new[] { Box(0, size * 3 / 10, 0, size, size * 6 / 10, size * 8 / 10) };
 
@@ -210,6 +214,8 @@
                     return size * 2;
                 case PhysicsObjectKind.Bag:
                     return size * 7 / 10;
+                case PhysicsObjectKind.Keycard:
+                    return 12;
                 case PhysicsObjectKind.Microwave:
                     return size * 6 / 10;
                 case PhysicsObjectKind.WallSocket:

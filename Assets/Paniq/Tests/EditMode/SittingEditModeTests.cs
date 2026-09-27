@@ -58,6 +58,7 @@ namespace Paniq.Tests.EditMode
                 new PhysicsObjectDefinition(new SimulationId(3001UL), PhysicsObjectKind.Chair,
                     new LogicalPosition(-1500, 0), 450, 5000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = int.MaxValue;
 
             // They always choose to sit down when they choose afresh.

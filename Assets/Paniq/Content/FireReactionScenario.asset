@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 83
+    ContentRevision: 84
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 71
+    SimulationCompatibilityVersion: 72
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -304,6 +304,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -322,6 +323,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 1
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -340,6 +342,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 1
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -358,6 +361,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -376,6 +380,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -394,6 +399,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -412,6 +418,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -430,6 +437,7 @@ MonoBehaviour:
         PopDouses: 1
         CanBeSatOn: 0
         IsEquipment: 1
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -448,6 +456,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -466,6 +475,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -484,6 +494,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -502,6 +513,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -520,6 +532,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -538,6 +551,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -556,6 +570,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -574,6 +589,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -592,6 +608,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -610,6 +627,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -628,6 +646,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 1
         ShedsPartsWhenTipped: 1
         DrivesItself: 0
@@ -646,6 +665,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -664,6 +684,7 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 1
@@ -682,6 +703,26 @@ MonoBehaviour:
         PopDouses: 0
         CanBeSatOn: 0
         IsEquipment: 0
+        Pocketable: 0
+        PopsWhenTipped: 0
+        ShedsPartsWhenTipped: 0
+        DrivesItself: 0
+        CruiseSpeedMillimetresPerTick: 0
+        FloorIgniteRestTicks: 0
+      - Kind: 22
+        FrictionPercent: 120
+        IgniteTicks: 0
+        BurnMinimumTicks: 0
+        BurnMaximumTicks: 0
+        BreakMomentum: 0
+        PopRadiusMillimetres: 0
+        PopSpeed: 0
+        PopIgniteCells: 0
+        PopsWhenBurntOut: 0
+        PopDouses: 0
+        CanBeSatOn: 0
+        IsEquipment: 0
+        Pocketable: 1
         PopsWhenTipped: 0
         ShedsPartsWhenTipped: 0
         DrivesItself: 0
@@ -943,6 +984,18 @@ MonoBehaviour:
       LeaveTaskCheckTicks: 50
       LeaveTaskChancePerMille: 100
       WanderToItPerMille: 1000
+    Keycard:
+      Enabled: 1
+      OnADeskPercent: 50
+      FetchBraveryMinimum: 8
+      GrabOnTheWayRangeMillimetres: 3000
+      FetchRangeMillimetres: 30000
+      PickUpDistanceMillimetres: 700
+      PocketTicks: 25
+      SwipeReachMillimetres: 2000
+      FetchTimeoutTicks: 1500
+      BlockedGiveUpTicks: 50
+      FlamesKeepAwayMillimetres: 1500
     Agents:
     - agentId:
         value: 1001
@@ -1475,6 +1528,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2005
       roomId:
@@ -1485,6 +1539,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2006
       roomId:
@@ -1495,6 +1550,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2017
       roomId:
@@ -1505,6 +1561,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2011
       roomId:
@@ -1515,6 +1572,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 1
+      needsKeycard: 0
     - doorId:
         value: 2012
       roomId:
@@ -1525,6 +1583,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2010
       roomId:
@@ -1535,6 +1594,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2013
       roomId:
@@ -1545,6 +1605,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2014
       roomId:
@@ -1555,6 +1616,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2015
       roomId:
@@ -1565,6 +1627,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2018
       roomId:
@@ -1575,6 +1638,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2019
       roomId:
@@ -1585,6 +1649,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 0
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2016
       roomId:
@@ -1595,6 +1660,7 @@ MonoBehaviour:
       startsLocked: 0
       isOpening: 1
       swings: 0
+      needsKeycard: 0
     - doorId:
         value: 2008
       roomId:
@@ -1605,6 +1671,7 @@ MonoBehaviour:
       startsLocked: 1
       isOpening: 0
       swings: 0
+      needsKeycard: 1
     PhysicsObjects:
     - objectId:
         value: 3001
@@ -2065,6 +2132,20 @@ MonoBehaviour:
       startsDormant: 0
       initialFacingDegrees: 0
       startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3950
+      kind: 22
+      initialPosition:
+        x: -2100
+        z: -1500
+      sizeMillimetres: 150
+      massGrams: 50
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
       partOfObjectId:
         value: 0
       startsPinned: 0

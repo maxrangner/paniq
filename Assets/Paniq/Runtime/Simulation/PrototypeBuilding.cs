@@ -419,8 +419,9 @@ namespace Paniq.Simulation
                     startsLocked: false, isOpening: true),
 
                 // The building's one way out, at the end of the north arm, as
-                // far from the maintenance room as the floor goes.
-                new DoorDefinition(new SimulationId(2008UL), Crossbar, WallSide.North, 14500, 1000)
+                // far from the maintenance room as the floor goes. A card door
+                // (2026-09-27): only the keycard opens it.
+                new DoorDefinition(new SimulationId(2008UL), Crossbar, WallSide.North, 14500, 1000, needsKeycard: true)
             };
         }
 
@@ -577,6 +578,13 @@ namespace Paniq.Simulation
                 Bag(3224UL, 10000, 14000),
                 Briefcase(3251UL, 0, -5000),
                 Briefcase(3252UL, -3600, 11400),
+
+                // The keycard (2026-09-27), authored on the first desk beside
+                // its laptop. Where it actually starts is drawn per round:
+                // on one of this room's desks, or in a member of staff's
+                // pocket (see KeycardSystem), so this spot is only the
+                // default and says which room's desks are candidates.
+                Keycard(3950UL, -2100, -1500),
 
                 // Laptops live on desks. One on each office desk, and six down
                 // the meeting table in front of the people sitting at it. They
@@ -868,6 +876,17 @@ namespace Paniq.Simulation
         {
             return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Bag, new LogicalPosition(x, z), 350, 4000);
+        }
+
+        /// <summary>
+        /// The keycard: a scrap of plastic the size of a hand, resting on a
+        /// desk until somebody pockets it. Fifty grams: anybody lifts it.
+        /// </summary>
+        private static PhysicsObjectDefinition Keycard(ulong id, int x, int z)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.Keycard, new LogicalPosition(x, z), 150, 50,
+                startsResting: true);
         }
 
         /// <summary>A fire extinguisher: small, heavy for its size, and it never burns.</summary>

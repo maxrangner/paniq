@@ -50,33 +50,9 @@ namespace Paniq.Gameplay
             {
                 if (simulation == null)
                 {
-                    ScenarioData data;
-                    if (level != null)
-                    {
-                        data = level.ToRuntimeData();
-                    }
-                    else
-                    {
-                        // No level assigned: the building on its own, played by
-                        // the same rules a level would impose, so the scene is
-                        // playable without any setup step.
-                        if (scenario == null)
-                        {
-                            scenario = ScenarioAsset.CreateDefault();
-                        }
-
-                        data = scenario.ToRuntimeData();
-                        data.Round.HazardWaitsForTrigger = true;
-                    }
-
-                    if (EffectiveFeel() != null && FeelIsUsable())
-                    {
-                        data.PhysicsFeel = EffectiveFeel().Feel.Clone();
-                    }
-
                     // The seed is settled here, before tick zero, and recorded
                     // so the player can ask for the same one again.
-                    simulation = new Run(data, LevelSession.TakeSeedFor(level));
+                    simulation = new Run(BuildScenarioData(), LevelSession.TakeSeedFor(level));
                     Seed = LevelSession.CurrentSeed;
 
                     // "Play again" means the player has already chosen; only a
@@ -88,6 +64,67 @@ namespace Paniq.Gameplay
                 return simulation;
             }
         }
+
+        /// <summary>
+        /// The building and rules a run is built from: the level's, or the
+        /// scenario's own played by a level's rules, with the physics feel
+        /// written over it. The same data builds the round the player plays
+        /// and the one played with nobody at the controls (see
+        /// <see cref="LeftAloneRunner"/>), so the two differ only in the clicks.
+        /// </summary>
+        private ScenarioData BuildScenarioData()
+        {
+            ScenarioData data;
+            if (level != null)
+            {
+                data = level.ToRuntimeData();
+            }
+            else
+            {
+                // No level assigned: the building on its own, played by
+                // the same rules a level would impose, so the scene is
+                // playable without any setup step.
+                if (scenario == null)
+                {
+                    scenario = ScenarioAsset.CreateDefault();
+                }
+
+                data = scenario.ToRuntimeData();
+                data.Round.HazardWaitsForTrigger = true;
+            }
+
+            if (EffectiveFeel() != null && FeelIsUsable())
+            {
+                data.PhysicsFeel = EffectiveFeel().Feel.Clone();
+            }
+
+            return data;
+        }
+
+        /// <summary>
+        /// The same seed played without the player's help, for the end card's
+        /// "left alone" line (2026-09-27). Built with the scene, while the
+        /// scene is loading anyway, so its start costs no frame of play; kept
+        /// in step with the real round until the disaster starts, then run
+        /// ahead. Never on a run being tuned live, which no replay could match.
+        /// </summary>
+        private LeftAloneRunner leftAlone;
+
+        /// <summary>At most this many ticks of the hands-off round a fixed step: twenty times as fast as the real one.</summary>
+        private const int LeftAloneTicksPerStep = 20;
+
+        /// <summary>
+        /// And never more than this much work a fixed step, in milliseconds,
+        /// however cheap or dear a tick is: a busy building takes longer to
+        /// work out, it does not make the frame stutter.
+        /// </summary>
+        private const double LeftAloneMillisecondsPerStep = 3.0;
+
+        /// <summary>How many would have lived with nobody at the controls, once known.</summary>
+        public int? LeftAloneSavedCount => leftAlone?.SavedCount;
+
+        /// <summary>The hands-off round exists and has not finished yet.</summary>
+        public bool LeftAloneStillWorking => leftAlone != null && !leftAlone.IsDone;
 
         /// <summary>State after the latest tick, filled at most once per tick.</summary>
         public RunSnapshot Snapshot => current ??= FillSpareSnapshot();
@@ -198,6 +235,13 @@ namespace Paniq.Gameplay
         {
             _ = Simulation;
 
+            // The hands-off copy is built now, with the scene: a whole second
+            // run, which would be a hitch on the first frame of play.
+            if (!(Application.isEditor && livePhysicsTuning))
+            {
+                leftAlone = new LeftAloneRunner(BuildScenarioData(), Seed);
+            }
+
             // A previous run may have left the clock stopped, and a reloaded
             // scene inherits it.
             IsPaused = false;
@@ -208,12 +252,38 @@ namespace Paniq.Gameplay
         {
             // Behind the start card, paused, or finished: in all three the
             // scene stands still and can be looked at, and no tick happens.
-            if (!IsTicking)
+            if (IsTicking)
+            {
+                Advance();
+            }
+
+            AdvanceLeftAlone();
+        }
+
+        /// <summary>
+        /// The hands-off round's share of a fixed step. Until the disaster has
+        /// started in the real round it goes no further than the real round
+        /// has, so the player's Trigger event can still be copied onto the
+        /// same tick; after that it runs ahead, paused or not, a budgeted
+        /// handful of ticks at a time.
+        /// </summary>
+        private void AdvanceLeftAlone()
+        {
+            if (leftAlone == null)
             {
                 return;
             }
 
-            Advance();
+            if (IsLiveTuned)
+            {
+                leftAlone.Dispose();
+                leftAlone = null;
+                return;
+            }
+
+            int noFurtherThan = Simulation.Phase == RoundPhase.BeforeEvent ? Simulation.Tick : int.MaxValue;
+            long budget = (long)(LeftAloneMillisecondsPerStep * System.Diagnostics.Stopwatch.Frequency / 1000.0);
+            leftAlone.Advance(LeftAloneTicksPerStep, noFurtherThan, budget);
         }
 
         private void OnDestroy()
@@ -225,6 +295,8 @@ namespace Paniq.Gameplay
             // The run keeps a physics scene of its own; let it go with the runner.
             simulation?.Dispose();
             simulation = null;
+            leftAlone?.Dispose();
+            leftAlone = null;
         }
 
         /// <summary>
@@ -330,6 +402,13 @@ namespace Paniq.Gameplay
         /// </summary>
         public void QueueTriggerEvent()
         {
+            // The hands-off round starts its disaster on the same tick: when
+            // the disaster starts is the round, not the player's help.
+            if (Simulation.Phase == RoundPhase.BeforeEvent)
+            {
+                leftAlone?.MirrorTrigger(Simulation.Tick + 1);
+            }
+
             Simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), Simulation.Tick + 1);
         }
 

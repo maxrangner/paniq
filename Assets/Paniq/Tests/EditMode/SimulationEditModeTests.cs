@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("83"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(71));
+            Assert.That(data.ContentRevision, Is.EqualTo("84"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(72));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -844,6 +844,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = DefaultData();
             data.Purse.OpeningDrawCount = 0; // the opening card would sit at the front of the log, and this test reads it by position
+            TheBuilding.WithAnOrdinaryWayOut(data); // and so would the keycard's start (2026-09-27)
             data.Agents = new[]
             {
                 Agent(1UL, 0, 0, CardinalDirection.East),
@@ -875,6 +876,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = NobodyFightsTheFire();
             data.Purse.OpeningDrawCount = 0; // the opening card would sit at the front of the log, and this test reads it by position
+            TheBuilding.WithAnOrdinaryWayOut(data); // and so would the keycard's start (2026-09-27)
 
             // Somebody standing exactly where the fire starts, so there is
             // always a death to trace back however well the rest get out. This
@@ -969,6 +971,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = DefaultData();
             data.Purse.OpeningDrawCount = 0; // the opening card would sit at the front of the log, and this test reads it by position
+            TheBuilding.WithAnOrdinaryWayOut(data); // and so would the keycard's start (2026-09-27)
             data.Agents = new[] { Agent(1UL, 0, 0, CardinalDirection.East) };
             data.Fire.ActivationTick = 1;
             data.Perception.MaximumReactionDelayTicks = 0;
@@ -1123,6 +1126,7 @@ namespace Paniq.Tests.EditMode
             data.Falls.ShoveMinimumEvil = AgentTraitValues.Maximum + 1;
             data.Tables = new TableDefinition[0];
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
 
             // A fire that starts and does not grow. This test is about who
             // freezes and who comes out of it, and in a packed room with no way

@@ -43,7 +43,10 @@ since the second round of playtest fixes a **stack of four crates** stands
 against the north wall at the stockroom lane's first bend; see the
 [roadmap](roadmap.md) for the traps they are part of. The building has **one
 fire-alarm pull station**, at the far west end of the corridor, and alarm bells
-high on the walls.
+high on the walls. Since 2026-09-27 there is a **keycard**, a small bright
+yellow card: the seed decides whether it starts in a member of staff's
+pocket or lying on one of the office's three desks, and it is the only thing
+that opens the way out (see *The round* below).
 
 The meeting is a client visit already under way: six people sit round one long
 table, five of them visitors who came up in the lift and do not know the way
@@ -179,8 +182,11 @@ counter at the top left shows calm, scared (and frozen), down and lost people.
 inside the building starts shut but unlocked, so people work them
 themselves. Since 2026-09-26 the player does not open or shut doors: a click
 on a door draws people to use it (influence, below), holding the button down
-on it keeps it shut (since prototype 3), and a right click turns its key --
-which is how the locked way out is opened. The full controls are in
+on it keeps it shut (since prototype 3), and a right click turns its key.
+Since 2026-09-27 the way out is a **card door**: no key fits it, nobody
+batters it, the fire does not burn through it, and only somebody with the
+keycard in their pocket opens it -- after which it is an ordinary door for
+the rest of the round. The full controls are in
 [look and controls](look-and-controls.md). On this level none of it costs
 anything.
 
@@ -567,6 +573,33 @@ Director adds nothing more. If everybody simply runs out, that is fine too.
 The round does not end as "nothing is happening" while the Director has
 something still to come.
 
+**The way out needs the keycard** (2026-09-27, the owner's idea). Nobody
+batters the way out any more and your key does not fit it; the fire does
+not burn through it. One keycard is in the building, and where it starts is
+the seed's choice, half and half: in a member of staff's pocket (never a
+visitor's), or lying on one of the office's three desks. Everybody who works
+here knows where it began; the visitors do not; anybody who sees it, or sees
+who has it, learns where it is a beat later. Somebody frightened who has the
+card makes straight for the way out and swipes it open from a couple of
+metres, crush or no crush -- and it stays open for good. Somebody frightened
+without it goes for the card only if they are very brave (bravery 8 or
+more; on the office, the hero): off the desk beside them as they run, if they
+work here and it lies within three metres, or back across the building once they have found the way out
+shut and believe they know where it lies -- one person at a time, and never into the
+flames. The card does not burn: one dropped in the fire is fetched once the
+flames have passed. Whoever is out cold or dead loses it where they lie, for
+anybody to pick up; a trip or a knock-down they get up from keeps it in their
+pocket. Click the card and somebody calm nearby pockets it for you. The
+person with the card is drawn holding it up, and the line under the score
+says **HAS THE KEYCARD** when you point at them.
+
+Left alone, the office now saves about six of twenty over ten seeds, three
+in ten clearing the bar -- the owner asked for about a quarter. The seeds
+where a member of staff starts with the card in their pocket mostly open the
+door and save sixteen or more; a card on a desk mostly needs you, and those
+rounds end with everybody trapped unless the hero happens to be beside it. It used
+to save sixteen of twenty, because the strong battered the door down.
+
 **Pause looks, it does not act.** **Space** stops everything: people mid-stride,
 flames mid-flicker, smoke mid-drift. The camera still answers you so you can go
 and read what is happening in the far room. No card can be picked up, no door
@@ -589,7 +622,13 @@ exploit.
 Then the scene freezes and a card gives the result — how many of the twenty
 were saved and what share that is, whether it cleared the 75% needed, how the
 saved split between those who got out and those who sat it out, and your best
-ever. Two buttons: the same seed again, or whatever is in the seed box.
+ever. Since 2026-09-27 it also says **what would have happened if you had
+never clicked**: "Left alone, 6 of 20 would have lived." The same seed is
+played again in the background without your help. Its disaster starts when
+yours does -- your press of Trigger event is copied onto the same moment,
+and nothing else you do is -- and then it runs ahead, a little each frame,
+so the answer is ready long before the end card. Two buttons: the same seed again, or whatever
+is in the seed box.
 
 **What the round deliberately does not do yet.** You cannot click a person on
 the frozen scene for the facts about them, and there is no written retelling of
@@ -616,7 +655,16 @@ open, shut, lock, unlock -- and unlocking the building's way out costs the
 whole purse, 100 (the owner's rules, 2026-09-25). The key is yours to turn
 both ways: a locked door is yours to unlock and a shut one yours to lock,
 and an open one shut and locked in one go if nobody is in the doorway. Once
-the way out is unlocked the people open it themselves.
+the way out is unlocked the people open it themselves. **Not on the office
+any more** (2026-09-27): its way out is a card door, which no key fits; the
+keycard opens it (see *The round*). A level whose way out is a plain locked
+door still works as above.
+
+**The keycard.** Click it and somebody calm nearby goes and pockets it, the
+pull spent; click the way out and whoever has the card is drawn there like
+anybody else. Poke a frozen holder awake and they run for the door with it.
+A holder out cold or dead drops it where they lie, and a click on the card
+sends somebody for it.
 
 **The office has no purse (prototype 3, 2026-09-25).** The owner had
 influence switched off for now: every door, alarm and card is free, nothing
@@ -1380,6 +1428,46 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   agreement against the first step of the walk to the door
   (`WorldGeometry.TryWalkStepToward`), the straight line only when the
   squares cannot say.
+
+### Prototype 3, the keycard (2026-09-27)
+
+- **The card door.** A door authored `needsKeycard` (only a locked door to
+  the street) wants the card while the level has one: nobody batters it (a
+  shoulder does no damage, and nobody tries), the fire does not burn through
+  it, no leader sends anyone at it, and the player's click and key are
+  refused. Swiped, it is unlocked and an ordinary door for good.
+- **Where the card starts** is drawn from the card's own random stream
+  (sequence 56), never the run's: half the seeds on a desk in its room, half
+  in a uniformly drawn member of staff's pocket. The run's other draws are
+  exactly what they would be without the card.
+- **Belief.** Staff begin knowing where it started. Anybody who sees it
+  (vision range, the 45-degree cone, a line of sight through open doorways)
+  learns where it is, or who has it, one reaction lag after the sighting;
+  one lag per change seen.
+- **Going for it**, considered first among the frightened's options: upright,
+  not in danger, not helping, bravery ≥ 8, believes it lies free, nobody
+  else is on their way to it (a fetcher who is out cold or dead is not; one
+  who tripped still is), within 30 m as the crow flies with a route to its
+  room, and no threat within 1.5 m of where they believe it lies; and
+  either they gave a card door up (a beat earlier) or they work here and it
+  lies within 3 m. They walk to floor beside where they believe it is; there,
+  a card within 1.5 m is still found, and they go to it and pocket it within
+  0.7 m after half a second. Given up on danger, fire, thirty seconds, a
+  second stuck, the claim gone to somebody else while they lay on the floor,
+  seeing it taken or in the flames, or finding it gone -- then they no longer
+  believe they know where it is.
+- **The holder** skips every other option (fire, leaders, help, alarms,
+  wedging), counts the card door a way out again, swipes it within 2 m in
+  its room while frightened, and at the handle; a calm holder on an errand
+  swipes it too.
+- **Dropping.** Out cold or dead: the card is set down beside them
+  (`KeycardDropped`), and they believe it lies there. Nothing else drops it.
+- **Influence.** Pointing at the card sends somebody calm to pocket it (the
+  pull spent). The tidy-up never takes it; nobody wedges, throws or hurls
+  it.
+- **Left alone** is not a rule of the simulation: the gameplay layer plays a
+  second run of the same data and seed with no commands and reads its saved
+  count.
 
 ## Causal events and presentation
 

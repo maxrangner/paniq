@@ -237,6 +237,7 @@ namespace Paniq.Simulation
                 case CausalEventType.AlarmPulled:
                 case CausalEventType.TableHeaved:
                 case CausalEventType.BoxTowerFell:
+                case CausalEventType.DoorUnlockedWithKeycard:
                     return UproarTier.Middling;
 
                 case CausalEventType.AgentYelled:
@@ -353,6 +354,9 @@ namespace Paniq.Simulation
                 case CausalEventType.DoorBlocked:
                 case CausalEventType.DoorUnblocked:
                 case CausalEventType.AlarmRang:
+                case CausalEventType.KeycardStarted:
+                case CausalEventType.AgentTookKeycard:
+                case CausalEventType.KeycardDropped:
                     return UproarTier.Nothing;
 
                 default:

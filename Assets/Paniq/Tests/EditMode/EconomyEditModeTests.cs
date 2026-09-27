@@ -104,6 +104,7 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = QuietRoom();
             data.Purse.Enabled = false;
             data.Purse.Starting = 0;
+            TheBuilding.WithAnOrdinaryWayOut(data); // the way out is the player's to unlock here, not the keycard's
             using (var simulation = new Run(data, 42UL))
             {
                 Assert.That(simulation.GetSnapshot().PurseEnabled, Is.False);

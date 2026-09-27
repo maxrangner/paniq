@@ -48,7 +48,7 @@ every zoom level.
 | **Click a person** (nothing in hand) | nudge them: they step away from where the click landed. Three nudges in ten seconds and they are annoyed -- a fast shake for a couple of seconds, and for about twenty seconds they are still shoved but stop looking round for it. Three quick pokes wake somebody frozen with fear, or knock somebody sitting down off their chair |
 | **Click a red pull station** | on the office, only people pull alarms (2026-09-26): a click draws people to it instead, and the brave among them may pull it. A level that lets the player pull alarms pulls it |
 | **Hold the button down on a door** | a hand on it (prototype 3): an open door pulls shut as soon as the doorway is clear, and nobody opens it while you hold it. Somebody strong enough bursts through in one push, and then there is nothing left to hold. A locked door needs no hand, and swing doors and gaps take none. Let go of the button and it is a door again |
-| **Right click a door** (without dragging) | turn its key: unlock a locked one (this is how the way out is opened), lock a shut one, or shut and lock an open one |
+| **Right click a door** (without dragging) | turn its key: unlock a locked one, lock a shut one, or shut and lock an open one. Not the way out (2026-09-27): it is a card door, and only somebody carrying the keycard opens it |
 | **Right click** elsewhere (without dragging) | put down the card in hand |
 | **Reset** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
 | **Pause** (the button under Reset) | stop and start the world, as Space does |

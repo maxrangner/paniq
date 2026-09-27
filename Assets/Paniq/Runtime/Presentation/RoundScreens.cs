@@ -130,11 +130,11 @@ namespace Paniq.Presentation
         /// The card at the end: what the round came to, a way to read it back,
         /// and two ways to play it again.
         /// </summary>
-        public void DrawEndCard(RunSnapshot snapshot)
+        public void DrawEndCard(RunSnapshot snapshot, int? leftAloneSavedCount = null, bool leftAloneStillWorking = false)
         {
             RecordResultOnce(snapshot);
 
-            const float height = 316f;
+            const float height = 342f;
             Rect card = CentredCard(height);
             float x = card.x + 24f;
             float y = card.y + 20f;
@@ -154,6 +154,15 @@ namespace Paniq.Presentation
             GUI.Label(new Rect(x, y, width, 22f),
                 $"{snapshot.EscapedCount} got out, {snapshot.SurvivedCount} sat it out somewhere safe, " +
                 $"{snapshot.LostCount} did not make it.");
+            y += 26f;
+
+            // What the same seed came to with nobody at the controls
+            // (2026-09-27): the one line that says whether the player mattered.
+            GUI.color = new Color(0.75f, 0.78f, 0.82f);
+            GUI.Label(new Rect(x, y, width, 22f), leftAloneSavedCount.HasValue
+                ? $"Left alone, {leftAloneSavedCount.Value} of {snapshot.CrowdSize} would have lived."
+                : leftAloneStillWorking ? "Left alone: still working it out…" : "");
+            GUI.color = Color.white;
             y += 26f;
 
             if (beatTheBest)

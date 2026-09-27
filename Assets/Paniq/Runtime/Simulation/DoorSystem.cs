@@ -87,6 +87,14 @@ namespace Paniq.Simulation
         /// and fire alike, until enough of the boxes are gone.
         /// </summary>
         public bool Piled;
+
+        /// <summary>
+        /// A card door (2026-09-27): only the keycard opens it. Nobody
+        /// batters it, the fire does not burn through it and the player's key
+        /// does not fit; whoever has the card swipes it, and the flag comes
+        /// off for good. See <see cref="KeycardSystem"/>.
+        /// </summary>
+        public bool NeedsKeycard;
     }
 
     /// <summary>
@@ -239,7 +247,11 @@ namespace Paniq.Simulation
                     Swings = definitions[i].Swings,
                     State = definitions[i].IsOpening || definitions[i].Swings
                         ? definitions[i].IsOpening ? DoorState.Broken : DoorState.Open
-                        : definitions[i].StartsLocked ? DoorState.Locked : DoorState.Unlocked
+                        : definitions[i].StartsLocked ? DoorState.Locked : DoorState.Unlocked,
+
+                    // A card door (2026-09-27), unless the level has no
+                    // keycard, in which case it is the plain locked door it was.
+                    NeedsKeycard = scenario.Keycard.Enabled && definitions[i].NeedsKeycard
                 };
             }
 
@@ -455,7 +467,8 @@ namespace Paniq.Simulation
                 for (int door = 0; door < Count; door++)
                 {
                     DoorRuntime d = doors[door];
-                    signature = signature * 31L + (int)d.State + d.Damage + d.Scorch + (d.HeldShut ? 7 : 0) + (d.Piled ? 11 : 0);
+                    signature = signature * 31L + (int)d.State + d.Damage + d.Scorch + (d.HeldShut ? 7 : 0) + (d.Piled ? 11 : 0) +
+                                (d.NeedsKeycard ? 13 : 0);
                 }
 
                 return signature;
@@ -572,6 +585,12 @@ namespace Paniq.Simulation
             switch (d.State)
             {
                 case DoorState.Locked:
+                    if (d.NeedsKeycard)
+                    {
+                        // A card door: the player has no key to it.
+                        return false;
+                    }
+
                     UnlockByPlayer(door);
                     return true;
                 case DoorState.Unlocked:
@@ -606,6 +625,12 @@ namespace Paniq.Simulation
             switch (d.State)
             {
                 case DoorState.Locked:
+                    if (d.NeedsKeycard)
+                    {
+                        // A card door: the player has no key to it.
+                        return false;
+                    }
+
                     UnlockByPlayer(door);
                     return true;
                 case DoorState.Unlocked:
@@ -631,6 +656,32 @@ namespace Paniq.Simulation
             d.State = DoorState.Unlocked;
             d.UnlockedEventId = context.Events.Append(
                 context.Tick, d.Id, CausalEventType.DoorUnlocked, geometry.DoorCentre(door)).EventId;
+        }
+
+        /// <summary>Whether this door still wants the keycard: locked, and only the card opens it.</summary>
+        public bool NeedsKeycard(int door) => doors[door].NeedsKeycard;
+
+        /// <summary>
+        /// Somebody with the keycard reached a card door and swiped it
+        /// (2026-09-27): unlocked, and an ordinary door from now on -- the
+        /// owner's rule, "the door stays unlocked for good". The caller then
+        /// opens it as anybody opens an unlocked door, so the opening wakes
+        /// everybody who had given the way out up, as the player's unlock
+        /// does. Returns the event, or 0 when the door did not need a card.
+        /// </summary>
+        public ulong SwipeKeycard(int door, Agent holder, ulong causeEventId)
+        {
+            DoorRuntime d = doors[door];
+            if (!d.NeedsKeycard || d.State != DoorState.Locked)
+            {
+                return 0UL;
+            }
+
+            d.NeedsKeycard = false;
+            d.State = DoorState.Unlocked;
+            d.UnlockedEventId = context.Events.Append(context.Tick, holder.Id, CausalEventType.DoorUnlockedWithKeycard,
+                geometry.DoorCentre(door), 0, 0, causeEventId, d.Id).EventId;
+            return d.UnlockedEventId;
         }
 
         /// <summary>The player locks a shut door: a root event, with the door as both its source and its target.</summary>
@@ -767,8 +818,9 @@ namespace Paniq.Simulation
         public bool Batter(int door, Agent shover, int damage, ulong shoveEventId)
         {
             DoorRuntime d = doors[door];
-            if (damage <= 0 || d.State == DoorState.Open || d.State == DoorState.Broken)
+            if (damage <= 0 || d.State == DoorState.Open || d.State == DoorState.Broken || d.NeedsKeycard)
             {
+                // Nothing to batter, or a card door, which no shoulder marks.
                 return false;
             }
 
@@ -839,10 +891,11 @@ namespace Paniq.Simulation
             {
                 DoorRuntime d = doors[door];
                 if (d.IsHole || d.State == DoorState.Broken || (d.State == DoorState.Open && !d.Swings) ||
-                    (d.Swings && d.Obstructed))
+                    (d.Swings && d.Obstructed) || d.NeedsKeycard)
                 {
                     // Nothing standing in the way for the flames to eat: an
-                    // open door, a hole, or swing doors propped open.
+                    // open door, a hole, or swing doors propped open. A card
+                    // door is a fire door (2026-09-27): it does not burn.
                     continue;
                 }
 
@@ -896,7 +949,7 @@ namespace Paniq.Simulation
             return new DoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent,
                 ScorchPercent(d),
                 d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door), d.Swings,
-                d.HeldShut, d.Piled);
+                d.HeldShut, d.Piled, d.NeedsKeycard);
         }
 
         public DoorSnapshot[] GetSnapshots()

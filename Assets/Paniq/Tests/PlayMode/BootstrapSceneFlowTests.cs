@@ -148,14 +148,18 @@ namespace Paniq.Tests.PlayMode
             // can afford.
             runner.Simulation.GivePurseForTests(1000);
 
-            var door = new Paniq.Simulation.SimulationId(2008UL);
-            runner.QueueDoorClick(door);
+            // The way out is a card door (2026-09-27): the player's click is
+            // refused, and only the keycard opens it.
+            var wayOut = new Paniq.Simulation.SimulationId(2008UL);
+            runner.QueueDoorClick(wayOut);
             runner.StepForTests();
-            Assert.That(DoorState(runner, door), Is.EqualTo(Paniq.Simulation.DoorState.Unlocked));
+            Assert.That(DoorState(runner, wayOut), Is.EqualTo(Paniq.Simulation.DoorState.Locked));
 
-            // The purse holds a hundred and the way out took all of it: fill
-            // it again for the click that opens the door.
-            runner.Simulation.GivePurseForTests(1000);
+            // The office's door onto the corridor starts shut and unlocked:
+            // one click opens it, and its leaf swings on screen.
+            var door = new Paniq.Simulation.SimulationId(2005UL);
+            leaf = GameObject.Find("Door 2005 (click target)");
+            Assert.That(leaf, Is.Not.Null, "Expected a clickable leaf on the office's door.");
             runner.QueueDoorClick(door);
             runner.StepForTests();
             Assert.That(DoorState(runner, door), Is.EqualTo(Paniq.Simulation.DoorState.Open));

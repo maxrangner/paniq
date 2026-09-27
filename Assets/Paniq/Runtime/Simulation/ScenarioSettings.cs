@@ -1429,6 +1429,106 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
+    /// The keycard that opens the way out (2026-09-27, the owner's idea). The
+    /// way out is a card door: nobody batters it, the player's key does not
+    /// fit it, and only somebody with the card in their pocket opens it --
+    /// after which it is an ordinary door for the rest of the round. Where
+    /// the card begins is drawn per round: in a member of staff's pocket, or
+    /// lying on a desk for somebody to fetch. See <see cref="KeycardSystem"/>.
+    /// </summary>
+    [Serializable]
+    public sealed class KeycardSettings
+    {
+        /// <summary>
+        /// Off, and the card is put away before the round starts and no door
+        /// needs it: the way out is the plain locked door it was, which the
+        /// player unlocks and the strong batter. Tests of those rules turn it
+        /// off (see <c>TheBuilding.WithAnOrdinaryWayOut</c>).
+        /// </summary>
+        public bool Enabled = true;
+
+        /// <summary>
+        /// The chance, per round, that the card starts lying on a desk in the
+        /// room it was authored in rather than in somebody's pocket. The
+        /// owner asked for "random B or C": half and half.
+        /// </summary>
+        public int OnADeskPercent = 50;
+
+        /// <summary>
+        /// The nerve it takes to go for the card: back across the building
+        /// once the way out has been found locked, or off the desk beside
+        /// them as they run. Below this, a frightened person who knows
+        /// exactly where it lies still will not go. The main knob for how
+        /// often the office saves itself with nobody playing. Eight
+        /// (2026-09-27): tuned with the hands-off measurement toward the
+        /// owner's "maybe 25%" left alone -- at four the office saved 8.6 of
+        /// 20 by itself, at eight 5.9. Going back for the card is a hero's
+        /// act; everybody else needs the player.
+        /// </summary>
+        public int FetchBraveryMinimum = 8;
+
+        /// <summary>
+        /// A member of staff who takes fright with the card lying free this
+        /// near grabs it on the way out, without first walking to the door to
+        /// find it locked: they work here and know the way out needs it.
+        /// Measured without this (2026-09-27), a card left on a desk was never
+        /// fetched: by the time anybody had found the door shut, the
+        /// Director's fallen boxes had cut the office off from the crossbar.
+        /// Three metres (2026-09-27, tuned with the bravery above): the desk
+        /// beside them, not the far side of the room.
+        /// </summary>
+        public int GrabOnTheWayRangeMillimetres = 3000;
+
+        /// <summary>
+        /// How far somebody will go for the card, as the crow flies. The
+        /// office's way out is some twenty metres from its desks, so this has
+        /// to reach across the floor or nobody who found the door shut would
+        /// ever go back.
+        /// </summary>
+        public int FetchRangeMillimetres = 30000;
+
+        /// <summary>
+        /// Close enough to reach it: a card on a desk is reached from the
+        /// floor beside the desk, half a metre and more from where it lies.
+        /// </summary>
+        public int PickUpDistanceMillimetres = 700;
+
+        /// <summary>The moment spent pocketing it, jittered.</summary>
+        public int PocketTicks = 25;
+
+        /// <summary>
+        /// How near the card door somebody frightened with the card has to
+        /// get to swipe it: the reader is beside the door, and a holder at
+        /// the back of a crush in the doorway still reaches it. Without this
+        /// the holder was knocked down in the crush before ever touching the
+        /// handle (measured over ten seeds, 2026-09-27).
+        /// </summary>
+        public int SwipeReachMillimetres = 2000;
+
+        /// <summary>A fetch that has taken this long is given up; a fetcher stuck this long gives up too.</summary>
+        public int FetchTimeoutTicks = 1500;
+        public int BlockedGiveUpTicks = 50;
+
+        /// <summary>
+        /// A card lying nearer the flames than this is left where it is: it
+        /// never burns (the owner's rule), so it can wait until the fire has
+        /// passed, and nobody reaches into the flames for it.
+        /// </summary>
+        public int FlamesKeepAwayMillimetres = 1500;
+
+        public KeycardSettings Clone() => (KeycardSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(Settings.Percent(OnADeskPercent), "where the keycard starts");
+            Settings.Require(FetchBraveryMinimum >= 0 && FetchRangeMillimetres >= 0 && PickUpDistanceMillimetres > 0 &&
+                             FlamesKeepAwayMillimetres >= 0 && SwipeReachMillimetres >= 0 && GrabOnTheWayRangeMillimetres >= 0,
+                "going for the keycard");
+            Settings.Require(PocketTicks >= 0 && FetchTimeoutTicks > 0 && BlockedGiveUpTicks > 0, "keycard timeouts");
+        }
+    }
+
+    /// <summary>
     /// Boxes, chairs and tables catching fire. Things heat up while flames
     /// are close and catch once hot for long enough; cardboard catches
     /// sooner than wood, and wood burns longer.
@@ -1442,7 +1542,7 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ObjectKindSettings
     {
-        public const int KindCount = 22;
+        public const int KindCount = 23;
 
         public PhysicsObjectKind Kind;
         public int FrictionPercent = 100;
@@ -1502,6 +1602,15 @@ namespace Paniq.Simulation
         /// with it, or drops it the moment they are frightened.
         /// </summary>
         public bool IsEquipment;
+
+        /// <summary>
+        /// Pocketed rather than carried (2026-09-27): a keycard. It goes in a
+        /// pocket, so its holder's hands stay free for a bottle or a box;
+        /// nobody tidies it away, wedges a door with it, throws it clear of a
+        /// doorway or drops it merely because they are frightened. See
+        /// <see cref="KeycardSystem"/>.
+        /// </summary>
+        public bool Pocketable;
 
         /// <summary>
         /// It pops the first time it goes over: a standing lamp's bulb bursting
@@ -1637,8 +1746,21 @@ namespace Paniq.Simulation
                 // A fire alarm bell: bolted to the wall like a socket, and the
                 // flames reaching it set it off with a laptop-sized crack.
                 // After that it is silent.
-                Popping(Entry(PhysicsObjectKind.AlarmSounder, 1000, 80, 20, 40), 800, 40, 1)
+                Popping(Entry(PhysicsObjectKind.AlarmSounder, 1000, 80, 20, 40), 800, 40, 1),
+
+                // The keycard (2026-09-27): a scrap of plastic that skids a
+                // little on the floor and never burns -- the owner's rule, so
+                // a card dropped in the flames is fetched once they pass
+                // rather than lost.
+                Pocketed(Entry(PhysicsObjectKind.Keycard, 120, 0, 0, 0))
             };
+        }
+
+        /// <summary>The same kind, but one that goes in a pocket rather than the arms.</summary>
+        private static ObjectKindSettings Pocketed(ObjectKindSettings kind)
+        {
+            kind.Pocketable = true;
+            return kind;
         }
 
         /// <summary>The same kind, but one that goes off when its burn ends rather than when the flames reach it.</summary>

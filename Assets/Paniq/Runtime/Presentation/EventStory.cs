@@ -163,6 +163,14 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentClearedDoorway: return $"{who} lifted {whom} out of a doorway";
 
                 case CausalEventType.AgentTookExtinguisher: return $"{who} picked up {whom}";
+
+                case CausalEventType.KeycardStarted:
+                    return record.SourceId == record.TargetId
+                        ? "the keycard lay on a desk"
+                        : $"the keycard was in {who}'s pocket";
+                case CausalEventType.AgentTookKeycard: return $"{who} pocketed the keycard";
+                case CausalEventType.KeycardDropped: return $"{who} dropped the keycard where they fell";
+                case CausalEventType.DoorUnlockedWithKeycard: return $"{who} swiped the keycard and {whom} was unlocked for good";
                 case CausalEventType.ExtinguisherSprayed: return "an extinguisher was sprayed at the fire";
                 case CausalEventType.ExtinguisherEmptied: return $"{who} ran dry";
                 case CausalEventType.AgentBlasted: return $"{whom} was knocked over by the jet";
@@ -319,6 +327,7 @@ namespace Paniq.Presentation
                 case PhysicsObjectKind.LampShade: return "a lamp shade";
                 case PhysicsObjectKind.RobotVacuum: return "the robot vacuum";
                 case PhysicsObjectKind.AlarmSounder: return "a fire alarm bell";
+                case PhysicsObjectKind.Keycard: return "the keycard";
                 default: return "something";
             }
         }

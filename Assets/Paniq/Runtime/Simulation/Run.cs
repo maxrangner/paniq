@@ -52,6 +52,7 @@ namespace Paniq.Simulation
         private readonly HelpBehaviour help;
         private readonly ChairBehaviour chairs;
         private readonly ExtinguisherBehaviour extinguishers;
+        private readonly KeycardSystem keycards;
         private readonly LeaderBehaviour leaders;
         private readonly AlarmSystem alarms;
         private readonly GroupSystem groups;
@@ -157,6 +158,7 @@ namespace Paniq.Simulation
                     exitSigns, locomotion, groups);
                 burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
                 var walk = new FrightenedWalk(context, geometry, doors, locomotion);
+                keycards = new KeycardSystem(context, crowd, geometry, doors, objects, threats, walk);
                 extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items, walk);
                 leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion,
                     wayfinding);
@@ -177,9 +179,14 @@ namespace Paniq.Simulation
                     DoorBehaviour = doorBehaviour, Help = help, Panic = panic, Burning = burning,
                     Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms, Groups = groups,
                     AlarmBehaviour = alarmBehaviour, Barricades = barricades,
-                    Cues = cues, Errands = errands, Director = director, Nudges = nudges, Traps = traps, Influence = influence
+                    Cues = cues, Errands = errands, Director = director, Nudges = nudges, Traps = traps, Influence = influence,
+                    Keycards = keycards
                 };
                 systems.BindAll();
+
+                // Where the keycard begins (2026-09-27): drawn from the card's
+                // own stream, so the start-up draws above are untouched.
+                keycards.PlaceAtTheStart(agents);
             }
             catch
             {
@@ -611,6 +618,9 @@ namespace Paniq.Simulation
         /// <summary>Sets somebody alight, as touching the flames would.</summary>
         internal void SetAlightForTests(int index) => body.CatchFire(agents[index], 0UL);
 
+        /// <summary>Tests only: this person is knocked off their feet, as by a collision with nothing behind it.</summary>
+        internal void KnockDownForTests(int index) => body.KnockDown(agents[index], 0UL, 0);
+
         internal FearSystem FearForTests => fear;
 
         internal AlarmSystem AlarmsForTests => alarms;
@@ -635,6 +645,41 @@ namespace Paniq.Simulation
 
         /// <summary>Tests only: a thud at a spot, so calm people near it turn to look.</summary>
         internal void MakeANoiseForTests(LogicalPosition where) => systems.Sound.Thud(default, where, 0UL);
+
+        /// <summary>The keycard, for tests that ask who has it and where it lies.</summary>
+        internal KeycardSystem KeycardsForTests => keycards;
+
+        /// <summary>Tests only: what one person believes about the keycard.</summary>
+        internal AgentKeycard KeycardBeliefForTests(int index) => agents[index].Keycard;
+
+        /// <summary>Tests only: the keycard into this person's pocket, before the first tick, however the seed placed it.</summary>
+        internal void GiveKeycardForTests(int agentIndex)
+        {
+            RequireTheStartForTests();
+            keycards.GiveToForTests(agents[agentIndex], agents);
+        }
+
+        /// <summary>Tests only: the keycard on the floor at a spot, before the first tick.</summary>
+        internal void PutKeycardDownForTests(LogicalPosition spot)
+        {
+            RequireTheStartForTests();
+            keycards.PutDownForTests(spot, agents);
+        }
+
+        /// <summary>Tests only: the keycard on this table, before the first tick.</summary>
+        internal void PutKeycardOnATableForTests(int table)
+        {
+            RequireTheStartForTests();
+            keycards.PutOnATableForTests(table, agents);
+        }
+
+        private void RequireTheStartForTests()
+        {
+            if (context.Tick != 0)
+            {
+                throw new InvalidOperationException("The keycard is placed before the first tick.");
+            }
+        }
 
         /// <summary>The run's shared state, for a test double that needs to write into the log.</summary>
         internal SimulationContext ContextForTests => context;
@@ -832,10 +877,17 @@ namespace Paniq.Simulation
                 if (body.BurnOut(agent))
                 {
                     items.DropFromLost(agent);
+                    keycards.DropFromLost(agent);
                     continue;
                 }
 
                 perception.Update(agent);
+
+                // Whoever can see the keycard takes in where it is, a beat
+                // later; whoever has it and is near enough the card door's
+                // reader swipes it.
+                keycards.Notice(agent);
+                keycards.SwipeIfInReach(agent);
 
                 // Having looked and listened: settling, at their own pace, if
                 // nothing frightening is left in sight or earshot.
@@ -848,6 +900,9 @@ namespace Paniq.Simulation
 
                 // Startled, off their feet or on fire: whatever they carry is dropped or thrown.
                 items.LetGoIfNeeded(agent);
+
+                // Out cold: the keycard slips out of their pocket.
+                keycards.DropIfOutCold(agent);
                 if (body.Update(agent))
                 {
                     // Staggering, on the floor or getting up: no control, no move.
@@ -904,6 +959,7 @@ namespace Paniq.Simulation
             people.FeelTheSqueeze(physics.Contacts);
 
             items.FollowCarriers(agents);
+            keycards.FollowHolders(agents);
             burning.RollToPutItOut();
             burning.SpreadFlames();
             doorBehaviour.CarryTheFallenThroughDoorways();

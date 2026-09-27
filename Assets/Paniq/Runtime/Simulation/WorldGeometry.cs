@@ -137,7 +137,7 @@ namespace Paniq.Simulation
             }
 
             FireArea = new LogicalBounds(minX, maxX, minZ, maxZ);
-            navigationGrid = new NavigationGrid(FireArea, rooms, tables, BuildWalls(), BuildDoorways());
+            navigationGrid = new NavigationGrid(FireArea, rooms, Obstacles(), BuildWalls(), BuildDoorways());
             RefuseDoorwaysNobodyCanFitThrough();
             navigation = new Navigation(context, navigationGrid);
             doorWalks = new int[doors.Length * 2][];
@@ -714,7 +714,7 @@ namespace Paniq.Simulation
                 int x = context.Random.NextIntInclusive(b.MinX + margin, b.MaxX - margin);
                 int z = context.Random.NextIntInclusive(b.MinZ + margin, b.MaxZ - margin);
                 point = new LogicalPosition(x, z);
-                if (TableAt(point, radius + TableSpotClearance) < 0)
+                if (!ObstacleAt(point, radius + TableSpotClearance))
                 {
                     break;
                 }
@@ -863,6 +863,65 @@ namespace Paniq.Simulation
             return cost == FlowField.Unreachable
                 ? -1L
                 : (long)cost * NavigationGrid.CellSizeMillimetres / FlowField.StraightCost;
+        }
+
+        /// <summary>
+        /// The first step of the walk from a point to a door, on the side of
+        /// it that faces <paramref name="room"/>, going round the furniture
+        /// and the crates: the heading from the point's square to whichever
+        /// neighbouring square is nearer the door by the walk. False when the
+        /// squares cannot say (off the grid, or nothing joins it to the door).
+        /// Asked by the exit signs (2026-09-27): a sign in the stockroom's
+        /// middle lane points south, down the lane, while the door it leads to
+        /// lies north-east as the crow flies.
+        /// </summary>
+        public bool TryWalkStepToward(LogicalPosition from, int door, int room, out int heading)
+        {
+            heading = 0;
+            int cell = navigationGrid.CellAt(from);
+            if (cell < 0)
+            {
+                return false;
+            }
+
+            int[] walk = WalkTo(door, room);
+            if (walk[cell] == FlowField.Unreachable)
+            {
+                return false;
+            }
+
+            int column = cell % navigationGrid.Columns;
+            int row = cell / navigationGrid.Columns;
+            int best = -1;
+            int bestCost = walk[cell];
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int nextColumn = column + dx;
+                    int nextRow = row + dz;
+                    if ((dx == 0 && dz == 0) || nextColumn < 0 || nextRow < 0 ||
+                        nextColumn >= navigationGrid.Columns || nextRow >= navigationGrid.Rows)
+                    {
+                        continue;
+                    }
+
+                    int next = nextRow * navigationGrid.Columns + nextColumn;
+                    if (walk[next] < bestCost)
+                    {
+                        bestCost = walk[next];
+                        best = next;
+                    }
+                }
+            }
+
+            if (best < 0)
+            {
+                return false;
+            }
+
+            heading = IntegerMath.HeadingBetween(navigationGrid.CentreOfCell(cell), navigationGrid.CentreOfCell(best), 0);
+            return true;
         }
 
         /// <summary>
@@ -1312,9 +1371,156 @@ namespace Paniq.Simulation
         /// </summary>
         private void TheBuildingChangedShape(LogicalBounds where)
         {
-            navigationGrid.Rebuild(where, rooms, tables, BuildWalls(), BuildDoorways());
+            navigationGrid.Rebuild(where, rooms, Obstacles(), BuildWalls(), BuildDoorways());
             navigation.Forget();
             Array.Clear(doorWalks, 0, doorWalks.Length);
+        }
+
+        // ---------------------------------------------------------------- heavy things (2026-09-27)
+
+        /// <summary>
+        /// The loose things that are on the map like tables: crates too heavy
+        /// for anybody to carry, and pinned things, each by its index among
+        /// the physical objects (<see cref="PhysicsObjectSystem"/> keeps them
+        /// up to date). The footprint on the map is the last one the thing
+        /// settled at; it moves only once the thing has shifted a table's
+        /// worth (<see cref="TableMovedMillimetres"/>).
+        /// </summary>
+        private readonly Dictionary<int, LogicalBounds> heavyThings = new Dictionary<int, LogicalBounds>();
+        private readonly List<LogicalBounds> obstacles = new List<LogicalBounds>();
+        private readonly List<int> heavyOrder = new List<int>();
+
+        /// <summary>The tables and the heavy things together, in a fixed order, for the map.</summary>
+        private IReadOnlyList<LogicalBounds> Obstacles()
+        {
+            obstacles.Clear();
+            obstacles.AddRange(tables);
+            for (int i = 0; i < heavyOrder.Count; i++)
+            {
+                obstacles.Add(heavyThings[heavyOrder[i]]);
+            }
+
+            return obstacles;
+        }
+
+        /// <summary>Whether this thing is on the map right now.</summary>
+        public bool IsOnTheMap(int thing) => heavyThings.ContainsKey(thing);
+
+        /// <summary>Tests only: the footprints of the heavy things on the map, in map order.</summary>
+        internal IReadOnlyList<LogicalBounds> HeavyThingsForTests
+        {
+            get
+            {
+                var footprints = new List<LogicalBounds>(heavyOrder.Count);
+                for (int i = 0; i < heavyOrder.Count; i++)
+                {
+                    footprints.Add(heavyThings[heavyOrder[i]]);
+                }
+
+                return footprints;
+            }
+        }
+
+        /// <summary>
+        /// The heavy things as the run starts, all at once: one working-out of
+        /// the whole map rather than one per crate.
+        /// </summary>
+        public void SetHeavyThings(IReadOnlyList<(int Thing, LogicalBounds Footprint)> things)
+        {
+            heavyThings.Clear();
+            heavyOrder.Clear();
+            for (int i = 0; i < things.Count; i++)
+            {
+                heavyThings[things[i].Thing] = things[i].Footprint;
+                heavyOrder.Add(things[i].Thing);
+            }
+
+            if (things.Count > 0)
+            {
+                TheBuildingChangedShape(FireArea);
+            }
+        }
+
+        /// <summary>
+        /// A heavy thing has come to rest here. New to the map, it is put on
+        /// it; already on it, the map is worked out again only once it has
+        /// shifted far enough to matter, as for a table.
+        /// </summary>
+        public void SettleHeavyThing(int thing, LogicalBounds footprint)
+        {
+            if (!heavyThings.TryGetValue(thing, out LogicalBounds baked))
+            {
+                heavyThings[thing] = footprint;
+                heavyOrder.Add(thing);
+                TheBuildingChangedShape(footprint);
+                return;
+            }
+
+            if (Math.Abs(footprint.MinX - baked.MinX) < TableMovedMillimetres &&
+                Math.Abs(footprint.MaxX - baked.MaxX) < TableMovedMillimetres &&
+                Math.Abs(footprint.MinZ - baked.MinZ) < TableMovedMillimetres &&
+                Math.Abs(footprint.MaxZ - baked.MaxZ) < TableMovedMillimetres)
+            {
+                return;
+            }
+
+            heavyThings[thing] = footprint;
+            TheBuildingChangedShape(new LogicalBounds(
+                Math.Min(baked.MinX, footprint.MinX), Math.Max(baked.MaxX, footprint.MaxX),
+                Math.Min(baked.MinZ, footprint.MinZ), Math.Max(baked.MaxZ, footprint.MaxZ)));
+        }
+
+        /// <summary>A heavy thing is off the map: picked up, wrecked, or no longer heavy enough.</summary>
+        public void LiftHeavyThing(int thing)
+        {
+            if (!heavyThings.TryGetValue(thing, out LogicalBounds baked))
+            {
+                return;
+            }
+
+            heavyThings.Remove(thing);
+            heavyOrder.Remove(thing);
+            TheBuildingChangedShape(baked);
+        }
+
+        /// <summary>True when a body of this radius at this spot would overlap a table or a heavy thing on the map.</summary>
+        public bool ObstacleAt(LogicalPosition position, int bodyRadius)
+        {
+            if (TableAt(position, bodyRadius) >= 0)
+            {
+                return true;
+            }
+
+            for (int i = 0; i < heavyOrder.Count; i++)
+            {
+                LogicalBounds b = heavyThings[heavyOrder[i]];
+                if (position.X > b.MinX - bodyRadius && position.X < b.MaxX + bodyRadius &&
+                    position.Z > b.MinZ - bodyRadius && position.Z < b.MaxZ + bodyRadius)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>True when a person walking straight from one point to the other would run into a table or a heavy thing on the map.</summary>
+        public bool RouteCrossesObstacle(LogicalPosition from, LogicalPosition to)
+        {
+            if (RouteCrossesTable(from, to))
+            {
+                return true;
+            }
+
+            for (int i = 0; i < heavyOrder.Count; i++)
+            {
+                if (IntegerMath.SweptCircleOverlapsBounds(from, to, radius, heavyThings[heavyOrder[i]]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

@@ -18,21 +18,29 @@ namespace Paniq.Simulation
     /// <item>After half a minute to a minute and a half of ordinary day -- or
     /// at once, when the player presses the trigger -- a waste bin in the
     /// meeting room catches fire. It smoulders, then spreads slowly while it
-    /// is young, so somebody brave nearby has a real chance to put it out.</item>
-    /// <item>If it is put out -- nothing burning anywhere, and it never got out
-    /// of the room it started in -- the bells fall silent a little later (the
-    /// all-clear), and twenty to forty seconds on a wall socket in the busiest
-    /// calm room crackles for a few seconds and pops: a bang and a small
-    /// fire.</item>
-    /// <item>If that is put out too, the fuse box crackles and goes, and the
-    /// spark takes every socket in the building with it. That is the last
-    /// rung.</item>
+    /// is young, so somebody brave nearby has a real chance to put it out.
+    /// Put out before the carpet under it ever caught, it was no fire at all:
+    /// another of the room's bins catches a beat later, until the bins run
+    /// out (the owner's rule, 2026-09-27).</item>
+    /// <item>The tower of boxes is armed from the moment the bin is lit: the
+    /// first frightened person to run along the corridor brings it down
+    /// (<see cref="TrapSystem"/>), whatever the fire is doing.</item>
+    /// <item>Five seconds after the boxes fall, whatever the bin fire is
+    /// doing, a wall socket in the busiest room crackles for a few seconds
+    /// and pops: a bang and a small fire (the owner's order, 2026-09-27:
+    /// bin, boxes, outlet). If the fire is put out first -- nothing burning
+    /// anywhere, and it never got out of the room it started in -- the bells
+    /// fall silent a little later (the all-clear) and the socket comes five
+    /// to ten seconds after the put-out instead.</item>
+    /// <item>If the socket's fire is put out too, five to ten seconds later
+    /// the fuse box crackles and goes, and the spark takes every socket in
+    /// the building with it. That is the last rung.</item>
     /// </list>
     /// <para>
     /// A fire that gets out of the room it started in is the real fire: the
-    /// Director adds nothing more, and the traps are armed by it. If everybody
-    /// simply runs out, that is fine too. Without the ladder the traps are
-    /// armed by the fire being lit, as they were in the first batch.
+    /// Director adds nothing more. If everybody simply runs out, that is
+    /// fine too. With or without the ladder the traps are armed by the fire
+    /// being lit.
     /// </para>
     /// <para>
     /// Phase 1½ of the tick, after the player's commands and before the
@@ -43,7 +51,9 @@ namespace Paniq.Simulation
     /// <para>
     /// Random draws: with the ladder, two at start-up (which bin, if there is
     /// more than one, and when it catches), one per put-out (when the next
-    /// rung comes, and one for the all-clear's own moment), and one per rung
+    /// rung comes, and one for the all-clear's own moment; a relit bin draws
+    /// which bin, when more than one is left, and its beat), one when the
+    /// tower falls (the socket's five seconds, jittered), and one per rung
     /// only when two sockets tie for the busiest room.
     /// </para>
     /// </summary>
@@ -64,6 +74,9 @@ namespace Paniq.Simulation
 
             /// <summary>An incident is burning, and has not got out of its room.</summary>
             Burning,
+
+            /// <summary>A bin was put out before the carpet caught: another bin catches at <c>dueTick</c>.</summary>
+            Relighting,
 
             /// <summary>It was put out; the next rung, if any, is on its way.</summary>
             Out,
@@ -95,8 +108,24 @@ namespace Paniq.Simulation
         /// <summary>Whether this run's Director climbs the ladder: the level asks for it and one of its bins is in the building.</summary>
         private readonly bool climbs;
 
-        /// <summary>The bin the first incident starts in, or -1.</summary>
-        private readonly int binIndex = -1;
+        /// <summary>The bins the first incident may start in, that are in the building; which have been used.</summary>
+        private readonly List<int> bins = new List<int>();
+        private readonly bool[] binUsed;
+
+        /// <summary>The bin the current (or next) bin incident starts in, or -1.</summary>
+        private int binIndex = -1;
+
+        /// <summary>How many bins have been lit so far, for the story.</summary>
+        private int binsLit;
+
+        /// <summary>How many floor squares had ever caught when the current bin was lit: none more, and the carpet never caught.</summary>
+        private int cellsLitAtIncidentStart;
+
+        /// <summary>When the socket crackles because the tower fell, or 0 while it has not fallen.</summary>
+        private int socketFallDue;
+
+        /// <summary>Whether the socket rung has begun, by either road.</summary>
+        private bool socketCame;
 
         private LadderPhase phase = LadderPhase.Waiting;
         private Rung rung = Rung.None;
@@ -149,25 +178,67 @@ namespace Paniq.Simulation
 
             // Only the bins that are really in this building: a test floor
             // with the loose things cleared away has no ladder to climb.
-            var present = new List<int>();
             for (int i = 0; i < settings.FirstIncidentThings.Length; i++)
             {
                 int index = objects.IndexOf(settings.FirstIncidentThings[i]);
                 if (index >= 0)
                 {
-                    present.Add(index);
+                    bins.Add(index);
                 }
             }
 
-            if (present.Count == 0)
+            if (bins.Count == 0)
             {
                 return;
             }
 
             climbs = true;
+            binUsed = new bool[bins.Count];
             fire.LeaveTheStartToTheDirector();
-            binIndex = present.Count == 1 ? present[0] : present[context.Random.NextIntInclusive(0, present.Count - 1)];
+            TryDrawAnotherBin();
             dueTick = context.Random.NextIntInclusive(settings.FirstIncidentMinimumTicks, settings.FirstIncidentMaximumTicks);
+        }
+
+        /// <summary>
+        /// Picks the next bin from the ones not yet used: the only one left,
+        /// or one drawn among them. False, and nothing drawn, when every bin
+        /// has been lit.
+        /// </summary>
+        private bool TryDrawAnotherBin()
+        {
+            int unused = 0;
+            for (int i = 0; i < bins.Count; i++)
+            {
+                if (!binUsed[i])
+                {
+                    unused++;
+                }
+            }
+
+            if (unused == 0)
+            {
+                return false;
+            }
+
+            int pick = unused == 1 ? 0 : context.Random.NextIntInclusive(0, unused - 1);
+            for (int i = 0; i < bins.Count; i++)
+            {
+                if (binUsed[i])
+                {
+                    continue;
+                }
+
+                if (pick == 0)
+                {
+                    binUsed[i] = true;
+                    binIndex = bins[i];
+                    return true;
+                }
+
+                pick--;
+            }
+
+            return false;
         }
 
         /// <summary>Both are built after this system.</summary>
@@ -184,12 +255,14 @@ namespace Paniq.Simulation
         /// work after a fire was put out.
         /// </summary>
         public bool HasSomethingComing =>
-            climbs && (phase == LadderPhase.Crackling || (phase == LadderPhase.Out && nextRung != Rung.None));
+            climbs && (phase == LadderPhase.Crackling || phase == LadderPhase.Relighting ||
+                       (socketFallDue > 0 && !socketCame) ||
+                       (phase == LadderPhase.Out && nextRung != Rung.None));
 
         /// <summary>
         /// Every cue whose tick has come and that has not been called yet, in
         /// timetable order; then the ladder, if this level climbs one; then
-        /// the traps.
+        /// the traps, armed by the fire being lit -- the bin, with the ladder.
         /// </summary>
         public void Advance()
         {
@@ -201,12 +274,29 @@ namespace Paniq.Simulation
             }
 
             Climb();
-            traps.Advance(EscapedEventId != 0UL, EscapedEventId);
+            traps.Advance(fire.Active, incidentEventId != 0UL ? incidentEventId : fire.ActivationEventId);
         }
 
         private void Climb()
         {
             int tick = context.Tick;
+
+            // The socket after the boxes (the owner's order, 2026-09-27):
+            // once the tower has come down, the socket crackles five seconds
+            // later, whatever the bin fire is doing -- unless it has come
+            // already because the fire was put out first.
+            if (phase != LadderPhase.Waiting && !socketCame && socketFallDue == 0 && traps.LatestFallTick >= 0)
+            {
+                socketFallDue = checked(traps.LatestFallTick + context.Jittered(settings.SocketAfterFallTicks));
+            }
+
+            if (!socketCame && socketFallDue > 0 && tick >= socketFallDue && phase != LadderPhase.Crackling)
+            {
+                nextRung = Rung.Socket;
+                StartCrackling();
+                return;
+            }
+
             switch (phase)
             {
                 case LadderPhase.Waiting:
@@ -214,13 +304,22 @@ namespace Paniq.Simulation
                     // button first.
                     if (tick >= dueTick || fire.StartRequested)
                     {
-                        StartTheBin();
+                        StartTheBin(round != null && round.TriggerEventId != 0UL ? round.TriggerEventId : 0UL);
                     }
 
                     break;
 
                 case LadderPhase.Burning:
                     Watch();
+                    break;
+
+                case LadderPhase.Relighting:
+                    // The next bin, a beat after the last was doused.
+                    if (tick >= dueTick)
+                    {
+                        StartTheBin(putOutEventId);
+                    }
+
                     break;
 
                 case LadderPhase.Out:
@@ -266,14 +365,21 @@ namespace Paniq.Simulation
             }
         }
 
-        /// <summary>The first incident: the fire exists from now on, and the bin is what is burning.</summary>
-        private void StartTheBin()
+        /// <summary>
+        /// A bin incident: the fire exists from now on, and the bin is what is
+        /// burning. The first time, <paramref name="cause"/> is the trigger
+        /// (or nothing); a relit bin's cause is the put-out that was too
+        /// quick. The event's strength counts the bins lit so far.
+        /// </summary>
+        private void StartTheBin(ulong cause)
         {
-            ulong cause = round != null && round.TriggerEventId != 0UL ? round.TriggerEventId : 0UL;
             incidentPosition = objects.PositionOf(binIndex);
             ulong activated = fire.StartWithoutFlames(incidentPosition, cause);
+            binsLit++;
+            cellsLitAtIncidentStart = fire.CellsEverLit;
             incidentEventId = context.Events.Append(context.Tick, objects.IdOf(binIndex),
-                CausalEventType.DirectorStartedIncident, incidentPosition, 0, 0, activated).EventId;
+                CausalEventType.DirectorStartedIncident, incidentPosition, binsLit, 0,
+                binsLit > 1 ? cause : activated).EventId;
             flammables.IgniteObject(binIndex, incidentEventId);
             BeginIncident(geometry.RoomAtPoint(incidentPosition), 0);
             rung = Rung.Bin;
@@ -287,10 +393,14 @@ namespace Paniq.Simulation
         /// rooms of their own on purpose, and that is the incident, not the
         /// fire getting loose.
         /// </summary>
-        private void BeginIncident(int room, int settleTicks)
+        private void BeginIncident(int room, int settleTicks, bool keepTheOldRooms = false)
         {
             incidentRooms ??= new bool[geometry.RoomCount];
-            System.Array.Clear(incidentRooms, 0, incidentRooms.Length);
+            if (!keepTheOldRooms)
+            {
+                System.Array.Clear(incidentRooms, 0, incidentRooms.Length);
+            }
+
             startRoom = room;
             if (room >= 0)
             {
@@ -327,13 +437,38 @@ namespace Paniq.Simulation
             int tick = context.Tick;
             putOutEventId = context.Events.Append(tick, default, CausalEventType.IncidentPutOut,
                 incidentPosition, startRoom, 0, incidentEventId).EventId;
+            if (rung == Rung.Bin && fire.CellsEverLit == cellsLitAtIncidentStart && TryDrawAnotherBin())
+            {
+                // Doused before the carpet under it ever caught: that was no
+                // fire, and another bin catches a beat later -- never on the
+                // tick it was put out, so the story reads put out, then lit.
+                phase = LadderPhase.Relighting;
+                dueTick = context.ReactionTick();
+                return;
+            }
+
             previousRoom = startRoom;
             phase = LadderPhase.Out;
             allClearTick = checked(tick + context.Jittered(settings.AllClearAfterTicks));
-            nextRung = rung == Rung.Bin ? Rung.Socket : rung == Rung.Socket ? Rung.FuseBox : Rung.None;
-            dueTick = nextRung == Rung.None
-                ? int.MaxValue
-                : checked(tick + context.Random.NextIntInclusive(settings.NextRungMinimumTicks, settings.NextRungMaximumTicks));
+            nextRung = rung == Rung.Bin && !socketCame ? Rung.Socket : rung == Rung.FuseBox ? Rung.None : Rung.FuseBox;
+            dueTick = NextRungDue(tick);
+        }
+
+        /// <summary>
+        /// When the next rung comes: five to ten seconds after the put-out
+        /// (the owner, 2026-09-27). The socket may come sooner than that,
+        /// five seconds after the tower falls, which <see cref="Climb"/>
+        /// watches for on its own.
+        /// </summary>
+        private int NextRungDue(int tick)
+        {
+            if (nextRung == Rung.None)
+            {
+                return int.MaxValue;
+            }
+
+            int wait = context.Random.NextIntInclusive(settings.AfterPutOutMinimumTicks, settings.AfterPutOutMaximumTicks);
+            return checked(tick + wait);
         }
 
         /// <summary>Floor, things or people: anything at all alight.</summary>
@@ -366,7 +501,8 @@ namespace Paniq.Simulation
             int node = -1;
             if (nextRung == Rung.Socket)
             {
-                node = BusiestCalmRoomsSocket();
+                socketCame = true;
+                node = BusiestRoomsSocket();
                 if (node < 0)
                 {
                     // Every socket is gone, or the only ones left are where
@@ -399,32 +535,39 @@ namespace Paniq.Simulation
         /// <summary>It goes: the next incident begins where it went off.</summary>
         private void Pop()
         {
+            // A socket that pops while the bin still burns joins the bin's
+            // incident rather than starting afresh: the bin's room is still
+            // its own, not fire that got loose.
+            bool stillBurning = SomethingIsBurning();
             ulong bang = nextRung == Rung.FuseBox
                 ? power.PopTheFuseBox(crackleEventId)
                 : power.PopSocket(crackleNode, crackleEventId);
             rung = nextRung;
             nextRung = Rung.None;
             incidentPosition = power.NodePosition(crackleNode);
-            BeginIncident(geometry.RoomAtPoint(incidentPosition), settings.BangSettlesTicks);
+            BeginIncident(geometry.RoomAtPoint(incidentPosition), settings.BangSettlesTicks, stillBurning);
             incidentEventId = bang != 0UL ? bang : crackleEventId;
             phase = LadderPhase.Burning;
         }
 
         /// <summary>
-        /// The socket for the second rung: in the room with the most calm
-        /// people still in the run, never the room the last fire was in. The
-        /// bang lands on an audience. Sockets that tie -- two rooms as busy,
-        /// or two sockets in the busiest -- are drawn between; nothing is drawn
-        /// when there is no tie. -1 when there is no socket to choose.
+        /// The socket for the second rung: in the room with the most people
+        /// still in the run, calm or frightened (the owner's choice,
+        /// 2026-09-27; it used to count the calm alone, and after the boxes
+        /// fell the calm rooms were often empty), never a room the last fire
+        /// was in. The bang lands on an audience. Sockets that tie -- two
+        /// rooms as busy, or two sockets in the busiest -- are drawn between;
+        /// nothing is drawn when there is no tie. -1 when there is no socket
+        /// to choose.
         /// </summary>
-        private int BusiestCalmRoomsSocket()
+        private int BusiestRoomsSocket()
         {
             var calmIn = new int[geometry.RoomCount];
             Agent[] agents = crowd.All;
             for (int i = 0; i < agents.Length; i++)
             {
                 Agent agent = agents[i];
-                if (!agent.IsParticipating || agent.Fear.State != AgentFearState.Calm)
+                if (!agent.IsParticipating)
                 {
                     continue;
                 }
@@ -446,7 +589,7 @@ namespace Paniq.Simulation
                 }
 
                 int room = geometry.RoomAtPoint(power.NodePosition(node));
-                if (room < 0 || room == previousRoom)
+                if (room < 0 || room == previousRoom || (incidentRooms != null && incidentRooms[room]))
                 {
                     continue;
                 }

@@ -12,8 +12,16 @@ namespace Paniq.Simulation
     /// a reflex rather than a plan. Calm tidying is not logged (like a calm
     /// push); drops and throws are.
     /// </summary>
-    internal sealed class ItemBehaviour
+    internal sealed class ItemBehaviour : IBindable
     {
+        private InfluenceSystem influence;
+
+        /// <summary>Built after this behaviour.</summary>
+        public void Bind(Systems systems)
+        {
+            influence = systems.Influence;
+        }
+
         private readonly SimulationContext context;
 
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
@@ -94,9 +102,46 @@ namespace Paniq.Simulation
             // day carrying the furniture about instead. A frightened person
             // still wedges a chair against a door, which is a different act
             // and lives in BarricadeBehaviour.
-            return !objects.IsEquipment(index) && !objects.CanBeSatOn(index) && !objects.IsDormant(index) &&
-                   objects.HolderOf(index) < 0 && !objects.IsMoving(index) && objects.CanLift(agent, index) &&
+            return !objects.IsEquipment(index) && !objects.CanBeSatOn(index) && IsTakeable(agent, index);
+        }
+
+        /// <summary>Free, still, on the floor, light enough for them, and not burning or burnt: could be picked up at all.</summary>
+        private bool IsTakeable(Agent agent, int index)
+        {
+            return !objects.IsDormant(index) && objects.HolderOf(index) < 0 && objects.OccupantOf(index) < 0 &&
+                   !objects.IsMoving(index) && objects.CanLift(agent, index) &&
                    flammables.ObjectState(index) == ObjectBurnState.Intact;
+        }
+
+        /// <summary>What they are fetching may still be taken: for a thing to keep, anything they could lift; for clutter, clutter.</summary>
+        private bool MayTake(Agent agent, int index) => agent.Carry.KeepIt ? IsTakeable(agent, index) : IsFreeToTake(agent, index);
+
+        /// <summary>
+        /// A thing the player has pointed at that this person could pick up
+        /// (2026-09-27): free, light enough, and not a chair -- a bottle on
+        /// its wall included, which tidying never takes.
+        /// </summary>
+        public bool CanFetchForTheInfluence(Agent agent, int index) =>
+            agent.Carry.ItemIndex < 0 && !objects.CanBeSatOn(index) && IsTakeable(agent, index);
+
+        /// <summary>
+        /// Sets off to fetch a thing the player pointed at (2026-09-27): a
+        /// bottle to hold on to, as if it were their own bag; anything else
+        /// to carry off and set down somewhere else, as tidying does. False
+        /// when it cannot be fetched after all.
+        /// </summary>
+        public bool FetchForTheInfluence(Agent agent, int index)
+        {
+            if (!CanFetchForTheInfluence(agent, index))
+            {
+                return false;
+            }
+
+            agent.Carry.ItemIndex = index;
+            agent.Carry.KeepIt = objects.IsEquipment(index);
+            agent.Intent.Activity = AgentActivityState.FetchingItem;
+            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(calm.StrollTimeoutTicks));
+            return true;
         }
 
         /// <summary>
@@ -116,9 +161,10 @@ namespace Paniq.Simulation
             {
                 case AgentActivityState.FetchingItem:
                 {
-                    if (timedOut || agent.Body.BlockedTicks > calm.BlockedGiveUpTicks || !IsFreeToTake(agent, item))
+                    if (timedOut || agent.Body.BlockedTicks > calm.BlockedGiveUpTicks || !MayTake(agent, item))
                     {
                         agent.Carry.ItemIndex = -1;
+                        agent.Carry.KeepIt = false;
                         return false;
                     }
 
@@ -142,14 +188,32 @@ namespace Paniq.Simulation
                         return true;
                     }
 
-                    if (!IsFreeToTake(agent, item) || !IsWithinReach(agent, item))
+                    if (!MayTake(agent, item) || !IsWithinReach(agent, item))
                     {
                         agent.Carry.ItemIndex = -1;
+                        agent.Carry.KeepIt = false;
                         return false;
                     }
 
                     objects.PickUp(item, agent);
                     agent.Carry.Holding = true;
+
+                    // Picked up because the player pointed at it: the pull on
+                    // it is spent. Nothing on it, nothing written.
+                    ulong spent = influence != null ? influence.Spend(agent, -1, item) : 0UL;
+                    if (agent.Carry.KeepIt)
+                    {
+                        // A bottle taken off its wall for the player: theirs
+                        // to hold on to, as their own bag is, until something
+                        // frightens them and they let go of it like anything
+                        // else -- and then it is a free bottle for the brave.
+                        agent.Carry.KeepIt = false;
+                        agent.Carry.OwnsIt = true;
+                        context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentTookExtinguisher,
+                            agent.Body.Position, 0, 0, spent, objects.IdOf(item));
+                        return false;
+                    }
+
                     StartCarrying(agent);
                     return true;
 

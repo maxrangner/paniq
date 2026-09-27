@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -287,6 +287,11 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentHidFromTheHeat: return "too hot!";
                 case CausalEventType.AgentAnnoyed: return "leave me alone!";
                 case CausalEventType.BoxTowerFell: return "the boxes came down!";
+                case CausalEventType.BoxHeapSettled: return "the way is blocked!";
+                case CausalEventType.AgentClearedDoorway: return "out of the way";
+                case CausalEventType.InfluenceSpent: return "done!";
+                case CausalEventType.AgentPokedAwake: return "huh?!";
+                case CausalEventType.AgentKnockedOffChair: return "oof!";
                 case CausalEventType.BoxPileCleared: return "the way is clear!";
                 case CausalEventType.DirectorStartedIncident: return "fire!";
                 case CausalEventType.IncidentPutOut: return "it's out!";
@@ -334,7 +339,10 @@ namespace Paniq.Presentation
 
             SimulationId subject = record.HasTarget ? record.TargetId : record.SourceId;
             string who = story.NumberOf(subject) is int number ? number + ": " : string.Empty;
-            caption = who + WordsFor(record.EventType);
+            // The Director lighting another bin after a quick put-out
+            // (2026-09-27) says so, so the player sees it was deliberate.
+            bool anotherBin = record.EventType == CausalEventType.DirectorStartedIncident && record.Strength > 1;
+            caption = who + (anotherBin ? "another one!" : WordsFor(record.EventType));
             good = IsGoodNews(record.EventType);
             return true;
         }

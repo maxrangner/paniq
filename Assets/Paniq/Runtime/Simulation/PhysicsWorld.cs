@@ -157,6 +157,9 @@ namespace Paniq.Simulation
             public bool Solid = true;
             public bool Kinematic;
             public Reading Reading;
+
+            /// <summary>A person's column, rather than a loose thing.</summary>
+            public bool IsPerson;
         }
 
         private readonly Scene scene;
@@ -544,10 +547,11 @@ namespace Paniq.Simulation
         private readonly List<(Vector3 Middle, Vector3 Size)> doorSpaces = new List<(Vector3, Vector3)>();
 
         /// <summary>
-        /// Whether any part of any body, a person or a loose thing, is in this
+        /// Whether any part of any body -- a person or, with
+        /// <paramref name="thingsToo"/>, a loose thing -- is in this
         /// doorway's gap, other than the one given (whoever is shutting it).
         /// </summary>
-        public bool IsAnyBodyInDoorway(int door, int ignoreHandle)
+        public bool IsAnyBodyInDoorway(int door, int ignoreHandle, bool thingsToo = true)
         {
             (Vector3 middle, Vector3 size) = doorSpaces[door];
 
@@ -557,7 +561,8 @@ namespace Paniq.Simulation
             int count = OverlapBoxAll(middle, half);
             for (int i = 0; i < count; i++)
             {
-                if (bodyByCollider.TryGetValue(overlapping[i].GetInstanceID(), out int handle) && handle != ignoreHandle)
+                if (bodyByCollider.TryGetValue(overlapping[i].GetInstanceID(), out int handle) && handle != ignoreHandle &&
+                    (thingsToo || bodies[handle].IsPerson))
                 {
                     return true;
                 }
@@ -630,7 +635,8 @@ namespace Paniq.Simulation
             {
                 Rigidbody = rigidbody,
                 Colliders = new Collider[] { column },
-                Parts = Array.Empty<ObjectShapes.Part>()
+                Parts = Array.Empty<ObjectShapes.Part>(),
+                IsPerson = true
             };
             return Register(body);
         }

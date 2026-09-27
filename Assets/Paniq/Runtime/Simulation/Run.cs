@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -139,14 +139,14 @@ namespace Paniq.Simulation
                 // so the fire still wins every tie it used to.
                 threats.Add(new BurningThingsThreat(context, geometry, flammables));
                 threats.Add(new BurningPeopleThreat(context, geometry, crowd));
-                traps = new TrapSystem(context, crowd, geometry, doors, objects, flammables, fire, body, sound, people);
+                traps = new TrapSystem(context, crowd, geometry, doors, objects, flammables, sound);
                 items = new ItemBehaviour(context, geometry, objects, flammables);
                 chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
                 cues = new CueSystem(context, crowd, geometry);
                 errands = new ErrandBehaviour(context, crowd, geometry, objects, doors, chairs, sound, cues);
                 influence = new InfluenceSystem(context, geometry);
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues, sound);
-                nudges = new NudgeSystem(context, crowd, body, calm);
+                nudges = new NudgeSystem(context, crowd, body, calm, fear);
                 director = new DirectorSystem(context, cues, geometry, traps, fire, flammables, power, objects, crowd, sound);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
@@ -156,11 +156,12 @@ namespace Paniq.Simulation
                 panic = new PanicBehaviour(context, crowd, geometry, threats, fear, sound, body, doorBehaviour, help, chairs,
                     exitSigns, locomotion, groups);
                 burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
-                extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
+                var walk = new FrightenedWalk(context, geometry, doors, locomotion);
+                extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items, walk);
                 leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion,
                     wayfinding);
                 alarms = new AlarmSystem(context, sound, geometry, objects, flammables);
-                alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion);
+                alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion, walk);
                 var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, threats, objects, flammables, locomotion);
 
                 // Everything exists: hand each system the ones built after it.
@@ -546,6 +547,18 @@ namespace Paniq.Simulation
 
         /// <summary>Throws a thing straight up at this many millimetres per tick.</summary>
         internal void TossObjectUpForTests(int index, int velocityY) => objects.Launch(index, 0, 0, velocityY);
+
+        /// <summary>
+        /// Tests only: puts a thing straight down at a spot, stopped, its
+        /// underside this high off the floor, turned to this heading. How a
+        /// test lays the fallen tower's heap exactly where it wants it,
+        /// rather than wherever the physics lands it.
+        /// </summary>
+        internal void PlaceObjectForTests(int index, LogicalPosition spot, int bottomMillimetres, int heading)
+        {
+            objects.Unpin(index);
+            objects.PlaceAt(index, spot, bottomMillimetres, heading, 0UL);
+        }
 
         /// <summary>Tests only: everything about what one person is doing and why, in one line, for a test that has to say what went wrong.</summary>
         internal string DescribeForTests(int index)

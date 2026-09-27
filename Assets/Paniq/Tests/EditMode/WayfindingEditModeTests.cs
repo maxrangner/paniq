@@ -71,6 +71,26 @@ namespace Paniq.Tests.EditMode
             floor.DoorStates = DoorSystem.CreateDoors(data);
             floor.Context = new SimulationContext(data, 1UL);
             floor.Geometry = new WorldGeometry(floor.Context, floor.DoorStates);
+
+            // The level's crate walls and heavy boxes are on the map people
+            // steer by (2026-09-27), which the physics objects put there in
+            // a run; this floor has none, so it puts them there itself.
+            var onTheMap = new System.Collections.Generic.List<(int, LogicalBounds)>();
+            for (int i = 0; i < data.PhysicsObjects.Length; i++)
+            {
+                PhysicsObjectDefinition thing = data.PhysicsObjects[i];
+                if (thing.StartsDormant || thing.StartsResting || thing.PartOfObjectId.Value != 0UL ||
+                    (!thing.StartsPinned && thing.MassGrams < data.World.OnTheMapFromGrams))
+                {
+                    continue;
+                }
+
+                int half = thing.SizeMillimetres / 2;
+                LogicalPosition at = thing.InitialPosition;
+                onTheMap.Add((i, new LogicalBounds(at.X - half, at.X + half, at.Z - half, at.Z + half)));
+            }
+
+            floor.Geometry.SetHeavyThings(onTheMap);
             floor.People = new Agent[people.Length];
             for (int i = 0; i < people.Length; i++)
             {

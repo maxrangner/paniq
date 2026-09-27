@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// The prototype's building, cast and clutter, written out longhand.
@@ -211,6 +211,15 @@
                     {
                         new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.TheNoise),
                         new ErrandStep(ErrandStepKind.StandFor, ErrandTarget.None, 50, 150)
+                    }),
+
+                // Drawn to a door by the player (2026-09-27): over to it,
+                // and then it is used -- opened if shut, shut if open.
+                new CueDefinition(CueKind.FollowTheInfluence, CueAudience.Self, CueHostRule.Nobody, false,
+                    new[]
+                    {
+                        new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.TheInfluence),
+                        new ErrandStep(ErrandStepKind.UseTheDoor, ErrandTarget.None)
                     })
             };
         }
@@ -218,8 +227,9 @@
         /// <summary>
         /// The signs pointing the way out: three down the corridor pointing
         /// east toward the T, one in each arm of the T pointing north at the
-        /// door, and two in the stockroom -- one at its west end pointing
-        /// east along the lane, one under its door into the crossbar pointing
+        /// door, and six in the stockroom (2026-09-27): one at its west end
+        /// and one at each bend of the winding lane, pointing the way round
+        /// the crate walls, and one under its door into the crossbar pointing
         /// north. The south arm keeps its sign: somebody who has come out of
         /// the stockroom needs telling which way the door is.
         /// </summary>
@@ -227,6 +237,7 @@
         {
             const int North = 0;
             const int East = 90;
+            const int South = 180;
             return new[]
             {
                 new ExitSignDefinition(new LogicalPosition(-3000, 8600), East),
@@ -235,6 +246,10 @@
                 new ExitSignDefinition(new LogicalPosition(14500, 11000), North),
                 new ExitSignDefinition(new LogicalPosition(14500, 4000), North),
                 new ExitSignDefinition(new LogicalPosition(7500, -3200), East),
+                new ExitSignDefinition(new LogicalPosition(8500, -2200), East),
+                new ExitSignDefinition(new LogicalPosition(10700, -2200), South),
+                new ExitSignDefinition(new LogicalPosition(10700, -5000), East),
+                new ExitSignDefinition(new LogicalPosition(14500, -3000), North),
                 new ExitSignDefinition(new LogicalPosition(14500, -1200), North)
             };
         }
@@ -330,7 +345,16 @@
                 {
                     new SimulationId(3701UL), new SimulationId(3702UL), new SimulationId(3703UL), new SimulationId(3704UL),
                     new SimulationId(3705UL), new SimulationId(3706UL), new SimulationId(3707UL), new SimulationId(3708UL)
-                })
+                }),
+
+                // The stockroom's stack (2026-09-27): four crates against
+                // the north wall at the lane's first bend, which fall south
+                // across the gap between the wall and wall A -- the whole 2.6
+                // m of it, wall to wall -- once somebody frightened runs
+                // through the room.
+                new TrapDefinition(new SimulationId(7002UL),
+                    new[] { new SimulationId(3581UL), new SimulationId(3582UL), new SimulationId(3583UL), new SimulationId(3584UL) },
+                    Stockroom, new LogicalPosition(9500, -1825), 180, 2600)
             };
         }
 
@@ -506,14 +530,14 @@
                 // nobody's way until something knocks the stack over. Every
                 // stack stands well clear of a door, so a pile that is knocked
                 // over lands on open floor, not in somebody's way out.
-                Box(3001UL, -5500, 3500, 400, 6000),
-                Box(3002UL, -5500, 3500, 300, 3000, restsOnTheOneBelow: true),
-                Box(3003UL, 2000, 5500, 400, 6000),
-                Box(3004UL, 2000, 5500, 250, 2000, restsOnTheOneBelow: true),
-                Box(3005UL, -2500, -5500, 350, 4000),
-                Box(3006UL, -2500, -5500, 250, 2000, restsOnTheOneBelow: true),
-                Box(3007UL, 3500, -2000, 300, 3000),
-                Box(3008UL, -3800, 3500, 250, 2000),
+                Box(3001UL, -5500, 3500, 400),
+                Box(3002UL, -5500, 3500, 300, restsOnTheOneBelow: true),
+                Box(3003UL, 2000, 5500, 400),
+                Box(3004UL, 2000, 5500, 250, restsOnTheOneBelow: true),
+                Box(3005UL, -2500, -5500, 350),
+                Box(3006UL, -2500, -5500, 250, restsOnTheOneBelow: true),
+                Box(3007UL, 3500, -2000, 300),
+                Box(3008UL, -3800, 3500, 250),
 
                 // The office's wooden chairs, each pulled up to a desk and
                 // facing it.
@@ -579,13 +603,13 @@
                 OfficeChair(3247UL, 5000, 13000, South),
                 OfficeChair(3248UL, 5000, 11000, North),
 
-                // One extinguisher in the office, one in the cafeteria, and
-                // (2026-09-26) one on the meeting room's wall beside its door,
-                // so a small fire in there can be put out by somebody brave
-                // before it is a big one.
+                // One extinguisher in the office and one in the cafeteria.
+                // The meeting room had one beside its door for a day
+                // (2026-09-26); the owner took it away (2026-09-27), so the
+                // bin that catches in there is put out only by somebody who
+                // fetches a bottle from another room, if at all.
                 Extinguisher(3301UL, -1000, -5700),
                 Extinguisher(3302UL, 4000, 16300),
-                Extinguisher(3303UL, -3300, 9250),
 
                 // Electrical things, which go off when the flames reach them.
                 // The microwaves are a bank of them along the cafeteria's far
@@ -667,55 +691,80 @@
                 RobotVacuum(3471UL, 0, -3000),
                 RobotVacuum(3472UL, 8000, 15500),
 
-                // The stockroom's stores (2026-09-25): boxes of every size,
-                // many stacked in pairs. Loose things are not on the map
-                // people steer by -- they only dodge them when they get there
-                // -- so the straight line from the office door (6000, -4000)
-                // to the crossbar door (14500, -500) is kept clear of all of
-                // them by a metre either side, and nothing stands within
-                // 1.5 m of either doorway, where a box at rest would jam the
-                // door.
+                // The stockroom's stores, laid out as a winding lane
+                // (2026-09-27, the owner: "more of a zig-zag setup, or
+                // labyrinth ... heavier boxes, stacked higher. Make that room
+                // a hazard"). Two walls of 700 mm crates, three high and
+                // pinned where they stand -- and, being pinned, on the map
+                // people steer by, like tables -- make an S from the office
+                // door (6000, -4000) to the crossbar door (14500, -500):
+                // about fifteen metres of walking against nine in a straight
+                // line, single file where the middle lane is 1.8 m wide. A
+                // few light boxes lie loose in the lanes to be kicked and
+                // tripped over, and nothing stands within 1.5 m of either
+                // doorway. Crate 3581's stack at the first bend is the
+                // Director's second trap (see DefaultTraps).
                 //
-                // A row of stacks along the south wall.
-                Box(3501UL, 8000, -5650, 600, 13000),
-                Box(3502UL, 8000, -5650, 400, 6000, restsOnTheOneBelow: true),
-                Box(3503UL, 9000, -5550, 800, 24000),
-                Box(3504UL, 9000, -5550, 500, 9000, restsOnTheOneBelow: true),
-                Box(3505UL, 10000, -5700, 500, 9000),
-                Box(3506UL, 10000, -5700, 300, 3000, restsOnTheOneBelow: true),
-                Box(3507UL, 11000, -5600, 700, 18000),
-                Box(3508UL, 11000, -5600, 400, 6000, restsOnTheOneBelow: true),
-                Box(3509UL, 12000, -5650, 600, 13000),
-                Box(3510UL, 12000, -5650, 350, 4000, restsOnTheOneBelow: true),
-                Box(3511UL, 13000, -5550, 800, 24000),
-                Box(3512UL, 13000, -5550, 450, 7500, restsOnTheOneBelow: true),
-                Box(3513UL, 14000, -5700, 500, 9000),
-                Box(3514UL, 14000, -5700, 300, 3000, restsOnTheOneBelow: true),
-                Box(3515UL, 15000, -5600, 700, 18000),
-                Box(3516UL, 15000, -5600, 400, 6000, restsOnTheOneBelow: true),
+                // Wall A, from the south wall up to z -3150 at x 9500.
+                Box(3501UL, 9500, -5600, 700, pinned: true),
+                Box(3502UL, 9500, -5600, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3503UL, 9500, -5600, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3504UL, 9500, -4900, 700, pinned: true),
+                Box(3505UL, 9500, -4900, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3506UL, 9500, -4900, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3507UL, 9500, -4200, 700, pinned: true),
+                Box(3508UL, 9500, -4200, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3509UL, 9500, -4200, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3510UL, 9500, -3500, 700, pinned: true),
+                Box(3511UL, 9500, -3500, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3512UL, 9500, -3500, 700, restsOnTheOneBelow: true, pinned: true),
 
-                // Crates along the north wall, under the closet and the
-                // bathroom, stopping where the lane comes up to the wall.
-                Box(3517UL, 6700, -1000, 700, 18000),
-                Box(3518UL, 7600, -1000, 600, 13000),
-                Box(3519UL, 8500, -1000, 500, 9000),
-                Box(3520UL, 9300, -1000, 700, 18000),
-                Box(3521UL, 10200, -1000, 600, 13000),
-                Box(3522UL, 10200, -1000, 400, 6000, restsOnTheOneBelow: true),
-                Box(3523UL, 6600, -2000, 500, 9000),
-
-                // An island south of the lane.
-                Box(3524UL, 10000, -4100, 600, 13000),
-                Box(3525UL, 10000, -4100, 400, 6000, restsOnTheOneBelow: true),
-                Box(3526UL, 10800, -4200, 500, 9000),
-                Box(3527UL, 9300, -4300, 450, 7500),
-                Box(3528UL, 12500, -4600, 350, 4000),
-                Box(3529UL, 13500, -4500, 400, 6000),
+                // Wall B, from the north wall down to z -4050 at x 12000.
+                Box(3513UL, 12000, -900, 700, pinned: true),
+                Box(3514UL, 12000, -900, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3515UL, 12000, -900, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3516UL, 12000, -1600, 700, pinned: true),
+                Box(3517UL, 12000, -1600, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3518UL, 12000, -1600, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3519UL, 12000, -2300, 700, pinned: true),
+                Box(3520UL, 12000, -2300, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3521UL, 12000, -2300, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3522UL, 12000, -3000, 700, pinned: true),
+                Box(3523UL, 12000, -3000, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3524UL, 12000, -3000, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3525UL, 12000, -3700, 700, pinned: true),
+                Box(3526UL, 12000, -3700, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3527UL, 12000, -3700, 700, restsOnTheOneBelow: true, pinned: true),
 
                 // A column against the east wall, clear of the crossbar door.
-                Box(3530UL, 15600, -4000, 600, 13000),
-                Box(3531UL, 15600, -3000, 700, 18000),
-                Box(3532UL, 15600, -2000, 500, 9000),
+                Box(3530UL, 15600, -4000, 600),
+                Box(3531UL, 15600, -3000, 700),
+                Box(3532UL, 15600, -2000, 500),
+
+                // Light boxes loose in the lanes, and a few stacked against
+                // the south wall where the lane does not run.
+                Box(3541UL, 7800, -5200, 300),
+                Box(3542UL, 8400, -1300, 350),
+                Box(3543UL, 10800, -2600, 300),
+                Box(3544UL, 11000, -4400, 400),
+                Box(3545UL, 13300, -3000, 350),
+                Box(3546UL, 15000, -5200, 300),
+                Box(3551UL, 7000, -5650, 500),
+                Box(3552UL, 7000, -5650, 300, restsOnTheOneBelow: true),
+                Box(3553UL, 14000, -5650, 500),
+                Box(3554UL, 14000, -5650, 350, restsOnTheOneBelow: true),
+                Box(3555UL, 15000, -5650, 400),
+
+                // The Director's second trap (2026-09-27): a stack of four
+                // crates against the north wall at the first bend, pinned
+                // while it stands (the TrapSystem holds it), which comes down
+                // across the gap between the wall and wall A once somebody
+                // frightened runs through the stockroom. Four, because three
+                // leave a gap a person squeezes through.
+                Box(3581UL, 9500, -900, 700),
+                Box(3582UL, 9500, -900, 700, restsOnTheOneBelow: true),
+                Box(3583UL, 9500, -900, 700, restsOnTheOneBelow: true),
+                Box(3584UL, 9500, -900, 700, restsOnTheOneBelow: true),
 
                 // The fire alarm bells (2026-09-25), one high on a wall of
                 // every room people use, including the stockroom and the
@@ -726,7 +775,7 @@
                 Sounder(3603UL, 8000, 16850, North),
                 Sounder(3604UL, -5850, 11000, West),
                 Sounder(3605UL, 12850, 3000, East),
-                Sounder(3606UL, 12000, -650, North),
+                Sounder(3606UL, 13200, -650, North),
                 Sounder(3607UL, 15850, 8000, East),
 
                 // The tower of boxes (prototype 3, 2026-09-25): two stacks of
@@ -740,14 +789,14 @@
                 // lit and somebody comes near. Each box is a plain 600 mm
                 // box of 13 kg: the strong can throw one clear and most
                 // people can carry one.
-                Box(3701UL, 13600, 6350, 600, 13000),
-                Box(3702UL, 13600, 6350, 600, 13000, restsOnTheOneBelow: true),
-                Box(3703UL, 13600, 6350, 600, 13000, restsOnTheOneBelow: true),
-                Box(3704UL, 13600, 6350, 600, 13000, restsOnTheOneBelow: true),
-                Box(3705UL, 14200, 6350, 600, 13000),
-                Box(3706UL, 14200, 6350, 600, 13000, restsOnTheOneBelow: true),
-                Box(3707UL, 14200, 6350, 600, 13000, restsOnTheOneBelow: true),
-                Box(3708UL, 14200, 6350, 600, 13000, restsOnTheOneBelow: true)
+                Box(3701UL, 13600, 6350, 600),
+                Box(3702UL, 13600, 6350, 600, restsOnTheOneBelow: true),
+                Box(3703UL, 13600, 6350, 600, restsOnTheOneBelow: true),
+                Box(3704UL, 13600, 6350, 600, restsOnTheOneBelow: true),
+                Box(3705UL, 14200, 6350, 600),
+                Box(3706UL, 14200, 6350, 600, restsOnTheOneBelow: true),
+                Box(3707UL, 14200, 6350, 600, restsOnTheOneBelow: true),
+                Box(3708UL, 14200, 6350, 600, restsOnTheOneBelow: true)
             };
         }
 
@@ -999,16 +1048,38 @@
         }
 
         /// <summary>
-        /// A cardboard box. With <paramref name="restsOnTheOneBelow"/> it is the
-        /// upper box of a stacked pair, authored at the same spot as the one it
-        /// stands on.
+        /// A cardboard box, as heavy as its size says (<see cref="BoxMass"/>).
+        /// With <paramref name="restsOnTheOneBelow"/> it is an upper box of a
+        /// stack, authored at the same spot as the one it stands on; with
+        /// <paramref name="pinned"/> it is fixed where it stands, a crate wall
+        /// nobody moves (the stockroom's lanes, 2026-09-27).
         /// </summary>
-        private static PhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams,
-            bool restsOnTheOneBelow = false)
+        private static PhysicsObjectDefinition Box(ulong id, int x, int z, int size,
+            bool restsOnTheOneBelow = false, bool pinned = false)
         {
             return new PhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.Box, new LogicalPosition(x, z), size, massGrams,
-                startsResting: restsOnTheOneBelow);
+                new SimulationId(id), PhysicsObjectKind.Box, new LogicalPosition(x, z), size, BoxMass(size),
+                startsResting: restsOnTheOneBelow, startsPinned: pinned);
+        }
+
+        /// <summary>
+        /// What a box weighs, by its size: a gameplay scale, not a real one
+        /// (the owner, 2026-09-27: "just scale it heavier to suit the
+        /// gameplay, not realism"). Small boxes are the clutter people tidy
+        /// and kick; the big ones, 600 mm and up, are the crates of the
+        /// stockroom and the tower, too heavy for anybody to carry (the limit
+        /// is 30 kg) and, measured in the engine, too heavy for one walker to
+        /// shove aside and heavy enough that three runners together barely
+        /// move one. The strong still heave them at a door, and they burn.
+        /// </summary>
+        public static int BoxMass(int size)
+        {
+            if (size <= 300) return 3000;
+            if (size <= 400) return 6000;
+            if (size <= 500) return 10000;
+            if (size <= 600) return 40000;
+            if (size <= 700) return 55000;
+            return 70000;
         }
     }
 }

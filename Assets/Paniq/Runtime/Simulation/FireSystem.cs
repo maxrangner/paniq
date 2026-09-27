@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -94,6 +94,14 @@ namespace Paniq.Simulation
 
         public bool Active => active;
         public int BurningCount => burningCells.Count;
+
+        /// <summary>
+        /// How many floor squares have ever caught in this run, put out or
+        /// not: the records are never removed. The Director reads it to tell
+        /// a bin that was doused before the carpet under it lit from a fire
+        /// that was a fire (2026-09-27).
+        /// </summary>
+        public int CellsEverLit => cellRecords.Count;
 
         // ---------------------------------------------------------------- as a threat
 

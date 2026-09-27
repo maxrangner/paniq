@@ -4,29 +4,40 @@ namespace Paniq.Simulation
 {
     /// <summary>
     /// The Director's traps (prototype 3, 2026-09-25): a tower of boxes
-    /// standing beside a doorway, waiting. Nothing happens to it while the
-    /// building is calm -- people walk past it to the toilet all day. Once
-    /// the fire is lit, the first person to come within reach of it brings
-    /// it down a beat later (their own reaction lag, never the same tick),
-    /// and the boxes land wedged across the doorway.
+    /// standing beside a doorway, waiting, or (2026-09-27) a stack of crates
+    /// standing beside a lane. Nothing happens to it while the building is
+    /// calm -- people walk past it to the toilet all day. Once the fire is
+    /// lit, the first frightened person to run through the room it watches
+    /// -- the corridor, for the archway; the stockroom, for the stack --
+    /// brings it down a beat later (their own reaction lag, never the same
+    /// tick): the owner's rule (2026-09-27), "once people start running down
+    /// the corridor".
     /// <para>
-    /// The fallen tower is nothing new to the rest of the game: the doorway
-    /// becomes a shut door with things wedged in it, which every doorway
-    /// already knows how to be. Its plug keeps bodies out, routes stop
-    /// going through it, the fire cannot cross it, and at it people do what
-    /// they do at any wedged door -- whoever can lift a box throws it clear,
-    /// the strong shove, and everybody else gives up and goes round. Each
-    /// box is an ordinary box: carried off, thrown clear or burnt, it leaves
-    /// the heap, and when fewer than <see cref="TrapSettings.PileHoldsAtBoxes"/>
-    /// are left lying unburnt in the doorway the way is open again.
+    /// The fall is the physics engine's (2026-09-27, the owner's rule: "the
+    /// toppled boxes should be normal physics objects"): each box is let go
+    /// of and shoved toward its own slot across the doorway, and where it
+    /// lands is where it lands. While enough of them lie still in the
+    /// doorway's strip (<see cref="TrapSettings.PileHoldsAtBoxes"/>) for
+    /// half a second, the doorway is shut for people and fire, as a doorway
+    /// with things wedged in it already is: its plug keeps bodies out,
+    /// routes go round it, the fire cannot cross it, and at it people do what
+    /// they do at any wedged door -- whoever can lift a box carries or
+    /// throws it clear, the strong shove, and everybody else gives up and
+    /// goes round. Too few boxes left in the gap, carried off or kicked out
+    /// or burnt, and the way is open again; kicked back in, and it shuts
+    /// again. A run where the boxes bounce wide leaves the way open, and
+    /// that is the run.
     /// </para>
     /// <para>
-    /// The boxes are placed by this system rather than thrown by the physics
-    /// engine, because the trap's whole point is that it blocks the way: a
-    /// guaranteed wall of cardboard, drawn as a tumble by the presentation.
-    /// While they stand and while they lie in the heap the boxes are pinned,
-    /// so the crowd cannot shove the tower over early or kick the heap apart;
-    /// picking one up or throwing it clear unpins it.
+    /// A trap across a lane has no doorway to shut: its crates fall along
+    /// the line the trap names and block the lane by their weight alone --
+    /// and, being too heavy to carry, they go on the map people steer by
+    /// once they have settled, so routes go the other way.
+    /// </para>
+    /// <para>
+    /// The standing tower's boxes are pinned so the crowd cannot shove it
+    /// over early; from the fall on they are ordinary boxes, pinned by
+    /// nothing.
     /// </para>
     /// Phase 1½, from the Director; it reads the fire and the crowd only.
     /// </summary>
@@ -34,10 +45,17 @@ namespace Paniq.Simulation
     {
         private enum TrapPhase
         {
+            /// <summary>The tower stands, pinned, waiting for the fire and a runner.</summary>
             Standing,
+
+            /// <summary>Sprung: the boxes come down at <c>fallTick</c>.</summary>
             Falling,
+
+            /// <summary>The boxes are loose; the doorway is shut while enough of them lie in it.</summary>
             Fallen,
-            Cleared
+
+            /// <summary>No boxes or no doorway in this building: nothing to fall.</summary>
+            Inert
         }
 
         private readonly SimulationContext context;
@@ -46,30 +64,28 @@ namespace Paniq.Simulation
         private readonly DoorSystem doors;
         private readonly PhysicsObjectSystem objects;
         private readonly FlammablesSystem flammables;
-        private readonly FireSystem fire;
-        private readonly BodySystem body;
         private readonly SoundSystem sound;
-        private readonly PeopleBodies people;
         private readonly TrapSettings settings;
 
         private readonly TrapDefinition[] traps;
+
+        /// <summary>The doorway each trap falls across, or -1 for a trap across a lane.</summary>
         private readonly int[] doorOf;
+
+        /// <summary>The room each trap watches for a runner.</summary>
+        private readonly int[] triggerRoom;
         private readonly int[][] boxesOf;
         private readonly TrapPhase[] phase;
         private readonly int[] fallTick;
         private readonly ulong[] triggerEventId;
         private readonly ulong[] fellEventId;
+        private readonly ulong[] heapEventId;
 
-        /// <summary>
-        /// The middle of each standing tower: what "near the tower" is
-        /// measured from. Worked out once, because a standing tower's boxes
-        /// are pinned and cannot move until it falls.
-        /// </summary>
-        private readonly LogicalPosition[] centreOf;
+        /// <summary>Ticks in a row that enough boxes have lain still in the doorway, while it is not yet shut.</summary>
+        private readonly int[] settledTicks;
 
         public TrapSystem(SimulationContext context, Crowd crowd, WorldGeometry geometry, DoorSystem doors,
-            PhysicsObjectSystem objects, FlammablesSystem flammables, FireSystem fire, BodySystem body, SoundSystem sound,
-            PeopleBodies people)
+            PhysicsObjectSystem objects, FlammablesSystem flammables, SoundSystem sound)
         {
             this.context = context;
             this.crowd = crowd;
@@ -77,22 +93,22 @@ namespace Paniq.Simulation
             this.doors = doors;
             this.objects = objects;
             this.flammables = flammables;
-            this.fire = fire;
-            this.body = body;
             this.sound = sound;
-            this.people = people;
             settings = context.Scenario.Traps;
             traps = context.Scenario.TrapDefinitions ?? Array.Empty<TrapDefinition>();
             doorOf = new int[traps.Length];
+            triggerRoom = new int[traps.Length];
             boxesOf = new int[traps.Length][];
             phase = new TrapPhase[traps.Length];
             fallTick = new int[traps.Length];
             triggerEventId = new ulong[traps.Length];
             fellEventId = new ulong[traps.Length];
-            centreOf = new LogicalPosition[traps.Length];
+            heapEventId = new ulong[traps.Length];
+            settledTicks = new int[traps.Length];
             for (int t = 0; t < traps.Length; t++)
             {
-                doorOf[t] = doors.IndexOf(traps[t].DoorId);
+                doorOf[t] = traps[t].IsDoorTrap ? doors.IndexOf(traps[t].DoorId) : -1;
+                triggerRoom[t] = doorOf[t] >= 0 ? geometry.DoorRoom(doorOf[t]) : RoomIndexOf(traps[t].TriggerRoomId);
 
                 // Only the boxes that are actually in the building: a test
                 // that empties the floor of loose things has emptied the
@@ -109,14 +125,12 @@ namespace Paniq.Simulation
                 }
 
                 boxesOf[t] = present.ToArray();
-                if (doorOf[t] < 0 || boxesOf[t].Length == 0)
+                if ((traps[t].IsDoorTrap && doorOf[t] < 0) || triggerRoom[t] < 0 || boxesOf[t].Length == 0)
                 {
-                    phase[t] = TrapPhase.Cleared;
+                    phase[t] = TrapPhase.Inert;
                     continue;
                 }
 
-                long x = 0;
-                long z = 0;
                 for (int b = 0; b < boxesOf[t].Length; b++)
                 {
                     // Standing, the tower is pinned and nobody may take from
@@ -124,34 +138,70 @@ namespace Paniq.Simulation
                     // thing that brings it down, and neither may somebody
                     // tidying up or a strong runner barging past.
                     objects.Pin(boxesOf[t][b]);
-                    LogicalPosition p = objects.PositionOf(boxesOf[t][b]);
-                    x += p.X;
-                    z += p.Z;
                 }
-
-                centreOf[t] = new LogicalPosition((int)(x / boxesOf[t].Length), (int)(z / boxesOf[t].Length));
             }
         }
 
         public int Count => traps.Length;
 
-        /// <summary>Whether this trap's boxes are lying across their doorway, shutting it.</summary>
-        public bool IsFallen(int trap) => phase[trap] == TrapPhase.Fallen;
+        private int RoomIndexOf(SimulationId roomId)
+        {
+            for (int r = 0; r < geometry.RoomCount; r++)
+            {
+                if (geometry.RoomId(r) == roomId)
+                {
+                    return r;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>Where a trap's boxes come down: the middle of its doorway, or of its line across the lane.</summary>
+        private LogicalPosition Landing(int trap) =>
+            doorOf[trap] >= 0 ? geometry.DoorCentre(doorOf[trap]) : traps[trap].LandingCentre;
+
+        /// <summary>Whether this trap's boxes are lying across their doorway, shutting it -- or, for a trap across a lane, have come down at all.</summary>
+        public bool IsFallen(int trap) =>
+            phase[trap] == TrapPhase.Fallen && (doorOf[trap] < 0 || doors.IsPiled(doorOf[trap]));
 
         /// <summary>Whether this trap has been sprung, whether or not the boxes have landed yet.</summary>
-        public bool IsSprung(int trap) => phase[trap] != TrapPhase.Standing;
+        public bool IsSprung(int trap) => phase[trap] == TrapPhase.Falling || phase[trap] == TrapPhase.Fallen;
 
-        /// <summary>The middle of the standing tower's footprint: what "near the tower" is measured from.</summary>
-        public LogicalPosition CentreOf(int trap) => centreOf[trap];
+        /// <summary>
+        /// The tick the most recent tower came down, or -1 while none has:
+        /// the Director measures the socket's wait from it (2026-09-27).
+        /// </summary>
+        public int LatestFallTick
+        {
+            get
+            {
+                int latest = -1;
+                for (int t = 0; t < traps.Length; t++)
+                {
+                    if (phase[t] == TrapPhase.Fallen)
+                    {
+                        latest = Math.Max(latest, fallTick[t]);
+                    }
+                }
 
-        /// <summary>How many of this trap's boxes are lying unburnt in its doorway right now.</summary>
+                return latest;
+            }
+        }
+
+        /// <summary>How many of this trap's boxes are lying still and unburnt in its doorway right now; none for a trap across a lane.</summary>
         public int BoxesInTheDoorway(int trap)
         {
             int count = 0;
+            if (doorOf[trap] < 0)
+            {
+                return 0;
+            }
+
             int[] boxes = boxesOf[trap];
             for (int b = 0; b < boxes.Length; b++)
             {
-                if (IsInTheHeap(doorOf[trap], boxes[b]))
+                if (IsInTheGap(doorOf[trap], boxes[b], out bool still) && still)
                 {
                     count++;
                 }
@@ -161,12 +211,12 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Every trap, in authored order: armed by the Director, sprung by the
-        /// first person near, landing a beat later. Armed once the fire is lit
-        /// -- or, with the Director climbing its ladder (2026-09-26), once a
-        /// fire has got out of the room it started in, so a bin put out in the
-        /// meeting room never brings the tower down. <paramref name="cause"/>
-        /// is what armed it, for the trigger to name.
+        /// Every trap, in authored order: armed by the Director once the fire
+        /// is lit (a bin smouldering counts: the owner's rule, 2026-09-27, is
+        /// that the boxes come down when people start running, whatever the
+        /// fire is doing), sprung by the first frightened runner, landing a
+        /// beat later. <paramref name="cause"/> is what armed it, for the
+        /// trigger to name.
         /// </summary>
         public void Advance(bool armed, ulong cause)
         {
@@ -189,97 +239,105 @@ namespace Paniq.Simulation
 
                         break;
                     case TrapPhase.Fallen:
-                        KeepTheHeap(t);
+                        if (doorOf[t] >= 0)
+                        {
+                            KeepTheHeap(t);
+                        }
+
                         break;
                 }
             }
         }
 
         /// <summary>
-        /// The first participating person within reach springs it. Lowest
-        /// index wins, so a replay names the same person; the fall lands
-        /// their own reaction lag later, because nothing happens on the tick
-        /// a thing is caused.
+        /// The first frightened person running through the room the trap
+        /// watches springs it: on their feet, scared, and moving at
+        /// <see cref="TrapSettings.TriggerSpeedMillimetresPerTick"/> or
+        /// more. Whichever way they are running: the owner's rule is that
+        /// people running is what brings it down. Lowest index wins, so a
+        /// replay names the same person; the fall lands their own reaction
+        /// lag later, because nothing happens on the tick a thing is caused.
         /// </summary>
         private void Watch(int trap, ulong cause)
         {
-            int radius = traps[trap].TriggerRadiusMillimetres > 0
-                ? traps[trap].TriggerRadiusMillimetres
-                : settings.TriggerRadiusMillimetres;
-            LogicalPosition centre = CentreOf(trap);
-            Agent nearest = null;
-            using (Crowd.Nearby near = crowd.Within(centre, radius))
+            int room = triggerRoom[trap];
+            int pace = settings.TriggerSpeedMillimetresPerTick;
+            Agent runner = null;
+            using (Crowd.Nearby near = crowd.Gather(geometry.RoomBounds(room)))
             {
                 for (int c = 0; c < near.Count; c++)
                 {
                     Agent agent = crowd.All[near[c]];
-                    if (!agent.IsParticipating ||
-                        LogicalPosition.DistanceSquared(agent.Body.Position, centre) > (long)radius * radius)
+                    if (!agent.IsParticipating || agent.Fear.State != AgentFearState.Scared ||
+                        agent.Body.State != AgentBodyState.Upright || agent.Body.Speed < pace ||
+                        geometry.RoomAt(agent.Body.Position) != room)
                     {
                         continue;
                     }
 
-                    if (nearest == null || agent.Index < nearest.Index)
+                    if (runner == null || agent.Index < runner.Index)
                     {
-                        nearest = agent;
+                        runner = agent;
                     }
                 }
             }
 
-            if (nearest == null)
+            if (runner == null)
             {
                 return;
             }
 
             phase[trap] = TrapPhase.Falling;
             fallTick[trap] = context.ReactionTick();
-            // Sprung because the fire was lit, or got loose: that event is its
-            // cause, so the story can trace the fallen boxes back to it.
+            // Sprung because the fire was lit: that event is its cause, so
+            // the story can trace the fallen boxes back to it.
             triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
-                centre, 0, 0, cause, nearest.Id).EventId;
+                Landing(trap), 0, 0, cause, runner.Id).EventId;
         }
 
         /// <summary>
-        /// The tower comes down: the doorway shuts, the boxes are laid in a
-        /// row along it (a second row on top when there are more than fit),
-        /// anybody standing in the doorway is knocked clear, the crash is
-        /// heard, and everybody within earshot thinks again about where they
-        /// were going.
+        /// The tower comes down: every box is let go of and shoved toward
+        /// its own slot across the gap, the crash is heard, and everybody
+        /// within earshot thinks again about where they were going. Whoever
+        /// is in the boxes' way is hit by them as by any thrown thing.
         /// </summary>
         private void Fall(int trap)
         {
             int door = doorOf[trap];
-            LogicalPosition doorCentre = geometry.DoorCentre(door);
-            ulong fell = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.BoxTowerFell, doorCentre,
-                0, 0, triggerEventId[trap], doors.IdOf(door)).EventId;
+            LogicalPosition at = Landing(trap);
+            ulong fell = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.BoxTowerFell, at,
+                0, 0, triggerEventId[trap], door >= 0 ? doors.IdOf(door) : default).EventId;
             fellEventId[trap] = fell;
             phase[trap] = TrapPhase.Fallen;
-            doors.PileInto(door);
-            LayTheBoxes(trap, door, fell);
-            KnockPeopleClear(door, fell);
-            sound.Crash(traps[trap].TrapId, doorCentre, settings.CrashSoundRadiusMillimetres, fell);
-            TellEverybodyNear(doorCentre);
+            settledTicks[trap] = 0;
+            ToppleTheBoxes(trap, fell);
+            sound.Crash(traps[trap].TrapId, at, settings.CrashSoundRadiusMillimetres, fell);
+            TellEverybodyNear(at);
         }
 
         /// <summary>
-        /// The boxes in a row across the gap, just inside the wall line on
-        /// the doorway's own side (the corridor's, for the archway), each
-        /// box beside the last; when the row is full the rest go on top of
-        /// it, in order. Pinned where they land. On the doorway's own side
-        /// rather than beyond it because the fire that reaches them comes
-        /// down the corridor, and flames only heat what is in their room:
-        /// laid beyond the line the boxes would be a wall the fire could
-        /// never burn.
+        /// Each box is aimed at a slot in a row across the gap -- for a
+        /// doorway, just inside the wall line on its own side (the
+        /// corridor's, for the archway); for a lane, along the line the trap
+        /// names -- each slot beside the last; when the row is full the rest
+        /// aim at the same slots again and land on top, or wherever they
+        /// bounce to. On the doorway's own side rather than beyond it because
+        /// the fire that reaches them comes down the corridor, and flames
+        /// only heat what is in their room. All let go of before any is
+        /// shoved, or the upper boxes would still be held while the lower
+        /// ones left.
         /// </summary>
-        private void LayTheBoxes(int trap, int door, ulong fell)
+        private void ToppleTheBoxes(int trap, ulong fell)
         {
             int[] boxes = boxesOf[trap];
-            int width = doors.WidthOf(door);
-            int heading = geometry.DoorwayRunsAlongX(door) ? 90 : 0;
+            for (int b = 0; b < boxes.Length; b++)
+            {
+                objects.Unpin(boxes[b]);
+            }
+
+            int door = doorOf[trap];
+            int width = door >= 0 ? doors.WidthOf(door) : traps[trap].LandingWidthMillimetres;
             int along = -width / 2;
-            int row = 0;
-            int rowBottom = 0;
-            int nextRowBottom = 0;
             int placedInRow = 0;
             for (int b = 0; b < boxes.Length; b++)
             {
@@ -287,61 +345,43 @@ namespace Paniq.Simulation
                 int size = objects.SizeOf(box);
                 if (along + size > width / 2 && placedInRow > 0)
                 {
-                    // The row is full: start another on top of it.
-                    row++;
-                    rowBottom = nextRowBottom;
                     along = -width / 2;
                     placedInRow = 0;
                 }
 
-                LogicalPosition spot = geometry.DoorPoint(door, along + size / 2, -settings.PileBeyondMillimetres);
-                // Let go, put down, and held again -- as part of the heap now,
-                // which people may take from: that is how it is cleared.
-                objects.Unpin(box);
-                objects.PlaceAt(box, spot, rowBottom, heading, fell);
-                objects.Pin(box, mayBeTaken: true);
-                nextRowBottom = Math.Max(nextRowBottom, rowBottom + ObjectShapes.TopHeight(objects.KindOf(box), size));
+                LogicalPosition slot = door >= 0
+                    ? geometry.DoorPoint(door, along + size / 2, -settings.PileBeyondMillimetres)
+                    : traps[trap].LandingCentre + IntegerMath.Displacement(traps[trap].LandingHeadingDegrees, along + size / 2);
+                LogicalPosition from = objects.PositionOf(box);
+                int heading = IntegerMath.HeadingBetween(from, slot, 0);
+                objects.Topple(box, heading, SpeedToReach(box, IntegerMath.Distance(from, slot)), settings.ToppleLiftPercent,
+                    settings.ToppleTumbles, fell);
                 along += size;
                 placedInRow++;
             }
         }
 
         /// <summary>
-        /// Nobody can stand where the boxes now lie: anybody astride the wall
-        /// line (where the doorway's plug now is) or under the boxes on the
-        /// doorway's own side of it is shifted clear of them and knocked
-        /// down, away from the wall line. Shifted first, because a body left
-        /// inside a pinned box would be pushed anywhere the engine liked.
+        /// The speed, in millimetres a tick, that lands a box this far away
+        /// from as high as it stands, lifted by <see cref="TrapSettings.ToppleLiftPercent"/>
+        /// of its own speed: from height h, distance d, lift L and the
+        /// engine's gravity g, the throw lands when h + L·d = g·d²/(2v²), so
+        /// v = d·√(g / 2(h + L·d)). A box on top of the stack is sent more
+        /// gently than the one on the floor, because it has further to fall.
+        /// Whole numbers throughout, so the fall replays.
         /// </summary>
-        private void KnockPeopleClear(int door, ulong fell)
+        private int SpeedToReach(int box, long distance)
         {
-            int bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
-            int reach = settings.PileBeyondMillimetres + objects.WidestRadius;
-            using Crowd.Nearby near = crowd.Gather(geometry.DoorwaySearchArea(door, bodyRadius, reach));
-            for (int c = 0; c < near.Count; c++)
+            long gravity = 9810L * context.Scenario.PhysicsFeel.GravityPercent / 100L;
+            long height = objects.BottomOf(box);
+            long denominator = 2L * (height + settings.ToppleLiftPercent * distance / 100L);
+            if (distance <= 0 || denominator <= 0)
             {
-                Agent agent = crowd.All[near[c]];
-                if (!agent.IsParticipating)
-                {
-                    continue;
-                }
-
-                LogicalPosition at = agent.Body.Position;
-                int side = geometry.SideOf(door, at);
-                bool inTheWay = geometry.IsObjectInDoorway(door, at, bodyRadius, 0) ||
-                                (side < 0 && geometry.IsObjectInDoorway(door, at, bodyRadius, reach));
-                if (!inTheWay)
-                {
-                    continue;
-                }
-
-                // Clear of the boxes on their own side: past the plug on the
-                // far side, past the row of boxes on the near side.
-                int clear = side > 0 ? bodyRadius + 50 : reach + bodyRadius + 50;
-                LogicalPosition spot = geometry.DoorPoint(door, (int)geometry.AlongOffset(door, at), side > 0 ? clear : -clear);
-                people.ShiftTo(agent, spot);
-                body.BlowOver(agent, geometry.OutwardHeading(door, side), settings.KnockClearMillimetres, 0, fell);
+                return 0;
             }
+
+            long perSecond = distance * IntegerMath.Sqrt(gravity * 1_000_000L / denominator) / 1000L;
+            return (int)(perSecond / Run.TicksPerSecond * settings.ToppleSpeedPercent / 100L);
         }
 
         /// <summary>
@@ -367,70 +407,73 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// The heap is whatever boxes still lie unburnt in the doorway. A box
-        /// carried off, thrown clear, kicked out or burnt is unpinned and no
-        /// longer counts; a loose box that comes to rest in the doorway
-        /// again is part of the heap again. Too few left, and the doorway is
-        /// a way through once more.
+        /// The heap is a fact about where the boxes lie, not a thing kept.
+        /// While the doorway is open: once enough boxes have lain still in
+        /// its strip, with nobody in the gap, for <see cref="TrapSettings.HeapSettleTicks"/>
+        /// in a row, it shuts (<see cref="DoorSystem.PileInto"/>). While it is
+        /// shut: once too few lie still there -- carried off, thrown clear,
+        /// kicked out or burnt -- for as long again, it opens. A box kicked
+        /// along the gap that comes to rest in it within that time opens
+        /// nothing; one kicked back in later shuts it again.
         /// </summary>
         private void KeepTheHeap(int trap)
         {
             int door = doorOf[trap];
             int[] boxes = boxesOf[trap];
-            int inTheHeap = 0;
+            int resting = 0;
             for (int b = 0; b < boxes.Length; b++)
             {
-                int box = boxes[b];
-                bool inHeap = IsInTheHeap(door, box);
-                if (inHeap)
+                if (IsInTheGap(door, boxes[b], out bool still) && still)
                 {
-                    inTheHeap++;
-                    if (!objects.IsPinned(box) && objects.HolderOf(box) < 0 && !objects.IsMoving(box))
-                    {
-                        objects.Pin(box, mayBeTaken: true);
-                    }
-                }
-                else if (objects.IsPinned(box))
-                {
-                    objects.Unpin(box);
+                    resting++;
                 }
             }
 
-            if (inTheHeap >= settings.PileHoldsAtBoxes)
+            bool piled = doors.IsPiled(door);
+            bool enough = resting >= settings.PileHoldsAtBoxes;
+            bool changing = piled ? !enough : enough && doors.NobodyInTheDoorway(door);
+            settledTicks[trap] = changing ? settledTicks[trap] + 1 : 0;
+            if (settledTicks[trap] < settings.HeapSettleTicks)
             {
                 return;
             }
 
-            for (int b = 0; b < boxes.Length; b++)
+            settledTicks[trap] = 0;
+            if (!piled)
             {
-                if (objects.IsPinned(boxes[b]))
-                {
-                    objects.Unpin(boxes[b]);
-                }
+                doors.PileInto(door);
+                heapEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.BoxHeapSettled,
+                    geometry.DoorCentre(door), resting, 0, fellEventId[trap], doors.IdOf(door)).EventId;
+                return;
             }
 
-            phase[trap] = TrapPhase.Cleared;
             doors.ClearPile(door);
             context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.BoxPileCleared,
-                geometry.DoorCentre(door), 0, 0, fellEventId[trap], doors.IdOf(door));
+                geometry.DoorCentre(door), resting, 0, heapEventId[trap], doors.IdOf(door));
         }
 
         /// <summary>
-        /// In the heap: lying still in the doorway, in nobody's arms, not
-        /// burnt out, and not in the air. The same strip that makes any
-        /// doorway count as wedged, so what the door calls jammed and what
-        /// the trap calls the heap are one thing.
+        /// In the gap: in the doorway's heap strip (<see cref="TrapSettings.HeapGapMillimetres"/>
+        /// either side of the wall line, wider than the strip that jams a
+        /// door), in nobody's arms and not burnt out; <paramref name="still"/>
+        /// when it has also come to rest.
         /// </summary>
-        private bool IsInTheHeap(int door, int box)
+        private bool IsInTheGap(int door, int box, out bool still)
         {
-            if (objects.IsDormant(box) || objects.HolderOf(box) >= 0 || objects.IsMoving(box) ||
+            still = false;
+            if (objects.IsDormant(box) || objects.HolderOf(box) >= 0 ||
                 flammables.ObjectState(box) == ObjectBurnState.Burnt)
             {
                 return false;
             }
 
-            return geometry.IsObjectInDoorway(door, objects.PositionOf(box), objects.RadiusOf(box),
-                context.Scenario.Blockades.BlockGapMillimetres);
+            if (!geometry.IsObjectInDoorway(door, objects.PositionOf(box), objects.RadiusOf(box), settings.HeapGapMillimetres))
+            {
+                return false;
+            }
+
+            still = !objects.IsMoving(box);
+            return true;
         }
     }
 }

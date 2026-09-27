@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace Paniq.Presentation
 {
@@ -137,6 +137,9 @@ namespace Paniq.Presentation
 
         /// <summary>The person is annoyed at being nudged: an orange scribble, shaking.</summary>
         public void Annoyed(float time) => annoyedTime = time;
+
+        /// <summary>Seconds since they were last annoyed; huge before they ever were.</summary>
+        public float AnnoyedAge(float time) => time - annoyedTime;
 
         public void HideAll()
         {

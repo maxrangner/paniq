@@ -210,6 +210,72 @@ namespace Paniq.Simulation
             places.RemoveAt(weakest);
         }
 
+        /// <summary>The place on this door, or -1.</summary>
+        public int PlaceOfDoor(int door)
+        {
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door == door)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>The place on this thing, or -1.</summary>
+        public int PlaceOfThing(int thing)
+        {
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Thing == thing)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Somebody did what the pull asked (the owner's rule, 2026-09-27):
+        /// opened or shut the door, sat on the chair, picked the thing up.
+        /// The pull on it is spent -- gone, whatever level it had -- so the
+        /// next click asks afresh: a door opened for the player is shut for
+        /// them at the next click. The event's id, or 0 when nothing was on
+        /// it, in which case nothing is written.
+        /// </summary>
+        public ulong Spend(Agent by, int door, int thing)
+        {
+            int i = door >= 0 ? PlaceOfDoor(door) : thing >= 0 ? PlaceOfThing(thing) : -1;
+            return i < 0 ? 0UL : SpendAt(by, i);
+        }
+
+        /// <summary>The pull on the floor, or on a thing, within a click's stacking distance of here: the spot beside a pull station somebody has just pulled.</summary>
+        public ulong SpendNear(Agent by, LogicalPosition at)
+        {
+            long stack = settings.StackRadiusMillimetres;
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door < 0 && LogicalPosition.DistanceSquared(places[i].At, at) <= stack * stack)
+                {
+                    return SpendAt(by, i);
+                }
+            }
+
+            return 0UL;
+        }
+
+        private ulong SpendAt(Agent by, int i)
+        {
+            Place place = places[i];
+            ulong spent = context.Events.Append(context.Tick, by.Id, CausalEventType.InfluenceSpent, place.At,
+                LevelNow(place), 0, place.EventId, place.Target).EventId;
+            places.RemoveAt(i);
+            return spent;
+        }
+
         /// <summary>Phase 1's tail: places that have faded to nothing are gone, in order.</summary>
         public void Advance()
         {

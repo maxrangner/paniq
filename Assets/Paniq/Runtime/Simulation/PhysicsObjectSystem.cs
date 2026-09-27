@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -159,13 +159,12 @@ namespace Paniq.Simulation
             public bool Pinned;
 
             /// <summary>
-            /// A pinned thing people may still take: a box lying in the heap,
-            /// which is cleared by being lifted, thrown or shoved off it. A
-            /// pinned thing without this (a box in the standing tower) cannot
-            /// be lifted, carried, hurled or shoved by anybody, however
-            /// strong, until whatever pinned it lets it go.
+            /// Pinned only because it is too heavy to carry and has come to
+            /// rest (2026-09-27): a crate lying where it fell. Unlike a crate
+            /// in an authored wall or the standing tower, somebody strong may
+            /// still heave it aside, and a topple or a throw lets it go.
             /// </summary>
-            public bool MayBeTaken;
+            public bool HeldStill;
 
             public LogicalPosition Position => new LogicalPosition(
                 (int)FloorDivide(X, SubMillimetre),
@@ -312,6 +311,7 @@ namespace Paniq.Simulation
                 bodies.Length);
 
             velocityBefore = new (long, long, long)[bodies.Length];
+            stillTicks = new int[bodies.Length];
             leftHandsOf = new int[bodies.Length];
             for (int i = 0; i < leftHandsOf.Length; i++)
             {
@@ -368,7 +368,26 @@ namespace Paniq.Simulation
                 }
 
                 thing.Reading = world.Read(i);
+                if (definitions[i].StartsPinned)
+                {
+                    // A crate in a wall of crates: fixed where it stands.
+                    Pin(i);
+                }
             }
+
+            // Everything heavy or pinned goes on the map people steer by, in
+            // one go (2026-09-27).
+            var onTheMap = new List<(int, LogicalBounds)>();
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                if (IsOnTheMap(i))
+                {
+                    onTheMap.Add((i, Footprint(i)));
+                    stillTicks[i] = context.Scenario.World.OnTheMapAfterTicks;
+                }
+            }
+
+            geometry.SetHeavyThings(onTheMap);
         }
 
         /// <summary>
@@ -874,22 +893,23 @@ namespace Paniq.Simulation
         /// <summary>Its authored width, in millimetres.</summary>
         public int SizeOf(int index) => bodies[index].Size;
 
+        /// <summary>How high a thing's lowest point is off the floor, in millimetres: a box on a box, or in the air.</summary>
+        public int BottomOf(int index) => bodies[index].Reading.BottomMillimetres;
+
         /// <summary>Held where it is by the simulation (see <see cref="PhysicsBody.Pinned"/>).</summary>
         public bool IsPinned(int index) => bodies[index].Pinned;
 
         /// <summary>
         /// Holds a thing where it is: the engine stops moving it and nothing
         /// here pushes it. It still stands in everybody's way, and still heats
-        /// and burns. With <paramref name="mayBeTaken"/> people can still lift
-        /// it, throw it clear or shove it (a box in the heap), and doing so
-        /// unpins it; without it nobody can (a box in the standing tower,
-        /// which a strong runner barging past used to fling across the room,
-        /// and a tidy person used to carry off to a desk).
+        /// and burns. Nobody can lift it, throw it clear or shove it (a box
+        /// in the standing tower, which a strong runner barging past used to
+        /// fling across the room, and a tidy person used to carry off to a
+        /// desk) until whatever pinned it lets it go.
         /// </summary>
-        public void Pin(int index, bool mayBeTaken = false)
+        public void Pin(int index)
         {
             PhysicsBody thing = bodies[index];
-            thing.MayBeTaken = mayBeTaken;
             if (thing.Pinned)
             {
                 return;
@@ -914,12 +934,132 @@ namespace Paniq.Simulation
             }
 
             thing.Pinned = false;
-            thing.MayBeTaken = false;
+            thing.HeldStill = false;
+            stillTicks[index] = 0;
             world.SetPinned(index, false);
         }
 
-        /// <summary>Pinned where nobody may take it: a box in the standing tower.</summary>
-        private bool IsOffLimits(int index) => bodies[index].Pinned && !bodies[index].MayBeTaken;
+        /// <summary>Pinned where nobody may take it: a box in the standing tower, a crate in a wall of crates. A crate merely held still where it fell may still be heaved.</summary>
+        private bool IsOffLimits(int index) => bodies[index].Pinned && !bodies[index].HeldStill;
+
+        // ---------------------------------------------------------------- heavy things on the map (2026-09-27)
+
+        /// <summary>Ticks in a row each thing has lain still; only the heavy ones are watched.</summary>
+        private readonly int[] stillTicks;
+
+        /// <summary>
+        /// Whether this thing belongs on the map people steer by, like a
+        /// table: on the floor, in nobody's arms, not wreckage, and either
+        /// pinned or too heavy for anybody to carry
+        /// (<see cref="WorldSettings.OnTheMapFromGrams"/>).
+        /// </summary>
+        public bool IsOnTheMap(int index)
+        {
+            PhysicsBody thing = bodies[index];
+            return !thing.Dormant && thing.HeldBy < 0 && !thing.Wrecked && !thing.OffTheFloor &&
+                   (thing.Pinned || thing.MassGrams >= context.Scenario.World.OnTheMapFromGrams);
+        }
+
+        /// <summary>The patch of floor a thing covers, as the map sees it: a square of its size about its middle.</summary>
+        private LogicalBounds Footprint(int index)
+        {
+            PhysicsBody thing = bodies[index];
+            int half = thing.Size / 2;
+            LogicalPosition at = thing.Position;
+            return new LogicalBounds(at.X - half, at.X + half, at.Z - half, at.Z + half);
+        }
+
+        /// <summary>
+        /// After every step: a heavy thing that has lain still for
+        /// <see cref="WorldSettings.OnTheMapAfterTicks"/> is held still where
+        /// it lies -- the engine holds it, so a crowd walking into it moves it
+        /// not at all (measured 2026-09-27: a loose crate slides metres in
+        /// front of one runner whatever it weighs, because a body driven
+        /// forward each tick pushes anything loose apart) -- and put on the
+        /// map (the map is only worked out again once it has shifted a
+        /// table's worth). One picked up, wrecked or lifted off the floor
+        /// comes off it; a heave, a topple or a throw lets go of it, and it
+        /// is held again where it next comes to rest.
+        /// </summary>
+        private void FollowTheHeavyThings()
+        {
+            int after = context.Scenario.World.OnTheMapAfterTicks;
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                if (!IsOnTheMap(i))
+                {
+                    stillTicks[i] = 0;
+                    if (geometry.IsOnTheMap(i))
+                    {
+                        geometry.LiftHeavyThing(i);
+                    }
+
+                    continue;
+                }
+
+                if (IsMoving(i) && !bodies[i].Pinned)
+                {
+                    stillTicks[i] = 0;
+                    continue;
+                }
+
+                if (stillTicks[i] < int.MaxValue)
+                {
+                    stillTicks[i]++;
+                }
+
+                if (stillTicks[i] < after)
+                {
+                    continue;
+                }
+
+                // Still for long enough: held where it lies, and on the map
+                // there. A thing that has lain still since the start (its
+                // count began full) is held the first tick it is looked at.
+                bool settle = stillTicks[i] == after;
+                if (!bodies[i].Pinned)
+                {
+                    Pin(i);
+                    bodies[i].HeldStill = true;
+                    settle = true;
+                }
+
+                if (settle)
+                {
+                    geometry.SettleHeavyThing(i, Footprint(i));
+                }
+            }
+        }
+
+        /// <summary>
+        /// The tower of boxes coming down (2026-09-27): a box is let go of
+        /// and set going toward <paramref name="heading"/> at this speed,
+        /// lifted by <paramref name="liftPercent"/> of it so it goes up and
+        /// over rather than sliding, turning end over end as a thrown thing
+        /// does. It flies as a thrown thing, so whoever it lands on is hit
+        /// by it, and what it then hits is traced to <paramref name="causeEventId"/>.
+        /// No random draw: the fall replays exactly. Let go of first,
+        /// because a pinned thing is moved by nothing. Without
+        /// <paramref name="tumbles"/> it flies flat, which lands more
+        /// predictably.
+        /// </summary>
+        public void Topple(int index, int heading, int speed, int liftPercent, bool tumbles, ulong causeEventId)
+        {
+            PhysicsBody thing = bodies[index];
+            Unpin(index);
+            long strength = (long)speed * SubMillimetre;
+            LogicalPosition direction = IntegerMath.Direction(heading);
+            SetMotion(index,
+                direction.X * strength / IntegerMath.TrigScale,
+                strength * liftPercent / 100L,
+                direction.Z * strength / IntegerMath.TrigScale);
+            thing.Thrown = true;
+            thing.LastPushEventId = causeEventId;
+            if (tumbles)
+            {
+                Tumble(index, heading, speed, 1);
+            }
+        }
 
         /// <summary>
         /// Puts a thing straight down at a spot, its underside this high off
@@ -938,6 +1078,7 @@ namespace Paniq.Simulation
             thing.VelocityZ = 0L;
             thing.Spin = 0;
             thing.Thrown = false;
+            stillTicks[index] = 0;
             world.Place(index, thing.X, (long)bottomMillimetres * SubMillimetre, thing.Z, heading);
             thing.Reading = world.Read(index);
         }
@@ -978,8 +1119,6 @@ namespace Paniq.Simulation
                 return;
             }
 
-            // A box in the heap is shoved off it like anything wedged in a
-            // doorway: let go of first, or the shove would move nothing.
             Unpin(index);
             LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
             SetMotion(index, (long)velocity.X * SubMillimetre, 0L, (long)velocity.Z * SubMillimetre);
@@ -989,10 +1128,38 @@ namespace Paniq.Simulation
             sound.Thud(shover.Id, thing.Position, thing.LastPushEventId);
         }
 
-        /// <summary>Sets a carried thing down on an exact spot, if that spot is clear.</summary>
+        /// <summary>
+        /// Whether somebody could heave this thing aside on open floor
+        /// (2026-09-27): a thing on the map -- too heavy to carry, or held
+        /// still where it lies -- that is loose, on the floor, nobody's and
+        /// not fixed to the wall, and they are strong enough
+        /// (<see cref="BlockadeSettings.ShoveMinimumStrength"/>). Anybody
+        /// weaker goes round, or gives that way up.
+        /// </summary>
+        public bool CanHeaveAside(Agent agent, int index)
+        {
+            PhysicsBody thing = bodies[index];
+            return IsOnTheMap(index) && !IsOutOfPlay(index) && !IsFixedInPlace(index) && !IsOffLimits(index) &&
+                   thing.OccupiedBy < 0 && agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength;
+        }
+
+        /// <summary>
+        /// Heaves a thing that is in somebody's way aside, towards
+        /// <paramref name="heading"/>, as hard as they are strong. The same
+        /// heave as at a doorway pile; it is a heave, not a throw, so it
+        /// slides rather than flies, and it lies where it stops.
+        /// </summary>
+        public void HeaveAside(Agent agent, int index, int heading, ulong causeEventId)
+        {
+            BlockadeSettings blockades = context.Scenario.Blockades;
+            int speed = blockades.ShoveSpeedBase + blockades.ShoveSpeedPerStrength * agent.Traits.Strength;
+            ShoveAside(index, agent, heading, speed, causeEventId);
+        }
+
+        /// <summary>Sets a carried thing down on an exact spot, if that spot is clear: in a doorway too, which is how a door is wedged.</summary>
         public bool TrySetDownAt(int index, LogicalPosition spot, ulong causeEventId)
         {
-            if (!IsClearForItem(index, spot))
+            if (!IsClearForItem(index, spot, allowDoorways: true))
             {
                 return false;
             }
@@ -1263,13 +1430,32 @@ namespace Paniq.Simulation
             return false;
         }
 
-        private bool IsClearForItem(int index, LogicalPosition spot, int ignoreAgentIndex = -1)
+        /// <summary>
+        /// Clear floor for this thing: in a room, off the tables, nobody and
+        /// nothing there. Without <paramref name="allowDoorways"/> a spot in
+        /// any doorway's strip is refused too (2026-09-27): a thing set down
+        /// there jams the door, and somebody tidying up who was held up at a
+        /// door used to set their box down right in the gap.
+        /// </summary>
+        private bool IsClearForItem(int index, LogicalPosition spot, int ignoreAgentIndex = -1, bool allowDoorways = false)
         {
             PhysicsBody item = bodies[index];
             if (geometry.RoomAtPoint(spot) < 0 || !geometry.RoomBounds(geometry.RoomAtPoint(spot)).ContainsCircle(spot, item.Radius) ||
                 geometry.TableAt(spot, item.Radius) >= 0)
             {
                 return false;
+            }
+
+            if (!allowDoorways)
+            {
+                int gap = context.Scenario.Blockades.BlockGapMillimetres;
+                for (int door = 0; door < geometry.DoorCount; door++)
+                {
+                    if (geometry.IsObjectInDoorway(door, spot, item.Radius, gap))
+                    {
+                        return false;
+                    }
+                }
             }
 
             long agentReach = (long)personRadius + item.Radius;
@@ -1489,7 +1675,7 @@ namespace Paniq.Simulation
                     int b = near[c];
                     PhysicsBody thing = bodies[b];
                     if (b == exceptIndex || thing.Dormant || thing.HeldBy >= 0 || thing.OccupiedBy >= 0 || IsFixedInPlace(b) ||
-                        thing.Pinned)
+                        IsOffLimits(b))
                     {
                         continue;
                     }
@@ -1498,6 +1684,11 @@ namespace Paniq.Simulation
                     {
                         continue;
                     }
+
+                    // A crate held still where it lies (2026-09-27) is only
+                    // held against people: a blast sends it flying like
+                    // anything else, and it is held again where it stops.
+                    Unpin(b);
 
                     // Shared out by weight past the reference thing, as a
                     // table's shove is: a bin flies at the blast's full speed,
@@ -1866,6 +2057,7 @@ namespace Paniq.Simulation
 
             PopWhateverWentOver();
             ClearOfTheirHands();
+            FollowTheHeavyThings();
 
             IReadOnlyList<PhysicsWorld.Contact> touched = world.Contacts;
             for (int c = 0; c < touched.Count; c++)
@@ -2051,6 +2243,18 @@ namespace Paniq.Simulation
             if (closing <= 0L)
             {
                 return;
+            }
+
+            if (other.HeldStill)
+            {
+                // A crate held still where it lies, struck by one somebody
+                // heaved (2026-09-27): it is loose again and takes the shove
+                // on, slowed by how much heavier it is, so a row of crates
+                // slides along as a row instead of the first stopping dead
+                // against the second. It is held again once it lies still.
+                long share = Math.Min(1000L, 1000L * physicsBody.MassGrams / Math.Max(1L, other.MassGrams));
+                Unpin(struck);
+                SetMotion(struck, hitterVelocity.X * share / 1000L, 0L, hitterVelocity.Z * share / 1000L);
             }
 
             if (closing >= (long)settings.LoggedBoxHitSpeed * SubMillimetre)

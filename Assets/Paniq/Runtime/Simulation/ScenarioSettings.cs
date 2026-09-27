@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -30,6 +30,21 @@ namespace Paniq.Simulation
         /// </summary>
         public int TimingJitterPercent = 20;
 
+        /// <summary>
+        /// A loose thing at least this heavy is on the map people steer by,
+        /// like a table (2026-09-27): a crate too heavy for anybody to carry
+        /// (the strongest carries 30 kg) is a wall, not clutter to dodge at
+        /// the last moment. A pinned thing is on the map whatever it weighs.
+        /// </summary>
+        public int OnTheMapFromGrams = 32000;
+
+        /// <summary>
+        /// How long a heavy thing has to lie still before the map is worked
+        /// out again round it: half a second, so a crate rocking as it lands
+        /// is not put on the map three times.
+        /// </summary>
+        public int OnTheMapAfterTicks = 25;
+
         public WorldSettings Clone() => (WorldSettings)MemberwiseClone();
 
         internal void Validate()
@@ -37,6 +52,7 @@ namespace Paniq.Simulation
             Settings.Require(OccupancyRadiusMillimetres > 0 && OccupancyRadiusMillimetres <= 2000, "occupancy radius");
             Settings.Require(MaximumStepDistanceMillimetres >= 0 && MaximumStepDistanceMillimetres <= 1000, "maximum step");
             Settings.Require(Settings.Percent(TimingJitterPercent), "timing jitter");
+            Settings.Require(OnTheMapFromGrams > 0 && OnTheMapAfterTicks >= 1, "heavy things on the map");
         }
     }
 
@@ -1956,6 +1972,14 @@ namespace Paniq.Simulation
         /// <summary>How close to the wall line a thing has to rest to be in the leaf's way.</summary>
         public int BlockGapMillimetres = 150;
 
+        /// <summary>
+        /// A thing smaller than this across never jams a door (2026-09-27):
+        /// a laptop, a waste bin or a bottle lying in the gap is kicked
+        /// aside by the leaf, where a box or a chair stops it. Doors used to
+        /// jam "for no reason" on the small things a crowd shoved about.
+        /// </summary>
+        public int BlockMinimumRadiusMillimetres = 160;
+
         /// <summary>How far short of the wall line a barricade is set down.</summary>
         public int BarricadeSpotGapMillimetres = 80;
 
@@ -2014,6 +2038,7 @@ namespace Paniq.Simulation
 
         internal void Validate()
         {
+            Settings.Require(BlockMinimumRadiusMillimetres >= 0, "the smallest thing that jams a door");
             Settings.Require(BlockGapMillimetres >= 0 && BarricadeSpotGapMillimetres >= 0, "wedging doorways");
             Settings.Require(StrongGiveUpOnAHeapTicks >= 1 && StrongTryTheHeapWithinMillimetres >= 0,
                 "how long the strong keep at a heap");
@@ -2371,6 +2396,13 @@ namespace Paniq.Simulation
         public int WaitAtLockedDoorTicks = 1500;
 
         /// <summary>
+        /// How long somebody on an errand spends walking to a thing wedged
+        /// in the door they want, to lift it clear, before they give it up
+        /// and wait as before (2026-09-27): ten seconds, a room's width.
+        /// </summary>
+        public int ClearTheDoorWalkTicks = 500;
+
+        /// <summary>
         /// When the player calls it a day, how far apart people take it up:
         /// the building empties over about half a minute, never all at once.
         /// A timetable's home time carries its own spread.
@@ -2454,18 +2486,66 @@ namespace Paniq.Simulation
     public sealed class TrapSettings
     {
         /// <summary>
-        /// How near somebody has to come to the tower to bring it down, for
-        /// a trap that names no radius of its own. Two metres: a runner
-        /// passing the corner, not somebody on the far side of the junction.
+        /// How fast somebody frightened has to be moving, in the room the
+        /// trap's doorway belongs to, to bring the tower down: the owner's
+        /// rule (2026-09-27), "once people start running down the corridor".
+        /// Forty millimetres a tick is two metres a second, the same pace
+        /// that reads as somebody bolting (<see cref="PerceptionSettings.BoltSpeedMinimum"/>),
+        /// kept as a number of its own so the two can be tuned apart.
         /// </summary>
-        public int TriggerRadiusMillimetres = 2000;
+        public int TriggerSpeedMillimetresPerTick = 40;
 
         /// <summary>
         /// How many of the fallen boxes have to be lying unburnt in the
-        /// doorway for it to stay shut. Fewer than this and the way is open
-        /// again: carried off, thrown clear or burnt, one at a time.
+        /// doorway for it to be shut. Fewer than this and the way is open
+        /// again: carried off, thrown clear, kicked out or burnt, one at a
+        /// time; kicked back in, and it shuts again.
         /// </summary>
         public int PileHoldsAtBoxes = 3;
+
+        /// <summary>
+        /// Each box is sent toward its own slot across the doorway at the
+        /// speed that would land it there from where it stands, worked out
+        /// from its height, the distance and the lift below; this scales
+        /// that speed (2026-09-27, the physics engine's fall). A hundred
+        /// lands the boxes on their slots in an empty room; what they hit
+        /// on the way is theirs to sort out.
+        /// </summary>
+        public int ToppleSpeedPercent = 100;
+
+        /// <summary>
+        /// How much of a box's speed it is also lifted by, so it goes up and
+        /// over rather than skidding. Forty, measured over ten seeds
+        /// (2026-09-27): three or four of the eight land in the doorway's
+        /// heap strip every run; thirty lands three in eight runs of ten,
+        /// and fifty scatters them.
+        /// </summary>
+        public int ToppleLiftPercent = 40;
+
+        /// <summary>
+        /// How far past the wall line, either side, a fallen box's edge may
+        /// lie and still count as part of the heap: twice the 150 mm that
+        /// jams a door (<see cref="BlockadeSettings.BlockGapMillimetres"/>),
+        /// because a tumbled box that stops a hand's breadth short of the
+        /// gap still blocks it as surely as one square in it -- and no
+        /// wider, so that a box somebody strong throws clear (a throw moves
+        /// it about a third of a metre) is clear. A box's centre within its
+        /// own half-width plus this of the line counts. Measured over ten
+        /// seeds (2026-09-27): three or four of the eight land inside it.
+        /// </summary>
+        public int HeapGapMillimetres = 300;
+
+        /// <summary>Whether the boxes turn end over end as they fly, as a thrown thing does, or fly flat and land more predictably.</summary>
+        public bool ToppleTumbles = true;
+
+        /// <summary>
+        /// How long enough boxes have to lie still in the doorway, with
+        /// nobody in the gap, before it counts as shut -- and how long too
+        /// few have to, before it counts as open again: half a second, so a
+        /// box still rocking, or one kicked along the gap, does not shut it
+        /// and open it again tick by tick.
+        /// </summary>
+        public int HeapSettleTicks = 25;
 
         /// <summary>
         /// How far the crash of the tower is heard. Twelve metres, a whole
@@ -2474,13 +2554,10 @@ namespace Paniq.Simulation
         /// </summary>
         public int CrashSoundRadiusMillimetres = 12000;
 
-        /// <summary>How far somebody standing in the doorway is knocked clear as the boxes come down.</summary>
-        public int KnockClearMillimetres = 800;
-
         /// <summary>
-        /// How far past the wall line, into the far room, the fallen boxes
-        /// are laid: clear of the doorway's own plug, and still inside the
-        /// strip that counts as the doorway.
+        /// How far past the wall line, into the doorway's own room, the
+        /// boxes are aimed as they fall: clear of the doorway's own plug, and
+        /// still inside the strip that counts as the doorway.
         /// </summary>
         public int PileBeyondMillimetres = 350;
 
@@ -2488,8 +2565,9 @@ namespace Paniq.Simulation
 
         internal void Validate()
         {
-            Settings.Require(TriggerRadiusMillimetres > 0 && PileHoldsAtBoxes >= 1 && CrashSoundRadiusMillimetres >= 0 &&
-                             KnockClearMillimetres >= 0 && PileBeyondMillimetres >= 0, "traps");
+            Settings.Require(TriggerSpeedMillimetresPerTick >= 0 && PileHoldsAtBoxes >= 1 && CrashSoundRadiusMillimetres >= 0 &&
+                             ToppleSpeedPercent >= 0 && ToppleLiftPercent >= 0 && HeapSettleTicks >= 1 && HeapGapMillimetres >= 0 &&
+                             PileBeyondMillimetres >= 0, "traps");
         }
     }
 
@@ -2530,11 +2608,20 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// How long after a fire is put out the next rung comes, drawn each
-        /// time: twenty to forty seconds. Long enough for the office to settle
-        /// back to work, short enough that the round does not go slack.
+        /// time: five to ten seconds (the owner, 2026-09-27: "if the fire is
+        /// extinguished the director has to trigger the next stage earlier";
+        /// it used to be twenty to forty).
         /// </summary>
-        public int NextRungMinimumTicks = 1000;
-        public int NextRungMaximumTicks = 2000;
+        public int AfterPutOutMinimumTicks = 250;
+        public int AfterPutOutMaximumTicks = 500;
+
+        /// <summary>
+        /// How long after the tower of boxes comes down the socket crackles,
+        /// whatever the bin fire is doing: five seconds, jittered (the owner,
+        /// 2026-09-27: "socket pop 5 sec after box topple"). The owner's
+        /// order is bin, boxes, outlet.
+        /// </summary>
+        public int SocketAfterFallTicks = 250;
 
         /// <summary>
         /// How long a socket or the fuse box crackles and smokes before it
@@ -2573,7 +2660,8 @@ namespace Paniq.Simulation
         {
             Settings.Require(FirstIncidentThings != null, "the first incident's things");
             Settings.Require(Settings.Range(FirstIncidentMinimumTicks, FirstIncidentMaximumTicks, 1) &&
-                             Settings.Range(NextRungMinimumTicks, NextRungMaximumTicks, 1) &&
+                             Settings.Range(AfterPutOutMinimumTicks, AfterPutOutMaximumTicks, 1) &&
+                             SocketAfterFallTicks >= 1 &&
                              CrackleTicks >= 1 && CrackleHearingMillimetres >= 0 && AllClearAfterTicks >= 1 &&
                              BangSettlesTicks >= 0,
                 "the Director's ladder");
@@ -2678,11 +2766,18 @@ namespace Paniq.Simulation
         /// </summary>
         public int AnnoyedForTicks = 1000;
 
+        /// <summary>
+        /// How far somebody sitting down is sent when the third quick poke
+        /// knocks them off the chair (2026-09-27): half a metre, onto the
+        /// floor beside it, the way a bang blows somebody over.
+        /// </summary>
+        public int KnockOffChairMillimetres = 500;
 
         public NudgeSettings Clone() => (NudgeSettings)MemberwiseClone();
 
         internal void Validate()
         {
+            Settings.Require(KnockOffChairMillimetres >= 0, "knocking somebody off a chair");
             Settings.Require(LurchMillimetres >= 0 && AnnoyedWindowTicks >= 0 && AnnoyedAfterNudges >= 1 && AnnoyedForTicks >= 1,
                 "nudging");
         }

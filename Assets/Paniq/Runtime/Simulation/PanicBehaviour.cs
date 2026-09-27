@@ -216,7 +216,7 @@ namespace Paniq.Simulation
             {
                 // Worked out first: giving up forgets which door this was.
                 MotorIntent faceDoor = doorBehaviour.FaceDoor(agent);
-                if (doorBehaviour.UpdateAttempt(agent, inDanger && !dashing))
+                if (doorBehaviour.UpdateAttempt(agent, inDanger && !dashing, inDanger))
                 {
                     return faceDoor;
                 }
@@ -259,7 +259,7 @@ namespace Paniq.Simulation
                 // A table in the way: heave it over or along.
                 // Wedged beside an open door: stand aside for whoever is lined up with it.
                 // Otherwise stuck in the crowd: if it was on the way to a door, try another one for a while.
-                if (!doorBehaviour.TryClearTheWay(agent) && !TryHeaveTable(agent) && !doorBehaviour.TryGiveWay(agent))
+                if (!doorBehaviour.TryClearTheWay(agent, inDanger) && !TryHeaveTable(agent) && !doorBehaviour.TryGiveWay(agent))
                 {
                     doorBehaviour.AvoidCrowdedExit(agent);
                     DecideMove(agent, false);
@@ -428,7 +428,7 @@ namespace Paniq.Simulation
                     score += influence.SpotBonus(agent, candidate);
                 }
 
-                if (geometry.RouteCrossesTable(position, candidate))
+                if (geometry.RouteCrossesObstacle(position, candidate))
                 {
                     score -= settings.TableRoutePenaltyMillimetres;
                 }

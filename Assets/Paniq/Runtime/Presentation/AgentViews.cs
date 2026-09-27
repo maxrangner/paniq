@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -141,6 +141,10 @@ namespace Paniq.Presentation
         }
 
         /// <summary>A red scribble for being annoyed at the player's nudging.</summary>
+        /// <summary>How long the annoyed shake lasts, and how fast it is: about nine shakes a second for two seconds.</summary>
+        private const float AnnoyedShakeSeconds = 2f;
+        private const float AnnoyedShakeRate = 56f;
+
         public void Annoyed(SimulationId agentId, float time)
         {
             if (agents.TryGetValue(agentId, out AgentView view))
@@ -287,13 +291,17 @@ namespace Paniq.Presentation
                         twist = 0f;
                         lean += Mathf.Sin(time * 15f + view.ShakePhase * 0.7f) * 8f;
                     }
-                    else if (agent.IsAnnoyed)
+                    else if (agent.IsAnnoyed && view.Icons.AnnoyedAge(time) < AnnoyedShakeSeconds)
                     {
                         // Shaking with annoyance at being nudged (2026-09-26):
-                        // a quick side-to-side huff, bigger than a tremble.
+                        // a fast side-to-side shake that passes in a couple of
+                        // seconds (the owner's rule, 2026-09-27: "a faster
+                        // shaking that passes after a few seconds"), though
+                        // the annoyance itself lasts longer. Timed from the
+                        // moment they said so, which the icons already keep.
                         Vector3 side = Quaternion.Euler(0f, yaw + 90f, 0f) * Vector3.forward;
-                        shake = side * (Mathf.Sin(time * 34f + view.ShakePhase) * 0.05f);
-                        roll = Mathf.Sin(time * 34f + view.ShakePhase) * 7f;
+                        shake = side * (Mathf.Sin(time * AnnoyedShakeRate + view.ShakePhase) * 0.05f);
+                        roll = Mathf.Sin(time * AnnoyedShakeRate + view.ShakePhase) * 7f;
                     }
                     else if (frozen)
                     {

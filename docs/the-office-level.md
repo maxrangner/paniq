@@ -22,10 +22,13 @@ unchanged since prototype 1) and the **bathroom**, whose three stalls are each
 a little room with its own door. At the east end the corridor meets a
 crossbar, making a T: the building's **one way out** is at the top of the
 T's north arm, and it starts locked. The south arm runs down past the bathroom
-to the **stockroom**, a 10 × 5.5 m room full of cardboard boxes with a lane
-through them, which also has a door into the office's east wall. So from the
-office there are two ways to the way out: along the corridor, or through the
-stockroom. The **storage closet** hangs off the office's east wall, and the
+to the **stockroom**, a 10 × 5.5 m room of cardboard crates stacked three
+high in two walls that make a winding lane through it (since the second round
+of playtest fixes, 2026-09-27: in at the west door, up the west lane, round
+the end of the first wall, down the middle lane, round the end of the second,
+up the east lane to the north door -- fifteen metres where it was nine), which
+also has a door into the office's east wall. So from the office there are
+two ways to the way out: along the corridor, or through the stockroom. The **storage closet** hangs off the office's east wall, and the
 **maintenance room**, with the fuse box, is at the far west end, past
 everything. Every room but the bathroom has two ways out (the owner's rule,
 2026-09-25).
@@ -35,8 +38,10 @@ in a meeting, four in the cafeteria and two in the bathroom. The office holds
 three wooden desks with a chair and a laptop each, cardboard boxes against the
 walls with some stacked in pairs, waste bins, potted plants, a microwave, wall
 sockets and a fire extinguisher. Since prototype 3 a **tower of boxes**, two
-stacks four high, stands in the corner where the corridor meets the T; see the
-[roadmap](roadmap.md) for the trap it is part of. The building has **one
+stacks four high, stands in the corner where the corridor meets the T, and
+since the second round of playtest fixes a **stack of four crates** stands
+against the north wall at the stockroom lane's first bend; see the
+[roadmap](roadmap.md) for the traps they are part of. The building has **one
 fire-alarm pull station**, at the far west end of the corridor, and alarm bells
 high on the walls.
 
@@ -369,12 +374,29 @@ faster the stronger the thrower and the lighter the item, and because it
 strikes the body rather than the feet it hits three times as hard as a
 sliding one, enough for a chair to knock someone off balance.
 
-**Boxes.** Cardboard boxes, 0.3–0.6 m wide and 3–20 kg, stand against the
-office walls, fill the stockroom and make up the tower at the T. The tower's
-boxes are the exception to everything below until it falls: nobody kicks,
-lifts, carries or hurls a box from the standing tower, however strong. Once
-it has fallen into the archway its boxes are there for the taking, which is
-how the heap is cleared.
+**Boxes.** Cardboard boxes, 0.3–0.7 m wide and, by their size, 3–55 kg
+(since 2026-09-27: 300 mm and under 3 kg, 400 mm 6, 500 mm 10, 600 mm 40,
+700 mm 55), stand against the office walls, wall the stockroom and make up
+the tower at the T and the stack in the stockroom. The tower's boxes are the
+exception to everything below until it falls: nobody kicks, lifts, carries or
+hurls a box from the standing tower, however strong, and the same goes for
+the stockroom's crate walls and its stack. Once the tower has fallen its
+boxes are loose -- but at 40 kg too heavy for anybody to carry, so the heap
+is cleared by somebody strong heaving boxes aside, or by fire.
+
+**Heavy things are on the map** (2026-09-27). A loose thing too heavy for
+anybody to carry (32 kg and up: the 600 mm boxes, the crates), or one held
+where it stands, is on the map people steer by like a table: the floor under
+it is nobody's, routes go round it, and a door the map says cannot be reached
+from where somebody stands is no way out to them. Once it has lain still for
+half a second it is **held where it lies** against people: a runner who walks
+into a fallen crate stops at it instead of shoving it along (making the boxes
+heavier alone did nothing -- a running person shoved a 110 kg box six metres
+in five seconds, measured -- so this is what makes a fallen crate an
+obstacle). Somebody strong (7 or more) who is stuck against one heaves it
+aside, square across their way to whichever side has more floor, and a crate
+it is shoved into slides along with it; a blast sends held crates flying like
+anything else; picked up, wrecked or burnt out it is off the map.
 Calm people walk around them. Runners barely look: they kick a box sliding
 across the floor, and at running speed they may trip over it instead, more
 often the faster they go and the bigger the box. A kicked box slides about a
@@ -467,15 +489,23 @@ twenty metres a second and every socket down the line pops in turn: the
 office's three are all gone within about two and a half seconds. A socket
 already wrecked does not stop the spark; it carries on past to the next.
 
-**Wedged doorways.** Anything left resting in a doorway jams that door, from
-either side, and both ways: it cannot be opened and it cannot be shut, and no
-number of clicks will move it. It happens by accident all the time — a kicked
-bin comes to rest in a gap, an office chair rolls into the one way out of the
-building — and people discover it exactly as they discover a locked door: they
-walk up, try it, and go looking elsewhere. Somebody strong (7+) instead heaves
-the obstruction out along the wall and then goes through, and somebody taking
-charge sends them at it, because a chair in a doorway is there for anybody to
-see and needs no memory of having tried the door.
+**Wedged doorways.** Anything as big as a box or a chair left resting in a
+doorway jams that door, from either side, and both ways: it cannot be opened
+and it cannot be shut, and no number of clicks will move it. Small things -- a
+kicked bin, a laptop, a bottle -- never jam it (2026-09-27). It happens by
+accident -- an office chair rolls into the one way out of the building -- and
+people discover it exactly as they discover a locked door: they walk up and
+try it. Then (the owner's rule, 2026-09-27) whoever is not too panicked
+unlodges it: somebody calm on an errand who can lift the thing picks it up and
+sets it down clear of the gap, and goes through; somebody strong (7+) heaves
+what they cannot lift out along the wall; a frightened runner throws it clear
+as they always did -- unless the flames are inside their danger distance, or
+they are alight, in which case they give the door up and look elsewhere.
+Somebody taking charge sends the strong at it, because a chair in a doorway is
+there for anybody to see and needs no memory of having tried the door. Nobody
+tidying up sets a thing down in a doorway any more, and a crowd drawn to a
+door spreads out in front of it rather than shoving the loose things between
+them into the gap.
 
 **You can see why a door will not open.** Point at a wedged door and the line
 at the top left says so, rather than letting the click look as though it did
@@ -502,22 +532,38 @@ or the moment you press the button, **a waste bin in the meeting room catches
 fire** -- by the door one seed, in the far corner or under the north wall the
 next. It smoulders for about ten seconds before the carpet under it catches,
 and while the fire is young it spreads slowly, so somebody brave has a real
-chance to take the extinguisher off the meeting room's wall and put it out.
-Pressing the button twice does not light two fires.
+chance to fetch a bottle and put it out -- from the office or the cafeteria,
+since 2026-09-27: the meeting room's own is gone. Pressing the button twice
+does not light two fires. **A bin doused before the carpet ever caught was no
+fire** (the owner's rule, 2026-09-27): another of the room's three bins
+catches a beat later, and a third after that.
+
+**The moment the first frightened person runs along the corridor, the tower
+of boxes comes down** (the owner's order, 2026-09-27: bin, boxes, outlet),
+whatever the fire is doing. The boxes tumble by physics toward the archway
+between the corridor and the crossbar; where they land is where they land,
+and while three or more lie still in the archway it is shut for people and
+fire.
 
 **If the bin is put out** -- nothing burning anywhere, and it never got out of
 the meeting room -- any bell that was pulled falls silent about ten seconds
 later (the all-clear; pulled again by somebody still frightened, it falls
-silent again), people calm down at their own pace, and twenty to forty
-seconds after the put-out **a wall socket crackles**: in the room with the most
-people still calmly at work, never the room that just had the fire. It spits
-sparks and smokes for five seconds (the curious may wander over to look), then
-goes off: a bang and a small fire. **If that is put out too, the fuse box
-crackles and goes**, and every socket after it. That is the last rung.
+silent again), people calm down at their own pace, and **a wall socket
+crackles** five to ten seconds after the put-out, in the room with the most
+people, calm or frightened, never a room the incident already had. It spits
+sparks and smokes for five seconds (the curious may wander over to look),
+then goes off: a bang and a small fire. **If that is put out too, the fuse
+box crackles and goes** five to ten seconds later, and every socket after it.
+That is the last rung.
+
+**If the boxes fall, the socket does not wait for the put-out** (the owner's
+rule, 2026-09-27: "socket pop 5 sec after box topple"). Five seconds after
+the tower or the stockroom's stack comes down the socket crackles, whatever
+the bin is doing -- burning, out, or got loose -- because bin, boxes, outlet
+is the order. The fuse box still needs the socket's fire put out.
 
 **If a fire gets out of the room it started in, it is the real fire.** The
-Director adds nothing more, and only now is the tower of boxes armed: the first
-person near it brings it down. If everybody simply runs out, that is fine too.
+Director adds nothing more. If everybody simply runs out, that is fine too.
 The round does not end as "nothing is happening" while the Director has
 something still to come.
 
@@ -643,13 +689,23 @@ the agents' own decision making."
   than a door standing open. An influenced door on the wall of their room is
   considered as a way round even when it is not on the shortest walk -- the
   office's stockroom door can beat the corridor.
-- **Calm people feel it too.** With nothing in particular to do, they wander
-  over to it, the likelier the stronger the pull. The easily led -- nervousness
+- **Calm people feel it too.** With nothing in particular to do, they go to
+  it, the likelier the stronger the pull. The easily led -- nervousness
   7 or more, or a visitor -- may get up from their seat or leave an errand for
   a strong one, but only between the moving parts of it: never halfway into a
   chair, mid-conversation, or while somebody is waiting to meet them. The
   steady carry on. So the player can thin out a meeting
   before anything happens, but not empty it.
+- **What is pointed at is used** (the owner's rule, 2026-09-27: "influence
+  objects should make agents want to interact with them, not just walk
+  over"). A door is opened if shut and shut if open -- and using it spends
+  the pull, so the next click asks for the opposite; the cruel (evil 7+)
+  wedge a shut door with the nearest thing instead. A free chair is sat on,
+  whoever's it is. A box, a bin or a bag is picked up and carried off. The
+  bottle on the wall is taken and held on to, like a bag, until something
+  frightens its holder. A door they cannot use -- locked, held, jammed --
+  keeps its pull. A patch of floor, a table or a laptop gathers people as
+  before, each to a spot of their own in front of a door.
 - **You can see it work.** A sparkling aura on the place, faint at one click and
   intense at twenty, and a sparkling line from everybody feeling a pull to it,
   faint for a gentle pull and bright for a strong one. When influence actually
@@ -657,9 +713,12 @@ the agents' own decision making."
 
 **Nudge a person.** Click somebody and they step away from where the click
 landed, stagger, and look round a beat later for whoever did it. Three nudges
-in ten seconds and they are annoyed: "leave me alone!", they shake with it,
-and for about twenty seconds nudging them does nothing at all. A nudge
-frightens nobody.
+in ten seconds and they are annoyed: "leave me alone!", a fast shake for a
+couple of seconds, and for about twenty seconds they are still shoved by every
+click but neither look round for it nor count it (the owner's rules,
+2026-09-27). Three quick pokes at somebody frozen with fear -- frozen for good
+included -- wake them, and they run; three at somebody sitting down knock them
+off the chair onto the floor. A nudge frightens nobody.
 
 Every card costs **30**. A card you are not holding does nothing however rich
 you are; a card you cannot pay for does nothing either. **A card that catches
@@ -1273,6 +1332,54 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   -- unless they are strong enough to heave it, in which case they get
   `StrongGiveUpOnAHeapTicks` (400 jittered) at it first, counted from when
   they come within `StrongTryTheHeapWithinMillimetres` (3 m) of it.
+
+### Prototype 3, playtest fixes, second round (2026-09-27)
+
+- **Heavy things on the map.** `PhysicsObjectSystem.IsOnTheMap`: not
+  dormant, held, wrecked or off the floor, and pinned or at least
+  `WorldSettings.OnTheMapFromGrams` (32000). `FollowTheHeavyThings` in
+  `AfterStep`: a still count per thing (moving resets it; `Unpin` and
+  `PlaceAt` reset it; a thing on the map at the start begins full), and at
+  `OnTheMapAfterTicks` (25) an unpinned thing is pinned with `HeldStill`
+  and `WorldGeometry.SettleHeavyThing` marks its square footprint on the
+  grid (re-marked past 150 mm); a thing no longer on the map is lifted.
+  `IsOffLimits` is pinned-and-not-held. `HitObject`: a held thing struck by
+  a shoved one is unpinned and given the hitter's velocity scaled by the
+  masses. `FlingFrom` unpins held things and flings them.
+  `NavigationGrid.MarkDoorways` never floors a square under an obstacle.
+- **The heave and the cut-off door.** `DoorBehaviour.TryClearTheWay`: within
+  reach and not throwable, `CanHeaveAside` (on the map, loose, nobody's, not
+  fixed, strength ≥ `ShoveMinimumStrength`) → `HeaveAside` at the doorway
+  pile's speed, square across the way to the side with more floor before the
+  wall (`HeaveHeading`). `ChooseExitDoor` and `ChooseRefugeDoor` skip a door
+  whose approach `Routes.CanGetFromHereToThere` cannot reach unless the
+  person could heave (`IsCutOff`).
+- **The stockroom's stack.** `TrapDefinition` lane form (trigger room,
+  landing centre, heading, width; `IsDoorTrap` false; validation keeps the
+  landing inside its room and the width at least the widest box).
+  `TrapSystem`: `doorOf` −1, watched in the trigger room, slots along the
+  landing line, `BoxTowerFell` without a target, no heap. Boxes weigh by
+  size (`PrototypeBuilding.BoxMass`); crate walls are `StartsPinned`.
+- **The frightened walk.** `FrightenedWalk.TryStep`, state on
+  `AgentDoorMemory` (`WalkDoor`, `WalkFromRoom`, `WalkUntilTick`): the flow
+  field in the room, `TryFindRoute` to the next door, a shut unlocked door
+  approached, faced and opened after `Exits.DoorOpenTicks` jittered, a
+  locked, held or jammed one `AgentTriedDoor` and avoided; `Forget` clears
+  it and `BlockedTicks`. `ExtinguisherBehaviour` and `AlarmBehaviour` walk
+  through it; `NearestFreeExtinguisher` skips unreachable rooms.
+- **The Director.** `socketFallDue` = `TrapSystem.LatestFallTick` +
+  `SocketAfterFallTicks` (250) jittered, set once any trap has fallen; due
+  and not yet crackling, the socket crackles whatever the phase.
+  `NextRungDue` after a put-out draws `AfterPutOutMinimumTicks`–
+  `MaximumTicks` (250–500); the rung is the socket unless it has come, then
+  the fuse box, then none. `BusiestRoomsSocket` counts everybody
+  participating, skipping the incident's rooms; `Pop` keeps the old rooms
+  while something burns. `DirectorStartedIncident.Strength > 1` is
+  captioned "another one!".
+- **Signs.** `WayfindingSystem.WorkOutWhatSignsTeach` measures a sign's
+  agreement against the first step of the walk to the door
+  (`WorldGeometry.TryWalkStepToward`), the straight line only when the
+  squares cannot say.
 
 ## Causal events and presentation
 

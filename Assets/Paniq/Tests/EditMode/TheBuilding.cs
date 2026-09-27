@@ -1,4 +1,4 @@
-﻿using Paniq.Simulation;
+using Paniq.Simulation;
 
 namespace Paniq.Tests.EditMode
 {
@@ -113,6 +113,12 @@ namespace Paniq.Tests.EditMode
 
         /// <summary>The Director's trap that brings the tower down.</summary>
         public static readonly SimulationId TheTrap = new SimulationId(7001UL);
+
+        /// <summary>The Director's second trap (2026-09-27): the stack of crates at the stockroom lane's first bend.</summary>
+        public static readonly SimulationId TheStockroomTrap = new SimulationId(7002UL);
+
+        /// <summary>The middle of the gap at the stockroom lane's first bend, where the stack's crates land.</summary>
+        public static readonly LogicalPosition StockroomBend = new LogicalPosition(9500, -2200);
 
         /// <summary>The corridor's east end, just short of the archway into the crossbar.</summary>
         public static readonly LogicalPosition CorridorEastEnd = new LogicalPosition(12000, 7500);

@@ -1041,6 +1041,13 @@ namespace Paniq.Simulation
 
         /// <summary>Stood over the card, pocketing it; done at this tick. 0 while still walking to it.</summary>
         public int PocketingUntilTick;
+
+        /// <summary>
+        /// Going for it because the player's pull on the card asked
+        /// (2026-09-28): the click that drew them, so the pull can be spent
+        /// on pocketing it and named as the cause. 0 for a fetch of their own.
+        /// </summary>
+        public ulong PulledEventId;
     }
 
     internal sealed class AgentCarry

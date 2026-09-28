@@ -279,6 +279,7 @@ namespace Paniq.Simulation
             if (door < 0 || item < 0 || inDanger || !agent.Body.IsOnTheirFeet ||
                 agent.Burning.IsBurning || context.Tick >= agent.Barricade.GiveUpTick ||
                 agent.Body.BlockedTicks >= settings.BarricadeBlockedGiveUpTicks ||
+                PressedAgainstAHeldThing(agent) ||
                 geometry.IsDoorOpen(door) || doors.IsObstructed(door) ||
                 room < 0 || threats.IsInRoom(room))
             {
@@ -397,6 +398,28 @@ namespace Paniq.Simulation
         {
             int heading = IntegerMath.HeadingBetween(agent.Body.Position, target, agent.Body.Heading);
             return PanicIntent.MoveAt(agent, heading, speed, panic);
+        }
+
+        /// <summary>
+        /// Stuck for a moment against a thing held still where it lies
+        /// (2026-09-28): a crate off the fallen stack across the lane. The
+        /// blocked count alone never reached the give-up against one -- a
+        /// body sliding along a held crate moves a little every tick -- and
+        /// the coward stood in the stockroom with a chair in his arms for the
+        /// whole barricade timeout, ten seconds, nose to the crate.
+        /// </summary>
+        private bool PressedAgainstAHeldThing(Agent agent)
+        {
+            if (agent.Body.BlockedTicks < context.Scenario.Panic.BlockedGiveUpTicks)
+            {
+                return false;
+            }
+
+            int radius = context.Scenario.World.OccupancyRadiusMillimetres;
+            LogicalPosition position = agent.Body.Position;
+            LogicalPosition ahead = position + IntegerMath.Displacement(agent.Body.Heading,
+                radius + context.Scenario.Exits.ClearTheWayReachMillimetres);
+            return objects.FindBlocking(position, ahead, radius, agent.Carry.ItemIndex, pinnedOnly: true) >= 0;
         }
 
         /// <summary>Done, or given up. Whatever they were holding stays in their arms for the usual rules to deal with.</summary>

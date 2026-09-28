@@ -682,7 +682,7 @@ namespace Paniq.Simulation
         /// <summary>Extra pass-out chance for each mm/tick of closing speed above the knock-down speed.</summary>
         public int PassOutPercentPerSpeed = 1;
 
-        /// <summary>For a box hit: extra pass-out chance per this much momentum (kg·mm/tick) above the knock-down momentum.</summary>
+        /// <summary>For a box hit: extra pass-out chance per this much momentum (kgÂ·mm/tick) above the knock-down momentum.</summary>
         public int PassOutMomentumPerPercent = 100;
 
         public int PassOutMaximumPercent = 60;
@@ -1516,6 +1516,16 @@ namespace Paniq.Simulation
         /// </summary>
         public int FlamesKeepAwayMillimetres = 1500;
 
+        /// <summary>
+        /// How strong the player's pull on the card has to be felt, per mille
+        /// of a full pull felt by an ordinary person standing on it, for
+        /// somebody frightened to go and pocket it, brave or not
+        /// (2026-09-28): a quarter, about five clicks beside it or twenty from
+        /// nine metres off. A single stray click moves nobody. Calm people
+        /// already followed any pull on it.
+        /// </summary>
+        public int PulledToTheCardPerMille = 250;
+
         public KeycardSettings Clone() => (KeycardSettings)MemberwiseClone();
 
         internal void Validate()
@@ -1525,6 +1535,7 @@ namespace Paniq.Simulation
                              FlamesKeepAwayMillimetres >= 0 && SwipeReachMillimetres >= 0 && GrabOnTheWayRangeMillimetres >= 0,
                 "going for the keycard");
             Settings.Require(PocketTicks >= 0 && FetchTimeoutTicks > 0 && BlockedGiveUpTicks > 0, "keycard timeouts");
+            Settings.Require(PulledToTheCardPerMille >= 1, "the pull on the keycard");
         }
     }
 
@@ -2013,7 +2024,7 @@ namespace Paniq.Simulation
         public int EvilAimMinimum = 7;
         public int AimRangeMillimetres = 4000;
 
-        /// <summary>Throw speed (mm/tick) = impulse × (strength + 5) ÷ (item kg + 5), at least the minimum.</summary>
+        /// <summary>Throw speed (mm/tick) = impulse Ã— (strength + 5) Ã· (item kg + 5), at least the minimum.</summary>
         public int ThrowImpulse = 60;
         public int ThrowMinimumSpeed = 20;
 
@@ -2771,6 +2782,41 @@ namespace Paniq.Simulation
         /// </summary>
         public int BangSettlesTicks = 250;
 
+        /// <summary>
+        /// Whether the Director also caps the round (2026-09-28, the owner's
+        /// rule: left alone, about a quarter live and never more than half).
+        /// Off in the code defaults; the office level switches it on. It
+        /// needs the ladder: without one there is nothing to push with. The
+        /// Director reads only how the round is going -- the crowd and the
+        /// card -- never what the player does, so the "left alone" line on
+        /// the end card stays honest.
+        /// </summary>
+        public bool CapsTheRound;
+
+        /// <summary>
+        /// How many the building lets out this round, as a share of the
+        /// crowd, drawn once per round from the Director's own stream: ten to
+        /// forty percent, two to eight of twenty. The band averages the
+        /// owner's quarter and tops out ten points under the rule of half,
+        /// because the building's tricks are leaky.
+        /// </summary>
+        public int AllowanceMinimumPercent = 10;
+        public int AllowanceMaximumPercent = 40;
+
+        /// <summary>How often the Director takes its reading of the round: every half second, on a beat of its own.</summary>
+        public int ReadEveryTicks = 25;
+
+        /// <summary>
+        /// The rest between two pushes when the round is running away from
+        /// the Director: thirty to sixty seconds, drawn each time, so one
+        /// trick is felt before the next and the player can read cause and
+        /// effect. Measured at ten to twenty (2026-09-28): the whole menu
+        /// went off within forty seconds of the holder taking fright and the
+        /// office saved 1.6 of 20, nearly every round a total loss.
+        /// </summary>
+        public int PushMinimumTicks = 1500;
+        public int PushMaximumTicks = 3000;
+
         public DirectorSettings Clone()
         {
             var copy = (DirectorSettings)MemberwiseClone();
@@ -2787,6 +2833,10 @@ namespace Paniq.Simulation
                              CrackleTicks >= 1 && CrackleHearingMillimetres >= 0 && AllClearAfterTicks >= 1 &&
                              BangSettlesTicks >= 0,
                 "the Director's ladder");
+            Settings.Require(Settings.Percent(AllowanceMinimumPercent) && Settings.Percent(AllowanceMaximumPercent) &&
+                             AllowanceMinimumPercent <= AllowanceMaximumPercent && ReadEveryTicks >= 1 &&
+                             Settings.Range(PushMinimumTicks, PushMaximumTicks, 1),
+                "the Director's cap");
         }
     }
 

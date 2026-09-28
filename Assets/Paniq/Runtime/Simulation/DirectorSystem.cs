@@ -49,16 +49,63 @@ namespace Paniq.Simulation
     /// the tick a cue is called.
     /// </para>
     /// <para>
+    /// On a level that also asks for it (<see cref="DirectorSettings.CapsTheRound"/>,
+    /// 2026-09-28) it <em>caps</em> the round, the owner's rule being that
+    /// the office left alone should save about a quarter and never more
+    /// than half. Like a stage manager in the wings who cannot see the
+    /// audience: it watches the actors only. Before the curtain it draws an
+    /// <em>allowance</em>, how many the building lets out today, from a
+    /// stream of its own. Every half second, on its own beat, it reads the
+    /// round -- how many are out, whether the way out is open or the card is
+    /// in the pocket of somebody frightened who can reach it, and how many
+    /// alive could walk there on the map -- and is in one of three states:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><b>Ahead</b>: more are on course than the allowance. It pushes,
+    /// a reaction lag after deciding to and then one trick at a time with a
+    /// rest between: a trap still standing on the crowd's way is sprung
+    /// without waiting for a runner; else the socket in the room with the
+    /// most on-course people crackles and pops; else the fuse box; else,
+    /// with nothing burning, another bin.</item>
+    /// <item><b>A massacre</b>: only the allowance's worth, or fewer, are
+    /// still alive or out. Nothing more is added: no socket after the fall,
+    /// no fuse box after a put-out, no relit bin, and a standing trap stays
+    /// unarmed. The rest may live without breaking the rule.</item>
+    /// <item><b>Ordinary</b>: the ladder above, exactly as it is.</item>
+    /// </list>
+    /// <para>
+    /// It reads the crowd and the card, never the player's clicks; the
+    /// hands-off run behind the end card has the same Director reading its
+    /// own round, so "left alone" stays an honest number.
+    /// </para>
+    /// <para>
     /// Random draws: with the ladder, two at start-up (which bin, if there is
     /// more than one, and when it catches), one per put-out (when the next
     /// rung comes, and one for the all-clear's own moment; a relit bin draws
     /// which bin, when more than one is left, and its beat), one when the
     /// tower falls (the socket's five seconds, jittered), and one per rung
-    /// only when two sockets tie for the busiest room.
+    /// only when two sockets tie for the busiest room. The cap draws its
+    /// allowance and its beat from its own stream, so a level without it
+    /// replays as before; a push draws a reaction lag when decided, the
+    /// rest before the next when it lands, and a tie-break as a rung does.
     /// </para>
     /// </summary>
     internal sealed class DirectorSystem : IBindable
     {
+        /// <summary>The cap's own stream selector: 54 is the crowd, 55 the deck, 56 the keycard.</summary>
+        private const ulong CapSequence = 57UL;
+
+        private enum CapState
+        {
+            /// <summary>The ladder as it is.</summary>
+            Ordinary,
+
+            /// <summary>More people on course to get out than the allowance: pushing.</summary>
+            Ahead,
+
+            /// <summary>Only the allowance's worth or fewer left alive or out: nothing more is added.</summary>
+            Massacre
+        }
         private enum Rung
         {
             None,
@@ -92,6 +139,7 @@ namespace Paniq.Simulation
         private readonly CueSystem cues;
         private readonly WorldGeometry geometry;
         private readonly TrapSystem traps;
+        private readonly DoorSystem doors;
         private readonly FireSystem fire;
         private readonly FlammablesSystem flammables;
         private readonly PowerSystem power;
@@ -147,20 +195,55 @@ namespace Paniq.Simulation
         private ulong incidentEventId;
         private ulong putOutEventId;
         private ulong crackleEventId;
+
+        /// <summary>What the crackle names as its cause: the put-out for the ladder, the push for the cap.</summary>
+        private ulong crackleCauseEventId;
+
         private int crackleNode = -1;
         private int allClearTick = -1;
+
+        /// <summary>Where the ladder goes once what is crackling has popped: burning, or, for a push after the fire got loose, back to over.</summary>
+        private LadderPhase phaseAfterPop = LadderPhase.Burning;
 
         /// <summary>The event that said the fire got loose, or 0 while it has not.</summary>
         public ulong EscapedEventId { get; private set; }
 
+        // ---------------------------------------------------------------- the cap (2026-09-28)
+
+        /// <summary>Whether this run's Director caps the round: the level asks for it, and there is a ladder to push with.</summary>
+        private readonly bool caps;
+
+        /// <summary>How many the building lets out this round, in people, drawn once from the cap's own stream.</summary>
+        private readonly int allowance;
+
+        /// <summary>Which tick of every <see cref="DirectorSettings.ReadEveryTicks"/> the reading is taken on: the Director's own beat.</summary>
+        private readonly int readingBeat;
+
+        /// <summary>The last reading: on-course people per room, and per trap those whose way out runs through its room.</summary>
+        private readonly int[] onCourseInRoom;
+        private readonly int[] onCourseBehindTrap;
+        private readonly int[] peopleInRoom;
+
+        private int onCourse;
+        private int outOfTheBuilding;
+        private int alive;
+        private CapState capState = CapState.Ordinary;
+
+        /// <summary>A push decided, landing at this tick (its reaction lag), or -1.</summary>
+        private int pushAtTick = -1;
+
+        /// <summary>No push before this tick: the rest after the last.</summary>
+        private int nextPushAllowedTick;
+
         public DirectorSystem(SimulationContext context, CueSystem cues, WorldGeometry geometry, TrapSystem traps,
-            FireSystem fire, FlammablesSystem flammables, PowerSystem power, PhysicsObjectSystem objects, Crowd crowd,
-            SoundSystem sound)
+            DoorSystem doors, FireSystem fire, FlammablesSystem flammables, PowerSystem power, PhysicsObjectSystem objects,
+            Crowd crowd, SoundSystem sound)
         {
             this.context = context;
             this.cues = cues;
             this.geometry = geometry;
             this.traps = traps;
+            this.doors = doors;
             this.fire = fire;
             this.flammables = flammables;
             this.power = power;
@@ -197,6 +280,23 @@ namespace Paniq.Simulation
             fire.LeaveTheStartToTheDirector();
             TryDrawAnotherBin();
             dueTick = context.Random.NextIntInclusive(settings.FirstIncidentMinimumTicks, settings.FirstIncidentMaximumTicks);
+            peopleInRoom = new int[geometry.RoomCount];
+
+            if (!settings.CapsTheRound)
+            {
+                return;
+            }
+
+            // The cap: its allowance and its beat from a stream of its own,
+            // so the run's other draws are exactly what they would be without
+            // it. Two to eight of twenty at the office's ten to forty percent.
+            caps = true;
+            var own = new Pcg32(context.Seed, CapSequence);
+            int percent = own.NextIntInclusive(settings.AllowanceMinimumPercent, settings.AllowanceMaximumPercent);
+            allowance = (crowd.All.Length * percent + 50) / 100;
+            readingBeat = own.NextIntInclusive(0, settings.ReadEveryTicks - 1);
+            onCourseInRoom = new int[geometry.RoomCount];
+            onCourseBehindTrap = new int[traps.Count];
         }
 
         /// <summary>
@@ -255,14 +355,18 @@ namespace Paniq.Simulation
         /// work after a fire was put out.
         /// </summary>
         public bool HasSomethingComing =>
-            climbs && (phase == LadderPhase.Crackling || phase == LadderPhase.Relighting ||
-                       (socketFallDue > 0 && !socketCame) ||
-                       (phase == LadderPhase.Out && nextRung != Rung.None));
+            climbs && (phase == LadderPhase.Crackling || pushAtTick >= 0 ||
+                       (capState != CapState.Massacre &&
+                        (phase == LadderPhase.Relighting ||
+                         (socketFallDue > 0 && !socketCame) ||
+                         (phase == LadderPhase.Out && nextRung != Rung.None))));
 
         /// <summary>
         /// Every cue whose tick has come and that has not been called yet, in
-        /// timetable order; then the ladder, if this level climbs one; then
-        /// the traps, armed by the fire being lit -- the bin, with the ladder.
+        /// timetable order; then the cap's reading and any push that lands;
+        /// then the ladder, if this level climbs one; then the traps, armed
+        /// by the fire being lit -- the bin, with the ladder -- and left
+        /// unarmed while the round is a massacre.
         /// </summary>
         public void Advance()
         {
@@ -273,13 +377,16 @@ namespace Paniq.Simulation
                 return;
             }
 
+            Cap();
             Climb();
-            traps.Advance(fire.Active, incidentEventId != 0UL ? incidentEventId : fire.ActivationEventId);
+            traps.Advance(fire.Active && capState != CapState.Massacre,
+                incidentEventId != 0UL ? incidentEventId : fire.ActivationEventId);
         }
 
         private void Climb()
         {
             int tick = context.Tick;
+            bool holdingOff = capState == CapState.Massacre;
 
             // The socket after the boxes (the owner's order, 2026-09-27):
             // once the tower has come down, the socket crackles five seconds
@@ -290,7 +397,7 @@ namespace Paniq.Simulation
                 socketFallDue = checked(traps.LatestFallTick + context.Jittered(settings.SocketAfterFallTicks));
             }
 
-            if (!socketCame && socketFallDue > 0 && tick >= socketFallDue && phase != LadderPhase.Crackling)
+            if (!holdingOff && !socketCame && socketFallDue > 0 && tick >= socketFallDue && phase != LadderPhase.Crackling)
             {
                 nextRung = Rung.Socket;
                 StartCrackling();
@@ -314,8 +421,9 @@ namespace Paniq.Simulation
                     break;
 
                 case LadderPhase.Relighting:
-                    // The next bin, a beat after the last was doused.
-                    if (tick >= dueTick)
+                    // The next bin, a beat after the last was doused -- unless
+                    // the round is already a massacre.
+                    if (!holdingOff && tick >= dueTick)
                     {
                         StartTheBin(putOutEventId);
                     }
@@ -348,7 +456,7 @@ namespace Paniq.Simulation
                         break;
                     }
 
-                    if (nextRung != Rung.None && tick >= dueTick)
+                    if (!holdingOff && nextRung != Rung.None && tick >= dueTick)
                     {
                         StartCrackling();
                     }
@@ -502,7 +610,7 @@ namespace Paniq.Simulation
             if (nextRung == Rung.Socket)
             {
                 socketCame = true;
-                node = BusiestRoomsSocket();
+                node = BusiestRoomsSocket(PeopleInRooms());
                 if (node < 0)
                 {
                     // Every socket is gone, or the only ones left are where
@@ -522,11 +630,19 @@ namespace Paniq.Simulation
                 }
             }
 
+            crackleCauseEventId = putOutEventId;
+            phaseAfterPop = LadderPhase.Burning;
+            CrackleAt(node);
+        }
+
+        /// <summary>This socket, or the fuse box, crackles from now: it goes <see cref="DirectorSettings.CrackleTicks"/> later.</summary>
+        private void CrackleAt(int node)
+        {
             int tick = context.Tick;
             crackleNode = node;
             LogicalPosition at = power.NodePosition(node);
             crackleEventId = context.Events.Append(tick, power.NodeId(node), CausalEventType.SocketCrackling,
-                at, settings.CrackleTicks, 0, putOutEventId).EventId;
+                at, settings.CrackleTicks, 0, crackleCauseEventId).EventId;
             sound.Crash(power.NodeId(node), at, settings.CrackleHearingMillimetres, crackleEventId);
             phase = LadderPhase.Crackling;
             dueTick = checked(tick + settings.CrackleTicks);
@@ -547,22 +663,14 @@ namespace Paniq.Simulation
             incidentPosition = power.NodePosition(crackleNode);
             BeginIncident(geometry.RoomAtPoint(incidentPosition), settings.BangSettlesTicks, stillBurning);
             incidentEventId = bang != 0UL ? bang : crackleEventId;
-            phase = LadderPhase.Burning;
+            phase = phaseAfterPop;
+            phaseAfterPop = LadderPhase.Burning;
         }
 
-        /// <summary>
-        /// The socket for the second rung: in the room with the most people
-        /// still in the run, calm or frightened (the owner's choice,
-        /// 2026-09-27; it used to count the calm alone, and after the boxes
-        /// fell the calm rooms were often empty), never a room the last fire
-        /// was in. The bang lands on an audience. Sockets that tie -- two
-        /// rooms as busy, or two sockets in the busiest -- are drawn between;
-        /// nothing is drawn when there is no tie. -1 when there is no socket
-        /// to choose.
-        /// </summary>
-        private int BusiestRoomsSocket()
+        /// <summary>Everybody still in the run, calm or frightened, counted by room.</summary>
+        private int[] PeopleInRooms()
         {
-            var calmIn = new int[geometry.RoomCount];
+            System.Array.Clear(peopleInRoom, 0, peopleInRoom.Length);
             Agent[] agents = crowd.All;
             for (int i = 0; i < agents.Length; i++)
             {
@@ -575,21 +683,33 @@ namespace Paniq.Simulation
                 int room = geometry.RoomAt(agent.Body.Position);
                 if (room >= 0)
                 {
-                    calmIn[room]++;
+                    peopleInRoom[room]++;
                 }
             }
 
+            return peopleInRoom;
+        }
+
+        /// <summary>
+        /// The socket for the second rung: in the room with the most people
+        /// still in the run, calm or frightened (the owner's choice,
+        /// 2026-09-27; it used to count the calm alone, and after the boxes
+        /// fell the calm rooms were often empty), never a room the last fire
+        /// was in. The bang lands on an audience. Sockets that tie -- two
+        /// rooms as busy, or two sockets in the busiest -- are drawn between;
+        /// nothing is drawn when there is no tie. -1 when there is no socket
+        /// to choose. The cap asks with the on-course people counted instead
+        /// (<paramref name="calmIn"/> is whichever count the caller means)
+        /// and wants a room with somebody in it (<paramref name="atLeast"/>):
+        /// a bang on an empty room cuts nobody off.
+        /// </summary>
+        private int BusiestRoomsSocket(int[] calmIn, int atLeast = 0)
+        {
             var best = new List<int>();
             int bestCount = -1;
             for (int node = 0; node < power.NodeCount; node++)
             {
-                if (!power.IsSocketStillWhole(node))
-                {
-                    continue;
-                }
-
-                int room = geometry.RoomAtPoint(power.NodePosition(node));
-                if (room < 0 || room == previousRoom || (incidentRooms != null && incidentRooms[room]))
+                if (!SocketQualifies(node, calmIn, atLeast, out int room))
                 {
                     continue;
                 }
@@ -613,6 +733,336 @@ namespace Paniq.Simulation
 
             return best.Count == 1 ? best[0] : best[context.Random.NextIntInclusive(0, best.Count - 1)];
         }
+
+        /// <summary>A whole socket, in a room, not one the incident has, with at least this many of the counted people in it.</summary>
+        private bool SocketQualifies(int node, int[] countIn, int atLeast, out int room)
+        {
+            room = -1;
+            if (!power.IsSocketStillWhole(node))
+            {
+                return false;
+            }
+
+            room = geometry.RoomAtPoint(power.NodePosition(node));
+            return room >= 0 && room != previousRoom && (incidentRooms == null || !incidentRooms[room]) && countIn[room] >= atLeast;
+        }
+
+        // ---------------------------------------------------------------- the cap (2026-09-28)
+
+        /// <summary>
+        /// The cap's turn, once the round is under way: a push that has come
+        /// due lands (the reading taken afresh first, and only if the round
+        /// is still ahead), else on the Director's beat the reading is taken
+        /// and, ahead and rested, a push is decided for a reaction lag later.
+        /// </summary>
+        private void Cap()
+        {
+            if (!caps || round == null || round.Phase != RoundPhase.Running)
+            {
+                return;
+            }
+
+            int tick = context.Tick;
+            if (pushAtTick >= 0)
+            {
+                if (tick < pushAtTick)
+                {
+                    return;
+                }
+
+                pushAtTick = -1;
+                TakeTheReading();
+                if (capState == CapState.Ahead)
+                {
+                    Push();
+                }
+
+                nextPushAllowedTick = checked(tick + context.Random.NextIntInclusive(settings.PushMinimumTicks, settings.PushMaximumTicks));
+                return;
+            }
+
+            if (tick % settings.ReadEveryTicks != readingBeat)
+            {
+                return;
+            }
+
+            TakeTheReading();
+            if (capState == CapState.Ahead && tick >= nextPushAllowedTick && phase != LadderPhase.Waiting && HasSomethingToPush())
+            {
+                // Decided: it lands a reaction lag later. Only when there is
+                // something to push with, so a Director with nothing to do
+                // draws nothing and the run is exactly what it would be
+                // without it (measured 2026-09-28: a lag drawn for a push
+                // that then found nothing turned a round that saved six into
+                // one that saved nobody).
+                pushAtTick = context.ReactionTick();
+            }
+        }
+
+        /// <summary>
+        /// Whether a push would reach for anything right now, asked without
+        /// drawing: a trap still standing with somebody on course in its
+        /// room, a whole socket in a room with somebody on course, the fuse
+        /// box once a socket has gone, or an unused bin with nothing burning.
+        /// </summary>
+        private bool HasSomethingToPush()
+        {
+            for (int t = 0; t < traps.Count; t++)
+            {
+                if (traps.IsStanding(t) && onCourseBehindTrap[t] > 0)
+                {
+                    return true;
+                }
+            }
+
+            if (phase == LadderPhase.Crackling)
+            {
+                return false;
+            }
+
+            for (int node = 0; node < power.NodeCount; node++)
+            {
+                if (SocketQualifies(node, onCourseInRoom, 1, out _))
+                {
+                    return true;
+                }
+            }
+
+            int fuseBox = power.FuseBoxNodeIndex;
+            if (socketCame && fuseBox >= 0 && power.IsFuseBoxStillWhole(fuseBox))
+            {
+                return true;
+            }
+
+            if (SomethingIsBurning())
+            {
+                return false;
+            }
+
+            for (int i = 0; i < bins.Count; i++)
+            {
+                if (!binUsed[i])
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// How the round is going, from the crowd and the card alone. Out:
+        /// escaped. Alive: still in the run. On course: out, plus everybody
+        /// who has set out -- frightened, on their feet -- and could walk to
+        /// a door to the street on the map people steer by; but only while a
+        /// way out stands unlocked or the card is in the pocket of somebody
+        /// frightened, on their feet, who can walk there too. A queue at a
+        /// shut card door with the card on a desk two rooms away is nobody
+        /// on course, and neither is somebody calm at their desk (measured
+        /// 2026-09-28: counting them, the Director read twenty on course the
+        /// moment the holder took fright and emptied its menu). Draws nothing.
+        /// </summary>
+        private void TakeTheReading()
+        {
+            System.Array.Clear(onCourseInRoom, 0, onCourseInRoom.Length);
+            System.Array.Clear(onCourseBehindTrap, 0, onCourseBehindTrap.Length);
+            outOfTheBuilding = 0;
+            alive = 0;
+
+            bool wayOutOpen = false;
+            for (int d = 0; d < doors.Count; d++)
+            {
+                if (geometry.DoorLeadsOutside(d) && !doors.NeedsKeycard(d) && doors.StateOf(d) != DoorState.Locked)
+                {
+                    wayOutOpen = true;
+                    break;
+                }
+            }
+
+            Agent[] agents = crowd.All;
+            bool holderOnTheirWay = false;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                if (!agent.IsParticipating)
+                {
+                    outOfTheBuilding += agent.Outcome == AgentTerminalOutcome.Escaped ? 1 : 0;
+                    continue;
+                }
+
+                alive++;
+                if (!wayOutOpen && !holderOnTheirWay && agent.Keycard.Held >= 0 && agent.Fear.State == AgentFearState.Scared &&
+                    agent.Body.IsOnTheirFeet && CanReachAWayOut(agent, out _))
+                {
+                    holderOnTheirWay = true;
+                }
+            }
+
+            onCourse = outOfTheBuilding;
+            if (wayOutOpen || holderOnTheirWay)
+            {
+                for (int i = 0; i < agents.Length; i++)
+                {
+                    Agent agent = agents[i];
+                    if (!agent.IsParticipating || agent.Fear.State != AgentFearState.Scared || !agent.Body.IsOnTheirFeet ||
+                        !CanReachAWayOut(agent, out _))
+                    {
+                        continue;
+                    }
+
+                    onCourse++;
+                    int room = geometry.RoomOf(agent);
+                    if (room < 0)
+                    {
+                        continue;
+                    }
+
+                    onCourseInRoom[room]++;
+                    for (int t = 0; t < traps.Count; t++)
+                    {
+                        // In the trap's own room: the boxes come down on the
+                        // crowd as it passes, cutting off whoever is behind,
+                        // rather than walling a route off before anybody
+                        // has reached it.
+                        if (traps.TriggerRoom(t) == room)
+                        {
+                            onCourseBehindTrap[t]++;
+                        }
+                    }
+                }
+            }
+
+            // Ahead only once a way out stands open. While the holder is
+            // still walking the card to the door, the round's own suspense is
+            // whether they get there; pushing then (measured 2026-09-28)
+            // killed the holder and everybody behind them, and the office
+            // saved 1.8 of 20. Once the door is open and more are streaming
+            // out than the round allows, the building turns on the crowd.
+            capState = alive + outOfTheBuilding <= allowance ? CapState.Massacre
+                : wayOutOpen && onCourse > allowance ? CapState.Ahead
+                : CapState.Ordinary;
+        }
+
+        /// <summary>
+        /// Whether this person could walk to some door to the street on the
+        /// map: their own room holds one, or a route of rooms and doors
+        /// reaches one. <paramref name="firstDoor"/> is the first door of
+        /// that route, or -1 from the door's own room.
+        /// </summary>
+        private bool CanReachAWayOut(Agent agent, out int firstDoor)
+        {
+            firstDoor = -1;
+            int room = geometry.RoomOf(agent);
+            if (room < 0)
+            {
+                return false;
+            }
+
+            for (int d = 0; d < doors.Count; d++)
+            {
+                if (!geometry.DoorLeadsOutside(d))
+                {
+                    continue;
+                }
+
+                int target = geometry.DoorRoom(d);
+                if (target == room)
+                {
+                    firstDoor = -1;
+                    return true;
+                }
+
+                if (geometry.TryFindRoute(room, agent.Body.Position, target, agent, out firstDoor, out _, out _))
+                {
+                    return true;
+                }
+            }
+
+            firstDoor = -1;
+            return false;
+        }
+
+        /// <summary>
+        /// One push, the round being ahead: what cuts the most people who are
+        /// on course, in a fixed order, skipping what is spent. A trap still
+        /// standing with the most on-course people in its room is sprung;
+        /// else the socket in the room with the most of them crackles; else,
+        /// once a socket has already gone (the ladder's or a push's: the
+        /// fuse box takes every socket left and is the last resort, not the
+        /// first), the fuse box; else, with nothing at all burning and a bin
+        /// unused, another bin. Nothing at all when none of these fits --
+        /// the on-course crowd is in rooms with no socket -- and the
+        /// Director rests and reads again. Each names the push as its cause,
+        /// and the push names what set the round going.
+        /// </summary>
+        private void Push()
+        {
+            ulong cause = incidentEventId != 0UL ? incidentEventId : fire.ActivationEventId;
+
+            int best = -1;
+            for (int t = 0; t < traps.Count; t++)
+            {
+                if (traps.IsStanding(t) && onCourseBehindTrap[t] > 0 &&
+                    (best < 0 || onCourseBehindTrap[t] > onCourseBehindTrap[best]))
+                {
+                    best = t;
+                }
+            }
+
+            if (best >= 0)
+            {
+                traps.Spring(best, Pushed(traps.IdOf(best), traps.LandingOf(best), cause));
+                return;
+            }
+
+            if (phase == LadderPhase.Crackling)
+            {
+                // Something is already about to go: let it.
+                return;
+            }
+
+            int node = BusiestRoomsSocket(onCourseInRoom, 1);
+            if (node >= 0)
+            {
+                nextRung = Rung.Socket;
+                socketCame = true;
+                crackleCauseEventId = Pushed(power.NodeId(node), power.NodePosition(node), cause);
+                phaseAfterPop = phase == LadderPhase.Over ? LadderPhase.Over : LadderPhase.Burning;
+                CrackleAt(node);
+                return;
+            }
+
+            int fuseBox = power.FuseBoxNodeIndex;
+            if (socketCame && fuseBox >= 0 && power.IsFuseBoxStillWhole(fuseBox))
+            {
+                nextRung = Rung.FuseBox;
+                crackleCauseEventId = Pushed(power.NodeId(fuseBox), power.NodePosition(fuseBox), cause);
+                phaseAfterPop = phase == LadderPhase.Over ? LadderPhase.Over : LadderPhase.Burning;
+                CrackleAt(fuseBox);
+                return;
+            }
+
+            if (!SomethingIsBurning() && TryDrawAnotherBin())
+            {
+                StartTheBin(Pushed(objects.IdOf(binIndex), objects.PositionOf(binIndex), cause));
+            }
+        }
+
+        /// <summary>The push written down: how many were on course against the allowance, and what it reached for.</summary>
+        private ulong Pushed(SimulationId target, LogicalPosition at, ulong cause)
+        {
+            return context.Events.Append(context.Tick, default, CausalEventType.DirectorPushed, at, onCourse, allowance,
+                cause, target).EventId;
+        }
+
+        /// <summary>Tests and measurements: whether this run's Director caps the round, and with what allowance.</summary>
+        internal bool CapsForTests => caps;
+        internal int AllowanceForTests => allowance;
+
+        /// <summary>Tests and measurements: the last reading.</summary>
+        internal int OnCourseForTests => onCourse;
+        internal bool IsAheadForTests => capState == CapState.Ahead;
+        internal bool IsMassacreForTests => capState == CapState.Massacre;
 
         private void CallTheTimetable()
         {

@@ -148,7 +148,8 @@ namespace Paniq.Simulation
                 influence = new InfluenceSystem(context, geometry);
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues, sound);
                 nudges = new NudgeSystem(context, crowd, body, calm, fear);
-                director = new DirectorSystem(context, cues, geometry, traps, fire, flammables, power, objects, crowd, sound);
+                director = new DirectorSystem(context, cues, geometry, traps, doors, fire, flammables, power, objects, crowd,
+                    sound);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
                 groups = new GroupSystem(context, crowd, wayfinding);

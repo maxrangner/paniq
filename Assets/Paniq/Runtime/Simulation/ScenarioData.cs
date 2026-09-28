@@ -841,7 +841,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "84";
+        public string ContentRevision = "85";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -1042,7 +1042,13 @@ namespace Paniq.Simulation
         // brave enough goes and gets it; whoever is out cold or dead drops it; whoever
         // has it swipes the door open for good. Fingerprints re-recorded: the
         // way out is now opened by a person or not at all.
-        public int SimulationCompatibilityVersion = 72;
+        // 73: the Director caps the round (on for the office): an allowance
+        // drawn from its own stream, a push (a trap sprung, a socket, the fuse
+        // box, another bin) whenever more than that are on course to get out,
+        // nothing added once the round is a massacre; the player's pull on the
+        // card fetches frightened people too; a box held where it lies is
+        // shoved on only by a heaved thing, not by any box that slides into it.
+        public int SimulationCompatibilityVersion = 73;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

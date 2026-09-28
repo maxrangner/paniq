@@ -569,9 +569,28 @@ the bin is doing -- burning, out, or got loose -- because bin, boxes, outlet
 is the order. The fuse box still needs the socket's fire put out.
 
 **If a fire gets out of the room it started in, it is the real fire.** The
-Director adds nothing more. If everybody simply runs out, that is fine too.
+ladder adds nothing more. If everybody simply runs out, that is fine too.
 The round does not end as "nothing is happening" while the Director has
 something still to come.
+
+**The Director also caps the round** (2026-09-28, the owner's rule: left
+alone, about a quarter should live and never more than half). Before the
+round it decides how many the building will let out today, two to eight of
+the twenty, differently every seed. Every half second it reads how many are
+*on course* to get out: everybody out already, plus everybody frightened
+and on their feet who could walk to the way out, counted only while the way
+out stands open or the card is in the pocket of somebody frightened who can
+reach it. Once the way out is open and more are on course than it allows,
+the building turns on the crowd: a trap still standing with somebody on
+course in its room comes down without waiting for a runner; otherwise the
+socket in the room with the most of them crackles and pops; once a socket
+has gone, the fuse box; with nothing burning at all, another bin. One trick
+at a time, a beat after it is decided, and half a minute to a minute
+between. And when the round is already a massacre -- only the allowance's
+worth, or fewer, still alive or out -- nothing more is added: no socket
+after the boxes fall, no fuse box after a put-out, no second bin, and a
+standing trap stays unarmed. The Director reads the crowd and the card only,
+never your clicks, so the "left alone" line on the end card stays honest.
 
 **The way out needs the keycard** (2026-09-27, the owner's idea). Nobody
 batters the way out any more and your key does not fit it; the fire does
@@ -589,16 +608,25 @@ shut and believe they know where it lies -- one person at a time, and never into
 flames. The card does not burn: one dropped in the fire is fetched once the
 flames have passed. Whoever is out cold or dead loses it where they lie, for
 anybody to pick up; a trip or a knock-down they get up from keeps it in their
-pocket. Click the card and somebody calm nearby pockets it for you. The
-person with the card is drawn holding it up, and the line under the score
-says **HAS THE KEYCARD** when you point at them.
+pocket. Click the card and somebody calm nearby pockets it for you -- and,
+since 2026-09-28, somebody frightened too: click it a few times (about five
+beside it) and whoever feels the pull strongest goes and pockets it, brave
+or not, never into the flames, one at a time. The person with the card is
+drawn holding it up, and the line under the score says **HAS THE KEYCARD**
+when you point at them.
 
-Left alone, the office now saves about six of twenty over ten seeds, three
-in ten clearing the bar -- the owner asked for about a quarter. The seeds
-where a member of staff starts with the card in their pocket mostly open the
-door and save sixteen or more; a card on a desk mostly needs you, and those
-rounds end with everybody trapped unless the hero happens to be beside it. It used
-to save sixteen of twenty, because the strong battered the door down.
+Left alone, the office now saves about four and a half of twenty over fifty
+seeds (23%, measured 2026-09-28; the owner asked for about a quarter), eight
+seeds in fifty clearing the bar and ten in fifty saving more than half,
+which the owner's rule says none should. Most rounds end with everybody dead: a card
+on a desk is fetched only by the hero, and the holder of a pocket card
+reaches the door in about one round in three, because the fallen tower now
+really holds (its boxes used to slide apart by themselves) and the fire has
+usually grown past them by the time they get there. Where the holder does
+get out, the Director's cap trims the stream behind them in some rounds and
+cannot in others; the crowd's own tricks, still to come, are where the rule
+becomes a rule. Yesterday it saved about six, and before the card sixteen,
+because the strong battered the door down.
 
 **Pause looks, it does not act.** **Space** stops everything: people mid-stride,
 flames mid-flicker, smoke mid-drift. The camera still answers you so you can go

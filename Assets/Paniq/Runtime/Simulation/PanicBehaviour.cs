@@ -270,9 +270,20 @@ namespace Paniq.Simulation
             {
                 // A thing in the way: grab it and throw it clear.
                 // A table in the way: heave it over or along.
-                // Wedged beside an open door: stand aside for whoever is lined up with it.
+                // Wedged beside an open door: stand aside for whoever is lined up with it --
+                // unless what is in the way is a crate held where it lies that they could not
+                // shift (2026-09-28): giving way and coming again at that is how the strong
+                // stood pressed against the fallen tower's boxes until the fire came.
                 // Otherwise stuck in the crowd: if it was on the way to a door, try another one for a while.
-                if (!doorBehaviour.TryClearTheWay(agent, inDanger) && !TryHeaveTable(agent) && !doorBehaviour.TryGiveWay(agent))
+                if (doorBehaviour.TryClearTheWay(agent, inDanger) || TryHeaveTable(agent))
+                {
+                }
+                else if (doorBehaviour.IsBlockedByAHeldThing(agent))
+                {
+                    doorBehaviour.GiveUpTheDoorwayForAWhile(agent);
+                    DecideMove(agent, false);
+                }
+                else if (!doorBehaviour.TryGiveWay(agent))
                 {
                     doorBehaviour.AvoidCrowdedExit(agent);
                     DecideMove(agent, false);
@@ -284,7 +295,14 @@ namespace Paniq.Simulation
                        LogicalPosition.DistanceSquared(agent.Body.Position, intent.Target) <
                        (long)settings.ArrivalDistanceMillimetres * settings.ArrivalDistanceMillimetres)))
             {
-                DecideMove(agent, !inDanger);
+                // A crate held where it lies right in their way: the strong
+                // heave it now rather than slide along it for ever
+                // (2026-09-28); everybody else decides afresh, and the map
+                // leaves out what it cannot reach.
+                if (!doorBehaviour.TryHeaveHeldThingInTheWay(agent, inDanger))
+                {
+                    DecideMove(agent, !inDanger);
+                }
             }
 
             if (agent.Body.State != AgentBodyState.Upright)

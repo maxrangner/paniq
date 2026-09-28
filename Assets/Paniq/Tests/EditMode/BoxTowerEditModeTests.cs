@@ -195,6 +195,50 @@ namespace Paniq.Tests.EditMode
             return fell.Value;
         }
 
+        [Test]
+        public void OnceAFallenBoxIsHeldWhereItLies_ItNeverMovesAgainByItself()
+        {
+            // The owner's note (2026-09-28): "when the tower tips, usually it
+            // moves by itself after a few seconds without input, glides on
+            // the floor". The real fall, on the office's own seed, watched
+            // for fifteen seconds: a box that has been held where it lies
+            // stays there, whatever the boxes still tumbling do to it. Nobody
+            // here is strong enough to heave one, which is the one thing that
+            // may still move a held box.
+            ScenarioData data = TwoPeopleAndTheTower(NearTheTower, AgentTraitValues.AllOrdinary, 200);
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 201);
+                BringTheTowerDown(simulation);
+                PhysicsObjectSystem objects = simulation.ObjectsForTests;
+                var heldAt = new Dictionary<int, LogicalPosition>();
+                var moved = new List<string>();
+                for (int t = 0; t < 15 * Run.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                    for (int i = 0; i < 8; i++)
+                    {
+                        int box = objects.IndexOf(new SimulationId(3701UL + (ulong)i));
+                        bool held = objects.IsPinned(box);
+                        if (heldAt.TryGetValue(box, out LogicalPosition where))
+                        {
+                            if (!held || IntegerMath.Distance(objects.PositionOf(box), where) > 50)
+                            {
+                                moved.Add($"box {3701 + i} at tick {simulation.Tick}: held at {where}, now {objects.PositionOf(box)}, held {held}");
+                            }
+                        }
+                        else if (held)
+                        {
+                            heldAt[box] = objects.PositionOf(box);
+                        }
+                    }
+                }
+
+                Assert.That(heldAt, Is.Not.Empty, "Some of the fallen boxes came to rest and were held where they lay.");
+                Assert.That(moved, Is.Empty, "A box held where it lies stays there: " + string.Join("; ", moved));
+            }
+        }
+
         /// <summary>
         /// Lays the fallen boxes exactly where the old placed fall put them
         /// -- a row of four along the wall line 350 mm inside the corridor,

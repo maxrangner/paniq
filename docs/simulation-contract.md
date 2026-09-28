@@ -49,6 +49,7 @@ procedure with the scenario seed as `initstate` and a fixed `initseq` of `54`.
   | The run | `54` | `SimulationContext.Random`, shared | Everything the world and the crowd decide |
   | The deck | `55` | `DeckSystem`, owned outright | Which card a death deals the player |
   | The keycard | `56` | `KeycardSystem`, owned outright | Where the keycard starts a round: whose pocket, or which desk (2026-09-27) |
+  | The Director's cap | `57` | `DirectorSystem`, owned outright | How many the building lets out this round, and the beat the Director reads on (2026-09-28); a level without the cap replays exactly as before |
 
   All derive from the same scenario seed as `initstate`, so a replay of a seed
   reproduces them all. The keycard's is separate so a level without a card

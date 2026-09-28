@@ -279,6 +279,92 @@ card lay gave up when it had only been nudged 80 mm.
 | Versions | `SimulationCompatibilityVersion` 71 → 72; `ContentRevision` 83 → 84. All fifteen fingerprints re-recorded, and held over two runs | Everything moves: the way out is opened by a person or not at all | Never |
 | Tests | New: `KeycardEditModeTests` (21: where it starts, a level without it, only a door to the street, the strong give it up, the key does not fit, the swipe, the fetch from a desk, the tidier leaves it, the pull pockets it, kept when frightened and alight and knocked off a chair, picked up off the floor, never burns, left alone equals a hands-off run; and from the code review: left alone copies the trigger and keeps in step until then, the budget, no card or two cards refused, a fetcher knocked out lets somebody else go, a fetcher who trips keeps the claim, a tidy-up after a failed fetch for the player, a visitor handed the card knows it). The fetch test now uses two brave staff at the way out rather than the whole cast, where a card knocked off its desk unseen made it one seed's luck. Changed: `TheBuilding.WithThePlayerAbleToAct` puts the card away (`WithAnOrdinaryWayOut`); `ReplayFingerprint.Of` likewise for the opened runs; `CuesEditModeTests`/`ErrandsEditModeTests` calm days, `EconomyEditModeTests` and three `SimulationEditModeTests` that read the log by position put it away; `PossessionsEditModeTests` counts things in arms only; `MeetingRoomEditModeTests` excuses only the tick somebody knocked down stands up, and holds it to the stand-up reach; the 27 places in fourteen test classes that build a building of their own with no keycard in it now say so (`Keycard.Enabled = false`), which the new validation requires | -- | -- |
 
+## Prototype 3: the Director caps the round (2026-09-28)
+
+The owner's rule: left alone, about 25% live on average and never more than
+50% on any seed, dynamic and random-feeling. The owner's decisions, not
+reopened here: a reactive Director over fixed rules about the card and over
+curated seeds; it reads only the crowd and the card, never the player; the
+building's tricks first, measured and shown, then the crowd's. Asked, the
+owner chose the wide temper (two to eight of twenty) and a breather for a
+massacre, and one commit for the batch. Every default below was chosen on
+the owner's behalf and is theirs to overturn.
+
+**The measurements, in the order they were taken.** Fifty seeds, 40 to 89,
+the office as the level plays it, nobody at the controls; the ten-seed
+rows are seeds 40 to 49.
+
+| Left alone | Saved on average | Cleared | Over half |
+| --- | --- | --- | --- |
+| Yesterday's office (before this batch, ten seeds) | 5.9 of 20 | 3 of 10 | 3 of 10 (16, 18, 20) |
+| The gliding boxes fixed, cap off (ten seeds) | 4.4 of 20 | 2 of 10 | 2 of 10 (seed 47: 20, seed 48: 15) |
+| Cap on, first form: everybody with a route counted, the fuse box freely, 10-20 s between pushes | 1.6 of 20 | 1 of 50 | 2 of 50 (48: 15, 56: 11) |
+| Cap on, tightened: only the frightened counted, a trap only with somebody in its room, the fuse box only after a socket, 30-60 s between pushes | 1.8 of 20 | 2 of 50 | 2 of 50 (57: 17, 80: 20) |
+| Cap on, and only once the way out is open, fetch knobs 8 / 3 m, before the wall-starer's door rules below | 3.8 of 20 (19%) | 4 of 50 | 7 of 50 (47: 20, 48: 15, 52: 19, 59: 12, 69: 11, 77: 14, 89: 17) |
+| The same, fetch knobs back at 4 / 6 m | 3.8 of 20 (19%) | 5 of 50 | 7 of 50 (44: 18, 47: 20, 48: 15, 52: 17, 59: 12, 69: 11, 85: 18) |
+| **As committed**: the above at 8 / 3 m, with the door rules (people go round a held box instead of pressing at it) | **4.5 of 20 (23%)** | **8 of 50** | **10 of 50** (41: 15, 44: 18, 45: 16, 50: 12, 62: 16, 63: 15, 67: 13, 68: 15, 83: 20, 88: 17) |
+
+Seed 83 in the last row never ended: the fire went out, nobody got out, and
+twenty frightened people kept the round's stall clock going for the whole
+four minutes, so the measurement now calls it as the end card's left-alone
+line would, everybody alive having lived. A round that cannot end is noted
+under *found on the way* in the roadmap.
+
+What the table taught, each now a rule in the code:
+
+- **The gliding boxes were letting people through the tower.** Fixed
+  (below), the fallen tower holds, and the office fell from 5.9 to 4.4 with
+  the Director doing nothing new. The holder of a pocket card now reaches
+  the door in about one round in three; before, nearly always.
+- **A Director that pushes while the holder is walking the card to the
+  door kills the holder and everybody behind them.** Both early forms
+  emptied their menu within a minute of the holder taking fright, and
+  pocket seeds that used to save sixteen saved nobody. Hence: ahead only
+  once a way out stands open.
+- **Counting the calm made the reading a lie.** Twenty on course the moment
+  the holder took fright, with fourteen sitting at their desks. Hence: the
+  frightened, on their feet, with a route.
+- **A Director with nothing to push must draw nothing.** A reaction lag
+  drawn for a push that then found nothing turned seed 42 from six saved
+  into none, by moving every later draw. Hence: the availability check
+  first, without drawing.
+- **The knobs make no difference to the average.** At 4 / 6 m a desk card
+  is fetched in most desk seeds, and the fetcher dies with it in a fire that
+  has grown by then. Yesterday's values are kept: no measured gain, no
+  reason to move what the owner tuned.
+
+**What the building half cannot do, and why it is still worth having.** The
+seeds over half are rounds in which the holder swipes and the crowd
+streams through the crossbar behind them within half a minute. The
+Director's only tricks there are a socket in the office or cafeteria and
+the fuse box, none of which reaches the crossbar; the traps have long
+fallen. So the building half trims (seed 42: seven out, the cafeteria's
+socket at the swipe; seed 80: four) and leaks (seed 47: twenty). It is a
+reactive Director in the sense the owner asked for, and it is the seam the
+crowd's tricks plug into: the holder freezing and a cruel person taking the
+card act on the door itself, which is what a hard cap needs. The fifty-seed
+check stays red until then, on purpose: "any seed above ten is a bug" is
+the owner's rule, and a red measurement is more honest than a loosened one.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **The switch** | `DirectorSettings.CapsTheRound`, off in the code defaults, on for the office through `LevelDefinition.directorCapsTheRound`; needs `ClimbsTheLadder` (nothing to push with otherwise) | The purse's and the ladder's precedent: sixty tests keep their day | A second level |
+| **The allowance** | `AllowanceMinimumPercent` 10, `AllowanceMaximumPercent` 40 of the crowd, rounded: 2 to 8 of 20, drawn once from `Pcg32(seed, 57)` with the reading's beat | **The owner's choice**: wide. Averages 25%; the top leaves ten points under 50% for leakage. Its own stream, as the card's is, so the fingerprints with the cap off held to the bit | The owner wants a narrower or a fixed temper: two numbers |
+| **The reading** | Every `ReadEveryTicks` 25, on a beat drawn with the allowance. On course: escaped, plus participating, `Scared`, on their feet, with `TryFindRoute` to any door that `DoorLeadsOutside` (or in its room), counted only while such a door is not `Locked` and not `NeedsKeycard`, or somebody frightened and on their feet with `Keycard.Held` can reach one. Draws nothing | Measured: counting the calm read twenty on course at the first fright | A bigger level where a route is not a forecast |
+| **Ahead** | On course > allowance **and** a way out stands open | Measured: pushing before the door opened killed the holder (1.6 and 1.8 of 20) | The crowd half may push before the door opens: that is what its tricks are for |
+| **A massacre** | Alive + out <= allowance: no socket after the fall, no rung after a put-out, no relit bin, `traps.Advance(armed: false)`; `HasSomethingComing` false for the things held off, so the round may end | **The owner's choice** and the game vision's "a massacre, and the pressure lets up" | The owner wants easing sooner |
+| **The push list** | In order: a standing trap with the most on-course people **in its room** (`TrapSystem.Spring`: the same fall, `TrapTriggered` with no runner); else `BusiestRoomsSocket` over the on-course counts, at least one; else the fuse box, only once `socketCame`; else, with nothing burning, another bin. `DirectorPushed` (Strength: on course, Duration: the allowance, target: what it reached for) is the cause of each | Cuts first, fire second; the fuse box takes every socket and was the first thing reached for in the early forms, which is what killed everybody | A trick that should come earlier |
+| **The rest** | `PushMinimumTicks` 1500, `PushMaximumTicks` 3000, drawn when a push lands (10-20 s in the first form) | One trick felt before the next | Playtest |
+| **A push draws only when it can push** | `HasSomethingToPush()` without draws, before the reaction lag is drawn | Measured on seed 42 (six saved to none by a lag drawn for nothing) | Never |
+| **The push and the ladder** | A pushed socket or fuse box goes through the ladder's own crackle and pop (`CrackleAt`, `phaseAfterPop`), so its room joins the incident and the ladder does not read its own fire as loose; after the fire has got loose the ladder returns to `Over` | One crackle, one pop, one story | Never |
+| **The pull on the card, frightened** | `KeycardSystem.Decide`: the strongest pull this person feels is the card's place (`InfluenceSystem.PlaceOfThing`) at `KeycardSettings.PulledToTheCardPerMille` 250 or more; waives the bravery gate and "found the door shut", tells them where to go; every other guard stands; `AgentDrawnByInfluence` when they set off, the pull spent on pocketing and named as the cause (`AgentKeycard.PulledEventId`); `KeycardSystem` is `IBindable` for the influence | The player's one lever on a desk card did nothing once the panic started | The price of the pull |
+| **The gliding boxes** | `PhysicsBody.Heaved`, set in `ShoveAside`, cleared once still (after the contacts are judged); `HitObject` un-holds a held thing only for a heaved hitter | **The owner's report.** Proven: with the old rule put back alone, the light-box guard failed (the crate moved 52 mm) and every fingerprint held again; with the fix, fourteen of fifteen moved, so every run had held boxes un-holding each other | A held crate should rock when walked into |
+| **Pressed against a held box** | Three rules the wall-starer test forced once the boxes held (seed 41: the other bully, a bottle in his arms and the flames close, stood nose first against a fallen box at the archway for the rest of the round). (1) `DoorBehaviour.TryHeaveHeldThingInTheWay`: at a panic decision, the strong with free hands heave a held thing right in their way (`FindBlocking(..., heldOnly)`: a laptop in the archway must not hide the crate behind it); sliding along a held box never counted as blocked, so the heave that waits for the blocked count never came. (2) `MayHeaveNow`: strength 7+, hands free, flames not inside their danger distance; otherwise the map's cut-off applies to them as to the weak, and the cut-off asks for the *far* approach of an open door (`MustReachToUse`), and an open doorway with no lane a body and a map square wide clear of held things is walled (`DoorwayIsWalled`). (3) In the blocked branch, somebody blocked by a pinned thing they may not heave (a held box, a wall of crates: `FindBlocking(..., pinnedOnly)`) gives that doorway up for a while (`GiveUpTheDoorwayForAWhile`, the crowded door's rest) and chooses again, from the room they came from if they are standing in the doorway's strip, where every choice is otherwise "keep going" (seed 8: the chancer in the archway for five seconds). (4) A barricade carrier pressed against a pinned thing for a moment gives the barricade up (`BarricadeBehaviour.PressedAgainstAHeldThing`; seed 42: the coward against the stockroom's crate wall with a chair in his arms for the whole ten-second timeout) | The owner's rule that the panicked push past or go round, made to mean go round. Without these a strong person in danger, or with a bottle in hand, pressed at the boxes until the fire came | The map should answer "walled" itself (its far-side reachability finds the long way round through the stockroom, so it cannot) |
+| **The fetch knobs** | `FetchBraveryMinimum` 8 and `GrabOnTheWayRangeMillimetres` 3000, unchanged | Measured at 4 / 6 m: the same 3.8 of 20 and seven over half | The crowd half caps the top: then measure the knobs again |
+| **The fifty-seed check** | `HandsOffBaselineMeasurements.FiftySeeds_LeftAlone_NeverMoreThanHalfLive`, seeds 40-89, `Explicit`, `Category("Measure")`, about 4.5 minutes; asserts no seed above half, prints the average. Red today, on purpose | The owner's rule as a check, not a hope | It goes green |
+| Versions | `SimulationCompatibilityVersion` 72 -> 73; `ContentRevision` 84 -> 85. Fourteen fingerprints re-recorded, all for the gliding boxes; seed 46 opened held | -- | -- |
+| Tests | New: `DirectorCapEditModeTests` (the allowance from its own stream; a standing trap sprung by the push a beat later; the socket in the on-course room, then the rest; the fuse box once a socket has gone; nothing before the door opens; nobody on course at a shut card door; a massacre gets nothing more). `KeycardEditModeTests` (a frightened ordinary person pulled to the card pockets it; not without the pull; not into the flames; two pulled, one goes). `HeavyThingsEditModeTests` (a light box kicked into a held crate leaves it). `BoxTowerEditModeTests` (once held, a fallen box never moves again; a guard, since seed 42 did not glide on its own). `SimulationEditModeTests` (the versions) | -- | -- |
+
 ## Alignment with the three requirements for the finished game (2026-09-24)
 
 The owner stated three requirements for the finished game (recorded in the

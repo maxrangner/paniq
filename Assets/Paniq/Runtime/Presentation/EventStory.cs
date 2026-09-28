@@ -69,6 +69,7 @@ namespace Paniq.Presentation
                 case CausalEventType.ObjectBurntOut:
                 case CausalEventType.PowerSparkArrived:
                 case CausalEventType.TrapTriggered:
+                case CausalEventType.DirectorPushed:
                 case CausalEventType.AgentSaid:
                 case CausalEventType.PowerInfluenced:
                 case CausalEventType.AgentDrawnByInfluence:
@@ -215,7 +216,10 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerNudged: return $"you nudged {whom}";
                 case CausalEventType.AgentNudged: return $"{who} looked round for whoever nudged them";
                 case CausalEventType.AgentAnnoyed: return $"{who} got annoyed at being nudged";
-                case CausalEventType.TrapTriggered: return $"{whom} ran past the tower of boxes";
+                case CausalEventType.TrapTriggered:
+                    return record.HasTarget ? $"{whom} ran past the tower of boxes" : "the boxes gave way";
+                case CausalEventType.DirectorPushed:
+                    return $"the building turned on the crowd: {record.Strength} were on course to get out, {record.DurationTicks} allowed";
                 case CausalEventType.BoxTowerFell:
                     return record.HasTarget ? $"the tower of boxes came down toward {whom}" : "the crates came down across the lane";
                 case CausalEventType.BoxHeapSettled: return $"the fallen boxes blocked {whom}";

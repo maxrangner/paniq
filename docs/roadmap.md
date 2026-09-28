@@ -14,8 +14,9 @@ back. Its first batch put a trap in the building; its second gives the round a
 build-up (the Director's ladder) and the player an everyday move (influence);
 its third (2026-09-27) is the fixes from the first playtest of both; its
 fourth (2026-09-27) makes the way out a card door, after a measurement showed
-the office saving itself with nobody playing. All are under "Prototype 3"
-further down.
+the office saving itself with nobody playing; its fifth (2026-09-28) has the
+Director cap the round with the building's tricks, and measures what that
+can and cannot do. All are under "Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -397,6 +398,76 @@ The chair-glide guard in `MeetingRoomEditModeTests` now ignores the tick
 somebody gets up on. Worth a shorter reach, or a step rather than a shift,
 if it is seen in play.
 
+## Prototype 3: the Director caps the round (2026-09-28)
+
+The owner's rule for the office left alone: about a quarter should live, and
+never more than half on any seed, and it should feel like real people on a
+bad day rather than a rule. Yesterday's office was a coin toss: a card in a
+pocket saved sixteen to twenty, a card on a desk nobody. The owner chose a
+reactive Director over fixed rules about who starts with the card and over
+curated seeds, with two decisions not to be reopened: it reads only how the
+round is going (the crowd and the card), never what the player does, so the
+"left alone" line stays honest; and its menu is the building's tricks first
+(the tower, the stack, the socket, the fuse box, another bin), measured and
+shown, then the crowd's (the alarm rushed early, a cruel person taking the
+card, the holder freezing). When asked, the owner chose a wide temper (two
+to eight of twenty, differently every seed) and a breather for a massacre.
+One batch, one commit, on `feat/prototype-3-gameplay`; it also carries the
+owner's report of fallen boxes gliding by themselves.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| The allowance | System | Before the round the Director draws how many the building lets out today, two to eight of twenty, from a stream of its own. Some days the office is kind, some days it turns on the crowd after the second person. The allowance is not shown; the end card's "left alone" line is where it is felt |
+| On course | System | Every half second the Director reads the round: who is out, who has set out (frightened, on their feet) and could walk to the way out, whether the way out stands open or the card is in a frightened pocket that can reach it. A calm person at a desk is not on course; nor is a queue at a shut card door |
+| The push | System | Once the way out is open and more are on course than allowed, the building turns on the crowd, a beat after the Director decides and half a minute to a minute between: a trap still standing with somebody on course in its room comes down without a runner; else the socket in the room with the most of them crackles and pops; once a socket has gone, the fuse box; with nothing burning, another bin. The log says "the building turned on the crowd: 13 were on course, 3 allowed" |
+| A massacre | System | With only the allowance's worth or fewer still alive or out, nothing more is added: no socket after the boxes fall, no fuse box after a put-out, no second bin, and a standing trap stays unarmed. The round may then end on its own |
+| The pull on the card, frightened | Behaviour | Click the card a few times (about five beside it) and somebody frightened near it goes and pockets it, brave or not, never into the flames, one at a time. Today only calm people did, so the player's one lever on a desk card stopped working the moment the panic started |
+| The boxes stay where they fall | Fix | A box from the fallen tower that has been held where it lies stays there. It used to take off across the floor by itself a few seconds after landing (the owner's note): the rule that lets a heaved crate shove the next one along was firing for any box that slid into it |
+| Nobody presses at a held box for ever | Behaviour | Now that the fallen boxes hold, somebody strong with free hands who meets one in their way heaves it aside at their next thought, not only once they have been stuck a while; somebody who cannot (too weak, the flames too close, a bottle in their arms) treats a doorway walled with held boxes as no way through and goes round, instead of standing nose first against it until the fire comes (found by the wall-starer test on seed 41) |
+| Fifty seeds | Tooling | `HandsOffBaselineMeasurements` plays fifty seeds left alone and fails on any seed that saves more than half, naming it; it prints each round's allowance and every push. Four and a half minutes; run on purpose before the commit of any batch that touches the Director, the card or the traps |
+
+**What the measurement showed.** In full in the [decisions](technical-decisions.md#prototype-3-the-director-caps-the-round-2026-09-28).
+The building half, at its honest best, leaves the office at **4.5 of 20 on
+average over fifty seeds (23%), eight seeds clearing and ten saving more
+than half**, and the fetch knobs made no difference to that either way. Two
+things the table taught on the way: the gliding boxes were letting people
+through the fallen tower, so fixing them alone brought yesterday's 5.9 to
+4.4; and a Director that pushes while the holder is still walking the card
+to the door kills the holder and everybody behind them (1.6 of 20), so it
+now waits for the door to open. The building's tricks can trim a round in
+which the door is open and the crowd is still inside; they cannot stop a
+crowd already past them, and they cannot put fire in the crossbar. The
+crowd's tricks, which control the door itself, are where "never more than
+half" becomes a rule.
+
+**What this deliberately left out.** The crowd half of the menu (the next
+batch); any tuning of the tower's heap now that it holds; the allowance shown
+to the player; a Director that eases before a massacre; the scene baker
+authoring the cap.
+
+**Things to watch at the next playtest.**
+
+- Whether a socket crackling right after the door opens reads as the
+  building turning on the crowd, or as bad luck.
+- Whether the fallen tower, now that it really holds, is too much: only the
+  strong get through it, and the holder of a pocket card reaches the door
+  in about one round in three.
+- Whether five clicks on the card is the right price for turning a
+  frightened person back for it.
+- Whether the allowance's swing (a kind day, a cruel day) is felt at all
+  from the end card.
+
+**Found on the way, and open.** The heap forms and clears within a few
+seconds in nearly every run (the strong heave a box out), yet the corridor
+stays cut on the map by the boxes lying beside it; whether that is the trap
+the owner wants or a wall is a question for play. And a round that cannot
+end: on seed 83, left alone, the fire went out with nobody dead and nobody
+out, and twenty frightened people kept the stall clock going for four
+minutes; the measurement calls it as the end card would, but a player
+would sit through it. The physics engine's thread flip was seen once
+today on seed 42 with the way out opened (one run of four), as it was
+yesterday on seed 41.
+
 ## Foundations reviewed (2026-09-23)
 
 Not a stone. The owner asked for a full review of the code against the game
@@ -499,8 +570,11 @@ a door they have never opened.
 - **The Director.** The background system that adds and eases pressure. Its
   first reactive form is built (2026-09-26): the ladder of small incidents on
   the office, from a bin to a socket to the fuse box (see prototype 3's second
-  batch above and [the cue system](cue-system.md)). Still to build: easing
-  pressure after a massacre, and a menu of incidents rather than one ladder.
+  batch above and [the cue system](cue-system.md)); its second (2026-09-28)
+  caps the round with the building's tricks and eases in a massacre. Still
+  to build: the crowd's tricks (the holder freezing, a cruel person taking
+  the card, the alarm rushed early), which are what can make "never more
+  than half" a rule.
 - **Zombies**, rather than the generic hunter below: the vision's *contagious
   plus hunting* mix. The owner chose the fiction; the work is still the seam
   between "afraid of the fire" and "afraid of a threat".

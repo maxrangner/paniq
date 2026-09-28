@@ -296,6 +296,139 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        // ---------------------------------------------------------------- the pull, once the panic has started (2026-09-28)
+
+        private static readonly LogicalPosition CardOnTheFloor = new LogicalPosition(-3000, -3000);
+
+        /// <summary>
+        /// Ordinary people (bravery five: never fetchers of their own accord)
+        /// in the office, the fire far off in the meeting room and never
+        /// spreading, nobody calming down or freezing, and no traps.
+        /// </summary>
+        private ScenarioData OrdinaryPeopleInTheOffice(params LogicalPosition[] where)
+        {
+            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
+            data.Keycard.Enabled = true;
+            var agents = new AgentDefinition[where.Length];
+            for (int i = 0; i < where.Length; i++)
+            {
+                agents[i] = new AgentDefinition(new SimulationId((ulong)(i + 1)), where[i], CardinalDirection.North,
+                    AgentTraitValues.AllOrdinary);
+            }
+
+            data.Agents = agents;
+            data.Fire.ActivationTick = 1;
+            TheBuilding.FireAt(data, TheBuilding.MeetingRoom);
+            data.Fire.SpreadMinimumTicks = 100000;
+            data.Fire.SpreadMaximumTicks = 100000;
+            data.TrapDefinitions = Array.Empty<TrapDefinition>();
+            data.Timetable = Array.Empty<ScheduledCue>();
+            data.Calming.Enabled = false;
+            data.Temperament.FreezeThenRunPercent = 0;
+            data.Temperament.FreezeForeverPercent = 0;
+            return data;
+        }
+
+        private static void PullOnTheCard(Run simulation, int clicks)
+        {
+            for (int i = 0; i < clicks; i++)
+            {
+                simulation.QueueCommand(PlayerCommandType.InfluenceThing, TheBuilding.TheKeycard, simulation.Tick + 1);
+                simulation.Step();
+            }
+        }
+
+        [Test]
+        public void ThePlayersPullOnTheCard_SendsSomebodyFrightenedForIt_BraveOrNot()
+        {
+            ScenarioData data = OrdinaryPeopleInTheOffice(new LogicalPosition(-1000, -3000));
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.PutKeycardDownForTests(CardOnTheFloor);
+                simulation.FrightenForTests(0);
+                PullOnTheCard(simulation, 10);
+                CausalEvent? took = AdvanceUntil(simulation, CausalEventType.AgentTookKeycard, 20 * Run.TicksPerSecond);
+                Assert.That(took.HasValue, "Frightened, bravery five, and pulled: they go and pocket it.");
+                Assert.That(took.Value.SourceId, Is.EqualTo(new SimulationId(1UL)));
+                Assert.That(simulation.EventLog.Get(took.Value.CausalParentEventId).EventType, Is.EqualTo(CausalEventType.InfluenceSpent),
+                    "Because the player asked, and the pull is spent.");
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence)
+                        .Exists(e => e.SourceId == new SimulationId(1UL) && e.Tick <= took.Value.Tick),
+                    "The log says the pull is what moved them.");
+                Assert.That(Thing(simulation, TheBuilding.TheKeycard).HeldBy, Is.EqualTo(took.Value.SourceId));
+                Assert.That(simulation.GetAgent(0).FearState, Is.EqualTo(AgentFearState.Scared),
+                    "Still frightened: a fetch, not a calm errand.");
+            }
+        }
+
+        [Test]
+        public void WithoutThePull_SomebodyOrdinaryNeverGoesForTheCard()
+        {
+            ScenarioData data = OrdinaryPeopleInTheOffice(new LogicalPosition(-1000, -3000));
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.PutKeycardDownForTests(CardOnTheFloor);
+                simulation.FrightenForTests(0);
+                Advance(simulation, 20 * Run.TicksPerSecond);
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentTookKeycard), Is.Empty,
+                    "Going for the card of their own accord takes bravery eight.");
+                Assert.That(Thing(simulation, TheBuilding.TheKeycard).IsHeld, Is.False);
+            }
+        }
+
+        [Test]
+        public void ThePull_NeverSendsAnybodyIntoTheFlamesForTheCard()
+        {
+            ScenarioData data = OrdinaryPeopleInTheOffice(new LogicalPosition(-1000, -3000));
+            TheBuilding.FireAt(data, CardOnTheFloor);
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.PutKeycardDownForTests(CardOnTheFloor);
+                Advance(simulation, 30);
+                PullOnTheCard(simulation, 10);
+                Advance(simulation, 20 * Run.TicksPerSecond);
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentTookKeycard), Is.Empty,
+                    "The card lies in the flames: it waits, whatever the player asks.");
+                Assert.That(Thing(simulation, TheBuilding.TheKeycard).IsHeld, Is.False);
+            }
+        }
+
+        [Test]
+        public void TwoPeoplePulledToTheCard_GoOneAtATime()
+        {
+            ScenarioData data = OrdinaryPeopleInTheOffice(new LogicalPosition(-1000, -3000), new LogicalPosition(-1000, -1500));
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.PutKeycardDownForTests(CardOnTheFloor);
+                simulation.FrightenForTests(0);
+                simulation.FrightenForTests(1);
+                PullOnTheCard(simulation, 10);
+                int onTheirWayAtOnce = 0;
+                CausalEvent? took = null;
+                for (int t = 0; t < 20 * Run.TicksPerSecond && !took.HasValue; t++)
+                {
+                    simulation.Step();
+                    int onTheirWay = 0;
+                    for (int i = 0; i < simulation.AgentCount; i++)
+                    {
+                        AgentSnapshot a = simulation.GetAgent(i);
+                        onTheirWay += a.ActivityState == AgentActivityState.FetchingKeycard &&
+                                      (a.BodyState == AgentBodyState.Upright || a.BodyState == AgentBodyState.Staggering) ? 1 : 0;
+                    }
+
+                    onTheirWayAtOnce = Math.Max(onTheirWayAtOnce, onTheirWay);
+                    List<CausalEvent> taken = EventsOfType(simulation, CausalEventType.AgentTookKeycard);
+                    if (taken.Count > 0)
+                    {
+                        took = taken[0];
+                    }
+                }
+
+                Assert.That(took.HasValue, "One of them pockets it.");
+                Assert.That(onTheirWayAtOnce, Is.EqualTo(1), "Never two people on their way to one card, pulled or not.");
+            }
+        }
+
         // ---------------------------------------------------------------- keeping and losing it
 
         [Test]

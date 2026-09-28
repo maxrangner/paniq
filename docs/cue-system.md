@@ -273,9 +273,22 @@ of it is started; each is a stone of its own.
    five to ten seconds later, and every socket with it. A fire that gets out of the
    room it started in is the real fire: the Director adds nothing more, and
    the tower of boxes is armed by that rather than by the fire being lit.
-   The round's stall clock waits while a rung is still to come. Still to
-   come: easing pressure for a massacre, a menu of incidents rather than one
-   ladder, and incidents for dangers other than fire.
+   The round's stall clock waits while a rung is still to come.
+   *Its second form, 2026-09-28 (prototype 3, the cap):* on a level that
+   switches it on (`DirectorSettings.CapsTheRound`, on for the office) the
+   Director also caps the round. Before the curtain it draws how many the
+   building lets out today, two to eight of twenty, from a stream of its
+   own; every half second it reads the crowd and the card (who is out, who
+   has set out and could walk to the way out, whether the way out stands
+   open or the card is in a frightened pocket that can reach it); once the
+   way out is open and more are on course than allowed it pushes, one trick
+   at a time with half a minute's rest between: a trap still standing with
+   somebody on course in its room, the socket in the room with the most of
+   them, the fuse box once a socket has gone, another bin; and once the
+   round is a massacre it adds nothing more. It reads the crowd and the
+   card, never the player's clicks. Still to come: the crowd's tricks (the
+   holder freezing, a cruel person taking the card, the alarm rushed early),
+   and incidents for dangers other than fire.
 5. **Visuals for the day** (a visuals commit). A pip over whoever speaks and
    heads turning to them; a home-time button, so the player's path to it
    can be seen; chats that are not two statues. Nothing here decides

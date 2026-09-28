@@ -326,6 +326,7 @@ namespace Paniq.Simulation
                 case CausalEventType.SocketCrackling:
                 case CausalEventType.AllClear:
                 case CausalEventType.AgentCalmedDown:
+                case CausalEventType.DirectorPushed:
 
                 // Influence: the player's own doing, and somebody following it.
                 case CausalEventType.PowerInfluenced:

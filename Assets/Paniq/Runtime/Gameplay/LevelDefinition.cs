@@ -41,6 +41,9 @@ namespace Paniq.Gameplay
         [Tooltip("On (the office since prototype 3's second batch): the Director climbs a ladder of small incidents -- a bin catches fire after a while of ordinary day; put it out and a socket crackles and pops in the busiest room; put that out and the fuse box goes. Off: the fire starts where and when the scenario says, all at once.")]
         [SerializeField] private bool directorClimbsTheLadder;
 
+        [Tooltip("On (the office since 2026-09-28): the Director also caps the round. It draws how many the building lets out this time (a tenth to two fifths of the crowd) and, when more than that are on course for the way out, springs a trap, pops a socket or the fuse box, or lights another bin; when the round is already a massacre it adds nothing more. Needs the ladder. It reads only how the round is going, never what the player does.")]
+        [SerializeField] private bool directorCapsTheRound;
+
         [Tooltip("On: the player can pull a fire alarm by clicking it. Off (the office since prototype 3's second batch): only the people in the building pull alarms.")]
         [SerializeField] private bool playerPullsAlarms = true;
 
@@ -67,6 +70,7 @@ namespace Paniq.Gameplay
             data.Round.TargetSavedPercent = targetSavedPercent;
             data.Purse.Enabled = purseEnabled;
             data.Director.ClimbsTheLadder = directorClimbsTheLadder;
+            data.Director.CapsTheRound = directorCapsTheRound;
             data.Alarm.PlayerMayPull = playerPullsAlarms;
             return data;
         }

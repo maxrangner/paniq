@@ -155,8 +155,15 @@ namespace Paniq.Simulation
             int room = geometry.RoomAt(position);
             if (room < 0)
             {
-                // Halfway through a doorway: keep going.
-                return agent.Doors.ExitDoorIndex;
+                // Halfway through a doorway: keep going -- unless they have
+                // just given that doorway up (2026-09-28), in which case they
+                // choose from the room they came into it from.
+                if (agent.Doors.ExitDoorIndex >= 0 || agent.Doors.ApproachRoom < 0)
+                {
+                    return agent.Doors.ExitDoorIndex;
+                }
+
+                room = agent.Doors.ApproachRoom;
             }
 
             agent.Doors.ApproachRoom = room;
@@ -194,12 +201,15 @@ namespace Paniq.Simulation
                     agent.Doors.FoundShut[next] = true;
                     continue;
                 }
-                if (IsCutOff(agent, position, ApproachPoint(next, room)))
+                if (IsCutOff(agent, position, MustReachToUse(next, room, open)) ||
+                    (open && !MayHeaveNow(agent) && DoorwayIsWalled(next, room)))
                 {
                     // No way across this room to that door on the map they
                     // steer by (2026-09-27): the fallen crates lie across
-                    // it. Somebody strong still goes for it and heaves a
-                    // crate out of their way; everybody else picks another
+                    // it -- or the open doorway itself is walled up with
+                    // them (2026-09-28). Somebody strong still goes for it
+                    // and heaves a crate out of their way, unless the flames
+                    // are too close for that; everybody else picks another
                     // door, or a spot to keep clear of the flames, rather
                     // than push at the crates for ever.
                     continue;
@@ -634,8 +644,10 @@ namespace Paniq.Simulation
 
                 routeCost += IntegerMath.Distance(geometry.DoorCentre(last), geometry.RoomBounds(r).Centre);
 
-                if ((!geometry.IsDoorOpen(first) && context.Tick < agent.Doors.AvoidUntilTick[first]) || IsRoomFull(r, agent) ||
-                    IsCutOff(agent, position, ApproachPoint(first, room)))
+                bool firstOpen = geometry.IsDoorOpen(first);
+                if ((!firstOpen && context.Tick < agent.Doors.AvoidUntilTick[first]) || IsRoomFull(r, agent) ||
+                    IsCutOff(agent, position, MustReachToUse(first, room, firstOpen)) ||
+                    (firstOpen && !MayHeaveNow(agent) && DoorwayIsWalled(first, room)))
                 {
                     continue;
                 }
@@ -736,6 +748,21 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// The spot the map must reach for this door to be any use from
+        /// <paramref name="room"/>: its approach on this side for a shut
+        /// door, which is walked up to and tried; but for an open one the
+        /// approach on the far side, because an open doorway walled up by
+        /// crates held still in the gap has a perfectly reachable approach
+        /// and no way through (2026-09-28: the strong pressed at the fallen
+        /// tower's boxes nose first, on the approach, until the fire came).
+        /// </summary>
+        private LogicalPosition MustReachToUse(int door, int room, bool open)
+        {
+            int beyond = open ? geometry.RoomBeyond(door, room) : -1;
+            return beyond >= 0 ? ApproachPoint(door, beyond) : ApproachPoint(door, room);
+        }
+
+        /// <summary>
         /// Whether this person is cut off from that spot: the map people
         /// steer by has no way there for a body -- round the tables, and
         /// (2026-09-27) round the crates lying still on the floor -- and they
@@ -745,8 +772,75 @@ namespace Paniq.Simulation
         /// </summary>
         private bool IsCutOff(Agent agent, LogicalPosition from, LogicalPosition to)
         {
-            return agent.Traits.Strength < context.Scenario.Blockades.ShoveMinimumStrength &&
+            // The strong are not cut off, because they heave a crate out of
+            // their way -- unless the flames are inside their danger
+            // distance, when they are too panicked to stop and heave (the
+            // owner's rule, 2026-09-27) and would otherwise press against
+            // the crate nose first until the fire reached them (found by the
+            // wall-starer test, 2026-09-28, once the fallen boxes stopped
+            // sliding apart by themselves). Then they go round like anybody.
+            return !MayHeaveNow(agent) &&
                    !geometry.Routes.CanGetFromHereToThere(from, to, context.Scenario.World.OccupancyRadiusMillimetres);
+        }
+
+        /// <summary>Strong enough to heave a crate aside, hands free to do it, and not too panicked to stop and do it.</summary>
+        private bool MayHeaveNow(Agent agent) =>
+            agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength && agent.Carry.ItemIndex < 0 && !FlamesNear(agent);
+
+        /// <summary>
+        /// Whether an open doorway is walled up for a body by things held
+        /// still where they lie (2026-09-28): no lane across its width, from
+        /// the approach on this side to the approach beyond, is clear of
+        /// them on the map people steer by. The heap rule counts boxes lying
+        /// in the strip; this asks what a body meets, because boxes that
+        /// bounced through and settled just beyond the line leave the strip
+        /// "clear" and the way shut. The map's own reachability cannot ask
+        /// this: the far side is reachable the long way round, through the
+        /// stockroom, so the map said yes and the route still said "through
+        /// the archway", and the strong pressed at the boxes until the fire
+        /// came.
+        /// </summary>
+        private bool DoorwayIsWalled(int door, int room)
+        {
+            int beyond = geometry.RoomBeyond(door, room);
+            if (beyond < 0)
+            {
+                return false;
+            }
+
+            // A lane is a body's width plus a square of the map's slack:
+            // the map people steer by will not thread a body through a gap
+            // it fits by a hair, so neither should this say it can.
+            int radius = context.Scenario.World.OccupancyRadiusMillimetres;
+            int half = doors.WidthOf(door) / 2 - radius - NavigationGrid.CellSizeMillimetres;
+            if (half < 0)
+            {
+                return false;
+            }
+
+            int inset = settings.ApproachInsetMillimetres;
+            for (int along = -half; along <= half; along += radius)
+            {
+                bool clear = true;
+                for (int outward = -inset; outward <= inset && clear; outward += radius)
+                {
+                    clear = !geometry.ObstacleAt(geometry.DoorPointFrom(door, room, along, outward), radius);
+                }
+
+                if (clear)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>Whether the nearest danger is inside this person's own danger distance: the panic decision's "in danger".</summary>
+        private bool FlamesNear(Agent agent)
+        {
+            long danger = TraitEffects.DangerDistance(agent, context.Scenario);
+            return threats.NearestDistanceSquared(agent.Body.Position, out _, out _) < danger * danger;
         }
 
         /// <summary>
@@ -1261,6 +1355,87 @@ namespace Paniq.Simulation
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// A crate held where it lies, right in their way, at a decision
+        /// (2026-09-28): somebody strong heaves it aside there and then.
+        /// Sliding along a held crate never counts as blocked -- the body
+        /// moves a little every tick -- so <see cref="TryClearTheWay"/>, which
+        /// waits for the blocked count, was never reached, and the strong
+        /// stood pressed against the fallen tower's boxes nose first for
+        /// the rest of the round (found by the wall-starer test once the
+        /// boxes stopped sliding apart by themselves). Only a held thing:
+        /// light clutter in the way is still kicked, and thrown clear only
+        /// once they are stuck.
+        /// </summary>
+        public bool TryHeaveHeldThingInTheWay(Agent agent, bool flamesNear)
+        {
+            if (flamesNear || agent.Carry.ItemIndex >= 0)
+            {
+                return false;
+            }
+
+            int thing = HeldThingInTheWay(agent);
+            if (thing < 0 || !objects.CanHeaveAside(agent, thing))
+            {
+                return false;
+            }
+
+            objects.HeaveAside(agent, thing, HeaveHeading(agent, agent.Intent.Target, thing), agent.Fear.ScaredEventId);
+            agent.Body.BlockedTicks = 0;
+            return true;
+        }
+
+        /// <summary>Whether a thing held still where it lies is right in this person's way, within reach: see <see cref="HeldThingInTheWay"/>.</summary>
+        public bool IsBlockedByAHeldThing(Agent agent) => HeldThingInTheWay(agent) >= 0;
+
+        /// <summary>
+        /// Blocked by a thing held still in their way that they could not
+        /// shift (2026-09-28): the doorway they were making for is no use to
+        /// them for a while, and they choose again -- from the room they came
+        /// from, if they are standing in the doorway's own strip, where every
+        /// choice is otherwise "keep going" and there is nowhere to go (the
+        /// chancer stood in the archway against a held box for five seconds
+        /// on seed 8). The rest is the crowded door's, drawn the same way.
+        /// </summary>
+        public void GiveUpTheDoorwayForAWhile(Agent agent)
+        {
+            int door = agent.Doors.ExitDoorIndex;
+            if (door < 0)
+            {
+                return;
+            }
+
+            agent.Doors.AvoidUntilTick[door] = checked(context.Tick + context.Random.NextIntInclusive(
+                settings.DoorCrowdedAvoidMinimumTicks, settings.DoorCrowdedAvoidMaximumTicks));
+            agent.Doors.ExitDoorIndex = -1;
+        }
+
+        /// <summary>
+        /// The thing pinned in place -- held still where it lies, or a wall of
+        /// crates -- that is on the way from here
+        /// toward the target, within reach, or -1. The held thing, not merely
+        /// the first thing on the way: a laptop kicked into the archway must
+        /// not hide the crate behind it. Whatever they carry: somebody with a
+        /// bottle in their arms is as stuck as anybody, and on seed 41 that
+        /// was who stood pressed against the boxes -- every heave refused
+        /// for their full hands, and nothing else taking over.
+        /// </summary>
+        private int HeldThingInTheWay(Agent agent)
+        {
+            LogicalPosition position = agent.Body.Position;
+            LogicalPosition target = agent.Intent.Target;
+            if (objects == null || agent.Body.State != AgentBodyState.Upright || position.Equals(target))
+            {
+                return -1;
+            }
+
+            int radius = context.Scenario.World.OccupancyRadiusMillimetres;
+            int heading = IntegerMath.HeadingBetween(position, target, agent.Body.Heading);
+            LogicalPosition ahead = position + IntegerMath.Displacement(heading, radius + settings.ClearTheWayReachMillimetres);
+            int thing = objects.FindBlocking(position, ahead, radius, pinnedOnly: true);
+            return thing >= 0 && IsWithinReach(agent, thing) ? thing : -1;
         }
 
         /// <summary>

@@ -168,6 +168,38 @@ namespace Paniq.Simulation
         /// <summary>Whether this trap has been sprung, whether or not the boxes have landed yet.</summary>
         public bool IsSprung(int trap) => phase[trap] == TrapPhase.Falling || phase[trap] == TrapPhase.Fallen;
 
+        /// <summary>Whether this trap still stands, waiting: the Director may spring it itself.</summary>
+        public bool IsStanding(int trap) => phase[trap] == TrapPhase.Standing;
+
+        public SimulationId IdOf(int trap) => traps[trap].TrapId;
+
+        /// <summary>Where this trap's boxes come down.</summary>
+        public LogicalPosition LandingOf(int trap) => Landing(trap);
+
+        /// <summary>The room this trap watches for a runner, and whose way it cuts when it falls; -1 for an inert trap.</summary>
+        public int TriggerRoom(int trap) => triggerRoom[trap];
+
+        /// <summary>
+        /// The Director springs a standing trap itself (2026-09-28): when the
+        /// round is running away from it and the crowd's way out runs
+        /// through this trap's room, the boxes come down without waiting for
+        /// a runner -- a beat later, as for a runner, never on the tick it
+        /// was decided. <paramref name="cause"/> is the Director's push.
+        /// Nothing happens to a trap already sprung or inert.
+        /// </summary>
+        public void Spring(int trap, ulong cause)
+        {
+            if (phase[trap] != TrapPhase.Standing)
+            {
+                return;
+            }
+
+            phase[trap] = TrapPhase.Falling;
+            fallTick[trap] = context.ReactionTick();
+            triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
+                Landing(trap), 0, 0, cause).EventId;
+        }
+
         /// <summary>
         /// The tick the most recent tower came down, or -1 while none has:
         /// the Director measures the socket's wait from it (2026-09-27).

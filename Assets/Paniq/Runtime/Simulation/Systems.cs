@@ -72,7 +72,7 @@ namespace Paniq.Simulation
             IBindable[] bindable =
             {
                 Doors, Body, Objects, People, DoorBehaviour, Help, Panic, Round, PlayerCommands, Director, Fear, Calm,
-                Errands, Items, Chairs, Alarms
+                Errands, Items, Chairs, Alarms, Keycards
             };
 
             for (int i = 0; i < bindable.Length; i++)

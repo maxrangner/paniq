@@ -112,6 +112,16 @@ namespace Paniq.Simulation
             public bool Thrown;
 
             /// <summary>
+            /// Heaved aside by somebody strong and still sliding (2026-09-28):
+            /// the one kind of push that shoves a crate held where it lies
+            /// along with it. Cleared once it lies still. A box from the
+            /// fallen tower sliding into a held one used to count too, and
+            /// the held box took off across the floor as if pushed by a
+            /// ghost (the owner saw it).
+            /// </summary>
+            public bool Heaved;
+
+            /// <summary>
             /// A spare the run keeps aside until the player puts it down with a
             /// card. It is not in the world: nothing can touch it, reach it,
             /// burn it or see it.
@@ -899,6 +909,9 @@ namespace Paniq.Simulation
         /// <summary>Held where it is by the simulation (see <see cref="PhysicsBody.Pinned"/>).</summary>
         public bool IsPinned(int index) => bodies[index].Pinned;
 
+        /// <summary>Whether this thing is held still where it lies: pinned because it lay still, not because it is part of a wall or a standing tower.</summary>
+        public bool IsHeldStill(int index) => bodies[index].HeldStill;
+
         /// <summary>
         /// Holds a thing where it is: the engine stops moving it and nothing
         /// here pushes it. It still stands in everybody's way, and still heats
@@ -1123,6 +1136,7 @@ namespace Paniq.Simulation
             LogicalPosition velocity = IntegerMath.Displacement(heading, speed);
             SetMotion(index, (long)velocity.X * SubMillimetre, 0L, (long)velocity.Z * SubMillimetre);
             thing.Thrown = false;
+            thing.Heaved = true;
             thing.LastPushEventId = context.Events.Append(context.Tick, shover.Id,
                 CausalEventType.AgentShovedObstruction, thing.Position, speed, 0, causeEventId, thing.Id).EventId;
             sound.Thud(shover.Id, thing.Position, thing.LastPushEventId);
@@ -1629,14 +1643,20 @@ namespace Paniq.Simulation
         }
 
         /// <summary>The lowest-ID object on the floor a circle of this radius would pass through on this move, or -1.</summary>
-        public int FindBlocking(LogicalPosition start, LogicalPosition destination, int radius, int ignoreIndex = -1)
+        public int FindBlocking(LogicalPosition start, LogicalPosition destination, int radius, int ignoreIndex = -1,
+            bool pinnedOnly = false)
         {
             using Nearby candidates = Gather(
                 UniformGridIndex.Sweeping(start, destination, (long)radius + widestRadius));
             for (int c = 0; c < candidates.Count; c++)
             {
                 int b = candidates[c];
-                if (b == ignoreIndex || IsOutOfPlay(b))
+
+                // Pinned only (2026-09-28): what a body cannot shove -- a
+                // crate held still where it fell, a wall of crates, the
+                // standing tower -- so that light clutter on the way does
+                // not hide it.
+                if (b == ignoreIndex || IsOutOfPlay(b) || (pinnedOnly && !bodies[b].Pinned))
                 {
                     continue;
                 }
@@ -2133,6 +2153,17 @@ namespace Paniq.Simulation
                     HitObject(contact.BodyA, before[contact.BodyA], contact.BodyB, before[contact.BodyB], contact);
                 }
             }
+
+            // A heave is over once the thing lies still. After the contacts,
+            // so a crate heaved into the next one and stopped dead by it in
+            // the same step still counts as heaved when that hit is judged.
+            for (int b = 0; b < bodies.Length; b++)
+            {
+                if (bodies[b].Heaved && !IsMoving(b))
+                {
+                    bodies[b].Heaved = false;
+                }
+            }
         }
 
         /// <summary>Anything now clear of whoever let go of it is solid to them again.</summary>
@@ -2297,13 +2328,18 @@ namespace Paniq.Simulation
                 return;
             }
 
-            if (other.HeldStill)
+            if (other.HeldStill && physicsBody.Heaved)
             {
                 // A crate held still where it lies, struck by one somebody
                 // heaved (2026-09-27): it is loose again and takes the shove
                 // on, slowed by how much heavier it is, so a row of crates
                 // slides along as a row instead of the first stopping dead
                 // against the second. It is held again once it lies still.
+                // Only a heave (2026-09-28): a box tumbling off the fallen
+                // tower into a held one, or a bin somebody kicked, bounces
+                // off it as off a table. Without that, the first box of the
+                // tower to settle was un-held by the next to land against it
+                // and slid off across the floor with nobody near it.
                 long share = Math.Min(1000L, 1000L * physicsBody.MassGrams / Math.Max(1L, other.MassGrams));
                 Unpin(struck);
                 SetMotion(struck, hitterVelocity.X * share / 1000L, 0L, hitterVelocity.Z * share / 1000L);

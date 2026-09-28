@@ -1014,7 +1014,16 @@ namespace Paniq.Simulation
         /// door is unlocked for good. Source: the person. Target: the door.
         /// Cause: their try at the door.
         /// </summary>
-        DoorUnlockedWithKeycard
+        DoorUnlockedWithKeycard,
+
+        /// <summary>
+        /// The Director pushed back (2026-09-28): more people were on course
+        /// to get out than the round allows, so it sprang a trap, set a
+        /// socket or the fuse box crackling, or lit another bin. Target: the
+        /// trap, socket, fuse box or bin. Strength: how many were on course.
+        /// Duration: the round's allowance. Cause: what set the round going.
+        /// </summary>
+        DirectorPushed
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>

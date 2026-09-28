@@ -198,5 +198,42 @@ namespace Paniq.Tests.EditMode
                 Assert.That(simulation.ObjectsForTests.IsPinned(0), Is.True);
             }
         }
+
+        /// <summary>A crate in the middle of the empty office, and a light box a couple of metres south of it.</summary>
+        private ScenarioData ACrateAndALightBox()
+        {
+            ScenarioData data = OneRoomWithABox(700, 55000, false);
+            data.PhysicsObjects = new[]
+            {
+                new PhysicsObjectDefinition(TheThing, PhysicsObjectKind.Box, new LogicalPosition(0, 0), 700, 55000),
+                new PhysicsObjectDefinition(new SimulationId(3002UL), PhysicsObjectKind.Box, new LogicalPosition(0, -2500), 400, 6000)
+            };
+            return data;
+        }
+
+        [Test]
+        public void ALightBoxKickedIntoAHeldCrate_LeavesItWhereItLies()
+        {
+            // The owner saw a fallen tower box glide off across the floor by
+            // itself a few seconds after landing (2026-09-28): a box still
+            // sliding from the fall touched one already held where it lay,
+            // and the rule that lets a heaved crate shove the next along
+            // un-held it and handed it the slider's speed. Only a heave may.
+            using (var simulation = new Run(ACrateAndALightBox(), 42UL))
+            {
+                PhysicsObjectSystem objects = simulation.ObjectsForTests;
+                Advance(simulation, 100);
+                Assert.That(objects.IsPinned(0), Is.True, "The crate has lain still and is held where it lies.");
+                LogicalPosition before = objects.PositionOf(0);
+
+                // As a runner's kick sends the light box: fast, with a cause.
+                simulation.LaunchObjectForTests(1, 0, 150);
+                Advance(simulation, 150);
+                Assert.That(IntegerMath.Distance(objects.PositionOf(1), before), Is.LessThan(1500), "The light box reached the crate.");
+                Assert.That(objects.IsPinned(0), Is.True, "Still held: only a heave shoves a held crate on.");
+                Assert.That(IntegerMath.Distance(objects.PositionOf(0), before), Is.LessThan(20),
+                    "And it has not moved; it used to take off at the box's speed.");
+            }
+        }
     }
 }

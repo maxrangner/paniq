@@ -86,7 +86,8 @@ in the editor that is already open:
 .\tools\RunUnityTests.ps1                            # every edit-mode test
 .\tools\RunUnityTests.ps1 -PlayMode                  # the play-mode tests
 .\tools\RunUnityTests.ps1 -Category UnityPhysics     # the physics-foundation checks
-.\tools\RunUnityTests.ps1 -Filter HandsOffBaseline -ShowPassed  # the office left alone, ten seeds: a measurement (Category Measure), skipped by normal runs
+.\tools\RunUnityTests.ps1 -Filter SeedsFortyToFortyNine -ShowPassed  # the office left alone, ten seeds: the tuning table (Category Measure), skipped by normal runs, about a minute
+.\tools\RunUnityTests.ps1 -Filter FiftySeeds -ShowPassed  # fifty seeds left alone: fails on any seed that saves more than half (the owner's rule); about four and a half minutes; run before the commit of any batch that touches the Director, the card or the traps
 .\tools\RunUnityTests.ps1 -Reset                     # the bridge is stuck on a run Unity dropped
 ```
 
@@ -149,7 +150,8 @@ word is the feature's name. These are the ones that are not:
 | `GroupSystem` (sticking together) | `Groups,TraitCards` |
 | `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking,HeldDoors,Nudge` |
 | `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |
-| `TrapSystem`, `DirectorSystem` (the tower of boxes, the stockroom's stack, the Director's ladder) | `BoxTower,StockroomTrap,DirectorLadder,Cues,Doors,Stockroom` |
+| `TrapSystem`, `DirectorSystem` (the tower of boxes, the stockroom's stack, the Director's ladder and its cap) | `BoxTower,StockroomTrap,DirectorLadder,DirectorCap,Cues,Doors,Stockroom` |
+| `KeycardSystem` (the card, its fetchers, the player's pull on it) | `Keycard,DirectorCap,Influence` |
 | `FrightenedWalk`, `ExtinguisherBehaviour` (the frightened walk through doors) | `FrightenedWalks,Extinguisher,Alarms,CrossRoom` |
 | `NudgeSystem` (nudging people) | `Nudge` |
 | `FearSystem.Settle` (calming down) | `CalmingDown,CorridorStarers,ReplayFingerprint` |

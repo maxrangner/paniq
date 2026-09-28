@@ -7,14 +7,22 @@ using Paniq.Simulation;
 namespace Paniq.Tests.EditMode
 {
     /// <summary>
-    /// Not a check: plays the office exactly as the level defines it, with
-    /// nobody at the controls, for seeds 40 to 49, and prints what each
-    /// round came to -- how many lived, where the keycard started, who took
-    /// it, who swiped the way out and when. This is the number the owner
+    /// Plays the office exactly as the level defines it, with nobody at the
+    /// controls, and prints what each round came to -- how many lived, where
+    /// the keycard started, who took it, who swiped the way out and when,
+    /// and what the Director allowed and did. This is the number the owner
     /// tunes the level by ("left alone, about five of twenty should live",
     /// 2026-09-27); the results go in docs/technical-decisions.md. Run it on
     /// purpose: <c>.\tools\RunUnityTests.ps1 -Filter HandsOffBaseline -ShowPassed</c>.
     /// Normal test runs skip it.
+    /// <para>
+    /// Two cases. The ten seeds, 40 to 49, are the tuning table. The fifty,
+    /// 40 to 89, are the owner's rule (2026-09-28): left alone, never more
+    /// than half on any seed. That case fails on a seed that saves more,
+    /// and names it; the average is printed, not asserted, because it is an
+    /// aim, not a rule. It is run before the commit of any batch that
+    /// touches the Director, the card or the traps.
+    /// </para>
     /// </summary>
     [Explicit, Category("Measure")]
     public sealed class HandsOffBaselineMeasurements
@@ -34,15 +42,28 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void SeedsFortyToFortyNine_LeftAlone()
         {
+            Play(40UL, 49UL, neverMoreThanHalf: false);
+        }
+
+        [Test]
+        public void FiftySeeds_LeftAlone_NeverMoreThanHalfLive()
+        {
+            Play(40UL, 89UL, neverMoreThanHalf: true);
+        }
+
+        private static void Play(ulong firstSeed, ulong lastSeed, bool neverMoreThanHalf)
+        {
             var level = UnityEditor.AssetDatabase.LoadAssetAtPath<LevelDefinition>(TheOfficeAsset);
             Assert.That(level, Is.Not.Null, $"The office level is not at {TheOfficeAsset}.");
 
+            int seeds = (int)(lastSeed - firstSeed + 1);
             var report = new StringBuilder();
-            report.AppendLine("The office, left alone (nobody at the controls), seeds 40 to 49:");
-            report.AppendLine("seed | saved | got out | sat it out | lost | ended (s) | the keycard");
+            report.AppendLine($"The office, left alone (nobody at the controls), seeds {firstSeed} to {lastSeed}:");
+            report.AppendLine("seed | saved | got out | sat it out | lost | ended (s) | allowed | the keycard and the Director");
             int cleared = 0;
             int savedInAll = 0;
-            for (ulong seed = 40UL; seed < 50UL; seed++)
+            var overHalf = new List<string>();
+            for (ulong seed = firstSeed; seed <= lastSeed; seed++)
             {
                 ScenarioData data = level.ToRuntimeData();
                 if (level.PhysicsFeel != null && level.PhysicsFeel.Feel != null)
@@ -77,15 +98,28 @@ namespace Paniq.Tests.EditMode
 
                     RunSnapshot snapshot = simulation.NewSnapshotBuffer();
                     simulation.FillSnapshot(snapshot);
-                    if (snapshot.Cleared)
+
+                    // A round still going at the cap is called as the end
+                    // card's left-alone line calls it: everybody still alive
+                    // lived (seed 83, 2026-09-28: the fire went out, nobody got
+                    // out, and twenty frightened people kept the stall clock
+                    // going for four minutes).
+                    int saved = ended < 0 ? snapshot.CrowdSize - snapshot.LostCount : snapshot.SavedCount;
+                    if (saved * 100 >= data.Round.TargetSavedPercent * snapshot.CrowdSize)
                     {
                         cleared++;
                     }
 
-                    savedInAll += snapshot.SavedCount;
+                    savedInAll += saved;
+                    if (saved * 2 > snapshot.CrowdSize)
+                    {
+                        overHalf.Add($"seed {seed} saved {saved} of {snapshot.CrowdSize}");
+                    }
+
+                    string allowed = simulation.DirectorForTests.CapsForTests ? simulation.DirectorForTests.AllowanceForTests.ToString() : "-";
                     report.AppendLine(
-                        $"{seed} | {snapshot.SavedCount} of {snapshot.CrowdSize} | {snapshot.EscapedCount} | {snapshot.SurvivedCount} | " +
-                        $"{snapshot.LostCount} | {(ended < 0 ? "still going at the cap" : (ended / Run.TicksPerSecond).ToString())} | " +
+                        $"{seed} | {saved} of {snapshot.CrowdSize} | {snapshot.EscapedCount} | {snapshot.SurvivedCount} | " +
+                        $"{snapshot.LostCount} | {(ended < 0 ? "still going at the cap" : (ended / Run.TicksPerSecond).ToString())} | {allowed} | " +
                         TheStoryOfTheCard(simulation));
                     report.AppendLine("     " + WhyNobodyWent(simulation, data, flamesReachedTheCard));
                     if (PrintTheTrail)
@@ -95,8 +129,17 @@ namespace Paniq.Tests.EditMode
                 }
             }
 
-            report.AppendLine($"{cleared} of 10 cleared the 75% bar; {savedInAll / 10.0:0.0} of 20 saved on average.");
+            report.AppendLine($"{cleared} of {seeds} cleared the 75% bar; {(double)savedInAll / seeds:0.0} of 20 saved on average " +
+                              $"({100.0 * savedInAll / (seeds * 20):0}%; the owner asked for about 25%).");
+            report.AppendLine(overHalf.Count == 0
+                ? "No seed saved more than half."
+                : $"Over half on {overHalf.Count} of {seeds}: {string.Join("; ", overHalf)}.");
             TestContext.WriteLine(report.ToString());
+            if (neverMoreThanHalf)
+            {
+                Assert.That(overHalf, Is.Empty,
+                    "The owner's rule: left alone, never more than half live on any seed. Any seed above it is a bug.");
+            }
         }
 
         /// <summary>
@@ -171,7 +214,25 @@ namespace Paniq.Tests.EditMode
             return "";
         }
 
-        /// <summary>Where the card began, everybody who took or dropped it, and the swipe, each with its second.</summary>
+        /// <summary>What the Director reached for, by its id.</summary>
+        private static string NameOf(SimulationId target)
+        {
+            switch (target.Value)
+            {
+                case 7001UL: return "the tower";
+                case 7002UL: return "the stack";
+                case 3271UL: return "the office's west socket";
+                case 3272UL: return "the office's east socket";
+                case 3273UL: return "the cafeteria's socket";
+                case 3281UL: return "the fuse box";
+                case 3205UL:
+                case 3206UL:
+                case 3207UL: return "another bin";
+                default: return target.Value.ToString();
+            }
+        }
+
+        /// <summary>Where the card began, everybody who took or dropped it, the swipe, the traps and the Director's pushes, each with its second.</summary>
         private static string TheStoryOfTheCard(Run simulation)
         {
             var story = new List<string>();
@@ -193,10 +254,13 @@ namespace Paniq.Tests.EditMode
                         story.Add($"{record.SourceId.Value} swiped at {second} s");
                         break;
                     case CausalEventType.BoxTowerFell:
-                        story.Add($"boxes fell at {second} s");
+                        story.Add($"{(record.HasTarget ? "boxes" : "crates")} fell at {second} s");
                         break;
                     case CausalEventType.BoxPileCleared:
                         story.Add($"the heap cleared at {second} s");
+                        break;
+                    case CausalEventType.DirectorPushed:
+                        story.Add($"PUSHED {NameOf(record.TargetId)} at {second} s ({record.Strength} on course)");
                         break;
                     case CausalEventType.AgentPassedOut:
                     case CausalEventType.AgentLost:

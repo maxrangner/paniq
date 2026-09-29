@@ -372,22 +372,40 @@ namespace Paniq.Gameplay
             Simulation.QueueCommand(PlayerCommandType.NudgePersonFrom, personId, from, Simulation.Tick + 1);
         }
 
-        /// <summary>One click of influence on a door (2026-09-26), queued for the next tick that has not started.</summary>
+        /// <summary>The player's hand going on a door (2026-09-26; a hold since 2026-09-29), queued for the next tick that has not started.</summary>
         public void QueueInfluenceDoor(SimulationId doorId)
         {
             Simulation.QueueCommand(PlayerCommandType.InfluenceDoor, doorId, Simulation.Tick + 1);
         }
 
-        /// <summary>One click of influence on a thing.</summary>
+        /// <summary>The player's hand going on a thing.</summary>
         public void QueueInfluenceThing(SimulationId thingId)
         {
             Simulation.QueueCommand(PlayerCommandType.InfluenceThing, thingId, Simulation.Tick + 1);
         }
 
-        /// <summary>One click of influence on a patch of floor, in whole millimetres.</summary>
+        /// <summary>The player's hand going on a patch of floor, in whole millimetres.</summary>
         public void QueueInfluenceSpot(LogicalPosition spot)
         {
             Simulation.QueueCommand(PlayerCommandType.InfluenceSpot, spot, Simulation.Tick + 1);
+        }
+
+        /// <summary>The player's hand coming off the place it was on (2026-09-29).</summary>
+        public void QueueReleaseInfluence()
+        {
+            Simulation.QueueCommand(PlayerCommandType.ReleaseInfluence, default(SimulationId), Simulation.Tick + 1);
+        }
+
+        /// <summary>The player taking hold of somebody by the shirt (2026-09-29).</summary>
+        public void QueueTug(SimulationId personId)
+        {
+            Simulation.QueueCommand(PlayerCommandType.TugPerson, personId, Simulation.Tick + 1);
+        }
+
+        /// <summary>The player letting go of the person they had hold of (2026-09-29).</summary>
+        public void QueueReleaseTug(SimulationId personId)
+        {
+            Simulation.QueueCommand(PlayerCommandType.ReleaseTug, personId, Simulation.Tick + 1);
         }
 
         /// <summary>The player pulling a fire alarm, queued for the next tick that has not started.</summary>

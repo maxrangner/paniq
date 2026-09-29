@@ -108,6 +108,22 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// The player has taken hold of somebody (2026-09-29): no jab and no
+        /// count toward annoyance, but they look round for whoever has them a
+        /// beat later, exactly as the nudged do. A reaction already due is
+        /// kept, as for a second nudge.
+        /// </summary>
+        public void Startle(Agent agent, ulong cause)
+        {
+            AgentNudge nudge = agent.Nudge;
+            if (nudge.ReactAtTick <= 0)
+            {
+                nudge.NudgeEventId = cause;
+                nudge.ReactAtTick = context.ReactionTick();
+            }
+        }
+
         /// <summary>Everybody whose reaction is due: looking round, or getting annoyed.</summary>
         public void Advance()
         {

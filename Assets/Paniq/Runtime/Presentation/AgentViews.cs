@@ -291,6 +291,23 @@ namespace Paniq.Presentation
                         twist = 0f;
                         lean += Mathf.Sin(time * 15f + view.ShakePhase * 0.7f) * 8f;
                     }
+                    else if (agent.IsShakingFree)
+                    {
+                        // Tearing free of the player's hand (2026-09-29): the
+                        // same fast shake as the annoyed, with a twist of the
+                        // shoulders, for the couple of seconds the run says.
+                        Vector3 side = Quaternion.Euler(0f, yaw + 90f, 0f) * Vector3.forward;
+                        shake = side * (Mathf.Sin(time * AnnoyedShakeRate + view.ShakePhase) * 0.06f);
+                        roll = Mathf.Sin(time * AnnoyedShakeRate + view.ShakePhase) * 9f;
+                        twist = Mathf.Sin(time * AnnoyedShakeRate * 0.5f + view.ShakePhase) * 20f;
+                    }
+                    else if (agent.IsTugged)
+                    {
+                        // Held by the shirt (2026-09-29): leaning into the
+                        // hand that has them, straining the way they meant to go.
+                        lean = Mathf.Max(lean, 10f);
+                        twist = 0f;
+                    }
                     else if (agent.IsAnnoyed && view.Icons.AnnoyedAge(time) < AnnoyedShakeSeconds)
                     {
                         // Shaking with annoyance at being nudged (2026-09-26):

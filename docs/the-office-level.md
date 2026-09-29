@@ -180,9 +180,10 @@ counter at the top left shows calm, scared (and frozen), down and lost people.
 
 **Doors.** Doors are 1 m wide. The one way out starts locked; every door
 inside the building starts shut but unlocked, so people work them
-themselves. Since 2026-09-26 the player does not open or shut doors: a click
-on a door draws people to use it (influence, below), holding the button down
-on it keeps it shut (since prototype 3), and a right click turns its key.
+themselves. The player does not open or shut doors: the left button held on
+a door is the player's hand, drawing people to use it (influence, below);
+the right button held on it keeps it shut (prototype 3's hand on a door,
+moved to the right button on 2026-09-29); and a right click turns its key.
 Since 2026-09-27 the way out is a **card door**: no key fits it, nobody
 batters it, the fire does not burn through it, and only somebody with the
 keycard in their pocket opens it -- after which it is an ordinary door for
@@ -546,10 +547,15 @@ catches a beat later, and a third after that.
 
 **The moment the first frightened person runs along the corridor, the tower
 of boxes comes down** (the owner's order, 2026-09-27: bin, boxes, outlet),
-whatever the fire is doing. The boxes tumble by physics toward the archway
-between the corridor and the crossbar; where they land is where they land,
-and while three or more lie still in the archway it is shut for people and
-fire.
+whatever the fire is doing -- **after about three seconds of creaking**
+(2026-09-29: the building plays in the open). Sprung, the tower sways, the
+creak is heard across its room so calm people look up at it, and a sign says
+"it's going!"; a player who is watching has those seconds to get people
+clear, with a hand on the floor away from the archway. Nothing can be done to
+the tower itself. The stockroom's stack creaks the same way. Then the boxes
+tumble by physics toward the archway between the corridor and the crossbar;
+where they land is where they land, and while three or more lie still in the
+archway it is shut for people and fire.
 
 **If the bin is put out** -- nothing burning anywhere, and it never got out of
 the meeting room -- any bell that was pulled falls silent about ten seconds
@@ -586,7 +592,10 @@ course in its room comes down without waiting for a runner; otherwise the
 socket in the room with the most of them crackles and pops; once a socket
 has gone, the fuse box; with nothing burning at all, another bin. One trick
 at a time, a beat after it is decided, and half a minute to a minute
-between. And when the round is already a massacre -- only the allowance's
+between. Since 2026-09-29 the push is announced: **THE BUILDING TURNS ON THE
+CROWD** across the top of the screen for four seconds, in the band the alarm
+uses, so a socket crackling right after the door opens reads as the
+building's move and not as bad luck. And when the round is already a massacre -- only the allowance's
 worth, or fewer, still alive or out -- nothing more is added: no socket
 after the boxes fall, no fuse box after a put-out, no second bin, and a
 standing trap stays unarmed. The Director reads the crowd and the card only,
@@ -608,17 +617,19 @@ shut and believe they know where it lies -- one person at a time, and never into
 flames. The card does not burn: one dropped in the fire is fetched once the
 flames have passed. Whoever is out cold or dead loses it where they lie, for
 anybody to pick up; a trip or a knock-down they get up from keeps it in their
-pocket. Click the card and somebody calm nearby pockets it for you -- and,
-since 2026-09-28, somebody frightened too: click it a few times (about five
-beside it) and whoever feels the pull strongest goes and pockets it, brave
-or not, never into the flames, one at a time. The person with the card is
-drawn holding it up, and the line under the score says **HAS THE KEYCARD**
-when you point at them.
+pocket. Put your hand on the card (hold the button on it) and somebody calm
+nearby pockets it for you -- and, since 2026-09-28, somebody frightened
+too: hold it for a couple of seconds and whoever feels the pull strongest
+goes and pockets it, brave or not, never into the flames, one at a time. The
+person with the card is drawn holding it up, and the line under the score
+says **HAS THE KEYCARD** when you point at them.
 
-Left alone, the office now saves about four and a half of twenty over fifty
-seeds (23%, measured 2026-09-28; the owner asked for about a quarter), eight
-seeds in fifty clearing the bar and ten in fifty saving more than half,
-which the owner's rule says none should. Most rounds end with everybody dead: a card
+Left alone, the office now saves about three of twenty over fifty seeds
+(15%, measured 2026-09-29 with the creak; it was four and a half, 23%, the
+day before, and the owner asked for about a quarter), four seeds in fifty
+clearing the bar and six in fifty saving more than half, which the owner's
+rule says none should. The creak is what moved it (see the
+[roadmap](roadmap.md)); nothing was tuned to compensate. Most rounds end with everybody dead: a card
 on a desk is fetched only by the hero, and the holder of a pocket card
 reaches the door in about one round in three, because the fallen tower now
 really holds (its boxes used to slide apart by themselves) and the fire has
@@ -648,15 +659,24 @@ yourself into the storeroom is a way of living through a disaster, not an
 exploit.
 
 Then the scene freezes and a card gives the result — how many of the twenty
-were saved and what share that is, whether it cleared the 75% needed, how the
-saved split between those who got out and those who sat it out, and your best
-ever. Since 2026-09-27 it also says **what would have happened if you had
-never clicked**: "Left alone, 6 of 20 would have lived." The same seed is
-played again in the background without your help. Its disaster starts when
-yours does -- your press of Trigger event is copied onto the same moment,
-and nothing else you do is -- and then it runs ahead, a little each frame,
-so the answer is ready long before the end card. Two buttons: the same seed again, or whatever
-is in the seed box.
+were saved and what share that is, and, since 2026-09-29, **the margin over
+the building**: "Left alone, 4 would have lived. You made the difference for
+5." The same seed is played again in the background without your help. Its
+disaster starts when yours does -- your press of Trigger event is copied onto
+the same moment, and nothing else you do is -- and then it runs ahead, a
+little each frame, so the answer is ready long before the end card; once it
+is, the strip along the top reads "Left alone: 4 would live" while you are
+still playing, so you know what you are trying to beat. The round is judged
+as you against the building (the owner's choice); the 75% bar stays on the
+card as a distant target, and the best ever remembers both the share and the
+margin. Under that, the card says whether the 75% was cleared, how the saved
+split between those who got out and those who sat it out, and **three or
+four lines of why**: what your hand did (how many places and people, for
+how long, and who tore free), the keycard (where it began, who had it, and
+whether the door opened), the corridor (when the boxes came down and how
+many got out after that), and the fire (when it got out of the meeting room
+or was put out). Two buttons: the same seed again, or whatever is in the seed
+box.
 
 **What the round deliberately does not do yet.** You cannot click a person on
 the frozen scene for the facts about them, and there is no written retelling of
@@ -666,15 +686,16 @@ what happened out of sight. Both are planned and both are what would make a run
 ## The camera
 
 **W A S D** slide the view across the building, and W always moves it up the
-screen whichever way you are looking. **Hold the right mouse button and drag**
-to swing the view to any angle at all; it stays where you let go. **Q** and
-**E** snap a quarter turn to the next corner view from wherever the view is
-now, so the four corners remain somewhere tidy to land. The **mouse wheel**
-zooms, and tilts as it goes: pulled out you look down on the building at the
-isometric angle, pushed in you look along the floor. A right *click* without a
-drag puts down the card in your hand, or, with none in hand, turns the key of
-the door under the pointer. The camera keeps working while the game
-is paused. The full description is in [look and controls](look-and-controls.md).
+screen whichever way you are looking. **Q** and **E** step the view an eighth
+of a turn round to the next tidy view (2026-09-29: eight views, the four
+corners and the four sides; it was a quarter turn, and the right-button drag
+that swung the view anywhere is gone, because the right button is the
+building's now). The **mouse wheel** zooms, and tilts as it goes: pulled out
+you look down on the building at the isometric angle, pushed in you look
+along the floor. A right *click* puts down the card in your hand, or, with
+none in hand, turns the key of the door under the pointer. The camera keeps
+working while the game is paused. The full description is in
+[look and controls](look-and-controls.md).
 
 ## What the player can do
 
@@ -688,11 +709,12 @@ any more** (2026-09-27): its way out is a card door, which no key fits; the
 keycard opens it (see *The round*). A level whose way out is a plain locked
 door still works as above.
 
-**The keycard.** Click it and somebody calm nearby goes and pockets it, the
-pull spent; click the way out and whoever has the card is drawn there like
-anybody else. Poke a frozen holder awake and they run for the door with it.
-A holder out cold or dead drops it where they lie, and a click on the card
-sends somebody for it.
+**The keycard.** Hold the button on it and somebody calm nearby goes and
+pockets it, the use spent; hold it a couple of seconds and somebody
+frightened does, brave or not. Hold the way out and whoever has the card is
+drawn there like anybody else. Poke a frozen holder awake and they run for
+the door with it. A holder out cold or dead drops it where they lie, and the
+hand on the card sends somebody for it.
 
 **The office has no purse (prototype 3, 2026-09-25).** The owner had
 influence switched off for now: every door, alarm and card is free, nothing
@@ -733,29 +755,36 @@ the brave feel it least and the nervous most, anyone with flames at their
 back runs regardless, and a throw that catches fewer than two people makes
 no group and is free.
 
-**On the office, only people pull fire alarms** (the owner, 2026-09-26). A
-click on the red pull station puts influence beside it instead, and the brave
-among the people drawn there may pull it. A level that lets the player pull
+**On the office, only people pull fire alarms** (the owner, 2026-09-26). The
+hand on the red pull station puts influence beside it instead, and the brave
+among the people drawn there pull it -- since 2026-09-29 with a little less
+nerve than usual (two points of bravery), and from as far as the pull
+reaches rather than the usual eight metres' walk. A level that lets the player pull
 alarms (`LevelDefinition.playerPullsAlarms`) prices it like a card, 30: every
 bell in the building rings, exactly as when a person hits one, and pulling one
 that is already ringing does nothing and costs nothing. Either way the bells
 stop about ten seconds after the Director judges a fire put out.
 
-**Influence: draw people to a place** (2026-09-26, the owner's idea). Click a
-door, a thing or a patch of floor and people near it are drawn toward it --
-never ordered there. The owner: "clicking a door once just increases the
-chances of an agent using the door; clicking it a few more times increases it
-more; clicking an empty hallway a few times acts like an attractor influencing
-the agents' own decision making."
+**Influence: the hand on a place** (2026-09-26, the owner's idea; a hold
+since 2026-09-29). Press and hold the left button on a door, a thing or a
+patch of floor and people near it are drawn toward it for as long as you
+hold -- never ordered there. The owner's rule for the hold: "when you
+interact the influence is clear and instant, but as soon as you let go the
+agents are on their own." And: "it also makes all decisions a priority. You
+can't be everywhere at once."
 
-- **Each click is one step**, up to twenty: a strong pull takes frantic
-  clicking. It loses a step every two seconds, so a full one fades over about
-  forty, and it cannot be taken back. There is no limit to how many places
-  there are.
-- **It sticks to its place and fades with distance**: anybody within about
-  twelve metres feels it, more the nearer they are, including somebody who
-  wanders in later -- but never from another room (a door's is felt in both
-  rooms it joins).
+- **A press is a full pull at once, and a release takes it away at once.**
+  Nothing stacks and nothing fades: a place is either under your hand or it
+  is not. It used to be one step a click, twenty to fill and forty seconds
+  to fade.
+- **One hand.** One place at a time: pressing somewhere else moves the hand
+  there, and the place it was on is let go of.
+- **It sticks to its place and fades with distance, about a room's length**:
+  anybody within about twelve metres of it *as a walk* feels it, more the
+  nearer they are, including somebody who wanders in later. Through an open
+  doorway into the next room, yes (the walk round by the doorway counts);
+  through a wall or a shut door, never. A door's own pull is felt in both
+  rooms it joins.
 - **Everybody weighs it by who they are.** The nervous and visitors follow
   readily (up to twice an ordinary person); leaders and the cruel mostly ignore
   it (a tenth, at the extreme). Nobody is drawn into a room that is alight, or
@@ -766,35 +795,64 @@ the agents' own decision making."
   considered as a way round even when it is not on the shortest walk -- the
   office's stockroom door can beat the corridor.
 - **Calm people feel it too.** With nothing in particular to do, they go to
-  it, the likelier the stronger the pull. The easily led -- nervousness
-  7 or more, or a visitor -- may get up from their seat or leave an errand for
-  a strong one, but only between the moving parts of it: never halfway into a
-  chair, mid-conversation, or while somebody is waiting to meet them. The
-  steady carry on. So the player can thin out a meeting
-  before anything happens, but not empty it.
+  it, the likelier the nearer. The easily led -- nervousness 7 or more, or a
+  visitor -- may get up from their seat or leave an errand for it within a
+  couple of seconds (three chances in ten each second since 2026-09-29; it
+  was one in ten), but only between the moving parts of it: never halfway
+  into a chair, mid-conversation, or while somebody is waiting to meet them.
+  The steady carry on. So the player can thin out a meeting before anything
+  happens, but not empty it. The hand works fully before the fire: it is the
+  toy half, and the board can be set before Trigger event.
 - **What is pointed at is used** (the owner's rule, 2026-09-27: "influence
   objects should make agents want to interact with them, not just walk
-  over"). A door is opened if shut and shut if open -- and using it spends
-  the pull, so the next click asks for the opposite; the cruel (evil 7+)
+  over"). A door is opened if shut and shut if open; the cruel (evil 7+)
   wedge a shut door with the nearest thing instead. A free chair is sat on,
   whoever's it is. A box, a bin or a bag is picked up and carried off. The
-  bottle on the wall is taken and held on to, like a bag, until something
-  frightens its holder. A door they cannot use -- locked, held, jammed --
-  keeps its pull. A patch of floor, a table or a laptop gathers people as
-  before, each to a spot of their own in front of a door.
-- **You can see it work.** A sparkling aura on the place, faint at one click and
-  intense at twenty, and a sparkling line from everybody feeling a pull to it,
-  faint for a gentle pull and bright for a strong one. When influence actually
-  changes somebody's mind, the log says so.
+  bottle on the wall is taken and held on to, like a bag -- and since
+  2026-09-29 somebody brave enough to fight a fire (bravery 5+) who is
+  holding it when the fright comes keeps it and goes at the flames with it,
+  where everybody else flings what they hold. Using a thing spends its
+  *use*: the hand goes on gathering people there, but nobody uses it again
+  until you press it afresh, so a door opened for you is not shut for you a
+  moment later by the next person drawn to it, and pressing it again asks
+  for the opposite. A door they cannot use -- locked, held, jammed -- keeps
+  its use. A patch of floor, a table or a laptop gathers people as before,
+  each to a spot of their own in front of a door.
+- **You can see it work.** A sparkling aura on the place under your hand, and
+  a sparkling line from everybody feeling the pull to it, faint for a gentle
+  pull and bright for a strong one. When influence actually changes
+  somebody's mind, the log says so. The line under the score says what your
+  hand is doing.
 
-**Nudge a person.** Click somebody and they step away from where the click
-landed, stagger, and look round a beat later for whoever did it. Three nudges
-in ten seconds and they are annoyed: "leave me alone!", a fast shake for a
-couple of seconds, and for about twenty seconds they are still shoved by every
-click but neither look round for it nor count it (the owner's rules,
-2026-09-27). Three quick pokes at somebody frozen with fear -- frozen for good
-included -- wake them, and they run; three at somebody sitting down knock them
-off the chair onto the floor. A nudge frightens nobody.
+**Poke a person.** Click somebody (press and let go inside a third of a
+second) and they step away from where the click landed, stagger, and look
+round a beat later for whoever did it. Three pokes in ten seconds and they are
+annoyed: "leave me alone!", a fast shake for a couple of seconds, and for
+about twenty seconds they are still shoved by every poke but neither look
+round for it nor count it (the owner's rules, 2026-09-27). Three quick pokes
+at somebody frozen with fear -- frozen for good included -- wake them, and
+they run; three at somebody sitting down knock them off the chair onto the
+floor. A poke frightens nobody.
+
+**The tug: a hand on a person** (2026-09-29, the owner's rule). Press and
+*hold* the button on somebody and you have them by the shirt: "it holds them
+in place. Should not be 100% instant, more like tugging someone's shirt. So
+you can save someone running into fire." They slow to a stop over about a
+second and stay where they are for as long as you hold, still frightened,
+still meaning to go wherever they meant to go, and the moment you let go
+they are on their own again and off. They look round a beat later for
+whoever has them, as the poked do, and are not annoyed by it. **The strong
+tear free** (the owner: "the strongest can break free. Sliding scale. A
+slightly not too strong can eventually break free by visibly shaking you
+off"): an ordinary person (strength 5) stays as long as you hold; at
+strength 6 they tear free after about eight seconds, and the time halves for
+each point above -- four seconds at 7, two at 8, one at 9, half a second at
+10 -- with a fast shake of the shoulders, "get off!", and the `!` of somebody
+just let go of. Nobody alight can be held, and a hand on somebody who catches
+fire or is knocked out cold comes off them. One hand: taking hold of a
+second person lets go of the first. A gold ring at their feet shows who you
+have; the line under the score says so and warns you when they are too
+strong to hold for long.
 
 Every card costs **30**. A card you are not holding does nothing however rich
 you are; a card you cannot pay for does nothing either. **A card that catches
@@ -805,10 +863,10 @@ exactly the patch it will catch, brightening when somebody is standing in it.
 
 Click a card to pick it up, then click the floor to throw it (2026-09-25;
 the number keys are gone). Escape or a right click puts it back down. Two of
-a kind sit as one card with the count in its corner. A click on a door draws
-people to it; a right click turns its key. Point at a door, a red pull station,
-a person, a thing or the floor and the line under the score says what a click
-will do. **Reset**, top right, goes straight back to the start card with the
+a kind sit as one card with the count in its corner. The left button held on
+a door draws people to it; a right click turns its key; the right button held
+keeps it shut. Point at a door, a red pull station, a person, a thing or the
+floor and the line under the score says what the hand will do there. **Reset**, top right, goes straight back to the start card with the
 seed kept; **Pause** sits under it; the red **Trigger event** button sits
 bottom centre and goes the moment it is pressed.
 
@@ -1384,25 +1442,62 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   and the brave need three more bravery to look before they run. Frightened
   people stop shouting once their quiet spell is over.
 - **Influence** (`InfluenceSystem`, `InfluenceSettings`; commands
-  `InfluenceDoor`, `InfluenceThing`, `InfluenceSpot`, free). A place is a door,
-  a thing's spot or a floor point; a click within 1 m of a floor or thing place
-  (or on the same door or thing) adds a step up to 20, and a place loses a step
-  every 100 ticks since its last click. Felt per mille: `level/20 × (1 −
-  distance/12 m) × susceptibility`, only in the place's room (both rooms for a
-  door), susceptibility `100 + 12 × (nervousness − 5) − 12 × max(0, leadership
+  `InfluenceDoor`, `InfluenceThing`, `InfluenceSpot` for the press and
+  `ReleaseInfluence` for the release, free). A place is a door, a thing's spot
+  or a floor point; a press puts the one held place there at the full level
+  (20), replacing whatever was held; a release removes it; nothing fades.
+  Using it (`Spend`) marks it spent -- it still pulls, but `PlaceOfDoor` and
+  `PlaceOfThing` no longer report it, so nobody uses it again until pressed
+  afresh. Felt per mille: `(1 − walk/12 m) × susceptibility`, where the walk
+  is the straight distance in the place's room (both rooms for a door) or,
+  from a neighbouring room, the shortest way through one open doorway
+  (`geometry.IsDoorOpen`) added up door-centre to place; through a wall or a
+  shut door, nothing. Susceptibility `100 + 12 × (nervousness − 5) − 12 × max(0, leadership
   − 5) − 12 × max(0, evil − 5)`, +50 for a visitor, clamped to 10–200 %. Worth
   `felt × 6000 / 1000` mm to a door choice (the door itself) and, through the
   sign's agreement arithmetic, to spots its way. `DoorBehaviour.ChooseExitDoor`
   adds it except through the heat, into a burning room or back into
-  `PreviousRoom`, and also scores the ways out through every influenced door on
+  `PreviousRoom`, and also scores the ways out through the held door on
   this room's wall with the noise fixed at half its range; a choice it changed
   writes `AgentDrawnByInfluence`. Calm people's `ChooseActivity` wanders to the
   strongest pull felt with a chance of the pull per mille (drawn only when one
-  is felt); the easily led seated or on an errand weigh it once a second at a
-  tenth of that. Weighing a pull nobody feels draws no random numbers.
+  is felt); the easily led seated or on an errand weigh it once a second at
+  three tenths of that (`LeaveTaskChancePerMille` 300). Weighing a pull nobody
+  feels draws no random numbers. The frightened go for a held card only once
+  it has been held `PulledAfterTicks` (100); the hand near a pull station
+  (`AlarmSystem.StationTheHandIsOn`, within `StackRadiusMillimetres`) lowers
+  the bravery to raise the alarm by `PulledBraveryBonus` (2) and stands in
+  for the eight-metre walk; a bottle-holder who `WouldKeepTheBottle`
+  (startled or frightened, upright, bravery ≥ `FightMinimumBravery`,
+  something burning) is skipped by `ItemBehaviour.LetGoIfNeeded` and taken up
+  by `ExtinguisherBehaviour.Decide` with the bottle already in hand.
 - **Nudge from a point** (`NudgePersonFrom`): the lurch, 300 mm, is away from
   the point; annoyed (`AgentAnnoyed`), they stay so for 1000 ticks jittered,
   during which a nudge is written down and does nothing else.
+- **The tug** (`TugSystem`, `TugSettings`; commands `TugPerson`,
+  `ReleaseTug`, free). One held person (`HeldIndex`); `Tug` on somebody
+  alight or down writes nothing; on somebody else it writes `PowerTugged`,
+  lets go of whoever was held (`PowerReleasedTug`), draws the tear-free tick
+  (never below `TearsFreeFromStrength` 6; at it `Jittered(400)`, halved per
+  point above, never sooner than a reaction lag) and startles them through
+  `NudgeSystem.Startle` (a look round, no count). Each tick the held person's
+  intent is replaced by `Restrain`: the same heading, goal speed 0,
+  acceleration 1 (so `ApplyBody` brakes 2 mm/tick a tick: 5 m/s to nothing
+  in about a second). `Advance` (phase 1½) lets go of anybody who has caught
+  fire, gone out cold, got out or died, and at the tear-free tick writes
+  `AgentShookFree` and shows the shake for `ShookFreeShownTicks` (100).
+- **A spot they can reach, and creeping counts as blocked** (2026-09-29):
+  `ChooseEscapeTarget` takes one reach field a decision
+  (`Navigation.ReachFrom`) and skips a candidate `DistanceIn` cannot reach;
+  `AgentIntent.PressedTicks` counts ticks running at `PressedSpeedMinimum`
+  (20) or more while moving under `PressedStepMillimetres` (5), and at
+  `BlockedGiveUpTicks` (12) somebody pressed against a held or pinned thing
+  they cannot heave gives the doorway up and chooses again.
+- **The creak** (`TrapSystem.Creak`): springing a trap, by a runner or the
+  Director's push, sets its fall `Jittered(CreakTicks)` (150) ahead, writes
+  `TrapCreaked` (strength: the ticks until the fall) and plays a `Crash`
+  sound of `CreakHearingMillimetres` (6000) so calm people look toward it.
+  The fall itself is unchanged.
 - **The heap is seen.** A frightened person choosing a door treats a doorway
   heaped with fallen boxes on a wall of their room, within sight, as found shut
   -- unless they are strong enough to heave it, in which case they get
@@ -1626,10 +1721,12 @@ bar above it, and the line above that saying what a click will do. Since
 its name, a line on what it does and its price; a card the player cannot
 afford is dimmed red with the shortfall written on it, and the one in hand
 lifts and turns blue. Since 2026-09-25 each card is a button and two of a kind
-are one card with the count in a badge. A click on a door is told from a hold
-by whether the button comes back up inside a third of a second (`DoorClicks`,
-plain arithmetic with no scene in it); since 2026-09-26 there is no double
-click to wait for. Every card and button
+are one card with the count in a badge. A click is told from a hold by
+whether the button comes back up inside a third of a second (`DoorClicks`,
+plain arithmetic with no scene in it), for the right button on a door (key
+or hand on it) and the left button on a person (poke or tug); the left button
+on a place sends the press at once and the release when it comes up
+(`PlayerInput`). Every card and button
 claims its patch of screen as it is drawn (`HudHitTest`), so a click on one
 never also reaches the floor behind it. Clicking a place is worked out against
 the mathematical ground plane, so no collider is needed for it; door leaves

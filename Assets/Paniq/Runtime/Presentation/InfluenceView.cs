@@ -49,7 +49,16 @@ namespace Paniq.Presentation
                 DrawAura(i, place, strength, time, deltaTime);
             }
 
-            for (int i = places; i < auras.Count; i++)
+            // The hand on a person (2026-09-29): the same gold ring, at their
+            // feet, so the player can see who they have hold of.
+            int drawnAuras = places;
+            if (snapshot != null && snapshot.TuggedAgentIndex >= 0 && snapshot.TuggedAgentIndex < snapshot.Agents.Count)
+            {
+                AgentSnapshot held = snapshot.Agents[snapshot.TuggedAgentIndex];
+                DrawAura(drawnAuras++, new InfluencePlaceSnapshot(held.AgentId, false, held.Position, 1, 1), 1f, time, deltaTime);
+            }
+
+            for (int i = drawnAuras; i < auras.Count; i++)
             {
                 auras[i].enabled = false;
             }

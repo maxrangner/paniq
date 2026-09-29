@@ -841,7 +841,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "85";
+        public string ContentRevision = "86";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -1048,7 +1048,7 @@ namespace Paniq.Simulation
         // nothing added once the round is a massacre; the player's pull on the
         // card fetches frightened people too; a box held where it lies is
         // shoved on only by a heaved thing, not by any box that slides into it.
-        public int SimulationCompatibilityVersion = 73;
+        public int SimulationCompatibilityVersion = 74;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -1078,6 +1078,9 @@ namespace Paniq.Simulation
         public DaySettings Day = new DaySettings();
         public TrapSettings Traps = new TrapSettings();
         public NudgeSettings Nudge = new NudgeSettings();
+
+        /// <summary>The player's hand on a person (2026-09-29): the tug, and who tears free of it.</summary>
+        public TugSettings Tug = new TugSettings();
         public DirectorSettings Director = new DirectorSettings();
         public CalmingSettings Calming = new CalmingSettings();
         public InfluenceSettings Influence = new InfluenceSettings();
@@ -1188,6 +1191,7 @@ namespace Paniq.Simulation
             copy.Day = Day?.Clone();
             copy.Traps = Traps?.Clone();
             copy.Nudge = Nudge?.Clone();
+            copy.Tug = Tug?.Clone();
             copy.Director = Director?.Clone();
             copy.Calming = Calming?.Clone();
             copy.Influence = Influence?.Clone();
@@ -1224,7 +1228,7 @@ namespace Paniq.Simulation
                 ObjectPhysics == null || PhysicsFeel == null || Traits == null || Flammables == null || Items == null || Help == null ||
                 Purse == null || Alarm == null || Blockades == null || Blast == null ||
                 Extinguishers == null || Leadership == null || Groups == null || Day == null ||
-                Traps == null || Nudge == null || Director == null || Calming == null || Influence == null ||
+                Traps == null || Nudge == null || Tug == null || Director == null || Calming == null || Influence == null ||
                 Keycard == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
@@ -1258,6 +1262,7 @@ namespace Paniq.Simulation
             Day.Validate();
             Traps.Validate();
             Nudge.Validate();
+            Tug.Validate();
             Director.Validate();
             Calming.Validate();
             Influence.Validate();

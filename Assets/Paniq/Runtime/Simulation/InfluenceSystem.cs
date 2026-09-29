@@ -3,26 +3,35 @@ using System.Collections.Generic;
 namespace Paniq.Simulation
 {
     /// <summary>
-    /// Influence (prototype 3, second batch, 2026-09-26): the player clicks a
-    /// door, a thing or a patch of floor, and people are drawn toward it. It
+    /// Influence (prototype 3, second batch, 2026-09-26): the player's hand on
+    /// a door, a thing or a patch of floor, and people are drawn toward it. It
     /// is never an order. Every person weighs it against their own fear,
     /// habits and character, and it only tips the ones who were undecided.
-    /// The owner's words: "clicking a door once just increases the chances of
-    /// an agent using the door; clicking it a few more times increases it
-    /// more; clicking an empty hallway a few times acts like an attractor
-    /// influencing the agents' own decision making."
     /// <para>
-    /// Each click adds one step, up to <see cref="InfluenceSettings.MaximumLevel"/>;
-    /// a strong pull takes frantic clicking. It ticks down a step at a time
-    /// on its own and cannot be cancelled. It sticks to its place: anybody who
-    /// comes near it later feels it too, more the nearer they are, and not at
-    /// all from another room. There is no limit to how many places there are.
+    /// Since 2026-09-29 it is a hold, not clicks (the owner's rule: "hold
+    /// only ... it also makes all decisions a priority. You can't be
+    /// everywhere at once. When you interact the influence is clear and
+    /// instant, but as soon as you let go the agents are on their own"). A
+    /// press puts a full pull on the place at once and replaces whatever was
+    /// held before; a release takes it away at once. One place at a time,
+    /// nothing fades, nothing stacks. It used to be one step a click, twenty
+    /// to fill and forty seconds to fade.
     /// </para>
     /// <para>
-    /// How much a person feels it is arithmetic on where they stand and who
-    /// they are (<see cref="FeltBy"/>), so asking draws no random numbers and
-    /// an influence nobody is near changes no run. Places are kept in the
-    /// order they were first clicked, so a replay agrees.
+    /// A place is felt within <see cref="InfluenceSettings.ReachMillimetres"/>
+    /// of it as a walk: straight across the room it is in, or through one open
+    /// doorway into the room next door (2026-09-29, the owner: "through open
+    /// doors, but limit range to be around a room's length"), never through a
+    /// wall or a shut door. How much a person feels it is arithmetic on where
+    /// they stand and who they are (<see cref="FeltBy"/>), so asking draws no
+    /// random numbers and a hand nobody is near changes no run.
+    /// </para>
+    /// <para>
+    /// Somebody who does what the pull asked (opens the door, sits on the
+    /// chair, pockets the card) spends its <em>use</em>: the place goes on
+    /// gathering people while it is held, but nobody uses it again until it
+    /// is pressed afresh, so a door opened for the player is not shut for
+    /// them a moment later by the next person drawn to it.
     /// </para>
     /// </summary>
     internal sealed class InfluenceSystem
@@ -36,28 +45,32 @@ namespace Paniq.Simulation
             /// <summary>A thing's index, or -1.</summary>
             public int Thing;
 
-            /// <summary>What was clicked, for the log and the display: the door or the thing, or none for floor.</summary>
+            /// <summary>What was pressed, for the log and the display: the door or the thing, or none for floor.</summary>
             public SimulationId Target;
 
             /// <summary>Where the pull comes from: the doorway's middle, the thing where it stood, or the spot.</summary>
             public LogicalPosition At;
 
-            /// <summary>The rooms it is felt in: its own, and for a door the room on the other side too.</summary>
+            /// <summary>The rooms it is in: its own, and for a door the room on the other side too.</summary>
             public int RoomA;
             public int RoomB;
 
-            /// <summary>Its level at the last click, and when that was; it has lost a step for every stretch since.</summary>
-            public int LevelAtClick;
-            public int ClickTick;
+            /// <summary>The tick the hand went on it.</summary>
+            public int PressTick;
 
-            /// <summary>The last click's event: what somebody drawn by it names as the cause.</summary>
+            /// <summary>The press's event: what somebody drawn by it names as the cause.</summary>
             public ulong EventId;
+
+            /// <summary>Somebody has done what it asked: it gathers still, but is not used again until pressed afresh.</summary>
+            public bool Spent;
         }
 
         private readonly SimulationContext context;
         private readonly WorldGeometry geometry;
         private readonly InfluenceSettings settings;
-        private readonly List<Place> places = new List<Place>();
+
+        /// <summary>The held place, if any: a list of at most one, so the callers that walk places need not change.</summary>
+        private readonly List<Place> places = new List<Place>(1);
 
         public InfluenceSystem(SimulationContext context, WorldGeometry geometry)
         {
@@ -66,83 +79,73 @@ namespace Paniq.Simulation
             settings = context.Scenario.Influence;
         }
 
-        /// <summary>How many places are influenced right now.</summary>
+        /// <summary>How many places are influenced right now: one while the button is down, else none.</summary>
         public int Count => places.Count;
 
         /// <summary>The <paramref name="i"/>-th place.</summary>
         public Place this[int i] => places[i];
 
-        /// <summary>A place's level now: its level at the last click, less a step for each stretch since.</summary>
-        public int LevelOf(int i) => LevelNow(places[i]);
+        /// <summary>A held place's level: always the full one. Kept for the display and the tests.</summary>
+        public int LevelOf(int i) => settings.MaximumLevel;
 
-        private int LevelNow(Place place)
-        {
-            int lost = (context.Tick - place.ClickTick) / settings.TicksPerStepLost;
-            return System.Math.Max(0, place.LevelAtClick - lost);
-        }
+        /// <summary>How many ticks the hand has been on the <paramref name="i"/>-th place.</summary>
+        public int HeldFor(int i) => context.Tick - places[i].PressTick;
 
-        /// <summary>
-        /// One click on a door. Returns the level it now has. The door must be
-        /// one the building has; the command system has checked.
-        /// </summary>
-        public int OnDoor(int door, SimulationId doorId)
+        /// <summary>The player's hand goes on a door. The door must be one the building has; the command system has checked.</summary>
+        public void OnDoor(int door, SimulationId doorId)
         {
             int roomA = geometry.DoorRoom(door);
             int roomB = geometry.RoomBeyond(door, roomA);
-            return Click(door, -1, doorId, geometry.DoorCentre(door), roomA, roomB);
+            Press(door, -1, doorId, geometry.DoorCentre(door), roomA, roomB);
         }
 
-        /// <summary>One click on a thing: the pull comes from where it stands now, and stays there.</summary>
-        public int OnThing(int thing, SimulationId thingId, LogicalPosition at)
+        /// <summary>The player's hand goes on a thing: the pull comes from where it stands now, and stays there.</summary>
+        public void OnThing(int thing, SimulationId thingId, LogicalPosition at)
         {
             int room = geometry.RoomAtPoint(at);
-            return Click(-1, thing, thingId, at, room, room);
+            Press(-1, thing, thingId, at, room, room);
         }
 
-        /// <summary>One click on the floor. False, and nothing written, when the spot is not floor in any room.</summary>
-        public bool TryOnSpot(LogicalPosition at, out int level)
+        /// <summary>The player's hand goes on the floor. False, and nothing written, when the spot is not floor in any room.</summary>
+        public bool TryOnSpot(LogicalPosition at)
         {
-            level = 0;
             int room = geometry.RoomAtPoint(at);
             if (room < 0)
             {
                 return false;
             }
 
-            level = Click(-1, -1, default, at, room, room);
+            Press(-1, -1, default, at, room, room);
             return true;
         }
 
         /// <summary>
-        /// A click adds a step to whatever it lands on: the same door, the same
-        /// thing, or a place on the floor (or a thing) within
-        /// <see cref="InfluenceSettings.StackRadiusMillimetres"/> in the same
-        /// room -- so frantic clicking on a patch of corridor builds one strong
-        /// pull rather than twenty weak ones, and a click just the other side
-        /// of a wall starts a place of its own there.
+        /// The player lets go: the place is gone at once, whoever was on their
+        /// way to it left to their own devices (they re-decide on their own
+        /// beat, as they do for everything). Nothing written when nothing was
+        /// held.
         /// </summary>
-        private int Click(int door, int thing, SimulationId target, LogicalPosition at, int roomA, int roomB)
+        public void Release()
         {
-            int tick = context.Tick;
-            int found = Find(door, thing, at, roomA);
-            int level;
-            if (found >= 0)
+            if (places.Count == 0)
             {
-                Place place = places[found];
-                level = System.Math.Min(settings.MaximumLevel, LevelNow(place) + 1);
-                place.LevelAtClick = level;
-                place.ClickTick = tick;
-                place.EventId = Log(place.Target, place.At, level);
-                places[found] = place;
-                return level;
+                return;
             }
 
-            if (places.Count >= settings.MaximumPlaces)
-            {
-                DropTheWeakest();
-            }
+            Place place = places[0];
+            context.Events.Append(context.Tick, default, CausalEventType.PowerReleasedInfluence, place.At,
+                context.Tick - place.PressTick, 0, place.EventId, place.Target);
+            places.Clear();
+        }
 
-            level = 1;
+        /// <summary>
+        /// A press: the one place the hand is on, replacing whatever it was
+        /// on before. Pressing the place already held presses it afresh, which
+        /// is how a door used once is asked for the opposite.
+        /// </summary>
+        private void Press(int door, int thing, SimulationId target, LogicalPosition at, int roomA, int roomB)
+        {
+            places.Clear();
             places.Add(new Place
             {
                 Door = door,
@@ -151,71 +154,19 @@ namespace Paniq.Simulation
                 At = at,
                 RoomA = roomA,
                 RoomB = roomB,
-                LevelAtClick = level,
-                ClickTick = tick,
-                EventId = Log(target, at, level)
+                PressTick = context.Tick,
+                EventId = context.Events.Append(context.Tick, default, CausalEventType.PowerInfluenced, at,
+                    settings.MaximumLevel, 0, 0UL, target).EventId,
+                Spent = false
             });
-            return level;
         }
 
-        private ulong Log(SimulationId target, LogicalPosition at, int level)
-        {
-            return context.Events.Append(context.Tick, default, CausalEventType.PowerInfluenced, at, level, 0, 0UL, target)
-                .EventId;
-        }
-
-        private int Find(int door, int thing, LogicalPosition at, int room)
-        {
-            long stack = settings.StackRadiusMillimetres;
-            for (int i = 0; i < places.Count; i++)
-            {
-                Place place = places[i];
-                if (door >= 0)
-                {
-                    if (place.Door == door)
-                    {
-                        return i;
-                    }
-
-                    continue;
-                }
-
-                if (thing >= 0 && place.Thing == thing)
-                {
-                    return i;
-                }
-
-                if (place.Door < 0 && place.RoomA == room &&
-                    LogicalPosition.DistanceSquared(place.At, at) <= stack * stack)
-                {
-                    return i;
-                }
-            }
-
-            return -1;
-        }
-
-        /// <summary>A safety net, never the player's limit: the faintest place goes, the oldest of equals.</summary>
-        private void DropTheWeakest()
-        {
-            int weakest = 0;
-            for (int i = 1; i < places.Count; i++)
-            {
-                if (LevelNow(places[i]) < LevelNow(places[weakest]))
-                {
-                    weakest = i;
-                }
-            }
-
-            places.RemoveAt(weakest);
-        }
-
-        /// <summary>The place on this door, or -1.</summary>
+        /// <summary>The unspent place on this door, or -1: the door is there to be used.</summary>
         public int PlaceOfDoor(int door)
         {
             for (int i = 0; i < places.Count; i++)
             {
-                if (places[i].Door == door)
+                if (places[i].Door == door && !places[i].Spent)
                 {
                     return i;
                 }
@@ -224,12 +175,12 @@ namespace Paniq.Simulation
             return -1;
         }
 
-        /// <summary>The place on this thing, or -1.</summary>
+        /// <summary>The unspent place on this thing, or -1: the thing is there to be used.</summary>
         public int PlaceOfThing(int thing)
         {
             for (int i = 0; i < places.Count; i++)
             {
-                if (places[i].Thing == thing)
+                if (places[i].Thing == thing && !places[i].Spent)
                 {
                     return i;
                 }
@@ -241,10 +192,10 @@ namespace Paniq.Simulation
         /// <summary>
         /// Somebody did what the pull asked (the owner's rule, 2026-09-27):
         /// opened or shut the door, sat on the chair, picked the thing up.
-        /// The pull on it is spent -- gone, whatever level it had -- so the
-        /// next click asks afresh: a door opened for the player is shut for
-        /// them at the next click. The event's id, or 0 when nothing was on
-        /// it, in which case nothing is written.
+        /// Its use is spent: it goes on gathering people while held, but is
+        /// not used again until pressed afresh -- a door opened for the
+        /// player is shut for them at the next press. The event's id, or 0
+        /// when nothing unspent was on it, in which case nothing is written.
         /// </summary>
         public ulong Spend(Agent by, int door, int thing)
         {
@@ -252,13 +203,14 @@ namespace Paniq.Simulation
             return i < 0 ? 0UL : SpendAt(by, i);
         }
 
-        /// <summary>The pull on the floor, or on a thing, within a click's stacking distance of here: the spot beside a pull station somebody has just pulled.</summary>
+        /// <summary>The pull on the floor, or on a thing, within a stacking distance of here: the spot beside a pull station somebody has just pulled.</summary>
         public ulong SpendNear(Agent by, LogicalPosition at)
         {
             long stack = settings.StackRadiusMillimetres;
             for (int i = 0; i < places.Count; i++)
             {
-                if (places[i].Door < 0 && LogicalPosition.DistanceSquared(places[i].At, at) <= stack * stack)
+                if (places[i].Door < 0 && !places[i].Spent &&
+                    LogicalPosition.DistanceSquared(places[i].At, at) <= stack * stack)
                 {
                     return SpendAt(by, i);
                 }
@@ -267,58 +219,104 @@ namespace Paniq.Simulation
             return 0UL;
         }
 
+        /// <summary>Whether an unspent pull lies within a stacking distance of here: the hand is on this pull station.</summary>
+        public bool IsPullingNear(LogicalPosition at)
+        {
+            long stack = settings.StackRadiusMillimetres;
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door < 0 && !places[i].Spent &&
+                    LogicalPosition.DistanceSquared(places[i].At, at) <= stack * stack)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private ulong SpendAt(Agent by, int i)
         {
             Place place = places[i];
             ulong spent = context.Events.Append(context.Tick, by.Id, CausalEventType.InfluenceSpent, place.At,
-                LevelNow(place), 0, place.EventId, place.Target).EventId;
-            places.RemoveAt(i);
+                settings.MaximumLevel, 0, place.EventId, place.Target).EventId;
+            place.Spent = true;
+            places[i] = place;
             return spent;
         }
 
-        /// <summary>Phase 1's tail: places that have faded to nothing are gone, in order.</summary>
+        /// <summary>Phase 1's tail. Nothing fades any more; kept so the tick's order reads as it did.</summary>
         public void Advance()
         {
-            for (int i = places.Count - 1; i >= 0; i--)
-            {
-                if (LevelNow(places[i]) <= 0)
-                {
-                    places.RemoveAt(i);
-                }
-            }
         }
 
         /// <summary>
         /// How strongly this person feels this place, per mille of a full pull
-        /// felt by an ordinary person standing on it: the place's level, less
-        /// the further off they are, times how easily led they are
-        /// (<see cref="Susceptibility"/>). Nothing from another room, and
+        /// felt by an ordinary person standing on it: less the further off
+        /// they are, times how easily led they are (<see cref="Susceptibility"/>).
+        /// Distance is a walk: across the room, or through one open doorway
+        /// from the room next door; nothing through a wall or a shut door, and
         /// nothing from beyond <see cref="InfluenceSettings.ReachMillimetres"/>.
         /// </summary>
         public int FeltBy(Agent agent, int i)
         {
             Place place = places[i];
-            int level = LevelNow(place);
-            if (level <= 0)
-            {
-                return 0;
-            }
-
             int room = geometry.RoomAt(agent.Body.Position);
-            if (room < 0 || (room != place.RoomA && room != place.RoomB))
+            if (room < 0)
             {
                 return 0;
             }
 
             long reach = settings.ReachMillimetres;
-            long distance = IntegerMath.Distance(agent.Body.Position, place.At);
+            long distance = WalkTo(room, agent.Body.Position, place);
             if (distance >= reach)
             {
                 return 0;
             }
 
-            long felt = 1000L * level / settings.MaximumLevel * (reach - distance) / reach;
+            long felt = 1000L * (reach - distance) / reach;
             return (int)(felt * Susceptibility(agent) / 100L);
+        }
+
+        /// <summary>
+        /// How far it is to the place from here: straight, in one of the
+        /// place's rooms; else through the nearest open doorway that joins
+        /// this room to one of them, doorway to place added on; else out of
+        /// reach. One doorway deep, which is "about a room's length".
+        /// </summary>
+        private long WalkTo(int room, LogicalPosition from, Place place)
+        {
+            if (room == place.RoomA || room == place.RoomB)
+            {
+                return IntegerMath.Distance(from, place.At);
+            }
+
+            long best = long.MaxValue;
+            for (int d = 0; d < geometry.DoorCount; d++)
+            {
+                if (!geometry.IsDoorOpen(d))
+                {
+                    continue;
+                }
+
+                int side = geometry.DoorRoom(d);
+                int beyond = geometry.RoomBeyond(d, side);
+                bool joins = (side == room && (beyond == place.RoomA || beyond == place.RoomB)) ||
+                             (beyond == room && (side == place.RoomA || side == place.RoomB));
+                if (!joins)
+                {
+                    continue;
+                }
+
+                LogicalPosition through = geometry.DoorCentre(d);
+                long via = IntegerMath.Distance(from, through) + IntegerMath.Distance(through, place.At);
+                if (via < best)
+                {
+                    best = via;
+                }
+            }
+
+            return best;
         }
 
         /// <summary>
@@ -337,9 +335,9 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// For the display: every place, and everybody still in the building
-        /// who feels one, with the strongest pull they feel. Fills the buffers
-        /// it is given, so a tick allocates nothing.
+        /// For the display: the held place, and everybody still in the building
+        /// who feels it, with how strongly. Fills the buffers it is given, so a
+        /// tick allocates nothing.
         /// </summary>
         public void FillSnapshot(List<InfluencePlaceSnapshot> intoPlaces, List<InfluencePullSnapshot> intoPulls, Agent[] agents)
         {
@@ -348,7 +346,7 @@ namespace Paniq.Simulation
             for (int i = 0; i < places.Count; i++)
             {
                 Place place = places[i];
-                intoPlaces.Add(new InfluencePlaceSnapshot(place.Target, place.Door >= 0, place.At, LevelNow(place),
+                intoPlaces.Add(new InfluencePlaceSnapshot(place.Target, place.Door >= 0, place.At, settings.MaximumLevel,
                     settings.MaximumLevel));
             }
 
@@ -392,8 +390,8 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// What running for this door is worth to somebody, in millimetres, for
-        /// the door choice to add: the full bonus for a strong pull felt close
-        /// to it, nothing when the door is not influenced or they cannot feel it.
+        /// the door choice to add: the full bonus for the hand on it felt close
+        /// to it, nothing when the door is not held or they cannot feel it.
         /// </summary>
         public long DoorBonus(Agent agent, int door)
         {
@@ -410,7 +408,7 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// What heading for a spot is worth to somebody, in millimetres: for
-        /// every place on the floor or on a thing they can feel, its pull times
+        /// a held place on the floor or on a thing they can feel, its pull times
         /// how far the way to the candidate agrees with the way to the place
         /// (the full pull for straight toward it, nothing square to it, the
         /// same off for straight away). Doors are left to <see cref="DoorBonus"/>.

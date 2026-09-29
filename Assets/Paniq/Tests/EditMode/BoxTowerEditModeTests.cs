@@ -180,6 +180,12 @@ namespace Paniq.Tests.EditMode
             data.Temperament.FreezeThenRunPercent = 0;
             data.Calm.DecisionMinimumTicks = 100000;
             data.Calm.DecisionMaximumTicks = 100000;
+
+            // The heap tests are about the heap, not the creak (2026-09-29):
+            // the tower comes down a tick after it is sprung here, before the
+            // runner can reach the archway and stand in the gap. The one test
+            // of the timing puts the creak back.
+            data.Traps.CreakTicks = 1;
             return data;
         }
 
@@ -190,7 +196,7 @@ namespace Paniq.Tests.EditMode
         private static CausalEvent BringTheTowerDown(Run simulation)
         {
             simulation.FrightenForTests(1);
-            CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 60);
+            CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
             Assert.That(fell.HasValue, "The runner in the corridor should have brought the tower down.");
             return fell.Value;
         }
@@ -273,9 +279,10 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void TheTower_StandsWhileTheBuildingIsCalm_AndTumblesABeatAfterSomebodyRunsAlongTheCorridorOnceTheFireIsLit()
+        public void TheTower_StandsWhileTheBuildingIsCalm_AndCreaksAndTumblesAFewSecondsAfterSomebodyRunsAlongTheCorridorOnceTheFireIsLit()
         {
             ScenarioData data = TwoPeopleAndTheTower(NearTheTower, AgentTraitValues.AllOrdinary, 200);
+            data.Traps.CreakTicks = new TrapSettings().CreakTicks;
             using (var simulation = new Run(data, 42UL))
             {
                 var standing = new Dictionary<SimulationId, LogicalPosition>();
@@ -300,8 +307,18 @@ namespace Paniq.Tests.EditMode
                 Assert.That(triggered, Has.Count.EqualTo(1));
                 Assert.That(triggered[0].Tick, Is.GreaterThanOrEqualTo(200), "Armed by the fire.");
                 Assert.That(triggered[0].TargetId, Is.EqualTo(TheRunner), "Sprung by the person running along the corridor.");
-                Assert.That(fell.Tick - triggered[0].Tick, Is.InRange(1, data.Perception.ReactionLagMaximumTicks),
-                    "Never on the tick it was sprung: a beat later.");
+
+                // Sprung, it creaks first (2026-09-29): a few seconds of
+                // swaying, jittered, heard in its room, before it comes down.
+                List<CausalEvent> creaked = EventsOfType(simulation, CausalEventType.TrapCreaked);
+                Assert.That(creaked, Has.Count.EqualTo(1), "The tower creaks before it falls.");
+                Assert.That(creaked[0].Tick, Is.EqualTo(triggered[0].Tick), "The creak begins the moment it is sprung.");
+                Assert.That(creaked[0].CausalParentEventId, Is.EqualTo(triggered[0].EventId));
+                int jitter = data.Traps.CreakTicks * data.World.TimingJitterPercent / 100;
+                Assert.That(fell.Tick - triggered[0].Tick,
+                    Is.InRange(data.Traps.CreakTicks - jitter, data.Traps.CreakTicks + jitter),
+                    "Never on the tick it was sprung: about three seconds of creaking later.");
+                Assert.That(fell.Tick - triggered[0].Tick, Is.EqualTo(creaked[0].Strength), "The creak says how long it has.");
                 Assert.That(fell.CausalParentEventId, Is.EqualTo(triggered[0].EventId));
                 Assert.That(fell.TargetId, Is.EqualTo(TheBuilding.Archway));
 

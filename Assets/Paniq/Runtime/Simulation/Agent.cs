@@ -84,6 +84,7 @@ namespace Paniq.Simulation
         public readonly AgentHome Home = new AgentHome();
         public readonly AgentErrand Errand = new AgentErrand();
         public readonly AgentNudge Nudge = new AgentNudge();
+        public readonly AgentTug Tug = new AgentTug();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -185,7 +186,9 @@ namespace Paniq.Simulation
                 Sitting.SeatedPercent,
                 Group.GroupId,
                 tick < Nudge.AnnoyedUntilTick,
-                Fear.IsRattledAt(tick));
+                Fear.IsRattledAt(tick),
+                Tug.Held,
+                tick < Tug.ShookFreeShownUntilTick);
         }
     }
 
@@ -337,6 +340,15 @@ namespace Paniq.Simulation
 
         /// <summary>They got up, or left an errand, because the player's influence drew them: what they choose next is to go to it.</summary>
         public bool GoingToTheInfluence;
+
+        /// <summary>
+        /// Ticks in a row they have been running at something and creeping
+        /// along it rather than moving (2026-09-29): pressed against a crate
+        /// wall, the body slides a few millimetres a tick, which the blocked
+        /// count never sees. Where they stood last tick, to tell.
+        /// </summary>
+        public int PressedTicks;
+        public LogicalPosition LastTickPosition;
     }
 
     /// <summary>
@@ -681,6 +693,29 @@ namespace Paniq.Simulation
         /// nudges do nothing to them (the owner's rule, 2026-09-26).
         /// </summary>
         public int AnnoyedUntilTick;
+    }
+
+    /// <summary>
+    /// The player's hand on this person (2026-09-29; see <see cref="TugSystem"/>):
+    /// whether they are held, since when, when the strong tear free, and
+    /// how long the shake of tearing free is drawn.
+    /// </summary>
+    internal sealed class AgentTug
+    {
+        /// <summary>The hand is on them: they are being braked to a stop and held there.</summary>
+        public bool Held;
+
+        /// <summary>The tick the hand went on.</summary>
+        public int HeldSinceTick;
+
+        /// <summary>The tick they tear free, or 0 for somebody who never will.</summary>
+        public int TearsFreeAtTick;
+
+        /// <summary>The tug, for what follows to name as its cause.</summary>
+        public ulong TugEventId;
+
+        /// <summary>Until this tick the shake of tearing free is shown (presentation only).</summary>
+        public int ShookFreeShownUntilTick;
     }
 
     internal sealed class AgentSitting

@@ -114,9 +114,9 @@ namespace Paniq.Tests.EditMode
                 Assert.That(trap.HasValue, "Frightened, they run, and the stack is sprung.");
                 Assert.That(trap.Value.SourceId, Is.EqualTo(TheBuilding.TheStockroomTrap), "The stockroom's stack, not the tower.");
                 Assert.That(trap.Value.TargetId, Is.EqualTo(Somebody));
-                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 20);
+                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
                 Assert.That(fell.HasValue);
-                Assert.That(fell.Value.Tick - trap.Value.Tick, Is.InRange(1, data.Perception.ReactionLagMaximumTicks), "A beat later.");
+                Assert.That(fell.Value.Tick - trap.Value.Tick, Is.InRange(data.Traps.CreakTicks * 4 / 5, data.Traps.CreakTicks * 6 / 5), "It creaks for about three seconds first (2026-09-29).");
                 Assert.That(fell.Value.HasTarget, Is.False, "No doorway: it fell across a lane.");
 
                 var story = new Paniq.Presentation.EventStory(simulation.GetSnapshot());

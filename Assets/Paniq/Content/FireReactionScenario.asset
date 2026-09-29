@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 85
+    ContentRevision: 86
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 73
+    SimulationCompatibilityVersion: 74
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -118,6 +118,8 @@ MonoBehaviour:
       ShoutMinimumTicks: 100
       ShoutMaximumTicks: 250
       BlockedGiveUpTicks: 12
+      PressedSpeedMinimum: 20
+      PressedStepMillimetres: 5
       ArrivalDistanceMillimetres: 700
       EscapeSampleCount: 8
       EscapeWallMarginMillimetres: 700
@@ -875,6 +877,7 @@ MonoBehaviour:
       PullMinimumLeadership: 6
       PullMinimumCompassion: 6
       PullMinimumBravery: 6
+      PulledBraveryBonus: 2
       RepeatTicks: 300
     Blockades:
       BlockGapMillimetres: 150
@@ -932,12 +935,19 @@ MonoBehaviour:
       HeapSettleTicks: 25
       CrashSoundRadiusMillimetres: 12000
       PileBeyondMillimetres: 350
+      CreakTicks: 150
+      CreakHearingMillimetres: 6000
     Nudge:
       LurchMillimetres: 300
       AnnoyedWindowTicks: 500
       AnnoyedAfterNudges: 3
       AnnoyedForTicks: 1000
       KnockOffChairMillimetres: 500
+    Tug:
+      BrakeMillimetresPerTickPerTick: 2
+      TearsFreeFromStrength: 6
+      TearFreeTicksAtThreshold: 400
+      ShookFreeShownTicks: 100
     Director:
       ClimbsTheLadder: 0
       FirstIncidentThings:
@@ -975,7 +985,6 @@ MonoBehaviour:
       CheckEveryTicks: 10
     Influence:
       MaximumLevel: 20
-      TicksPerStepLost: 100
       ReachMillimetres: 12000
       StackRadiusMillimetres: 1000
       FullPullBonusMillimetres: 6000
@@ -985,10 +994,9 @@ MonoBehaviour:
       VisitorPercent: 50
       MinimumPercent: 10
       MaximumPercent: 200
-      MaximumPlaces: 64
       EasilyLedNervousness: 7
       LeaveTaskCheckTicks: 50
-      LeaveTaskChancePerMille: 100
+      LeaveTaskChancePerMille: 300
       WanderToItPerMille: 1000
     Keycard:
       Enabled: 1
@@ -1003,6 +1011,7 @@ MonoBehaviour:
       BlockedGiveUpTicks: 50
       FlamesKeepAwayMillimetres: 1500
       PulledToTheCardPerMille: 250
+      PulledAfterTicks: 100
     Agents:
     - agentId:
         value: 1001

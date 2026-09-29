@@ -7,14 +7,14 @@ using Paniq.Simulation;
 namespace Paniq.Tests.EditMode
 {
     /// <summary>
-    /// Influence (prototype 3, second batch, 2026-09-26): the player clicks a
-    /// door, a thing or a patch of floor, and people are drawn toward it --
-    /// never ordered. Each click is one step, up to twenty; it ticks down on
-    /// its own and cannot be cancelled; it pulls anybody who comes near it,
-    /// less the further off they are, never from another room; and every
-    /// person weighs it by who they are. The owner: "clicking a door once just
-    /// increases the chances of an agent using the door; clicking it a few
-    /// more times increases it more."
+    /// Influence (prototype 3, second batch, 2026-09-26; a hold since
+    /// 2026-09-29): the player's hand on a door, a thing or a patch of floor,
+    /// and people are drawn toward it -- never ordered. The owner's rule for
+    /// the hold: "when you interact the influence is clear and instant, but
+    /// as soon as you let go the agents are on their own." So a press is a
+    /// full pull at once, one place at a time, and a release takes it away
+    /// at once; it reaches about a room's length, through an open doorway
+    /// but never a wall; and every person weighs it by who they are.
     /// </summary>
     public sealed class InfluenceEditModeTests
     {
@@ -73,71 +73,128 @@ namespace Paniq.Tests.EditMode
         private static AgentDefinition Person(SimulationId id, int x, int z, AgentTraitValues traits) =>
             new AgentDefinition(id, new LogicalPosition(x, z), CardinalDirection.North, traits);
 
-        private static void Click(Run simulation, LogicalPosition spot, int times)
+        /// <summary>The hand goes on a spot on the floor, and the tick that takes it runs.</summary>
+        private static void HoldTheFloor(Run simulation, LogicalPosition spot)
         {
-            for (int i = 0; i < times; i++)
-            {
-                simulation.QueueCommand(PlayerCommandType.InfluenceSpot, spot, simulation.Tick + 1);
-                simulation.Step();
-            }
+            simulation.QueueCommand(PlayerCommandType.InfluenceSpot, spot, simulation.Tick + 1);
+            simulation.Step();
         }
 
+        private static void HoldTheDoor(Run simulation, SimulationId door)
+        {
+            simulation.QueueCommand(PlayerCommandType.InfluenceDoor, door, simulation.Tick + 1);
+            simulation.Step();
+        }
+
+        private static void HoldTheThing(Run simulation, SimulationId thing)
+        {
+            simulation.QueueCommand(PlayerCommandType.InfluenceThing, thing, simulation.Tick + 1);
+            simulation.Step();
+        }
+
+        private static void LetGo(Run simulation)
+        {
+            simulation.QueueCommand(PlayerCommandType.ReleaseInfluence, default(SimulationId), simulation.Tick + 1);
+            simulation.Step();
+        }
+
+        // ------------------------------------------------------------------ the hand (2026-09-29)
+
         [Test]
-        public void EachClick_AddsOneStep_UpToTwenty_AndItTicksDownToNothingOnItsOwn()
+        public void APress_IsAFullPullAtOnce_AndARelease_TakesItAwayAtOnce()
         {
             using (var simulation = new Run(Office(Person(Somebody, -4000, -4000, AgentTraitValues.AllOrdinary)), 42UL))
             {
                 var spot = new LogicalPosition(2000, -4000);
-                Click(simulation, spot, 3);
+                HoldTheFloor(simulation, spot);
                 InfluenceSystem influence = simulation.InfluenceForTests;
-                Assert.That(influence.Count, Is.EqualTo(1), "Three clicks on one spot are one place.");
-                Assert.That(influence.LevelOf(0), Is.EqualTo(3), "One step a click.");
+                Assert.That(influence.Count, Is.EqualTo(1), "The hand is on one place.");
+                Assert.That(influence.LevelOf(0), Is.EqualTo(simulation.Scenario.Influence.MaximumLevel), "Full, the moment it is pressed.");
 
-                Click(simulation, new LogicalPosition(spot.X + 500, spot.Z), 30);
-                Assert.That(influence.Count, Is.EqualTo(1), "A click within a metre adds to it.");
-                Assert.That(influence.LevelOf(0), Is.EqualTo(20), "And it stops at twenty.");
+                Advance(simulation, 60 * Run.TicksPerSecond);
+                Assert.That(influence.Count, Is.EqualTo(1), "A minute on, still held and still full: nothing fades.");
+                Assert.That(influence.LevelOf(0), Is.EqualTo(simulation.Scenario.Influence.MaximumLevel));
 
-                Advance(simulation, 100);
-                Assert.That(influence.LevelOf(0), Is.EqualTo(19), "A step lost every two seconds.");
-                Advance(simulation, 20 * 100);
-                Assert.That(influence.Count, Is.Zero, "Forty seconds on, it is gone, with nobody having to cancel it.");
+                LetGo(simulation);
+                Assert.That(influence.Count, Is.Zero, "Let go, and it is gone at once.");
+                List<CausalEvent> released = EventsOfType(simulation, CausalEventType.PowerReleasedInfluence);
+                Assert.That(released, Has.Count.EqualTo(1), "And written down, with how long it was held.");
+                Assert.That(released[0].Strength, Is.GreaterThan(60 * Run.TicksPerSecond - 5));
             }
         }
 
         [Test]
-        public void AClickTheOtherSideOfAWall_StartsAPlaceOfItsOwn()
+        public void OneHand_APressElsewhere_ReplacesThePlaceHeldBefore()
         {
             using (var simulation = new Run(Office(Person(Somebody, -4000, -4000, AgentTraitValues.AllOrdinary)), 42UL))
             {
-                // Eighty centimetres apart, the office's north wall between
-                // them: near enough to stack, were they in one room.
-                Click(simulation, new LogicalPosition(-3000, 5600), 5);
-                Click(simulation, new LogicalPosition(-3000, 6400), 2);
+                HoldTheFloor(simulation, new LogicalPosition(2000, -4000));
+                HoldTheFloor(simulation, new LogicalPosition(-3000, 2000));
                 InfluenceSystem influence = simulation.InfluenceForTests;
-                Assert.That(influence.Count, Is.EqualTo(2), "One place in the office, one in the corridor.");
-                Assert.That(influence.LevelOf(0), Is.EqualTo(5), "The corridor's clicks did not land on the office's place.");
-                Assert.That(influence.LevelOf(1), Is.EqualTo(2));
+                Assert.That(influence.Count, Is.EqualTo(1), "You cannot be everywhere at once: one place, the last one pressed.");
+                Assert.That(influence[0].At, Is.EqualTo(new LogicalPosition(-3000, 2000)));
+
+                HoldTheDoor(simulation, TheBuilding.OfficeDoor);
+                Assert.That(influence.Count, Is.EqualTo(1));
+                Assert.That(influence[0].Target, Is.EqualTo(TheBuilding.OfficeDoor), "A door pressed replaces the spot.");
             }
         }
 
         [Test]
-        public void ThePull_WeakensWithDistance_AndIsGoneBeyondTwelveMetres_AndNeverReachesAnotherRoom()
+        public void ThePull_WeakensWithDistance_AndIsGoneBeyondAboutARoomsLength()
         {
             ScenarioData data = Office(
                 Person(Somebody, -4000, -4000, AgentTraitValues.AllOrdinary),
-                Person(SomebodyElse, 4000, -4000, AgentTraitValues.AllOrdinary),
-                Person(new SimulationId(3UL), -4000, 7500, AgentTraitValues.AllOrdinary));
+                Person(SomebodyElse, 4000, -4000, AgentTraitValues.AllOrdinary));
             using (var simulation = new Run(data, 42UL))
             {
-                Click(simulation, new LogicalPosition(-3000, -4000), 20);
+                HoldTheFloor(simulation, new LogicalPosition(-3000, -4000));
                 InfluenceSystem influence = simulation.InfluenceForTests;
                 int near = influence.FeltBy(simulation.AgentForTests(0), 0);
                 int far = influence.FeltBy(simulation.AgentForTests(1), 0);
-                int nextDoor = influence.FeltBy(simulation.AgentForTests(2), 0);
 
                 Assert.That(near, Is.GreaterThan(far), "One metre off, it pulls harder than seven.");
                 Assert.That(far, Is.GreaterThan(0), "But seven metres off in the same room, it still pulls.");
-                Assert.That(nextDoor, Is.Zero, "In the corridor, through the wall, it does not pull at all.");
+            }
+        }
+
+        /// <summary>
+        /// The owner's rule (2026-09-29): "through open doors, but limit range
+        /// to be around a room's length". Through a wall, nothing; through a
+        /// shut door, nothing; through an open one, the walk round by the
+        /// doorway, which is further than the straight line.
+        /// </summary>
+        [Test]
+        public void ThePull_ReachesThroughAnOpenDoor_ButNeverThroughAWallOrAShutOne()
+        {
+            // In the corridor, a metre and a half north of the office's north
+            // wall, three metres east of the office door: through the wall the
+            // spot is close; through the doorway it is a short walk.
+            ScenarioData data = Office(Person(Somebody, 3000, 7500, AgentTraitValues.AllOrdinary));
+            using (var simulation = new Run(data, 42UL))
+            {
+                var justInsideTheOffice = new LogicalPosition(3000, 5000);
+                HoldTheFloor(simulation, justInsideTheOffice);
+                InfluenceSystem influence = simulation.InfluenceForTests;
+                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.Zero,
+                    "The office door is shut: two and a half metres away through the wall, they feel nothing.");
+
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.OfficeDoor, simulation.Tick + 1);
+                simulation.Step();
+                Assert.That(simulation.GetDoor(DoorIndex(TheBuilding.OfficeDoor)).State, Is.EqualTo(DoorState.Open), "The player walked the office door open.");
+                HoldTheFloor(simulation, justInsideTheOffice);
+                int throughTheDoor = influence.FeltBy(simulation.AgentForTests(0), 0);
+                Assert.That(throughTheDoor, Is.GreaterThan(0), "The door open, the pull reaches them round through the doorway.");
+
+                HoldTheFloor(simulation, new LogicalPosition(3000, 7000));
+                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.GreaterThan(throughTheDoor),
+                    "A spot in their own room, half a metre off, pulls harder than one a walk away through the door.");
+
+                // Twelve metres of walking is the end of it: the far corner of
+                // the office from the corridor's east end.
+                HoldTheFloor(simulation, TheBuilding.OfficeFarCorner);
+                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.Zero,
+                    "Sixteen metres round by the door: out of reach.");
             }
         }
 
@@ -157,14 +214,14 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void AFrightenedPerson_TakesAnInfluencedDoor_OverTheShorterWayOut()
+        public void AFrightenedPerson_TakesAHeldDoor_OverTheShorterWayOut()
         {
             // From the middle of the office there are two ways out of the
             // room toward the way out: the corridor door and the stockroom
-            // door. Whichever they take left alone, a strong pull on the
-            // other one turns them. The pull is made strong for this test
-            // because the test is about the mechanism, not about whether the
-            // shipped strength is right.
+            // door. Whichever they take left alone, the hand on the other one
+            // turns them. The pull is made strong for this test because the
+            // test is about the mechanism, not about whether the shipped
+            // strength is right.
             var easilyLed = new AgentTraitValues(5, 5, 5, 5, 2, 9);
             ScenarioData Scene()
             {
@@ -189,18 +246,13 @@ namespace Paniq.Tests.EditMode
 
             using (var simulation = new Run(Scene(), 42UL))
             {
-                for (int i = 0; i < 20; i++)
-                {
-                    simulation.QueueCommand(PlayerCommandType.InfluenceDoor, other, simulation.Tick + 1);
-                    simulation.Step();
-                }
-
+                HoldTheDoor(simulation, other);
                 simulation.FrightenForTests(0);
                 Advance(simulation, 30);
                 Assert.That(simulation.ExitDoorForTests(0), Is.EqualTo(DoorIndex(other)),
                     "Drawn to the other door, they take it instead.");
                 Assert.That(EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence), Is.Not.Empty,
-                    "And the log says influence is why.");
+                    "And the log says the hand is why.");
             }
         }
 
@@ -215,12 +267,7 @@ namespace Paniq.Tests.EditMode
             TheBuilding.FireAt(data, TheBuilding.Stockroom);
             using (var simulation = new Run(data, 42UL))
             {
-                for (int i = 0; i < 20; i++)
-                {
-                    simulation.QueueCommand(PlayerCommandType.InfluenceDoor, TheBuilding.StockroomDoor, simulation.Tick + 1);
-                    simulation.Step();
-                }
-
+                HoldTheDoor(simulation, TheBuilding.StockroomDoor);
                 simulation.FrightenForTests(0);
                 Advance(simulation, 30);
                 Assert.That(simulation.ExitDoorForTests(0), Is.Not.EqualTo(DoorIndex(TheBuilding.StockroomDoor)),
@@ -229,7 +276,7 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void ACalmPerson_DriftsTowardIt()
+        public void ACalmPerson_DriftsTowardIt_AndIsOnTheirOwnAgainOnceItIsLetGoOf()
         {
             ScenarioData data = Office(Person(Somebody, -4000, -4000, AgentTraitValues.AllOrdinary));
             data.Calm.DecisionMinimumTicks = 50;
@@ -238,16 +285,17 @@ namespace Paniq.Tests.EditMode
             {
                 var spot = new LogicalPosition(2000, -4000);
                 long before = IntegerMath.Distance(simulation.GetAgent(Somebody).Position, spot);
-                for (int i = 0; i < 20; i++)
-                {
-                    simulation.QueueCommand(PlayerCommandType.InfluenceSpot, spot, simulation.Tick + 1);
-                    simulation.Step();
-                }
-
+                HoldTheFloor(simulation, spot);
                 Advance(simulation, 15 * Run.TicksPerSecond);
                 Assert.That(EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence), Is.Not.Empty,
                     "With nothing in particular to do, they wandered over to it.");
                 Assert.That(IntegerMath.Distance(simulation.GetAgent(Somebody).Position, spot), Is.LessThan(before / 2));
+
+                LetGo(simulation);
+                int drawnBefore = EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence).Count;
+                Advance(simulation, 15 * Run.TicksPerSecond);
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence), Has.Count.EqualTo(drawnBefore),
+                    "Let go of, nothing draws them any more: they are on their own.");
             }
         }
 
@@ -324,24 +372,6 @@ namespace Paniq.Tests.EditMode
             throw new KeyNotFoundException(id.ToString());
         }
 
-        private static void ClickTheDoor(Run simulation, SimulationId door, int times)
-        {
-            for (int i = 0; i < times; i++)
-            {
-                simulation.QueueCommand(PlayerCommandType.InfluenceDoor, door, simulation.Tick + 1);
-                simulation.Step();
-            }
-        }
-
-        private static void ClickTheThing(Run simulation, SimulationId thing, int times)
-        {
-            for (int i = 0; i < times; i++)
-            {
-                simulation.QueueCommand(PlayerCommandType.InfluenceThing, thing, simulation.Tick + 1);
-                simulation.Step();
-            }
-        }
-
         /// <summary>One person in the office, deciding things at the usual rate, with a box and a spare chair near them.</summary>
         private ScenarioData OfficeWithThingsToUse(int x, int z, AgentTraitValues traits)
         {
@@ -358,33 +388,35 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The owner's rule (2026-09-27): influencing a door makes people
-        /// want to use it. A shut door is opened; using it spends the pull;
-        /// pointed at again, it is shut.
+        /// The owner's rule (2026-09-27): the hand on a door makes people want
+        /// to use it. A shut door is opened; using it spends the use, and the
+        /// hand goes on gathering people there; pressed afresh, it is shut.
         /// </summary>
         [Test]
-        public void ACalmPerson_DrawnToAShutDoor_OpensIt_AndThePullIsSpent_AndDrawnAgain_ShutsIt()
+        public void ACalmPerson_DrawnToAShutDoor_OpensIt_AndTheUseIsSpent_AndPressedAfresh_ShutsIt()
         {
             ScenarioData data = OfficeWithThingsToUse(0, 3000, AgentTraitValues.AllOrdinary);
             using (var simulation = new Run(data, 42UL))
             {
                 int door = DoorIndex(TheBuilding.OfficeDoor);
-                ClickTheDoor(simulation, TheBuilding.OfficeDoor, 20);
+                HoldTheDoor(simulation, TheBuilding.OfficeDoor);
                 CausalEvent? opened = AdvanceUntil(simulation, CausalEventType.DoorOpened, 20 * Run.TicksPerSecond);
                 Assert.That(opened.HasValue, "Drawn to the shut office door, they open it.");
                 Assert.That(opened.Value.SourceId, Is.EqualTo(TheBuilding.OfficeDoor));
                 CausalEvent? spent = AdvanceUntil(simulation, CausalEventType.InfluenceSpent, 5);
-                Assert.That(spent.HasValue, "Used, the pull on it is spent.");
+                Assert.That(spent.HasValue, "Used, the use is spent.");
                 Assert.That(spent.Value.SourceId, Is.EqualTo(Somebody));
                 Assert.That(spent.Value.TargetId, Is.EqualTo(TheBuilding.OfficeDoor));
-                Assert.That(simulation.InfluenceForTests.PlaceOfDoor(door), Is.LessThan(0), "Nothing left on the door.");
+                Assert.That(simulation.InfluenceForTests.PlaceOfDoor(door), Is.LessThan(0), "Nothing left to use on the door.");
+                Assert.That(simulation.InfluenceForTests.Count, Is.EqualTo(1), "But the hand is still on it, gathering.");
                 Advance(simulation, 3 * Run.TicksPerSecond);
                 Assert.That(simulation.GetAgent(Somebody).Position.Z, Is.LessThan(6000), "They did not go through it: it was opened for its own sake.");
+                Assert.That(EventsOfType(simulation, CausalEventType.DoorClosed), Is.Empty, "And nobody shuts it again while the hand stays.");
 
-                ClickTheDoor(simulation, TheBuilding.OfficeDoor, 20);
+                HoldTheDoor(simulation, TheBuilding.OfficeDoor);
                 CausalEvent? shut = AdvanceUntil(simulation, CausalEventType.DoorClosed, 20 * Run.TicksPerSecond);
-                Assert.That(shut.HasValue, "Pointed at again, the open door is shut.");
-                Assert.That(EventsOfType(simulation, CausalEventType.InfluenceSpent), Has.Count.EqualTo(2), "And that pull is spent too.");
+                Assert.That(shut.HasValue, "Pressed afresh, the open door is shut.");
+                Assert.That(EventsOfType(simulation, CausalEventType.InfluenceSpent), Has.Count.EqualTo(2), "And that use is spent too.");
             }
         }
 
@@ -394,7 +426,7 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = OfficeWithThingsToUse(0, 3000, AgentTraitValues.AllOrdinary.With(AgentTrait.Evil, 10));
             using (var simulation = new Run(data, 42UL))
             {
-                ClickTheDoor(simulation, TheBuilding.OfficeDoor, 20);
+                HoldTheDoor(simulation, TheBuilding.OfficeDoor);
                 CausalEvent? wedged = AdvanceUntil(simulation, CausalEventType.AgentBarricadedDoor, 40 * Run.TicksPerSecond);
                 Assert.That(wedged.HasValue, "The cruel wedge the door shut with the nearest thing instead of opening it.");
                 Assert.That(wedged.Value.SourceId, Is.EqualTo(Somebody));
@@ -402,34 +434,34 @@ namespace Paniq.Tests.EditMode
                 Assert.That(EventsOfType(simulation, CausalEventType.DoorOpened), Is.Empty, "Never opened.");
                 CausalEvent? blocked = AdvanceUntil(simulation, CausalEventType.DoorBlocked, 5);
                 Assert.That(blocked.HasValue, "And it is jammed.");
-                Assert.That(EventsOfType(simulation, CausalEventType.InfluenceSpent), Is.Not.Empty, "That was their use of it: the pull is spent.");
+                Assert.That(EventsOfType(simulation, CausalEventType.InfluenceSpent), Is.Not.Empty, "That was their use of it: the use is spent.");
             }
         }
 
         [Test]
-        public void AnInfluencedChair_GetsSatOn_AndThePullIsSpent()
+        public void AHeldChair_GetsSatOn_AndTheUseIsSpent()
         {
             ScenarioData data = OfficeWithThingsToUse(-3000, -3000, AgentTraitValues.AllOrdinary);
             using (var simulation = new Run(data, 42UL))
             {
-                ClickTheThing(simulation, AChair, 20);
+                HoldTheThing(simulation, AChair);
                 CausalEvent? spent = AdvanceUntil(simulation, CausalEventType.InfluenceSpent, 20 * Run.TicksPerSecond);
-                Assert.That(spent.HasValue, "Drawn to a chair, they sit on it, and the pull is spent.");
+                Assert.That(spent.HasValue, "Drawn to a chair, they sit on it, and the use is spent.");
                 Assert.That(spent.Value.TargetId, Is.EqualTo(AChair));
                 Assert.That(simulation.GetAgent(Somebody).SeatedPercent, Is.EqualTo(100), "Sat on it.");
             }
         }
 
         [Test]
-        public void AnInfluencedBox_IsCarriedOff()
+        public void AHeldBox_IsCarriedOff()
         {
             ScenarioData data = OfficeWithThingsToUse(-3000, -3000, AgentTraitValues.AllOrdinary);
             using (var simulation = new Run(data, 42UL))
             {
                 LogicalPosition before = Thing(simulation, ABox).Position;
-                ClickTheThing(simulation, ABox, 20);
+                HoldTheThing(simulation, ABox);
                 CausalEvent? spent = AdvanceUntil(simulation, CausalEventType.InfluenceSpent, 20 * Run.TicksPerSecond);
-                Assert.That(spent.HasValue, "Drawn to a box, they pick it up, and the pull is spent.");
+                Assert.That(spent.HasValue, "Drawn to a box, they pick it up, and the use is spent.");
                 Assert.That(spent.Value.TargetId, Is.EqualTo(ABox));
                 Assert.That(Thing(simulation, ABox).IsHeld, Is.True, "In their arms.");
                 Advance(simulation, 20 * Run.TicksPerSecond);
@@ -438,12 +470,12 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void AnInfluencedExtinguisher_IsTakenAndHeld()
+        public void AHeldExtinguisher_IsTakenAndHeld_ByTheTimid()
         {
             ScenarioData data = OfficeWithThingsToUse(-1000, -3000, AgentTraitValues.AllOrdinary);
             using (var simulation = new Run(data, 42UL))
             {
-                ClickTheThing(simulation, TheOfficeBottle, 20);
+                HoldTheThing(simulation, TheOfficeBottle);
                 CausalEvent? took = AdvanceUntil(simulation, CausalEventType.AgentTookExtinguisher, 20 * Run.TicksPerSecond);
                 Assert.That(took.HasValue, "Drawn to the bottle on the wall, they take it.");
                 Assert.That(took.Value.SourceId, Is.EqualTo(Somebody));
@@ -453,8 +485,74 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// The hand on the bottle finishes what it starts (2026-09-29):
+        /// somebody brave who took it for the player keeps it when the fright
+        /// comes and goes at the fire with it. They used to fling it away and
+        /// then go back for it, or leave it to somebody else.
+        /// </summary>
         [Test]
-        public void ADoorTheyCannotOpen_KeepsItsInfluence()
+        public void AHeldExtinguisher_TakenByTheBrave_IsUsedOnTheFire_WhenTheFrightComes()
+        {
+            var brave = AgentTraitValues.AllOrdinary.With(AgentTrait.Bravery, 9);
+            ScenarioData data = OfficeWithThingsToUse(-1000, -3000, brave);
+            data.Fire.ActivationTick = 20 * Run.TicksPerSecond;
+            data.Fire.SpreadMinimumTicks = 100000;
+            data.Fire.SpreadMaximumTicks = 100000;
+            TheBuilding.FireAt(data, new LogicalPosition(2000, 2000));
+            using (var simulation = new Run(data, 42UL))
+            {
+                HoldTheThing(simulation, TheOfficeBottle);
+                CausalEvent? took = AdvanceUntil(simulation, CausalEventType.AgentTookExtinguisher, 15 * Run.TicksPerSecond);
+                Assert.That(took.HasValue, "Drawn to the bottle, they take it, calm.");
+                LetGo(simulation);
+
+                CausalEvent? sprayed = AdvanceUntil(simulation, CausalEventType.ExtinguisherSprayed, 40 * Run.TicksPerSecond);
+                Assert.That(sprayed.HasValue, "The fire starts in their room: frightened and brave, they keep the bottle and spray.");
+                Assert.That(EventsOfType(simulation, CausalEventType.ItemThrown).Exists(e => e.TargetId == TheOfficeBottle), Is.False,
+                    "Never flung away.");
+                Assert.That(EventsOfType(simulation, CausalEventType.ItemDropped).Exists(e => e.TargetId == TheOfficeBottle), Is.False,
+                    "Never dropped.");
+            }
+        }
+
+        /// <summary>
+        /// The hand on the pull station makes the brave pull it sooner
+        /// (2026-09-29): somebody frightened who feels the pull needs a
+        /// little less nerve to think of it. An ordinary person (bravery
+        /// five) never raises the alarm of their own accord; drawn to the
+        /// station, they do.
+        /// </summary>
+        [Test]
+        public void TheHandOnThePullStation_SendsSomebodyForIt_WhoWouldNotHaveThoughtOfIt()
+        {
+            ScenarioData data = Office(Person(Somebody, -3000, 7500, AgentTraitValues.AllOrdinary));
+            data.Fire.ActivationTick = 1;
+            data.Fire.SpreadMinimumTicks = 100000;
+            data.Fire.SpreadMaximumTicks = 100000;
+            TheBuilding.FireAt(data, TheBuilding.MeetingRoom);
+            data.TrapDefinitions = Array.Empty<TrapDefinition>();
+
+            bool PulledWithin(bool hand, int seconds)
+            {
+                using (var simulation = new Run(data, 42UL))
+                {
+                    if (hand)
+                    {
+                        HoldTheFloor(simulation, TheBuilding.CorridorWestEnd + new LogicalPosition(-700, 1200));
+                    }
+
+                    simulation.FrightenForTests(0);
+                    return AdvanceUntil(simulation, CausalEventType.AlarmPulled, seconds * Run.TicksPerSecond).HasValue;
+                }
+            }
+
+            Assert.That(PulledWithin(false, 15), Is.False, "Bravery five, three metres from the station: they never think of it.");
+            Assert.That(PulledWithin(true, 15), Is.True, "With the hand on it, they go and pull it.");
+        }
+
+        [Test]
+        public void ADoorTheyCannotOpen_KeepsItsUse()
         {
             ScenarioData data = Office(Person(Somebody, 14500, 9500, AgentTraitValues.AllOrdinary));
             data.Calm.DecisionMinimumTicks = 50;
@@ -462,12 +560,12 @@ namespace Paniq.Tests.EditMode
             using (var simulation = new Run(data, 42UL))
             {
                 int door = DoorIndex(TheBuilding.TheWayOut);
-                ClickTheDoor(simulation, TheBuilding.TheWayOut, 20);
+                HoldTheDoor(simulation, TheBuilding.TheWayOut);
                 CausalEvent? tried = AdvanceUntil(simulation, CausalEventType.AgentTriedDoor, 20 * Run.TicksPerSecond);
                 Assert.That(tried.HasValue, "Drawn to the locked way out, they try it.");
                 Advance(simulation, 5 * Run.TicksPerSecond);
                 Assert.That(EventsOfType(simulation, CausalEventType.InfluenceSpent), Is.Empty, "A door they could not use spends nothing.");
-                Assert.That(simulation.InfluenceForTests.PlaceOfDoor(door), Is.GreaterThanOrEqualTo(0), "The pull on it stands.");
+                Assert.That(simulation.InfluenceForTests.PlaceOfDoor(door), Is.GreaterThanOrEqualTo(0), "The hand on it stands.");
             }
         }
 

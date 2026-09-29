@@ -60,11 +60,15 @@ namespace Paniq.Simulation
             int seatedPercent = 0,
             int groupId = -1,
             bool isAnnoyed = false,
-            bool isRattled = false)
+            bool isRattled = false,
+            bool isTugged = false,
+            bool isShakingFree = false)
         {
             GroupId = groupId;
             IsAnnoyed = isAnnoyed;
             IsRattled = isRattled;
+            IsTugged = isTugged;
+            IsShakingFree = isShakingFree;
             Pose = pose;
             SeatedPercent = seatedPercent;
             Traits = traits;
@@ -93,6 +97,12 @@ namespace Paniq.Simulation
 
         /// <summary>Calm again after a fright, but jumpy: a thud frightens them outright (2026-09-26).</summary>
         public bool IsRattled { get; }
+
+        /// <summary>The player's hand is on them: braked to a stop and held there (2026-09-29).</summary>
+        public bool IsTugged { get; }
+
+        /// <summary>Just tore free of the player's hand: the shake of it is drawn for a couple of seconds (2026-09-29).</summary>
+        public bool IsShakingFree { get; }
 
         /// <summary>
         /// How high their feet are off the floor and how their body is turned,
@@ -603,6 +613,19 @@ namespace Paniq.Simulation
 
         /// <summary>Whether the player may pull a fire alarm on this level (the office: no, only people do).</summary>
         public bool PlayerMayPullAlarms { get; internal set; } = true;
+
+        /// <summary>
+        /// The tick the building last turned on the crowd (the Director's
+        /// push, 2026-09-28), or -1 while it never has: what the banner
+        /// across the top is timed from (2026-09-29).
+        /// </summary>
+        public int DirectorPushTick { get; internal set; } = -1;
+
+        /// <summary>
+        /// Who the player's hand is on right now (2026-09-29): an index into
+        /// <see cref="Agents"/>, or -1 for nobody.
+        /// </summary>
+        public int TuggedAgentIndex { get; internal set; } = -1;
 
         // The buffers the run writes into. Internal: the display only reads.
         internal AgentSnapshot[] AgentBuffer => agents;

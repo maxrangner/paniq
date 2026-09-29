@@ -42,16 +42,20 @@ namespace Paniq.Tests.EditMode
             (PlayerCommandType.StickTogether, default, new LogicalPosition(0, 0), 950),
             (PlayerCommandType.ToggleLock, new SimulationId(2002UL), default, 1000),
 
-            // Influence and the nudge from a point (2026-09-26): a door drawn
-            // to, a thing, a patch of the office floor clicked on over and
-            // over, and somebody nudged from beside them.
+            // The hand and the nudge from a point (2026-09-26; a hold since
+            // 2026-09-29): a door held, a thing, a patch of the office floor
+            // pressed again and again, let go of, somebody nudged from beside
+            // them, and somebody held by the shirt and let go of.
             (PlayerCommandType.InfluenceDoor, new SimulationId(2018UL), default, 1050),
             (PlayerCommandType.InfluenceDoor, new SimulationId(2018UL), default, 1051),
             (PlayerCommandType.InfluenceThing, new SimulationId(3201UL), default, 1060),
             (PlayerCommandType.InfluenceSpot, default, new LogicalPosition(3000, -3000), 1070),
             (PlayerCommandType.InfluenceSpot, default, new LogicalPosition(3200, -3000), 1071),
             (PlayerCommandType.InfluenceSpot, default, new LogicalPosition(3000, -3200), 1072),
-            (PlayerCommandType.NudgePersonFrom, new SimulationId(1001UL), new LogicalPosition(0, 0), 1100)
+            (PlayerCommandType.ReleaseInfluence, default, default, 1090),
+            (PlayerCommandType.NudgePersonFrom, new SimulationId(1001UL), new LogicalPosition(0, 0), 1100),
+            (PlayerCommandType.TugPerson, new SimulationId(1002UL), default, 1120),
+            (PlayerCommandType.ReleaseTug, new SimulationId(1002UL), default, 1220)
         };
 
         /// <summary>

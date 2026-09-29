@@ -16,12 +16,14 @@ namespace Paniq.Simulation
     {
         private InfluenceSystem influence;
         private KeycardSystem keycards;
+        private ExtinguisherBehaviour extinguishers;
 
         /// <summary>Built after this behaviour.</summary>
         public void Bind(Systems systems)
         {
             influence = systems.Influence;
             keycards = systems.Keycards;
+            extinguishers = systems.Extinguishers;
         }
 
         private readonly SimulationContext context;
@@ -391,6 +393,15 @@ namespace Paniq.Simulation
             // hold of it, frightened as they are.
             if (BarricadeBehaviour.IsBarricading(agent) &&
                 agent.Body.State == AgentBodyState.Upright && !agent.Burning.IsBurning)
+            {
+                return;
+            }
+
+            // Somebody brave who took the bottle for the player keeps it when
+            // the fright comes and takes the fire on with it (2026-09-29),
+            // instead of flinging it away and going back for it.
+            if (agent.Carry.OwnsIt && extinguishers != null && objects.IsEquipment(agent.Carry.ItemIndex) &&
+                extinguishers.WouldKeepTheBottle(agent))
             {
                 return;
             }

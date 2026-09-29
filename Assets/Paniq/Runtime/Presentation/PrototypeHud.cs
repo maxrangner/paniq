@@ -90,6 +90,10 @@ namespace Paniq.Presentation
 
         /// <summary>The red band across the very top while the bells ring.</summary>
         private static readonly Color BannerRed = new Color(0.8f, 0.08f, 0.06f);
+
+        /// <summary>The darker band when the building turns on the crowd (2026-09-29): the Director's push, shown for a few seconds.</summary>
+        private static readonly Color BannerPush = new Color(0.45f, 0.05f, 0.35f);
+        private const int PushBannerTicks = 200;
         private const float BannerHeight = 28f;
 
         private static GUIStyle bannerStyle;
@@ -113,10 +117,25 @@ namespace Paniq.Presentation
             ulong seed,
             DoorSnapshot? hoveredDoor,
             SimulationId? hoveredAlarm,
-            PlayerInput input)
+            PlayerInput input,
+            int? leftAloneSaved = null)
         {
             GUI.color = Color.white;
-            if (snapshot.AlarmsRinging)
+            bool pushing = snapshot.DirectorPushTick >= 0 && snapshot.Tick - snapshot.DirectorPushTick < PushBannerTicks;
+            if (pushing)
+            {
+                // The building turns on the crowd (2026-09-29): the Director's
+                // push is announced like the alarm, so a socket popping right
+                // after the door opens reads as the building's move and not
+                // as bad luck. It takes the band over the bells for its few
+                // seconds.
+                var band = new Rect(0f, 0f, Screen.width, BannerHeight);
+                GUI.color = BannerPush;
+                GUI.DrawTexture(band, Texture2D.whiteTexture);
+                GUI.color = Color.white;
+                GUI.Label(band, "THE BUILDING TURNS ON THE CROWD", BannerStyle);
+            }
+            else if (snapshot.AlarmsRinging)
             {
                 // Two beats a second, like the bells.
                 float pulse = Mathf.Repeat(Time.unscaledTime * 4f, 2f) < 1f ? 1f : 0.75f;
@@ -148,36 +167,43 @@ namespace Paniq.Presentation
                 $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   " +
                 $"Escaped {snapshot.EscapedCount}   In a room with no fire {snapshot.ClearOfFireCount}");
 
-            // The round's score, on its dark backing.
-            var strip = new Rect(20f, 80f, 720f, 22f);
+            // The round's score, on its dark backing. Since 2026-09-29 the
+            // par as well: what the same seed comes to with nobody helping,
+            // once the hands-off round has its answer, so the player knows
+            // what they are trying to beat while they are still playing.
+            var strip = new Rect(20f, 80f, 900f, 22f);
             GUI.color = StripBack;
             GUI.DrawTexture(strip, Texture2D.whiteTexture);
             GUI.color = Color.white;
+            string par = leftAloneSaved.HasValue ? $"      Left alone: {leftAloneSaved.Value} would live" : "";
             GUI.Label(new Rect(strip.x + 8f, strip.y, strip.width - 16f, strip.height),
-                $"Saved {snapshot.SavedCount}   Lost {snapshot.LostCount}   Still inside {snapshot.RemainingCount}" +
+                $"Saved {snapshot.SavedCount}   Lost {snapshot.LostCount}   Still inside {snapshot.RemainingCount}{par}" +
                 $"      Need {snapshot.TargetSavedCount} of {snapshot.CrowdSize} to clear      Seed {seed}");
 
             if (hoveredDoor.HasValue)
             {
                 // A door with something wedged in it will not move, so say so
-                // rather than letting a click look as though it did nothing.
-                // Since 2026-09-26 a click draws people to the door (a step of
-                // influence), holding keeps it shut, and the key is a right click.
+                // rather than letting a press look as though it did nothing.
+                // Since 2026-09-29 the left button held on a door is the hand
+                // drawing people to it, the right button held is a hand
+                // keeping it shut, and the key is a right click.
                 DoorSnapshot door = hoveredDoor.Value;
                 int key = snapshot.CostOfLockToggle(door.State, door.LeadsOutside);
                 bool locked = door.State == DoorState.Locked;
                 bool affordable = !locked || snapshot.Purse >= key;
-                string pull = $"click to draw people to it ({InfluenceLevel(snapshot, door.DoorId, true)}/{MaximumInfluence(snapshot)})";
+                string pull = IsTheHandOn(snapshot, door.DoorId, true)
+                    ? "your hand is on it: people are drawn to use it"
+                    : "hold to draw people to it (they open it if shut, shut it if open)";
                 string action = door.Swings ? $"Swing doors: people push straight through. {Capital(pull)}"
-                    : door.IsPiled ? "THE BOXES ARE LYING ACROSS IT - nobody gets through until enough of them are gone"
+                    : door.IsPiled ? "THE BOXES ARE LYING ACROSS IT - nobody gets through until enough of them are gone; somebody strong enough heaves them"
                     : door.State == DoorState.Broken ? $"Broken down. {Capital(pull)}"
                     : door.IsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted" +
                                       (door.IsHeld ? ", and you are holding it as well" : "")
-                    : door.IsHeld ? "You are holding it shut. Let go of the button to let go of the door"
+                    : door.IsHeld ? "You are holding it shut. Let go of the right button to let go of the door"
                     : door.NeedsKeycard ? $"NEEDS THE KEYCARD - whoever has it swipes it open; nobody batters it and you have no key to it. {Capital(pull)}"
                     : !affordable ? $"Locked. NOT ENOUGH IN THE PURSE to unlock it - it costs {key}, and you have {snapshot.Purse}"
                     : locked ? $"Locked. Right-click to unlock{Price(snapshot, key)}; {pull}"
-                    : $"{Capital(pull)}; hold to keep it shut; right-click to lock{Price(snapshot, key)}";
+                    : $"{Capital(pull)}; hold the right button to keep it shut; right-click to lock{Price(snapshot, key)}";
                 GUI.color = door.IsJammed || door.IsPiled || !affordable ? new Color(1f, 0.7f, 0.6f)
                     : door.IsHeld ? new Color(0.6f, 0.8f, 1f)
                     : door.NeedsKeycard ? new Color(1f, 0.9f, 0.5f) : Color.white;
@@ -189,11 +215,11 @@ namespace Paniq.Presentation
                 // A fire alarm is priced like a card and refused for nothing
                 // once the bells are ringing; say which before the click. On a
                 // level where only people pull them (the office, 2026-09-26),
-                // a click draws people to it instead.
+                // the hand on it draws people to it, and the brave pull it.
                 int price = snapshot.CostOf(PlayerCommandType.PullAlarm);
                 bool affordable = !snapshot.PlayerMayPullAlarms || snapshot.Purse >= price;
                 string action = snapshot.AlarmsRinging ? "already ringing"
-                    : !snapshot.PlayerMayPullAlarms ? "only the people in the building pull it. Click to draw people to it"
+                    : !snapshot.PlayerMayPullAlarms ? "only the people in the building pull it. Hold to draw people to it: the brave among them pull it"
                     : !affordable ? $"NOT ENOUGH IN THE PURSE - it costs {price}, and you have {snapshot.Purse}"
                     : $"Click to pull it{Price(snapshot, price)}: every bell in the building rings";
                 GUI.color = affordable || snapshot.AlarmsRinging ? Color.white : new Color(1f, 0.7f, 0.6f);
@@ -204,53 +230,99 @@ namespace Paniq.Presentation
             {
                 GUI.color = new Color(0.6f, 0.8f, 1f);
                 GUI.Label(new Rect(20f, 104f, 900f, 22f),
-                    $"Holding door {input.HeldDoor.Value.Value} shut. Let go of the button to let go of the door");
+                    $"Holding door {input.HeldDoor.Value.Value} shut. Let go of the right button to let go of the door");
+                GUI.color = Color.white;
+            }
+            else if (input.TuggedPerson.HasValue && IsTuggedInTheRun(snapshot, input.TuggedPerson.Value))
+            {
+                GUI.color = new Color(1f, 0.93f, 0.62f);
+                GUI.Label(new Rect(20f, 104f, 900f, 22f),
+                    $"You have person {input.TuggedPerson.Value.Value} by the shirt. Let go of the button to let go of them");
                 GUI.color = Color.white;
             }
             else if (input.HoveredPerson.HasValue)
             {
-                bool annoyed = IsAnnoyed(snapshot, input.HoveredPerson.Value);
-                string card = HasTheKeycard(snapshot, input.HoveredPerson.Value) ? " - HAS THE KEYCARD" : "";
-                GUI.Label(new Rect(20f, 104f, 900f, 22f), annoyed
-                    ? $"Person {input.HoveredPerson.Value.Value}{card}: annoyed with you - nudging them does nothing for a while"
-                    : $"Person {input.HoveredPerson.Value.Value}{card}: click to nudge them away from the click");
+                GUI.Label(new Rect(20f, 104f, 900f, 22f), PersonLine(snapshot, input.HoveredPerson.Value));
             }
             else if (input.HoveredThing.HasValue)
             {
-                GUI.Label(new Rect(20f, 104f, 900f, 22f),
-                    $"Click to draw people to it ({InfluenceLevel(snapshot, input.HoveredThing.Value, false)}/{MaximumInfluence(snapshot)}): click again for a stronger pull");
+                GUI.Label(new Rect(20f, 104f, 900f, 22f), IsTheHandOn(snapshot, input.HoveredThing.Value, false)
+                    ? "Your hand is on it: people are drawn to it"
+                    : "Hold to draw people to it: a chair is sat on, a box carried off, the bottle taken, the card pocketed");
             }
             else if (input.HoveredFloor.HasValue)
             {
-                GUI.Label(new Rect(20f, 104f, 900f, 22f), "Click to draw people here: click again, and again, for a stronger pull");
+                GUI.Label(new Rect(20f, 104f, 900f, 22f), input.HandOnAPlace
+                    ? "Your hand is on the floor here: people nearby are drawn to it. Let go and they are on their own"
+                    : "Hold to draw people here, one place at a time. Let go and they are on their own");
             }
         }
 
-        /// <summary>How many steps of influence a door or a thing has now, for the hover line.</summary>
-        private static int InfluenceLevel(RunSnapshot snapshot, SimulationId target, bool isDoor)
+        /// <summary>
+        /// What the hand does on this person (2026-09-29): a poke, a tug, or
+        /// what a poke does to somebody frozen, and what would help somebody
+        /// out cold. Says it in words; nothing points at them.
+        /// </summary>
+        private static string PersonLine(RunSnapshot snapshot, SimulationId person)
+        {
+            string card = HasTheKeycard(snapshot, person) ? " - HAS THE KEYCARD" : "";
+            string who = $"Person {person.Value}{card}";
+            for (int i = 0; i < snapshot.Agents.Count; i++)
+            {
+                AgentSnapshot agent = snapshot.Agents[i];
+                if (agent.AgentId != person)
+                {
+                    continue;
+                }
+
+                if (agent.IsBurning)
+                {
+                    return $"{who}: on fire - nothing you can hold";
+                }
+
+                if (agent.BodyState == AgentBodyState.Unconscious)
+                {
+                    return $"{who}: out cold - hold the floor beside them to draw somebody who could drag them";
+                }
+
+                if (agent.ActivityState == AgentActivityState.Frozen)
+                {
+                    return $"{who}: frozen with fear - three quick pokes wake them";
+                }
+
+                string strength = agent.Traits.Strength >= 9 ? " (too strong to hold for long)"
+                    : agent.Traits.Strength >= 6 ? " (strong: they will tear free in a while)" : "";
+                return agent.IsAnnoyed
+                    ? $"{who}: annoyed with you - a poke does nothing for a while; hold to hold them here{strength}"
+                    : $"{who}: click to poke them away from the click; hold to hold them here{strength}";
+            }
+
+            return who;
+        }
+
+        /// <summary>Whether the player's hand is on this door or thing right now, for the hover line.</summary>
+        private static bool IsTheHandOn(RunSnapshot snapshot, SimulationId target, bool isDoor)
         {
             for (int i = 0; i < snapshot.InfluencePlaces.Count; i++)
             {
                 InfluencePlaceSnapshot place = snapshot.InfluencePlaces[i];
                 if (place.IsDoor == isDoor && place.Target == target)
                 {
-                    return place.Level;
+                    return true;
                 }
             }
 
-            return 0;
+            return false;
         }
 
-        private static int MaximumInfluence(RunSnapshot snapshot) =>
-            snapshot.InfluencePlaces.Count > 0 ? snapshot.InfluencePlaces[0].MaximumLevel : 20;
-
-        private static bool IsAnnoyed(RunSnapshot snapshot, SimulationId person)
+        /// <summary>Whether the run itself has the hand on this person: the line says so only once the tug has landed, and stops when they tear free.</summary>
+        private static bool IsTuggedInTheRun(RunSnapshot snapshot, SimulationId person)
         {
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
                 if (snapshot.Agents[i].AgentId == person)
                 {
-                    return snapshot.Agents[i].IsAnnoyed;
+                    return snapshot.Agents[i].IsTugged;
                 }
             }
 
@@ -505,9 +577,9 @@ namespace Paniq.Presentation
             };
 
             string doorHelp = snapshot.PurseEnabled
-                ? $"draw people to use it; right-click to lock or unlock it for {snapshot.CostOfLockToggle(DoorState.Locked, false)}. " +
+                ? $"hold the left button to draw people to use it; right-click to lock or unlock it for {snapshot.CostOfLockToggle(DoorState.Locked, false)}. " +
                   $"Red is locked; the way out costs {snapshot.CostOfLockToggle(DoorState.Locked, true)} to unlock"
-                : "draw people to use it, one step a click; right-click to lock or unlock it. Red is locked. " +
+                : "hold the left button to draw people to use it; right-click to lock or unlock it. Red is locked. " +
                   "The way out needs the keycard: whoever has it swipes it open, and you have no key to it";
             var keys = new[]
             {
@@ -515,12 +587,13 @@ namespace Paniq.Presentation
                 ("Cards", "dealt by the dead, one each. Nobody dies, nobody deals"),
                 ("Purse", snapshot.PurseEnabled ? "paid by the uproar, and by everyone who gets out" : "none on this level: everything is free"),
                 ("Escape", "put the card back down (or right click)"),
-                ("Click a door", doorHelp),
-                ("Hold a door", "keep the button down on it and nobody can open it; the strong burst it in one push. Let go and it is a door again"),
-                ("Click a person", "nudge them away from the click. Three quick ones and they are annoyed, and shake"),
-                ("Click the floor", "draw people there, one step a click, up to twenty; it fades on its own. Things too"),
+                ("Hold the floor", "your hand on a place: people nearby are drawn to it while you hold, one place at a time. Let go and they are on their own. Things too"),
+                ("A door", doorHelp),
+                ("Right-hold a door", "keep the right button down on it and nobody can open it; the strong burst it in one push. Let go and it is a door again"),
+                ("Click a person", "poke them away from the click. Three quick ones and they are annoyed, and shake"),
+                ("Hold a person", "a tug on their shirt: they slow to a stop and stay while you hold. The strong tear free, sooner the stronger"),
                 ("W A S D", "move the camera"),
-                ("Q E", "turn a quarter"),
+                ("Q E", "turn an eighth: corner, side, corner"),
                 ("Wheel", "zoom"),
                 ("Tab", "everyone's stats"),
                 ("G", "the floor people can walk on"),

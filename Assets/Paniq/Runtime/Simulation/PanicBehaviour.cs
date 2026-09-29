@@ -248,6 +248,28 @@ namespace Paniq.Simulation
                 intent.Activity = AgentActivityState.Fleeing;
             }
 
+            // Pressed against something pinned they cannot shift (2026-09-29):
+            // running at it and creeping a few millimetres a tick, which the
+            // blocked count never sees, because every tiny slide is a step the
+            // engine accepted. After as long as being blocked outright takes,
+            // the doorway they were making for is given up for a while and
+            // they choose again, as the blocked do (found by the wall-starer
+            // test on seed 41 once the stack creaked: the chancer, a stranger,
+            // ran at the stockroom's crate wall for the rest of the round).
+            bool creeping = agent.Body.Speed >= settings.PressedSpeedMinimum &&
+                            IntegerMath.Distance(intent.LastTickPosition, agent.Body.Position) < settings.PressedStepMillimetres;
+            intent.PressedTicks = creeping ? intent.PressedTicks + 1 : 0;
+            intent.LastTickPosition = agent.Body.Position;
+            if (intent.PressedTicks >= settings.BlockedGiveUpTicks)
+            {
+                intent.PressedTicks = 0;
+                if (!leaving && doorBehaviour.IsBlockedByAHeldThing(agent) && !doorBehaviour.TryHeaveHeldThingInTheWay(agent, inDanger))
+                {
+                    doorBehaviour.GiveUpTheDoorwayForAWhile(agent);
+                    DecideMove(agent, false);
+                }
+            }
+
             if (intent.Activity == AgentActivityState.Hesitating)
             {
                 if (tick < intent.ActivityEndTick && !inDanger)
@@ -439,10 +461,24 @@ namespace Paniq.Simulation
             // sample: what they can see does not change between one candidate
             // spot and the next.
             bool readASign = exitSigns.TryRead(agent, out int signPointing);
+
+            // And where they could walk to, once (2026-09-29): a spot on the
+            // far side of a crate wall, or beyond the fallen stack, is no spot
+            // to run for while any spot they can reach is on offer -- with the
+            // doors written off, somebody cut off in the stockroom's west lane
+            // ran at the crates for the rest of the round (the wall-starer
+            // test on seed 41). With nothing reachable at all (walled in by a
+            // desk) the best spot stands as it did, so that being blocked at
+            // it is what makes them heave the desk. No field to spare this
+            // tick, and the candidates stand as they did.
+            FlowField reach = geometry.Routes.ReachFrom(position, bodyRadius);
+            LogicalPosition bestReachable = position;
+            long bestReachableScore = long.MinValue;
             for (int sample = 0; sample < settings.EscapeSampleCount; sample++)
             {
                 LogicalPosition candidate = geometry.RandomInteriorPoint(room, settings.EscapeWallMarginMillimetres);
                 long score = context.Random.NextIntInclusive(0, settings.EscapeNoiseMillimetres);
+                bool reachable = reach == null || geometry.Routes.DistanceIn(reach, candidate) != long.MaxValue;
 
                 long fireDistanceSquared = threats.NearestDistanceSquared(candidate, out _, out _);
                 score += fireDistanceSquared == long.MaxValue ? 20000L : IntegerMath.Sqrt(fireDistanceSquared);
@@ -489,9 +525,15 @@ namespace Paniq.Simulation
                     bestScore = score;
                     best = candidate;
                 }
+
+                if (reachable && score > bestReachableScore)
+                {
+                    bestReachableScore = score;
+                    bestReachable = candidate;
+                }
             }
 
-            return best;
+            return bestReachableScore > long.MinValue ? bestReachable : best;
         }
 
         /// <summary>Average running direction of nearby panicking people, as a weighted pull.</summary>

@@ -353,9 +353,9 @@ namespace Paniq.Tests.EditMode
                 Assert.That(trap.Value.CausalParentEventId, Is.EqualTo(started.EventId), "The bin the Director lit is why the tower was armed.");
                 Assert.That(EventsOfType(simulation, CausalEventType.FireEscapedItsRoom), Is.Empty,
                     "The fire never left the meeting room: that is no longer what arms the tower.");
-                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 20);
+                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
                 Assert.That(fell.HasValue);
-                Assert.That(fell.Value.Tick - trap.Value.Tick, Is.InRange(1, data.Perception.ReactionLagMaximumTicks), "A beat later.");
+                Assert.That(fell.Value.Tick - trap.Value.Tick, Is.InRange(data.Traps.CreakTicks * 4 / 5, data.Traps.CreakTicks * 6 / 5), "It creaks for about three seconds first (2026-09-29).");
             }
         }
 
@@ -443,7 +443,7 @@ namespace Paniq.Tests.EditMode
                 simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), 5);
                 AdvanceUntil(simulation, CausalEventType.DirectorStartedIncident, 20);
                 simulation.FrightenForTests(0);
-                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 100);
+                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
                 Assert.That(fell.HasValue, "The runner brought the tower down while the bin was still smouldering.");
 
                 CausalEvent? crackle = AdvanceUntil(simulation, CausalEventType.SocketCrackling, 400);

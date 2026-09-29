@@ -12,9 +12,17 @@ namespace Paniq.Simulation
     /// this person is not raising any alarm.
     /// </para>
     /// </summary>
-    internal sealed class AlarmBehaviour : IPanicOption
+    internal sealed class AlarmBehaviour : IPanicOption, IBindable
     {
         private readonly SimulationContext context;
+
+        /// <summary>The player's hand, built after this: a hand on a pull station makes the brave pull it sooner (2026-09-29).</summary>
+        private InfluenceSystem influence;
+
+        public void Bind(Systems systems)
+        {
+            influence = systems.Influence;
+        }
 
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
         private readonly int bodyRadius;
@@ -44,17 +52,23 @@ namespace Paniq.Simulation
             return activity == AgentActivityState.GoingToAlarm || activity == AgentActivityState.PullingAlarm;
         }
 
-        /// <summary>Who thinks of it: a leader, somebody who thinks of other people, or somebody brave (the owner asked for the brave, 2026-09-25).</summary>
-        private bool WouldRaiseIt(Agent agent)
+        /// <summary>
+        /// Who thinks of it: a leader, somebody who thinks of other people, or
+        /// somebody brave (the owner asked for the brave, 2026-09-25). With
+        /// the player's hand on the station and felt (2026-09-29), a little
+        /// less bravery does.
+        /// </summary>
+        private bool WouldRaiseIt(Agent agent, bool pulledToIt)
         {
             if (agent.Carry.ItemIndex >= 0 || agent.Help.TargetIndex >= 0 || agent.Body.State != AgentBodyState.Upright)
             {
                 return false;
             }
 
+            int bravery = settings.PullMinimumBravery - (pulledToIt ? settings.PulledBraveryBonus : 0);
             return agent.Traits.Leadership >= settings.PullMinimumLeadership ||
                    agent.Traits.Compassion >= settings.PullMinimumCompassion ||
-                   agent.Traits.Bravery >= settings.PullMinimumBravery;
+                   agent.Traits.Bravery >= bravery;
         }
 
         /// <summary>
@@ -68,7 +82,17 @@ namespace Paniq.Simulation
                 return Update(agent, inDanger);
             }
 
-            if (inDanger || alarms.Ringing || !alarms.Enabled || !WouldRaiseIt(agent))
+            if (inDanger || alarms.Ringing || !alarms.Enabled)
+            {
+                return null;
+            }
+
+            // The player's hand on a pull station, felt from here (2026-09-29):
+            // it is worth going for from as far as the pull reaches, not only
+            // the usual short walk, and takes a little less nerve.
+            int pulledStation = influence != null ? alarms.StationTheHandIsOn(influence) : -1;
+            bool pulledToIt = pulledStation >= 0 && influence.StrongestFeltBy(agent, out _) > 0;
+            if (!WouldRaiseIt(agent, pulledToIt))
             {
                 return null;
             }
@@ -78,6 +102,11 @@ namespace Paniq.Simulation
                 geometry.RoomOf(agent),
                 geometry.Routes.ReachFrom(agent.Body.Position, bodyRadius),
                 geometry.Routes);
+            if (alarm < 0 && pulledToIt)
+            {
+                alarm = pulledStation;
+            }
+
             if (alarm < 0)
             {
                 return null;

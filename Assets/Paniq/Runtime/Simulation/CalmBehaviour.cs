@@ -493,7 +493,11 @@ namespace Paniq.Simulation
             }
 
             InfluenceSystem.Place drawnBy = influence[place];
-            bool usable = drawnBy.Door >= 0 || (drawnBy.Thing >= 0 && CanUse(agent, drawnBy.Thing));
+
+            // A place already used for the player (the door opened, the
+            // chair taken) goes on gathering people but is not used again
+            // until pressed afresh (2026-09-29).
+            bool usable = !drawnBy.Spent && (drawnBy.Door >= 0 || (drawnBy.Thing >= 0 && CanUse(agent, drawnBy.Thing)));
             LogicalPosition target = WhereToStandFor(agent, place);
             long there = context.Scenario.Calm.StrollArrivalDistanceMillimetres * 2L;
             if (!usable && LogicalPosition.DistanceSquared(agent.Body.Position, target) <= there * there)

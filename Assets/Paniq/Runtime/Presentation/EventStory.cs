@@ -73,11 +73,127 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentSaid:
                 case CausalEventType.PowerInfluenced:
                 case CausalEventType.AgentDrawnByInfluence:
+                case CausalEventType.PowerReleasedInfluence:
+                case CausalEventType.PowerTugged:
+                case CausalEventType.PowerReleasedTug:
+                case CausalEventType.TrapCreaked:
                     return true;
                 default:
                     return false;
             }
         }
+
+        /// <summary>
+        /// The round in three or four lines (2026-09-29): the smallest form of
+        /// the plain-language retelling the game vision asks for, for the end
+        /// card. What the player's hand did, the keycard, the corridor, and
+        /// the fire, each from the events that decided it. Reads the log and
+        /// decides nothing.
+        /// </summary>
+        public List<string> Retell(RunSnapshot snapshot)
+        {
+            var lines = new List<string>(4);
+            IReadOnlyList<CausalEvent> events = snapshot.Events;
+
+            int placesHeld = 0, peopleHeld = 0, tornFree = 0, heldTicks = 0;
+            CausalEvent? cardStarted = null, cardTaken = null, cardSwiped = null, cardDropped = null;
+            CausalEvent? towerFell = null, fireLoose = null, putOut = null;
+            int outAfterTheFall = 0;
+            for (int i = 0; i < events.Count; i++)
+            {
+                CausalEvent record = events[i];
+                switch (record.EventType)
+                {
+                    case CausalEventType.PowerInfluenced: placesHeld++; break;
+                    case CausalEventType.PowerReleasedInfluence: heldTicks += record.Strength; break;
+                    case CausalEventType.PowerTugged: peopleHeld++; break;
+                    case CausalEventType.PowerReleasedTug: heldTicks += record.Strength; break;
+                    case CausalEventType.AgentShookFree: tornFree++; heldTicks += record.Strength; break;
+                    case CausalEventType.KeycardStarted: cardStarted ??= record; break;
+                    case CausalEventType.AgentTookKeycard: cardTaken = record; break;
+                    case CausalEventType.KeycardDropped: cardDropped = record; break;
+                    case CausalEventType.DoorUnlockedWithKeycard: cardSwiped ??= record; break;
+                    case CausalEventType.BoxTowerFell:
+                        if (record.HasTarget)
+                        {
+                            towerFell ??= record;
+                        }
+
+                        break;
+                    case CausalEventType.AgentEscaped:
+                        if (towerFell.HasValue)
+                        {
+                            outAfterTheFall++;
+                        }
+
+                        break;
+                    case CausalEventType.FireEscapedItsRoom: fireLoose ??= record; break;
+                    case CausalEventType.IncidentPutOut: putOut = record; break;
+                }
+            }
+
+            // Your hand.
+            if (placesHeld + peopleHeld == 0)
+            {
+                lines.Add("Your hand: never on anything. The building played itself.");
+            }
+            else
+            {
+                string tore = tornFree > 0 ? $", {tornFree} tore free" : "";
+                lines.Add($"Your hand: on {Count(placesHeld, "place")} and {Count(peopleHeld, "person", "people")}{tore}, " +
+                          $"about {heldTicks / Run.TicksPerSecond} seconds in all.");
+            }
+
+            // The card.
+            if (cardStarted.HasValue)
+            {
+                CausalEvent started = cardStarted.Value;
+                string began = started.SourceId == started.TargetId ? "lay on a desk" : $"was in {Name(started.SourceId)}'s pocket";
+                if (cardSwiped.HasValue)
+                {
+                    lines.Add($"The card {began}; {Name(cardSwiped.Value.SourceId)} swiped the door open at {TimeOf(cardSwiped.Value.Tick)}.");
+                }
+                else if (cardTaken.HasValue)
+                {
+                    bool lost = cardDropped.HasValue && cardDropped.Value.Tick > cardTaken.Value.Tick;
+                    lines.Add(lost
+                        ? $"The card {began}; {Name(cardTaken.Value.SourceId)} had it and dropped it at {TimeOf(cardDropped.Value.Tick)}. The door never opened."
+                        : $"The card {began}; {Name(cardTaken.Value.SourceId)} had it and never reached the door.");
+                }
+                else if (started.SourceId != started.TargetId)
+                {
+                    lines.Add($"The card {began}, and they never reached the door.");
+                }
+                else
+                {
+                    lines.Add("The card lay on a desk and nobody ever picked it up.");
+                }
+            }
+
+            // The corridor.
+            lines.Add(towerFell.HasValue
+                ? $"The boxes came down across the corridor at {TimeOf(towerFell.Value.Tick)}; {outAfterTheFall} got out after that."
+                : "The tower of boxes never came down.");
+
+            // The fire.
+            if (fireLoose.HasValue)
+            {
+                lines.Add($"The fire got out of the room it started in at {TimeOf(fireLoose.Value.Tick)}; {snapshot.LostCount} did not make it.");
+            }
+            else if (putOut.HasValue)
+            {
+                lines.Add($"The fire was put out at {TimeOf(putOut.Value.Tick)} and never left its room.");
+            }
+            else
+            {
+                lines.Add("The fire never left the room it started in.");
+            }
+
+            return lines;
+        }
+
+        private static string Count(int n, string one, string many = null) =>
+            n == 1 ? $"1 {one}" : $"{n} {many ?? one + "s"}";
 
         /// <summary>
         /// The number drawn over this person's head, or nothing if the ID is
@@ -233,9 +349,15 @@ namespace Paniq.Presentation
                 case CausalEventType.AllClear: return "the alarms fell silent: all clear";
                 case CausalEventType.AgentCalmedDown: return $"{who} calmed down";
                 case CausalEventType.PowerInfluenced:
-                    return record.HasTarget ? $"you drew people toward {whom}" : "you drew people toward a spot on the floor";
-                case CausalEventType.AgentDrawnByInfluence: return $"{who} went where you were drawing people";
-                case CausalEventType.InfluenceSpent: return $"{who} did what your pull asked, and it is spent";
+                    return record.HasTarget ? $"you put your hand on {whom}" : "you put your hand on a spot on the floor";
+                case CausalEventType.PowerReleasedInfluence:
+                    return record.HasTarget ? $"you took your hand off {whom}" : "you took your hand off the floor";
+                case CausalEventType.AgentDrawnByInfluence: return $"{who} went where your hand was";
+                case CausalEventType.InfluenceSpent: return $"{who} did what your hand asked";
+                case CausalEventType.PowerTugged: return $"you took {whom} by the shirt";
+                case CausalEventType.PowerReleasedTug: return $"you let go of {whom}";
+                case CausalEventType.AgentShookFree: return $"{who} tore free of your hand";
+                case CausalEventType.TrapCreaked: return $"{who} creaked and swayed";
                 case CausalEventType.AgentPokedAwake: return $"{who} was poked awake";
                 case CausalEventType.AgentKnockedOffChair: return $"{who} was poked off their chair";
 

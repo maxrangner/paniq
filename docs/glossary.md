@@ -66,8 +66,12 @@ and not everyday English, add it.
 | **Trap** | Something in the level the Director can set off, such as the tower of boxes that falls across the archway. |
 | **Card** | A move the player throws into the crowd or at the building (Beefcake, TNT, the extinguisher, Stick together). See [the office level](the-office-level.md). |
 | **Purse** | The currency cards and doors used to cost (called influence until 2026-09-26). The office level has it switched off; the rules are still in the code for later levels (`PurseSystem`). |
-| **Influence** | The player clicking a door, a thing or a patch of floor to draw people toward it: one step a click, up to twenty, fading on its own, felt within about twelve metres in the same room, and weighed by each person's character. Never an order. (`InfluenceSystem`.) |
-| **Nudge** | The player clicking a person: they step away from the click. Three quick nudges and they are annoyed, shake, and ignore nudges for a while. (`NudgeSystem`.) |
+| **The hand** | What the player has since 2026-09-29: the left mouse button, held down. On a place it is influence; on a person it is a tug; let go, and everybody is on their own again. One hand, so one place or person at a time: "you can't be everywhere at once" (the owner). |
+| **Influence** | The player's hand on a door, a thing or a patch of floor, drawing people toward it for as long as the button is held: full at once, gone at once when let go, felt about a room's length away as a walk (through an open doorway, never a wall), and weighed by each person's character. Never an order. (`InfluenceSystem`.) |
+| **Tug** | The player's hand on a person: a tug on their shirt that slows them to a stop over about a second and holds them there while the button is held. The strong tear free, sooner the stronger; nobody alight or down can be held. The one direct thing the player does to a person. (`TugSystem`.) |
+| **Nudge** (or poke) | The player clicking a person: they step away from the click. Three quick pokes and they are annoyed, shake, and ignore pokes for a while; three quick pokes wake somebody frozen. (`NudgeSystem`.) |
+| **Creak** | The few seconds a sprung trap sways and is heard before it falls, so a player who is looking can get people clear. The building plays in the open. (`TrapSystem`.) |
+| **Par**, or **left alone** | What the same seed comes to with nobody at the controls, played in the background during the round. Shown on the strip once it is known and on the end card as the margin: the round is judged as you against the building. (`LeftAloneRunner`.) |
 | **Trigger event** | The red button that starts the disaster, so the round opens calm and the player looks around first. |
 | **The way out** | The one door in an outside wall. Walking out through it is escaping. |
 

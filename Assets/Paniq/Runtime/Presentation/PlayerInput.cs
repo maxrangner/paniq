@@ -8,26 +8,27 @@ using UnityEngine.InputSystem;
 namespace Paniq.Presentation
 {
     /// <summary>
-    /// The player's pointer and keys. With no card picked (2026-09-26):
+    /// The player's pointer and keys. Two hands (2026-09-29, the owner's
+    /// rules): the left button is the crowd, the right button is the
+    /// building.
     /// <list type="bullet">
-    /// <item>a left click on a door, a thing or an empty patch of floor puts
-    /// one step of influence on it, and clicking again adds another;</item>
-    /// <item>the left button held down on a door is a hand holding it shut
-    /// until it comes back up (prototype 3, 2026-09-25);</item>
-    /// <item>a right click on a door turns its key -- how the way out is
-    /// unlocked;</item>
-    /// <item>a left click on a person nudges them away from where it
-    /// landed;</item>
-    /// <item>a fire alarm is pulled only on a level that lets the player; on
-    /// the office a click on one puts influence beside it, so the people
-    /// drawn there might pull it.</item>
+    /// <item>the left button held down on a door, a thing, a pull station or
+    /// a patch of floor is the player's hand on it: a full pull the moment it
+    /// goes down, gone the moment it comes up, one place at a time;</item>
+    /// <item>the left button held down on a person is a tug on their shirt:
+    /// they are held where they are until it comes up, unless they are strong
+    /// enough to tear free; a quick left click on a person is still a poke,
+    /// sent when the button comes back up inside the window;</item>
+    /// <item>a right click on a door turns its key; the right button held
+    /// down on a door is a hand holding it shut (prototype 3, 2026-09-25,
+    /// moved from the left button); a right click elsewhere puts down the
+    /// card in hand.</item>
     /// </list>
-    /// A click near a place already influenced adds to it even with somebody
-    /// standing there, so frantic clicking on a busy corridor builds a pull
-    /// rather than nudging whoever walks under the pointer. With a card
-    /// picked, a left click plays it on the spot on the floor under the
-    /// pointer. A card is picked up by clicking it on the screen (2026-09-25;
-    /// the number keys are gone) and put down with Escape or a right click.
+    /// With a card picked, a left click plays it on the spot on the floor
+    /// under the pointer. A card is picked up by clicking it on the screen
+    /// (2026-09-25; the number keys are gone) and put down with Escape or a
+    /// right click. The right button no longer swings the camera (the owner,
+    /// 2026-09-29): Q and E do that, in eighths.
     /// <para>
     /// Everything here is presentation: rays, colliders and screen positions
     /// never leave this class. What reaches the run is a door's stable ID, a
@@ -68,9 +69,6 @@ namespace Paniq.Presentation
         /// <summary>How near the pointer must be to a thing, on the screen, to count as pointing at it.</summary>
         private const float PickThingPixels = 30f;
 
-        /// <summary>A click this near an influenced place adds to it, whoever is standing there (the influence's own stacking reach, in metres).</summary>
-        private const float StackMetres = 1f;
-
         /// <summary>How far in front of where the pointer meets somebody's body a nudge is taken to come from, toward the camera, in metres.</summary>
         private const float NudgeFromMetres = 0.3f;
 
@@ -79,7 +77,18 @@ namespace Paniq.Presentation
 
         private readonly RunDriver runner;
         private readonly RoomView room;
-        private readonly DoorClicks clicks = new DoorClicks();
+
+        /// <summary>The right button on a door: a click is the key, a hold is a hand on it.</summary>
+        private readonly DoorClicks rightHand = new DoorClicks();
+
+        /// <summary>The left button on a person: a click is a poke, a hold is a tug.</summary>
+        private readonly DoorClicks leftHand = new DoorClicks();
+
+        /// <summary>Where the press on a person landed, for the poke it may turn out to be.</summary>
+        private LogicalPosition pokeFrom;
+
+        /// <summary>The left button is down on a place (a door, a thing, the floor): the hand is on it until the button comes up.</summary>
+        private bool handOnAPlace;
 
         /// <summary>The ground, for turning a screen position into a place on the floor.</summary>
         private static readonly Plane Ground = new Plane(Vector3.up, 0f);
@@ -96,22 +105,28 @@ namespace Paniq.Presentation
         /// <summary>The door under the pointer, for the hover highlight.</summary>
         public SimulationId? HoveredDoor { get; private set; }
 
-        /// <summary>The door the player is holding shut, for the hover line.</summary>
-        public SimulationId? HeldDoor => clicks.Held;
+        /// <summary>The door the player is holding shut with the right button, for the hover line.</summary>
+        public SimulationId? HeldDoor => rightHand.Held;
+
+        /// <summary>The person the player has by the shirt, for the hover line.</summary>
+        public SimulationId? TuggedPerson => leftHand.Held;
+
+        /// <summary>Whether the player's hand is on a place right now.</summary>
+        public bool HandOnAPlace => handOnAPlace;
 
         /// <summary>The fire alarm under the pointer, for the hover line.</summary>
         public SimulationId? HoveredAlarm { get; private set; }
 
-        /// <summary>The person under the pointer: with a person-card picked, or with nothing picked (a nudge).</summary>
+        /// <summary>The person under the pointer: with a person-card picked, or with nothing picked (a poke or a tug).</summary>
         public SimulationId? HoveredPerson { get; private set; }
 
         /// <summary>Where on the floor the pointer is, while a place-card is picked.</summary>
         public LogicalPosition? HoveredSpot { get; private set; }
 
-        /// <summary>The thing under the pointer, with nothing picked: a click influences it.</summary>
+        /// <summary>The thing under the pointer, with nothing picked: a hold on it draws people to it.</summary>
         public SimulationId? HoveredThing { get; private set; }
 
-        /// <summary>The patch of floor under the pointer, with nothing picked: a click influences it.</summary>
+        /// <summary>The patch of floor under the pointer, with nothing picked: a hold on it draws people to it.</summary>
         public LogicalPosition? HoveredFloor { get; private set; }
 
         /// <summary>
@@ -171,20 +186,18 @@ namespace Paniq.Presentation
         /// <param name="lookOnly">
         /// The world is stopped, or a card is covering the screen. The pointer
         /// still tells the player what is under it, but nothing they press
-        /// reaches the run: pause is for looking, not for acting.
-        /// </param>
-        /// <param name="turningTheView">
-        /// The right button is being dragged to swing the camera. The right
-        /// button also puts a card back down, so without knowing this every
-        /// swing of the view would throw away whatever was in hand.
+        /// reaches the run: pause is for looking, not for acting. Every hand
+        /// comes off, because a release would never reach a stopped run.
         /// </param>
         /// <param name="pointerOverHud">
-        /// The pointer is over a card or a button. A click there is the HUD's
-        /// and never the world's, and nothing in the world is hovered.
+        /// The pointer is over a card or a button. A press there is the HUD's
+        /// and never the world's, and nothing in the world is hovered. A
+        /// button coming back up over the HUD still lets go of whatever the
+        /// press had hold of.
         /// </param>
         /// <param name="now">The clock a click is told from a hold on, in seconds.</param>
         public void Update(Camera camera, RunSnapshot snapshot, bool lookOnly = false,
-            bool turningTheView = false, bool pointerOverHud = false, float now = 0f)
+            bool pointerOverHud = false, float now = 0f)
         {
             SimulationId? doorLastFrame = HoveredDoor;
             HoveredDoor = null;
@@ -203,55 +216,21 @@ namespace Paniq.Presentation
             }
 
             Mouse mouse = Mouse.current;
-            bool buttonDown = mouse != null && mouse.leftButton.isPressed;
+            bool leftDown = mouse != null && mouse.leftButton.isPressed;
+            bool rightDown = mouse != null && mouse.rightButton.isPressed;
             if (lookOnly)
             {
                 // A card picked up before the freeze is put back down, so
                 // unpausing never plays something the player has forgotten
-                // about; and a door held through a pause is let go of, because
-                // the release would never reach the run while it is stopped.
+                // about; and every hand comes off, because the release would
+                // never reach the run while it is stopped.
                 SelectedCard = null;
-                SimulationId? letGo = clicks.Clear();
-                if (letGo.HasValue)
-                {
-                    runner.QueueReleaseDoor(letGo.Value);
-                }
+                LetGoOfEverything();
             }
             else
             {
-                ReadKeys(turningTheView, doorLastFrame);
-
-                // A hand on a door comes off when the button does, and goes
-                // on once the button has stayed down for the whole window;
-                // the hold is asked for before the click, because the two
-                // turn on the same instant.
-                SimulationId? released = clicks.Release(buttonDown);
-                if (released.HasValue)
-                {
-                    runner.QueueReleaseDoor(released.Value);
-                }
-
-                SimulationId? taken = clicks.Hold(now, buttonDown);
-                if (taken.HasValue)
-                {
-                    if (CanBeHeld(snapshot, taken.Value))
-                    {
-                        runner.QueueHoldDoor(taken.Value);
-                    }
-                    else
-                    {
-                        // Swing doors, holes, broken and locked doors take no
-                        // hand: nothing is sent, and nothing is thought held.
-                        clicks.Release(false);
-                    }
-                }
-
-                // A press let go of inside the window: one step of influence.
-                SimulationId? clickedDoor = clicks.Clicked(buttonDown);
-                if (clickedDoor.HasValue)
-                {
-                    runner.QueueInfluenceDoor(clickedDoor.Value);
-                }
+                ReadKeys(rightDown, now, doorLastFrame);
+                ReadTheLeftButtonComingUp(leftDown, now);
             }
 
             if (mouse == null || camera == null || snapshot == null || pointerOverHud)
@@ -260,10 +239,10 @@ namespace Paniq.Presentation
             }
 
             Vector2 pointer = mouse.position.ReadValue();
-            bool clicked = mouse.leftButton.wasPressedThisFrame && !lookOnly;
+            bool pressed = mouse.leftButton.wasPressedThisFrame && !lookOnly;
             if (SelectedCard == null)
             {
-                UpdateWorldClick(camera, snapshot, pointer, clicked, now);
+                UpdateWorldPress(camera, snapshot, pointer, pressed, now);
                 return;
             }
 
@@ -272,7 +251,7 @@ namespace Paniq.Presentation
             {
                 // Aimed at a body on the screen, not at a place on the floor.
                 HoveredPerson = NearestPerson(camera, snapshot, pointer);
-                if (clicked && HoveredPerson.HasValue)
+                if (pressed && HoveredPerson.HasValue)
                 {
                     runner.QueueCard(card, HoveredPerson.Value);
                     SelectedCard = null;
@@ -290,19 +269,77 @@ namespace Paniq.Presentation
             }
 
             HoveredSpot = spot;
-            if (clicked)
+            if (pressed)
             {
                 runner.QueueCard(card, spot);
                 SelectedCard = null;
             }
         }
 
+        /// <summary>Every hand off: the place, the person and the door, whatever the buttons are doing.</summary>
+        private void LetGoOfEverything()
+        {
+            if (handOnAPlace)
+            {
+                handOnAPlace = false;
+                runner.QueueReleaseInfluence();
+            }
+
+            SimulationId? person = leftHand.Clear();
+            if (person.HasValue)
+            {
+                runner.QueueReleaseTug(person.Value);
+            }
+
+            SimulationId? door = rightHand.Clear();
+            if (door.HasValue)
+            {
+                runner.QueueReleaseDoor(door.Value);
+            }
+        }
+
+        /// <summary>
+        /// The left button coming back up, wherever the pointer is now: the
+        /// hand comes off the place, or off the person; a press on a person
+        /// let go of inside the window was a poke. The tug is asked for
+        /// before the poke, because the two turn on the same instant.
+        /// </summary>
+        private void ReadTheLeftButtonComingUp(bool leftDown, float now)
+        {
+            if (handOnAPlace && !leftDown)
+            {
+                handOnAPlace = false;
+                runner.QueueReleaseInfluence();
+            }
+
+            SimulationId? letGo = leftHand.Release(leftDown);
+            if (letGo.HasValue)
+            {
+                runner.QueueReleaseTug(letGo.Value);
+            }
+
+            SimulationId? taken = leftHand.Hold(now, leftDown);
+            if (taken.HasValue)
+            {
+                runner.QueueTug(taken.Value);
+            }
+
+            SimulationId? poked = leftHand.Clicked(leftDown);
+            if (poked.HasValue)
+            {
+                runner.QueueNudge(poked.Value, pokeFrom);
+            }
+        }
+
         /// <summary>
         /// With nothing in hand: a fire alarm or a door under the pointer
-        /// first (they are solid things the ray can hit), and failing those,
-        /// the nearest person on the screen, whom a click nudges.
+        /// first (they are solid things the ray can hit), then the nearest
+        /// person on the screen, then the nearest thing, then the floor. The
+        /// left button going down on a place is the hand going on it, sent at
+        /// once; going down on a person starts the window that tells a poke
+        /// from a tug.
         /// </summary>
-        private void UpdateWorldClick(Camera camera, RunSnapshot snapshot, Vector2 pointer, bool clicked, float now)
+        private void UpdateWorldPress(Camera camera, RunSnapshot snapshot, Vector2 pointer, bool pressed, float now)
         {
             // Door leaves swing, so their colliders must be where they are drawn.
             Physics.SyncTransforms();
@@ -311,11 +348,12 @@ namespace Paniq.Presentation
             {
                 // A fire alarm: pulled, where the level lets the player (the
                 // run decides the price, see PlayerCommandSystem); on the
-                // office only people pull them, and a click draws people to it.
+                // office only people pull them, and the hand on it draws
+                // people to it.
                 if (room.TryGetAlarm(hit.collider, out SimulationId alarmId))
                 {
                     HoveredAlarm = alarmId;
-                    if (clicked)
+                    if (pressed)
                     {
                         if (snapshot.PlayerMayPullAlarms)
                         {
@@ -323,7 +361,7 @@ namespace Paniq.Presentation
                         }
                         else if (TryAlarmPosition(alarmId, out LogicalPosition at))
                         {
-                            runner.QueueInfluenceSpot(at);
+                            HandOn(() => runner.QueueInfluenceSpot(at));
                         }
                     }
 
@@ -333,11 +371,9 @@ namespace Paniq.Presentation
                 if (room.TryGetDoor(hit.collider, out SimulationId doorId))
                 {
                     HoveredDoor = doorId;
-                    if (clicked)
+                    if (pressed)
                     {
-                        // A click or a hold: which, the button coming back up
-                        // decides (see DoorClicks).
-                        clicks.Press(doorId, now);
+                        HandOn(() => runner.QueueInfluenceDoor(doorId));
                     }
 
                     return;
@@ -346,22 +382,9 @@ namespace Paniq.Presentation
 
             bool onTheFloor = TryGroundPoint(camera, pointer, out LogicalPosition floor);
 
-            // Near a place already influenced: another step on it, whoever is
-            // walking under the pointer.
-            if (onTheFloor && NearAnInfluencedSpot(runner.Simulation.Scenario, snapshot, floor))
-            {
-                HoveredFloor = floor;
-                if (clicked)
-                {
-                    runner.QueueInfluenceSpot(floor);
-                }
-
-                return;
-            }
-
-            // Somebody, perhaps. A click always looks for the person afresh;
+            // Somebody, perhaps. A press always looks for the person afresh;
             // the hover line looks ten times a second.
-            if (clicked || now >= nextPersonLook)
+            if (pressed || now >= nextPersonLook)
             {
                 personUnderPointer = NearestPerson(camera, snapshot, pointer);
                 nextPersonLook = now + PersonHoverSeconds;
@@ -370,22 +393,24 @@ namespace Paniq.Presentation
             HoveredPerson = personUnderPointer;
             if (HoveredPerson.HasValue)
             {
-                if (clicked)
+                if (pressed)
                 {
-                    runner.QueueNudge(HoveredPerson.Value,
-                        WhereANudgeComesFrom(camera, pointer, snapshot, HoveredPerson.Value));
+                    // A poke or a tug: which, the button coming back up decides.
+                    pokeFrom = WhereANudgeComesFrom(camera, pointer, snapshot, HoveredPerson.Value);
+                    leftHand.Press(HoveredPerson.Value, now);
                 }
 
                 return;
             }
 
-            // A thing: influence on it draws people to where it stands.
+            // A thing: the hand on it draws people to where it stands.
             HoveredThing = NearestThing(camera, snapshot, pointer);
             if (HoveredThing.HasValue)
             {
-                if (clicked)
+                if (pressed)
                 {
-                    runner.QueueInfluenceThing(HoveredThing.Value);
+                    SimulationId thing = HoveredThing.Value;
+                    HandOn(() => runner.QueueInfluenceThing(thing));
                 }
 
                 return;
@@ -395,48 +420,18 @@ namespace Paniq.Presentation
             if (onTheFloor)
             {
                 HoveredFloor = floor;
-                if (clicked)
+                if (pressed)
                 {
-                    runner.QueueInfluenceSpot(floor);
+                    HandOn(() => runner.QueueInfluenceSpot(floor));
                 }
             }
         }
 
-        /// <summary>
-        /// Whether a spot is within stacking reach of a patch of floor or a
-        /// thing already influenced in the same room, as the simulation stacks
-        /// them: a place the other side of a wall is not this one.
-        /// </summary>
-        private static bool NearAnInfluencedSpot(ScenarioData scenario, RunSnapshot snapshot, LogicalPosition spot)
+        /// <summary>The hand goes on a place: the press is sent at once, and the button coming up will send the release.</summary>
+        private void HandOn(Action press)
         {
-            long reach = (long)(StackMetres * Run.MillimetresPerMetre);
-            for (int i = 0; i < snapshot.InfluencePlaces.Count; i++)
-            {
-                InfluencePlaceSnapshot place = snapshot.InfluencePlaces[i];
-                if (!place.IsDoor && LogicalPosition.DistanceSquared(place.At, spot) <= reach * reach &&
-                    InOneRoom(scenario, place.At, spot))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>Whether some room holds both points, strictly inside it as the simulation counts rooms.</summary>
-        private static bool InOneRoom(ScenarioData scenario, LogicalPosition a, LogicalPosition b)
-        {
-            foreach (RoomDefinition room in scenario.Rooms)
-            {
-                LogicalBounds r = room.Bounds;
-                if (a.X > r.MinX && a.X < r.MaxX && a.Z > r.MinZ && a.Z < r.MaxZ &&
-                    b.X > r.MinX && b.X < r.MaxX && b.Z > r.MinZ && b.Z < r.MaxZ)
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            press();
+            handOnAPlace = true;
         }
 
         /// <summary>
@@ -552,33 +547,52 @@ namespace Paniq.Presentation
         }
 
         /// <summary>
-        /// Escape or a right click puts the card in hand back down; with no
-        /// card in hand, a right click on a door turns its key (2026-09-26).
-        /// <para>
-        /// Both happen on the right button being <em>released</em> rather than
-        /// pressed, because at the moment of pressing nobody yet knows whether
-        /// this is a click or the start of a drag that swings the camera. By
-        /// the time it comes back up, they do.
-        /// </para>
+        /// The right button and the keys. Escape or a right click puts the
+        /// card in hand back down; with no card in hand, the right button on
+        /// a door is the key (a click) or a hand holding it shut (a hold), told
+        /// apart by the same window the left button uses on a person. There is
+        /// no drag any more to wait for, so the card is put down on the press.
         /// </summary>
-        private void ReadKeys(bool turningTheView, SimulationId? doorUnderThePointer)
+        private void ReadKeys(bool rightDown, float now, SimulationId? doorUnderThePointer)
         {
             Keyboard keyboard = Keyboard.current;
-            if (keyboard == null)
+            Mouse mouse = Mouse.current;
+            bool rightPressed = mouse != null && mouse.rightButton.wasPressedThisFrame;
+
+            SimulationId? released = rightHand.Release(rightDown);
+            if (released.HasValue)
             {
+                runner.QueueReleaseDoor(released.Value);
+            }
+
+            SimulationId? taken = rightHand.Hold(now, rightDown);
+            if (taken.HasValue)
+            {
+                if (CanBeHeld(runner.Snapshot, taken.Value))
+                {
+                    runner.QueueHoldDoor(taken.Value);
+                }
+                else
+                {
+                    // Swing doors, holes, broken and locked doors take no
+                    // hand: nothing is sent, and nothing is thought held.
+                    rightHand.Release(false);
+                }
+            }
+
+            SimulationId? keyed = rightHand.Clicked(rightDown);
+            if (keyed.HasValue)
+            {
+                runner.QueueLockToggle(keyed.Value);
+            }
+
+            if (rightPressed && SelectedCard == null && doorUnderThePointer.HasValue)
+            {
+                rightHand.Press(doorUnderThePointer.Value, now);
                 return;
             }
 
-            bool rightClicked = Mouse.current != null &&
-                                Mouse.current.rightButton.wasReleasedThisFrame &&
-                                !turningTheView;
-            if (rightClicked && SelectedCard == null && doorUnderThePointer.HasValue)
-            {
-                runner.QueueLockToggle(doorUnderThePointer.Value);
-                return;
-            }
-
-            if (keyboard.escapeKey.wasPressedThisFrame || rightClicked)
+            if ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) || rightPressed)
             {
                 SelectedCard = null;
             }

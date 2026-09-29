@@ -201,6 +201,25 @@ namespace Paniq.Simulation
             return best;
         }
 
+        /// <summary>The pull station the player's hand is on (2026-09-29), or -1: the one with a pull beside it.</summary>
+        public int StationTheHandIsOn(InfluenceSystem influence)
+        {
+            if (!settings.Enabled || Ringing || influence.Count == 0)
+            {
+                return -1;
+            }
+
+            for (int i = 0; i < ids.Length; i++)
+            {
+                if (influence.IsPullingNear(positions[i]))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
         /// <summary>
         /// Somebody hits an alarm: it is logged against them, and then every
         /// bell in the building rings, in bell order, each heard by the people

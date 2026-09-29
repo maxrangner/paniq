@@ -107,7 +107,45 @@ namespace Paniq.Gameplay
             if (!string.IsNullOrEmpty(levelId))
             {
                 PlayerPrefs.DeleteKey(BestScoreKeyPrefix + levelId);
+                PlayerPrefs.DeleteKey(BestMarginKeyPrefix + levelId);
             }
+        }
+
+        private const string BestMarginKeyPrefix = "paniq.bestmargin.";
+
+        /// <summary>
+        /// The most people the player has ever saved over and above what the
+        /// building would have saved left alone, on this level (2026-09-29:
+        /// the round is judged against the same seed with nobody helping), or
+        /// null if no round with that comparison has finished.
+        /// </summary>
+        public static int? BestMarginFor(string levelId)
+        {
+            if (string.IsNullOrEmpty(levelId) || !PlayerPrefs.HasKey(BestMarginKeyPrefix + levelId))
+            {
+                return null;
+            }
+
+            return PlayerPrefs.GetInt(BestMarginKeyPrefix + levelId);
+        }
+
+        /// <summary>Records a round's margin over "left alone". Returns true if it beat the best, so the end card can say so.</summary>
+        public static bool RecordMargin(string levelId, int margin)
+        {
+            if (string.IsNullOrEmpty(levelId))
+            {
+                return false;
+            }
+
+            int? best = BestMarginFor(levelId);
+            if (best.HasValue && margin <= best.Value)
+            {
+                return false;
+            }
+
+            PlayerPrefs.SetInt(BestMarginKeyPrefix + levelId, margin);
+            PlayerPrefs.Save();
+            return true;
         }
     }
 }

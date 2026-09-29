@@ -16,7 +16,10 @@ its third (2026-09-27) is the fixes from the first playtest of both; its
 fourth (2026-09-27) makes the way out a card door, after a measurement showed
 the office saving itself with nobody playing; its fifth (2026-09-28) has the
 Director cap the round with the building's tricks, and measures what that
-can and cannot do. All are under "Prototype 3" further down.
+can and cannot do; its sixth (2026-09-29) is the gameplay loop itself, the
+hand: one hand that pulls people toward a place or holds one person back,
+the building playing in the open, and the round judged against the same seed
+left alone. All are under "Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -467,6 +470,72 @@ minutes; the measurement calls it as the end card would, but a player
 would sit through it. The physics engine's thread flip was seen once
 today on seed 42 with the way out opened (one run of four), as it was
 yesterday on seed 41.
+
+## Prototype 3: the hand (2026-09-29)
+
+The owner stepped back: "Simulation runs fine, and is fun, but the gameplay
+is very vague and hard to gauge. We need a good gameplay loop." Four rounds
+of questions settled the shape. Not band-aids on their own (a status line, a
+lower bar); not cards as the foundation ("I still like the concept of
+influence. And main loop should still be around frantically saving the
+people"); twenty people stay ("it's already frantic now ... when we get
+gameplay working we will scale up with bigger level AND more agents"). The
+frame: **one hand.** The building throws problems at the crowd, in the open;
+the player answers them one at a time with a hand, pulling people toward a
+place or holding one person back; every person weighs it by character; and
+the round is judged against the same seed left alone. One batch, one commit,
+on `feat/prototype-3-gameplay`.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| The hand on a place | System | Influence is a hold, not clicks (the owner: "hold only ... it also makes all decisions a priority. You can't be everywhere at once. When you interact the influence is clear and instant, but as soon as you let go the agents are on their own"). Press the left button on a door, a thing or the floor and the pull is full at once; let go and it is gone at once; one place at a time. It reaches about a room's length as a walk, through an open doorway but never a wall or a shut door (the owner: "through open doors, but limit range to be around a room's length"). A place used for you goes on gathering people but is not used again until pressed afresh. The easily led get up for it within a couple of seconds |
+| The tug: a hand on a person | Behaviour | Hold the button on somebody and you have them by the shirt (the owner: "it holds them in place. Should not be 100% instant, more like tugging someone's shirt. So you can save someone running into fire"). They slow to a stop over about a second and stay while you hold, and are off again the moment you let go. From strength 6 they tear free -- eight seconds at 6, half as long for each point above, so the brute is gone in a moment -- visibly, with a shake ("the strongest can break free. Sliding scale. A slightly not too strong can eventually break free by visibly shaking you off"). Nobody alight or down can be held. The one stated exception to "suggest, never command" |
+| Moves that finish | Behaviour | Somebody brave who took the bottle for you keeps it when the fright comes and goes at the fire with it, instead of flinging it away. The hand on the pull station takes two points less bravery and reaches as far as the pull. A held card is gone for by the frightened after two seconds of holding |
+| Left is the crowd, right is the building | Controls | The hand holding a door shut moves to the right button held; a right click is still the key. The right-button camera drag is gone and Q and E step in eighths (the owner: "remove the camera control. Only use the q, e, but add double the amount of steps it snaps to"). A click on a person is still a poke |
+| The building plays in the open | System | Every trap creaks for about three seconds before it falls: the stack sways, the creak is heard in its room so calm people look up, a sign says "it's going!", and you have those seconds to get people clear -- with a hand on the floor away from it; the tower itself cannot be touched (the owner's choice). When the Director turns on the crowd a banner says so across the top, like the alarm |
+| Nobody runs at a crate wall | Behaviour | Found on the way, by the wall-starer test on seed 41 once the stack creaked: cut off in the stockroom's west lane, people picked spots on the far side of the crate walls and ran at the crates for the rest of the round. A frightened person with no door now picks only a spot they could walk to, and somebody creeping against a crate they cannot heave counts as blocked after a quarter of a second and chooses again |
+| Beat the building | Presentation | The round is judged against the same seed left alone (the owner's choice). The strip reads "Left alone: 4 would live" once the background round has its answer; the end card says "You made the difference for 5" in green (or the reverse in red), keeps the 75% bar as a distant target, remembers the best margin, and gives three or four lines of why: your hand, the keycard, the corridor, the fire |
+
+**What the measurement showed.** The office left alone, fifty seeds
+(`HandsOffBaselineMeasurements`), before and after the creak:
+
+| Rules | Saved, average of 20 | Seeds over half | Seeds clearing 75% |
+| --- | --- | --- | --- |
+| No creak (the batch before, 2026-09-28) | 4.5 (23%) | 10 | 8 |
+| Creak heard but no delay (a variant, measured once) | 3.4 (17%) | 9 | 6 |
+| Creak heard and three seconds | 2.7 (13%) | 4 | 2 |
+| The same, with the two flight rules (shipped) | 3.0 (15%) | 6 | 4 |
+
+The creak costs lives with nobody playing: the crash sound turns calm heads
+toward the archway, and the delay lets more of the corridor's crowd reach
+the archway before the boxes land on it; the flight rules (a reachable
+escape spot, creeping counted as blocked) give a little back. The owner's
+standing rule is about a quarter left alone and never more than half on any
+seed; the shipped numbers are under the quarter and still break the half on
+six seeds, so the fifty-seed check stays red, as it was before this batch.
+Nothing was tuned to compensate: which way to move it (a shorter creak, a
+quieter creak, or the Director's allowance) is the owner's call, and the
+hand is what this batch is for.
+
+**What this deliberately left out.** The purse and the cards as a
+foundation; more people or a bigger level (after the loop works); a second
+way out; a level rebuilt as stages; the full written retelling (the four
+lines are its smallest form); sound (the creak and the banner are drawn and
+signed; when audio arrives they are heard); a pull felt more than one doorway
+away; steadying or toppling the tower by hand. The Director still reads only
+the crowd, never the player.
+
+**Things to watch at the next playtest.**
+
+- Whether one hand feels like a choice or like a bottleneck: two things going
+  wrong in two rooms is the moment it will show.
+- Whether the tug reads as a hand on a shirt or as a freeze, and whether the
+  brute tearing free in a moment is a delight or a cheat.
+- Whether three seconds of creak is enough warning, and whether anybody
+  notices a creak on the far side of the building.
+- Whether the margin line is the number the owner looks at first, and whether
+  the four lines of why say enough to change the next round.
+- Whether the eight camera steps lose anything the free swing gave.
 
 ## Foundations reviewed (2026-09-23)
 

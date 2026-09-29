@@ -13,12 +13,12 @@ namespace Paniq.Tests.EditMode
     /// </summary>
     public sealed class ReplayFingerprintEditModeTests
     {
-        [TestCase(42UL, false, 0x5536EBDB63F23902UL)]
-        [TestCase(42UL, true, 0xE5CF550455A4ADC4UL)]
-        [TestCase(40UL, false, 0x3F8A24879C1D7663UL)]
-        [TestCase(40UL, true, 0x75BD1FB779C62A79UL)]
-        [TestCase(46UL, false, 0xA5B27E759137808CUL)]
-        [TestCase(46UL, true, 0x5F7FF945E43F8274UL)]
+        [TestCase(42UL, false, 0x0E15F62D29BBF0B0UL)]
+        [TestCase(42UL, true, 0x557146E2F58FA87FUL)]
+        [TestCase(40UL, false, 0x14D91C499A5C7C10UL)]
+        [TestCase(40UL, true, 0x6525B346FCFCD501UL)]
+        [TestCase(46UL, false, 0x20C56ABC339EFFB2UL)]
+        [TestCase(46UL, true, 0x13D01B840DFD37DBUL)]
         public void DefaultScenario_ReplaysToTheRecordedFingerprint(ulong seed, bool openDoors, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
         /// well as by their own tests, so the whole command path is covered by
         /// replay. This run waits to be triggered, as a played level does.
         /// </summary>
-        [TestCase(42UL, 0xAD2B930A202625F1UL)]
-        [TestCase(40UL, 0x0B16EC86C26266FFUL)]
+        [TestCase(42UL, 0xB708BDD8C64072A4UL)]
+        [TestCase(40UL, 0x6C496554708A23DFUL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -67,8 +67,8 @@ namespace Paniq.Tests.EditMode
         /// Guards the bin, its smoulder, a young fire's slow spread and the
         /// crowd calming down.
         /// </summary>
-        [TestCase(42UL, 0x37CC3F22AACB8D55UL)]
-        [TestCase(40UL, 0x94535CC7E3F0654FUL)]
+        [TestCase(42UL, 0x8B328D6A384750EEUL)]
+        [TestCase(40UL, 0xA9CA8A80168B9D7AUL)]
         public void TheLadder_ReplaysToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -90,8 +90,8 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [TestCase(42UL, 0x7AA1A0CEAE45E1C6UL)]
-        [TestCase(40UL, 0x6D01ADD72D86033BUL)]
+        [TestCase(42UL, 0xC1A229FB2D2C0A46UL)]
+        [TestCase(40UL, 0x37686C2D5F4F941AUL)]
         public void KickedBoxes_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -161,6 +161,17 @@ namespace Paniq.Tests.EditMode
         /// how somebody who knows the building finds their way did not change.
         /// </para>
         /// <para>
+        /// Version 74 (2026-09-29): the hand. Every trap creaks for about
+        /// three seconds before it falls, jittered from the run's stream, so
+        /// every recorded run in which the tower comes down moved, staff and
+        /// strangers alike; the "cards played" run also holds and lets go of
+        /// a door, a thing and the floor, and takes somebody by the shirt.
+        /// Then seven moved again for two rules the creak's timing exposed on
+        /// seed 41: an escape spot is never one they could not walk to, and
+        /// somebody creeping against a pinned thing counts as blocked. How
+        /// somebody who knows the building finds their way did not change.
+        /// </para>
+        /// <para>
         /// Version 73 (2026-09-28): a box held where it lies is shoved on
         /// only by a heaved thing. Fourteen of the fifteen cases moved (seed
         /// 46 opened held), because in every run the fallen tower's boxes
@@ -184,9 +195,9 @@ namespace Paniq.Tests.EditMode
         /// take or knock a box off it; the seed 42 cards case did not move.
         /// </para>
         /// </summary>
-        [TestCase(41UL, RecordedRun.DoorsLocked, 0xFBEA396C2C0527E2UL)]
-        [TestCase(41UL, RecordedRun.DoorsOpened, 0x2E1AB5C18A83BB6AUL)]
-        [TestCase(42UL, RecordedRun.CardsPlayed, 0x329FE41695DA0A59UL)]
+        [TestCase(41UL, RecordedRun.DoorsLocked, 0x8A024A7585FA5066UL)]
+        [TestCase(41UL, RecordedRun.DoorsOpened, 0x7F53D0BB6108830DUL)]
+        [TestCase(42UL, RecordedRun.CardsPlayed, 0x4349440291D87D4CUL)]
         public void WithNoVisitors_TheFloorReplaysExactlyAsItDidBefore(ulong seed, RecordedRun run, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();

@@ -280,11 +280,8 @@ namespace Paniq.Tests.EditMode
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.PutKeycardOnATableForTests(0);
-                for (int i = 0; i < 20; i++)
-                {
-                    simulation.QueueCommand(PlayerCommandType.InfluenceThing, TheBuilding.TheKeycard, simulation.Tick + 1);
-                    simulation.Step();
-                }
+                simulation.QueueCommand(PlayerCommandType.InfluenceThing, TheBuilding.TheKeycard, simulation.Tick + 1);
+                simulation.Step();
 
                 CausalEvent? took = AdvanceUntil(simulation, CausalEventType.AgentTookKeycard, 60 * Run.TicksPerSecond);
                 Assert.That(took.HasValue, "Drawn to the card, somebody pockets it.");
@@ -329,11 +326,17 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
-        private static void PullOnTheCard(Run simulation, int clicks)
+        /// <summary>
+        /// The player's hand on the card (a hold since 2026-09-29): pressed
+        /// once and kept there. <paramref name="ticks"/> of holding before the
+        /// test looks: the frightened only go for it once it has been held
+        /// for <see cref="KeycardSettings.PulledAfterTicks"/>.
+        /// </summary>
+        private static void PullOnTheCard(Run simulation, int ticks)
         {
-            for (int i = 0; i < clicks; i++)
+            simulation.QueueCommand(PlayerCommandType.InfluenceThing, TheBuilding.TheKeycard, simulation.Tick + 1);
+            for (int i = 0; i < ticks; i++)
             {
-                simulation.QueueCommand(PlayerCommandType.InfluenceThing, TheBuilding.TheKeycard, simulation.Tick + 1);
                 simulation.Step();
             }
         }
@@ -346,7 +349,7 @@ namespace Paniq.Tests.EditMode
             {
                 simulation.PutKeycardDownForTests(CardOnTheFloor);
                 simulation.FrightenForTests(0);
-                PullOnTheCard(simulation, 10);
+                PullOnTheCard(simulation, 120);
                 CausalEvent? took = AdvanceUntil(simulation, CausalEventType.AgentTookKeycard, 20 * Run.TicksPerSecond);
                 Assert.That(took.HasValue, "Frightened, bravery five, and pulled: they go and pocket it.");
                 Assert.That(took.Value.SourceId, Is.EqualTo(new SimulationId(1UL)));
@@ -385,7 +388,7 @@ namespace Paniq.Tests.EditMode
             {
                 simulation.PutKeycardDownForTests(CardOnTheFloor);
                 Advance(simulation, 30);
-                PullOnTheCard(simulation, 10);
+                PullOnTheCard(simulation, 120);
                 Advance(simulation, 20 * Run.TicksPerSecond);
                 Assert.That(EventsOfType(simulation, CausalEventType.AgentTookKeycard), Is.Empty,
                     "The card lies in the flames: it waits, whatever the player asks.");
@@ -402,7 +405,7 @@ namespace Paniq.Tests.EditMode
                 simulation.PutKeycardDownForTests(CardOnTheFloor);
                 simulation.FrightenForTests(0);
                 simulation.FrightenForTests(1);
-                PullOnTheCard(simulation, 10);
+                PullOnTheCard(simulation, 120);
                 int onTheirWayAtOnce = 0;
                 CausalEvent? took = null;
                 for (int t = 0; t < 20 * Run.TicksPerSecond && !took.HasValue; t++)
@@ -507,11 +510,8 @@ namespace Paniq.Tests.EditMode
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.PutKeycardDownForTests(new LogicalPosition(-3000, -3000));
-                for (int i = 0; i < 20; i++)
-                {
-                    simulation.QueueCommand(PlayerCommandType.InfluenceThing, TheBuilding.TheKeycard, simulation.Tick + 1);
-                    simulation.Step();
-                }
+                simulation.QueueCommand(PlayerCommandType.InfluenceThing, TheBuilding.TheKeycard, simulation.Tick + 1);
+                simulation.Step();
 
                 CausalEvent? took = AdvanceUntil(simulation, CausalEventType.AgentTookKeycard, 60 * Run.TicksPerSecond);
                 Assert.That(took.HasValue, "Somebody picks it up off the floor.");

@@ -1051,9 +1051,13 @@ namespace Paniq.Simulation
         /// <summary>The push written down: how many were on course against the allowance, and what it reached for.</summary>
         private ulong Pushed(SimulationId target, LogicalPosition at, ulong cause)
         {
+            LastPushTick = context.Tick;
             return context.Events.Append(context.Tick, default, CausalEventType.DirectorPushed, at, onCourse, allowance,
                 cause, target).EventId;
         }
+
+        /// <summary>The tick the building last turned on the crowd, or -1 while it never has: what the banner is timed from (2026-09-29).</summary>
+        public int LastPushTick { get; private set; } = -1;
 
         /// <summary>Tests and measurements: whether this run's Director caps the round, and with what allowance.</summary>
         internal bool CapsForTests => caps;

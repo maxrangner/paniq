@@ -207,14 +207,14 @@ namespace Paniq.Presentation
             // stopped, the pointer still hovers but no click reaches the run.
             // A pointer over a card or a button is the HUD's, not the world's
             // (the HUD's y runs from the top, the input system's from the
-            // bottom). The double-click window runs on the unscaled clock,
+            // bottom). The click-or-hold window runs on the unscaled clock,
             // which pausing does not stop.
             Mouse mouse = Mouse.current;
             Vector2 pointer = mouse != null ? mouse.position.ReadValue() : Vector2.zero;
             bool pointerOverHud = mouse != null && HudHitTest.Covers(new Vector2(pointer.x, Screen.height - pointer.y));
             input.Update(prototypeCamera, frameSnapshot,
                 runner.IsPaused || screens.CardIsUp || log.IsOpen,
-                cameraRig.IsTurningTheView, pointerOverHud, Time.unscaledTime);
+                pointerOverHud, Time.unscaledTime);
             hoveredDoor = input.HoveredDoor;
             hoveredAlarm = input.HoveredAlarm;
             Keyboard keyboard = Keyboard.current;
@@ -316,7 +316,8 @@ namespace Paniq.Presentation
                 // Every card and button drawn below claims its place on the
                 // screen, so next frame's clicks on them stay off the world.
                 HudHitTest.BeginFrame();
-                PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, runner.Seed, FindDoor(frameSnapshot, hoveredDoor), hoveredAlarm, input);
+                PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, runner.Seed, FindDoor(frameSnapshot, hoveredDoor), hoveredAlarm, input,
+                    runner.LeftAloneSavedCount);
                 screens.DrawStrip(frameSnapshot);
                 PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input, aimRing.PeopleInside);
                 if (runner.IsPaused)
@@ -343,7 +344,9 @@ namespace Paniq.Presentation
                 }
                 else if (frameSnapshot.RoundIsOver)
                 {
-                    screens.DrawEndCard(frameSnapshot, runner.LeftAloneSavedCount, runner.LeftAloneStillWorking);
+                    story ??= new EventStory(frameSnapshot);
+                    screens.DrawEndCard(frameSnapshot, runner.LeftAloneSavedCount, runner.LeftAloneStillWorking,
+                        story.Retell(frameSnapshot));
                 }
 
                 // The end card only asks; taking the request here is what
@@ -465,6 +468,19 @@ namespace Paniq.Presentation
                         ripples.Start(record.Position, scenario.Traps.CrashSoundRadiusMillimetres, SoundRipples.ThudColor, time);
                         effects.Knock(ToUnityPosition(record.Position) + Vector3.up * 0.4f, 1f, record.EventId);
                         break;
+                    case CausalEventType.TrapCreaked:
+                        // The building plays in the open (2026-09-29): the
+                        // stack sways for the seconds before it comes down,
+                        // and the creak is heard around it.
+                        boxes.Creak(TrapBoxes(scenario, record.SourceId), time + record.Strength / (float)Run.TicksPerSecond);
+                        ripples.Start(record.Position, scenario.Traps.CreakHearingMillimetres, SoundRipples.ThudColor, time);
+                        break;
+                    case CausalEventType.AgentShookFree:
+                        // Tore free of the player's hand: the "!" of somebody
+                        // who has just been let go of, on top of the shake
+                        // the snapshot carries.
+                        agents.Notice(record.SourceId, time);
+                        break;
                     case CausalEventType.PowerBeefcake:
                     case CausalEventType.PowerCourage:
                     case CausalEventType.PowerTerror:
@@ -582,6 +598,24 @@ namespace Paniq.Presentation
             }
 
             eventsSeen = snapshot.Events.Count;
+        }
+
+        /// <summary>The boxes a trap is built of, from the level, so the creak knows what to sway.</summary>
+        private static SimulationId[] TrapBoxes(ScenarioData scenario, SimulationId trapId)
+        {
+            TrapDefinition[] traps = scenario.TrapDefinitions;
+            if (traps != null)
+            {
+                for (int t = 0; t < traps.Length; t++)
+                {
+                    if (traps[t].TrapId == trapId)
+                    {
+                        return traps[t].BoxIds;
+                    }
+                }
+            }
+
+            return System.Array.Empty<SimulationId>();
         }
 
         /// <summary>

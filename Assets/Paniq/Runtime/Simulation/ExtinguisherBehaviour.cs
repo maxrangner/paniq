@@ -84,6 +84,22 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Whether somebody frightened with a bottle already in their arms --
+        /// taken off its wall because the player pointed at it -- keeps hold
+        /// of it and fights (2026-09-29): brave enough for the flames, on
+        /// their feet, not alight, and something burning to fight. The timid
+        /// fling it away as they would anything.
+        /// </summary>
+        public bool WouldKeepTheBottle(Agent agent)
+        {
+            // Startled or frightened: the fright begins as a startle, which
+            // is when everybody else lets go of what they carry.
+            return agent.Fear.State != AgentFearState.Calm && agent.Body.State == AgentBodyState.Upright &&
+                   !agent.Burning.IsBurning && agent.Traits.Bravery >= settings.FightMinimumBravery &&
+                   fire.BurningCount + flammables.BurningCount > 0;
+        }
+
+        /// <summary>
         /// Considered in the panic decision: pick up an extinguisher and go
         /// for the fire. Returns no intent when this person is not doing that.
         /// </summary>
@@ -91,6 +107,18 @@ namespace Paniq.Simulation
         {
             if (IsFighting(agent))
             {
+                return Update(agent, inDanger);
+            }
+
+            // The bottle is already in their arms, kept through the fright
+            // (2026-09-29): straight to the flames with it.
+            int held = agent.Carry.ItemIndex;
+            if (!inDanger && held >= 0 && agent.Carry.Holding && agent.Carry.OwnsIt && objects.IsEquipment(held) &&
+                WouldKeepTheBottle(agent) && CanReachTheFlames(agent))
+            {
+                agent.Carry.OwnsIt = false;
+                agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
+                agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FightTimeoutTicks));
                 return Update(agent, inDanger);
             }
 

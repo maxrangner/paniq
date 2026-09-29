@@ -463,6 +463,16 @@ namespace Paniq.Simulation
         /// <summary>A runner blocked this long makes a fresh decision.</summary>
         public int BlockedGiveUpTicks = 12;
 
+        /// <summary>
+        /// Pressed against something they cannot shift (2026-09-29): running
+        /// at this pace or more (a metre a second) and moving less than this
+        /// a tick counts as being blocked, tick for tick, though the engine
+        /// accepted every creeping step. After <see cref="BlockedGiveUpTicks"/>
+        /// of it, a doorway walled off by a held or pinned thing is given up.
+        /// </summary>
+        public int PressedSpeedMinimum = 20;
+        public int PressedStepMillimetres = 5;
+
         public int ArrivalDistanceMillimetres = 700;
 
         // Choosing where to run when there is no door to run for.
@@ -544,7 +554,7 @@ namespace Paniq.Simulation
             Settings.Require(EscapeSampleCount >= 1 && DangerDistanceMillimetres >= 0 && FollowRadiusMillimetres >= 0 &&
                              FollowPercent >= 0, "panic choices");
             Settings.Require(Settings.Range(ShoutMinimumTicks, ShoutMaximumTicks, 1), "panic shouts");
-            Settings.Require(BlockedGiveUpTicks >= 1 && ArrivalDistanceMillimetres >= 0, "panic arrival");
+            Settings.Require(BlockedGiveUpTicks >= 1 && ArrivalDistanceMillimetres >= 0 && PressedSpeedMinimum >= 0 && PressedStepMillimetres >= 0, "panic arrival");
             Settings.Require(EscapeWallMarginMillimetres >= 0 && EscapeRouteClearanceMillimetres >= 0 &&
                              EscapeRoutePenaltyMillimetres >= 0 && EscapeShortHopDistanceMillimetres >= 0 &&
                              EscapeShortHopPenaltyMillimetres >= 0 && EscapeTurnPenaltyPerDegree >= 0 &&
@@ -1526,6 +1536,14 @@ namespace Paniq.Simulation
         /// </summary>
         public int PulledToTheCardPerMille = 250;
 
+        /// <summary>
+        /// How long the player's hand has to have been on the card before
+        /// somebody frightened goes for it (2026-09-29): two seconds. A pull
+        /// is full the moment it is pressed, so the wait is what keeps a
+        /// glancing press from turning somebody back into the building.
+        /// </summary>
+        public int PulledAfterTicks = 100;
+
         public KeycardSettings Clone() => (KeycardSettings)MemberwiseClone();
 
         internal void Validate()
@@ -2232,6 +2250,14 @@ namespace Paniq.Simulation
         public int PullMinimumBravery = 6;
 
         /// <summary>
+        /// The player's hand on a pull station makes the brave pull it sooner
+        /// (2026-09-29): somebody frightened who feels that pull needs this
+        /// much less bravery to think of it, and goes for it from as far as
+        /// the pull reaches rather than the usual walk.
+        /// </summary>
+        public int PulledBraveryBonus = 2;
+
+        /// <summary>
         /// How often a ringing bell rings again, give or take: each bell draws
         /// its own beat, so no two ring on one tick. Six seconds: somebody who
         /// was out of earshot behind a shut door hears the next one once the
@@ -2247,7 +2273,8 @@ namespace Paniq.Simulation
                              FetchTimeoutTicks >= 1 && RepeatTicks >= 1, "fire alarms");
             Settings.Require(BellHearingRadiusMillimetres >= 0 &&
                              BellAlarmRadiusMillimetres <= BellHearingRadiusMillimetres, "alarm bells");
-            Settings.Require(PullMinimumLeadership >= 0 && PullMinimumCompassion >= 0 && PullMinimumBravery >= 0,
+            Settings.Require(PullMinimumLeadership >= 0 && PullMinimumCompassion >= 0 && PullMinimumBravery >= 0 &&
+                             PulledBraveryBonus >= 0,
                 "who raises the alarm");
         }
     }
@@ -2694,13 +2721,24 @@ namespace Paniq.Simulation
         /// </summary>
         public int PileBeyondMillimetres = 350;
 
+        /// <summary>
+        /// How long a sprung trap creaks before it falls (2026-09-29): three
+        /// seconds, jittered. The building plays in the open: the stack sways
+        /// and is heard, so a player who is looking can get people clear. It
+        /// used to fall a beat after being sprung.
+        /// </summary>
+        public int CreakTicks = 150;
+
+        /// <summary>How far the creak is heard: six metres, the room it stands in. Calm people look; it frightens nobody.</summary>
+        public int CreakHearingMillimetres = 6000;
+
         public TrapSettings Clone() => (TrapSettings)MemberwiseClone();
 
         internal void Validate()
         {
             Settings.Require(TriggerSpeedMillimetresPerTick >= 0 && PileHoldsAtBoxes >= 1 && CrashSoundRadiusMillimetres >= 0 &&
                              ToppleSpeedPercent >= 0 && ToppleLiftPercent >= 0 && HeapSettleTicks >= 1 && HeapGapMillimetres >= 0 &&
-                             PileBeyondMillimetres >= 0, "traps");
+                             PileBeyondMillimetres >= 0 && CreakTicks >= 1 && CreakHearingMillimetres >= 0, "traps");
         }
     }
 
@@ -2956,27 +2994,76 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
+    /// The tug (2026-09-29, the owner's rule; <see cref="TugSystem"/>): the
+    /// player's hand on a person. "It holds them in place. Should not be
+    /// 100% instant, more like tugging someone's shirt. So you can save
+    /// someone running into fire." And: "the strongest can break free.
+    /// Sliding scale. A slightly not too strong can eventually break free by
+    /// visibly shaking you off."
+    /// </summary>
+    [Serializable]
+    public sealed class TugSettings
+    {
+        /// <summary>
+        /// How hard the hand brakes them, in millimetres a tick each tick:
+        /// somebody sprinting at five metres a second (a hundred a tick) is
+        /// stopped in about a second. A hand closing on a shirt, not a wall.
+        /// </summary>
+        public int BrakeMillimetresPerTickPerTick = 2;
+
+        /// <summary>Below this strength they stay as long as the hand is on them: an ordinary person (five) cannot tear free.</summary>
+        public int TearsFreeFromStrength = 6;
+
+        /// <summary>
+        /// How long somebody at <see cref="TearsFreeFromStrength"/> takes to
+        /// tear free: eight seconds, jittered, and halved for every point of
+        /// strength above it -- four at seven, two at eight, one at nine,
+        /// half a second at ten. The brute (nine) shrugs the hand off in a
+        /// moment; the strong visitor (nine) likewise; a moderately strong
+        /// person is held a good while and then shakes it off.
+        /// </summary>
+        public int TearFreeTicksAtThreshold = 400;
+
+        /// <summary>How long the shake of tearing free is drawn for: two seconds, the annoyed shake's length.</summary>
+        public int ShookFreeShownTicks = 100;
+
+        public TugSettings Clone() => (TugSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(BrakeMillimetresPerTickPerTick >= 1 && TearsFreeFromStrength >= 0 &&
+                             TearFreeTicksAtThreshold >= 1 && ShookFreeShownTicks >= 0, "the tug");
+        }
+    }
+
+    /// <summary>
     /// Influence (prototype 3, second batch, 2026-09-26; <see cref="InfluenceSystem"/>):
-    /// the player clicks a door, a thing or a patch of floor and people are
-    /// drawn toward it, each by as much as their character lets them.
+    /// the player's hand on a door, a thing or a patch of floor, and people
+    /// are drawn toward it, each by as much as their character lets them.
+    /// Since 2026-09-29 (the owner's rule) it is a hold, not clicks: the
+    /// pull is full the moment the button goes down on a place, one place at
+    /// a time, and gone the moment it comes up.
     /// </summary>
     [Serializable]
     public sealed class InfluenceSettings
     {
-        /// <summary>The most steps a place can have: twenty clicks' worth (the owner's "maybe steps 0-20").</summary>
+        /// <summary>
+        /// The level a held place has, and the scale the pull is felt on.
+        /// It used to be the most clicks a place could take (the owner's
+        /// "maybe steps 0-20"); a held place is always at it.
+        /// </summary>
         public int MaximumLevel = 20;
-
-        /// <summary>How long a place keeps each step: two seconds, so a full twenty fades over forty.</summary>
-        public int TicksPerStepLost = 100;
 
         /// <summary>
         /// How far a place's pull reaches, fading to nothing: twelve metres, a
-        /// big room across. The owner: further than four metres, weaker the
-        /// further off, and never into another room for now.
+        /// big room across (the owner, 2026-09-29: "limit range to be around
+        /// a room's length"). Measured as a walk: straight across the room it
+        /// is in, or through one open doorway into the next room, never
+        /// through a wall or a shut door.
         /// </summary>
         public int ReachMillimetres = 12000;
 
-        /// <summary>A click this near a place on the floor adds to it rather than starting another.</summary>
+        /// <summary>A pull on the floor this near a thing counts as on it: the spot beside a pull station somebody has just pulled.</summary>
         public int StackRadiusMillimetres = 1000;
 
         /// <summary>
@@ -3003,9 +3090,6 @@ namespace Paniq.Simulation
         public int MinimumPercent = 10;
         public int MaximumPercent = 200;
 
-        /// <summary>A safety net against a stuck mouse button, never the player's limit: past this many places, the faintest goes.</summary>
-        public int MaximumPlaces = 64;
-
         /// <summary>
         /// Calm people who are easily led -- this nervous, or a visitor -- may
         /// get up from a chair or leave an errand for a strong enough pull.
@@ -3017,11 +3101,12 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// The chance, per mille, that they get up at a check, for a full pull
-        /// felt: one in ten. A faint pull, proportionally less. So within ten
-        /// seconds or so of frantic clicking the nervous start drifting out of
-        /// a meeting, while the steady sit on.
+        /// felt: three in ten (2026-09-29; it was one in ten under clicks). A
+        /// faint pull, proportionally less. So within a couple of seconds of
+        /// a hand on a place the nervous start getting up out of a meeting,
+        /// while the steady sit on.
         /// </summary>
-        public int LeaveTaskChancePerMille = 100;
+        public int LeaveTaskChancePerMille = 300;
 
         /// <summary>
         /// The chance, per mille of a full pull felt, that a calm person with
@@ -3033,9 +3118,9 @@ namespace Paniq.Simulation
 
         internal void Validate()
         {
-            Settings.Require(MaximumLevel >= 1 && TicksPerStepLost >= 1 && ReachMillimetres >= 1 &&
+            Settings.Require(MaximumLevel >= 1 && ReachMillimetres >= 1 &&
                              StackRadiusMillimetres >= 0 && FullPullBonusMillimetres >= 0 &&
-                             MinimumPercent >= 0 && MaximumPercent >= MinimumPercent && MaximumPlaces >= 1 &&
+                             MinimumPercent >= 0 && MaximumPercent >= MinimumPercent &&
                              LeaveTaskCheckTicks >= 1 && LeaveTaskChancePerMille >= 0 && WanderToItPerMille >= 0,
                 "influence");
         }

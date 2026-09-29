@@ -198,10 +198,10 @@ namespace Paniq.Tests.EditMode
                 Assert.That(triggered[0].CausalParentEventId, Is.EqualTo(pushed.Value.EventId));
                 Assert.That(triggered[0].Tick, Is.EqualTo(pushed.Value.Tick));
 
-                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 60);
+                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
                 Assert.That(fell.HasValue);
-                Assert.That(fell.Value.Tick - triggered[0].Tick, Is.InRange(1, data.Perception.ReactionLagMaximumTicks),
-                    "Never on the tick it was decided: a beat later, as for a runner.");
+                Assert.That(fell.Value.Tick - triggered[0].Tick, Is.InRange(data.Traps.CreakTicks * 4 / 5, data.Traps.CreakTicks * 6 / 5),
+                    "Never on the tick it was decided: it creaks first, as for a runner (2026-09-29).");
             }
         }
 

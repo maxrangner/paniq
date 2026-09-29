@@ -41,6 +41,7 @@ namespace Paniq.Simulation
         private GroupSystem groups;
         private NudgeSystem nudges;
         private InfluenceSystem influence;
+        private TugSystem tugs;
 
         /// <summary>Who a "Stick together" throw caught, and each one's event, gathered before anything is written.</summary>
         private readonly List<int> caughtIndices = new List<int>();
@@ -70,6 +71,7 @@ namespace Paniq.Simulation
             groups = systems.Groups;
             nudges = systems.Nudges;
             influence = systems.Influence;
+            tugs = systems.Tugs;
         }
 
         /// <summary>Every command queued so far, in sequence order.</summary>
@@ -130,9 +132,12 @@ namespace Paniq.Simulation
 
                     break;
                 case PlayerCommandType.InfluenceSpot:
+                case PlayerCommandType.ReleaseInfluence:
                     break;
                 case PlayerCommandType.NudgePerson:
                 case PlayerCommandType.NudgePersonFrom:
+                case PlayerCommandType.TugPerson:
+                case PlayerCommandType.ReleaseTug:
                     if (crowd.IndexOf(targetId) < 0)
                     {
                         throw new ArgumentException($"Unknown person ID {targetId}.", nameof(targetId));
@@ -280,8 +285,10 @@ namespace Paniq.Simulation
                 return;
             }
 
-            // Influence (2026-09-26): free, not a card, one step a click. A
-            // spot off the floor is no place at all, and nothing is written.
+            // Influence (2026-09-26): free, not a card. Since 2026-09-29 a
+            // press is the hand going on a place, full at once, and the
+            // release is it coming off. A spot off the floor is no place at
+            // all, and nothing is written.
             if (command.CommandType == PlayerCommandType.InfluenceDoor)
             {
                 influence.OnDoor(doors.IndexOf(command.TargetId), command.TargetId);
@@ -301,7 +308,27 @@ namespace Paniq.Simulation
 
             if (command.CommandType == PlayerCommandType.InfluenceSpot)
             {
-                influence.TryOnSpot(command.Point, out _);
+                influence.TryOnSpot(command.Point);
+                return;
+            }
+
+            if (command.CommandType == PlayerCommandType.ReleaseInfluence)
+            {
+                influence.Release();
+                return;
+            }
+
+            // The tug (2026-09-29): free, not a card, and nothing at all to
+            // somebody already out of the building or dead.
+            if (command.CommandType == PlayerCommandType.TugPerson)
+            {
+                tugs.Tug(crowd.All[crowd.IndexOf(command.TargetId)]);
+                return;
+            }
+
+            if (command.CommandType == PlayerCommandType.ReleaseTug)
+            {
+                tugs.Release(crowd.All[crowd.IndexOf(command.TargetId)]);
                 return;
             }
 

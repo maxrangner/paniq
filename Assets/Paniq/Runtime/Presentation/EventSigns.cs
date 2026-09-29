@@ -287,6 +287,8 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentHidFromTheHeat: return "too hot!";
                 case CausalEventType.AgentAnnoyed: return "leave me alone!";
                 case CausalEventType.BoxTowerFell: return "the boxes came down!";
+                case CausalEventType.TrapCreaked: return "it's going!";
+                case CausalEventType.AgentShookFree: return "get off!";
                 case CausalEventType.BoxHeapSettled: return "the way is blocked!";
                 case CausalEventType.AgentClearedDoorway: return "out of the way";
                 case CausalEventType.InfluenceSpent: return "done!";

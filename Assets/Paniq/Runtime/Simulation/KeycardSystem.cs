@@ -571,8 +571,10 @@ namespace Paniq.Simulation
             }
 
             int place = influence.PlaceOfThing(card);
-            if (place < 0)
+            if (place < 0 || influence.HeldFor(place) < settings.PulledAfterTicks)
             {
+                // No hand on it, or not for long enough yet (2026-09-29): a
+                // glancing press turns nobody back into the building.
                 return -1;
             }
 

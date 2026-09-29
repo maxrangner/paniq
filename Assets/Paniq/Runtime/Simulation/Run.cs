@@ -63,6 +63,7 @@ namespace Paniq.Simulation
         private readonly ErrandBehaviour errands;
         private readonly DirectorSystem director;
         private readonly NudgeSystem nudges;
+        private readonly TugSystem tugs;
 
         /// <summary>The places the player has drawn people toward (2026-09-26).</summary>
         private readonly InfluenceSystem influence;
@@ -148,6 +149,7 @@ namespace Paniq.Simulation
                 influence = new InfluenceSystem(context, geometry);
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues, sound);
                 nudges = new NudgeSystem(context, crowd, body, calm, fear);
+                tugs = new TugSystem(context, crowd, nudges);
                 director = new DirectorSystem(context, cues, geometry, traps, doors, fire, flammables, power, objects, crowd,
                     sound);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
@@ -180,8 +182,8 @@ namespace Paniq.Simulation
                     DoorBehaviour = doorBehaviour, Help = help, Panic = panic, Burning = burning,
                     Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms, Groups = groups,
                     AlarmBehaviour = alarmBehaviour, Barricades = barricades,
-                    Cues = cues, Errands = errands, Director = director, Nudges = nudges, Traps = traps, Influence = influence,
-                    Keycards = keycards
+                    Cues = cues, Errands = errands, Director = director, Nudges = nudges, Tugs = tugs, Traps = traps,
+                    Influence = influence, Keycards = keycards
                 };
                 systems.BindAll();
 
@@ -614,6 +616,9 @@ namespace Paniq.Simulation
 
         internal InfluenceSystem InfluenceForTests => influence;
 
+        /// <summary>Tests: the player's hand on a person, and who it is on.</summary>
+        internal TugSystem TugsForTests => tugs;
+
         internal FlammablesSystem FlammablesForTests => flammables;
 
         /// <summary>Sets somebody alight, as touching the flames would.</summary>
@@ -859,6 +864,7 @@ namespace Paniq.Simulation
             // traps and for anybody nudged a beat ago.
             director.Advance();
             nudges.Advance();
+            tugs.Advance();
             threats.Advance();
 
             // Phase 2 as well: a fuse burning along a wall toward a socket is
@@ -930,7 +936,11 @@ namespace Paniq.Simulation
 
                 if (intent.HasValue)
                 {
-                    Locomotion.ApplyBody(agent, items.Burdened(agent, intent.Value));
+                    // The player's hand on them (2026-09-29) brakes whatever
+                    // they meant to do to a standstill; the plan itself is
+                    // theirs, and resumes the moment the hand comes off.
+                    MotorIntent wanted = items.Burdened(agent, intent.Value);
+                    Locomotion.ApplyBody(agent, agent.Tug.Held ? tugs.Restrain(agent, wanted) : wanted);
                 }
 
                 if (agent.Body.State != AgentBodyState.Upright)
@@ -1183,6 +1193,8 @@ namespace Paniq.Simulation
 
             influence.FillSnapshot(into.InfluencePlaceBuffer, into.InfluencePullBuffer, agents);
             into.PlayerMayPullAlarms = context.Scenario.Alarm.PlayerMayPull;
+            into.DirectorPushTick = director.LastPushTick;
+            into.TuggedAgentIndex = tugs.HeldIndex;
 
             into.Fill(
                 context.Tick,

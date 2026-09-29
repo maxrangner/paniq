@@ -194,11 +194,29 @@ namespace Paniq.Simulation
                 return;
             }
 
-            phase[trap] = TrapPhase.Falling;
-            fallTick[trap] = context.ReactionTick();
             triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
                 Landing(trap), 0, 0, cause).EventId;
+            Creak(trap);
         }
+
+        /// <summary>
+        /// Sprung, the trap creaks before it falls (2026-09-29): the fall is
+        /// set a few seconds out, jittered, and the creak is written down and
+        /// heard in its room, so calm people look up at it and a player who
+        /// is watching can get people clear. The building plays in the open.
+        /// </summary>
+        private void Creak(int trap)
+        {
+            int wait = context.Jittered(settings.CreakTicks);
+            phase[trap] = TrapPhase.Falling;
+            fallTick[trap] = checked(context.Tick + wait);
+            ulong creaked = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapCreaked,
+                Landing(trap), wait, 0, triggerEventId[trap]).EventId;
+            sound.Crash(traps[trap].TrapId, Landing(trap), settings.CreakHearingMillimetres, creaked);
+        }
+
+        /// <summary>Sprung and not yet down: the stack is swaying.</summary>
+        public bool IsCreaking(int trap) => phase[trap] == TrapPhase.Falling;
 
         /// <summary>
         /// The tick the most recent tower came down, or -1 while none has:
@@ -319,12 +337,11 @@ namespace Paniq.Simulation
                 return;
             }
 
-            phase[trap] = TrapPhase.Falling;
-            fallTick[trap] = context.ReactionTick();
             // Sprung because the fire was lit: that event is its cause, so
             // the story can trace the fallen boxes back to it.
             triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
                 Landing(trap), 0, 0, cause, runner.Id).EventId;
+            Creak(trap);
         }
 
         /// <summary>

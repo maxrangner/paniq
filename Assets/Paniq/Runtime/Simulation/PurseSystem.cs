@@ -333,6 +333,14 @@ namespace Paniq.Simulation
                 case CausalEventType.AgentDrawnByInfluence:
                 case CausalEventType.InfluenceSpent:
 
+                // The hand (2026-09-29): the player's own doing, somebody
+                // shrugging it off, and a trap swaying before it falls.
+                case CausalEventType.PowerReleasedInfluence:
+                case CausalEventType.PowerTugged:
+                case CausalEventType.PowerReleasedTug:
+                case CausalEventType.AgentShookFree:
+                case CausalEventType.TrapCreaked:
+
                 // Bookkeeping: things happening quietly to people, things and doors.
                 case CausalEventType.AgentGotUp:
                 case CausalEventType.AgentCameTo:

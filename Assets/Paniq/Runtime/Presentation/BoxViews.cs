@@ -29,6 +29,9 @@ namespace Paniq.Presentation
 
             /// <summary>0 while it is in one piece, 1 once it has collapsed into wreckage.</summary>
             public float Wreck;
+
+            /// <summary>Until when the box sways as part of a creaking stack (2026-09-29), on the frame clock.</summary>
+            public float CreakUntil = float.NegativeInfinity;
         }
 
         private readonly Dictionary<SimulationId, BoxView> boxes = new Dictionary<SimulationId, BoxView>();
@@ -464,6 +467,30 @@ namespace Paniq.Presentation
         /// <summary>Where the simulation lets go of a carried thing, in metres; it is drawn there while held.</summary>
         private const float HandHeight = 1f;
 
+        /// <summary>
+        /// A sprung trap creaks before it falls (2026-09-29): its boxes sway
+        /// until the run says they come down, so a player who is looking
+        /// sees the building's move before it lands. Presentation only.
+        /// </summary>
+        public void Creak(SimulationId[] boxIds, float until)
+        {
+            for (int i = 0; i < boxIds.Length; i++)
+            {
+                if (boxes.TryGetValue(boxIds[i], out BoxView view))
+                {
+                    view.CreakUntil = until;
+                }
+            }
+        }
+
+        /// <summary>The sway of a creaking box: a small rock about its base that grows as the fall nears.</summary>
+        private static Quaternion Sway(BoxView view, int index, float time)
+        {
+            float left = view.CreakUntil - time;
+            float amount = Mathf.Lerp(4f, 1.5f, Mathf.Clamp01(left / 3f));
+            return Quaternion.Euler(Mathf.Sin(time * 9f + index) * amount, 0f, Mathf.Sin(time * 7f + index * 1.3f) * amount);
+        }
+
         public void Update(RunSnapshot snapshot, RunSnapshot previousSnapshot, float blend, float time)
         {
             for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
@@ -522,6 +549,11 @@ namespace Paniq.Presentation
                     view.Transform.SetPositionAndRotation(
                         Vector3.Lerp(PoseOrigin(from), PoseOrigin(to), blend),
                         Quaternion.Slerp(PoseRotation(from), PoseRotation(to), blend));
+                }
+
+                if (time < view.CreakUntil)
+                {
+                    view.Transform.rotation = view.Transform.rotation * Sway(view, i, time);
                 }
 
                 ShowFire(view, box.BurnState, box.HeatPercent, time);

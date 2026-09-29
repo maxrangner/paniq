@@ -1023,7 +1023,39 @@ namespace Paniq.Simulation
         /// trap, socket, fuse box or bin. Strength: how many were on course.
         /// Duration: the round's allowance. Cause: what set the round going.
         /// </summary>
-        DirectorPushed
+        DirectorPushed,
+
+        // The hand (2026-09-29): a pull that lasts while the button is held,
+        // a tug on a person, and traps that creak before they fall. Appended
+        // only.
+
+        /// <summary>
+        /// The player let go of the place they were holding: the pull on it
+        /// is gone. A root event. Target: the door or thing, or none for a
+        /// spot. Strength: how many ticks it was held.
+        /// </summary>
+        PowerReleasedInfluence,
+
+        /// <summary>The player took hold of somebody by the shirt. A root event. Target: the person.</summary>
+        PowerTugged,
+
+        /// <summary>The player let go of the person they were holding. A root event. Target: the person. Strength: how many ticks they were held.</summary>
+        PowerReleasedTug,
+
+        /// <summary>
+        /// Somebody strong enough tore free of the player's hand, visibly
+        /// shaking it off. Source: the person. Strength: how many ticks they
+        /// were held. Cause: the tug.
+        /// </summary>
+        AgentShookFree,
+
+        /// <summary>
+        /// A sprung trap creaks before it falls: the stack sways and is heard
+        /// in its room for a few seconds, so whoever is looking can get
+        /// people clear. Source: the trap. Strength: ticks until it falls.
+        /// Cause: the trigger.
+        /// </summary>
+        TrapCreaked
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -1285,7 +1317,31 @@ namespace Paniq.Simulation
         /// since 2026-09-26; <see cref="NudgePerson"/> shoves them backwards
         /// from the way they face, for recorded runs.
         /// </summary>
-        NudgePersonFrom
+        NudgePersonFrom,
+
+        // The hand (2026-09-29, the owner's rule: "hold only ... when you
+        // interact the influence is clear and instant, but as soon as you let
+        // go the agents are on their own"). Appended only.
+
+        /// <summary>
+        /// The player lets go of the place they were holding: the pull on it
+        /// is gone at once. No target. Free. The press is
+        /// <see cref="InfluenceDoor"/>, <see cref="InfluenceThing"/> or
+        /// <see cref="InfluenceSpot"/>, which since 2026-09-29 put a full pull
+        /// on the place and replace any place held before.
+        /// </summary>
+        ReleaseInfluence,
+
+        /// <summary>
+        /// The player takes hold of a person (the target is the person's ID):
+        /// a tug on their shirt that slows them to a stop over about a second
+        /// and holds them there while the button stays down. The strong tear
+        /// free. Free, and not a card. Ends with <see cref="ReleaseTug"/>.
+        /// </summary>
+        TugPerson,
+
+        /// <summary>The player lets go of the person they were holding (the target is the person's ID). Free.</summary>
+        ReleaseTug
     }
 
     /// <summary>

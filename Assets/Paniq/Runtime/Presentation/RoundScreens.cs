@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Paniq.Gameplay;
 using Paniq.Simulation;
 using UnityEngine;
@@ -127,14 +128,19 @@ namespace Paniq.Presentation
         }
 
         /// <summary>
-        /// The card at the end: what the round came to, a way to read it back,
-        /// and two ways to play it again.
+        /// The card at the end: what the round came to, the margin over the
+        /// same seed left alone (the line the round is judged by, the owner's
+        /// choice, 2026-09-29), three lines of why, a way to read the whole
+        /// round back, and two ways to play it again.
         /// </summary>
-        public void DrawEndCard(RunSnapshot snapshot, int? leftAloneSavedCount = null, bool leftAloneStillWorking = false)
+        public void DrawEndCard(RunSnapshot snapshot, int? leftAloneSavedCount = null, bool leftAloneStillWorking = false,
+            IReadOnlyList<string> retelling = null)
         {
             RecordResultOnce(snapshot);
+            RecordMarginOnce(snapshot, leftAloneSavedCount);
 
-            const float height = 342f;
+            int lines = retelling?.Count ?? 0;
+            float height = 372f + 22f * lines;
             Rect card = CentredCard(height);
             float x = card.x + 24f;
             float y = card.y + 20f;
@@ -144,7 +150,29 @@ namespace Paniq.Presentation
                 $"You saved {snapshot.SavedCount} of {snapshot.CrowdSize} — {snapshot.SavedPercent}%");
             y += 30f;
 
-            GUI.color = snapshot.Cleared ? Cleared : NotCleared;
+            // What the same seed came to with nobody at the controls
+            // (2026-09-27), and the difference the player made (2026-09-29):
+            // the round is you against the building.
+            if (leftAloneSavedCount.HasValue)
+            {
+                int margin = snapshot.SavedCount - leftAloneSavedCount.Value;
+                GUI.color = margin > 0 ? Cleared : margin < 0 ? NotCleared : new Color(0.75f, 0.78f, 0.82f);
+                GUI.Label(new Rect(x, y, width, 22f), margin > 0
+                    ? $"Left alone, {leftAloneSavedCount.Value} would have lived. You made the difference for {margin}."
+                    : margin < 0
+                        ? $"Left alone, {leftAloneSavedCount.Value} would have lived: {-margin} fewer lived with you playing."
+                        : $"Left alone, {leftAloneSavedCount.Value} would have lived: the same as with you playing.");
+            }
+            else
+            {
+                GUI.color = new Color(0.75f, 0.78f, 0.82f);
+                GUI.Label(new Rect(x, y, width, 22f), leftAloneStillWorking ? "Left alone: still working it out…" : "");
+            }
+
+            GUI.color = Color.white;
+            y += 24f;
+
+            GUI.color = snapshot.Cleared ? Cleared : new Color(0.75f, 0.78f, 0.82f);
             GUI.Label(new Rect(x, y, width, 22f), snapshot.Cleared
                 ? $"Cleared — {snapshot.TargetSavedPercent}% was needed"
                 : $"Not cleared — {snapshot.TargetSavedPercent}% was needed");
@@ -156,16 +184,25 @@ namespace Paniq.Presentation
                 $"{snapshot.LostCount} did not make it.");
             y += 26f;
 
-            // What the same seed came to with nobody at the controls
-            // (2026-09-27): the one line that says whether the player mattered.
-            GUI.color = new Color(0.75f, 0.78f, 0.82f);
-            GUI.Label(new Rect(x, y, width, 22f), leftAloneSavedCount.HasValue
-                ? $"Left alone, {leftAloneSavedCount.Value} of {snapshot.CrowdSize} would have lived."
-                : leftAloneStillWorking ? "Left alone: still working it out…" : "");
-            GUI.color = Color.white;
-            y += 26f;
+            // Three lines of why (2026-09-29): the smallest form of the
+            // retelling the vision asks for.
+            GUI.color = new Color(0.82f, 0.84f, 0.88f);
+            for (int i = 0; i < lines; i++)
+            {
+                GUI.Label(new Rect(x, y, width, 22f), retelling[i]);
+                y += 22f;
+            }
 
-            if (beatTheBest)
+            GUI.color = Color.white;
+            y += 4f;
+
+            if (beatTheBestMargin)
+            {
+                GUI.color = Cleared;
+                GUI.Label(new Rect(x, y, width, 22f), $"Your best margin over the building yet: {bestMarginThisRound}.");
+                GUI.color = Color.white;
+            }
+            else if (beatTheBest)
             {
                 GUI.color = Cleared;
                 GUI.Label(new Rect(x, y, width, 22f), $"A new best: {snapshot.SavedPercent}%.");
@@ -208,9 +245,11 @@ namespace Paniq.Presentation
         private void DrawBestSoFar(float x, float y, float width)
         {
             int best = LevelSession.BestPercentFor(LevelId);
+            int? margin = LevelSession.BestMarginFor(LevelId);
+            string overTheBuilding = margin.HasValue ? $"; best margin over the building: {margin.Value}" : "";
             GUI.color = new Color(0.75f, 0.78f, 0.82f);
             GUI.Label(new Rect(x, y, width, 22f),
-                best > 0 ? $"Best so far: {best}%" : "Never played this one before.");
+                best > 0 ? $"Best so far: {best}%{overTheBuilding}" : "Never played this one before.");
             GUI.color = Color.white;
         }
 
@@ -260,6 +299,23 @@ namespace Paniq.Presentation
 
             resultRecorded = true;
             beatTheBest = LevelSession.RecordResult(LevelId, snapshot.SavedPercent);
+        }
+
+        /// <summary>Whether this round's margin over "left alone" has gone into the record; it can only be judged once the hands-off round is done.</summary>
+        private bool marginRecorded;
+        private bool beatTheBestMargin;
+        private int bestMarginThisRound;
+
+        private void RecordMarginOnce(RunSnapshot snapshot, int? leftAloneSavedCount)
+        {
+            if (marginRecorded || !leftAloneSavedCount.HasValue)
+            {
+                return;
+            }
+
+            marginRecorded = true;
+            bestMarginThisRound = snapshot.SavedCount - leftAloneSavedCount.Value;
+            beatTheBestMargin = LevelSession.RecordMargin(LevelId, bestMarginThisRound);
         }
 
         private static Rect CentredCard(float height)

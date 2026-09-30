@@ -85,6 +85,9 @@ namespace Paniq.Presentation
         /// <summary>Why the display could not be built, or null when all is well.</summary>
         private string startupError;
 
+        /// <summary>The same, for a test that loads a level and wants to know the scene built.</summary>
+        internal string StartupErrorForTests => startupError;
+
         private SimulationId? hoveredDoor;
         private SimulationId? hoveredAlarm;
         private bool showStats;

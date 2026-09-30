@@ -53,7 +53,9 @@ every zoom level.
 | **Right click** elsewhere | put down the card in hand |
 | **Reset** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
 | **Pause** (the button under Reset) | stop and start the world, as Space does |
-| **Trigger event** (the red button bottom centre) | start the fire. It goes the moment it is pressed |
+| **Trigger event** (the red button bottom centre) | start the fire. It goes the moment it is pressed. Not on a level with nothing to set off (the square room and the maze, 2026-09-30) |
+| **Crowd: calm / Crowd: panicked** (the button beside it, on the test levels only) | the crowd switch (2026-09-30): everybody takes fright one after another and stays frightened until it is pressed again, when everybody settles one at a time. See [the test levels](test-levels.md) |
+| **The level row** (on the start card, under the level's name) | reload into another level -- the office or one of the test levels -- behind its own start card |
 
 Chosen on the owner's behalf:
 

@@ -47,10 +47,34 @@ namespace Paniq.Gameplay
         [Tooltip("On: the player can pull a fire alarm by clicking it. Off (the office since prototype 3's second batch): only the people in the building pull alarms.")]
         [SerializeField] private bool playerPullsAlarms = true;
 
+        [Tooltip("A building drawn by code instead of the scenario's own (2026-09-30): the square room, the maze or the interaction room. " +
+                 "The scenario's tuning numbers still apply; only the building, the people and the things in it are replaced. None plays the scenario's own building.")]
+        [SerializeField] private BuiltInBuilding builtInBuilding = BuiltInBuilding.None;
+
+        [Tooltip("On (the test levels): a Crowd button on screen sets the whole crowd panicking or calms it down again. Off (the office): the crowd is only ever frightened by what happens to it.")]
+        [SerializeField] private bool offersCrowdSwitch;
+
+        [Tooltip("On (the office): the red Trigger event button starts the level's hazard. Off (the square room and the maze, which have none): the button is not shown, and the round is not judged against the same seed left alone.")]
+        [SerializeField] private bool triggerStartsAHazard = true;
+
         public string LevelId => string.IsNullOrEmpty(levelId) ? name : levelId;
         public string DisplayName => string.IsNullOrEmpty(displayName) ? name : displayName;
         public PhysicsFeelPreset PhysicsFeel => physicsFeel;
         public int TargetSavedPercent => targetSavedPercent;
+
+        /// <summary>Which building the level plays: the scenario's own, or one drawn by code (2026-09-30).</summary>
+        public BuiltInBuilding BuiltInBuilding => builtInBuilding;
+
+        /// <summary>Whether the Crowd switch is on screen on this level (2026-09-30).</summary>
+        public bool OffersCrowdSwitch => offersCrowdSwitch;
+
+        /// <summary>
+        /// Whether the red Trigger event button does anything here. Off, the
+        /// button is not drawn and no hands-off copy of the round is played
+        /// for the end card: with nothing to set off, "left alone" is the
+        /// same round (2026-09-30).
+        /// </summary>
+        public bool TriggerStartsAHazard => triggerStartsAHazard;
 
         /// <summary>The seed this level runs on when the player has not chosen one.</summary>
         public ulong DefaultSeed => ToRuntimeData().DefaultSeed;
@@ -66,6 +90,10 @@ namespace Paniq.Gameplay
             ScenarioData data = scenario != null
                 ? scenario.ToRuntimeData()
                 : new ScenarioData();
+
+            // A building drawn by code replaces the scenario's building
+            // and keeps its tuning (2026-09-30); None leaves it as it is.
+            data = TestBuildings.Apply(builtInBuilding, data);
             data.Round.HazardWaitsForTrigger = hazardWaitsForTrigger;
             data.Round.TargetSavedPercent = targetSavedPercent;
             data.Purse.Enabled = purseEnabled;
@@ -77,5 +105,28 @@ namespace Paniq.Gameplay
 
         /// <summary>An in-memory level holding the code defaults, for tests and for a runner with no asset assigned.</summary>
         public static LevelDefinition CreateDefault() => CreateInstance<LevelDefinition>();
+
+        /// <summary>
+        /// An in-memory level of one of the code-drawn buildings, for tests
+        /// and for the menu that writes the level assets: the office's tuning
+        /// (the code defaults, with no scenario asset assigned), the building
+        /// named, the crowd switch on, and the trigger only where there is a
+        /// hazard for it to start.
+        /// </summary>
+        public static LevelDefinition CreateBuiltIn(string levelId, string displayName, BuiltInBuilding building,
+            bool triggerStartsAHazard)
+        {
+            var level = CreateInstance<LevelDefinition>();
+            level.levelId = levelId;
+            level.displayName = displayName;
+            level.builtInBuilding = building;
+            level.offersCrowdSwitch = true;
+            level.triggerStartsAHazard = triggerStartsAHazard;
+            level.purseEnabled = true;
+            level.directorClimbsTheLadder = false;
+            level.directorCapsTheRound = false;
+            level.playerPullsAlarms = true;
+            return level;
+        }
     }
 }

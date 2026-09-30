@@ -42,6 +42,7 @@ namespace Paniq.Simulation
         private NudgeSystem nudges;
         private InfluenceSystem influence;
         private TugSystem tugs;
+        private FearSystem fear;
 
         /// <summary>Who a "Stick together" throw caught, and each one's event, gathered before anything is written.</summary>
         private readonly List<int> caughtIndices = new List<int>();
@@ -72,6 +73,7 @@ namespace Paniq.Simulation
             nudges = systems.Nudges;
             influence = systems.Influence;
             tugs = systems.Tugs;
+            fear = systems.Fear;
         }
 
         /// <summary>Every command queued so far, in sequence order.</summary>
@@ -168,6 +170,8 @@ namespace Paniq.Simulation
                 case PlayerCommandType.PopFuseBox:
                 case PlayerCommandType.CallHomeTime:
                 case PlayerCommandType.StickTogether:
+                case PlayerCommandType.SetCrowdPanicked:
+                case PlayerCommandType.SetCrowdCalm:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(commandType), $"Unknown command type {commandType}.");
@@ -347,6 +351,30 @@ namespace Paniq.Simulation
                 ulong called = context.Events.Append(context.Tick, default, CausalEventType.PowerCalledHomeTime,
                     geometry.FireArea.Centre).EventId;
                 cues.CallHomeTime(context.Scenario.Day.PlayerHomeTimeSpreadTicks, called);
+                return;
+            }
+
+            // The crowd switch (2026-09-30): free, not a card, and the whole
+            // building at once -- each person a few ticks after the next, by
+            // the fear system's own stagger. "Panicked" also counts as the
+            // round beginning, so a test level that empties ends with a
+            // score; "calm" silences the bells as well, or they would
+            // frighten everybody straight back.
+            if (command.CommandType == PlayerCommandType.SetCrowdPanicked)
+            {
+                ulong flicked = context.Events.Append(context.Tick, default, CausalEventType.PowerPanickedCrowd,
+                    default).EventId;
+                round.Begin(flicked);
+                fear.PanicEveryone(flicked, crowd.All);
+                return;
+            }
+
+            if (command.CommandType == PlayerCommandType.SetCrowdCalm)
+            {
+                ulong flicked = context.Events.Append(context.Tick, default, CausalEventType.PowerCalmedCrowd,
+                    default).EventId;
+                alarms.Silence(flicked);
+                fear.CalmEveryone(flicked, crowd.All);
                 return;
             }
 

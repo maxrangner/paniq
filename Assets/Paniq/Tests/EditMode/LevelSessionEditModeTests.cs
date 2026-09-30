@@ -17,6 +17,7 @@ namespace Paniq.Tests.EditMode
         public void SetUp()
         {
             LevelSession.ClearRequestedSeed();
+            LevelSession.RequestLevel(null);
             LevelSession.ForgetBest(TestLevel);
             LevelSession.ForgetBest(OtherLevel);
         }
@@ -25,6 +26,7 @@ namespace Paniq.Tests.EditMode
         public void TearDown()
         {
             LevelSession.ClearRequestedSeed();
+            LevelSession.RequestLevel(null);
             LevelSession.ForgetBest(TestLevel);
             LevelSession.ForgetBest(OtherLevel);
             PlayerPrefs.Save();
@@ -147,6 +149,54 @@ namespace Paniq.Tests.EditMode
             {
                 Object.DestroyImmediate(level);
             }
+        }
+
+        // The level row on the start card (2026-09-30): the level asked for
+        // is kept across the reload that restarts the scene, as the seed is.
+
+        [Test]
+        public void TheLevelAskedFor_IsChosenFromTheCatalogue_ByItsId()
+        {
+            LevelDefinition wired = LevelDefinition.CreateDefault();
+            LevelDefinition square = LevelDefinition.CreateBuiltIn("square-test", "Square", Simulation.BuiltInBuilding.SquareRoom, false);
+            try
+            {
+                LevelSession.RequestLevel("square-test");
+                Assert.That(LevelSession.Choose(wired, new[] { wired, square }), Is.SameAs(square));
+            }
+            finally
+            {
+                Object.DestroyImmediate(wired);
+                Object.DestroyImmediate(square);
+            }
+        }
+
+        [Test]
+        public void ALevelNobodyHas_FallsBackToTheOneTheSceneIsWiredTo()
+        {
+            LevelDefinition wired = LevelDefinition.CreateDefault();
+            try
+            {
+                LevelSession.RequestLevel("a-level-that-was-renamed");
+                Assert.That(LevelSession.Choose(wired, new[] { wired }), Is.SameAs(wired), "A missing level must not stop the scene playing.");
+                Assert.That(LevelSession.Choose(wired, null), Is.SameAs(wired));
+                LevelSession.RequestLevel(null);
+                Assert.That(LevelSession.Choose(wired, new[] { wired }), Is.SameAs(wired));
+            }
+            finally
+            {
+                Object.DestroyImmediate(wired);
+            }
+        }
+
+        [Test]
+        public void TheLevelAskedFor_SurvivesPlayAgain_WhichClearsOnlyTheSeed()
+        {
+            LevelSession.RequestLevel("maze-test");
+            LevelSession.RequestSeed(99UL, true);
+            LevelSession.ClearRequestedSeed();
+            Assert.That(LevelSession.RequestedSeed, Is.Null);
+            Assert.That(LevelSession.RequestedLevelId, Is.EqualTo("maze-test"), "Whoever picked the maze wants the maze again.");
         }
     }
 }

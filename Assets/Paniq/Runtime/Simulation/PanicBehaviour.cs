@@ -85,11 +85,13 @@ namespace Paniq.Simulation
             // fire. Measured behind the leaders, whoever was following one
             // was never asked. Then a crate the player's hand is on
             // (2026-09-30): the hand is asked before the leaders, or nobody
-            // following one would ever answer it.
+            // following one would ever answer it. Then the hand on the floor
+            // (2026-09-30): the frightened come to it and stand there, for
+            // the same reason before the leaders.
             options = new IPanicOption[]
             {
-                systems.Keycards, systems.HandHeave, systems.Leaders, systems.Extinguishers, systems.Help,
-                systems.AlarmBehaviour, systems.Barricades
+                systems.Keycards, systems.HandHeave, systems.HandGather, systems.Leaders, systems.Extinguishers,
+                systems.Help, systems.AlarmBehaviour, systems.Barricades
             };
         }
 

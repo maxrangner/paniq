@@ -841,7 +841,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "87";
+        public string ContentRevision = "88";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -1061,7 +1061,15 @@ namespace Paniq.Simulation
         // heave a crate, anybody pulls the alarm or fetches the card, the hand
         // on the card door sends for the card); the tug brakes four times as
         // hard; the tower by the archway falls on where its runner stood.
-        public int SimulationCompatibilityVersion = 75;
+        // 76: the hand, third pass (2026-09-30): the frightened come to the
+        // hand and stand in a ring round it (and walk off from a push); a
+        // held hand moves with the pointer; a hand on fallen crates clears
+        // them all, heaved away from it; one dial for how strongly the hand
+        // is felt; the calm stand in the ring, take the hand in a beat late,
+        // come with a bag or an errand still to come, and finish a door or a
+        // crate they have begun; a door does what was asked at the press; a
+        // noise drops what a calm person was on the way to fetch.
+        public int SimulationCompatibilityVersion = 76;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

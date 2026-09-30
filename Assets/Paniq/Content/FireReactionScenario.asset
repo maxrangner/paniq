@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 87
+    ContentRevision: 88
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 75
+    SimulationCompatibilityVersion: 76
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -1007,6 +1007,10 @@ MonoBehaviour:
       HeaveStrainTicksAtNoStrength: 250
       WeakBlowDamage: 1
       WanderToItPerMille: 1000
+      StrengthPercent: 100
+      FrightenedAnswerChancePerMille: 400
+      BreakAwayPerMille: 300
+      ClearReachMillimetres: 1500
     Keycard:
       Enabled: 1
       OnADeskPercent: 50

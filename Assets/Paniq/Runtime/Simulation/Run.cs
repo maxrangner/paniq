@@ -163,7 +163,8 @@ namespace Paniq.Simulation
                 var walk = new FrightenedWalk(context, geometry, doors, locomotion);
                 keycards = new KeycardSystem(context, crowd, geometry, doors, objects, threats, walk);
                 extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items, walk);
-                var handHeave = new HandHeaveBehaviour(context, crowd, geometry, objects, walk);
+                var handHeave = new HandHeaveBehaviour(context, crowd, geometry, objects, doors, walk);
+                var handGather = new HandGatherBehaviour(context, geometry, walk);
                 leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion,
                     wayfinding);
                 alarms = new AlarmSystem(context, sound, geometry, objects, flammables);
@@ -184,7 +185,7 @@ namespace Paniq.Simulation
                     Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms, Groups = groups,
                     AlarmBehaviour = alarmBehaviour, Barricades = barricades,
                     Cues = cues, Errands = errands, Director = director, Nudges = nudges, Tugs = tugs, Traps = traps,
-                    Influence = influence, Keycards = keycards, HandHeave = handHeave
+                    Influence = influence, Keycards = keycards, HandHeave = handHeave, HandGather = handGather
                 };
                 systems.BindAll();
 

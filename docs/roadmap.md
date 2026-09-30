@@ -23,7 +23,11 @@ left alone; its seventh (2026-09-30) is the hand's second pass, after the
 owner's first play of it: influence everybody but the strongest wills
 answers, people doing for the hand what they never would, a click that
 leaves a beacon, the right button pushing people away, and the tower falling
-on its runner. All are under "Prototype 3" further down.
+on its runner; its eighth (2026-09-30) is the hand's third pass: the
+frightened coming to the hand instead of running past it, the hand dragged
+to guide people, a hand on fallen boxes clearing them all, a hand-strength
+slider to find the value to keep, and twenty-odd faults found in a read of
+the whole hand. All are under "Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -607,6 +611,66 @@ doorway.
 - Whether the tower falling on a runner in the crossbar is a trap or a
   nuisance, now that it rarely cuts the corridor.
 - Whether the struggle under the tug reads by personality.
+
+## Prototype 3: the hand, third pass (2026-09-30)
+
+The owner played the second pass and asked for more: "Even more influence
+over agents actions. When panicked, the agents still run around too much";
+a debug slider for "general attraction" with a number, "so I can find the
+sweetspot and later hardcode it"; people switching to "that specific task,
+like clearing boxes for a path, or opening a door"; and the hand following
+the pointer while held, "so agents can be guided with this. Same with right
+click hold". And: "Go over the logic thoroughly with the influence system in
+mind. Find bugs, bad pathing, logic or flow. I want more clear influence,
+without losing the aspect of the agents character traits." Reading the code
+found why the frightened ran about: to them a hand on the floor was a
+compass, never a place. It tilted which door they chose, or which random
+spot in their room they sprinted to, and on arriving they chose another.
+No questions went to the owner; every default is in the
+[decisions](technical-decisions.md#prototype-3-the-hand-third-pass-2026-09-30).
+One batch, one commit, on `feat/prototype-3-gameplay`.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| The frightened come to the hand | Behaviour | Hold on the floor during the fire and the frightened who feel it come to it, the nervous first, and stand in a loose ring round it facing it, instead of sprinting past to another spot. The hand beats a leader's call, swerving and following other runners. Flames close by still send them off, and nobody is pulled back from the way out. Character stays: somebody who feels it less than fully (a leader) breaks away after a few seconds; the nervous stay; the host and the bully never come. A push sends them walking away from it. Let go and they are on their own at once |
+| Drag to guide | Controls | Keep the button down and move the pointer: the hand slides with it and the people answering it follow, through doorways too. A right-button drag herds people ahead of it. Pressed on a door or a thing, the hand stays there until the pointer is clearly off it |
+| The hand clears the boxes | Behaviour | A hand on the fallen boxes, on the floor beside them, or on the archway they are heaped across: whoever comes heaves the nearest box out of the way, away from the hand, then the next, until none is left -- the weak after straining, several helpers spread over the heap. It used to be one box a press, and the box could go deeper into the heap. Drag along a heap and they clear a path behind the pointer |
+| Hand strength | Tooling | Tab panel: "Hand strength 100%   answering now: 3" over a slider from 0 to 300 %. It scales how strongly everybody feels the hand -- the one reading everything the hand does starts from -- so turning it up brings more people, from further off, sooner. It lasts through Reset and is back to 100 at every Play |
+| The calm, clearer | Behaviour | People answering the hand stand on spots of their own round it (they used to crowd its very spot), walk straight to it, take it in a beat late like every reaction, and come with a bag in hand or a meeting still to come (both used to keep them away). A door is opened or shut as the hand asked at the press -- somebody walks right up to it, on the side they come from, and clears a wedge first whoever they are. A crate, a door or a thing somebody set off for is finished even after a click's three seconds are up |
+| Fixes found on the way | Fixes | Somebody in a doorway now feels the hand; the startled edge to it along the way there rather than into a wall; a hand on a door makes the frightened rethink at once; a push that changes somebody's way out is logged as a push; somebody seated with an errand no longer sits straight back down after getting up for the hand; a noise no longer leaves a calm person forever "on the way" to fetch something |
+
+**Left alone, measured after this batch** (`HandsOffBaselineMeasurements`,
+fifty seeds, nothing tuned, the owner's rule): **4.2 of 20 on average
+(21%)**, nine seeds clearing the 75% bar and eleven saving more than half
+(44, 48, 53, 58, 60, 65, 68, 76, 77, 80, 89). The batch before was 3.9, seven
+and nine. Nobody plays the hand in that round, so the change can only come
+from the one fix that works without it: a noise no longer leaves a calm
+person forever "on the way" to fetch something, so those people tidy, sit
+and move about again as they used to. The fifty-seed check stays red, as it
+was.
+
+**What this deliberately left out.** More than one hand at a time; a hand
+on the floor beside a shut door opening that door (only a hand on the door
+does, so a hand in a corridor does not set people opening every door along
+it); somebody with a bag putting it down to do a job for the hand (they come
+with it, and do nothing with it); retuning left alone (the owner's rule);
+the stockroom stack falling on its runner. The slider's sweet spot is for
+the owner to find; the value found becomes the new default.
+
+**Things to watch at the next playtest.**
+
+- Where the slider ends up. Tell us the number; it becomes the level's own.
+- Whether the frightened standing in a ring round the hand read as
+  following it, or as a queue that has forgotten the fire. Whether leaders
+  breaking away after a few seconds reads as character or as the hand
+  failing.
+- Whether dragging reads as leading, and whether ten moves a second is
+  smooth enough.
+- Whether clearing a heap box by box is quick enough to save the corridor,
+  and whether people clearing boxes the player did not mean (a hand on the
+  floor near fallen boxes clears them) is a surprise.
+- Whether finishing a job after a click reads as "they heard you", or as the
+  hand not letting go.
 
 ## Foundations reviewed (2026-09-23)
 

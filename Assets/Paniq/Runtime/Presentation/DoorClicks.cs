@@ -162,4 +162,83 @@ namespace Paniq.Presentation
             return was;
         }
     }
+
+    /// <summary>
+    /// The hand dragged (2026-09-30, the owner: "when left click is held, if
+    /// then dragged the influence point should move with the pointer. So
+    /// agents can be guided with this. Same with right click hold"). While a
+    /// button holds a place, the floor under the pointer is where the hand
+    /// goes -- but a hand pressed on a door or a thing stays on it until the
+    /// pointer has clearly left it (<see cref="DetachMillimetres"/>), so a
+    /// shaky hold on a door is still a hold on the door; and a move is sent
+    /// only once the pointer has gone a little way (<see cref="StepMillimetres"/>)
+    /// and not more than ten times a second, so the run is not flooded with
+    /// every twitch. Plain arithmetic, so it can be checked without a scene.
+    /// </summary>
+    internal sealed class HandDrag
+    {
+        /// <summary>How far the pointer must go from a door or a thing before the hand leaves it for the floor.</summary>
+        public const long DetachMillimetres = 800;
+
+        /// <summary>How far the pointer must go from the last spot sent before the next is.</summary>
+        public const long StepMillimetres = 250;
+
+        /// <summary>The least time between two moves sent.</summary>
+        public const float EverySeconds = 0.1f;
+
+        private bool onAPlace;
+        private bool detached;
+        private LogicalPosition pressedAt;
+        private LogicalPosition lastSent;
+        private float lastSentAt;
+
+        /// <summary>
+        /// The hand went on a place at this spot on the floor: on the floor
+        /// itself (<paramref name="onTheFloor"/>), when it follows the pointer
+        /// at once, or on a door or a thing, when it waits to be pulled off.
+        /// </summary>
+        public void Press(LogicalPosition floor, bool onTheFloor, float now)
+        {
+            onAPlace = true;
+            detached = onTheFloor;
+            pressedAt = floor;
+            lastSent = floor;
+            lastSentAt = now;
+        }
+
+        /// <summary>The hand is off: nothing to drag.</summary>
+        public void Clear() => onAPlace = false;
+
+        /// <summary>
+        /// The pointer is over this spot of floor with the button still down:
+        /// true, with the spot to send, when the hand should move there.
+        /// </summary>
+        public bool Moved(LogicalPosition floor, float now, out LogicalPosition send)
+        {
+            send = default;
+            if (!onAPlace)
+            {
+                return false;
+            }
+
+            if (!detached)
+            {
+                if (IntegerMath.Distance(floor, pressedAt) < DetachMillimetres)
+                {
+                    return false;
+                }
+
+                detached = true;
+            }
+            else if (IntegerMath.Distance(floor, lastSent) < StepMillimetres || now - lastSentAt < EverySeconds)
+            {
+                return false;
+            }
+
+            lastSent = floor;
+            lastSentAt = now;
+            send = floor;
+            return true;
+        }
+    }
 }

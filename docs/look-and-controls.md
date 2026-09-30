@@ -46,6 +46,7 @@ every zoom level.
 | **Mouse wheel** | zoom in and out, tilting the camera as described above |
 | **Left mouse button** | on a card along the bottom: pick it up (or put it down again); on the floor with a card in hand: throw it there |
 | **Hold the left button on a door, a thing, a pull station or the floor** (nothing in hand) | the hand (2026-09-29): a full pull toward it the moment the button goes down, drawing people near it -- about a room's length away as a walk, through an open doorway but never a wall -- to go there or use it; gone the moment the button comes up. One hand, one place at a time. Everybody but the strongest wills answers it within a second or two (2026-09-30). What is pointed at is used (2026-09-27), whatever their nature (2026-09-30): a door is opened if shut or shut if open (the cruel wedge it instead) and a locked one pounded on, a chair sat on, a box carried off and a crate too heavy to carry heaved aside, the bottle taken and used on the fire, the pull station pulled, the card pocketed; using it spends its use, so the hand goes on gathering people there but the next press asks for the opposite. A sparkling aura shows it, a sparkling line runs to everybody feeling it, brighter the harder they are pulled, and a gold hand bobs over anybody doing what it asked |
+| **Hold and drag, either button** | the hand moves with the pointer (the owner, 2026-09-30: "so agents can be guided with this"): the people answering it follow it, the frightened included, and a right-button drag herds people ahead of it. On the floor it follows at once; pressed on a door or a thing it stays there until the pointer is about eight tenths of a metre off it. Dragged along a heap of fallen boxes, people clear a path behind it |
 | **Click the left button on a place** | the same, left there for three seconds and then off by itself (the owner, 2026-09-30: "a single click should place an influence beacon for 3 seconds"). The ring throbs while it lasts |
 | **Click a person** (nothing in hand) | poke them: they step away from where the click landed. Three pokes in ten seconds and they are annoyed -- a fast shake for a couple of seconds, and for about twenty seconds they are still shoved but stop looking round for it. Three quick pokes wake somebody frozen with fear, or knock somebody sitting down off their chair |
 | **Hold the left button on a person** | the tug (2026-09-29): a hand on their shirt. They are stopped within about a quarter of a second (2026-09-30) and stay there while you hold, struggling against it their own way, and are off again the moment you let go. The strong tear free, sooner the stronger, with a shake; nobody alight or down can be held. A gold ring at their feet shows who you have |
@@ -122,10 +123,15 @@ Chosen on the owner's behalf:
 Keys the prototype already uses, which these live alongside: **Tab** opens a
 small panel of switches for what is drawn besides the building and the people
 (the vision cones, the numbers and marks over heads, the table of everyone's
-traits, and the walkable floor; 2026-09-30), **G** paints the floor people can
+traits, and the walkable floor; 2026-09-30), and under them the **Hand
+strength** slider (2026-09-30, the owner: "a slider in debug with a print out
+number so I can find the sweetspot and later hardcode it"): 0 to 300 % in
+tens, with the percent and how many people are answering the hand right now
+printed above it. **G** paints the floor people can
 walk on (the same switch as in the panel), and **Space** pauses. Everything the
-panel switches starts as it always looked -- cones, numbers and marks on --
-and stays as set until Play is pressed again.
+panel switches starts as it always looked -- cones, numbers and marks on, the
+hand at 100 % -- and stays as set until Play is pressed again. The hand
+strength is sent to the run as a command, so a replay replays it.
 
 The values chosen when the camera was built, recorded in
 [technical decisions](history/decisions-prototype-2.md#prototype-2-decision-building-the-round): the view pans at 14 metres a

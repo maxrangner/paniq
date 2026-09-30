@@ -243,6 +243,7 @@ namespace Paniq.Presentation
             }
 
             navigationGrid?.Show(view.WalkableFloor);
+            SendTheHandStrength();
 
             // Space pauses, but only once the round is actually going: there
             // is nothing to pause behind the start card or after the end one.
@@ -335,7 +336,7 @@ namespace Paniq.Presentation
 
                 // Below Reset and Pause, which sit in the top-right corner;
                 // the traits table goes under the panel rather than over it.
-                float belowPanel = view.Draw(108f);
+                float belowPanel = view.Draw(108f, frameSnapshot);
                 if (view.Stats)
                 {
                     string feel = runner.PhysicsFeelName ?? "the scenario's own";
@@ -372,6 +373,32 @@ namespace Paniq.Presentation
                 // Very last, so the story covers the end card behind it.
                 log.Draw(frameSnapshot);
                 HudHitTest.EndFrame();
+            }
+        }
+
+        /// <summary>The run the slider's value was last sent to, and the value, so it is sent once a change and once a round.</summary>
+        private Run strengthSentTo;
+        private int strengthSent = -1;
+
+        /// <summary>
+        /// The Tab panel's hand strength reaches the run (2026-09-30): sent as
+        /// a command when the slider moves, and again to a fresh round after
+        /// Reset, so it lasts the session. A round at the level's own
+        /// strength is sent nothing.
+        /// </summary>
+        private void SendTheHandStrength()
+        {
+            Run run = runner.Simulation;
+            if (run == null || (run == strengthSentTo && view.HandStrengthPercent == strengthSent))
+            {
+                return;
+            }
+
+            strengthSentTo = run;
+            strengthSent = view.HandStrengthPercent;
+            if (run.Scenario.Influence.StrengthPercent != view.HandStrengthPercent)
+            {
+                runner.QueueHandStrength(view.HandStrengthPercent);
             }
         }
 

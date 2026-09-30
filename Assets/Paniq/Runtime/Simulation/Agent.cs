@@ -369,6 +369,21 @@ namespace Paniq.Simulation
         public ulong HeaveGaveUpOnPress;
 
         /// <summary>
+        /// The press a frightened person is answering by going to the hand or
+        /// away from a push (2026-09-30), or 0; and a press they broke away
+        /// from, or could find no way to, which does not ask them again. See
+        /// <see cref="HandGatherBehaviour"/>.
+        /// </summary>
+        public ulong AnsweringPress;
+        public ulong HandGaveUpOnPress;
+
+        /// <summary>A press on a door they have already thought again about, so it brings their next choice forward once (2026-09-30).</summary>
+        public ulong RethoughtForPress;
+
+        /// <summary>A press whose door they found they could not do what it asked of (an open door that will not shut): not tried again until pressed afresh (2026-09-30).</summary>
+        public ulong DoorGaveUpOnPress;
+
+        /// <summary>
         /// What they are doing for the hand is against their nature (2026-09-30):
         /// set when <see cref="CausalEventType.AgentActedForTheHand"/> is written,
         /// cleared when they stop acting for it. The drawing trembles them.
@@ -963,6 +978,14 @@ namespace Paniq.Simulation
         /// <summary>Whether this errand has already had its one go at clearing a jammed door.</summary>
         public bool ClearedADoor;
 
+        /// <summary>
+        /// For a door the player's hand sent them to (2026-09-30): whether the
+        /// hand wants it open (it was shut at the press) or shut (it was open).
+        /// Kept on the errand, so the job is finished even after a click's
+        /// beacon has come off.
+        /// </summary>
+        public bool HandWantsItOpen;
+
         /// <summary>How many times the current step has been begun again.</summary>
         public int Tries;
 
@@ -1023,6 +1046,7 @@ namespace Paniq.Simulation
             Thing = -1;
             Stage = 0;
             ClearedADoor = false;
+            HandWantsItOpen = false;
             Origin = default;
             CauseEventId = 0UL;
             NextRemarkTick = 0;

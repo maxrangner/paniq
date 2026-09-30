@@ -413,5 +413,252 @@ namespace Paniq.Tests.EditMode
                     "The crate has moved.");
             }
         }
+
+        // ------------------------------------------------ the third pass (2026-09-30)
+
+        /// <summary>
+        /// The office as <see cref="Office"/> has it, with no keycard: whoever
+        /// holds the card goes for the door and nothing else, and with one or
+        /// two people in the building that may be the person under test.
+        /// </summary>
+        private ScenarioData OfficeWithoutTheCard(params AgentDefinition[] people)
+        {
+            ScenarioData data = Office(people);
+            data.Keycard.Enabled = false;
+            return data;
+        }
+
+        /// <summary>
+        /// The owner: "when panicked, the agents still run around too much."
+        /// Two frightened people in the office with its ways out open and no
+        /// fire to run from: an ordinary person comes to a hand on the floor
+        /// and stays at it; the host's match (leadership nine) runs on.
+        /// </summary>
+        [Test]
+        public void TheFrightened_ComeToTheHand_AndStayAtIt_ButAStrongWillRunsOn()
+        {
+            var strongWilled = AgentTraitValues.AllOrdinary.With(AgentTrait.Leadership, 9);
+            ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(2000, 1000), AgentTraitValues.AllOrdinary),
+                Person(SomebodyElse, new LogicalPosition(2500, 0), strongWilled));
+            var hand = new LogicalPosition(-2500, -2500);
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 10);
+                Press(simulation, PlayerCommandType.InfluenceSpot, hand);
+                simulation.FrightenForTests(0);
+                simulation.FrightenForTests(1);
+                Advance(simulation, 5 * Run.TicksPerSecond);
+                Assert.That(IntegerMath.Distance(simulation.GetAgent(Somebody).Position, hand), Is.LessThan(2500),
+                    "Five seconds on, the ordinary person is at the hand.");
+                Assert.That(simulation.GetAgent(Somebody).ActingForTheHand, Is.True, "Answering it, and shown so.");
+                Advance(simulation, 6 * Run.TicksPerSecond);
+                Assert.That(IntegerMath.Distance(simulation.GetAgent(Somebody).Position, hand), Is.LessThan(2500),
+                    "And still there six seconds later: they do not sprint past it.");
+                Assert.That(IntegerMath.Distance(simulation.GetAgent(SomebodyElse).Position, hand), Is.GreaterThan(4000),
+                    "The strong-willed have none of it and run on.");
+            }
+        }
+
+        /// <summary>
+        /// The owner: "when left click is held, if then dragged the influence
+        /// point should move with the pointer. So agents can be guided with
+        /// this." A frightened person gathered at the hand follows it across
+        /// the office when it is moved, answering the same press throughout.
+        /// </summary>
+        [Test]
+        public void AHandDraggedAlong_TakesTheFrightenedAnsweringItWithIt()
+        {
+            ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(2000, 1000), AgentTraitValues.AllOrdinary));
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 10);
+                Press(simulation, PlayerCommandType.InfluenceSpot, new LogicalPosition(2500, -2500));
+                simulation.FrightenForTests(0);
+                Advance(simulation, 4 * Run.TicksPerSecond);
+                AgentSnapshot seen = simulation.GetAgent(Somebody);
+                Assert.That(seen.ActingForTheHand, Is.True,
+                    $"Answering the hand; they are {seen.ActivityState} at {seen.Position}, feeling it at " +
+                    $"{simulation.InfluenceForTests.FeltBy(simulation.AgentForTests(0), 0)}.");
+
+                // Dragged west across the office, a step at a time.
+                for (int x = 2000; x >= -3000; x -= 500)
+                {
+                    Press(simulation, PlayerCommandType.MoveInfluence, new LogicalPosition(x, -2500));
+                    Advance(simulation, 10);
+                }
+
+                Advance(simulation, 4 * Run.TicksPerSecond);
+                InfluenceSystem influence = simulation.InfluenceForTests;
+                Assert.That(influence.Count, Is.EqualTo(1));
+                Assert.That(influence[0].At, Is.EqualTo(new LogicalPosition(-3000, -2500)), "The hand is where it was dragged to.");
+                Assert.That(EventsOfType(simulation, CausalEventType.PowerInfluenced), Has.Count.EqualTo(1),
+                    "One press all the way: moving it is not pressing again.");
+                Assert.That(simulation.GetAgent(Somebody).ActingForTheHand, Is.True, "Still answering it.");
+                Assert.That(IntegerMath.Distance(simulation.GetAgent(Somebody).Position, new LogicalPosition(-3000, -2500)),
+                    Is.LessThan(2500), "And they came with it.");
+            }
+        }
+
+        /// <summary>
+        /// The owner: "when influenced they should often switch to that
+        /// specific task, like clearing boxes for a path." Three crates too
+        /// heavy to carry, lying together: one ordinary person drawn by a hand
+        /// on the floor among them heaves every one of them out of its reach
+        /// with that one press. It used to be one crate a press.
+        /// </summary>
+        [Test]
+        public void AHandAmongFallenCrates_ClearsThemAll_WithOnePress()
+        {
+            ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(-1000, -1500), AgentTraitValues.AllOrdinary));
+            var crates = new[] { new SimulationId(3990UL), new SimulationId(3991UL), new SimulationId(3992UL) };
+            var things = new List<PhysicsObjectDefinition>(data.PhysicsObjects)
+            {
+                new PhysicsObjectDefinition(crates[0], PhysicsObjectKind.Box, new LogicalPosition(-900, -4400), 400, 40000),
+                new PhysicsObjectDefinition(crates[1], PhysicsObjectKind.Box, new LogicalPosition(0, -4400), 400, 40000),
+                new PhysicsObjectDefinition(crates[2], PhysicsObjectKind.Box, new LogicalPosition(900, -4400), 400, 40000)
+            };
+            data.PhysicsObjects = things.ToArray();
+            var hand = new LogicalPosition(0, -4400);
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 2 * Run.TicksPerSecond);
+                Press(simulation, PlayerCommandType.InfluenceSpot, hand);
+                long reach = simulation.Scenario.Influence.ClearReachMillimetres;
+                bool cleared = false;
+                for (int t = 0; t < 45 * Run.TicksPerSecond && !cleared; t++)
+                {
+                    simulation.Step();
+                    cleared = true;
+                    foreach (SimulationId id in crates)
+                    {
+                        int crate = simulation.ObjectsForTests.IndexOf(id);
+                        cleared &= IntegerMath.Distance(simulation.ObjectsForTests.PositionOf(crate), hand) > reach;
+                    }
+                }
+
+                Assert.That(cleared, Is.True, "Every crate is heaved out of the hand's reach.");
+                Assert.That(EventsOfType(simulation, CausalEventType.PowerInfluenced), Has.Count.EqualTo(1), "With one press.");
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence).FindAll(e => e.SourceId == Somebody),
+                    Has.Count.EqualTo(1), "Answered once: every crate after the first is the same answer.");
+            }
+        }
+
+        /// <summary>
+        /// A click's beacon lasts three seconds, and walking to a crate and
+        /// straining at it takes longer for somebody weak. A crate somebody
+        /// has set off for is finished all the same (2026-09-30: the heave
+        /// used to stop the moment the beacon came off).
+        /// </summary>
+        [Test]
+        public void ACrateSetOffFor_IsHeaved_EvenAfterAClicksBeaconHasComeOff()
+        {
+            var weak = AgentTraitValues.AllOrdinary.With(AgentTrait.Strength, 2);
+            ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(-3500, -3500), weak));
+            var things = new List<PhysicsObjectDefinition>(data.PhysicsObjects)
+            {
+                new PhysicsObjectDefinition(ACrate, PhysicsObjectKind.Box, new LogicalPosition(0, -3500), 600, 40000)
+            };
+            data.PhysicsObjects = things.ToArray();
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 2 * Run.TicksPerSecond);
+                Press(simulation, PlayerCommandType.InfluenceThing, ACrate);
+                Press(simulation, PlayerCommandType.LeaveInfluence, default(SimulationId));
+                Advance(simulation, simulation.Scenario.Influence.BeaconTicks + 5);
+                Assert.That(simulation.InfluenceForTests.Count, Is.Zero, "The beacon has come off.");
+                Assert.That(AdvanceUntil(simulation, e => e.EventType == CausalEventType.AgentActedForTheHand, 15 * Run.TicksPerSecond)
+                    .HasValue, Is.True, "They heave it anyway: begun for the hand, finished for the hand.");
+            }
+        }
+
+        /// <summary>
+        /// People answering a hand on the floor used to walk to its very spot,
+        /// all of them, and shove. Now each has a spot of their own round it.
+        /// </summary>
+        [Test]
+        public void TheCalm_AnsweringAHand_StandOnSpotsOfTheirOwn()
+        {
+            var people = new AgentDefinition[5];
+            for (int i = 0; i < people.Length; i++)
+            {
+                people[i] = Person(new SimulationId((ulong)(i + 1)), new LogicalPosition(-3500 + i * 700, -4300),
+                    AgentTraitValues.AllOrdinary.With(AgentTrait.Nervousness, 8));
+            }
+
+            var hand = new LogicalPosition(0, -1500);
+            using (var simulation = new Run(OfficeWithoutTheCard(people), 42UL))
+            {
+                Advance(simulation, 10);
+                Press(simulation, PlayerCommandType.InfluenceSpot, hand);
+                Advance(simulation, 12 * Run.TicksPerSecond);
+                for (int i = 0; i < people.Length; i++)
+                {
+                    LogicalPosition at = simulation.GetAgent(i).Position;
+                    Assert.That(IntegerMath.Distance(at, hand), Is.LessThan(3000), $"Person {i + 1} came to the hand.");
+                    for (int j = i + 1; j < people.Length; j++)
+                    {
+                        Assert.That(IntegerMath.Distance(at, simulation.GetAgent(j).Position), Is.GreaterThan(500),
+                            $"Persons {i + 1} and {j + 1} stand apart.");
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// The owner: "can we put general attraction as a slider in debug with
+        /// a print out number so I can find the sweetspot?" The hand strength
+        /// scales how strongly everybody feels the hand: at nothing, nobody
+        /// comes; at double, a person feels it twice as strongly.
+        /// </summary>
+        [Test]
+        public void TheHandStrength_ScalesHowStronglyEverybodyFeelsTheHand()
+        {
+            var hand = new LogicalPosition(0, -1500);
+            using (var simulation = new Run(Office(Person(Somebody, new LogicalPosition(-3000, -3000), AgentTraitValues.AllOrdinary)), 42UL))
+            {
+                Advance(simulation, 10);
+                Press(simulation, PlayerCommandType.InfluenceSpot, hand);
+                InfluenceSystem influence = simulation.InfluenceForTests;
+                int ordinary = influence.FeltBy(simulation.AgentForTests(0), 0);
+                Assert.That(ordinary, Is.GreaterThan(0));
+
+                Press(simulation, PlayerCommandType.SetHandStrength, new LogicalPosition(200, 0));
+                Assert.That(simulation.Scenario.Influence.StrengthPercent, Is.EqualTo(200), "The run's own setting has it.");
+                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.EqualTo(ordinary * 2).Within(2),
+                    "Twice as strong, twice as strongly felt.");
+
+                Press(simulation, PlayerCommandType.SetHandStrength, new LogicalPosition(0, 0));
+                Advance(simulation, 8 * Run.TicksPerSecond);
+                Assert.That(EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence).Exists(e => e.SourceId == Somebody),
+                    Is.False, "At nothing, nobody comes.");
+            }
+        }
+
+        /// <summary>
+        /// Somebody with an errand still to come -- a meeting later in the day
+        /// -- used to get up for the hand and then never go to it, because
+        /// having any errand at all kept them from it. They come now; the
+        /// meeting waits.
+        /// </summary>
+        [Test]
+        public void SomebodyWithAnErrandStillToCome_AnswersTheHand()
+        {
+            using (var simulation = new Run(Office(Person(Somebody, new LogicalPosition(-3000, -3000), AgentTraitValues.AllOrdinary)), 42UL))
+            {
+                Advance(simulation, 10);
+                AgentErrand errand = simulation.AgentForTests(0).Errand;
+                errand.Has = true;
+                errand.Cue = CueKind.GoHome;
+                errand.StartTick = int.MaxValue / 2;
+                Assert.That(errand.Pending, Is.True, "An errand handed to them and not yet taken up.");
+
+                var hand = new LogicalPosition(0, -1500);
+                Press(simulation, PlayerCommandType.InfluenceSpot, hand);
+                Advance(simulation, 8 * Run.TicksPerSecond);
+                Assert.That(IntegerMath.Distance(simulation.GetAgent(Somebody).Position, hand), Is.LessThan(2500),
+                    "They came to the hand.");
+                Assert.That(errand.Pending, Is.True, "And the errand still waits for them.");
+            }
+        }
     }
 }

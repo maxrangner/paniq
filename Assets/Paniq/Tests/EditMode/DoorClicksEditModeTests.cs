@@ -196,5 +196,33 @@ namespace Paniq.Tests.EditMode
             Assert.That(HudHitTest.Covers(new Vector2(50f, 30f)), Is.False, "A frame that drew nothing covers nothing.");
             HudHitTest.Clear();
         }
+
+        // The hand dragged (2026-09-30, the owner: "when left click is held,
+        // if then dragged the influence point should move with the pointer"):
+        // from the floor it follows at once, off a door or a thing only once
+        // the pointer has clearly left it, and never more than a step at a time.
+
+        [Test]
+        public void TheHandDragged_OnTheFloor_FollowsThePointer_AStepAtATime()
+        {
+            var drag = new HandDrag();
+            drag.Press(new LogicalPosition(0, 0), true, 0f);
+            Assert.That(drag.Moved(new LogicalPosition(100, 0), 1f, out _), Is.False, "A twitch is not a move.");
+            Assert.That(drag.Moved(new LogicalPosition(400, 0), 1f, out LogicalPosition to), Is.True, "A step is.");
+            Assert.That(to, Is.EqualTo(new LogicalPosition(400, 0)));
+            Assert.That(drag.Moved(new LogicalPosition(900, 0), 1.05f, out _), Is.False, "Not more than ten times a second.");
+            Assert.That(drag.Moved(new LogicalPosition(900, 0), 1.2f, out _), Is.True);
+        }
+
+        [Test]
+        public void TheHandDragged_OnADoor_StaysOnIt_UntilThePointerHasClearlyLeftIt()
+        {
+            var drag = new HandDrag();
+            drag.Press(new LogicalPosition(0, 0), false, 0f);
+            Assert.That(drag.Moved(new LogicalPosition(600, 0), 1f, out _), Is.False, "A shaky hold on a door is a hold on the door.");
+            Assert.That(drag.Moved(new LogicalPosition(900, 0), 1f, out _), Is.True, "Pulled well off it, the hand leaves it.");
+            drag.Clear();
+            Assert.That(drag.Moved(new LogicalPosition(5000, 0), 5f, out _), Is.False, "Let go of, nothing follows.");
+        }
     }
 }

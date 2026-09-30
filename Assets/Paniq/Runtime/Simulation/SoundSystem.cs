@@ -336,6 +336,26 @@ namespace Paniq.Simulation
         private void Begin(Agent agent, LogicalPosition point, ulong soundEventId, long loudness, bool isAThreat, int sourceRoom)
         {
             AgentHearing hearing = agent.Hearing;
+
+            // What the noise interrupts is dropped (2026-09-30): a thing they
+            // were on their way to pick up is nobody's to fetch any more, and
+            // a crate they were heaving for the hand no longer theirs. Both
+            // used to stay on them for good, and somebody still "fetching"
+            // never answered the hand or tidied again.
+            if (agent.Carry.ItemIndex >= 0 && !agent.Carry.Holding)
+            {
+                agent.Carry.ItemIndex = -1;
+                agent.Carry.KeepIt = false;
+                agent.Carry.Pocket = false;
+            }
+
+            if (agent.Intent.Activity == AgentActivityState.HeavingForTheHand)
+            {
+                agent.Intent.HeavingThing = -1;
+                agent.Intent.HeavingUntilTick = 0;
+                InfluenceSystem.StopActing(agent);
+            }
+
             agent.Intent.Activity = AgentActivityState.Investigating;
             agent.Intent.SocialPartnerIndex = -1;
             agent.Body.BlockedTicks = 0;

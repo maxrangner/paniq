@@ -306,22 +306,27 @@
 
             InfluenceSystem.Place place = influence[0];
             int felt = influence.FeltBy(agent, 0);
-            if (felt < StartledTurnToTheHandPerMille || !influence.HasNoticed(agent))
+            if (felt < context.Scenario.Influence.ActsAgainstNatureFromPerMille || !influence.HasNoticed(agent))
             {
                 // Not felt enough, or not yet: they take it in a beat after
-                // it lands, each on their own tick.
+                // it lands, each on their own tick. The same threshold as
+                // everything else the hand asks (2026-09-30; it was half a
+                // full pull here alone).
                 return false;
             }
 
+            // Toward a pull along the way there, round walls and through the
+            // doorway it is felt through (2026-09-30: it was a straight line,
+            // into the wall when the hand was next door); away from a push.
             heading = place.Repels
                 ? IntegerMath.HeadingBetween(place.At, agent.Body.Position, agent.Body.Heading)
-                : IntegerMath.HeadingBetween(agent.Body.Position, place.At, agent.Body.Heading);
+                : geometry != null
+                    ? geometry.Routes.HeadingToward(agent.Body.Position, place.At,
+                        context.Scenario.World.OccupancyRadiusMillimetres, agent.Body.Heading)
+                    : IntegerMath.HeadingBetween(agent.Body.Position, place.At, agent.Body.Heading);
             speed = agent.Personality.CalmSpeed / 2;
             return true;
         }
-
-        /// <summary>How strongly somebody startled must feel the hand to turn to it: half a full pull.</summary>
-        private const int StartledTurnToTheHandPerMille = 500;
 
         // ---------------------------------------------------------------- calming down
 

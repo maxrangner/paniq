@@ -1,4 +1,5 @@
-﻿using Paniq.Gameplay;
+﻿using System.Collections.Generic;
+using Paniq.Gameplay;
 using Paniq.Simulation;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -51,6 +52,9 @@ namespace Paniq.Presentation
         /// nobody joins or leaves a run once it has started.
         /// </summary>
         private EventStory story;
+
+        /// <summary>The end card's lines, worked out once the round is over rather than every frame (2026-09-30).</summary>
+        private List<string> retold;
         private ParticleEffects effects;
         private PlayerInput input;
         private CameraRig cameraRig;
@@ -356,9 +360,10 @@ namespace Paniq.Presentation
                 }
                 else if (frameSnapshot.RoundIsOver)
                 {
-                    story ??= new EventStory(frameSnapshot);
+                    story ??= new EventStory(frameSnapshot, runner.Simulation.Commands);
+                    retold ??= story.Retell(frameSnapshot, runner.Simulation.Scenario.Influence.StrengthPercent);
                     screens.DrawEndCard(frameSnapshot, runner.LeftAloneSavedCount, runner.LeftAloneStillWorking,
-                        story.Retell(frameSnapshot));
+                        retold);
                 }
 
                 // The end card only asks; taking the request here is what
@@ -454,7 +459,7 @@ namespace Paniq.Presentation
         {
             ScenarioData scenario = runner.Simulation.Scenario;
             int thudReach = scenario.Hearing.BumpSoundRadiusMillimetres;
-            story ??= new EventStory(snapshot);
+            story ??= new EventStory(snapshot, runner.Simulation.Commands);
             for (int i = eventsSeen; i < snapshot.Events.Count; i++)
             {
                 CausalEvent record = snapshot.Events[i];

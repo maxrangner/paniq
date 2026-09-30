@@ -59,6 +59,9 @@ namespace Paniq.Simulation
             AgentNudge nudge = agent.Nudge;
             ulong nudged = context.Events.Append(tick, default, CausalEventType.PowerNudged, agent.Body.Position,
                 0, 0, 0UL, agent.Id).EventId;
+
+            // Winding up to something dangerous (2026-09-30): the poke catches it.
+            TellSystem.Catch(context, agent, nudged);
             int away = hasFrom && (from.X != agent.Body.Position.X || from.Z != agent.Body.Position.Z)
                 ? IntegerMath.HeadingBetween(from, agent.Body.Position, agent.Body.Heading + 180)
                 : IntegerMath.NormalizeDegrees(agent.Body.Heading + 180);

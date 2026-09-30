@@ -179,6 +179,33 @@ While running, people:
 Collisions and trips make a thud that calm people within 3 m turn toward. The
 counter at the top left shows calm, scared (and frozen), down and lost people.
 
+**Tells: you can see it coming** (2026-09-30, the owner: "the visible agent
+tells"). The tower of boxes creaks for three seconds before it falls, and that
+window is where the play is. People now have the same: before three dangerous
+things they wind up for about a second, a red ring at their feet shrinking to
+nothing as the time runs out, and one click in that window saves them.
+- **Going stiff.** Somebody who is about to freeze shivers harder and harder
+  first, and a sign says "going stiff...". **One** poke, a tug, or your hand
+  (pulling or pushing) near them before the ring closes, and they snap out of
+  it and run. Miss it and they freeze as ever -- and then it takes three pokes.
+- **Gathering nerve.** Somebody about to dash for a door through the heat
+  stands facing it, bouncing on their toes ("here goes..."). Catch them and the
+  dash is off: that door is given up for a while, and they hide or choose
+  another way. Miss it and they run for it.
+- **Turning back.** Somebody frightened about to head back toward the danger
+  -- for the keycard, for a pull station, for somebody down, or at the fire
+  with a bottle -- turns and looks back over their shoulder ("I have to go
+  back!"). Catch them and they will not head back toward the flames for about
+  ten seconds. Only when the way there passes within a metre and a half of the
+  flames; a safe walk has no tell. Somebody your own hand sent has none either:
+  you already chose.
+
+A catch takes hold a beat after your click, like every reaction, and "caught!"
+goes up in green. The flames coming close call a tell off (they bolt); so does
+going down or catching fire. The ring is drawn whatever the Tab panel hides,
+because it is part of play, like the tug's gold ring. The end card counts how
+many you caught.
+
 **Doors.** Doors are 1 m wide. The one way out starts locked; every door
 inside the building starts shut but unlocked, so people work them
 themselves. The player does not open or shut doors: the left button held on
@@ -682,9 +709,15 @@ still playing, so you know what you are trying to beat. The round is judged
 as you against the building (the owner's choice); the 75% bar stays on the
 card as a distant target, and the best ever remembers both the share and the
 margin. Under that, the card says whether the 75% was cleared, how the saved
-split between those who got out and those who sat it out, and **three or
-four lines of why**: what your hand did (how many places and people, for
-how long, and who tore free), the keycard (where it began, who had it, and
+split between those who got out and those who sat it out, and **four or
+five lines of why**: what your hand did -- since 2026-09-30 a tally (the
+owner: "the stat at the end about how many clicks/influence you used this
+round"): how many actions and how many a minute; presses, of them clicks and
+pushes; pokes; tugs and who tore free; how long the hand was on something;
+how far it was dragged; and, when the Tab panel's slider was moved, the hand
+strength -- then what came of it: how many times somebody answered it, how
+many did for you what they never would, and how many tells you caught of how
+many; the keycard (where it began, who had it, and
 whether the door opened), the corridor (when the boxes came down and how
 many got out after that), and the fire (when it got out of the meeting room
 or was put out). Two buttons: the same seed again, or whatever is in the seed
@@ -1622,6 +1655,28 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   side the person comes from (`SideToUseTheDoorFrom`), does the opposite of
   `Place.DoorWasOpen` (`AgentErrand.HandWantsItOpen`), clears a wedge whatever
   the strength (straining `StrainTicks`), and names the press as its cause.
+- **Tells** (`TellSystem`, `TellSettings`; 2026-09-30). State on `AgentIntent`
+  (`Tell`, start and end ticks, heading, target, `TellCaughtAtTick`,
+  `TellPassed`); lengths `GoingStiffTicks` 60, `GatheringNerveTicks` 60,
+  `TurningBackTicks` 50, all `Jittered`. Going stiff starts in
+  `FearSystem.MakeScared` for the freezers, beside the freeze; the frozen
+  branch of `PanicBehaviour` asks it first; caught means `Unfreeze`. Gathering
+  nerve starts where `DoorBehaviour.DecidesToDash` would start a dash; the door
+  stays the choice, the person stands facing it, and once it has run out
+  (`TellPassed`) the next door choice (`ThinkAgainSoon`) makes the dash; caught
+  means the door is avoided for `DoorAvoidMinimum/MaximumTicks`. Turning back
+  (`TellSystem.BeforeGoingBack`/`BeforeGoingAtTheFire`) sits at the commits
+  of the keycard fetch, the alarm, helping somebody down and all three ways
+  to the fire with a bottle, when the walk passes or ends within
+  `DangerousWalkClearanceMillimetres` (1500) of a threat and the player's hand
+  did not send them; caught means `TurnBackRefusedUntilTick` =
+  `Jittered(RefusesToGoBackTicks)` (500). A catch is `TellSystem.Catch` from a
+  poke (`NudgeSystem.Nudge`) or a tug (`TugSystem.Tug`), or the hand felt at
+  `ActsAgainstNatureFromPerMille` and noticed, unless it pulls toward the very
+  door or thing the tell is about; it takes hold at `ReactionTick`. Events
+  `AgentBeganATell` (strength the kind, duration the length) and
+  `AgentCaughtInTime` (parent the poke, tug or press); neither pays the uproar.
+  The snapshot carries `Tell`, `TellProgress` (per mille) and `TellHeading`.
 - **Nudge from a point** (`NudgePersonFrom`): the lurch, 300 mm, is away from
   the point; annoyed (`AgentAnnoyed`), they stay so for 1000 ticks jittered,
   during which a nudge is written down and does nothing else.

@@ -80,6 +80,7 @@ namespace Paniq.Simulation
         {
             objects = systems.Objects;
             influence = systems.Influence;
+            tells = systems.Tells;
             // The keycard first (2026-09-27): somebody with a reason to grab
             // the card does that before following anybody or fighting a
             // fire. Measured behind the leaders, whoever was following one
@@ -100,6 +101,9 @@ namespace Paniq.Simulation
 
         /// <summary>The places the player is drawing people toward (2026-09-26).</summary>
         private InfluenceSystem influence;
+
+        /// <summary>The wind-up before somebody freezes, dashes or goes back toward the flames (2026-09-30).</summary>
+        private TellSystem tells;
 
         /// <summary>Who is sticking together with whom.</summary>
         private readonly GroupSystem groups;
@@ -151,6 +155,24 @@ namespace Paniq.Simulation
             long danger = TraitEffects.DangerDistance(agent, context.Scenario);
             bool inDanger = fireDistanceSquared < danger * danger;
 
+            // Going stiff (2026-09-30): the shiver before the freeze sets in.
+            // Caught, they run instead; run out, the freeze goes on as ever.
+            if (intent.Activity == AgentActivityState.Frozen && intent.Tell == AgentTell.GoingStiff && tells != null)
+            {
+                TellSystem.Outcome stiff = tells.Update(agent, inDanger, out _, out _, out ulong caughtBy);
+                if (stiff == TellSystem.Outcome.Caught)
+                {
+                    fear.Unfreeze(agent, caughtBy);
+                }
+                else if (stiff == TellSystem.Outcome.Telling)
+                {
+                    int shiverAt = fireDistanceSquared < long.MaxValue
+                        ? IntegerMath.HeadingBetween(agent.Body.Position, firePoint, agent.Body.Heading)
+                        : agent.Body.Heading;
+                    return new MotorIntent(shiverAt, 0, agent.Personality.CalmTurnRate, settings.Acceleration);
+                }
+            }
+
             if (intent.Activity == AgentActivityState.Frozen)
             {
                 if (!ShouldUnfreeze(agent, inDanger))
@@ -163,6 +185,39 @@ namespace Paniq.Simulation
                 }
 
                 fear.Unfreeze(agent);
+            }
+
+            // Winding up to a dash or to going back toward the flames
+            // (2026-09-30): they stand, facing where they mean to go, until it
+            // runs out or the player catches it.
+            if (TellSystem.IsTelling(agent) && tells != null)
+            {
+                TellSystem.Outcome told = tells.Update(agent, inDanger, out AgentTell kind, out int about, out _);
+                if (told == TellSystem.Outcome.Telling)
+                {
+                    return tells.StandIntent(agent);
+                }
+
+                if (told == TellSystem.Outcome.Caught)
+                {
+                    if (kind == AgentTell.GatheringNerve && about >= 0)
+                    {
+                        // Not through the heat after all: that door is given
+                        // up for a while, as by somebody who hides.
+                        doorBehaviour.GiveUpTheHotDoorForAWhile(agent, about);
+                    }
+                    else if (kind == AgentTell.TurningBack)
+                    {
+                        tells.RefuseToGoBack(agent);
+                    }
+
+                    context.ThinkAgainSoon(intent);
+                }
+                else if (told == TellSystem.Outcome.Passed && kind == AgentTell.GatheringNerve && about >= 0)
+                {
+                    // Nerve gathered: they go, now.
+                    doorBehaviour.DashNow(agent, about);
+                }
             }
 
             // Set on a way out they can see standing open, right now, and not

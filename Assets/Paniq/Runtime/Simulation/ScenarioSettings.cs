@@ -3260,6 +3260,42 @@ namespace Paniq.Simulation
         public const int MaximumStrengthPercent = 1000;
     }
 
+    /// <summary>
+    /// Tells (2026-09-30, the owner: "the visible agent tells";
+    /// <see cref="TellSystem"/>): the short, visible wind-up before somebody
+    /// freezes, dashes through the heat or goes back toward the flames, in
+    /// which one click saves them. The building's creak, for people.
+    /// </summary>
+    [Serializable]
+    public sealed class TellSettings
+    {
+        /// <summary>Whether people wind up at all; off, they commit on the tick they decide, as before.</summary>
+        public bool Enabled = true;
+
+        /// <summary>How long somebody shivers before they freeze: about a second and a fifth, jittered.</summary>
+        public int GoingStiffTicks = 60;
+
+        /// <summary>How long somebody bounces on their toes before they dash through the heat: the same.</summary>
+        public int GatheringNerveTicks = 60;
+
+        /// <summary>How long somebody looks back before they head back toward the flames: a second, jittered.</summary>
+        public int TurningBackTicks = 50;
+
+        /// <summary>A walk that passes this near the flames, or ends this near them, earns a turning-back tell: a metre and a half.</summary>
+        public int DangerousWalkClearanceMillimetres = 1500;
+
+        /// <summary>Caught turning back, they will not head back toward the flames for this long: ten seconds, jittered.</summary>
+        public int RefusesToGoBackTicks = 500;
+
+        public TellSettings Clone() => (TellSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(GoingStiffTicks >= 1 && GatheringNerveTicks >= 1 && TurningBackTicks >= 1 &&
+                             DangerousWalkClearanceMillimetres >= 0 && RefusesToGoBackTicks >= 1, "tells");
+        }
+    }
+
     internal static class Settings
     {
         public static bool Range(int minimum, int maximum, int floor) => minimum >= floor && maximum >= minimum;

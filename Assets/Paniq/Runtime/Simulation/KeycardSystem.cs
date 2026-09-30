@@ -78,7 +78,11 @@ namespace Paniq.Simulation
         public void Bind(Systems systems)
         {
             influence = systems.Influence;
+            tells = systems.Tells;
         }
+
+        /// <summary>The wind-up before going back toward the flames (2026-09-30).</summary>
+        private TellSystem tells;
 
         public KeycardSystem(SimulationContext context, Crowd crowd, WorldGeometry geometry, DoorSystem doors,
             PhysicsObjectSystem objects, Threats threats, FrightenedWalk walk)
@@ -547,6 +551,22 @@ namespace Paniq.Simulation
                 (room != cardRoom && !geometry.TryFindRoute(room, agent.Body.Position, cardRoom, agent, out _, out _, out _)))
             {
                 return null;
+            }
+
+            // Turning back (2026-09-30): a walk for the card past the flames
+            // is wound up to first, unless the player's hand sent them.
+            if (tells != null)
+            {
+                TellSystem.GoingBack going = tells.BeforeGoingBack(agent, where, card, agent.Fear.ScaredEventId, pulledBy >= 0);
+                if (going == TellSystem.GoingBack.Wait)
+                {
+                    return tells.StandIntent(agent);
+                }
+
+                if (going == TellSystem.GoingBack.Refuse)
+                {
+                    return null;
+                }
             }
 
             if (pulledBy >= 0)

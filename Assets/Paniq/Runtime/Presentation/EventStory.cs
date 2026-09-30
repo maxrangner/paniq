@@ -28,8 +28,12 @@ namespace Paniq.Presentation
 
         private readonly HashSet<ulong> doorIds = new HashSet<ulong>();
 
-        public EventStory(RunSnapshot snapshot)
+        /// <summary>The player's commands, for the tally of the hand on the end card (2026-09-30); empty when not given.</summary>
+        private readonly IReadOnlyList<PlayerCommand> commands;
+
+        public EventStory(RunSnapshot snapshot, IReadOnlyList<PlayerCommand> commands = null)
         {
+            this.commands = commands ?? System.Array.Empty<PlayerCommand>();
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
                 personNumbers[snapshot.Agents[i].AgentId.Value] = i + 1;
@@ -92,12 +96,12 @@ namespace Paniq.Presentation
         /// the fire, each from the events that decided it. Reads the log and
         /// decides nothing.
         /// </summary>
-        public List<string> Retell(RunSnapshot snapshot)
+        public List<string> Retell(RunSnapshot snapshot, int handStrengthPercent = 100)
         {
-            var lines = new List<string>(4);
+            var lines = new List<string>(5);
             IReadOnlyList<CausalEvent> events = snapshot.Events;
 
-            int placesHeld = 0, peopleHeld = 0, tornFree = 0, heldTicks = 0, actsForTheHand = 0;
+            int tornFree = 0;
             CausalEvent? cardStarted = null, cardTaken = null, cardSwiped = null, cardDropped = null;
             CausalEvent? towerFell = null, fireLoose = null, putOut = null;
             int outAfterTheFall = 0;
@@ -106,13 +110,7 @@ namespace Paniq.Presentation
                 CausalEvent record = events[i];
                 switch (record.EventType)
                 {
-                    case CausalEventType.PowerInfluenced: placesHeld++; break;
-                    case CausalEventType.PowerRepelled: placesHeld++; break;
-                    case CausalEventType.AgentActedForTheHand: actsForTheHand++; break;
-                    case CausalEventType.PowerReleasedInfluence: heldTicks += record.Strength; break;
-                    case CausalEventType.PowerTugged: peopleHeld++; break;
-                    case CausalEventType.PowerReleasedTug: heldTicks += record.Strength; break;
-                    case CausalEventType.AgentShookFree: tornFree++; heldTicks += record.Strength; break;
+                    case CausalEventType.AgentShookFree: tornFree++; break;
                     case CausalEventType.KeycardStarted: cardStarted ??= record; break;
                     case CausalEventType.AgentTookKeycard: cardTaken = record; break;
                     case CausalEventType.KeycardDropped: cardDropped = record; break;
@@ -136,17 +134,45 @@ namespace Paniq.Presentation
                 }
             }
 
-            // Your hand.
-            if (placesHeld + peopleHeld == 0)
+            // Your hand (2026-09-30, the owner: "the stat at the end about how
+            // many clicks/influence you used this round"): what you did, how
+            // often, and what came of it.
+            HandTally tally = HandTally.From(events, commands, snapshot.Tick);
+            string strength = handStrengthPercent != 100 ? $" (hand strength {handStrengthPercent}%)" : "";
+            if (tally.Actions == 0)
             {
-                lines.Add("Your hand: never on anything. The building played itself.");
+                lines.Add($"Your hand: never on anything. The building played itself.{strength}");
             }
             else
             {
-                string tore = tornFree > 0 ? $", {tornFree} tore free" : "";
-                string against = actsForTheHand > 0 ? $" {Count(actsForTheHand, "time")} somebody did for you what they never would have." : "";
-                lines.Add($"Your hand: on {Count(placesHeld, "place")} and {Count(peopleHeld, "person", "people")}{tore}, " +
-                          $"about {heldTicks / Run.TicksPerSecond} seconds in all.{against}");
+                string tore = tornFree > 0 ? $" ({tornFree} tore free)" : "";
+                string dragged = tally.DraggedMillimetres >= 1000 ? $", dragged {tally.DraggedMillimetres / 1000} m" : "";
+                lines.Add($"Your hand: {Count(tally.Actions, "action")}, {tally.PerMinute} a minute -- " +
+                          $"{Count(tally.Presses, "press", "presses")} ({Count(tally.Clicks, "click")}, " +
+                          $"{Count(tally.Pushes, "push", "pushes")}), {Count(tally.Pokes, "poke")}, " +
+                          $"{Count(tally.Tugs, "tug")}{tore}; held {tally.HeldTicks / Run.TicksPerSecond} s{dragged}.{strength}");
+            }
+
+            var came = new List<string>(3);
+            if (tally.Answered > 0)
+            {
+                came.Add($"{Count(tally.Answered, "time")} somebody answered it");
+            }
+
+            if (tally.AgainstTheirNature > 0)
+            {
+                came.Add($"{tally.AgainstTheirNature} did for you what they never would");
+            }
+
+            if (tally.Tells > 0)
+            {
+                came.Add($"you caught {tally.Caught} of {tally.Tells} in time");
+            }
+
+            if (came.Count > 0)
+            {
+                string joined = string.Join("; ", came);
+                lines.Add(char.ToUpperInvariant(joined[0]) + joined.Substring(1) + ".");
             }
 
             // The card.
@@ -378,6 +404,20 @@ namespace Paniq.Presentation
                     }
                 case CausalEventType.AgentPokedAwake: return $"{who} was poked awake";
                 case CausalEventType.AgentKnockedOffChair: return $"{who} was poked off their chair";
+                case CausalEventType.AgentBeganATell:
+                    switch ((AgentTell)record.Strength)
+                    {
+                        case AgentTell.GoingStiff: return $"{who} began to go stiff with fear";
+                        case AgentTell.GatheringNerve: return $"{who} gathered their nerve to run through the heat";
+                        default: return $"{who} turned back toward the danger";
+                    }
+                case CausalEventType.AgentCaughtInTime:
+                    switch ((AgentTell)record.Strength)
+                    {
+                        case AgentTell.GoingStiff: return $"you caught {who} before they froze";
+                        case AgentTell.GatheringNerve: return $"you caught {who} before they ran through the heat";
+                        default: return $"you caught {who} before they went back";
+                    }
 
                 case CausalEventType.PowerSparkStarted:
                     return $"a spark set off along the cable from {Name(record.SourceId)} " +

@@ -120,6 +120,15 @@ Chosen on the owner's behalf:
 - The angles, zoom limits and how far the tilt travels are presentation values,
   chosen when the camera was built and listed below.
 
+**Tells** (2026-09-30): somebody winding up to something dangerous -- going
+stiff before a freeze, gathering nerve before a dash through the heat, turning
+back toward the flames -- has a red-orange ring at their feet that shrinks from
+most of a metre to a hand's width as their second runs out, pulsing faster as
+it closes; going stiff is a shiver growing harder, gathering nerve a bounce on
+the toes, turning back a look over the shoulder, again and again. No snowflake
+until the freeze has set in. The ring is never hidden by the Tab panel. A poke,
+a tug or the hand before it closes, and "caught!" goes up in green.
+
 Keys the prototype already uses, which these live alongside: **Tab** opens a
 small panel of switches for what is drawn besides the building and the people
 (the vision cones, the numbers and marks over heads, the table of everyone's

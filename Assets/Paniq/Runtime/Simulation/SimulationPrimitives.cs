@@ -1097,7 +1097,42 @@ namespace Paniq.Simulation
         /// thing. Cause: the press. Strength: what it was, as an
         /// <see cref="AgainstTheirNature"/>.
         /// </summary>
-        AgentActedForTheHand
+        AgentActedForTheHand,
+
+        // Tells (2026-09-30, the owner: "the visible agent tells"). Appended only.
+
+        /// <summary>
+        /// Somebody began to wind up to something dangerous: freezing, dashing
+        /// through the heat, going back toward the flames. Source: the person.
+        /// Strength: what, as an <see cref="AgentTell"/>. Duration: how long the
+        /// wind-up lasts, in ticks. Cause: what made them (the freeze, the
+        /// fright).
+        /// </summary>
+        AgentBeganATell,
+
+        /// <summary>
+        /// The player caught somebody's tell in time: a poke, a tug or the hand
+        /// before the wind-up ran out, and what they meant to do is off.
+        /// Source: the person. Strength: the tell, as an <see cref="AgentTell"/>.
+        /// Cause: the poke, the tug or the press.
+        /// </summary>
+        AgentCaughtInTime
+    }
+
+    /// <summary>A person's tell: the wind-up before something dangerous (2026-09-30). See <see cref="TellSystem"/>.</summary>
+    public enum AgentTell
+    {
+        /// <summary>No tell.</summary>
+        None,
+
+        /// <summary>About to freeze with fear: shivering harder and harder.</summary>
+        GoingStiff,
+
+        /// <summary>About to dash for a door through the heat: bouncing on their toes.</summary>
+        GatheringNerve,
+
+        /// <summary>About to head back toward the flames: looking back.</summary>
+        TurningBack
     }
 
     /// <summary>What somebody did against their own nature for the player's hand, carried as the strength of <see cref="CausalEventType.AgentActedForTheHand"/>.</summary>

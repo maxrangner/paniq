@@ -130,6 +130,11 @@ namespace Paniq.Tests.EditMode
             // The fire spreads freely again, so it would retake the ground if it could.
             data.Fire.SpreadMinimumTicks = 40;
             data.Fire.SpreadMaximumTicks = 60;
+
+            // No wind-up before going at the fire (2026-09-30): at this
+            // spread, the second of turning back lets the fire outgrow what
+            // one bottle is taken to, and this is about the square staying out.
+            data.Tells.Enabled = false;
             var simulation = new Run(data);
             for (int t = 0; t < 30 * Run.TicksPerSecond &&
                             EventsOfType(simulation, CausalEventType.FireDoused).Count == 0; t++)

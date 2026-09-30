@@ -348,6 +348,11 @@ namespace Paniq.Simulation
                 case CausalEventType.AgentPushedAwayByInfluence:
                 case CausalEventType.AgentActedForTheHand:
 
+                // Tells (2026-09-30): the wind-up and the catch pay nothing;
+                // what follows (the freeze, the dash) pays by its own event.
+                case CausalEventType.AgentBeganATell:
+                case CausalEventType.AgentCaughtInTime:
+
                 // Bookkeeping: things happening quietly to people, things and doors.
                 case CausalEventType.AgentGotUp:
                 case CausalEventType.AgentCameTo:

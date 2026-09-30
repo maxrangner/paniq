@@ -231,6 +231,11 @@ namespace Paniq.Tests.EditMode
                 Advance(simulation, 2);
                 Assert.That(simulation.GetAgent(Somebody).ActivityState, Is.EqualTo(AgentActivityState.Frozen), "Frozen stiff.");
 
+                // Past going stiff (2026-09-30): a poke in that second would
+                // catch it and they would run at once. The freeze has set in.
+                Advance(simulation, 90);
+                Assert.That(simulation.AgentForTests(0).Intent.Tell, Is.EqualTo(AgentTell.None), "The wind-up is over.");
+
                 for (int i = 0; i < 2; i++)
                 {
                     simulation.QueueCommand(PlayerCommandType.NudgePerson, Somebody, simulation.Tick + 1);

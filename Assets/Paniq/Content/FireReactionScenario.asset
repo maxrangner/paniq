@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 88
+    ContentRevision: 89
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 76
+    SimulationCompatibilityVersion: 77
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -1025,6 +1025,13 @@ MonoBehaviour:
       FlamesKeepAwayMillimetres: 1500
       PulledToTheCardPerMille: 250
       PulledAfterTicks: 50
+    Tells:
+      Enabled: 1
+      GoingStiffTicks: 60
+      GatheringNerveTicks: 60
+      TurningBackTicks: 50
+      DangerousWalkClearanceMillimetres: 1500
+      RefusesToGoBackTicks: 500
     Agents:
     - agentId:
         value: 1001

@@ -35,7 +35,7 @@ namespace Paniq.Gameplay
 
         private static void Reload()
         {
-            SceneManager.LoadScene(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            SceneManager.LoadScene(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
         }
     }
 }

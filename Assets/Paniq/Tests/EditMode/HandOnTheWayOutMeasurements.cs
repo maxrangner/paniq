@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using NUnit.Framework;
@@ -234,6 +235,69 @@ namespace Paniq.Tests.EditMode
             }
 
             return line.ToString();
+        }
+
+        /// <summary>
+        /// The seeds that save most left alone: when the tower falls, whether
+        /// the archway is piled and stays piled, how many boxes lie in its
+        /// strip, when the way out opens, and how many get out.
+        /// </summary>
+        [TestCase(64UL)]
+        [TestCase(48UL)]
+        [TestCase(67UL)]
+        [TestCase(42UL)]
+        public void ASeed_LeftAlone_TheTowerAndTheArchway(ulong seed)
+        {
+            LevelDefinition level = TheLevel();
+            ScenarioData data = Data(level);
+            var report = new StringBuilder();
+            report.AppendLine($"seed {seed} left alone (the Director's own timing):");
+            using (var simulation = new Run(data, seed))
+            {
+                int archway = -1;
+                int wayOut = -1;
+                for (int d = 0; d < simulation.DoorCount; d++)
+                {
+                    if (simulation.GetDoor(d).DoorId == TheBuilding.Archway) archway = d;
+                    if (simulation.GetDoor(d).DoorId == TheBuilding.TheWayOut) wayOut = d;
+                }
+
+                bool wasPiled = false;
+                for (int tick = 0; tick < CapTicks && simulation.Phase != RoundPhase.Over; tick++)
+                {
+                    simulation.Step();
+                    DoorSnapshot arch = simulation.GetDoor(archway);
+                    if (arch.IsPiled != wasPiled)
+                    {
+                        report.AppendLine($"  {tick / Run.TicksPerSecond,3}s archway piled -> {arch.IsPiled}");
+                        wasPiled = arch.IsPiled;
+                    }
+
+                    if (tick % (10 * Run.TicksPerSecond) == 0)
+                    {
+                        int inStrip = 0;
+                        int fallen = 0;
+                        for (int i = 0; i < simulation.PhysicsObjectCount; i++)
+                        {
+                            PhysicsObjectSnapshot thing = simulation.GetPhysicsObject(i);
+                            if (thing.ObjectId.Value < 3701UL || thing.ObjectId.Value > 3708UL) continue;
+                            if (Math.Abs(thing.Position.X - 13000) <= 700 && thing.Position.Z > 6000 && thing.Position.Z < 9000) inStrip++;
+                            if (IntegerMath.Distance(thing.Position, new LogicalPosition(13900, 6350)) > 800) fallen++;
+                        }
+
+                        RunSnapshot snap = simulation.NewSnapshotBuffer();
+                        simulation.FillSnapshot(snap);
+                        report.AppendLine($"  {tick / Run.TicksPerSecond,3}s fire {(snap.FireActive ? "on" : "off")} squares {snap.FireCells.Count,3} | tower boxes fallen {fallen} in strip {inStrip} | archway {arch.State} piled {arch.IsPiled} | way out {simulation.GetDoor(wayOut).State} | saved {snap.SavedCount} lost {snap.LostCount} inside {snap.RemainingCount}");
+                    }
+                }
+
+                RunSnapshot end = simulation.NewSnapshotBuffer();
+                simulation.FillSnapshot(end);
+                report.AppendLine($"  ended: saved {end.SavedCount} lost {end.LostCount}; allowed {(simulation.DirectorForTests.CapsForTests ? simulation.DirectorForTests.AllowanceForTests.ToString() : "-")}");
+                report.AppendLine("  " + Counts(simulation));
+            }
+
+            TestContext.WriteLine(report.ToString());
         }
 
         /// <summary>

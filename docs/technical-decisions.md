@@ -515,6 +515,62 @@ and is theirs to overturn.
 | Versions | `SimulationCompatibilityVersion` 76 → 77; `ContentRevision` 88 → 89 (`TellSettings`). All fifteen fingerprints re-recorded: freezes and dashes happen in every recorded run, and each now comes a second later | -- | -- |
 | Tests | `TellsEditModeTests`: going stiff comes first and then the freeze; one poke in it and they run, the log naming the poke, a beat later; the brave gather their nerve before the dash; a tug in it calls the dash off; a walk to a station past the flames turns back first and a safe one does not; tells off, the freeze comes at once; the tally counts presses, a click, a drag, a poke and a tug | -- | -- |
 
+## Prototype 3: the hand's fourth pass (2026-09-30)
+
+The owner's notes after the tells build: "Agents still feel like they don't
+really listen ... sometimes no reaction at all, sometimes smallish influence
+but often lose attention fast. If getting them to notice or sway their
+focus, the focus should mostly stay ... think magnets and fish/bird
+clusters"; "influence points and cooldown: using influence depletes a bar
+that is automatically refilled continuously"; "I ran a seed 42 and got most
+of the agents to the final corridor, but even though I only influenced the
+exit, none survived"; the top of the screen cut to saved, lost, still inside
+and the seed; the cards removed; the scene renamed; "no band-aid solutions,
+good clean systems", for the whole code. Two measurements were taken before
+anything was designed (`HandOnTheWayOutMeasurements`):
+
+- **Seed 42, fire at 20 s**, the owner's round: the host (leadership 9, who
+  refuses the hand) holds the keycard, the fallen tower cuts him off, he
+  wanders the bathroom end for fifty seconds and burns with the card while
+  four people pound the way out -- and under the hand they could not give it
+  up, and the door could not give. Left alone 3 lived; with the hand 0. The
+  screen never said who had the card.
+- **Seed 41, fire at 6 s**: left alone 5 lived (the hero fetched the card);
+  with the hand on the way out 0: the crowd it gathered blocked the one
+  fetcher, who gave up after one second of being blocked, was picked again
+  next tick, and fourteen people pounded a door that never gives for eighty
+  seconds.
+
+Reading the code found why the hand "does not listen": three mechanisms
+stacked, each able to say no -- a chance roll every ten ticks scaled by what
+was felt (a tenth at the edge of the reach), every "am I doing this for the
+hand" being a comparison with the live press so that a release *or a press
+anywhere else* dropped everybody at once (and the calm forgot the hand at
+every new activity), and never-again markers plus a once-a-second break-away
+roll. Two designs were made independently and merged; the owner decided the
+card door gives and that the wider refactor (one task model for calm and
+frightened people) is the next stone. Every default below is the owner's to
+overturn.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **The goal is the person's** | `AgentHand` on every agent: the press whose ask is their goal, a copy of the place (`Goal`, refreshed each tick the live press is felt, so a drag carries them), `Committed`, `Conviction` (per mille), `Acting`, and the once-per-press markers. The scattered press ids on `AgentIntent` are gone | The live place is replaced on every press, so a person who keeps a task must hold their own copy; per-person state lives on `Agent`, where the tug and the card already are | The next stone: one task model for calm and frightened people |
+| **Conviction, one number** | Grows every tick the live press is felt by `felt × ConvictionGainPerTickAtFullPull (5) / 1000` (nothing to full in four seconds beside the hand, ten seconds to the commit line at a quarter felt); they set about the task at `AnswerFromPerMille` (100); the hand coming off keeps the goal at `CommitFromPerMille` (500, two seconds of a full pull) and drops it below; a kept goal fades `CommittedDecayPerSecondPerMille` (20) × 100 / susceptibility once a second on their own beat (a leader at six tenths in thirty seconds, an ordinary person fifty, a nervous visitor a hundred); a failed attempt costs `GiveUpCostPerMille` (300) and `RetryAfterTicks` (150, jittered). Removed: `LeaveTaskChancePerMille`, `FrightenedAnswerChancePerMille`, `BreakAwayPerMille`, `WanderToItPerMille`, `EasilyLedNervousness` | Replaces the three stacked mechanisms with one that grows and fades; character shows in how fast, not in a coin flip. Nobody breaks away *while* the hand is on them | The owner names a feel: "they stick too long" moves the decay, "too easily" the commit line |
+| **What ends a goal, one rule** | `InfluenceSystem.Advance`, for everybody in index order: out cold, alight or in the player's tug drops it; a push felt and taken in drops it; a fresh press felt and taken in *replaces* it, conviction kept; a hand off or elsewhere commits at the line or drops; a kept goal fades to nothing. Plus one line in `PanicBehaviour.Decide`: flames inside their danger distance drop it unless they are dashing on purpose. Behaviours never decide this; they call `Answer`, `Done`, `GiveUp`, `Interrupted` | The owner: "if not another external action or big personal choice". Every behaviour applying the same rule is what makes it a system rather than a set of special cases | -- |
+| **Two questions** | `TryGetLivePull` / `TryGetLivePush` are the hand *now on*, felt and noticed: what a tell is caught by, what the startled edge toward, what a push does. `TryGetPull` is the person's goal, live or kept, with a drive that is the greater of their conviction and what they feel now. Everything a person *does for* the hand asks the second; nothing reads `influence[0]` any more | A kept goal must not silently catch every tell for a minute; a committed pounder eight metres from the door must still count as driven hard | -- |
+| **The charge** | `HandChargeSystem`, its own system: `HandChargeSettings` capacity 3000, drain 2 a tick while the hand is on a place (a beacon included) or a person, refill 1 a tick always, a press needs 150. A full bar is a minute of holding and refills in a minute; run dry, the hand comes off the place and the person (`PowerHandSpent`), and no press is taken until it has rested three seconds; the hand does not come back on by itself. `PlayerCommandSystem` asks one gate; `TheBuilding.WithThePlayerAbleToAct` switches it off for the tests that hold as long as they like | Its own system because it governs the tug as much as the place; a minute so one hold can gather a crowd by dragging and then pound the card door open | The owner's play: the bar should run dry about once a round |
+| **The card door gives** | **The owner's decision.** Counted in pounding *time*: each tick up to `CardDoorPoundersCounted` (3) people shouldering it for the hand add one to `DoorRuntime.HandPound`, and at `CardDoorPoundTicks` (6000) it bursts (`DoorSystem.SettlePounding`, once a tick after the blockages): three or more people forty seconds, two a minute, one two minutes; the damage tint shows it weakening. Anybody `ForcingDoor` with the goal on it counts, live or kept. `Batter` still refuses card doors, and without the hand nobody pounds one | Blows come every 20-30 random ticks, so a count would be a noisy timer; strength would make the outcome depend on who is there, where the owner asked for about forty seconds; a doorway fits three shoulders, so fourteen people do not turn forty seconds into nine | The owner wants the kept goal not to count |
+| **The fetcher's patience** | A fetcher the hand sent is given up on when blocked for `BlockedGiveUpTicks × PulledPatienceTimes` (5, five seconds) and after `FetchTimeoutTicks × PulledTimeoutTimes` (2, sixty seconds); giving up costs conviction and a beat, so the claim passes to somebody else. `PulledAfterTicks` is gone: conviction cannot reach the line before the notice beat, so a glancing press turns nobody back | Seed 41 | -- |
+| **The card is shown** | A small yellow card over whoever has the keycard (`AgentIconViews`, a mark like the others, so the Tab panel's switch hides it with them); the way out's hover line says who has it or that it lies free | Seed 42: the player had no way to know | -- |
+| **The top strip** | `PrototypeHud.Draw`: one strip, `Saved / Lost / Still inside / Seed`, bold 15 pt; the tick, the fire, the calm and scared counts, "Need N of M" and "Left alone" are gone from it (the last two in the Tab stats panel's footer, and on the end card); the hover line at the bottom left above the bar | **The owner's rule**: "remove all but saved lost still inside and seed. Make it easier to read at a glance without making them huge" | -- |
+| **Cards gone** | `PurseSettings.CardsFromTheDead` (false): the deck deals nothing and draws no opening card; `StartingHand` still honoured for tests and a level that hands cards out. `PrototypeHud.DrawCards`, `PlayerInput`'s card picking, `CardAimRing` and its test, `RunDriver.QueueCard` deleted; the commands stay in the simulation | **The owner's rule**: "remove cards" | A level wants cards: switch it on |
+| **The rename** | The scene is `prototype_fire_1_fl_small` (`Bootstrapper.PrototypeSceneName`), the level's id and name likewise ("Prototype fire 1 (one floor, small)"), the scenario id `prototype-fire-1-fl-small`. The asset files (`TheOffice.asset`, `FireReactionScenario.asset`) keep their names: four hard-coded paths and a menu, never seen by the player | **The owner's rule** | -- |
+| **Found on the way: the heap unpiled itself** | `WorldGeometry.IsDoorwayPlugged` gives a doorway heaped with fallen boxes no slab: the heap is the wall there (people are stopped by the boxes; the map and the fire treat it as shut). The walls commit's 200 mm slab, appearing in the archway the moment it counted as piled, shoved the heaped boxes out of the gap within seconds, so the heap cleared itself and the corridor stayed open | Seeds 48, 64 and 67 left alone saved eighteen of twenty after the walls commit; the archway went "piled" and "not piled" inside five seconds every time | -- |
+| **Left out** | Somebody mid-chat leaving for the hand (the errand's partner would be left waiting); a hand on the host (he refuses, as the owner chose); the fetcher passing through a crowd that makes way; the wider task model (the next stone) | Each is its own change | The next stone |
+| Versions | `SimulationCompatibilityVersion` 78 → 79; `ContentRevision` 90 → 91 (`HandChargeSettings`, the conviction settings, `CardsFromTheDead`, the card door's pounding, the scenario id). All fifteen fingerprints re-recorded: the hand runs answer differently, and every run somebody dies in has lost its deal line | -- | -- |
+| Left alone | Nothing tuned (the owner's rule). Measured after the batch: **3.2 of 20 on average (16%)**, three seeds clearing the 75% bar and five saving more than half (58, 62, 69, 80, 88); the batch before was 4.5, seven and seven. Nobody plays the hand in that round, so the change comes from the walls (a harder doorway crush; the heap now holds, where for a few minutes of this batch's building it shoved itself clear) and nothing else here. The fifty-seed check stays red, as it was. | **The owner's rule** | The owner says |
+| Tests | `HandChargeEditModeTests` (holding drains and resting refills; an empty bar takes the hand off, is refused and rests; a tug drains it too; a beacon costs its three seconds; left alone it never moves); `InfluenceTheHandEditModeTests` (a hand held two seconds and let go finishes its ask; a flick commits nobody; a leader loses a kept goal before a nervous visitor; flames drop it; a tug drops it; a moved hand takes them with it, conviction kept; the card door gives in about forty seconds under the hand; the hand on the card door still sends for the card); the calm drift test keeps its goal then fades; the two fetchers test starts sooner; the economy tests ask for cards; `TheBuilding.WithThePlayerAbleToAct` switches the bar off. All fifteen fingerprints re-recorded, and again after the heap fix, both proven twice | -- | -- |
+
 ## Prototype 3: walls as thick to the feet as to the eye (2026-09-30)
 
 The owner: "Objects (like chairs) often clip inside walls, maybe more."

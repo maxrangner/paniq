@@ -487,8 +487,8 @@ namespace Paniq.Simulation
             // they found the card door shut and, a beat later, want the card;
             // or they work here, the card lies free close by, and they grab
             // it on the way out rather than run to a door they know needs it.
-            int pulledBy = PulledToTheCard(agent, out int felt);
-            bool viaTheDoor = pulledBy >= 0 && influence[pulledBy].Door >= 0;
+            bool pulled = PulledToTheCard(agent, out InfluenceSystem.Place pull, out int felt);
+            bool viaTheDoor = pulled && pull.Door >= 0;
             LogicalPosition where;
             if (viaTheDoor)
             {
@@ -503,9 +503,9 @@ namespace Paniq.Simulation
 
                 where = belief.Place;
             }
-            else if (pulledBy >= 0)
+            else if (pulled)
             {
-                where = influence[pulledBy].At;
+                where = pull.At;
             }
             else
             {
@@ -557,7 +557,7 @@ namespace Paniq.Simulation
             // is wound up to first, unless the player's hand sent them.
             if (tells != null)
             {
-                TellSystem.GoingBack going = tells.BeforeGoingBack(agent, where, card, agent.Fear.ScaredEventId, pulledBy >= 0);
+                TellSystem.GoingBack going = tells.BeforeGoingBack(agent, where, card, agent.Fear.ScaredEventId, pulled);
                 if (going == TellSystem.GoingBack.Wait)
                 {
                     return tells.StandIntent(agent);
@@ -569,20 +569,17 @@ namespace Paniq.Simulation
                 }
             }
 
-            if (pulledBy >= 0)
+            if (pulled)
             {
                 // Where the player pointed is where they believe it lies,
                 // until they are standing over the spot.
-                InfluenceSystem.Place pull = influence[pulledBy];
                 if (!viaTheDoor)
                 {
                     Believe(belief, -1, where);
                 }
 
                 belief.PulledEventId = pull.EventId;
-                agent.Intent.ForTheHandPress = pull.EventId;
-                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
-                    felt, 0, pull.EventId, pull.Target);
+                influence.Answer(agent, pull, felt);
                 if (agent.Traits.Bravery < settings.FetchBraveryMinimum)
                 {
                     // Without the nerve to go back into the building for it
@@ -599,57 +596,33 @@ namespace Paniq.Simulation
             claimedBy = agent.Index;
             belief.PocketingUntilTick = 0;
             agent.Intent.Activity = AgentActivityState.FetchingKeycard;
-            agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FetchTimeoutTicks));
+
+            // A fetcher the hand sent gets twice the time (2026-09-30): the
+            // crowd the same hand gathers at the door is in their way.
+            agent.Intent.ActivityEndTick = checked(context.Tick +
+                context.Jittered(settings.FetchTimeoutTicks * (pulled ? settings.PulledTimeoutTimes : 1)));
             return Update(agent, inDanger);
         }
 
         /// <summary>
-        /// The player's pull on the card, if this person feels it strongest
-        /// of all the pulls they feel and at <see cref="KeycardSettings.PulledToTheCardPerMille"/>
-        /// or more: the place's index, or -1. Draws nothing.
+        /// Whether this person's goal is the card, or the door it opens
+        /// (2026-09-30), unused, driving them at
+        /// <see cref="KeycardSettings.PulledToTheCardPerMille"/> or more, and
+        /// they may set about it. A glancing press convinces nobody, so it
+        /// turns nobody back into the building. Draws nothing.
         /// </summary>
-        private int PulledToTheCard(Agent agent, out int felt)
+        private bool PulledToTheCard(Agent agent, out InfluenceSystem.Place pull, out int drive)
         {
-            felt = 0;
-            if (influence == null)
+            pull = default;
+            drive = 0;
+            if (influence == null || !influence.TryGetPull(agent, out pull, out drive) || !pull.Pulls || pull.Spent)
             {
-                return -1;
+                return false;
             }
 
-            int place = influence.PlaceOfThing(card);
-            if (place < 0)
-            {
-                // Or the hand on the door the card opens (2026-09-30).
-                place = PullOnTheCardDoor();
-            }
-
-            if (place < 0 || influence.HeldFor(place) < settings.PulledAfterTicks)
-            {
-                // No hand on it, or not for long enough yet (2026-09-29): a
-                // glancing press turns nobody back into the building.
-                return -1;
-            }
-
-            felt = influence.StrongestFeltBy(agent, out int strongest);
-            return strongest == place && felt >= settings.PulledToTheCardPerMille && influence.HasNoticed(agent) ? place : -1;
-        }
-
-        /// <summary>The hand on a door that still wants the card, or -1.</summary>
-        private int PullOnTheCardDoor()
-        {
-            for (int d = 0; d < doors.Count; d++)
-            {
-                if (doors.NeedsKeycard(d))
-                {
-                    int place = influence.PullOnDoor(d);
-                    if (place >= 0)
-                    {
-                        return place;
-                    }
-                }
-            }
-
-            return -1;
+            bool onTheCard = pull.Thing >= 0 && pull.Thing == card;
+            bool onItsDoor = pull.Door >= 0 && doors.NeedsKeycard(pull.Door);
+            return (onTheCard || onItsDoor) && drive >= settings.PulledToTheCardPerMille && influence.MayAnswer(agent);
         }
 
         /// <summary>Whether any door still wants the card.</summary>
@@ -710,7 +683,11 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             AgentKeycard belief = agent.Keycard;
-            bool gettingNowhere = agent.Body.BlockedTicks >= settings.BlockedGiveUpTicks;
+            // Hemmed in: a fetcher the hand sent keeps at it longer
+            // (2026-09-30), the crowd the same hand gathered being what is
+            // in their way.
+            bool gettingNowhere = agent.Body.BlockedTicks >=
+                                  settings.BlockedGiveUpTicks * (belief.PulledEventId != 0UL ? settings.PulledPatienceTimes : 1);
             if (Card < 0 || inDanger || !agent.Body.IsOnTheirFeet || agent.Burning.IsBurning ||
                 tick >= agent.Intent.ActivityEndTick || gettingNowhere || claimedBy != agent.Index ||
                 !belief.Knows || belief.WithSomebody || FlamesNear(belief.Place))
@@ -787,7 +764,7 @@ namespace Paniq.Simulation
 
             Pocket(agent, card, cause);
             agent.Intent.Activity = AgentActivityState.Fleeing;
-            InfluenceSystem.StopActing(agent);
+            InfluenceSystem.Done(agent);
             return null;
         }
 
@@ -795,8 +772,18 @@ namespace Paniq.Simulation
         private void GiveUp(Agent agent)
         {
             walk.Forget(agent);
+            bool pulled = agent.Keycard.PulledEventId != 0UL;
             agent.Keycard.PulledEventId = 0UL;
-            InfluenceSystem.StopActing(agent);
+            if (pulled && influence != null)
+            {
+                // Sent by the hand and got nowhere: it costs them, and the
+                // beat lets the claim pass to somebody else.
+                influence.GiveUp(agent);
+            }
+            else
+            {
+                InfluenceSystem.Interrupted(agent);
+            }
             if (claimedBy == agent.Index)
             {
                 claimedBy = -1;

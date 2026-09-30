@@ -1316,7 +1316,7 @@ namespace Paniq.Simulation
                     // shuts (broken, a hole, a swing door): not asked again by
                     // this press (2026-09-30; they used to come straight back
                     // to it, over and over).
-                    agent.Intent.DoorGaveUpOnPress = errand.CauseEventId;
+                    influence?.GiveUp(agent);
                     return Finish(agent, "could not shut it");
                 }
 

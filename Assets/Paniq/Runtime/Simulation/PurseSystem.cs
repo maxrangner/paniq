@@ -353,6 +353,9 @@ namespace Paniq.Simulation
                 case CausalEventType.AgentBeganATell:
                 case CausalEventType.AgentCaughtInTime:
 
+                // The hand's charge running dry (2026-09-30): the player's own doing.
+                case CausalEventType.PowerHandSpent:
+
                 // Bookkeeping: things happening quietly to people, things and doors.
                 case CausalEventType.AgentGotUp:
                 case CausalEventType.AgentCameTo:

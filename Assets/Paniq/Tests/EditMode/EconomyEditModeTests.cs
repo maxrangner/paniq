@@ -45,6 +45,10 @@ namespace Paniq.Tests.EditMode
         private ScenarioData QuietRoom()
         {
             ScenarioData data = TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
+
+            // These are the tests of dealing; the office deals nothing since
+            // 2026-09-30, so a level that does is asked for.
+            data.Purse.CardsFromTheDead = true;
             data.Agents = new[]
             {
                 new AgentDefinition(new SimulationId(1UL), new LogicalPosition(0, 0),
@@ -71,6 +75,7 @@ namespace Paniq.Tests.EditMode
         private ScenarioData FloorWithACertainDeath()
         {
             ScenarioData data = TheBuilding.WithTheFireInTheOffice(scenario.ToRuntimeData());
+            data.Purse.CardsFromTheDead = true;
             TheBuilding.FireAt(data, TheBuilding.Office);
             data.Fire.ActivationTick = 1;
 

@@ -61,7 +61,7 @@ do in Unity yourself.
    highlighted in the Project window. Commit the generated assets and updated
    project settings.
 5. Open `Assets/Paniq/Scenes/Bootstrap.unity` and press Play. It loads the
-   `FireReactionPrototype` scene, the [office level](docs/the-office-level.md):
+   `prototype_fire_1_fl_small` scene, the [office level](docs/the-office-level.md):
    one office floor with a meeting room, a cafeteria, an open-plan office, a
    bathroom and a stockroom along a corridor, twenty people going about their
    day, and a single way out of the whole building, locked until you open it.

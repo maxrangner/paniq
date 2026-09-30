@@ -67,10 +67,12 @@ namespace Paniq.Simulation
             bool actingAgainstTheirNature = false,
             AgentTell tell = AgentTell.None,
             int tellProgress = 0,
-            int tellHeading = 0)
+            int tellHeading = 0,
+            bool committedToTheHand = false)
         {
             ActingForTheHand = actingForTheHand;
             ActingAgainstTheirNature = actingAgainstTheirNature;
+            CommittedToTheHand = committedToTheHand;
             Tell = tell;
             TellProgress = tellProgress;
             TellHeading = tellHeading;
@@ -126,6 +128,9 @@ namespace Paniq.Simulation
         /// <see cref="CausalEventType.AgentActedForTheHand"/>): they tremble.
         /// </summary>
         public bool ActingAgainstTheirNature { get; }
+
+        /// <summary>Keeping a goal the hand has come off (2026-09-30): the gold hand over them, still rather than bobbing.</summary>
+        public bool CommittedToTheHand { get; }
 
         /// <summary>
         /// Winding up to something dangerous (2026-09-30): going stiff,
@@ -463,17 +468,21 @@ namespace Paniq.Simulation
     public readonly struct InfluencePullSnapshot
     {
         public InfluencePullSnapshot(SimulationId agentId, int agentIndex, int place, int feltPerMille,
-            bool actingForTheHand = false)
+            bool actingForTheHand = false, bool committed = false)
         {
             AgentId = agentId;
             AgentIndex = agentIndex;
             Place = place;
             FeltPerMille = feltPerMille;
             ActingForTheHand = actingForTheHand;
+            Committed = committed;
         }
 
         /// <summary>Doing what the hand asked, whatever it takes (2026-09-30): drawn brighter, with a hand over their head.</summary>
         public bool ActingForTheHand { get; }
+
+        /// <summary>Keeping a goal the hand has come off (2026-09-30): the line to where it was, and a still hand.</summary>
+        public bool Committed { get; }
 
         public SimulationId AgentId { get; }
 
@@ -699,8 +708,12 @@ namespace Paniq.Simulation
             int blastChargesRemaining,
             IReadOnlyList<PowerSparkSnapshot> powerSparks,
             RoundPhase roundPhase,
-            int targetSavedPercent)
+            int targetSavedPercent,
+            int handChargePerMille = 1000,
+            bool handResting = false)
         {
+            HandChargePerMille = handChargePerMille;
+            HandResting = handResting;
             Tick = tick;
             FireActive = fireActive;
             FireOrigin = fireOrigin;
@@ -721,6 +734,12 @@ namespace Paniq.Simulation
         }
 
         public int Tick { get; private set; }
+
+        /// <summary>The hand's charge as a share of full, per mille (2026-09-30): the bar bottom-left.</summary>
+        public int HandChargePerMille { get; private set; } = 1000;
+
+        /// <summary>The bar has run dry and is resting: no press is taken until it has enough.</summary>
+        public bool HandResting { get; private set; }
 
         /// <summary>People still in the building, but in a room with nothing burning in it.</summary>
         public int ClearOfFireCount { get; private set; }

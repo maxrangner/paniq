@@ -32,7 +32,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator ThePrototypeLevel_StartsWithTheCartoonFeel()
         {
-            yield return SceneManager.LoadSceneAsync(Paniq.App.Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Paniq.App.Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             var runner = Object.FindFirstObjectByType<RunDriver>();
             Assert.That(runner, Is.Not.Null);
             Assert.That(runner.PhysicsFeelName, Is.EqualTo("PhysicsFeel-Cartoon"));

@@ -840,8 +840,8 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ScenarioData
     {
-        public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "90";
+        public string ScenarioId = "prototype-fire-1-fl-small";
+        public string ContentRevision = "91";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -1074,7 +1074,7 @@ namespace Paniq.Simulation
         // nerve) or heads back toward the flames (turning back), caught by a
         // poke, a tug or the hand -- and then they run, give the door up, or
         // stay out of it for a while.
-        public int SimulationCompatibilityVersion = 78;
+        public int SimulationCompatibilityVersion = 79;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -1107,6 +1107,9 @@ namespace Paniq.Simulation
 
         /// <summary>The player's hand on a person (2026-09-29): the tug, and who tears free of it.</summary>
         public TugSettings Tug = new TugSettings();
+
+        /// <summary>The hand's charge (2026-09-30): the bar that drains while the hand is on something and refills by itself.</summary>
+        public HandChargeSettings HandCharge = new HandChargeSettings();
         public DirectorSettings Director = new DirectorSettings();
         public CalmingSettings Calming = new CalmingSettings();
         public InfluenceSettings Influence = new InfluenceSettings();
@@ -1221,6 +1224,7 @@ namespace Paniq.Simulation
             copy.Traps = Traps?.Clone();
             copy.Nudge = Nudge?.Clone();
             copy.Tug = Tug?.Clone();
+            copy.HandCharge = HandCharge?.Clone();
             copy.Director = Director?.Clone();
             copy.Calming = Calming?.Clone();
             copy.Influence = Influence?.Clone();
@@ -1293,6 +1297,7 @@ namespace Paniq.Simulation
             Traps.Validate();
             Nudge.Validate();
             Tug.Validate();
+            HandCharge.Validate();
             Director.Validate();
             Calming.Validate();
             Influence.Validate();

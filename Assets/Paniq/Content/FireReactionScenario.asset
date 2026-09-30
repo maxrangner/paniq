@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
-    ScenarioId: fire-reaction-prototype
-    ContentRevision: 90
+    ScenarioId: prototype-fire-1-fl-small
+    ContentRevision: 91
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 78
+    SimulationCompatibilityVersion: 79
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -193,6 +193,8 @@ MonoBehaviour:
       DoorOpenTicks: 20
       DoorTryTicks: 25
       DoorForceChancePercent: 60
+      CardDoorPoundTicks: 6000
+      CardDoorPoundersCounted: 3
       DoorForceMinimumTicks: 75
       DoorForceMaximumTicks: 200
       DoorShoveMinimumTicks: 20
@@ -854,6 +856,7 @@ MonoBehaviour:
       PerPersonSaved: 15
       Maximum: 100
       StartingHand: 
+      CardsFromTheDead: 0
       OpeningDrawCount: 1
       PullAlarmCost: 30
       CardPatchRadiusMillimetres: 1500
@@ -951,6 +954,12 @@ MonoBehaviour:
       TearsFreeFromStrength: 6
       TearFreeTicksAtThreshold: 400
       ShookFreeShownTicks: 100
+    HandCharge:
+      Enabled: 1
+      Capacity: 3000
+      DrainPerTick: 2
+      RefillPerTick: 1
+      PressNeeds: 150
     Director:
       ClimbsTheLadder: 0
       FirstIncidentThings:
@@ -1001,16 +1010,17 @@ MonoBehaviour:
       RefusesFromLeadership: 9
       RefusesFromEvil: 9
       ActsAgainstNatureFromPerMille: 250
-      EasilyLedNervousness: 7
       LeaveTaskCheckTicks: 10
-      LeaveTaskChancePerMille: 400
       BeaconTicks: 150
       HeaveStrainTicksAtNoStrength: 250
       WeakBlowDamage: 1
-      WanderToItPerMille: 1000
       StrengthPercent: 100
-      FrightenedAnswerChancePerMille: 400
-      BreakAwayPerMille: 300
+      AnswerFromPerMille: 100
+      CommitFromPerMille: 500
+      ConvictionGainPerTickAtFullPull: 5
+      CommittedDecayPerSecondPerMille: 20
+      GiveUpCostPerMille: 300
+      RetryAfterTicks: 150
       ClearReachMillimetres: 1500
     Keycard:
       Enabled: 1
@@ -1025,7 +1035,8 @@ MonoBehaviour:
       BlockedGiveUpTicks: 50
       FlamesKeepAwayMillimetres: 1500
       PulledToTheCardPerMille: 250
-      PulledAfterTicks: 50
+      PulledPatienceTimes: 5
+      PulledTimeoutTimes: 2
     Tells:
       Enabled: 1
       GoingStiffTicks: 60

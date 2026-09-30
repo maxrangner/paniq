@@ -130,12 +130,15 @@ namespace Paniq.Simulation
             }
 
             int tick = context.Tick;
-            if (intent.TellCaughtAtTick == 0 && influence != null && influence.Count > 0 &&
-                !HandIsOnWhatTheyWant(kind, target) &&
-                influence.FeltBy(agent, 0) >= context.Scenario.Influence.ActsAgainstNatureFromPerMille &&
-                influence.HasNoticed(agent))
+            if (intent.TellCaughtAtTick == 0 && influence != null &&
+                (influence.TryGetLivePull(agent, out InfluenceSystem.Place hand, out int felt) ||
+                 influence.TryGetLivePush(agent, out hand, out felt)) &&
+                felt >= context.Scenario.Influence.ActsAgainstNatureFromPerMille &&
+                !HandIsOnWhatTheyWant(kind, target, hand))
             {
-                Catch(context, agent, influence.CurrentPress);
+                // The hand on now, felt and taken in (never a goal kept from
+                // an earlier press: that is not the player acting).
+                Catch(context, agent, hand.EventId);
             }
 
             if (intent.TellCaughtAtTick != 0)
@@ -178,9 +181,8 @@ namespace Paniq.Simulation
         /// winding up to go for: then it is no catch -- the player asked for it.
         /// A push, or a pull anywhere else, catches.
         /// </summary>
-        private bool HandIsOnWhatTheyWant(AgentTell kind, int target)
+        private static bool HandIsOnWhatTheyWant(AgentTell kind, int target, in InfluenceSystem.Place place)
         {
-            InfluenceSystem.Place place = influence[0];
             return place.Pulls && target >= 0 &&
                    ((kind == AgentTell.GatheringNerve && place.Door == target) ||
                     (kind == AgentTell.TurningBack && place.Thing == target));

@@ -43,7 +43,7 @@ namespace Paniq.Presentation
         /// <summary>True while a card is covering the screen, so clicks in the world are ignored.</summary>
         public bool CardIsUp => runner.IsWaitingToStart || runner.Simulation.Phase == RoundPhase.Over;
 
-        private string LevelId => runner.Level != null ? runner.Level.LevelId : "the-office";
+        private string LevelId => runner.Level != null ? runner.Level.LevelId : "prototype_fire_1_fl_small";
         private string LevelName => runner.Level != null ? runner.Level.DisplayName : "The Office";
 
         /// <summary>Reset and Pause in the top-right corner, and Trigger event bottom centre. (The running score is drawn by the HUD, packed under the alarm band.)</summary>

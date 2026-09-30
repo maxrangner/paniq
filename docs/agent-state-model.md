@@ -201,9 +201,14 @@ works it out each tick from those and their traits. See
 
 **Nudged and annoyed, drawn and remembered (2026-09-26).** `AgentNudge`
 gains `AnnoyedUntilTick`: while it lasts they shake, and a nudge does
-nothing to them. `AgentIntent.GoingToTheInfluence` marks somebody who got up
-or left an errand because the player's influence drew them, so what they
-choose next is to go to it. `AgentDoorMemory.PreviousRoom` is the room they
+nothing to them. Since 2026-09-30 the hand is a record of its own,
+`AgentHand`: the press whose ask is their goal, their copy of the place, a
+conviction that grows while the hand is felt and fades once kept, whether
+they are acting on it, and the once-per-press markers (drawn, pushed,
+rethought, the retry beat after a give-up, the notice tick). Before that
+the same lived as a scatter of press ids on `AgentIntent`
+(`GoingToTheInfluence`, `ForTheHandPress`, `AnsweringPress`, the three
+"gave up on press" marks). `AgentDoorMemory.PreviousRoom` is the room they
 were in before this one, so influence never pulls them straight back through
 the door they came in by; `HeapDoor` and `GiveUpOnTheHeapTick` are the
 heaped doorway somebody strong is having a go at, and when they give it up.

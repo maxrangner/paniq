@@ -75,7 +75,8 @@ namespace Paniq.Simulation
             // The opening draw: from the deck's own stream, so it moves no
             // other random number in the run, and written down as dealt by
             // nobody. Both finite cards are still in supply at the start.
-            for (int i = 0; i < context.Scenario.Purse.OpeningDrawCount; i++)
+            int openingDraws = context.Scenario.Purse.CardsFromTheDead ? context.Scenario.Purse.OpeningDrawCount : 0;
+            for (int i = 0; i < openingDraws; i++)
             {
                 Deal(default, default, 0UL, true, true);
             }

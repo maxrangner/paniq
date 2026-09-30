@@ -41,6 +41,7 @@ namespace Paniq.Simulation
         private GroupSystem groups;
         private NudgeSystem nudges;
         private InfluenceSystem influence;
+        private HandChargeSystem handCharge;
         private TugSystem tugs;
 
         /// <summary>Who a "Stick together" throw caught, and each one's event, gathered before anything is written.</summary>
@@ -71,6 +72,7 @@ namespace Paniq.Simulation
             groups = systems.Groups;
             nudges = systems.Nudges;
             influence = systems.Influence;
+            handCharge = systems.HandCharge;
             tugs = systems.Tugs;
         }
 
@@ -300,6 +302,18 @@ namespace Paniq.Simulation
             bool repels = command.CommandType == PlayerCommandType.RepelDoor ||
                           command.CommandType == PlayerCommandType.RepelThing ||
                           command.CommandType == PlayerCommandType.RepelSpot;
+            bool press = repels || command.CommandType == PlayerCommandType.InfluenceDoor ||
+                         command.CommandType == PlayerCommandType.InfluenceThing ||
+                         command.CommandType == PlayerCommandType.InfluenceSpot ||
+                         command.CommandType == PlayerCommandType.TugPerson;
+            if (press && !handCharge.MayPress)
+            {
+                // The hand's charge has run dry (2026-09-30): nothing is
+                // taken until the bar has rested, and nothing is written,
+                // as for a press off the floor. Letting go always goes through.
+                return;
+            }
+
             if (command.CommandType == PlayerCommandType.InfluenceDoor || command.CommandType == PlayerCommandType.RepelDoor)
             {
                 influence.OnDoor(doors.IndexOf(command.TargetId), command.TargetId, repels);

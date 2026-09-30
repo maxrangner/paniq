@@ -323,20 +323,24 @@ namespace Paniq.Simulation
                 }
             }
 
-            if (influence != null && influence.Count > 0)
+            if (influence != null)
             {
                 ConsiderTheInfluencedDoors(agent, room, position, ref best, ref bestWayOut, ref bestScore,
                     ref bestIsThroughTheHeat);
                 if (best >= 0 && best != bestWithoutInfluence && best != agent.Doors.ExitDoorIndex)
                 {
-                    // Drawn to it by a pull, or turned to it by a push off the
-                    // other (2026-09-30: a push used to be written as "drawn",
-                    // naming no cause).
-                    InfluenceSystem.Place hand = influence[0];
-                    CausalEventType changed = hand.Repels
-                        ? CausalEventType.AgentPushedAwayByInfluence
-                        : CausalEventType.AgentDrawnByInfluence;
-                    context.Events.Append(context.Tick, agent.Id, changed, position, 0, 0, hand.EventId, doors.IdOf(best));
+                    // Drawn to it by their goal, or turned to it by a push off
+                    // the other (2026-09-30: a push used to be written as
+                    // "drawn", naming no cause).
+                    if (influence.TryGetPull(agent, out InfluenceSystem.Place goal, out int drive))
+                    {
+                        influence.Answer(agent, goal, drive);
+                    }
+                    else if (influence.TryGetLivePush(agent, out InfluenceSystem.Place push, out _))
+                    {
+                        context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentPushedAwayByInfluence, position,
+                            0, 0, push.EventId, doors.IdOf(best));
+                    }
                 }
             }
 
@@ -1209,6 +1213,14 @@ namespace Paniq.Simulation
                     return true;
 
                 default:
+                    if (doors.NeedsKeycard(door) && HandIsOn(agent, door))
+                    {
+                        // The card door under the hand (2026-09-30, the
+                        // owner's decision): every tick at it counts, and
+                        // enough of them together burst it.
+                        doors.PoundForTheHand(door, agent, agent.Doors.AttemptEventId);
+                    }
+
                     if (tick >= agent.Doors.NextShoveTick)
                     {
                         // A shoulder into the door: a thud, and usually nothing gives.
@@ -1234,7 +1246,7 @@ namespace Paniq.Simulation
                         {
                             // Battered enough: the door bursts off its hinges.
                             agent.Intent.Activity = AgentActivityState.Fleeing;
-                            InfluenceSystem.StopActing(agent);
+                            InfluenceSystem.Done(agent);
                             return false;
                         }
 
@@ -1262,13 +1274,16 @@ namespace Paniq.Simulation
         /// </summary>
         private void ForceForTheHand(Agent agent, int door)
         {
-            int place = influence.PullOnDoor(door);
-            ulong press = influence[place].EventId;
-            bool wasAnswering = agent.Intent.ForTheHandPress == press;
-            agent.Intent.ForTheHandPress = press;
-            if (!wasAnswering && TraitEffects.DoorShoveDamage(agent, context.Scenario) <= 0)
+            if (!influence.TryGetPull(agent, out InfluenceSystem.Place goal, out int drive))
             {
-                influence.ActedAgainstNature(agent, AgainstTheirNature.BatteredTheDoor, press, doors.IdOf(door),
+                return;
+            }
+
+            bool wasActing = agent.Hand.Acting;
+            influence.Answer(agent, goal, drive);
+            if (!wasActing && TraitEffects.DoorShoveDamage(agent, context.Scenario) <= 0)
+            {
+                influence.ActedAgainstNature(agent, AgainstTheirNature.BatteredTheDoor, goal.EventId, doors.IdOf(door),
                     geometry.DoorCentre(door));
             }
         }
@@ -1288,7 +1303,16 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             int door = agent.Doors.ExitDoorIndex;
-            InfluenceSystem.StopActing(agent);
+            if (influence != null && influence.TryGetPull(agent, out InfluenceSystem.Place goal, out _) && goal.Door == door)
+            {
+                // Their goal's own door would not give: a cost and a beat.
+                influence.GiveUp(agent);
+            }
+            else
+            {
+                InfluenceSystem.Interrupted(agent);
+            }
+
             context.Events.Append(tick, agent.Id, CausalEventType.AgentGaveUpOnDoor, geometry.DoorCentre(door),
                 0, 0, agent.Doors.AttemptEventId, doors.IdOf(door));
             agent.Doors.AvoidUntilTick[door] = checked(tick + context.Random.NextIntInclusive(
@@ -1773,9 +1797,14 @@ namespace Paniq.Simulation
         private void ConsiderTheInfluencedDoors(Agent agent, int room, LogicalPosition position, ref int best,
             ref int bestWayOut, ref long bestScore, ref bool bestIsThroughTheHeat)
         {
-            for (int i = 0; i < influence.Count; i++)
+            // Their goal's door, if it is one (2026-09-30: the person's own,
+            // kept after the hand came off, not only the hand on now). One
+            // goal a person, so the loop runs once; its shape is kept for the
+            // day a person can hold more than one.
+            int goals = influence.TryGetPull(agent, out InfluenceSystem.Place goal, out _) ? 1 : 0;
+            for (int i = 0; i < goals; i++)
             {
-                int k = influence[i].Door;
+                int k = goal.Door;
                 if (k < 0 || k == best || !agent.Knowledge.Knows(k))
                 {
                     continue;
@@ -1847,24 +1876,23 @@ namespace Paniq.Simulation
         /// </summary>
         private bool HandIsOn(Agent agent, int door)
         {
-            if (influence == null || influence.Count == 0 || door < 0)
+            if (influence == null || door < 0 || !influence.TryGetPull(agent, out InfluenceSystem.Place goal, out int drive))
             {
                 return false;
             }
 
-            int place = influence.PullOnDoor(door);
-            return place >= 0 && influence.FeltBy(agent, place) >= context.Scenario.Influence.ActsAgainstNatureFromPerMille;
+            return goal.Pulls && goal.Door == door && drive >= context.Scenario.Influence.ActsAgainstNatureFromPerMille;
         }
 
         /// <summary>Whether the player's hand is pushing this person off this door strongly enough to rule it out (2026-09-30). Draws nothing.</summary>
         private bool HandPushesFrom(Agent agent, int door)
         {
-            if (influence == null || influence.Count == 0 || door < 0 || !influence.IsRepelling(door))
+            if (influence == null || door < 0 || !influence.TryGetLivePush(agent, out InfluenceSystem.Place push, out int felt))
             {
                 return false;
             }
 
-            return influence.FeltBy(agent, 0) >= context.Scenario.Influence.ActsAgainstNatureFromPerMille;
+            return push.Door == door && felt >= context.Scenario.Influence.ActsAgainstNatureFromPerMille;
         }
 
 
@@ -1879,8 +1907,7 @@ namespace Paniq.Simulation
         /// </summary>
         private long InfluencePull(Agent agent, int door, int into, LogicalPosition toward)
         {
-            if (influence == null || influence.Count == 0 ||
-                (into >= 0 && (threats.IsInRoom(into) || into == agent.Doors.PreviousRoom)))
+            if (influence == null || (into >= 0 && (threats.IsInRoom(into) || into == agent.Doors.PreviousRoom)))
             {
                 return 0L;
             }

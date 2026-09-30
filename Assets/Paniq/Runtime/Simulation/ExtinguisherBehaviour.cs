@@ -146,31 +146,28 @@ namespace Paniq.Simulation
         /// should pick up the fire extinguisher"). A bottle in somebody's
         /// hands is nobody else's.
         /// </summary>
-        private int BottleTheHandIsOn(Agent agent, out ulong press)
+        private int BottleTheHandIsOn(Agent agent, out InfluenceSystem.Place pull, out int drive)
         {
-            press = 0UL;
-            if (influence == null || influence.Count == 0)
+            pull = default;
+            drive = 0;
+            if (influence == null || !influence.TryGetPull(agent, out pull, out drive))
             {
                 return -1;
             }
 
-            // What the hand is on first, which costs nothing; only then how
-            // strongly they feel it, which walks the doors; and they take it
-            // in a beat later, each on their own tick.
-            InfluenceSystem.Place pull = influence[0];
+            // Their goal first, which costs nothing; only then whether it
+            // drives them hard enough and they may set about it.
             if (pull.Repels || pull.Thing < 0 || pull.Spent || !objects.IsEquipment(pull.Thing) ||
                 objects.IsDormant(pull.Thing) || objects.HolderOf(pull.Thing) >= 0 || objects.FuelOf(pull.Thing) <= 0)
             {
                 return -1;
             }
 
-            if (influence.FeltBy(agent, 0) < context.Scenario.Influence.ActsAgainstNatureFromPerMille ||
-                !influence.HasNoticed(agent))
+            if (drive < context.Scenario.Influence.ActsAgainstNatureFromPerMille || !influence.MayAnswer(agent))
             {
                 return -1;
             }
 
-            press = pull.EventId;
             return pull.Thing;
         }
 
@@ -217,7 +214,8 @@ namespace Paniq.Simulation
             // The hand on a bottle (2026-09-30): whoever feels it goes for it
             // and fights with it, nerve or none -- a coward included. Nothing
             // to put out, or far too much of it, and it is left on its wall.
-            int pointedAt = BottleTheHandIsOn(agent, out ulong press);
+            int pointedAt = BottleTheHandIsOn(agent, out InfluenceSystem.Place pull, out int drive);
+            ulong press = pull.EventId;
             if (pointedAt >= 0 && agent.Carry.ItemIndex < 0 && agent.Help.TargetIndex < 0 &&
                 agent.Body.State == AgentBodyState.Upright &&
                 fire.BurningCount + flammables.BurningCount > 0 && fire.BurningCount <= settings.FightMaximumFireCells &&
@@ -226,11 +224,9 @@ namespace Paniq.Simulation
                 agent.Carry.ItemIndex = pointedAt;
                 agent.Carry.Holding = false;
                 agent.Carry.ForTheHand = true;
-                agent.Intent.ForTheHandPress = press;
                 agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
                 agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FetchTimeoutTicks));
-                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
-                    0, 0, press, objects.IdOf(pointedAt));
+                influence.Answer(agent, pull, drive);
                 if (LacksTheNerve(agent))
                 {
                     ActedForTheHand(agent, press, pointedAt);
@@ -718,7 +714,7 @@ namespace Paniq.Simulation
             if (!agent.Carry.Holding)
             {
                 agent.Carry.ForTheHand = false;
-                InfluenceSystem.StopActing(agent);
+                InfluenceSystem.Done(agent);
             }
 
             if (IsFighting(agent))

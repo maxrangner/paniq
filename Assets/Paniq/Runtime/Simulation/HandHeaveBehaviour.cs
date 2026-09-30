@@ -73,20 +73,15 @@ namespace Paniq.Simulation
         public static bool IsHeaving(Agent agent) => agent.Intent.Activity == AgentActivityState.HeavingForTheHand;
 
         /// <summary>
-        /// Where the hand is clearing, if it is: a pull on the floor, on a
-        /// crate, or on a doorway heaped with fallen boxes, with a crate still
-        /// to heave within reach of it. Asks nothing about who.
+        /// Whether this pull -- the live hand, or a person's copy of it -- is
+        /// clearing: on the floor, on a crate, or on a doorway heaped with
+        /// fallen boxes, with a crate still to heave within reach of it.
+        /// Asks nothing about who.
         /// </summary>
-        public bool IsClearing(out LogicalPosition centre)
+        public bool IsClearing(in InfluenceSystem.Place place, out LogicalPosition centre)
         {
             centre = default;
-            if (influence == null || influence.Count == 0)
-            {
-                return false;
-            }
-
-            InfluenceSystem.Place place = influence[0];
-            if (place.Repels || (place.Thing >= 0 && !objects.CanHeaveForTheHand(place.Thing)) ||
+            if (place.EventId == 0UL || place.Repels || (place.Thing >= 0 && !objects.CanHeaveForTheHand(place.Thing)) ||
                 (place.Door >= 0 && !doors.IsPiled(place.Door) && !doors.IsObstructed(place.Door)))
             {
                 // A push; a thing that is not a crate (the bottle, the card, a
@@ -98,16 +93,16 @@ namespace Paniq.Simulation
             return NearestCrate(centre, centre, null) >= 0;
         }
 
-        /// <summary>Whether the hand is clearing at all: what the calm behaviour asks before sending somebody.</summary>
-        public bool IsClearing() => IsClearing(out _);
+        /// <summary>Whether this pull is clearing at all: what the calm behaviour asks before sending somebody.</summary>
+        public bool IsClearing(in InfluenceSystem.Place place) => IsClearing(place, out _);
 
         /// <summary>
-        /// Whether this thing is one the hand wants heaved: a crate within the
-        /// clearing reach of a clearing hand.
+        /// Whether this thing is one this pull wants heaved: a crate within
+        /// the clearing reach of a clearing hand.
         /// </summary>
-        public bool CanHeave(int thing)
+        public bool CanHeave(in InfluenceSystem.Place place, int thing)
         {
-            if (thing < 0 || !objects.CanHeaveForTheHand(thing) || !IsClearing(out LogicalPosition centre))
+            if (thing < 0 || !objects.CanHeaveForTheHand(thing) || !IsClearing(place, out LogicalPosition centre))
             {
                 return false;
             }
@@ -162,16 +157,13 @@ namespace Paniq.Simulation
         private const long ClaimedPenaltySquared = 10000L * 10000L;
 
         /// <summary>
-        /// Sets off to heave a crate the hand wants heaved. The press is what
-        /// they answered, so the rest of the round knows they are doing it for
-        /// the hand. False when the crate is no longer there to heave.
+        /// Sets off to heave a crate this pull wants heaved, as their goal
+        /// (the gold hand goes up). False when the crate is no longer there
+        /// to heave, or their hands are full.
         /// </summary>
-        public bool Start(Agent agent, int thing, ulong press)
+        public bool Start(Agent agent, in InfluenceSystem.Place pull, int thing, int drive)
         {
-            // A press whose crates they set off for and could not reach is not
-            // tried again: until the hand is pressed afresh, it is somebody
-            // else's heap.
-            if (!CanHeave(thing) || agent.Carry.ItemIndex >= 0 || agent.Intent.HeaveGaveUpOnPress == press)
+            if (!CanHeave(pull, thing) || agent.Carry.ItemIndex >= 0)
             {
                 return false;
             }
@@ -180,25 +172,25 @@ namespace Paniq.Simulation
             agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(context.Scenario.Calm.StrollTimeoutTicks));
             agent.Intent.HeavingThing = thing;
             agent.Intent.HeavingUntilTick = 0;
-            agent.Intent.ForTheHandPress = press;
             agent.Body.BlockedTicks = 0;
+            influence.Answer(agent, pull, drive);
             return true;
         }
 
         /// <summary>
-        /// Sets off for the crate the clearing hand wants heaved that suits
+        /// Sets off for the crate this clearing pull wants heaved that suits
         /// them best (the calm behaviour's way in). False when there is none,
         /// or it cannot be heaved after all.
         /// </summary>
-        public bool StartNearest(Agent agent, ulong press)
+        public bool StartNearest(Agent agent, in InfluenceSystem.Place pull, int drive)
         {
-            if (!IsClearing(out LogicalPosition centre))
+            if (!IsClearing(pull, out LogicalPosition centre))
             {
                 return false;
             }
 
             int thing = NearestCrate(centre, agent.Body.Position, agent);
-            return thing >= 0 && Start(agent, thing, press);
+            return thing >= 0 && Start(agent, pull, thing, drive);
         }
 
         /// <summary>
@@ -214,39 +206,25 @@ namespace Paniq.Simulation
                 return Update(agent, inDanger, frightened: true);
             }
 
-            if (inDanger || influence == null || influence.Count == 0 || agent.Body.State != AgentBodyState.Upright ||
+            if (inDanger || influence == null || agent.Body.State != AgentBodyState.Upright ||
                 agent.Carry.ItemIndex >= 0 || agent.Help.TargetIndex >= 0)
             {
                 return null;
             }
 
-            // What the hand is on first, which costs nothing: only then how
-            // strongly they feel it, which walks the doors.
-            InfluenceSystem.Place pull = influence[0];
-            if (pull.Repels || agent.Intent.HeaveGaveUpOnPress == pull.EventId || !IsClearing(out LogicalPosition centre))
-            {
-                return null;
-            }
-
-            int felt = influence.FeltBy(agent, 0);
-            if (felt < context.Scenario.Influence.ActsAgainstNatureFromPerMille || !influence.HasNoticed(agent))
+            // Their goal first, which costs nothing: only then whether it
+            // drives them hard enough and they may set about it.
+            if (!influence.TryGetPull(agent, out InfluenceSystem.Place pull, out int drive) ||
+                !IsClearing(pull, out LogicalPosition centre) ||
+                drive < context.Scenario.Influence.ActsAgainstNatureFromPerMille || !influence.MayAnswer(agent))
             {
                 return null;
             }
 
             int thing = NearestCrate(centre, agent.Body.Position, agent);
-            bool answering = agent.Intent.ForTheHandPress == pull.EventId;
-            if (thing < 0 || !Start(agent, thing, pull.EventId))
+            if (thing < 0 || !Start(agent, pull, thing, drive))
             {
                 return null;
-            }
-
-            if (!answering)
-            {
-                // Written once a press: the next crate of the same heap is the
-                // same answer.
-                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
-                    felt, 0, pull.EventId, pull.Target);
             }
 
             return Update(agent, inDanger, frightened: true);
@@ -303,7 +281,7 @@ namespace Paniq.Simulation
                 LogicalPosition beside = geometry.Navigation.NearestStandableTo(near, bodyRadius, StandingRoomMillimetres);
                 if (frightened)
                 {
-                    if (walk.TryStep(agent, beside, speed, agent.Intent.ForTheHandPress, out MotorIntent step))
+                    if (walk.TryStep(agent, beside, speed, agent.Hand.Press, out MotorIntent step))
                     {
                         return step;
                     }
@@ -338,7 +316,7 @@ namespace Paniq.Simulation
                     context.Jittered(System.Math.Max(1, StrainTicks(agent)))));
 
                 // Too weak for it of their own accord: they tremble at it.
-                agent.Intent.AgainstTheirNature = agent.Traits.Strength < context.Scenario.Blockades.ShoveMinimumStrength;
+                agent.Hand.AgainstTheirNature = agent.Traits.Strength < context.Scenario.Blockades.ShoveMinimumStrength;
             }
             else if (SomebodyElseStrainingAt(agent, thing))
             {
@@ -352,7 +330,7 @@ namespace Paniq.Simulation
                 return new MotorIntent(facing, 0, turn, acceleration);
             }
 
-            ulong press = agent.Intent.ForTheHandPress;
+            ulong press = agent.Hand.Press;
             objects.HeaveForTheHand(agent, thing, HeaveHeading(agent, crate, facing), press);
             if (agent.Traits.Strength < context.Scenario.Blockades.ShoveMinimumStrength)
             {
@@ -373,12 +351,12 @@ namespace Paniq.Simulation
         /// </summary>
         private int HeaveHeading(Agent agent, LogicalPosition crate, int facing)
         {
-            if (influence == null || influence.Count == 0)
+            if (influence == null || !influence.TryGetPull(agent, out InfluenceSystem.Place goal, out _))
             {
                 return facing;
             }
 
-            LogicalPosition centre = influence[0].At;
+            LogicalPosition centre = goal.At;
             return LogicalPosition.DistanceSquared(crate, centre) > (long)OnTheHandMillimetres * OnTheHandMillimetres
                 ? IntegerMath.HeadingBetween(centre, crate, facing)
                 : facing;
@@ -387,7 +365,7 @@ namespace Paniq.Simulation
         /// <summary>Another crate of the same heap for somebody hemmed in on the way to theirs: true when they have one.</summary>
         private bool TryAnotherCrate(Agent agent, int thing)
         {
-            if (!IsClearing(out LogicalPosition centre))
+            if (!influence.TryGetPull(agent, out InfluenceSystem.Place goal, out _) || !IsClearing(goal, out LogicalPosition centre))
             {
                 return false;
             }
@@ -478,27 +456,26 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// Done, or given up: back to their day, or back to running. Given up
-        /// on a press still held, they do not set off for its crates again.
-        /// A crate heaved, they are still answering the press, so the next
-        /// crate of the heap is theirs if they want it (and the gold hand
-        /// stays over them while it does).
+        /// (hemmed in, no way there), it costs them conviction and a beat,
+        /// then they may try again. A crate heaved, or one gone from under
+        /// them, they still hold the goal, so the next crate of the heap is
+        /// theirs if they want it (and the gold hand stays over them).
         /// </summary>
         private void Stop(Agent agent, bool frightened, bool gaveUp = false, bool keepAnswering = false)
         {
-            if (gaveUp)
-            {
-                agent.Intent.HeaveGaveUpOnPress = agent.Intent.ForTheHandPress;
-            }
-
             agent.Intent.HeavingThing = -1;
             agent.Intent.HeavingUntilTick = 0;
-            if (!keepAnswering)
+            if (gaveUp)
             {
-                InfluenceSystem.StopActing(agent);
+                influence.GiveUp(agent);
+            }
+            else if (!keepAnswering)
+            {
+                InfluenceSystem.Interrupted(agent);
             }
             else
             {
-                agent.Intent.AgainstTheirNature = false;
+                agent.Hand.AgainstTheirNature = false;
             }
 
             if (!IsHeaving(agent))

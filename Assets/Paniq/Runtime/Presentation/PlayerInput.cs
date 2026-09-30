@@ -25,14 +25,11 @@ namespace Paniq.Presentation
     /// <item>the left button held down on a person is a tug on their shirt:
     /// they are held where they are until it comes up, unless they are strong
     /// enough to tear free; a quick left click on a person is still a poke,
-    /// sent when the button comes back up inside the window;</item>
-    /// <item>a right click with a card in hand puts the card down.</item>
+    /// sent when the button comes back up inside the window.</item>
     /// </list>
-    /// With a card picked, a left click plays it on the spot on the floor
-    /// under the pointer. A card is picked up by clicking it on the screen
-    /// (2026-09-25; the number keys are gone) and put down with Escape or a
-    /// right click. The right button no longer swings the camera (the owner,
-    /// 2026-09-29): Q and E do that, in eighths.
+    /// The cards are gone (2026-09-30, the owner: "remove cards"): nothing is
+    /// picked up or thrown any more. The right button no longer swings the
+    /// camera (the owner, 2026-09-29): Q and E do that, in eighths.
     /// <para>
     /// Everything here is presentation: rays, colliders and screen positions
     /// never leave this class. What reaches the run is a door's stable ID, a
@@ -117,9 +114,6 @@ namespace Paniq.Presentation
             this.room = room;
         }
 
-        /// <summary>The card the player has picked up, or none.</summary>
-        public PlayerCommandType? SelectedCard { get; private set; }
-
         /// <summary>The door under the pointer, for the hover highlight.</summary>
         public SimulationId? HoveredDoor { get; private set; }
 
@@ -138,77 +132,20 @@ namespace Paniq.Presentation
         /// <summary>The person under the pointer: with a person-card picked, or with nothing picked (a poke or a tug).</summary>
         public SimulationId? HoveredPerson { get; private set; }
 
-        /// <summary>Where on the floor the pointer is, while a place-card is picked.</summary>
-        public LogicalPosition? HoveredSpot { get; private set; }
-
         /// <summary>The thing under the pointer, with nothing picked: a hold on it draws people to it.</summary>
         public SimulationId? HoveredThing { get; private set; }
 
         /// <summary>The patch of floor under the pointer, with nothing picked: a hold on it draws people to it.</summary>
         public LogicalPosition? HoveredFloor { get; private set; }
 
-        /// <summary>
-        /// The cards the player is holding, in the order they were dealt.
-        /// <para>
-        /// This used to be a fixed list of every card in the game, because
-        /// every card was always available and only the purse decided whether
-        /// one could be played. Cards are now dealt by the dead, so the bar is
-        /// a hand that grows and shrinks during the round, and it comes from
-        /// the run rather than from here. Two of a kind are drawn as one
-        /// card with a count on it; picking the kind up is picking one of them.
-        /// </para>
-        /// </summary>
-        public IReadOnlyList<PlayerCommandType> Hand { get; private set; } = Array.Empty<PlayerCommandType>();
-
-        /// <summary>
-        /// Nothing is aimed at a chosen person any more: every card is thrown
-        /// at a patch of floor and catches whoever is standing in it. Kept as a
-        /// method rather than deleted because the end screen's "click somebody
-        /// for their facts" still wants the person-picking below.
-        /// </summary>
-        public static bool TargetsAPerson(PlayerCommandType card) => false;
-
-        public static string NameOf(PlayerCommandType card)
-        {
-            switch (card)
-            {
-                case PlayerCommandType.PlayBeefcake: return "Beefcake";
-                case PlayerCommandType.PlayCourage: return "Courage";
-                case PlayerCommandType.PlayTerror: return "Terror";
-                case PlayerCommandType.PlayBastard: return "Bastard";
-                case PlayerCommandType.PlayColdHeart: return "Cold heart";
-                case PlayerCommandType.SpawnFire: return "Start a fire";
-                case PlayerCommandType.SpawnExtinguisher: return "Fire extinguisher";
-                case PlayerCommandType.BlastWall: return "TNT";
-                case PlayerCommandType.PopFuseBox: return "Pop the fuse box";
-                case PlayerCommandType.PullAlarm: return "Pull a fire alarm";
-                case PlayerCommandType.StickTogether: return "Stick together";
-                default: return card.ToString();
-            }
-        }
-
-        /// <summary>
-        /// The card on the screen was clicked: pick it up, or put it back down
-        /// if it was the one in hand. Called from the HUD as it draws.
-        /// </summary>
-        public void Toggle(PlayerCommandType card)
-        {
-            if (!Holding(card))
-            {
-                return;
-            }
-
-            SelectedCard = SelectedCard == card ? (PlayerCommandType?)null : card;
-        }
-
         /// <param name="lookOnly">
-        /// The world is stopped, or a card is covering the screen. The pointer
+        /// The world is stopped, or a screen is covering it. The pointer
         /// still tells the player what is under it, but nothing they press
         /// reaches the run: pause is for looking, not for acting. Every hand
         /// comes off, because a release would never reach a stopped run.
         /// </param>
         /// <param name="pointerOverHud">
-        /// The pointer is over a card or a button. A press there is the HUD's
+        /// The pointer is over a button or the bar. A press there is the HUD's
         /// and never the world's, and nothing in the world is hovered. A
         /// button coming back up over the HUD still lets go of whatever the
         /// press had hold of.
@@ -220,37 +157,20 @@ namespace Paniq.Presentation
             HoveredDoor = null;
             HoveredAlarm = null;
             HoveredPerson = null;
-            HoveredSpot = null;
             HoveredThing = null;
             HoveredFloor = null;
-            Hand = snapshot != null ? snapshot.Hand : Array.Empty<PlayerCommandType>();
-
-            // A card that has just been played, or that was never theirs, is
-            // not still in their hand to aim.
-            if (SelectedCard.HasValue && !Holding(SelectedCard.Value))
-            {
-                SelectedCard = null;
-            }
-
-            // A card in hand as the frame begins: a right click this frame puts
-            // it down, and is nothing else -- not a push as well.
-            bool hadACard = SelectedCard.HasValue;
 
             Mouse mouse = Mouse.current;
             bool leftDown = mouse != null && mouse.leftButton.isPressed;
             bool rightDown = mouse != null && mouse.rightButton.isPressed;
             if (lookOnly)
             {
-                // A card picked up before the freeze is put back down, so
-                // unpausing never plays something the player has forgotten
-                // about; and every hand comes off, because the release would
-                // never reach the run while it is stopped.
-                SelectedCard = null;
+                // Every hand comes off, because the release would never reach
+                // the run while it is stopped.
                 LetGoOfEverything();
             }
             else
             {
-                ReadKeys();
                 ReadTheButtonsComingUp(leftDown, rightDown, now);
             }
 
@@ -269,44 +189,11 @@ namespace Paniq.Presentation
                 runner.QueueMoveInfluence(moveTo);
             }
 
+            // The right button pushes (2026-09-30); the left wins a press of
+            // both on one frame.
             bool pressed = mouse.leftButton.wasPressedThisFrame && !lookOnly;
-            if (SelectedCard == null)
-            {
-                // The right button pushes (2026-09-30); the left wins a
-                // press of both on one frame.
-                bool pushed = !pressed && !hadACard && mouse.rightButton.wasPressedThisFrame && !lookOnly;
-                UpdateWorldPress(camera, snapshot, pointer, pressed, pushed, now);
-                return;
-            }
-
-            PlayerCommandType card = SelectedCard.Value;
-            if (TargetsAPerson(card))
-            {
-                // Aimed at a body on the screen, not at a place on the floor.
-                HoveredPerson = NearestPerson(camera, snapshot, pointer);
-                if (pressed && HoveredPerson.HasValue)
-                {
-                    runner.QueueCard(card, HoveredPerson.Value);
-                    SelectedCard = null;
-                }
-
-                return;
-            }
-
-            // Fire, an extinguisher and TNT are put somewhere rather than given
-            // to somebody, so for those the floor under the pointer is exactly
-            // the right place to read.
-            if (!TryGroundPoint(camera, pointer, out LogicalPosition spot))
-            {
-                return;
-            }
-
-            HoveredSpot = spot;
-            if (pressed)
-            {
-                runner.QueueCard(card, spot);
-                SelectedCard = null;
-            }
+            bool pushed = !pressed && mouse.rightButton.wasPressedThisFrame && !lookOnly;
+            UpdateWorldPress(camera, snapshot, pointer, pressed, pushed, now);
         }
 
         /// <summary>Every hand off: the place and the person, whatever the buttons are doing.</summary>
@@ -608,38 +495,6 @@ namespace Paniq.Presentation
             }
 
             at = default;
-            return false;
-        }
-
-        /// <summary>
-        /// The keys, and the right button with a card in hand: Escape or a
-        /// right click puts the card back down. With no card in hand the right
-        /// button is the hand pushing people away (2026-09-30), read with the
-        /// rest of the world's presses; the key and the hand holding a door
-        /// shut are gone from the mouse (the owner's choice).
-        /// </summary>
-        private void ReadKeys()
-        {
-            Keyboard keyboard = Keyboard.current;
-            Mouse mouse = Mouse.current;
-            bool rightPressed = mouse != null && mouse.rightButton.wasPressedThisFrame;
-            if ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) || (rightPressed && SelectedCard != null))
-            {
-                SelectedCard = null;
-            }
-        }
-
-        /// <summary>Whether that card is on the bar. A short list, walked rather than searched.</summary>
-        private bool Holding(PlayerCommandType card)
-        {
-            for (int i = 0; i < Hand.Count; i++)
-            {
-                if (Hand[i] == card)
-                {
-                    return true;
-                }
-            }
-
             return false;
         }
 

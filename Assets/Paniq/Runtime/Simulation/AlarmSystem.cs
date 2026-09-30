@@ -202,16 +202,16 @@ namespace Paniq.Simulation
         }
 
         /// <summary>The pull station the player's hand is on (2026-09-29), or -1: the one with a pull beside it.</summary>
-        public int StationTheHandIsOn(InfluenceSystem influence)
+        public int StationAt(InfluenceSystem influence, in InfluenceSystem.Place pull)
         {
-            if (!settings.Enabled || Ringing || influence.Count == 0)
+            if (!settings.Enabled || Ringing)
             {
                 return -1;
             }
 
             for (int i = 0; i < ids.Length; i++)
             {
-                if (influence.IsPullingNear(positions[i]))
+                if (influence.IsPullingNear(pull, positions[i]))
                 {
                     return i;
                 }

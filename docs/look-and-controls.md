@@ -44,14 +44,14 @@ every zoom level.
 | **W A S D** | move the camera forward, back, left and right across the building |
 | **Q / E** | step an eighth of a turn to the next tidy view, from wherever the view is now: corner, side, corner (2026-09-29; it was a quarter turn) |
 | **Mouse wheel** | zoom in and out, tilting the camera as described above |
-| **Left mouse button** | on a card along the bottom: pick it up (or put it down again); on the floor with a card in hand: throw it there |
 | **Hold the left button on a door, a thing, a pull station or the floor** (nothing in hand) | the hand (2026-09-29): a full pull toward it the moment the button goes down, drawing people near it -- about a room's length away as a walk, through an open doorway but never a wall -- to go there or use it; gone the moment the button comes up. One hand, one place at a time. Everybody but the strongest wills answers it within a second or two (2026-09-30). What is pointed at is used (2026-09-27), whatever their nature (2026-09-30): a door is opened if shut or shut if open (the cruel wedge it instead) and a locked one pounded on, a chair sat on, a box carried off and a crate too heavy to carry heaved aside, the bottle taken and used on the fire, the pull station pulled, the card pocketed; using it spends its use, so the hand goes on gathering people there but the next press asks for the opposite. A sparkling aura shows it, a sparkling line runs to everybody feeling it, brighter the harder they are pulled, and a gold hand bobs over anybody doing what it asked |
+| **Let go** | since the fourth pass (2026-09-30) whoever has taken the hand in past its commit line -- about two seconds beside it -- keeps the task: clearing the heap, opening the door, pounding, standing where you pointed, and drifts off it only as their conviction fades on their own beat, leaders first, the nervous last (the owner: "after some influence points spent they should stick to that choice"). Everybody else is on their own at once, as before. A gold hand stands still over whoever is keeping at it |
+| **The bar** (bottom left) | the hand's charge (2026-09-30, the owner: "using influence depletes a bar that is automatically refilled continuously"): holding drains it, a click's beacon and a tug included, and it refills by itself all the time -- a full bar is about a minute of holding and refills in a minute. Run dry, the hand comes off by itself, "your hand gave out" goes in the story, and the bar shows *resting* for about three seconds before it takes another press; it does not come back on by itself while the button stays down |
 | **Hold and drag, either button** | the hand moves with the pointer (the owner, 2026-09-30: "so agents can be guided with this"): the people answering it follow it, the frightened included, and a right-button drag herds people ahead of it. On the floor it follows at once; pressed on a door or a thing it stays there until the pointer is about eight tenths of a metre off it. Dragged along a heap of fallen boxes, people clear a path behind it |
 | **Click the left button on a place** | the same, left there for three seconds and then off by itself (the owner, 2026-09-30: "a single click should place an influence beacon for 3 seconds"). The ring throbs while it lasts |
 | **Click a person** (nothing in hand) | poke them: they step away from where the click landed. Three pokes in ten seconds and they are annoyed -- a fast shake for a couple of seconds, and for about twenty seconds they are still shoved but stop looking round for it. Three quick pokes wake somebody frozen with fear, or knock somebody sitting down off their chair |
 | **Hold the left button on a person** | the tug (2026-09-29): a hand on their shirt. They are stopped within about a quarter of a second (2026-09-30) and stay there while you hold, struggling against it their own way, and are off again the moment you let go. The strong tear free, sooner the stronger, with a shake; nobody alight or down can be held. A gold ring at their feet shows who you have |
 | **Hold the right button on a door, a thing, a person or the floor** (nothing in hand) | push people away (the owner, 2026-09-30: "an anti-influence. Works same as the left mouse button, but in reverse"): the calm walk off out of it, the frightened steer away, and a door pushed from is no way out to anybody who feels it strongly. On a person it pushes the people round them. A click leaves it for three seconds. A cool blue ring, and blue lines running away from it |
-| **Right click** with a card in hand | put the card down |
 | **Reset** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
 | **Pause** (the button under Reset) | stop and start the world, as Space does |
 | **Trigger event** (the red button bottom centre) | start the fire. It goes the moment it is pressed |
@@ -80,13 +80,23 @@ Chosen on the owner's behalf:
   place is sent at once, because there is nothing to wait for: the hand goes
   on when the button goes down, and when it comes up the hand comes off --
   or, after a click, stays three seconds as a beacon.
-- **A click on a card or a button never reaches the world.** Every card and
-  button claims its patch of screen as it is drawn, and the next frame's
-  click checks those patches first; until 2026-09-25 a click on "Trigger
-  event" with a door under it clicked the door too.
-- **The number keys are gone** (2026-09-25). Cards are clicked, and two of a
-  kind sit as one card with the count on it, so there is nothing for a
-  number to name.
+- **A click on a button or the bar never reaches the world.** Every button
+  claims its patch of screen as it is drawn, and the next frame's click
+  checks those patches first; until 2026-09-25 a click on "Trigger event"
+  with a door under it clicked the door too.
+- **The cards are gone** (2026-09-30, the owner: "remove cards"): no card
+  bar along the bottom, no aim circle, nothing picked up or thrown, and the
+  right button is only the push. The number keys went on 2026-09-25.
+- **The top of the screen is one strip** (2026-09-30, the owner: "remove all
+  but saved lost still inside and seed. Make it easier to read at a glance
+  without making them huge"): `Saved 3   Lost 2   Still inside 15      Seed
+  42`, in a bold 15-point style. The tick, the fire, the calm and scared
+  counts, "Need 15 of 20" and "Left alone" left it; the last two are in the
+  Tab panel's stats footer and on the end card. What a press under the
+  pointer would do is written at the bottom left, above the bar.
+- **Whoever has the keycard wears a small yellow card** over their head
+  (a mark like the others, hidden with them), and the way out's hover line says who has it or that it
+  lies free (2026-09-30: the player had no way to know).
 - **A press that outlasts the window is a hold** (prototype 3,
   2026-09-25). The same third of a second decides both: a button up again
   inside it is a click, a button still down when it closes is a hold, and
@@ -114,9 +124,9 @@ Chosen on the owner's behalf:
   a little further off (42 pixels rather than 30). The rule that a click near a
   patch already influenced added to it is gone with the stacking: pressing
   near a held spot simply moves the hand.
-- **A button coming back up over a card or a button still lets go.** A press
+- **A button coming back up over a button or the bar still lets go.** A press
   over the HUD never reaches the world; a release always does, so a hand
-  that started on the floor and drifted over a card comes off cleanly.
+  that started on the floor and drifted over the bar comes off cleanly.
 - The angles, zoom limits and how far the tilt travels are presentation values,
   chosen when the camera was built and listed below.
 

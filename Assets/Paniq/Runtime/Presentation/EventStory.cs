@@ -51,6 +51,26 @@ namespace Paniq.Presentation
             }
         }
 
+        /// <summary>A card's name, for the log of a level that still deals them (the office does not, 2026-09-30).</summary>
+        private static string NameOfCard(PlayerCommandType card)
+        {
+            switch (card)
+            {
+                case PlayerCommandType.PlayBeefcake: return "Beefcake";
+                case PlayerCommandType.PlayCourage: return "Courage";
+                case PlayerCommandType.PlayTerror: return "Terror";
+                case PlayerCommandType.PlayBastard: return "Bastard";
+                case PlayerCommandType.PlayColdHeart: return "Cold heart";
+                case PlayerCommandType.SpawnFire: return "Start a fire";
+                case PlayerCommandType.SpawnExtinguisher: return "Fire extinguisher";
+                case PlayerCommandType.BlastWall: return "TNT";
+                case PlayerCommandType.PopFuseBox: return "Pop the fuse box";
+                case PlayerCommandType.PullAlarm: return "Pull a fire alarm";
+                case PlayerCommandType.StickTogether: return "Stick together";
+                default: return card.ToString();
+            }
+        }
+
         /// <summary>
         /// The chatter. These happen dozens or hundreds of times in a round --
         /// the fire creeping one square, an extinguisher hissing, people
@@ -78,6 +98,7 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerInfluenced:
                 case CausalEventType.AgentDrawnByInfluence:
                 case CausalEventType.PowerReleasedInfluence:
+                case CausalEventType.PowerHandSpent:
                 case CausalEventType.PowerTugged:
                 case CausalEventType.PowerReleasedTug:
                 case CausalEventType.TrapCreaked:
@@ -383,6 +404,7 @@ namespace Paniq.Presentation
                     return record.HasTarget ? $"you put your hand on {whom}" : "you put your hand on a spot on the floor";
                 case CausalEventType.PowerReleasedInfluence:
                     return record.HasTarget ? $"you took your hand off {whom}" : "you took your hand off the floor";
+                case CausalEventType.PowerHandSpent: return "your hand gave out";
                 case CausalEventType.AgentDrawnByInfluence: return $"{who} went where your hand was";
                 case CausalEventType.InfluenceSpent: return $"{who} did what your hand asked";
                 case CausalEventType.PowerTugged: return $"you took {whom} by the shirt";
@@ -427,8 +449,8 @@ namespace Paniq.Presentation
 
                 case CausalEventType.CardDealt:
                     return record.SourceId.Value == 0UL
-                        ? $"you were dealt {PlayerInput.NameOf((PlayerCommandType)record.Strength)} to start"
-                        : $"{who} died, and dealt you {PlayerInput.NameOf((PlayerCommandType)record.Strength)}";
+                        ? $"you were dealt {NameOfCard((PlayerCommandType)record.Strength)} to start"
+                        : $"{who} died, and dealt you {NameOfCard((PlayerCommandType)record.Strength)}";
 
                 case CausalEventType.RoundEnded: return $"the round ended with {record.Strength} saved";
 

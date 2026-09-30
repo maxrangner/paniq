@@ -322,63 +322,6 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The owner, on the card door under the hand: "they batter it, it
-        /// holds", and the hand there "also sends someone who knows where the
-        /// card is to fetch it".
-        /// </summary>
-        [Test]
-        public void TheCardDoor_UnderTheHand_IsPounded_ButNeverGives_AndSomebodyGoesForTheCard()
-        {
-            ScenarioData data = scenario.ToRuntimeData();
-            data = TheBuilding.WithThePlayerAbleToAct(data);
-            data.Keycard.Enabled = true;
-            data.Agents = new[]
-            {
-                Person(Somebody, new LogicalPosition(13800, 14800), AgentTraitValues.AllOrdinary),
-                Person(SomebodyElse, new LogicalPosition(15200, 14800), AgentTraitValues.AllOrdinary),
-                Person(new SimulationId(3UL), new LogicalPosition(14500, 14200), AgentTraitValues.AllOrdinary)
-            };
-            data.Fire.ActivationTick = 1;
-            TheBuilding.FireAt(data, TheBuilding.MeetingRoom);
-            data.Fire.SpreadMinimumTicks = 100000;
-            data.Fire.SpreadMaximumTicks = 100000;
-            data.TrapDefinitions = Array.Empty<TrapDefinition>();
-            data.Timetable = Array.Empty<ScheduledCue>();
-            data.Calming.Enabled = false;
-            data.Temperament.FreezeThenRunPercent = 0;
-            data.Temperament.FreezeForeverPercent = 0;
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.PutKeycardOnATableForTests(0);
-                Press(simulation, PlayerCommandType.InfluenceDoor, TheBuilding.TheWayOut);
-                for (int i = 0; i < 3; i++)
-                {
-                    simulation.FrightenForTests(i);
-                }
-
-                CausalEvent? pounded = AdvanceUntil(simulation, e => e.EventType == CausalEventType.AgentForcedDoor &&
-                                                                    e.TargetId == TheBuilding.TheWayOut, 15 * Run.TicksPerSecond);
-                Assert.That(pounded.HasValue, "Under the hand they throw themselves at the card door.");
-                CausalEvent? fetching = AdvanceUntil(simulation, e => e.EventType == CausalEventType.AgentDrawnByInfluence &&
-                                                                     e.TargetId == TheBuilding.TheWayOut &&
-                                                                     simulation.GetAgent(e.SourceId).ActivityState == AgentActivityState.FetchingKeycard,
-                    5 * Run.TicksPerSecond);
-                bool someoneFetches = false;
-                for (int i = 0; i < 3; i++)
-                {
-                    someoneFetches |= simulation.GetAgent(i).ActivityState == AgentActivityState.FetchingKeycard ||
-                                      simulation.KeycardBeliefForTests(i).Held >= 0;
-                }
-
-                Assert.That(someoneFetches || fetching.HasValue, Is.True, "And somebody who knows where the card lies goes for it.");
-                Advance(simulation, 10 * Run.TicksPerSecond);
-                Assert.That(EventsOfType(simulation, CausalEventType.DoorBrokenDown).Exists(e => e.TargetId == TheBuilding.TheWayOut ||
-                                                                                               e.SourceId == TheBuilding.TheWayOut),
-                    Is.False, "It never gives to a shoulder.");
-            }
-        }
-
-        /// <summary>
         /// The owner: "I held the blocking boxes, and none were moved." A crate
         /// too heavy for anybody to carry, lying still: somebody weak (strength
         /// two) drawn to it by the hand strains at it and heaves it aside,
@@ -660,5 +603,290 @@ namespace Paniq.Tests.EditMode
                 Assert.That(errand.Pending, Is.True, "And the errand still waits for them.");
             }
         }
+        // ------------------------------------------------ the fourth pass (2026-09-30)
+
+        /// <summary>
+        /// The owner: "after some influence points spent they should stick to
+        /// that choice." A hand held on a shut door for two seconds and then
+        /// let go: the person sent to open it opens it all the same.
+        /// </summary>
+        [Test]
+        public void AHandHeldTwoSeconds_ThenLetGo_TheyFinishWhatItAsked()
+        {
+            ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(-1000, 3500), AgentTraitValues.AllOrdinary));
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 10);
+                int door = DoorIndex(simulation, TheBuilding.OfficeDoor);
+                Assert.That(simulation.GetDoor(door).State, Is.Not.EqualTo(DoorState.Open));
+                Press(simulation, PlayerCommandType.InfluenceDoor, TheBuilding.OfficeDoor);
+                Advance(simulation, 3 * Run.TicksPerSecond);
+                Assert.That(simulation.GetAgent(Somebody).ActingForTheHand, Is.True, "Sent to the door.");
+                Press(simulation, PlayerCommandType.ReleaseInfluence, default(SimulationId));
+                Assert.That(simulation.GetAgent(Somebody).CommittedToTheHand, Is.True, "Three seconds beside the hand: they keep the task.");
+                CausalEvent? opened = AdvanceUntil(simulation, e => e.EventType == CausalEventType.DoorOpened && e.SourceId == TheBuilding.OfficeDoor,
+                    15 * Run.TicksPerSecond);
+                Assert.That(opened.HasValue, "The door is opened after the hand came off.");
+            }
+        }
+
+        /// <summary>A hand on and off again inside half a second convinces nobody: let go, they are on their own at once.</summary>
+        [Test]
+        public void AFlick_CommitsNobody()
+        {
+            ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(2000, 1000), AgentTraitValues.AllOrdinary));
+            var hand = new LogicalPosition(-2500, -2500);
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 10);
+                simulation.FrightenForTests(0);
+                Press(simulation, PlayerCommandType.InfluenceSpot, hand);
+                Advance(simulation, 20);
+                Press(simulation, PlayerCommandType.ReleaseInfluence, default(SimulationId));
+                Advance(simulation, 2);
+                Assert.That(simulation.GetAgent(Somebody).CommittedToTheHand, Is.False, "A flick: nothing kept.");
+                Assert.That(simulation.GetAgent(Somebody).ActingForTheHand, Is.False);
+            }
+        }
+
+        /// <summary>
+        /// Character in one number: a kept goal fades faster the less easily
+        /// led they are. A leader (at six tenths) drifts off a spot the hand
+        /// left long before a nervous visitor does.
+        /// </summary>
+        [Test]
+        public void ALeader_LosesACommitmentSooner_ThanANervousVisitor()
+        {
+            var leader = AgentTraitValues.AllOrdinary.With(AgentTrait.Leadership, 8);
+            var nervous = AgentTraitValues.AllOrdinary.With(AgentTrait.Nervousness, 8);
+            ScenarioData data = OfficeWithoutTheCard(
+                Person(Somebody, new LogicalPosition(2000, 1000), leader),
+                Person(SomebodyElse, new LogicalPosition(2500, 0), nervous).WithFamiliarity(AgentFamiliarity.Visitor));
+            var hand = new LogicalPosition(-2500, -2500);
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 10);
+                Press(simulation, PlayerCommandType.InfluenceSpot, hand);
+                simulation.FrightenForTests(0);
+                simulation.FrightenForTests(1);
+                Advance(simulation, 8 * Run.TicksPerSecond);
+                Assert.That(simulation.GetAgent(Somebody).ActingForTheHand, Is.True, "Even the leader comes, driven long enough.");
+                Assert.That(simulation.GetAgent(SomebodyElse).ActingForTheHand, Is.True);
+                Press(simulation, PlayerCommandType.ReleaseInfluence, default(SimulationId));
+                Assert.That(simulation.GetAgent(Somebody).CommittedToTheHand, Is.True);
+                Assert.That(simulation.GetAgent(SomebodyElse).CommittedToTheHand, Is.True);
+
+                int leaderLetGo = -1;
+                int nervousLetGo = -1;
+                for (int t = 0; t < 150 * Run.TicksPerSecond && (leaderLetGo < 0 || nervousLetGo < 0); t++)
+                {
+                    simulation.Step();
+                    if (leaderLetGo < 0 && !simulation.GetAgent(Somebody).CommittedToTheHand)
+                    {
+                        leaderLetGo = t;
+                    }
+
+                    if (nervousLetGo < 0 && !simulation.GetAgent(SomebodyElse).CommittedToTheHand)
+                    {
+                        nervousLetGo = t;
+                    }
+                }
+
+                Assert.That(leaderLetGo, Is.GreaterThan(0), "The leader lets it go in time.");
+                Assert.That(nervousLetGo, Is.GreaterThan(leaderLetGo), "The nervous visitor keeps it longer.");
+            }
+        }
+
+        /// <summary>
+        /// The flames inside their danger distance put the hand out of their
+        /// head, kept or not: the one rule for everybody.
+        /// </summary>
+        [Test]
+        public void AFrightenedPersonCommittedToTheHand_DropsItWhenTheFlamesComeNear()
+        {
+            ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(2000, 1000), AgentTraitValues.AllOrdinary));
+            var hand = new LogicalPosition(-2500, -2500);
+
+            // A fire that starts eight seconds in, on the very spot the hand
+            // is on, and does not spread: by then they stand in a ring round
+            // it, inside their danger distance.
+            data.Fire.ActivationTick = 8 * Run.TicksPerSecond;
+            data.Fire.SpreadMinimumTicks = 100000;
+            data.Fire.SpreadMaximumTicks = 100000;
+            TheBuilding.FireAt(data, hand);
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 10);
+                Press(simulation, PlayerCommandType.InfluenceSpot, hand);
+                simulation.FrightenForTests(0);
+                Advance(simulation, 6 * Run.TicksPerSecond);
+                Press(simulation, PlayerCommandType.ReleaseInfluence, default(SimulationId));
+                Assert.That(simulation.GetAgent(Somebody).CommittedToTheHand, Is.True, "Kept after the hand came off.");
+                Assert.That(IntegerMath.Distance(simulation.GetAgent(Somebody).Position, hand), Is.LessThan(2500), "Standing at it.");
+
+                Advance(simulation, 3 * Run.TicksPerSecond);
+                Assert.That(simulation.GetAgent(Somebody).CommittedToTheHand, Is.False, "Flames at their feet: the hand is out of their head.");
+            }
+        }
+
+        /// <summary>The player's tug on somebody takes them off whatever they were doing for the hand.</summary>
+        [Test]
+        public void ATug_EndsWhatTheyWereDoingForTheHand()
+        {
+            ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(2000, 1000), AgentTraitValues.AllOrdinary));
+            var hand = new LogicalPosition(-2500, -2500);
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 10);
+                Press(simulation, PlayerCommandType.InfluenceSpot, hand);
+                simulation.FrightenForTests(0);
+                Advance(simulation, 4 * Run.TicksPerSecond);
+                Assert.That(simulation.GetAgent(Somebody).ActingForTheHand, Is.True);
+                Press(simulation, PlayerCommandType.ReleaseInfluence, default(SimulationId));
+                Assert.That(simulation.GetAgent(Somebody).CommittedToTheHand, Is.True);
+                Press(simulation, PlayerCommandType.TugPerson, Somebody);
+                Advance(simulation, 2);
+                Assert.That(simulation.GetAgent(Somebody).CommittedToTheHand, Is.False, "Taken by the shirt: the goal is dropped.");
+                Assert.That(simulation.GetAgent(Somebody).ActingForTheHand, Is.False);
+            }
+        }
+
+        /// <summary>
+        /// A fresh press they feel replaces the goal and keeps their
+        /// attention: somebody standing at one spot sets off for the next
+        /// without a beat's dithering, and keeps that one too once let go of.
+        /// </summary>
+        [Test]
+        public void AHandMovedOntoSomethingElse_TakesThemWithIt_ConvictionKept()
+        {
+            ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(2000, 1000), AgentTraitValues.AllOrdinary));
+            var first = new LogicalPosition(-2500, -2500);
+            var second = new LogicalPosition(2500, -2500);
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 10);
+                Press(simulation, PlayerCommandType.InfluenceSpot, first);
+                simulation.FrightenForTests(0);
+                Advance(simulation, 6 * Run.TicksPerSecond);
+                Assert.That(IntegerMath.Distance(simulation.GetAgent(Somebody).Position, first), Is.LessThan(2500), "At the first spot.");
+
+                Press(simulation, PlayerCommandType.InfluenceSpot, second);
+                Advance(simulation, 1 * Run.TicksPerSecond);
+                Press(simulation, PlayerCommandType.ReleaseInfluence, default(SimulationId));
+                Assert.That(simulation.GetAgent(Somebody).CommittedToTheHand, Is.True,
+                    "One second of the second press, with the conviction the first built: kept.");
+                Advance(simulation, 6 * Run.TicksPerSecond);
+                Assert.That(IntegerMath.Distance(simulation.GetAgent(Somebody).Position, second), Is.LessThan(2500),
+                    "And they went to the second spot after the hand came off.");
+            }
+        }
+
+        /// <summary>
+        /// The owner's decision (2026-09-30): under the hand the card door
+        /// gives to a long pounding. Three people pound it for the hand while
+        /// the card sits in a calm person's pocket across the building (so
+        /// nobody can fetch it and nobody swipes): not broken at twenty
+        /// seconds, broken by a minute. Without the hand it never gives
+        /// (DoorsEditModeTests). The fetch the hand sends is
+        /// TheCardDoor_UnderTheHand_SendsSomebodyForTheCard.
+        /// </summary>
+        [Test]
+        public void TheCardDoor_UnderTheHand_IsPounded_AndGivesAfterAboutFortySeconds()
+        {
+            ScenarioData data = scenario.ToRuntimeData();
+            data = TheBuilding.WithThePlayerAbleToAct(data);
+            data.Keycard.Enabled = true;
+            data.Agents = new[]
+            {
+                Person(Somebody, new LogicalPosition(13800, 14800), AgentTraitValues.AllOrdinary),
+                Person(SomebodyElse, new LogicalPosition(15200, 14800), AgentTraitValues.AllOrdinary),
+                Person(new SimulationId(3UL), new LogicalPosition(14500, 14200), AgentTraitValues.AllOrdinary),
+                Person(new SimulationId(4UL), new LogicalPosition(-4000, -4000), AgentTraitValues.AllOrdinary)
+            };
+            data.Fire.ActivationTick = 1;
+            TheBuilding.FireAt(data, TheBuilding.MeetingRoom);
+            data.Fire.SpreadMinimumTicks = 100000;
+            data.Fire.SpreadMaximumTicks = 100000;
+            data.TrapDefinitions = Array.Empty<TrapDefinition>();
+            data.Timetable = Array.Empty<ScheduledCue>();
+            data.Calming.Enabled = false;
+            data.Temperament.FreezeThenRunPercent = 0;
+            data.Temperament.FreezeForeverPercent = 0;
+            data.Calm.DecisionMinimumTicks = 100000;
+            data.Calm.DecisionMaximumTicks = 100000;
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.GiveKeycardForTests(3);
+                Press(simulation, PlayerCommandType.InfluenceDoor, TheBuilding.TheWayOut);
+                for (int i = 0; i < 3; i++)
+                {
+                    simulation.FrightenForTests(i);
+                }
+
+                CausalEvent? pounded = AdvanceUntil(simulation, e => e.EventType == CausalEventType.AgentForcedDoor &&
+                                                                    e.TargetId == TheBuilding.TheWayOut, 15 * Run.TicksPerSecond);
+                Assert.That(pounded.HasValue, "Under the hand they throw themselves at the card door.");
+                Advance(simulation, 20 * Run.TicksPerSecond - (simulation.Tick - pounded.Value.Tick));
+                Assert.That(EventsOfType(simulation, CausalEventType.DoorBrokenDown).Exists(e => e.TargetId == TheBuilding.TheWayOut),
+                    Is.False, "Twenty seconds of pounding: it holds.");
+                Assert.That(simulation.GetDoor(DoorIndex(simulation, TheBuilding.TheWayOut)).DamagePercent, Is.GreaterThan(0),
+                    "But it is visibly weakening.");
+                CausalEvent? gave = AdvanceUntil(simulation, e => e.EventType == CausalEventType.DoorBrokenDown &&
+                                                                 e.TargetId == TheBuilding.TheWayOut, 40 * Run.TicksPerSecond);
+                Assert.That(gave.HasValue, "By a minute of pounding it has given.");
+            }
+        }
+
+        /// <summary>
+        /// The owner (2026-09-30): the hand on the card door "also sends
+        /// someone who knows where the card is to fetch it". The card on a
+        /// desk in the office, three people at the way out: one of them goes
+        /// for it, or has it already.
+        /// </summary>
+        [Test]
+        public void TheCardDoor_UnderTheHand_SendsSomebodyForTheCard()
+        {
+            ScenarioData data = scenario.ToRuntimeData();
+            data = TheBuilding.WithThePlayerAbleToAct(data);
+            data.Keycard.Enabled = true;
+            data.Agents = new[]
+            {
+                Person(Somebody, new LogicalPosition(13800, 14800), AgentTraitValues.AllOrdinary),
+                Person(SomebodyElse, new LogicalPosition(15200, 14800), AgentTraitValues.AllOrdinary),
+                Person(new SimulationId(3UL), new LogicalPosition(14500, 14200), AgentTraitValues.AllOrdinary)
+            };
+            data.Fire.ActivationTick = 1;
+            TheBuilding.FireAt(data, TheBuilding.MeetingRoom);
+            data.Fire.SpreadMinimumTicks = 100000;
+            data.Fire.SpreadMaximumTicks = 100000;
+            data.TrapDefinitions = Array.Empty<TrapDefinition>();
+            data.Timetable = Array.Empty<ScheduledCue>();
+            data.Calming.Enabled = false;
+            data.Temperament.FreezeThenRunPercent = 0;
+            data.Temperament.FreezeForeverPercent = 0;
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.PutKeycardOnATableForTests(0);
+                Press(simulation, PlayerCommandType.InfluenceDoor, TheBuilding.TheWayOut);
+                for (int i = 0; i < 3; i++)
+                {
+                    simulation.FrightenForTests(i);
+                }
+
+                bool someoneWent = false;
+                for (int t = 0; t < 15 * Run.TicksPerSecond && !someoneWent; t++)
+                {
+                    simulation.Step();
+                    for (int i = 0; i < 3; i++)
+                    {
+                        someoneWent |= simulation.GetAgent(i).ActivityState == AgentActivityState.FetchingKeycard ||
+                                       simulation.KeycardBeliefForTests(i).Held >= 0;
+                    }
+                }
+
+                Assert.That(someoneWent, Is.True, "Somebody who knows where the card lies goes for it.");
+            }
+        }
+
     }
 }

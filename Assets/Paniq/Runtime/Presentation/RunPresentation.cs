@@ -37,13 +37,11 @@ namespace Paniq.Presentation
         private SprayView spray;
         private NavigationGridView navigationGrid;
         private PopBursts pops;
-        private CardAimRing aimRing;
 
         /// <summary>The player's influence: the sparkling auras and the lines to whoever feels them (2026-09-26).</summary>
         private InfluenceView influence;
 
         /// <summary>How wide a thrown card's patch is, read once when the scene is built.</summary>
-        private int cardPatchRadiusMillimetres;
         private EventSigns signs;
         private PowerCableView cable;
 
@@ -124,9 +122,7 @@ namespace Paniq.Presentation
                 ripples = new SoundRipples(materials.Icon, root);
                 spray = new SprayView(effects);
                 pops = new PopBursts(materials, effects, root);
-                aimRing = new CardAimRing(materials.Icon, root);
                 influence = new InfluenceView(materials.Icon, root, effects);
-                cardPatchRadiusMillimetres = scenario.Purse.CardPatchRadiusMillimetres;
                 signs = new EventSigns(materials, root);
                 cable = new PowerCableView(scenario, materials, root);
                 _ = new ExitSignView(scenario.ExitSigns, materials, root);
@@ -271,19 +267,6 @@ namespace Paniq.Presentation
             UpdateCrackles(time);
             influence.Update(frameSnapshot, time, Time.deltaTime);
 
-            // The patch a card in hand would catch if it were thrown where the
-            // pointer is. Nothing is drawn with no card in hand, and nothing is
-            // drawn while the world is stopped, because nothing can be thrown
-            // then either.
-            if (input.SelectedCard.HasValue && input.HoveredSpot.HasValue)
-            {
-                aimRing.Show(input.HoveredSpot.Value, cardPatchRadiusMillimetres, frameSnapshot, time);
-            }
-            else
-            {
-                aimRing.Hide();
-            }
-
             // The player's own camera, with a bang's shake added on top of
             // wherever they have put it.
             cameraRig.Update(pops.Shake);
@@ -329,10 +312,9 @@ namespace Paniq.Presentation
                 // Every card and button drawn below claims its place on the
                 // screen, so next frame's clicks on them stay off the world.
                 HudHitTest.BeginFrame();
-                PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, runner.Seed, FindDoor(frameSnapshot, hoveredDoor), hoveredAlarm, input,
-                    runner.LeftAloneSavedCount);
+                PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, runner.Seed, FindDoor(frameSnapshot, hoveredDoor), hoveredAlarm, input);
                 screens.DrawStrip(frameSnapshot);
-                PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input, aimRing.PeopleInside);
+                PrototypeHud.DrawHand(frameSnapshot);
                 if (runner.IsPaused)
                 {
                     PrototypeHud.DrawPauseHelp(frameSnapshot);
@@ -343,8 +325,14 @@ namespace Paniq.Presentation
                 float belowPanel = view.Draw(108f, frameSnapshot);
                 if (view.Stats)
                 {
+                    // The bar to clear and the left-alone line live here
+                    // since the top strip was cut to four numbers (2026-09-30).
                     string feel = runner.PhysicsFeelName ?? "the scenario's own";
-                    string footer = $"Physics feel: {feel}.  Particles: {effects.LiveParticles} of {effects.Settings.LiveParticleBudget}.";
+                    string par = runner.LeftAloneSavedCount.HasValue
+                        ? $"  Left alone: {runner.LeftAloneSavedCount.Value} would live."
+                        : "";
+                    string footer = $"Need {frameSnapshot.TargetSavedCount} of {frameSnapshot.CrowdSize} to clear.{par}  " +
+                                    $"Physics feel: {feel}.  Particles: {effects.LiveParticles} of {effects.Settings.LiveParticleBudget}.";
                     if (runner.IsLiveTuned)
                     {
                         footer += "  Tuned live: this run cannot be replayed.";

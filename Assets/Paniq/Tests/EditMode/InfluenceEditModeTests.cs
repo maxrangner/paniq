@@ -275,8 +275,13 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// Since the fourth pass (2026-09-30) a hand held long enough is kept
+        /// as a goal when it comes off: they stay at it a while, sure of it,
+        /// and drift off only as that fades. Nothing draws them afresh.
+        /// </summary>
         [Test]
-        public void ACalmPerson_DriftsTowardIt_AndIsOnTheirOwnAgainOnceItIsLetGoOf()
+        public void ACalmPerson_DriftsTowardIt_KeepsAtItOnceItIsLetGoOf_AndDriftsOffAsItFades()
         {
             ScenarioData data = Office(Person(Somebody, -4000, -4000, AgentTraitValues.AllOrdinary));
             data.Calm.DecisionMinimumTicks = 50;
@@ -293,9 +298,14 @@ namespace Paniq.Tests.EditMode
 
                 LetGo(simulation);
                 int drawnBefore = EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence).Count;
-                Advance(simulation, 15 * Run.TicksPerSecond);
+                Assert.That(simulation.GetAgent(Somebody).CommittedToTheHand, Is.True, "Fifteen seconds of a full pull: they are sure of it.");
+                Advance(simulation, 10 * Run.TicksPerSecond);
+                Assert.That(IntegerMath.Distance(simulation.GetAgent(Somebody).Position, spot), Is.LessThan(2500),
+                    "Ten seconds on, they are still where the hand was.");
                 Assert.That(EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence), Has.Count.EqualTo(drawnBefore),
-                    "Let go of, nothing draws them any more: they are on their own.");
+                    "Let go of, nothing draws them afresh.");
+                Advance(simulation, 60 * Run.TicksPerSecond);
+                Assert.That(simulation.GetAgent(Somebody).CommittedToTheHand, Is.False, "A minute on, the goal has faded.");
             }
         }
 

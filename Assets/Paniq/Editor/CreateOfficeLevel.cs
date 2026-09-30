@@ -24,7 +24,7 @@ namespace Paniq.EditorTools
         private const string AssetPath = FolderPath + "/TheOffice.asset";
         private const string ScenarioPath = "Assets/Paniq/Content/FireReactionScenario.asset";
         private const string FeelPath = "Assets/Paniq/Content/PhysicsFeel-Cartoon.asset";
-        private const string ScenePath = "Assets/Paniq/Scenes/FireReactionPrototype.unity";
+        private const string ScenePath = "Assets/Paniq/Scenes/prototype_fire_1_fl_small.unity";
 
         [MenuItem("Paniq/Create Or Update The Office Level")]
         public static void CreateOrUpdate()
@@ -43,8 +43,8 @@ namespace Paniq.EditorTools
             }
 
             var serialized = new SerializedObject(level);
-            serialized.FindProperty("levelId").stringValue = "the-office";
-            serialized.FindProperty("displayName").stringValue = "The Office";
+            serialized.FindProperty("levelId").stringValue = "prototype_fire_1_fl_small";
+            serialized.FindProperty("displayName").stringValue = "Prototype fire 1 (one floor, small)";
             serialized.FindProperty("hazardWaitsForTrigger").boolValue = true;
             serialized.FindProperty("targetSavedPercent").intValue = 75;
             serialized.FindProperty("purseEnabled").boolValue = false;

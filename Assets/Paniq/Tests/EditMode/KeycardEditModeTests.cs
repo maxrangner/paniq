@@ -405,7 +405,10 @@ namespace Paniq.Tests.EditMode
                 simulation.PutKeycardDownForTests(CardOnTheFloor);
                 simulation.FrightenForTests(0);
                 simulation.FrightenForTests(1);
-                PullOnTheCard(simulation, 120);
+
+                // A few ticks only: since 2026-09-30 the pull convinces them
+                // inside a second, and the first fetch is over in a few more.
+                PullOnTheCard(simulation, 5);
                 int onTheirWayAtOnce = 0;
                 CausalEvent? took = null;
                 for (int t = 0; t < 20 * Run.TicksPerSecond && !took.HasValue; t++)

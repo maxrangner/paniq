@@ -137,7 +137,9 @@ word is the feature's name. These are the ones that are not:
 | Code changed | Filter words |
 | --- | --- |
 | `PurseSystem`, `DeckSystem`, `PlayerCommandSystem` (the player's purse, cards and clicks) | `Powers,Economy,UproarTable,TraitCards` |
-| `InfluenceSystem`, `HandHeaveBehaviour`, `HandGatherBehaviour` (the hand on a place, the push, the drag, what people do for it) | `Influence,Keycard,Alarms,Extinguisher,Errands,ReplayFingerprint` |
+| `InfluenceSystem`, `HandHeaveBehaviour`, `HandGatherBehaviour`, `AgentHand` (the hand on a place, the push, the drag, the goal and its conviction, what people do for it) | `Influence,Keycard,Alarms,Extinguisher,Errands,Doors,ReplayFingerprint` |
+| `HandChargeSystem` (the hand's bar) | `HandCharge,ReplayFingerprint` |
+| `HandOnTheWayOutMeasurements` (the seed 41-43 diagnostics and the walls sweep, run on purpose) | `-Filter HandOnTheWayOut -ShowPassed` |
 | `TugSystem` (the hand on a person) | `Tug,ReplayFingerprint` |
 | `TellSystem` (the wind-up before a freeze, a dash or going back), `HandTally` (the end card's count of the hand) | `Tells,Extinguisher,Alarms,Keycard,Helping,Cornered,Nudge,Tug,ReplayFingerprint` |
 | `Run` (the tick itself) | `Simulation,ReplayFingerprint` |
@@ -151,6 +153,7 @@ word is the feature's name. These are the ones that are not:
 | `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
 | `GroupSystem` (sticking together) | `Groups,TraitCards` |
 | `PlayerInput`, `DoorClicks`, `PlaceHold`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking,Nudge,Tug` |
+| `DoorSystem.SettlePounding` (the card door giving under the hand) | `Influence,Doors` |
 | `CameraRig` (Q, E and the wheel) | `CameraRig` |
 | `EventStory`, `RoundScreens` (the read-back and the end card) | `EventLogScreen,EventSigns` |
 | `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |

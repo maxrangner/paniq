@@ -353,7 +353,7 @@ namespace Paniq.Simulation
             {
                 agent.Intent.HeavingThing = -1;
                 agent.Intent.HeavingUntilTick = 0;
-                InfluenceSystem.StopActing(agent);
+                InfluenceSystem.Interrupted(agent);
             }
 
             agent.Intent.Activity = AgentActivityState.Investigating;

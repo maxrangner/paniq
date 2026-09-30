@@ -67,6 +67,7 @@ namespace Paniq.Simulation
 
         /// <summary>The places the player has drawn people toward (2026-09-26).</summary>
         private readonly InfluenceSystem influence;
+        private readonly HandChargeSystem handCharge;
         private readonly TrapSystem traps;
         private readonly WorldGeometry geometry;
         private readonly Crowd crowd;
@@ -151,6 +152,7 @@ namespace Paniq.Simulation
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues, sound);
                 nudges = new NudgeSystem(context, crowd, body, calm, fear);
                 tugs = new TugSystem(context, crowd, nudges);
+                handCharge = new HandChargeSystem(context, influence, tugs);
                 director = new DirectorSystem(context, cues, geometry, traps, doors, fire, flammables, power, objects, crowd,
                     sound);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
@@ -187,6 +189,7 @@ namespace Paniq.Simulation
                     Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms, Groups = groups,
                     AlarmBehaviour = alarmBehaviour, Barricades = barricades,
                     Cues = cues, Errands = errands, Director = director, Nudges = nudges, Tugs = tugs, Traps = traps,
+                    HandCharge = handCharge,
                     Influence = influence, Keycards = keycards, HandHeave = handHeave, HandGather = handGather,
                     Tells = tells
                 };
@@ -524,7 +527,8 @@ namespace Paniq.Simulation
 
         /// <summary>One person as the display sees them, with what they are doing for the hand.</summary>
         private AgentSnapshot SnapshotOf(Agent agent) =>
-            agent.ToSnapshot(context.Tick, influence.IsActingFor(agent), influence.IsActingAgainstNature(agent));
+            agent.ToSnapshot(context.Tick, influence.IsActingFor(agent), influence.IsActingAgainstNature(agent),
+                influence.IsCommitted(agent));
 
         /// <summary>
         /// Whether this person is on their way to the given way out: it is the
@@ -624,6 +628,7 @@ namespace Paniq.Simulation
         internal DirectorSystem DirectorForTests => director;
 
         internal InfluenceSystem InfluenceForTests => influence;
+        internal HandChargeSystem HandChargeForTests => handCharge;
 
         /// <summary>Tests: the player's hand on a person, and who it is on.</summary>
         internal TugSystem TugsForTests => tugs;
@@ -867,7 +872,10 @@ namespace Paniq.Simulation
             alarms.Update();
             doors.KeepHeldDoorsShut();
 
-            // Influence that has faded to nothing is gone before anybody weighs it.
+            // The hand's charge, then the hand: a beacon whose time is up
+            // comes off, a hand whose charge ran dry comes off, and then
+            // everybody's conviction moves for the tick (2026-09-30).
+            handCharge.Advance();
             influence.Advance();
 
             // Phase 1½: what the building's day holds. A cue called here
@@ -991,6 +999,7 @@ namespace Paniq.Simulation
             flammables.Update();
             doors.ScorchInTheFire(fire);
             doors.ResolveBlockages();
+            doors.SettlePounding();
 
             // Before the list of doors that opened is cleared: fire that had
             // nowhere left to go may have somewhere now.
@@ -1066,6 +1075,12 @@ namespace Paniq.Simulation
         /// </summary>
         private void DealForTheNewlyDead()
         {
+            if (!context.Scenario.Purse.CardsFromTheDead)
+            {
+                // No cards on this level (2026-09-30): the dead deal nothing.
+                return;
+            }
+
             for (int i = 0; i < agents.Length; i++)
             {
                 if (agents[i].Outcome != AgentTerminalOutcome.Lost || agents[i].DeathDealt)
@@ -1225,7 +1240,9 @@ namespace Paniq.Simulation
                 doors.BlastChargesRemaining,
                 power.Sparks(),
                 round.Phase,
-                context.Scenario.Round.TargetSavedPercent);
+                context.Scenario.Round.TargetSavedPercent,
+                handCharge.PerMille,
+                handCharge.IsResting);
         }
 
         /// <summary>The cost tables, worked out once: they are settings, and settings do not change in a run.</summary>

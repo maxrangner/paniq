@@ -26,7 +26,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator TheCamera_FramesTheBuildingFromAboveAndCornerOn()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
 
             Camera camera = Camera.main;
@@ -56,7 +56,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator TheBuildingsOutside_IsBuiltBelowTheFloor()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
 
             GameObject shell = GameObject.Find("Building shell");
@@ -98,7 +98,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator TheOpeningView_ActuallyDrawsSomething()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
             yield return new WaitForEndOfFrame();
 
@@ -150,7 +150,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator PeopleHaveEyes_OnTheSideTheyFace()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
 
             int people = 0;
@@ -190,7 +190,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator TheTabPanel_HidesAndShowsConesNumbersAndMarks()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
 
             var presentation = Object.FindFirstObjectByType<RunPresentation>();

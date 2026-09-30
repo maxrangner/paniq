@@ -142,6 +142,17 @@ namespace Paniq.Presentation
                 CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(0.06f, -0.02f, 0f), new Vector3(0.12f, 0.03f, 0f))
             };
             hand.localRotation = Quaternion.identity;
+
+            // A small yellow card over whoever has the keycard (2026-09-30):
+            // on seed 42 the host burned with the card in his pocket while
+            // four people pounded the way out, and nothing on screen said
+            // who had it. A mark like the others, so the Tab panel's switch
+            // hides it with them.
+            keycard = CreateGroup("Keycard", new Vector3(0.3f, 0.12f, 0f));
+            keycardStroke = CreateStroke(keycard, lineMaterial, 0.11f, 0.11f, 0,
+                new Vector3(-0.07f, 0f, 0f), new Vector3(0.07f, 0f, 0f));
+            SetColor(keycardStroke, KeycardYellow);
+            keycard.localRotation = Quaternion.identity;
             handStrokes[0].transform.localRotation = Quaternion.Euler(0f, 0f, -90f);
             SetColor(handStrokes, HandGold);
 
@@ -175,6 +186,7 @@ namespace Paniq.Presentation
             annoyed.gameObject.SetActive(false);
             leading.gameObject.SetActive(false);
             hand.gameObject.SetActive(false);
+            keycard.gameObject.SetActive(false);
             idle.gameObject.SetActive(false);
             number.gameObject.SetActive(false);
         }
@@ -192,7 +204,9 @@ namespace Paniq.Presentation
             float time,
             bool forTheHand = false,
             bool showMarks = true,
-            bool showNumber = true)
+            bool showNumber = true,
+            bool committedToTheHand = false,
+            bool hasTheKeycard = false)
         {
             root.SetPositionAndRotation(anchor, cameraRotation);
 
@@ -206,11 +220,23 @@ namespace Paniq.Presentation
             idling &= showMarks;
             leadingOthers &= showMarks;
 
-            // Answering the player's hand: a gold hand, bobbing.
+            // Answering the player's hand: a gold hand, bobbing -- still,
+            // and paler, over somebody keeping at it after the hand came off
+            // (2026-09-30).
             hand.gameObject.SetActive(forTheHand);
             if (forTheHand)
             {
-                hand.localPosition = new Vector3(-0.3f, 0.12f + 0.025f * Mathf.Sin(time * 5f + spinOffset), 0f);
+                hand.localPosition = committedToTheHand
+                    ? new Vector3(-0.3f, 0.12f, 0f)
+                    : new Vector3(-0.3f, 0.12f + 0.025f * Mathf.Sin(time * 5f + spinOffset), 0f);
+                SetColor(handStrokes, committedToTheHand ? HandGoldStill : HandGold);
+            }
+
+            // The keycard, whoever has it.
+            keycard.gameObject.SetActive(hasTheKeycard && showMarks);
+            if (hasTheKeycard)
+            {
+                keycard.localRotation = Quaternion.Euler(0f, 0f, 8f * Mathf.Sin(time * 3f + spinOffset));
             }
 
             // "!" pops in with an overshoot, holds, then fades.
@@ -345,6 +371,14 @@ namespace Paniq.Presentation
 
         private readonly Transform leading;
         private readonly LineRenderer leadingStroke;
+
+        /// <summary>The card over whoever has the keycard (2026-09-30).</summary>
+        private readonly Transform keycard;
+        private readonly LineRenderer keycardStroke;
+        private static readonly Color KeycardYellow = new Color(1f, 0.9f, 0.2f, 1f);
+
+        /// <summary>The hand's gold, and the paler gold of a hand kept after the player let go.</summary>
+        private static readonly Color HandGoldStill = new Color(0.95f, 0.85f, 0.55f, 0.85f);
 
         private TextMesh CreateText(string objectName, string text, float characterSize, int fontSize, Color color,
             Vector3 localPosition)

@@ -30,7 +30,13 @@ slider to find the value to keep, and twenty-odd faults found in a read of
 the whole hand; its ninth (2026-09-30) is tells -- a second of visible wind-up
 before somebody freezes, dashes through the heat or goes back toward the
 flames, in which one click saves them -- and the end card's tally of how much
-the player used their hand. All are under "Prototype 3" further down.
+the player used their hand; its tenth (2026-09-30) is the hand's fourth pass:
+every person holds the hand's ask as a goal of their own with a conviction
+that builds and fades, a bar the hand drains and that refills by itself, the
+card door giving to a long pounding under the hand, a card over whoever has
+the keycard, the top strip cut to four numbers, the cards gone, the walls as
+thick as they look, and the scene renamed `prototype_fire_1_fl_small`. All are
+under "Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -731,6 +737,76 @@ design talk.
 - And the slider's value: the number that felt right, to keep as the level's
   own.
 
+## Prototype 3: the hand's fourth pass (2026-09-30)
+
+The owner played the tells build and wrote: "Agents still feel like they
+don't really listen. Hard to describe, but you should feel the influence and
+see them guided, but still see their personality in the actions. Think
+magnets and fish/bird clusters. Right now it's hard to control them at all.
+Sometimes no reaction at all, sometimes smallish influence but often lose
+attention fast. If getting them to notice or sway their focus, the focus
+should mostly stay." And: influence should cost from a bar that refills by
+itself; "I ran a seed 42 and got most of the agents to the final corridor,
+but even though I only influenced the exit, none survived"; the top of the
+screen cut to saved, lost, still inside and the seed; the cards removed; the
+scene renamed; and "don't be afraid to refactor logic and systems. No
+band-aid solutions" -- for the whole code. Two measurements were taken first
+(seed 42 with the fire at twenty seconds reproduced the owner's round: the
+host, who refuses the hand, burned with the keycard in his pocket behind the
+fallen tower while four people pounded a door that could not give; on seed 41
+the hand on the way out turned five saved into none, because the crowd it
+gathered blocked the one person fetching the card). Two designs were made
+independently and merged; the owner decided the card door gives, and that the
+wider refactor -- one way of deciding what to do for calm and frightened
+people alike -- is the next stone. One batch, one commit, on
+`feat/prototype-3-gameplay`; the details are in the
+[decisions](technical-decisions.md#prototype-3-the-hands-fourth-pass-2026-09-30).
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| The focus stays | Behaviour | Everybody carries the hand's ask as a goal of their own, with a *conviction* that builds every moment they feel the hand -- fast beside it, slowly at the edge of its reach, faster the more easily led they are. They set about the task once it passes a low line (about half a second beside the hand); let go, and anybody past a higher line (two seconds beside it) keeps the task -- clearing the heap, opening the door, pounding, standing where you pointed -- and drifts off it only as that conviction fades on their own beat, leaders first, the nervous last. Nobody breaks away while the hand is on them. No more coin flips: the chance rolls, the break-away roll and the "never again for this press" marks are gone. What ends a goal is one rule for everybody: flames close by, a knock-down, catching fire, your tug, a felt push, or a fresh press they feel, which replaces the goal and keeps their attention. Somebody who gave up (no way there, the door would not shut, hemmed in too long) is a little less sure and tries again after a beat |
+| The hand's bar | System | A bar at the bottom left drains while your hand is on a place, a click's beacon or a person, and refills by itself all the time: a full bar is about a minute of holding, and refills in a minute. Run dry, the hand comes off by itself, "your hand gave out" goes in the story, and the bar shows *resting* for a few seconds before it takes another press. Nobody at the controls, it never moves |
+| The card door gives | Behaviour | **The owner's decision**, replacing this morning's "it never gives": held under the hand, the crowd's pounding wears the way out down -- three or more people about forty seconds, two a minute, one two minutes -- and it visibly weakens before it bursts. Without the hand nobody pounds it, so it never gives. And a fetcher your hand sent for the card keeps at it five seconds when hemmed in instead of one, gets twice the time, and hands the claim on if they give up |
+| Who has the card | Presentation | A small yellow card floats over whoever has the keycard (hidden with the other marks by the Tab panel); the way out's hover line says who has it, or that it lies free |
+| The top strip | Presentation | One strip: `Saved 3   Lost 2   Still inside 15      Seed 42`, bold, readable at a glance. The tick, the fire, the calm and scared counts, "Need 15 of 20" and "Left alone" are gone from it; the last two are in the Tab panel's stats and on the end card. The hover line -- what a press under the pointer does -- sits at the bottom left, beside the bar |
+| No cards | Presentation | No card bar, no aim circle, no "No cards left" line; the dead deal nothing. The card machinery stays in the code for a later level |
+| The scene's name | Tooling | `prototype_fire_1_fl_small`: a fire, one floor, small. The start card says "Prototype fire 1 (one floor, small)" |
+
+**Left alone, measured after this batch** (`HandsOffBaselineMeasurements`,
+fifty seeds, nothing tuned, the owner's rule): **3.2 of 20 on average (16%)**, three seeds clearing the 75% bar and five saving more than half (58, 62, 69, 80, 88); the batch before was 4.5, seven and seven. Nobody plays the hand in that round, so the change comes from the walls (a harder doorway crush; the heap now holds, where for a few minutes of this batch's building it shoved itself clear) and nothing else here. The fifty-seed check stays red, as it was.
+
+**Seeds 41 and 42 with the hand on the way out, after this batch**
+(`HandOnTheWayOutMeasurements`): seed 41 (fire at 6 s): 0 left alone, **13 with the hand on the way out** (it was 0 and 0); seed 42 at 40 s: 5 left alone, **19 with the hand** (it was 0); at 6 s, 6 and 4; at 20 s (the owner's round), 4 and 4 -- the host still refuses the hand and still burns with the card behind the fallen tower, and the hand on the door cannot change that; at 60 s, 8 and 7. The exit hand is no longer a death trap; whether it helps now depends on whether the card can reach the door.
+
+**What this deliberately left out.** Somebody mid-chat leaving for the hand
+(their partner would be left waiting); a hand that reaches the host (he
+refuses, as the owner chose); a crowd at the door that makes way for the
+fetcher; a live counter of the bar's use on the end card; and the wider
+refactor, recorded below under *Agreed direction* as the next stone.
+
+**Where the two-system split forced a double wiring in this batch** (the
+brief for the next stone): the hand's goal is answered once in
+`CalmBehaviour` (leaving a chair or an errand, wandering to it, using the
+thing) and once in the panic options (`HandGatherBehaviour`, `HandHeaveBehaviour`,
+`KeycardSystem`, `ExtinguisherBehaviour`, `AlarmBehaviour`); a task begun calm
+is cut short and re-answered when fright comes (`FearSystem` calls
+`Interrupted`), and the other way round; the door errand (`ErrandBehaviour`)
+and the frightened door choice (`DoorBehaviour`) each read the goal
+separately; and "done" is called from six places.
+
+**Things to watch at the next playtest.**
+
+- Whether people now read as guided and still themselves: the nervous
+  first and longest, leaders late and briefly. Whether a kept goal after you
+  let go reads as "they heard me" or as puppetry.
+- Whether a minute of hand is the right bar: it should run dry about once
+  in a frantic round, and the three seconds' rest should sting, not stall.
+- Whether the card door giving in forty seconds under the hand is a fair
+  last resort or too easy; whether the yellow card over the holder's head
+  changes what you do first.
+- Whether the strip at the top is what you glance at, and whether anything
+  that left it is missed.
+
 ## Prototype 3: walls as thick to the feet as to the eye (2026-09-30)
 
 A repair found on the way to the hand's fourth pass, from the owner's note
@@ -832,6 +908,19 @@ a door they have never opened.
    threat already frightens, is fled from and hurts; this stone adds tests for
    chase and conversion. On screen: the crowd flees a walking threat the same
    way it flees fire.
+
+### Next: one way of deciding, for calm and frightened people alike
+
+Decided with the owner on 2026-09-30, after the hand's fourth pass. Today a
+calm person and a frightened one run two separate "what am I doing" systems
+(`CalmBehaviour`'s activities and `PanicBehaviour`'s ordered options), so every
+feature that reaches people -- the hand, the tells, the building's cues -- is
+wired into both, and a task begun on one side is cut short and re-answered on
+the other. The next stone rebuilds that into one task model a person carries
+through fright and calm alike, so a feature is wired once. It is weeks, moves
+every replay, and is judged by how cheap the feature after it becomes, so it
+lands after the owner has played the fourth pass. The brief is the list of
+double wirings recorded under that pass above.
 
 ### After that, in rough order
 

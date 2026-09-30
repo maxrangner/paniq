@@ -4,9 +4,11 @@
 built in: prototype 1 (the fire-reaction office, finished and merged into
 `main` on 2026-09-22), prototype 2 (the round) and prototype 3 (gameplay, under
 way). This page says how the level plays *today*; how it got here is in the
-[prototype roadmap](roadmap.md) and its history. The scene is still called
-`FireReactionPrototype` and the scenario `fire-reaction-prototype`; only this
-page was renamed (it was `fire-reaction-prototype.md`).
+[prototype roadmap](roadmap.md) and its history. Since 2026-09-30 the scene is
+`prototype_fire_1_fl_small` (a fire, one floor, small; the owner's name), the
+level shows as "Prototype fire 1 (one floor, small)" on the start card, and
+the scenario id is `prototype-fire-1-fl-small`; the asset files keep their old
+names (`TheOffice.asset`, `FireReactionScenario.asset`).
 
 The building, the cast, the doors and the furniture below were checked against
 the code on 2026-09-26. The behaviour rules have been kept up to date stone by
@@ -15,7 +17,7 @@ code is right and this page is the bug.
 
 ## Experience
 
-The `FireReactionPrototype` scene shows one office floor. A 3 m wide corridor
+The `prototype_fire_1_fl_small` scene shows one office floor. A 3 m wide corridor
 runs the length of the building. Along its north side sit the **meeting room**
 and the **cafeteria**; along its south side the **open-plan office** (12 × 12 m,
 unchanged since prototype 1) and the **bathroom**, whose three stalls are each
@@ -216,8 +218,10 @@ owner's choice, "pure push-away"). Since 2026-09-27 the way out is a **card
 door**: no key fits it, it never gives to a shoulder, the fire does not burn
 through it, and only somebody with the keycard in their pocket opens it --
 after which it is an ordinary door for the rest of the round. With your hand
-on it the crowd pounds on it anyway, and it holds (the owner's rule,
-2026-09-30). The full controls are in
+on it the crowd pounds on it, and it *gives* to a long pounding (the owner's
+decision, 2026-09-30, replacing that morning's "it holds"): three or more
+people about forty seconds, two a minute, one two minutes, the door visibly
+weakening; without the hand nobody pounds it, so it never gives. The full controls are in
 [look and controls](look-and-controls.md). On this level none of it costs
 anything.
 
@@ -768,12 +772,14 @@ frozen holder awake and they run for the door with it. A holder out cold or
 dead drops it where they lie, and the hand on the card sends somebody for
 it.
 
-**The office has no purse (prototype 3, 2026-09-25).** The owner had
-influence switched off for now: every door, alarm and card is free, nothing
-is paid in, and the bar and the prices are gone from the screen. The cards
-are still dealt by the dead and still played. Everything below about the
-purse is how the rules stand in the code, switched off on the office level
-(`LevelDefinition`), for a level that turns them back on.
+**The office has no purse (prototype 3, 2026-09-25) and no cards
+(2026-09-30).** The owner had influence points switched off, and then the
+cards removed ("remove cards"): nothing is paid in, nothing is dealt, the
+dead deal nothing, and no card bar, aim circle or price is drawn. What the
+player has is the hand and its bar (see *Influence* below). Everything below
+about the purse and the cards is how the rules stand in the code, switched
+off on the office level (`LevelDefinition.purseEnabled`,
+`PurseSettings.CardsFromTheDead`), for a level that turns them back on.
 
 **Influence and cards: the dead deal, the uproar pays.** A round opens with
 **thirty** and **one card**, drawn at random from the deck (the owner's call,

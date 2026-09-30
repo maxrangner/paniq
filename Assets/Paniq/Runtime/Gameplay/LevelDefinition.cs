@@ -17,10 +17,10 @@ namespace Paniq.Gameplay
     public sealed class LevelDefinition : ScriptableObject
     {
         [Tooltip("Never shown to the player. Used to keep this level's best score apart from another level's, so changing it forgets the old best.")]
-        [SerializeField] private string levelId = "the-office";
+        [SerializeField] private string levelId = "prototype_fire_1_fl_small";
 
         [Tooltip("The name on the start card.")]
-        [SerializeField] private string displayName = "The Office";
+        [SerializeField] private string displayName = "Prototype fire 1 (one floor, small)";
 
         [Tooltip("The building, the people and every rule they follow.")]
         [SerializeField] private ScenarioAsset scenario;

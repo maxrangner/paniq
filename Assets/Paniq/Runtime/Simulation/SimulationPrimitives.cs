@@ -1116,7 +1116,16 @@ namespace Paniq.Simulation
         /// Source: the person. Strength: the tell, as an <see cref="AgentTell"/>.
         /// Cause: the poke, the tug or the press.
         /// </summary>
-        AgentCaughtInTime
+        AgentCaughtInTime,
+
+        // The hand, fourth pass (2026-09-30). Appended only.
+
+        /// <summary>
+        /// The hand's charge ran dry: the hand came off whatever it was on,
+        /// the place and the person both, until the bar has rested. A root
+        /// event. Position: where the hand was, if on a place.
+        /// </summary>
+        PowerHandSpent
     }
 
     /// <summary>A person's tell: the wind-up before something dangerous (2026-09-30). See <see cref="TellSystem"/>.</summary>

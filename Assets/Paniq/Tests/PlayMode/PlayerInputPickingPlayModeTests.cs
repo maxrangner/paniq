@@ -40,7 +40,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator PointingAtSomeonesBody_PicksThatPerson()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
 
             Camera camera = Camera.main;
@@ -92,7 +92,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator PointingAtAFireAlarm_HitsIt()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
 
             Camera camera = Camera.main;
@@ -125,7 +125,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator TheFloorUnderSomeonesChest_IsNowhereNearTheirFeet()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
 
             Camera camera = Camera.main;

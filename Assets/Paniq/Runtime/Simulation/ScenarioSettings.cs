@@ -766,6 +766,20 @@ namespace Paniq.Simulation
         public int DoorOpenTicks = 20;
         public int DoorTryTicks = 25;
         public int DoorForceChancePercent = 60;
+        /// <summary>
+        /// The card door gives to pounding under the player's hand
+        /// (2026-09-30, the owner's decision, replacing "it never gives"):
+        /// counted in pounding time, not blows or strength -- each tick, up
+        /// to <see cref="CardDoorPoundersCounted"/> people shouldering it
+        /// for the hand add one each, and at this many it bursts. Three or
+        /// more people take forty seconds, two a minute, one two minutes;
+        /// without the hand nobody pounds a card door, so it never gives.
+        /// </summary>
+        public int CardDoorPoundTicks = 6000;
+
+        /// <summary>How many pounders count at once: a doorway fits about three shoulders, so a crowd of fourteen does not turn forty seconds into nine.</summary>
+        public int CardDoorPoundersCounted = 3;
+
         public int DoorForceMinimumTicks = 75;
         public int DoorForceMaximumTicks = 200;
         public int DoorShoveMinimumTicks = 20;
@@ -946,6 +960,7 @@ namespace Paniq.Simulation
                              CurrentRoomBonusMillimetres >= 0 && RefugeNoFireMillimetres >= 0 &&
                              RefugeClearRoomMillimetres >= 0 && RefugeSpacePerPersonMillimetres > 0, "door scoring");
             Settings.Require(DoorStrength >= 1 && DoorBurnThroughTicks >= 1 && SwingDoorBurnThroughTicks >= 1, "door strength");
+            Settings.Require(CardDoorPoundTicks >= 1 && CardDoorPoundersCounted >= 1, "the card door's pounding");
             Settings.Require(CloseReachMillimetres >= 0 && CloseApproachRadiusMillimetres >= 0 &&
                              FireAtDoorRadiusMillimetres >= 0 && EvilCloseMinimum >= 0 &&
                              CallousCompassionMaximum >= 0 && EvilLockMinimum >= EvilCloseMinimum,
@@ -1550,14 +1565,17 @@ namespace Paniq.Simulation
         public int PulledToTheCardPerMille = 250;
 
         /// <summary>
-        /// How long the player's hand has to have been on the card -- or,
-        /// since 2026-09-30, on the door it opens -- before somebody frightened
-        /// goes for it: a second (it was two, 2026-09-29). A pull is full the
-        /// moment it is pressed, so the wait is what keeps a glancing press
-        /// from turning somebody back into the building; a click's three-second
-        /// beacon clears it.
+        /// A fetcher the player's hand sent keeps at it this many times
+        /// longer than one who went of their own accord when hemmed in by
+        /// the crowd (2026-09-30: measured on seed 41, the hand on the way
+        /// out gathered fourteen people at the door, and the one fetcher gave
+        /// up inside a second of being blocked by them), and
+        /// <see cref="PulledTimeoutTimes"/> as long before the fetch is called
+        /// off. Whoever goes of their own accord is untouched (the owner's
+        /// rule: nothing tuned for the round left alone).
         /// </summary>
-        public int PulledAfterTicks = 50;
+        public int PulledPatienceTimes = 5;
+        public int PulledTimeoutTimes = 2;
 
         public KeycardSettings Clone() => (KeycardSettings)MemberwiseClone();
 
@@ -2345,6 +2363,15 @@ namespace Paniq.Simulation
         public PlayerCommandType[] StartingHand = new PlayerCommandType[0];
 
         /// <summary>
+        /// Whether the dead deal cards, and the round opens with a draw.
+        /// Off (2026-09-30, the owner: "remove cards"): the office has no
+        /// cards at all, nothing is dealt and nothing is drawn on screen.
+        /// <see cref="StartingHand"/> is still honoured, for tests and for a
+        /// level that hands cards out itself.
+        /// </summary>
+        public bool CardsFromTheDead;
+
+        /// <summary>
         /// How many cards are drawn from the deck at the start, on top of
         /// <see cref="StartingHand"/>: one, from the deck's own random stream,
         /// so the same seed opens with the same card. The owner's call
@@ -3074,6 +3101,47 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
+    /// The hand's charge (2026-09-30, the owner: "Influence points and
+    /// cooldown. Using influence depletes a bar that is automatically
+    /// refilled continuously"; <see cref="HandChargeSystem"/>). One bar for
+    /// the one hand: it drains every tick the hand is on a place or a
+    /// person, refills every tick whatever the hand does, and empty takes
+    /// the hand off until it has rested.
+    /// </summary>
+    [Serializable]
+    public sealed class HandChargeSettings
+    {
+        /// <summary>Whether the hand costs anything at all. Off, it is free, as it was until 2026-09-30.</summary>
+        public bool Enabled = true;
+
+        /// <summary>
+        /// A full bar. With the drain and refill below, a full bar is a
+        /// minute of holding (net one a tick) and refills from empty in a
+        /// minute: long enough to gather a crowd by dragging and then pound
+        /// the card door open in one hold, short enough that the hand cannot
+        /// be everywhere.
+        /// </summary>
+        public int Capacity = 3000;
+
+        /// <summary>What a tick of the hand on something costs.</summary>
+        public int DrainPerTick = 2;
+
+        /// <summary>What every tick gives back, held or not.</summary>
+        public int RefillPerTick = 1;
+
+        /// <summary>What a press needs before it is taken: three seconds' rest after the bar runs dry.</summary>
+        public int PressNeeds = 150;
+
+        public HandChargeSettings Clone() => (HandChargeSettings)MemberwiseClone();
+
+        internal void Validate()
+        {
+            Settings.Require(Capacity >= 1 && DrainPerTick >= 0 && RefillPerTick >= 0 && PressNeeds >= 0 &&
+                             PressNeeds <= Capacity, "the hand's charge");
+        }
+    }
+
+    /// <summary>
     /// Influence (prototype 3, second batch, 2026-09-26; <see cref="InfluenceSystem"/>):
     /// the player's hand on a door, a thing or a patch of floor, and people
     /// are drawn toward it, each by as much as their character lets them.
@@ -3163,25 +3231,8 @@ namespace Paniq.Simulation
         /// </summary>
         public int ActsAgainstNatureFromPerMille = 250;
 
-        /// <summary>
-        /// Kept for levels that want only the nervous to leave what they are
-        /// doing; nothing asks it since 2026-09-30, when everybody who does
-        /// not refuse the hand may.
-        /// </summary>
-        public int EasilyLedNervousness = 7;
-
-        /// <summary>How often somebody sitting, busy or idling weighs up the hand: five times a second, on their own beat (2026-09-30; it was once a second).</summary>
+        /// <summary>How often somebody sitting, busy or idling weighs up the hand: five times a second, on their own beat.</summary>
         public int LeaveTaskCheckTicks = 10;
-
-        /// <summary>
-        /// The chance, per mille, that they go at a check, for a full pull
-        /// felt: four in ten (2026-09-30; three in ten a second, for the easily
-        /// led only, the day before). A faint pull, proportionally less; the
-        /// nervous feel more than a full pull and go first, the steady feel
-        /// less and go last. So a room stirs within one to two seconds of a
-        /// hand, one person after another rather than all on one tick.
-        /// </summary>
-        public int LeaveTaskChancePerMille = 400;
 
         /// <summary>
         /// How long a click's beacon stays under the hand, from the press:
@@ -3207,12 +3258,6 @@ namespace Paniq.Simulation
         public int WeakBlowDamage = 1;
 
         /// <summary>
-        /// The chance, per mille of a full pull felt, that a calm person with
-        /// nothing in particular to do picks the pull as where to wander next.
-        /// </summary>
-        public int WanderToItPerMille = 1000;
-
-        /// <summary>
         /// How strongly everybody feels the hand, in percent (2026-09-30, the
         /// owner: "can we put general attraction as a slider in debug with a
         /// print out number so I can find the sweetspot and later hardcode
@@ -3224,24 +3269,56 @@ namespace Paniq.Simulation
         /// </summary>
         public int StrengthPercent = 100;
 
-        /// <summary>
-        /// The chance, per mille of a full pull felt, that somebody frightened
-        /// answers the hand at a check (<see cref="LeaveTaskCheckTicks"/>)
-        /// and goes to it (2026-09-30, the owner: "when panicked, the agents
-        /// still run around too much"). The same as the calm: a room of the
-        /// frightened turns to the hand within a second or two, the nervous
-        /// first.
-        /// </summary>
-        public int FrightenedAnswerChancePerMille = 400;
+        // ------------------------------------------------ conviction (2026-09-30)
+        // The fourth pass (the owner: "if getting them to notice or sway
+        // their focus, the focus should mostly stay ... after some influence
+        // points spent they should stick to that choice"). Every person's
+        // conviction grows each tick they feel the hand, by what they feel
+        // (see InfluenceSystem.Advance); these say where its lines are. They
+        // replace the chance gates (a roll every ten ticks), the break-away
+        // roll and the never-again markers, so nothing about the hand is a
+        // coin flip any more and character shows in how fast it grows and
+        // how fast a kept goal fades.
 
         /// <summary>
-        /// Somebody frightened standing at the hand may break away from it:
-        /// once a second, this chance per mille times how far short of a
-        /// full pull they feel it (2026-09-30). Anybody who feels it fully
-        /// stays; somebody who drags their feet (a leader at six tenths)
-        /// breaks away within a few seconds. Character, kept.
+        /// Conviction, per mille, from which they set about the task: about
+        /// four tenths of a second of a full pull after the notice beat, a
+        /// couple of seconds at the edge of the reach.
         /// </summary>
-        public int BreakAwayPerMille = 300;
+        public int AnswerFromPerMille = 100;
+
+        /// <summary>
+        /// Conviction from which the hand coming off no longer ends it: two
+        /// seconds of a full pull. Below it, letting go leaves them on their
+        /// own at once, as before; a flick commits nobody.
+        /// </summary>
+        public int CommitFromPerMille = 500;
+
+        /// <summary>
+        /// How much conviction a full pull adds a tick: nothing to full in
+        /// four seconds beside the hand; at a quarter felt, ten seconds to
+        /// commit; and the reach still fades to nothing, so nobody is
+        /// convinced from across the building.
+        /// </summary>
+        public int ConvictionGainPerTickAtFullPull = 5;
+
+        /// <summary>
+        /// How much a kept goal fades a second, for an ordinary person: a
+        /// full commitment lasts fifty seconds. Scaled by how easily led they
+        /// are (<see cref="InfluenceSystem.Susceptibility"/>): a leader at
+        /// six tenths loses it in thirty, a nervous visitor at twice keeps it
+        /// a hundred. "Big personal choice", in one number.
+        /// </summary>
+        public int CommittedDecayPerSecondPerMille = 20;
+
+        /// <summary>
+        /// What a failed attempt costs -- no way there, the door would not
+        /// shut, hemmed in too long: a third of a full conviction, and
+        /// <see cref="RetryAfterTicks"/> (jittered) before they try again.
+        /// Two failures and an ordinary person drifts off.
+        /// </summary>
+        public int GiveUpCostPerMille = 300;
+        public int RetryAfterTicks = 150;
 
         /// <summary>
         /// The hand on a fallen crate, or on the floor beside some, clears
@@ -3258,14 +3335,15 @@ namespace Paniq.Simulation
         {
             Settings.Require(MaximumLevel >= 1 && ReachMillimetres >= 1 &&
                              StackRadiusMillimetres >= 0 && FullPullBonusMillimetres >= 0 &&
-                             MinimumPercent >= 0 && MaximumPercent >= MinimumPercent &&
-                             LeaveTaskCheckTicks >= 1 && LeaveTaskChancePerMille >= 0 && WanderToItPerMille >= 0,
+                             MinimumPercent >= 0 && MaximumPercent >= MinimumPercent && LeaveTaskCheckTicks >= 1,
                 "influence");
+            Settings.Require(AnswerFromPerMille >= 0 && CommitFromPerMille >= AnswerFromPerMille &&
+                             ConvictionGainPerTickAtFullPull >= 0 && CommittedDecayPerSecondPerMille >= 0 &&
+                             GiveUpCostPerMille >= 0 && RetryAfterTicks >= 1, "conviction");
             Settings.Require(FullWithinPercent >= 0 && FullWithinPercent < 100 && BeaconTicks >= 1 &&
                              ActsAgainstNatureFromPerMille >= 0 && HeaveStrainTicksAtNoStrength >= 0 && WeakBlowDamage >= 0,
                 "the hand");
-            Settings.Require(StrengthPercent >= 0 && StrengthPercent <= MaximumStrengthPercent &&
-                             FrightenedAnswerChancePerMille >= 0 && BreakAwayPerMille >= 0 && ClearReachMillimetres >= 0,
+            Settings.Require(StrengthPercent >= 0 && StrengthPercent <= MaximumStrengthPercent && ClearReachMillimetres >= 0,
                 "the hand, third pass");
         }
 

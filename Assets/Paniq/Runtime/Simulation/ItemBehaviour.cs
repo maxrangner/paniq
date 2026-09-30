@@ -370,7 +370,7 @@ namespace Paniq.Simulation
             agent.Carry.ItemIndex = -1;
             agent.Carry.Holding = false;
             agent.Carry.ForTheHand = false;
-            InfluenceSystem.StopActing(agent);
+            InfluenceSystem.Done(agent);
         }
 
         public void DropFromLost(Agent agent)
@@ -388,7 +388,7 @@ namespace Paniq.Simulation
             agent.Carry.ItemIndex = -1;
             agent.Carry.Holding = false;
             agent.Carry.ForTheHand = false;
-            InfluenceSystem.StopActing(agent);
+            InfluenceSystem.Done(agent);
         }
 
         /// <summary>
@@ -454,7 +454,7 @@ namespace Paniq.Simulation
                 agent.Carry.Holding = false;
                 agent.Carry.OwnsIt = false;
                 agent.Carry.ForTheHand = false;
-                InfluenceSystem.StopActing(agent);
+                InfluenceSystem.Done(agent);
                 return;
             }
 
@@ -484,7 +484,7 @@ namespace Paniq.Simulation
             agent.Carry.Holding = false;
             agent.Carry.OwnsIt = false;
             agent.Carry.ForTheHand = false;
-            InfluenceSystem.StopActing(agent);
+            InfluenceSystem.Done(agent);
         }
     }
 }

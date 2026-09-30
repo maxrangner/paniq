@@ -6,9 +6,9 @@ namespace Paniq.Tests.EditMode
     public sealed class BootstrapperEditModeTests
     {
         [Test]
-        public void Bootstrapper_UsesTheFireReactionPrototypeAsItsFirstDestination()
+        public void Bootstrapper_UsesThePrototypeSceneAsItsFirstDestination()
         {
-            Assert.That(Bootstrapper.FireReactionPrototypeSceneName, Is.EqualTo("FireReactionPrototype"));
+            Assert.That(Bootstrapper.PrototypeSceneName, Is.EqualTo("prototype_fire_1_fl_small"));
         }
     }
 }

@@ -100,6 +100,15 @@ namespace Paniq.Simulation
             return checked(context.Tick + Math.Max(context.ReactionLag(), context.Jittered(Math.Max(1, ticks))));
         }
 
+        /// <summary>The hand's charge ran dry (2026-09-30): whoever is held is let go of, as by the player.</summary>
+        public void ReleaseHeld()
+        {
+            if (held >= 0)
+            {
+                Release(crowd.All[held]);
+            }
+        }
+
         /// <summary>The player lets go. Nothing written when the hand was not on them.</summary>
         public void Release(Agent agent)
         {

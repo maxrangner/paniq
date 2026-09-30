@@ -86,6 +86,9 @@ namespace Paniq.Simulation
         public readonly AgentNudge Nudge = new AgentNudge();
         public readonly AgentTug Tug = new AgentTug();
 
+        /// <summary>The player's hand as this person holds it (2026-09-30): their goal and their conviction.</summary>
+        public readonly AgentHand Hand = new AgentHand();
+
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
         /// <summary>Lying on the floor (awake or knocked out) or getting up.</summary>
@@ -163,7 +166,8 @@ namespace Paniq.Simulation
             }
         }
 
-        public AgentSnapshot ToSnapshot(int tick, bool actingForTheHand = false, bool actingAgainstTheirNature = false)
+        public AgentSnapshot ToSnapshot(int tick, bool actingForTheHand = false, bool actingAgainstTheirNature = false,
+            bool committedToTheHand = false)
         {
             return new AgentSnapshot(
                 Id,
@@ -194,7 +198,8 @@ namespace Paniq.Simulation
                 actingAgainstTheirNature,
                 Intent.Tell,
                 TellSystem.ProgressOf(this, tick),
-                Intent.TellHeading);
+                Intent.TellHeading,
+                committedToTheHand);
         }
     }
 
@@ -344,48 +349,6 @@ namespace Paniq.Simulation
         /// </summary>
         public bool SetOnAWayOut;
 
-        /// <summary>They got up, or left an errand, because the player's influence drew them: what they choose next is to go to it.</summary>
-        public bool GoingToTheInfluence;
-
-        /// <summary>
-        /// The press they answered (2026-09-30), or 0: while the hand is still
-        /// on that press, they are doing what it asks whatever their nature
-        /// says -- the coward fights, the weak batter and heave (the owner:
-        /// "agents acted upon should do stuff they normally wouldn't"). Asked
-        /// through <see cref="InfluenceSystem.IsActingFor"/>, which knows
-        /// whether the hand is still there.
-        /// </summary>
-        public ulong ForTheHandPress;
-
-        /// <summary>A push they have already walked away from (2026-09-30), so one push sends them off once.</summary>
-        public ulong PushedByPress;
-
-        /// <summary>
-        /// The press they have taken in, and the tick they react to it on
-        /// (2026-09-30): nobody reacts to the hand on the tick it lands, and
-        /// no two on the same tick. See <see cref="InfluenceSystem.HasNoticed"/>.
-        /// </summary>
-        public ulong NoticedHandPress;
-        public int NoticedHandAtTick;
-
-        /// <summary>A press whose crate they set off for and gave up on: not tried again until pressed afresh.</summary>
-        public ulong HeaveGaveUpOnPress;
-
-        /// <summary>
-        /// The press a frightened person is answering by going to the hand or
-        /// away from a push (2026-09-30), or 0; and a press they broke away
-        /// from, or could find no way to, which does not ask them again. See
-        /// <see cref="HandGatherBehaviour"/>.
-        /// </summary>
-        public ulong AnsweringPress;
-        public ulong HandGaveUpOnPress;
-
-        /// <summary>A press on a door they have already thought again about, so it brings their next choice forward once (2026-09-30).</summary>
-        public ulong RethoughtForPress;
-
-        /// <summary>A press whose door they found they could not do what it asked of (an open door that will not shut): not tried again until pressed afresh (2026-09-30).</summary>
-        public ulong DoorGaveUpOnPress;
-
         /// <summary>
         /// Their tell, if they are winding up to something dangerous
         /// (2026-09-30; <see cref="TellSystem"/>): what, from when to when,
@@ -407,12 +370,6 @@ namespace Paniq.Simulation
         /// <summary>Caught turning back toward the flames: they will not head back until this tick.</summary>
         public int TurnBackRefusedUntilTick;
 
-        /// <summary>
-        /// What they are doing for the hand is against their nature (2026-09-30):
-        /// set when <see cref="CausalEventType.AgentActedForTheHand"/> is written,
-        /// cleared when they stop acting for it. The drawing trembles them.
-        /// </summary>
-        public bool AgainstTheirNature;
 
         /// <summary>
         /// When they next strain at a held box for the hand, and when the
@@ -780,6 +737,61 @@ namespace Paniq.Simulation
     /// whether they are held, since when, when the strong tear free, and
     /// how long the shake of tearing free is drawn.
     /// </summary>
+    /// <summary>
+    /// The player's hand as this person holds it (2026-09-30, the fourth
+    /// pass; see <see cref="InfluenceSystem"/>): the press whose ask is their
+    /// goal, their own copy of the place, and the conviction that decides
+    /// whether they set about it, keep it once the hand comes off, and how
+    /// long. Where the scattered press ids on <see cref="AgentIntent"/> used
+    /// to live (answering, gave up on, noticed, rethought for), with the
+    /// never-again markers gone: a give-up is a cost and a beat, not a ban.
+    /// </summary>
+    internal sealed class AgentHand
+    {
+        /// <summary>The press whose ask is their goal, or 0 for none.</summary>
+        public ulong Press;
+
+        /// <summary>Their copy of the place: refreshed every tick they feel the live press, kept as it last was after that.</summary>
+        public InfluenceSystem.Place Goal;
+
+        /// <summary>The hand has come off, or gone elsewhere, and they keep the goal: it fades on their own beat.</summary>
+        public bool Committed;
+
+        /// <summary>
+        /// How much the hand holds them, per mille: grows every tick they feel
+        /// the live press by what they feel, is kept when it comes off past
+        /// <see cref="InfluenceSettings.CommitFromPerMille"/>, fades once
+        /// committed, and is cut by a give-up. The one number everything the
+        /// hand asks of them reads.
+        /// </summary>
+        public int Conviction;
+
+        /// <summary>They have set about the goal: the gold hand over them.</summary>
+        public bool Acting;
+
+        /// <summary>What they are doing for the hand is against their nature: the drawing trembles them.</summary>
+        public bool AgainstTheirNature;
+
+        /// <summary>They got up, or left an errand, for the hand: what they choose next is to go to it.</summary>
+        public bool GotUpForIt;
+
+        /// <summary>The press "drawn by" was written for, so it is written once a press.</summary>
+        public ulong AnsweredPress;
+
+        /// <summary>A push they have already walked away from, so one push sends them off once.</summary>
+        public ulong PushedByPress;
+
+        /// <summary>A press on a door they have already thought again about, so it brings their next choice forward once.</summary>
+        public ulong RethoughtForPress;
+
+        /// <summary>After a give-up: not asked again before this tick.</summary>
+        public int RetryFromTick;
+
+        /// <summary>The press they have taken in, and the tick they react to it on (nobody on the tick it lands, no two on the same tick).</summary>
+        public ulong NoticedPress;
+        public int NoticedAtTick;
+    }
+
     internal sealed class AgentTug
     {
         /// <summary>The hand is on them: they are being braked to a stop and held there.</summary>

@@ -284,6 +284,14 @@ namespace Paniq.Simulation
             // the door.
             bool dashing = doorBehaviour.IsDashing(agent);
 
+            // The flames inside their danger distance put the hand out of
+            // their head (2026-09-30, the one rule for everybody), unless
+            // they are dashing through the heat on purpose.
+            if (inDanger && !dashing)
+            {
+                InfluenceSystem.Endangered(agent);
+            }
+
             if (DoorBehaviour.IsAtDoor(agent))
             {
                 // Worked out first: giving up forgets which door this was.

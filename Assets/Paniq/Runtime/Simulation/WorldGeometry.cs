@@ -209,7 +209,16 @@ namespace Paniq.Simulation
         /// shut. A spare slot kept for a blast hole is plain wall until the hole
         /// is made, and a hole is never shut, so neither is ever plugged.
         /// </summary>
-        internal bool IsDoorwayPlugged(int door) => doors[door].Placed && !IsDoorOpen(door);
+        /// <summary>
+        /// Whether the physics engine should fill this doorway with a slab:
+        /// a shut door, but never a doorway heaped with fallen boxes
+        /// (2026-09-30). The heap is the wall there -- people are stopped by
+        /// the boxes, the map and the fire treat it as shut -- and a slab as
+        /// thick as a wall shoved the heaped boxes out of the gap within
+        /// seconds, so the heap cleared itself (found on seeds 48, 64 and 67
+        /// left alone, which saved eighteen of twenty).
+        /// </summary>
+        internal bool IsDoorwayPlugged(int door) => doors[door].Placed && !IsDoorOpen(door) && !doors[door].Piled;
 
         /// <summary>The walls with their doorways removed, plus the four sides of every table.</summary>
         private List<NavigationGrid.Wall> AllSolidEdges()

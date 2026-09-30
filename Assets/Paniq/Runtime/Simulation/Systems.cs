@@ -63,6 +63,7 @@ namespace Paniq.Simulation
         public ErrandBehaviour Errands;
         public NudgeSystem Nudges;
         public TugSystem Tugs;
+        public HandChargeSystem HandCharge;
         public InfluenceSystem Influence;
         public TrapSystem Traps;
         public KeycardSystem Keycards;
@@ -76,7 +77,8 @@ namespace Paniq.Simulation
             IBindable[] bindable =
             {
                 Doors, Body, Objects, People, DoorBehaviour, Help, Panic, Round, PlayerCommands, Director, Fear, Calm,
-                Errands, Items, Chairs, Alarms, AlarmBehaviour, Keycards, Extinguishers, HandHeave, HandGather, Tells
+                Errands, Items, Chairs, Alarms, AlarmBehaviour, Keycards, Extinguishers, HandHeave, HandGather, Tells,
+                Influence
             };
 
             for (int i = 0; i < bindable.Length; i++)

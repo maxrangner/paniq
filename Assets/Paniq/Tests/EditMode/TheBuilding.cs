@@ -172,6 +172,10 @@ namespace Paniq.Tests.EditMode
             data.Purse.UproarMiddling = 0;
             data.Purse.UproarBig = 0;
 
+            // The hand's charge is off (2026-09-30): a test holds the hand as
+            // long as it likes. HandChargeEditModeTests has the bar.
+            data.HandCharge.Enabled = false;
+
             // A player who can act can open the way out, as they could before
             // the keycard (2026-09-27): the tests here are about doors,
             // cards and the crowd, not about the card. KeycardEditModeTests

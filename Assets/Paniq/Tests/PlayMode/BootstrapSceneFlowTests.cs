@@ -13,28 +13,28 @@ namespace Paniq.Tests.PlayMode
         private const float SceneLoadTimeoutSeconds = 5f;
 
         [UnityTest]
-        public IEnumerator BootstrapScene_LoadsFireReactionPrototypeScene()
+        public IEnumerator BootstrapScene_LoadsThePrototypeScene()
         {
             yield return SceneManager.LoadSceneAsync("Bootstrap", LoadSceneMode.Single);
 
             var deadline = Time.realtimeSinceStartup + SceneLoadTimeoutSeconds;
-            while (SceneManager.GetActiveScene().name != Bootstrapper.FireReactionPrototypeSceneName && Time.realtimeSinceStartup < deadline)
+            while (SceneManager.GetActiveScene().name != Bootstrapper.PrototypeSceneName && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
             }
 
             Assert.That(
                 SceneManager.GetActiveScene().name,
-                Is.EqualTo(Bootstrapper.FireReactionPrototypeSceneName),
-                $"Bootstrap did not load {Bootstrapper.FireReactionPrototypeSceneName} within {SceneLoadTimeoutSeconds} seconds.");
+                Is.EqualTo(Bootstrapper.PrototypeSceneName),
+                $"Bootstrap did not load {Bootstrapper.PrototypeSceneName} within {SceneLoadTimeoutSeconds} seconds.");
             Assert.That(Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>(), Is.Not.Null);
             Assert.That(Object.FindObjectsByType<Paniq.Presentation.RunPresentation>(FindObjectsSortMode.None), Has.Length.EqualTo(1));
         }
 
         [UnityTest]
-        public IEnumerator FireReactionPrototype_OpensCalmAndWaitsBehindTheStartCard()
+        public IEnumerator ThePrototype_OpensCalmAndWaitsBehindTheStartCard()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
 
             Paniq.Gameplay.RunDriver runner = Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>();
             Assert.That(runner, Is.Not.Null);
@@ -57,9 +57,9 @@ namespace Paniq.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator FireReactionPrototype_ShowsTheFireOnceTheEventIsTriggered()
+        public IEnumerator ThePrototype_ShowsTheFireOnceTheEventIsTriggered()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
 
             Paniq.Gameplay.RunDriver runner = Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>();
             Assert.That(runner, Is.Not.Null);
@@ -112,11 +112,11 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator PlayingAgainWithAChosenSeed_BuildsTheRunOnThatSeed()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
 
             const ulong chosen = 4242UL;
             Paniq.Gameplay.LevelSession.RequestSeed(chosen, true);
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
 
             Paniq.Gameplay.RunDriver runner = Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>();
             Assert.That(runner, Is.Not.Null);
@@ -129,9 +129,9 @@ namespace Paniq.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator FireReactionPrototype_DoorClicksUnlockThenOpen()
+        public IEnumerator ThePrototype_DoorClicksUnlockThenOpen()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
 
             Paniq.Gameplay.RunDriver runner = Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>();
             Assert.That(runner, Is.Not.Null);

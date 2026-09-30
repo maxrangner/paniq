@@ -19,6 +19,17 @@ namespace Paniq.Simulation
         public int Damage;
 
         /// <summary>
+        /// A card door only (2026-09-30): pounding time taken under the
+        /// player's hand, in person-ticks up to <see cref="ExitSettings.CardDoorPoundersCounted"/>
+        /// a tick, and how many are at it this tick. It gives at
+        /// <see cref="ExitSettings.CardDoorPoundTicks"/>.
+        /// </summary>
+        public int HandPound;
+        public int Pounders;
+        public int LastPounder = -1;
+        public ulong LastPoundEventId;
+
+        /// <summary>
         /// Ticks this door has stood with flames against it. A shut door used
         /// to stop fire for ever, which turned every closed room into a
         /// permanent safe room; now it holds the fire off for a while and then
@@ -820,6 +831,59 @@ namespace Paniq.Simulation
         /// A strong person's shove weakens the door. Returns true when this
         /// shove broke it.
         /// </summary>
+        /// <summary>
+        /// Somebody shoulders a card door for the player's hand this tick
+        /// (2026-09-30, the owner's decision: "gives after a long pounding").
+        /// Counted at <see cref="SettlePounding"/>; a card door takes no
+        /// shoving damage, and nobody pounds one without the hand.
+        /// </summary>
+        public void PoundForTheHand(int door, Agent pounder, ulong causeEventId)
+        {
+            DoorRuntime d = doors[door];
+            if (!d.NeedsKeycard || d.State == DoorState.Open || d.State == DoorState.Broken)
+            {
+                return;
+            }
+
+            d.Pounders++;
+            d.LastPounder = pounder.Index;
+            d.LastPoundEventId = causeEventId;
+        }
+
+        /// <summary>
+        /// Once a tick, after the blockages: every card door pounded this
+        /// tick takes the pounding on, up to the few shoulders a doorway
+        /// fits, and bursts once it has taken enough. Time, not blows or
+        /// strength: blows come at random moments and strength would make
+        /// the outcome depend on who happens to be there, where the owner
+        /// asked for about forty seconds.
+        /// </summary>
+        public void SettlePounding()
+        {
+            ExitSettings exits = context.Scenario.Exits;
+            for (int door = 0; door < doors.Length; door++)
+            {
+                DoorRuntime d = doors[door];
+                if (d.Pounders == 0)
+                {
+                    continue;
+                }
+
+                d.HandPound += Math.Min(d.Pounders, exits.CardDoorPoundersCounted);
+                d.Pounders = 0;
+                if (d.HandPound < exits.CardDoorPoundTicks || d.State == DoorState.Broken || d.LastPounder < 0)
+                {
+                    continue;
+                }
+
+                Break(door, crowd.All[d.LastPounder], d.LastPoundEventId);
+            }
+        }
+
+        /// <summary>For the display: how far along a card door's pounding is, in percent.</summary>
+        private int PoundPercent(DoorRuntime d) =>
+            d.NeedsKeycard ? Math.Min(100, d.HandPound * 100 / Math.Max(1, context.Scenario.Exits.CardDoorPoundTicks)) : 0;
+
         public bool Batter(int door, Agent shover, int damage, ulong shoveEventId)
         {
             DoorRuntime d = doors[door];
@@ -950,7 +1014,7 @@ namespace Paniq.Simulation
         public DoorSnapshot GetSnapshot(int door)
         {
             DoorRuntime d = doors[door];
-            int damagePercent = Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength);
+            int damagePercent = Math.Max(Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength), PoundPercent(d));
             return new DoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent,
                 ScorchPercent(d),
                 d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door), d.Swings,

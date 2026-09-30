@@ -731,6 +731,17 @@ design talk.
 - And the slider's value: the number that felt right, to keep as the level's
   own.
 
+## Prototype 3: walls as thick to the feet as to the eye (2026-09-30)
+
+A repair found on the way to the hand's fourth pass, from the owner's note
+"objects (like chairs) often clip inside walls". The world was never at fault:
+the physics engine's walls were 4 cm thick and the drawn ones 40 cm, so a chair
+shoved up against a real wall was drawn sunk a hand's depth into the picture of
+it. Now every wall is 20 cm thick to the eye, to the physics and to the map
+people steer by, and a thing against a wall touches its face. One commit of its
+own; the decision is in
+[technical decisions](technical-decisions.md#prototype-3-walls-as-thick-to-the-feet-as-to-the-eye-2026-09-30).
+
 ## Foundations reviewed (2026-09-23)
 
 Not a stone. The owner asked for a full review of the code against the game

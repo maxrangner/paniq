@@ -82,9 +82,14 @@ namespace Paniq.Tests.EditMode
             return boxes;
         }
 
-        /// <summary>The archway's heap strip: 300 mm plus a box's 300 mm half-width either side of the wall line at x 13000, along its 2.4 m.</summary>
+        /// <summary>
+        /// The archway's heap strip: 300 mm plus a box's 300 mm half-width
+        /// either side of the archway's faces, which stand 100 mm (half the
+        /// wall's thickness, 2026-09-30) off the wall line at x 13000, along
+        /// its 2.4 m.
+        /// </summary>
         private static bool IsInTheArchway(LogicalPosition where) =>
-            Math.Abs(where.X - 13000) <= 600 && where.Z > 6000 && where.Z < 9000;
+            Math.Abs(where.X - 13000) <= 700 && where.Z > 6000 && where.Z < 9000;
 
         /// <summary>Whether walking up an event's causes reaches this one.</summary>
         private static bool IsCausedBy(Run simulation, CausalEvent record, ulong cause)

@@ -132,7 +132,7 @@ namespace Paniq.Tests.EditMode
                 for (ulong id = 3581UL; id <= 3584UL; id++)
                 {
                     int crate = objects.IndexOf(new SimulationId(id));
-                    if (IntegerMath.Distance(new LogicalPosition(9500, -900), objects.PositionOf(crate)) > 300)
+                    if (IntegerMath.Distance(new LogicalPosition(9500, -950), objects.PositionOf(crate)) > 300)
                     {
                         moved++;
                     }

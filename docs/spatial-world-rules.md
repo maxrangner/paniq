@@ -214,7 +214,12 @@ What that changes about space:
 - **A person's position is the middle of their body.** For someone lying down,
   that is about a metre from their feet. Rooms, doors, fire, sight and sound all
   read that middle.
-- **Walls are solid slabs 40 mm thick and 3 m high.** A shut door fills its
+- **Walls are solid slabs 200 mm thick and 3 m high** (`WorldSettings
+  .WallThicknessMillimetres`, since 2026-09-30; they were 40 mm to the physics
+  and 400 mm to the eye, so anything pushed against a real wall was drawn a
+  hand's depth inside the picture of it). The same number is drawn and is
+  what the walkable map measures clearance to: a square's clearance is its
+  distance to the wall's *face*, not its line. A shut door fills its
   gap; an open door, a blast hole or a spare slot not yet placed does not.
   Tables are fixed blocks until smashed, when they are taken out of the world.
   The world has a floor, a ceiling and a fence well outside the building, so

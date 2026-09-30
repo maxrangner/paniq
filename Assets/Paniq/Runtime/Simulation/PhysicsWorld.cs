@@ -51,12 +51,13 @@ namespace Paniq.Simulation
         private const int SolverVelocityIterations = 4;
 
         /// <summary>
-        /// Walls stand on the wall line, half their thickness on each side, so
-        /// they eat this much less than half into each room. Thin, so the rooms
-        /// keep the size they were drawn at; the engine's look-ahead for fast
-        /// bodies stops anything passing through.
+        /// Walls stand on the wall line, half their thickness on each side
+        /// (<see cref="WorldSettings.WallThicknessMillimetres"/>, 2026-09-30:
+        /// the same number the display draws and the map measures by; the
+        /// engine's used to be 40 mm against 400 drawn). The engine's
+        /// look-ahead for fast bodies stops anything passing through.
         /// </summary>
-        private const int WallThicknessMillimetres = 40;
+        private readonly int wallThicknessMillimetres;
         private const int OutsideMarginMillimetres = 8000;
 
         internal enum StaticKind
@@ -219,8 +220,10 @@ namespace Paniq.Simulation
         }
 #endif
 
-        public PhysicsWorld(PhysicsFeelSettings feel, LogicalBounds building, int wallRestitutionPercent)
+        public PhysicsWorld(PhysicsFeelSettings feel, LogicalBounds building, int wallRestitutionPercent,
+            int wallThicknessMillimetres)
         {
+            this.wallThicknessMillimetres = wallThicknessMillimetres;
             if (!Application.isPlaying && Live.Count >= MostWorldsOpenInTheEditor)
             {
                 Live[0].Dispose();
@@ -373,7 +376,7 @@ namespace Paniq.Simulation
 
             walls.Clear();
             float height = MetresFromMillimetres(feel.WallHeightMillimetres);
-            float thick = MetresFromMillimetres(WallThicknessMillimetres);
+            float thick = MetresFromMillimetres(wallThicknessMillimetres);
             for (int i = 0; i < stretches.Count; i++)
             {
                 NavigationGrid.Wall stretch = stretches[i];
@@ -383,11 +386,12 @@ namespace Paniq.Simulation
                 float toZ = MetresFromMillimetres(stretch.To.Z);
                 bool alongX = stretch.From.Z == stretch.To.Z;
 
-                // Each piece runs half a thickness past its ends, so two
-                // pieces meeting at a corner leave no crack to slip through.
+                // Exactly the stretch it was given: the map has already run
+                // a piece past the room's corner so two walls meeting there
+                // leave no crack, and ended it square at every doorway.
                 var size = alongX
-                    ? new Vector3(Mathf.Abs(toX - fromX) + thick, height, thick)
-                    : new Vector3(thick, height, Mathf.Abs(toZ - fromZ) + thick);
+                    ? new Vector3(Mathf.Abs(toX - fromX), height, thick)
+                    : new Vector3(thick, height, Mathf.Abs(toZ - fromZ));
                 var centre = new Vector3((fromX + toX) * 0.5f, height * 0.5f, (fromZ + toZ) * 0.5f);
                 walls.Add(Solid("Wall", StaticKind.Wall, i, centre, size));
             }
@@ -532,7 +536,7 @@ namespace Paniq.Simulation
         {
             int index = doors.Count;
             float height = MetresFromMillimetres(feel.WallHeightMillimetres);
-            float thick = MetresFromMillimetres(WallThicknessMillimetres);
+            float thick = MetresFromMillimetres(wallThicknessMillimetres);
             float span = MetresFromMillimetres(width);
             var size = alongX ? new Vector3(span, height, thick) : new Vector3(thick, height, span);
             var middle = new Vector3(MetresFromMillimetres(centre.X), height * 0.5f, MetresFromMillimetres(centre.Z));
@@ -838,6 +842,42 @@ namespace Paniq.Simulation
 
                 overlapping = new Collider[overlapping.Length * 2];
             }
+        }
+
+        /// <summary>
+        /// Tests and measurements: how far this body is pressed into any
+        /// wall, in millimetres, or 0 when it is clear of them. Each of its
+        /// colliders is tested against every wall its bounds touch; a thing
+        /// resting against a wall reads a few millimetres, one sunk into it
+        /// reads its depth.
+        /// </summary>
+        internal int WallPenetrationMillimetres(int handle)
+        {
+            Body body = bodies[handle];
+            float deepest = 0f;
+            foreach (Collider own in body.Colliders)
+            {
+                Bounds bounds = own.bounds;
+                int count = OverlapBoxAll(bounds.center, bounds.extents + Vector3.one * 0.05f);
+                for (int i = 0; i < count; i++)
+                {
+                    Collider wall = overlapping[i];
+                    if (!staticByCollider.TryGetValue(wall.GetInstanceID(), out (StaticKind Kind, int Index) what) ||
+                        what.Kind != StaticKind.Wall)
+                    {
+                        continue;
+                    }
+
+                    if (Physics.ComputePenetration(own, own.transform.position, own.transform.rotation,
+                            wall, wall.transform.position, wall.transform.rotation, out _, out float depth) &&
+                        depth > deepest)
+                    {
+                        deepest = depth;
+                    }
+                }
+            }
+
+            return (int)(deepest * 1000f);
         }
 
         private int OverlapBoxAll(Vector3 middle, Vector3 half)

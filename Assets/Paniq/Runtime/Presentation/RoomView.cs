@@ -15,7 +15,13 @@ namespace Paniq.Presentation
     internal sealed class RoomView
     {
         private const float WallHeight = 1.5f;
-        private const float WallThickness = 0.4f;
+        /// <summary>
+        /// As thick as the walls are to the physics and the map (2026-09-30,
+        /// <see cref="WorldSettings.WallThicknessMillimetres"/>): until then
+        /// they were drawn 0.4 m thick over 40 mm slabs, and anything against
+        /// a real wall was drawn sunk into the picture of it.
+        /// </summary>
+        private readonly float WallThickness;
         private const float DoorHeight = 1.3f;
         private const float DoorSwingSeconds = 0.3f;
 
@@ -141,6 +147,7 @@ namespace Paniq.Presentation
             this.materials = materials;
             this.effects = effects;
             this.parent = parent;
+            WallThickness = scenario.World.WallThicknessMillimetres * 0.001f;
             Build();
         }
 

@@ -14,15 +14,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 89
+    ContentRevision: 90
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 77
+    SimulationCompatibilityVersion: 78
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
       TimingJitterPercent: 20
       OnTheMapFromGrams: 32000
       OnTheMapAfterTicks: 25
+      WallThicknessMillimetres: 200
     Perception:
       VisionRangeMillimetres: 12000
       MaximumReactionDelayTicks: 20
@@ -2848,7 +2849,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -5600
+        z: -5550
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -2862,7 +2863,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -5600
+        z: -5550
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -2876,7 +2877,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -5600
+        z: -5550
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -2890,7 +2891,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -4900
+        z: -4850
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -2904,7 +2905,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -4900
+        z: -4850
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -2918,7 +2919,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -4900
+        z: -4850
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -2932,7 +2933,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -4200
+        z: -4150
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -2946,7 +2947,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -4200
+        z: -4150
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -2960,7 +2961,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -4200
+        z: -4150
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -2974,7 +2975,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -3500
+        z: -3450
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -2988,7 +2989,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -3500
+        z: -3450
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3002,7 +3003,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -3500
+        z: -3450
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3016,7 +3017,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -900
+        z: -950
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3030,7 +3031,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -900
+        z: -950
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3044,7 +3045,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -900
+        z: -950
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3058,7 +3059,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -1600
+        z: -1650
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3072,7 +3073,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -1600
+        z: -1650
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3086,7 +3087,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -1600
+        z: -1650
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3100,7 +3101,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -2300
+        z: -2350
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3114,7 +3115,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -2300
+        z: -2350
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3128,7 +3129,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -2300
+        z: -2350
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3142,7 +3143,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -3000
+        z: -3050
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3156,7 +3157,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -3000
+        z: -3050
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3170,7 +3171,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -3000
+        z: -3050
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3184,7 +3185,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -3700
+        z: -3750
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3198,7 +3199,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -3700
+        z: -3750
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3212,7 +3213,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 12000
-        z: -3700
+        z: -3750
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3422,7 +3423,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -900
+        z: -950
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3436,7 +3437,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -900
+        z: -950
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3450,7 +3451,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -900
+        z: -950
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3464,7 +3465,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -900
+        z: -950
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0

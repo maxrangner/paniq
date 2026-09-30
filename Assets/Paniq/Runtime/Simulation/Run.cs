@@ -106,7 +106,8 @@ namespace Paniq.Simulation
             fear.DealTemperaments(agents);
 
             crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres, geometry.FireArea);
-            physics = new PhysicsWorld(scenario.PhysicsFeel, geometry.FireArea, scenario.ObjectPhysics.WallRestitutionPercent);
+            physics = new PhysicsWorld(scenario.PhysicsFeel, geometry.FireArea, scenario.ObjectPhysics.WallRestitutionPercent,
+                scenario.World.WallThicknessMillimetres);
             doorPlugged = new bool[geometry.DoorSlotCount];
             tableWasMoving = new bool[geometry.TableCount];
             try
@@ -711,6 +712,9 @@ namespace Paniq.Simulation
 
         /// <summary>Tests only: what touched what in the last physics step.</summary>
         internal IReadOnlyList<PhysicsWorld.Contact> ContactsForTests => physics.Contacts;
+
+        /// <summary>Tests and measurements: how far this loose thing is sunk into a wall, in millimetres (0: clear of them).</summary>
+        internal int WallPenetrationForTests(int objectIndex) => physics.WallPenetrationMillimetres(objectIndex);
 
         /// <summary>How far any two solid things were pressed into each other during the last tick, in millimetres.</summary>
         public int DeepestPressMillimetres => physics.DeepestPressMillimetres;

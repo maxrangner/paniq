@@ -45,6 +45,18 @@ namespace Paniq.Simulation
         /// </summary>
         public int OnTheMapAfterTicks = 25;
 
+        /// <summary>
+        /// How thick every wall is, standing on its wall line with half on
+        /// each side (2026-09-30). One number three things share: the slab
+        /// the physics engine builds, the wall the display draws, and the
+        /// clearance the map people steer by measures. Until 2026-09-30 the
+        /// engine's walls were 40 mm and the drawn ones 400, so anything
+        /// pushed against a real wall was drawn a hand's depth inside the
+        /// picture of it (the owner: "objects like chairs often clip inside
+        /// walls"). Two hundred: an ordinary interior wall.
+        /// </summary>
+        public int WallThicknessMillimetres = 200;
+
         public WorldSettings Clone() => (WorldSettings)MemberwiseClone();
 
         internal void Validate()
@@ -53,6 +65,7 @@ namespace Paniq.Simulation
             Settings.Require(MaximumStepDistanceMillimetres >= 0 && MaximumStepDistanceMillimetres <= 1000, "maximum step");
             Settings.Require(Settings.Percent(TimingJitterPercent), "timing jitter");
             Settings.Require(OnTheMapFromGrams > 0 && OnTheMapAfterTicks >= 1, "heavy things on the map");
+            Settings.Require(WallThicknessMillimetres >= 0 && WallThicknessMillimetres <= 1000, "wall thickness");
         }
     }
 

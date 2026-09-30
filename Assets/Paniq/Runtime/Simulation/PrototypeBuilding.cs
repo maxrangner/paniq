@@ -711,38 +711,41 @@ namespace Paniq.Simulation
                 // few light boxes lie loose in the lanes to be kicked and
                 // tripped over, and nothing stands within 1.5 m of either
                 // doorway. Crate 3581's stack at the first bend is the
-                // Director's second trap (see DefaultTraps).
+                // Director's second trap (see DefaultTraps). Each wall's
+                // first stack stands against the wall's face, a tenth of a
+                // metre in from the wall line (2026-09-30: the walls are as
+                // thick to the crates as to the eye now).
                 //
-                // Wall A, from the south wall up to z -3150 at x 9500.
-                Box(3501UL, 9500, -5600, 700, pinned: true),
-                Box(3502UL, 9500, -5600, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3503UL, 9500, -5600, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3504UL, 9500, -4900, 700, pinned: true),
-                Box(3505UL, 9500, -4900, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3506UL, 9500, -4900, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3507UL, 9500, -4200, 700, pinned: true),
-                Box(3508UL, 9500, -4200, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3509UL, 9500, -4200, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3510UL, 9500, -3500, 700, pinned: true),
-                Box(3511UL, 9500, -3500, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3512UL, 9500, -3500, 700, restsOnTheOneBelow: true, pinned: true),
+                // Wall A, from the south wall up to z -3100 at x 9500.
+                Box(3501UL, 9500, -5550, 700, pinned: true),
+                Box(3502UL, 9500, -5550, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3503UL, 9500, -5550, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3504UL, 9500, -4850, 700, pinned: true),
+                Box(3505UL, 9500, -4850, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3506UL, 9500, -4850, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3507UL, 9500, -4150, 700, pinned: true),
+                Box(3508UL, 9500, -4150, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3509UL, 9500, -4150, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3510UL, 9500, -3450, 700, pinned: true),
+                Box(3511UL, 9500, -3450, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3512UL, 9500, -3450, 700, restsOnTheOneBelow: true, pinned: true),
 
-                // Wall B, from the north wall down to z -4050 at x 12000.
-                Box(3513UL, 12000, -900, 700, pinned: true),
-                Box(3514UL, 12000, -900, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3515UL, 12000, -900, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3516UL, 12000, -1600, 700, pinned: true),
-                Box(3517UL, 12000, -1600, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3518UL, 12000, -1600, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3519UL, 12000, -2300, 700, pinned: true),
-                Box(3520UL, 12000, -2300, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3521UL, 12000, -2300, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3522UL, 12000, -3000, 700, pinned: true),
-                Box(3523UL, 12000, -3000, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3524UL, 12000, -3000, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3525UL, 12000, -3700, 700, pinned: true),
-                Box(3526UL, 12000, -3700, 700, restsOnTheOneBelow: true, pinned: true),
-                Box(3527UL, 12000, -3700, 700, restsOnTheOneBelow: true, pinned: true),
+                // Wall B, from the north wall down to z -4100 at x 12000.
+                Box(3513UL, 12000, -950, 700, pinned: true),
+                Box(3514UL, 12000, -950, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3515UL, 12000, -950, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3516UL, 12000, -1650, 700, pinned: true),
+                Box(3517UL, 12000, -1650, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3518UL, 12000, -1650, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3519UL, 12000, -2350, 700, pinned: true),
+                Box(3520UL, 12000, -2350, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3521UL, 12000, -2350, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3522UL, 12000, -3050, 700, pinned: true),
+                Box(3523UL, 12000, -3050, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3524UL, 12000, -3050, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3525UL, 12000, -3750, 700, pinned: true),
+                Box(3526UL, 12000, -3750, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3527UL, 12000, -3750, 700, restsOnTheOneBelow: true, pinned: true),
 
                 // A column against the east wall, clear of the crossbar door.
                 Box(3530UL, 15600, -4000, 600),
@@ -769,10 +772,10 @@ namespace Paniq.Simulation
                 // across the gap between the wall and wall A once somebody
                 // frightened runs through the stockroom. Four, because three
                 // leave a gap a person squeezes through.
-                Box(3581UL, 9500, -900, 700),
-                Box(3582UL, 9500, -900, 700, restsOnTheOneBelow: true),
-                Box(3583UL, 9500, -900, 700, restsOnTheOneBelow: true),
-                Box(3584UL, 9500, -900, 700, restsOnTheOneBelow: true),
+                Box(3581UL, 9500, -950, 700),
+                Box(3582UL, 9500, -950, 700, restsOnTheOneBelow: true),
+                Box(3583UL, 9500, -950, 700, restsOnTheOneBelow: true),
+                Box(3584UL, 9500, -950, 700, restsOnTheOneBelow: true),
 
                 // The fire alarm bells (2026-09-25), one high on a wall of
                 // every room people use, including the stockroom and the

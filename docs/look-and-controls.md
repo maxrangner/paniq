@@ -235,6 +235,13 @@ is there yet.
 
 ## Walls and what they hide
 
+**Walls are drawn as thick as they are** (2026-09-30): 20 cm, the one number
+the physics engine, the walkable map and the drawing share
+(`WorldSettings.WallThicknessMillimetres`). Until then the picture of a wall was
+40 cm thick over a 4 cm slab, so a chair or a box shoved against a real wall was
+drawn sunk 18 cm into the drawn one (the owner: "objects like chairs often clip
+inside walls"). Now a thing against a wall touches its face.
+
 **Today:** people and loose objects behind a wall show through it as pale blue
 silhouettes, and the silhouette paints only where a wall or door actually hides
 something.

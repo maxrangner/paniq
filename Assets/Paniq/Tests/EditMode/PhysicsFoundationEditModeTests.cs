@@ -33,7 +33,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TwoBodiesThatMeet_AreReportedStraightAfterTheStep()
         {
-            using var world = new PhysicsWorld(new PhysicsFeelSettings(), Yard, 30);
+            using var world = new PhysicsWorld(new PhysicsFeelSettings(), Yard, 30, new WorldSettings().WallThicknessMillimetres);
             int left = world.AddBody("left", Crate(), -50000L, 0L, 0L, 0, 5000, 40, 40);
             int right = world.AddBody("right", Crate(), 50000L, 0L, 0L, 0, 5000, 40, 40);
             world.SetVelocity(left, 10000L, 0L, 0L);
@@ -55,7 +55,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void ABodyDroppedFromAHeight_FallsAndLandsOnTheFloor()
         {
-            using var world = new PhysicsWorld(new PhysicsFeelSettings(), Yard, 30);
+            using var world = new PhysicsWorld(new PhysicsFeelSettings(), Yard, 30, new WorldSettings().WallThicknessMillimetres);
             int crate = world.AddBody("crate", Crate(), 0L, 150000L, 0L, 0, 5000, 40, 40);
             for (int tick = 0; tick < 150; tick++)
             {
@@ -69,8 +69,8 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void TwoWorldsAtOnce_NeverTouchEachOther()
         {
-            using var first = new PhysicsWorld(new PhysicsFeelSettings(), Yard, 30);
-            using var second = new PhysicsWorld(new PhysicsFeelSettings(), Yard, 30);
+            using var first = new PhysicsWorld(new PhysicsFeelSettings(), Yard, 30, new WorldSettings().WallThicknessMillimetres);
+            using var second = new PhysicsWorld(new PhysicsFeelSettings(), Yard, 30, new WorldSettings().WallThicknessMillimetres);
             int mover = first.AddBody("mover", Crate(), 0L, 0L, 0L, 0, 5000, 40, 40);
             int bystander = second.AddBody("bystander", Crate(), 30000L, 0L, 0L, 0, 5000, 40, 40);
             first.SetVelocity(mover, 10000L, 0L, 0L);

@@ -515,6 +515,25 @@ and is theirs to overturn.
 | Versions | `SimulationCompatibilityVersion` 76 → 77; `ContentRevision` 88 → 89 (`TellSettings`). All fifteen fingerprints re-recorded: freezes and dashes happen in every recorded run, and each now comes a second later | -- | -- |
 | Tests | `TellsEditModeTests`: going stiff comes first and then the freeze; one poke in it and they run, the log naming the poke, a beat later; the brave gather their nerve before the dash; a tug in it calls the dash off; a walk to a station past the flames turns back first and a safe one does not; tells off, the freeze comes at once; the tally counts presses, a click, a drag, a poke and a tug | -- | -- |
 
+## Prototype 3: walls as thick to the feet as to the eye (2026-09-30)
+
+The owner: "Objects (like chairs) often clip inside walls, maybe more."
+Measured first (a wall-penetration probe, `Run.WallPenetrationForTests`, over
+ten seeds left alone): the physics engine sinks a loose thing more than 20 mm
+into a wall on about ten of 120,000 sampled ticks -- the world was not the
+problem. The picture was: `RoomView` drew every wall 400 mm thick over a slab
+the engine built 40 mm thick, so a chair shoved against a real wall was drawn
+180 mm inside the drawn one. A repair found on the way, in a commit of its own.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **One thickness** | `WorldSettings.WallThicknessMillimetres` = 200, read by `PhysicsWorld` (wall pieces and door plugs), `RoomView` (the drawn wall) and `WorldGeometry.PieceOfWall` (the map's wall segments) | The drawing and the world must agree, and 200 mm is an ordinary interior wall; 400 mm to the physics would have cost every room 20 cm a side and moved every prop against a wall | A level wants thick outer walls and thin inner ones: a thickness per wall side |
+| **Clearance to the face** | `NavigationGrid.Wall` carries a half-thickness; `DistanceFrom` is the distance to the slab itself -- half a thickness each side of the line, square at its ends -- never negative; a table's edge has none, being its face | The walkable map measured to the wall *line*; with a thicker slab and no change here, everybody standing 250 mm from a line would have been 150 mm inside the engine's wall and shoved out every tick | -- |
+| **Doorways keep their width** | `WorldGeometry.AddWallWithItsDoorwaysRemoved` runs a wall piece half a thickness past the room's corners (so two walls meeting there leave no crack) and ends it square at every doorway; `PhysicsWorld.SetWalls` builds exactly the piece it is given, where it used to overrun both ends of every piece | Overrunning every end would have narrowed every doorway by a whole thickness: the 800 mm stall doors left 202 mm for a 250 mm body and the floor plan was refused | -- |
+| **A door's face** | `WorldGeometry.IsObjectInDoorway` and `DoorBehaviour.HasReachedClosedExit` measure from the door's face, half a thickness inside the wall line the door's centre sits on | A chair shoved against a shut door came to rest 100 mm short of the line and no longer counted as wedged, so the door opened and the runner shoved the chair into the gap, where it jammed with nobody trying the door (`AChairWedgedInTheWayOut_IsThrownClearByAnOrdinaryPerson`) | -- |
+| **Props** | The stockroom's two crate walls and the trap's stack move 50 mm off their walls (`PrototypeBuilding`: wall A from z -5600 to -5550 and so on up, wall B and the stack from -900 to -950 and on down); nothing else. The new check `PhysicsObjectsEditModeTests.NothingAuthored_StartsInsideAWall_OrIsShovedIntoOne_OnTenSeeds` (ten seeds, five seconds each, nothing more than 20 mm into a wall) found them 50 mm inside the new face | Everything else in `PrototypeBuilding` stands at least 100 mm off a wall line | The check fails on a new floor plan |
+| Versions | `SimulationCompatibilityVersion` 77 → 78; `ContentRevision` 89 → 90. All fifteen fingerprints re-recorded: every wall-side square lost 100 mm of clearance, so every spot chosen beside a wall moved | -- | -- |
+
 ## Alignment with the three requirements for the finished game (2026-09-24)
 
 The owner stated three requirements for the finished game (recorded in the

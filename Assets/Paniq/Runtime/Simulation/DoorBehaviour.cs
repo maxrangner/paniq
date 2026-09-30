@@ -972,8 +972,13 @@ namespace Paniq.Simulation
                 return false;
             }
 
+            // The reach is to the door's face, which stands half the wall's
+            // thickness off the wall line the door's centre sits on
+            // (2026-09-30), so a shut door a body is pressed against counts
+            // as reached whatever stands between them and the line.
             long arrival = settings.ArrivalDistanceMillimetres;
-            long reach = settings.ApproachInsetMillimetres + settings.ArrivalDistanceMillimetres / 2;
+            long reach = settings.ApproachInsetMillimetres + settings.ArrivalDistanceMillimetres / 2 +
+                         context.Scenario.World.WallThicknessMillimetres / 2;
             return LogicalPosition.DistanceSquared(agent.Body.Position, ApproachPoint(door, agent.Doors.ApproachRoom)) <
                    arrival * arrival ||
                    LogicalPosition.DistanceSquared(agent.Body.Position, geometry.DoorCentre(door)) < reach * reach;

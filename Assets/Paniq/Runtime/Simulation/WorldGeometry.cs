@@ -293,6 +293,7 @@ namespace Paniq.Simulation
             bool alongX = side == WallSide.North || side == WallSide.South;
             int from = alongX ? b.MinX : b.MinZ;
             int to = alongX ? b.MaxX : b.MaxZ;
+            int thickness = context.Scenario.World.WallThicknessMillimetres;
 
             // The gaps in this side, in order along it.
             var gaps = new List<(int From, int To)>();
@@ -311,12 +312,19 @@ namespace Paniq.Simulation
 
             gaps.Sort((left, right) => left.From.CompareTo(right.From));
 
+            // A piece ends square at a doorway, so the gap keeps the width
+            // it was drawn at; at the room's corners it runs half a thickness
+            // past the line, so two walls meeting there leave no crack
+            // (2026-09-30: the physics engine used to overrun every end, and
+            // with a real thickness that would have narrowed every doorway by
+            // one).
+            int corner = thickness / 2;
             int at = from;
             foreach ((int gapFrom, int gapTo) in gaps)
             {
                 if (gapFrom > at)
                 {
-                    into.Add(PieceOfWall(b, side, alongX, at, gapFrom));
+                    into.Add(PieceOfWall(b, side, alongX, at == from ? at - corner : at, gapFrom, thickness));
                 }
 
                 at = Math.Max(at, gapTo);
@@ -324,11 +332,12 @@ namespace Paniq.Simulation
 
             if (at < to)
             {
-                into.Add(PieceOfWall(b, side, alongX, at, to));
+                into.Add(PieceOfWall(b, side, alongX, at == from ? at - corner : at, to + corner, thickness));
             }
         }
 
-        private static NavigationGrid.Wall PieceOfWall(LogicalBounds room, WallSide side, bool alongX, int from, int to)
+        /// <summary>A piece of a room's wall, as thick as every wall is (2026-09-30), so the map keeps people off its face rather than its line.</summary>
+        private static NavigationGrid.Wall PieceOfWall(LogicalBounds room, WallSide side, bool alongX, int from, int to, int thickness)
         {
             int across = side switch
             {
@@ -339,8 +348,8 @@ namespace Paniq.Simulation
             };
 
             return alongX
-                ? new NavigationGrid.Wall(new LogicalPosition(from, across), new LogicalPosition(to, across))
-                : new NavigationGrid.Wall(new LogicalPosition(across, from), new LogicalPosition(across, to));
+                ? new NavigationGrid.Wall(new LogicalPosition(from, across), new LogicalPosition(to, across), thickness)
+                : new NavigationGrid.Wall(new LogicalPosition(across, from), new LogicalPosition(across, to), thickness);
         }
 
         /// <summary>
@@ -1742,7 +1751,11 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            return Math.Abs(BeyondDistance(door, where)) <= objectRadius + (long)gap;
+            // Measured from the door's face, which stands half the wall's
+            // thickness off the wall line (2026-09-30): a thing shoved up
+            // against the door is in its way, as it was when the wall was a
+            // line.
+            return Math.Abs(BeyondDistance(door, where)) <= objectRadius + (long)gap + context.Scenario.World.WallThicknessMillimetres / 2;
         }
 
         /// <summary>How far past the door's wall a point is, out of the door's own room (negative inside it).</summary>

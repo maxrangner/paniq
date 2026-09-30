@@ -196,12 +196,19 @@ namespace Paniq.Tests.EditMode
 
                 Advance(simulation, 30 * Run.TicksPerSecond);
                 var ticks = new HashSet<int>();
+                var people = new HashSet<ulong>();
                 foreach (CausalEvent calmed in EventsOfType(simulation, CausalEventType.AgentCalmedDown))
                 {
                     Assert.That(ticks.Add(calmed.Tick), $"Two people settled on tick {calmed.Tick}.");
+                    people.Add(calmed.SourceId.Value);
                 }
 
-                Assert.That(ticks, Has.Count.EqualTo(6), "All six settled.");
+                // Six heroes bolting about one office bump into each other,
+                // and a thud beside somebody who has just settled frightens
+                // them afresh, so a person may settle more than once
+                // (2026-09-30); what is checked is that every one of them
+                // did, and never two on one tick.
+                Assert.That(people, Has.Count.EqualTo(6), "All six settled.");
             }
         }
 

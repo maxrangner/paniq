@@ -52,7 +52,16 @@ namespace Paniq.Tests.EditMode
             (PlayerCommandType.InfluenceSpot, default, new LogicalPosition(3000, -3000), 1070),
             (PlayerCommandType.InfluenceSpot, default, new LogicalPosition(3200, -3000), 1071),
             (PlayerCommandType.InfluenceSpot, default, new LogicalPosition(3000, -3200), 1072),
+
+            // The hand, second and third passes (2026-09-30): the dial turned
+            // up, the held hand dragged across the office, let go of, a push
+            // clicked and left as a beacon.
+            (PlayerCommandType.SetHandStrength, default, new LogicalPosition(150, 0), 1073),
+            (PlayerCommandType.MoveInfluence, default, new LogicalPosition(2500, -3000), 1080),
+            (PlayerCommandType.MoveInfluence, default, new LogicalPosition(2000, -2800), 1085),
             (PlayerCommandType.ReleaseInfluence, default, default, 1090),
+            (PlayerCommandType.RepelSpot, default, new LogicalPosition(0, 0), 1095),
+            (PlayerCommandType.LeaveInfluence, default, default, 1096),
             (PlayerCommandType.NudgePersonFrom, new SimulationId(1001UL), new LogicalPosition(0, 0), 1100),
             (PlayerCommandType.TugPerson, new SimulationId(1002UL), default, 1120),
             (PlayerCommandType.ReleaseTug, new SimulationId(1002UL), default, 1220)

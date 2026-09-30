@@ -1,3 +1,4 @@
+using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Presentation
@@ -11,7 +12,10 @@ namespace Paniq.Presentation
     /// switches last while the game runs, Reset included, but are never saved:
     /// every press of Play starts from the same picture.
     /// <para>
-    /// Presentation only. Nothing here reaches the run.
+    /// Presentation only, except the hand strength (2026-09-30, the owner:
+    /// "can we put general attraction as a slider in debug with a print out
+    /// number so I can find the sweetspot and later hardcode it?"): the
+    /// presentation sends it to the run as a command, so a replay replays it.
     /// </para>
     /// </summary>
     internal sealed class DebugView
@@ -38,19 +42,31 @@ namespace Paniq.Presentation
         public bool PanelOpen;
 
         /// <summary>
+        /// How strongly everybody feels the hand, in percent of the level's
+        /// own: the slider, from nothing to three times as strong, in tens.
+        /// Kept through Reset, back to 100 at every Play.
+        /// </summary>
+        public int HandStrengthPercent = 100;
+
+        /// <summary>The slider's range and step.</summary>
+        public const int HandStrengthMaximum = 300;
+        public const int HandStrengthStep = 10;
+
+        /// <summary>
         /// Draws the panel when it is open, top right under Reset and Pause,
         /// and returns the height below which anything else in that corner
         /// should start.
         /// </summary>
-        public float Draw(float top)
+        public float Draw(float top, RunSnapshot snapshot = null)
         {
             if (!PanelOpen)
             {
                 return top;
             }
 
-            const int switches = 5;
-            float height = RowHeight * (switches + 1) + 14f;
+            // Five switches, a heading, and the hand's two rows.
+            const int rows = 5 + 1 + 2;
+            float height = RowHeight * rows + 14f;
             var area = new Rect(Screen.width - Width - 20f, top, Width, height);
             GUI.color = new Color(0f, 0f, 0f, 0.8f);
             GUI.DrawTexture(area, Texture2D.whiteTexture);
@@ -71,7 +87,34 @@ namespace Paniq.Presentation
             Stats = GUI.Toggle(new Rect(x, y, wide, RowHeight), Stats, " Everyone's stats");
             y += RowHeight;
             WalkableFloor = GUI.Toggle(new Rect(x, y, wide, RowHeight), WalkableFloor, " Walkable floor (G)");
+            y += RowHeight;
+            GUI.Label(new Rect(x, y, wide, RowHeight),
+                $"Hand strength {HandStrengthPercent}%   answering now: {Answering(snapshot)}");
+            y += RowHeight;
+            float slid = GUI.HorizontalSlider(new Rect(x, y + 5f, wide, RowHeight), HandStrengthPercent, 0f,
+                HandStrengthMaximum);
+            HandStrengthPercent = Mathf.RoundToInt(slid / HandStrengthStep) * HandStrengthStep;
             return area.yMax + 8f;
+        }
+
+        /// <summary>How many people are doing what the hand asks right now: the number that says whether it is strong enough.</summary>
+        private static int Answering(RunSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                return 0;
+            }
+
+            int count = 0;
+            for (int i = 0; i < snapshot.Agents.Count; i++)
+            {
+                if (snapshot.Agents[i].ActingForTheHand)
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
     }
 }

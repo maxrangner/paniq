@@ -192,7 +192,7 @@ namespace Paniq.Presentation
                     ? "your hand is on it"
                     : "hold to draw people to it (they open it if shut, shut it if open), right button to push them away; click for three seconds";
                 string action = door.Swings ? $"Swing doors: people push straight through. {Capital(pull)}"
-                    : door.IsPiled ? "THE BOXES ARE LYING ACROSS IT - nobody gets through until enough of them are gone; hold a box to have it heaved"
+                    : door.IsPiled ? "THE BOXES ARE LYING ACROSS IT - nobody gets through until enough of them are gone; hold it and they clear the boxes"
                     : door.State == DoorState.Broken ? $"Broken down. {Capital(pull)}"
                     : door.IsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted"
                     : door.NeedsKeycard ? $"NEEDS THE KEYCARD - it never gives. Hold it and they pound on it, and somebody who knows where the card is goes for it. {Capital(pull)}"
@@ -234,15 +234,15 @@ namespace Paniq.Presentation
             {
                 GUI.Label(new Rect(20f, 104f, 900f, 22f), IsTheHandOn(snapshot, input.HoveredThing.Value, false)
                     ? "Your hand is on it"
-                    : "Hold to draw people to it: a chair is sat on, a box carried off or heaved aside, the bottle taken and used, the card pocketed. Right button pushes them away");
+                    : "Hold to draw people to it: a chair is sat on, a box carried off, fallen boxes cleared, the bottle taken and used, the card pocketed. Right button pushes them away; drag to move the hand");
             }
             else if (input.HoveredFloor.HasValue)
             {
                 GUI.Label(new Rect(20f, 104f, 900f, 22f), input.HandOnAPlace
                     ? input.HandRepels
-                        ? "Your hand is pushing people away from here. Let go and they are on their own"
-                        : "Your hand is on the floor here: people nearby are drawn to it. Let go and they are on their own"
-                    : "Hold to draw people here, right button to push them away; a click leaves it for three seconds");
+                        ? "Your hand is pushing people away from here: drag it to herd them. Let go and they are on their own"
+                        : "Your hand is on the floor here: people nearby come to it. Drag it to lead them. Let go and they are on their own"
+                    : "Hold to draw people here (drag to lead them), right button to push them away; a click leaves it for three seconds");
             }
         }
 
@@ -556,7 +556,8 @@ namespace Paniq.Presentation
                 ("Cards", "dealt by the dead, one each. Nobody dies, nobody deals"),
                 ("Purse", snapshot.PurseEnabled ? "paid by the uproar, and by everyone who gets out" : "none on this level: everything is free"),
                 ("Escape", "put the card back down (or right click)"),
-                ("Hold the floor", "your hand on a place: people nearby are drawn to it while you hold, one place at a time. Let go and they are on their own. Things too"),
+                ("Hold the floor", "your hand on a place: people nearby come to it while you hold, the frightened too, one place at a time. Let go and they are on their own. Things too"),
+                ("Hold and drag", "the hand moves with the pointer and the people answering it follow; on fallen boxes, they clear them"),
                 ("Click the floor", "the same, left there for three seconds"),
                 ("Right button", "the same the other way round: people are pushed away from the place"),
                 ("A door", doorHelp),
@@ -565,7 +566,7 @@ namespace Paniq.Presentation
                 ("W A S D", "move the camera"),
                 ("Q E", "turn an eighth: corner, side, corner"),
                 ("Wheel", "zoom"),
-                ("Tab", "what to show: vision cones, numbers, marks, everyone's stats, the walkable floor"),
+                ("Tab", "what to show: vision cones, numbers, marks, everyone's stats, the walkable floor; and the hand strength slider"),
                 ("G", "the floor people can walk on"),
                 ("Space", "start and stop the world (or the Pause button, top right)"),
                 ("Reset", "the button top right: back to the start card, keeping the seed"),
@@ -724,6 +725,7 @@ namespace Paniq.Presentation
                 case AgentActivityState.PullingAlarm: return "hitting the alarm";
                 case AgentActivityState.FetchingKeycard: return "going for the keycard";
                 case AgentActivityState.HeavingForTheHand: return "heaving a box for you";
+                case AgentActivityState.AnsweringTheHand: return "answering your hand";
                 case AgentActivityState.Fleeing: return "running";
                 default: return agent.ActivityState.ToString().ToLowerInvariant();
             }

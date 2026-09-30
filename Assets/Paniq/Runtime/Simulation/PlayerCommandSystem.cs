@@ -137,6 +137,8 @@ namespace Paniq.Simulation
                 case PlayerCommandType.RepelSpot:
                 case PlayerCommandType.ReleaseInfluence:
                 case PlayerCommandType.LeaveInfluence:
+                case PlayerCommandType.MoveInfluence:
+                case PlayerCommandType.SetHandStrength:
                     break;
                 case PlayerCommandType.NudgePerson:
                 case PlayerCommandType.NudgePersonFrom:
@@ -332,6 +334,22 @@ namespace Paniq.Simulation
             if (command.CommandType == PlayerCommandType.LeaveInfluence)
             {
                 influence.Leave();
+                return;
+            }
+
+            // A hand held down and dragged (2026-09-30): it slides with the
+            // pointer, and whoever answers it goes on answering it.
+            if (command.CommandType == PlayerCommandType.MoveInfluence)
+            {
+                influence.Move(command.Point);
+                return;
+            }
+
+            // The Tab panel's dial (2026-09-30): this run's own settings,
+            // from the next tick on.
+            if (command.CommandType == PlayerCommandType.SetHandStrength)
+            {
+                influence.SetStrength((int)command.Point.X);
                 return;
             }
 

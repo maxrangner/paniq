@@ -481,7 +481,7 @@ namespace Paniq.Simulation
         /// runner at a way out, or (2026-09-27) somebody calm on an errand
         /// who cannot lift it. Nothing happens when nothing is wedged.
         /// </summary>
-        public void HeaveObstructionClear(Agent agent, int door, ulong causeEventId)
+        public void HeaveObstructionClear(Agent agent, int door, ulong causeEventId, bool forTheHand = false)
         {
             int thing = ObstructionIn(door);
             if (thing < 0)
@@ -493,7 +493,12 @@ namespace Paniq.Simulation
             long offset = geometry.AlongOffset(door, agent.Body.Position);
             int side = offset < 0L ? -1 : 1;
             int along = geometry.AlongWallHeading(door, side);
-            int speed = blockades.ShoveSpeedBase + blockades.ShoveSpeedPerStrength * agent.Traits.Strength;
+            // For the player's hand (2026-09-30) anybody heaves it, after
+            // straining, as hard as somebody just strong enough would.
+            int strength = forTheHand
+                ? System.Math.Max(agent.Traits.Strength, blockades.ShoveMinimumStrength)
+                : agent.Traits.Strength;
+            int speed = blockades.ShoveSpeedBase + blockades.ShoveSpeedPerStrength * strength;
             objects.ShoveAside(thing, agent, along, speed, causeEventId);
         }
 

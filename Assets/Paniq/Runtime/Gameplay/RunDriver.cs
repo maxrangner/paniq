@@ -392,6 +392,23 @@ namespace Paniq.Gameplay
             Simulation.QueueCommand(PlayerCommandType.LeaveInfluence, default(SimulationId), Simulation.Tick + 1);
         }
 
+        /// <summary>The held hand dragged to a spot on the floor (2026-09-30), in whole millimetres.</summary>
+        public void QueueMoveInfluence(LogicalPosition spot)
+        {
+            Simulation.QueueCommand(PlayerCommandType.MoveInfluence, spot, Simulation.Tick + 1);
+        }
+
+        /// <summary>
+        /// The Tab panel's hand strength (2026-09-30), in percent: how strongly
+        /// everybody feels the hand from the next tick on. In the run, so a
+        /// replay replays it; the left-alone round has no hand to feel.
+        /// </summary>
+        public void QueueHandStrength(int percent)
+        {
+            Simulation.QueueCommand(PlayerCommandType.SetHandStrength, new LogicalPosition(percent, 0),
+                Simulation.Tick + 1);
+        }
+
         /// <summary>The player taking hold of somebody by the shirt (2026-09-29).</summary>
         public void QueueTug(SimulationId personId)
         {

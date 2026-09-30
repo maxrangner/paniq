@@ -69,6 +69,7 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             MaybeLeaveForTheInfluence(agent, tick);
+            FollowTheMovingHand(agent);
             AgentIntent intent = agent.Intent;
             int goalHeading = agent.Body.Heading;
             int goalSpeed = 0;
@@ -76,8 +77,16 @@ namespace Paniq.Simulation
             bool steer = false;
 
             // An errand whose time has come cuts short whatever loitering
-            // they were doing; what it leaves them doing is decided below.
-            errands.StartIfDue(agent);
+            // they were doing; what it leaves them doing is decided below --
+            // unless they are answering the player's hand (2026-09-30): the
+            // meeting waits until the hand comes off, rather than taking them
+            // off it halfway. The errand the hand itself gave them starts.
+            bool answering = influence != null && influence.IsActingFor(agent) &&
+                             agent.Errand.Cue != CueKind.FollowTheInfluence;
+            if (!answering)
+            {
+                errands.StartIfDue(agent);
+            }
 
             switch (intent.Activity)
             {
@@ -163,8 +172,11 @@ namespace Paniq.Simulation
                     }
 
                     // Wander less as the destination gets close, so arrival
-                    // looks deliberate.
-                    int wander = distance < 1200 ? intent.WanderOffset / 2 : intent.WanderOffset;
+                    // looks deliberate; not at all on the way to the player's
+                    // hand (2026-09-30), so a line of people answering it
+                    // reads as answering it rather than drifting.
+                    int wander = influence != null && influence.IsActingFor(agent) ? 0
+                        : distance < 1200 ? intent.WanderOffset / 2 : intent.WanderOffset;
                     goalHeading = geometry.Routes.HeadingToward(
                         agent.Body.Position, intent.Target, bodyRadius, agent.Body.Heading) + wander;
                     int calmSpeed = agent.Personality.CalmSpeed;
@@ -302,8 +314,9 @@ namespace Paniq.Simulation
 
             // Whatever they did for the hand is done: they answer it afresh
             // below, or they are on to something of their own (2026-09-30).
+            ulong wasAnswering = agent.Intent.ForTheHandPress;
             InfluenceSystem.StopActing(agent);
-            if (TryMoveAwayFromThePush(agent) || TryWanderToTheInfluence(agent))
+            if (TryMoveAwayFromThePush(agent) || TryWanderToTheInfluence(agent, wasAnswering))
             {
                 return;
             }
@@ -495,18 +508,27 @@ namespace Paniq.Simulation
         /// on, as before.
         /// </para>
         /// </summary>
-        private bool TryWanderToTheInfluence(Agent agent)
+        private bool TryWanderToTheInfluence(Agent agent, ulong wasAnswering)
         {
             bool gotUpForIt = agent.Intent.GoingToTheInfluence;
             agent.Intent.GoingToTheInfluence = false;
-            if (influence == null || influence.Count == 0 || agent.Errand.Has || agent.Carry.ItemIndex >= 0)
+
+            // An errand still to come (a meeting later) does not keep them
+            // from the hand (2026-09-30: it used to, so somebody got up for
+            // the hand and then never went); one under way does. Somebody
+            // holding their own bag comes too, bag and all, but has no hand
+            // free to do anything with.
+            bool carrying = agent.Carry.ItemIndex >= 0;
+            if (influence == null || influence.Count == 0 || agent.Errand.Active || (carrying && !agent.Carry.OwnsIt))
             {
                 return false;
             }
 
             int felt = influence.StrongestFeltBy(agent, out int place);
-            if (felt <= 0)
+            if (felt <= 0 || !influence.HasNoticed(agent))
             {
+                // Not felt, or not yet: everybody takes the hand in a beat
+                // after it lands, each on their own tick (the owner's rule).
                 return false;
             }
 
@@ -514,8 +536,14 @@ namespace Paniq.Simulation
 
             // A place already used for the player (the door opened, the
             // chair taken) goes on gathering people but is not used again
-            // until pressed afresh (2026-09-29).
-            bool usable = !drawnBy.Spent && (drawnBy.Door >= 0 || (drawnBy.Thing >= 0 && CanUse(agent, drawnBy.Thing)));
+            // until pressed afresh (2026-09-29). A clearing hand (fallen
+            // crates on it or beside it) is never used up while a crate is
+            // left (2026-09-30). A door they found they could not do what the
+            // hand asked is not theirs to try again by this press.
+            bool clearing = !carrying && handHeave != null && handHeave.IsClearing();
+            bool doorJob = drawnBy.Door >= 0 && !agent.Errand.Has && agent.Intent.DoorGaveUpOnPress != drawnBy.EventId;
+            bool usable = !carrying && (clearing ||
+                                        (!drawnBy.Spent && (doorJob || (drawnBy.Thing >= 0 && CanUse(agent, drawnBy.Thing)))));
             LogicalPosition target = WhereToStandFor(agent, place);
             long there = context.Scenario.Calm.StrollArrivalDistanceMillimetres * 2L;
             if (!usable && LogicalPosition.DistanceSquared(agent.Body.Position, target) <= there * there)
@@ -541,10 +569,15 @@ namespace Paniq.Simulation
             }
 
             // Answering this press (2026-09-30): until the hand comes off it,
-            // they do what it asks whatever their nature says.
+            // they do what it asks whatever their nature says. Written once a
+            // press: the next crate of a heap is the same answer.
             agent.Intent.ForTheHandPress = drawnBy.EventId;
-            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
-                felt, 0, drawnBy.EventId, drawnBy.Target);
+            if (wasAnswering != drawnBy.EventId)
+            {
+                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
+                    felt, 0, drawnBy.EventId, drawnBy.Target);
+            }
+
             return true;
         }
 
@@ -565,6 +598,13 @@ namespace Paniq.Simulation
         /// </summary>
         private bool TryUse(Agent agent, InfluenceSystem.Place drawnBy)
         {
+            // Fallen crates on the hand or beside it (2026-09-30): the crate
+            // of the heap that suits them best, one after another.
+            if (handHeave != null && handHeave.IsClearing())
+            {
+                return handHeave.StartNearest(agent, drawnBy.EventId);
+            }
+
             if (drawnBy.Door >= 0)
             {
                 if (!cues.FollowTheInfluence(agent, drawnBy.Door, drawnBy.EventId))
@@ -572,6 +612,9 @@ namespace Paniq.Simulation
                     return false;
                 }
 
+                // What the hand asks was decided at the press: the opposite of
+                // how the door stood then.
+                agent.Errand.HandWantsItOpen = !drawnBy.DoorWasOpen;
                 agent.Intent.Activity = AgentActivityState.Standing;
                 agent.Intent.ActivityEndTick = checked(context.Tick + context.ReactionLag());
                 return true;
@@ -642,7 +685,7 @@ namespace Paniq.Simulation
             bool onAnErrand = agent.Errand.Active && activity == AgentActivityState.RunningAnErrand &&
                               (agent.Errand.Phase == ErrandPhase.Walking || agent.Errand.Phase == ErrandPhase.Standing) &&
                               agent.Errand.PartnerIndex < 0 && !ErrandBehaviour.IsStayingPut(agent);
-            bool idle = !agent.Sitting.OnIt && agent.Carry.ItemIndex < 0 &&
+            bool idle = !agent.Sitting.OnIt && (agent.Carry.ItemIndex < 0 || agent.Carry.OwnsIt) &&
                         (activity == AgentActivityState.Standing || activity == AgentActivityState.LookingAround ||
                          activity == AgentActivityState.Strolling);
             if (!seated && !onAnErrand && !idle)
@@ -651,7 +694,7 @@ namespace Paniq.Simulation
             }
 
             int felt = pushes ? influence.StrongestPushFeltBy(agent, out _) : influence.StrongestFeltBy(agent, out _);
-            if (felt <= 0 ||
+            if (felt <= 0 || !influence.HasNoticed(agent) ||
                 context.Random.NextIntInclusive(0, 999) >= Math.Min(1000, felt) * rules.LeaveTaskChancePerMille / 1000)
             {
                 return;
@@ -661,14 +704,16 @@ namespace Paniq.Simulation
             if (seated)
             {
                 // Up out of the chair; choosing what next leads them to it,
-                // or away from it.
+                // or away from it. An errand that sat them there ends now
+                // (2026-09-30): resumed, it sat them straight back down.
+                errands.LeaveForTheHand(agent);
                 chairs.StartStandingUp(agent);
                 return;
             }
 
             if (onAnErrand)
             {
-                agent.Errand.Clear();
+                errands.LeaveForTheHand(agent);
             }
 
             // A beat, then they choose again, and the hand is what they choose.
@@ -686,39 +731,23 @@ namespace Paniq.Simulation
         /// </summary>
         private bool TryMoveAwayFromThePush(Agent agent)
         {
-            if (influence == null || influence.Count == 0 || agent.Errand.Has || agent.Carry.ItemIndex >= 0)
+            if (influence == null || influence.Count == 0 || agent.Errand.Active ||
+                (agent.Carry.ItemIndex >= 0 && !agent.Carry.OwnsIt))
             {
                 return false;
             }
 
             int felt = influence.StrongestPushFeltBy(agent, out int place);
-            if (felt <= 0)
+            if (felt <= 0 || !influence.HasNoticed(agent))
             {
                 return false;
             }
 
             InfluenceSystem.Place push = influence[place];
-            InfluenceSettings rules = context.Scenario.Influence;
             LogicalPosition from = agent.Body.Position;
-            long distance = IntegerMath.Distance(from, push.At);
-            int away = distance > 0
-                ? IntegerMath.HeadingBetween(push.At, from, agent.Body.Heading)
-                : IntegerMath.NormalizeDegrees(agent.Body.Heading + 180);
-            long fullRadius = (long)rules.ReachMillimetres * rules.FullWithinPercent / 100L;
-            int walk = (int)Math.Max(MinimumPushWalkMillimetres,
-                Math.Min(MaximumPushWalkMillimetres, fullRadius + PushClearanceMillimetres - distance));
-
-            int room = geometry.RoomOf(agent);
-            LogicalPosition target = from + IntegerMath.Displacement(away, walk);
-            for (int attempt = 0; attempt < 3 && geometry.RoomAtPoint(target) != room; attempt++)
-            {
-                walk /= 2;
-                target = from + IntegerMath.Displacement(away, walk);
-            }
-
-            target = geometry.ClampIntoRoom(from, target);
+            LogicalPosition target = influence.AwayFromThePush(agent, place);
             bool first = agent.Intent.PushedByPress != push.EventId;
-            if (!first && IntegerMath.Distance(from, target) < PushClearanceMillimetres)
+            if (!first && IntegerMath.Distance(from, target) < InfluenceSystem.PushClearanceMillimetres)
             {
                 // Already as far off as the room lets them: they stand their
                 // ground at the wall rather than pace on the spot.
@@ -738,11 +767,6 @@ namespace Paniq.Simulation
             return true;
         }
 
-        /// <summary>How far somebody pushed walks, at the least and the most, and how far past the push's full strength they aim.</summary>
-        private const int MinimumPushWalkMillimetres = 2000;
-        private const int MaximumPushWalkMillimetres = 8000;
-        private const int PushClearanceMillimetres = 1500;
-
         /// <summary>
         /// Where to walk to for a place: the spot itself, or for a door, a
         /// spot of their own inside this room in front of it -- one to one
@@ -754,14 +778,59 @@ namespace Paniq.Simulation
         private LogicalPosition WhereToStandFor(Agent agent, int place)
         {
             InfluenceSystem.Place pull = influence[place];
+
+            // The floor or a thing: a spot of their own in the ring round it
+            // (2026-09-30; everybody used to walk to its very spot).
             if (pull.Door < 0)
             {
-                return pull.At;
+                return influence.GatherSpotFor(agent);
             }
 
+            // A door: in front of it, on their own side -- or, from a room
+            // that is neither of its two, the ring round its middle, which
+            // used to put them on its far side.
             int room = geometry.RoomOf(agent);
-            return room < 0 ? pull.At : StandSpotInFrontOf(geometry, pull.Door, room, agent.Index);
+            return room < 0 || (room != pull.RoomA && room != pull.RoomB)
+                ? influence.GatherSpotFor(agent)
+                : StandSpotInFrontOf(geometry, pull.Door, room, agent.Index);
         }
+
+        /// <summary>
+        /// A hand dragged along (2026-09-30): somebody calm answering it who is
+        /// walking to it walks to where their spot is now, and somebody
+        /// standing at it who has been left more than a metre behind sets off
+        /// again. Nothing for a door, which does not move, or for a hand that
+        /// is clearing crates, which hands out its own work.
+        /// </summary>
+        private void FollowTheMovingHand(Agent agent)
+        {
+            if (influence == null || influence.Count == 0 || !influence.IsActingFor(agent))
+            {
+                return;
+            }
+
+            InfluenceSystem.Place pull = influence[0];
+            AgentActivityState activity = agent.Intent.Activity;
+            if (pull.Door >= 0 || pull.Repels ||
+                (activity != AgentActivityState.Strolling && activity != AgentActivityState.Standing) ||
+                (handHeave != null && handHeave.IsClearing()))
+            {
+                return;
+            }
+
+            LogicalPosition spot = influence.GatherSpotFor(agent);
+            if (activity == AgentActivityState.Strolling)
+            {
+                agent.Intent.Target = spot;
+            }
+            else if (LogicalPosition.DistanceSquared(agent.Body.Position, spot) > LeftBehindMillimetres * LeftBehindMillimetres)
+            {
+                StartStrollTo(agent, spot);
+            }
+        }
+
+        /// <summary>How far a dragged hand's spot may move from somebody standing at it before they follow.</summary>
+        private const long LeftBehindMillimetres = 1000;
 
         /// <summary>A stroll to one place, rather than to somewhere drawn at random.</summary>
         private void StartStrollTo(Agent agent, LogicalPosition target)

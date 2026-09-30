@@ -101,6 +101,13 @@ namespace Paniq.Presentation
         /// <summary>The hand on a place (a door, a thing, the floor), and which button put it there.</summary>
         private readonly PlaceHold place = new PlaceHold();
 
+        /// <summary>The held hand following the pointer (2026-09-30).</summary>
+        private readonly HandDrag drag = new HandDrag();
+
+        /// <summary>Where on the floor this frame's press landed, and whether the pointer was over floor at all.</summary>
+        private LogicalPosition pressFloor;
+        private bool pressFloorKnown;
+
         /// <summary>The ground, for turning a screen position into a place on the floor.</summary>
         private static readonly Plane Ground = new Plane(Vector3.up, 0f);
 
@@ -253,6 +260,15 @@ namespace Paniq.Presentation
             }
 
             Vector2 pointer = mouse.position.ReadValue();
+
+            // A hand held down follows the pointer (2026-09-30): dragged, the
+            // hand moves, and whoever answers it follows.
+            if (!lookOnly && place.IsOn && TryGroundPoint(camera, pointer, out LogicalPosition under) &&
+                drag.Moved(under, now, out LogicalPosition moveTo))
+            {
+                runner.QueueMoveInfluence(moveTo);
+            }
+
             bool pressed = mouse.leftButton.wasPressedThisFrame && !lookOnly;
             if (SelectedCard == null)
             {
@@ -296,6 +312,7 @@ namespace Paniq.Presentation
         /// <summary>Every hand off: the place and the person, whatever the buttons are doing.</summary>
         private void LetGoOfEverything()
         {
+            drag.Clear();
             if (place.Clear())
             {
                 runner.QueueReleaseInfluence();
@@ -320,9 +337,11 @@ namespace Paniq.Presentation
             switch (place.ComingUp(leftDown, rightDown, now))
             {
                 case PlaceHold.Ending.Release:
+                    drag.Clear();
                     runner.QueueReleaseInfluence();
                     break;
                 case PlaceHold.Ending.Leave:
+                    drag.Clear();
                     runner.QueueLeaveInfluence();
                     break;
             }
@@ -361,6 +380,7 @@ namespace Paniq.Presentation
         {
             int button = pressed ? 1 : pushed ? 2 : 0;
             bool repels = button == 2;
+            pressFloorKnown = button != 0 && TryGroundPoint(camera, pointer, out pressFloor);
 
             // Door leaves swing, so their colliders must be where they are drawn.
             Physics.SyncTransforms();
@@ -380,7 +400,7 @@ namespace Paniq.Presentation
                     }
                     else if (button != 0 && TryAlarmPosition(alarmId, out LogicalPosition at))
                     {
-                        HandOn(() => runner.QueueInfluenceSpot(at, repels), button, now);
+                        HandOn(() => runner.QueueInfluenceSpot(at, repels), button, now, onTheFloor: false);
                     }
 
                     return;
@@ -391,7 +411,7 @@ namespace Paniq.Presentation
                     HoveredDoor = doorId;
                     if (button != 0)
                     {
-                        HandOn(() => runner.QueueInfluenceDoor(doorId, repels), button, now);
+                        HandOn(() => runner.QueueInfluenceDoor(doorId, repels), button, now, onTheFloor: false);
                     }
 
                     return;
@@ -428,7 +448,7 @@ namespace Paniq.Presentation
                 {
                     // Push the people round them away (2026-09-30).
                     LogicalPosition at = PositionOf(snapshot, HoveredPerson.Value);
-                    HandOn(() => runner.QueueInfluenceSpot(at, true), button, now);
+                    HandOn(() => runner.QueueInfluenceSpot(at, true), button, now, onTheFloor: true);
                 }
 
                 return;
@@ -442,7 +462,7 @@ namespace Paniq.Presentation
                 if (button != 0)
                 {
                     SimulationId pointed = HoveredThing.Value;
-                    HandOn(() => runner.QueueInfluenceThing(pointed, repels), button, now);
+                    HandOn(() => runner.QueueInfluenceThing(pointed, repels), button, now, onTheFloor: false);
                 }
 
                 return;
@@ -454,7 +474,7 @@ namespace Paniq.Presentation
                 HoveredFloor = floor;
                 if (button != 0)
                 {
-                    HandOn(() => runner.QueueInfluenceSpot(floor, repels), button, now);
+                    HandOn(() => runner.QueueInfluenceSpot(floor, repels), button, now, onTheFloor: true);
                 }
             }
         }
@@ -462,11 +482,24 @@ namespace Paniq.Presentation
         /// <summary>How far the nearest person was from the pointer on the screen, the last time anybody was looked for.</summary>
         private float personPixels = float.MaxValue;
 
-        /// <summary>The hand goes on a place: the press is sent at once, and the button coming up will send the release, or leave a beacon.</summary>
-        private void HandOn(Action press, int button, float now)
+        /// <summary>
+        /// The hand goes on a place: the press is sent at once, and the button
+        /// coming up will send the release, or leave a beacon. Held and
+        /// dragged, it follows the pointer: from the floor at once, off a
+        /// door or a thing once the pointer has clearly left it (2026-09-30).
+        /// </summary>
+        private void HandOn(Action press, int button, float now, bool onTheFloor)
         {
             press();
             place.Press(button, now);
+            if (pressFloorKnown)
+            {
+                drag.Press(pressFloor, onTheFloor, now);
+            }
+            else
+            {
+                drag.Clear();
+            }
         }
 
         /// <summary>

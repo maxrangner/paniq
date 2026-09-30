@@ -177,6 +177,15 @@ namespace Paniq.Simulation
             }
 
             person.Errand.Object = door;
+
+            // The press is what the errand is for (2026-09-30): the doors it
+            // opens and tries name it, where they used to name nothing,
+            // because the cue itself is not written down.
+            if (person.Errand.CauseEventId == 0UL)
+            {
+                person.Errand.CauseEventId = causeEventId;
+            }
+
             return true;
         }
 

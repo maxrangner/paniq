@@ -78,6 +78,14 @@ namespace Paniq.Simulation
             /// </summary>
             public int EndsAtTick;
 
+            /// <summary>
+            /// For a door: whether it stood open when the hand went on it
+            /// (2026-09-30). What the hand asks is the opposite -- shut it if it
+            /// was open, open it if it was shut -- decided at the press, so a
+            /// door somebody else opened meanwhile is not shut again.
+            /// </summary>
+            public bool DoorWasOpen;
+
             /// <summary>Whether this place draws people to it: the left button's hand.</summary>
             public bool Pulls => !Repels;
         }
@@ -114,6 +122,9 @@ namespace Paniq.Simulation
             int roomA = geometry.DoorRoom(door);
             int roomB = geometry.RoomBeyond(door, roomA);
             Press(door, -1, doorId, geometry.DoorCentre(door), roomA, roomB, repels);
+            Place place = places[0];
+            place.DoorWasOpen = geometry.IsDoorOpen(door);
+            places[0] = place;
         }
 
         /// <summary>The player's hand goes on a thing: the pull comes from where it stands now, and stays there.</summary>
@@ -153,6 +164,50 @@ namespace Paniq.Simulation
             Place place = places[0];
             place.EndsAtTick = System.Math.Max(context.Tick + 1, place.PressTick + settings.BeaconTicks);
             places[0] = place;
+        }
+
+        /// <summary>
+        /// The held hand slides to a spot (2026-09-30, the owner: "when left
+        /// click is held, if then dragged the influence point should move with
+        /// the pointer. So agents can be guided with this. Same with right
+        /// click hold"). Wherever it was, it is a hand on the floor now; the
+        /// press stays the same press, so whoever was answering it goes on
+        /// answering it and follows it. Nothing for a beacon (the button is
+        /// up), for no hand, or for a spot off the floor, where the hand
+        /// stays where it last was. Nothing is written: the story would fill
+        /// with every twitch of the pointer, and the command is in the run.
+        /// </summary>
+        public void Move(LogicalPosition at)
+        {
+            if (places.Count == 0 || places[0].EndsAtTick > 0)
+            {
+                return;
+            }
+
+            int room = geometry.RoomAtPoint(at);
+            if (room < 0)
+            {
+                return;
+            }
+
+            Place place = places[0];
+            place.Door = -1;
+            place.Thing = -1;
+            place.Target = default;
+            place.At = at;
+            place.RoomA = room;
+            place.RoomB = room;
+            places[0] = place;
+        }
+
+        /// <summary>
+        /// The Tab panel's dial (2026-09-30): how strongly everybody feels the
+        /// hand from the next tick on, in this run's own settings. Clamped to
+        /// what the settings allow.
+        /// </summary>
+        public void SetStrength(int percent)
+        {
+            settings.StrengthPercent = System.Math.Max(0, System.Math.Min(InfluenceSettings.MaximumStrengthPercent, percent));
         }
 
         /// <summary>
@@ -337,7 +392,12 @@ namespace Paniq.Simulation
         public int FeltBy(Agent agent, int i)
         {
             Place place = places[i];
-            int room = geometry.RoomAt(agent.Body.Position);
+
+            // The room they count as in: in a doorway, the one they were last
+            // in (2026-09-30; it used to be only a room holding their whole
+            // body, so anybody in a doorway felt nothing -- the moment a
+            // crowd following a dragged hand went through one).
+            int room = geometry.RoomOf(agent);
             if (room < 0)
             {
                 return 0;
@@ -352,8 +412,85 @@ namespace Paniq.Simulation
 
             long full = reach * settings.FullWithinPercent / 100L;
             long felt = distance <= full ? 1000L : 1000L * (reach - distance) / System.Math.Max(1L, reach - full);
-            return (int)(felt * Susceptibility(agent) / 100L);
+
+            // Everybody's reading of the hand, scaled by the one dial
+            // (2026-09-30, the Tab panel's hand strength).
+            return (int)(felt * Susceptibility(agent) / 100L * settings.StrengthPercent / 100L);
         }
+
+        /// <summary>
+        /// Where somebody answering a hand on the floor stands (2026-09-30): a
+        /// spot of their own in a loose ring round it -- nine tenths of a metre
+        /// out, then one and four tenths, then one and nine, six to a ring,
+        /// by their number -- on floor they can stand on. People answering a
+        /// hand used to walk to its very spot, all of them, and shove. Draws
+        /// nothing; worked out afresh from where the hand is now, so a hand
+        /// dragged along carries them with it.
+        /// </summary>
+        public LogicalPosition GatherSpotFor(Agent agent)
+        {
+            if (places.Count == 0)
+            {
+                return agent.Body.Position;
+            }
+
+            LogicalPosition at = places[0].At;
+            int ring = agent.Index / GatherRingSize % GatherRingRadii.Length;
+            int heading = IntegerMath.NormalizeDegrees(agent.Index % GatherRingSize * (360 / GatherRingSize) + ring * 30);
+            LogicalPosition spot = at + IntegerMath.Displacement(heading, GatherRingRadii[ring]);
+            if (geometry.RoomAtPoint(spot) < 0)
+            {
+                // Past a wall: the same side, closer in.
+                spot = at + IntegerMath.Displacement(heading, GatherRingRadii[0] / 2);
+                if (geometry.RoomAtPoint(spot) < 0)
+                {
+                    spot = at;
+                }
+            }
+
+            return geometry.Navigation.NearestStandableTo(spot, context.Scenario.World.OccupancyRadiusMillimetres,
+                GatherStandingRoomMillimetres);
+        }
+
+        /// <summary>The ring round a hand people answering it stand in: how many to a ring, and each ring's distance out.</summary>
+        private const int GatherRingSize = 6;
+        private static readonly int[] GatherRingRadii = { 900, 1400, 1900 };
+        private const int GatherStandingRoomMillimetres = 1200;
+
+        /// <summary>
+        /// Where somebody pushed by the hand walks to (2026-09-30; the calm
+        /// behaviour's own rule, shared now with the frightened): straight
+        /// away from the push, out past its full strength, in the room they
+        /// are in -- halved up to three times to stay in it. Draws nothing.
+        /// </summary>
+        public LogicalPosition AwayFromThePush(Agent agent, int i)
+        {
+            Place push = places[i];
+            LogicalPosition from = agent.Body.Position;
+            long distance = IntegerMath.Distance(from, push.At);
+            int away = distance > 0
+                ? IntegerMath.HeadingBetween(push.At, from, agent.Body.Heading)
+                : IntegerMath.NormalizeDegrees(agent.Body.Heading + 180);
+            long fullRadius = (long)settings.ReachMillimetres * settings.FullWithinPercent / 100L;
+            int walk = (int)System.Math.Max(MinimumPushWalkMillimetres,
+                System.Math.Min(MaximumPushWalkMillimetres, fullRadius + PushClearanceMillimetres - distance));
+
+            int room = geometry.RoomOf(agent);
+            LogicalPosition target = from + IntegerMath.Displacement(away, walk);
+            for (int attempt = 0; attempt < 3 && geometry.RoomAtPoint(target) != room; attempt++)
+            {
+                walk /= 2;
+                target = from + IntegerMath.Displacement(away, walk);
+            }
+
+            return geometry.ClampIntoRoom(from, target);
+        }
+
+        /// <summary>How far somebody pushed walks, at the least and the most, and how far past the push's full strength they aim.</summary>
+        internal const int MinimumPushWalkMillimetres = 2000;
+        internal const int MaximumPushWalkMillimetres = 8000;
+        internal const int PushClearanceMillimetres = 1500;
+
 
         /// <summary>
         /// How far it is to the place from here: straight, in one of the

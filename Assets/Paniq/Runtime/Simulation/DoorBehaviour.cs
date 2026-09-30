@@ -329,9 +329,14 @@ namespace Paniq.Simulation
                     ref bestIsThroughTheHeat);
                 if (best >= 0 && best != bestWithoutInfluence && best != agent.Doors.ExitDoorIndex)
                 {
-                    InfluenceSystem.Place drawnBy = StrongestPlaceFelt(agent);
-                    context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, position, 0, 0,
-                        drawnBy.EventId, doors.IdOf(best));
+                    // Drawn to it by a pull, or turned to it by a push off the
+                    // other (2026-09-30: a push used to be written as "drawn",
+                    // naming no cause).
+                    InfluenceSystem.Place hand = influence[0];
+                    CausalEventType changed = hand.Repels
+                        ? CausalEventType.AgentPushedAwayByInfluence
+                        : CausalEventType.AgentDrawnByInfluence;
+                    context.Events.Append(context.Tick, agent.Id, changed, position, 0, 0, hand.EventId, doors.IdOf(best));
                 }
             }
 
@@ -1812,12 +1817,6 @@ namespace Paniq.Simulation
             return influence.FeltBy(agent, 0) >= context.Scenario.Influence.ActsAgainstNatureFromPerMille;
         }
 
-        /// <summary>The influenced place this person feels most, for naming as the cause of a choice it changed.</summary>
-        private InfluenceSystem.Place StrongestPlaceFelt(Agent agent)
-        {
-            influence.StrongestFeltBy(agent, out int place);
-            return place >= 0 ? influence[place] : default;
-        }
 
         /// <summary>
         /// What the player's influence makes a door worth to somebody, in

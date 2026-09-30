@@ -796,6 +796,28 @@ and it comes off by itself (the owner: "holding is what you do ... a single
 click should place an influence beacon for 3 seconds"); the ring throbs
 while it lasts.
 
+**Drag to guide** (2026-09-30, the owner: "when left click is held, if then
+dragged the influence point should move with the pointer. So agents can be
+guided with this. Same with right click hold"). Keep the button down and move
+the pointer: the hand slides with it, and everybody answering it goes on
+answering it and follows it -- through an open doorway, and opening a shut
+door on the way if they are frightened. A hand pressed on a door or a thing
+stays on it until the pointer has moved clearly off it, about eight tenths of
+a metre, and then it is a hand on the floor. A right-button drag herds: people
+walk away from the moving push. A click is still a click: let go inside a
+third of a second and the hand stays where it is for three seconds.
+
+**How strong the hand is** (2026-09-30, the owner: "can we put general
+attraction as a slider in debug with a print out number so I can find the
+sweetspot and later hardcode it?"). Everything the hand does starts from how
+strongly each person feels it; the Tab panel's **Hand strength** slider
+scales that one reading, from nothing to three times the level's own, and
+prints the percent and how many people are answering right now. Turned up,
+more people come, from further off, sooner, and more of them do what they
+never would; turned down, fewer. The strongest wills refuse it at any
+strength. The level's own value is `InfluenceSettings.StrengthPercent`, 100;
+the slider lasts through Reset and is back to 100 at every Play.
+
 **Push away: the right button** (2026-09-30, the owner: "an anti-influence.
 Works same as the left mouse button, but in reverse -- repelling agents").
 Held (or clicked, for three seconds) on a door, a thing, the floor or a
@@ -826,14 +848,29 @@ ring and the lines are a cool blue, the lines running away from the place.
   to twice an ordinary person), leaders and the cruel less, but never less
   than six tenths of an ordinary person. Nobody is drawn into a room that is alight, or
   through the heat, or straight back through the door they just came in by.
-- **Frightened people** choose their door and where to run with it added in: a
-  full, close pull is worth twenty metres of walk (2026-09-30; it was six,
-  as much as an exit sign), enough to beat most differences between the
-  ways out of a room. **Startled people** -- something caught their eye and
-  they have not yet taken fright -- turn to a hand they feel strongly and
-  edge toward it, or away from a push. An influenced door on the wall of their room is
-  considered as a way round even when it is not on the shortest walk -- the
-  office's stockroom door can beat the corridor.
+- **Frightened people come to it** (2026-09-30, the owner: "when panicked,
+  the agents still run around too much"). Somebody frightened who feels a
+  hand on the floor at a quarter or more answers it on their own beat, the
+  nervous first: they go to a spot of their own in a loose ring round it
+  (nine tenths of a metre out, then one and four tenths, then one and nine),
+  through the doors on the way, and stand there facing it, instead of
+  sprinting past it to another random spot. The hand beats a leader's call,
+  swerving and following the runners round them. Flames inside their danger
+  distance still send them off, and somebody already going out through the
+  way out is not turned back. Character stays: once a second somebody who
+  feels it less than fully may break away (a leader at six tenths, within a
+  few seconds; the nervous never), and the same press does not ask them
+  again. A push sends them walking away from it, out past its full
+  strength, and then they run on. Before, a hand on the floor was only a
+  compass to them: it tilted which door they chose. A hand on a door still
+  works through their choice of door -- a close pull is worth twenty metres
+  of walk (it was six, as much as an exit sign) -- and now brings that
+  choice forward at once. **Startled people** -- something caught their eye
+  and they have not yet taken fright -- turn to a hand they feel at a
+  quarter or more and edge toward it along the way there, or away from a
+  push. An influenced door on the wall of their room is considered as a way
+  round even when it is not on the shortest walk -- the office's stockroom
+  door can beat the corridor.
 - **Calm people answer it within a second or two.** Anybody who does not
   refuse it -- sitting at their desk, out on an errand, or standing about --
   weighs it five times a second, on their own beat, and goes the likelier
@@ -842,7 +879,14 @@ ring and the lines are a cool blue, the lines running away from the place.
   first and the steady last, one after another, never all on one tick;
   never halfway into a chair, mid-conversation, or while somebody is waiting
   to meet them. The hand works fully before the fire: it is the toy half,
-  and the board can be set before Trigger event.
+  and the board can be set before Trigger event. They take the hand in a beat
+  after it lands, each on their own tick, like every reaction. Somebody
+  holding their own bag comes too, bag and all (they used to ignore it), and
+  somebody with an errand still to come later in the day -- a meeting --
+  comes, and the errand waits until the hand comes off (they used to get up
+  for it and then never go). Each stands on a spot of their own in the ring
+  round it, rather than all on its very spot, and walks straight to it; a
+  dragged hand takes them with it.
 - **What is pointed at is used** (the owner's rule, 2026-09-27: "influence
   objects should make agents want to interact with them, not just walk
   over"). A door is opened if shut and shut if open; the cruel (evil 7+)
@@ -856,7 +900,10 @@ ring and the lines are a cool blue, the lines running away from the place.
   moment later by the next person drawn to it, and pressing it again asks
   for the opposite. A door they cannot use -- locked, held, jammed -- keeps
   its use. A patch of floor, a table or a laptop gathers people as before,
-  each to a spot of their own in front of a door.
+  each to a spot of their own round it. Anything somebody has set off to do
+  for the hand -- a door, a thing, a crate -- they finish even if the hand
+  comes off meanwhile, so a click's three seconds are enough to send
+  somebody.
 - **Against their nature** (the owner, 2026-09-30: "agents acted upon should
   be stuff they normally wouldn't, like a cowardly agent should pick up the
   fire extinguisher, an agent with low strength will bash on door"; and
@@ -870,9 +917,17 @@ ring and the lines are a cool blue, the lines running away from the place.
     and keep at it while the hand stays; the weak do a little each blow, so
     a few of them together break an ordinary door. The card door never gives;
   - the hand on a crate too heavy for anybody to carry (a box off the fallen
-    tower): whoever comes strains at it and heaves it aside -- at once if
-    they are strong, after a few seconds of visible straining if they are
-    weak, half the time with two at it. The tower still standing and the
+    tower), on the floor beside some, or on the archway they are heaped
+    across: it **clears** them (2026-09-30, the owner: "when influenced they
+    should often switch to that specific task, like clearing boxes for a
+    path"). Whoever comes strains at the nearest crate within a metre and a
+    half of the hand and heaves it aside, away from the hand, then the next,
+    until none is left -- at once if they are strong, after a few seconds of
+    visible straining if they are weak, half the time with two at one crate;
+    several helpers spread over the heap. It used to be one crate a press,
+    pushed from wherever the helper stood, sometimes deeper into the heap.
+    Drag the hand along a heap and they clear a path behind it. The tower
+    still standing and the
     stockroom's walls of crates are off limits, as ever;
   - the hand on the pull station: whoever comes pulls it, whatever their
     nerve;
@@ -1540,6 +1595,33 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   (startled or frightened, upright, bravery ≥ `FightMinimumBravery`,
   something burning) is skipped by `ItemBehaviour.LetGoIfNeeded` and taken up
   by `ExtinguisherBehaviour.Decide` with the bottle already in hand.
+  *Since 2026-09-30 (the third pass):* `MoveInfluence` (a point) slides the
+  held place there as a floor place, keeping its press (`EventId`,
+  `PressTick`, `Repels`), so `IsActingFor` stays true for whoever answers it;
+  ignored for a beacon or off the floor, and written nowhere but the command
+  history. `SetHandStrength` (the percent in the point's X) sets the run's own
+  `InfluenceSettings.StrengthPercent`, which multiplies `FeltBy` (uncapped;
+  chances cap at 1000). `FeltBy` asks `RoomOf`, so somebody in a doorway
+  feels it. `GatherSpotFor` is a person's own spot round the hand: ring
+  `index / 6 % 3` at 900/1400/1900 mm, heading `index % 6 × 60 + ring × 30`,
+  snapped to standable floor. The frightened answer it in
+  `HandGatherBehaviour` (panic option after the heave, before the leaders):
+  a pull on the floor or on a thing with no panic use (not the bottle, the
+  card, crates, or near a pull station), felt at `ActsAgainstNatureFromPerMille`
+  and noticed, every `LeaveTaskCheckTicks` on their own beat with chance
+  `FrightenedAnswerChancePerMille` (400) × felt; walked with `FrightenedWalk`
+  at a run beyond 2.5 m; standing within 450 mm; a break-away chance of
+  `BreakAwayPerMille` (300) × (1000 − felt) once a second; a push walked away
+  from (`AwayFromThePush`) while inside its full strength. A hand on a door
+  brings the next door choice forward once a press (`RethoughtForPress`).
+  `HandHeaveBehaviour` clears: every crate `CanHeaveForTheHand` within
+  `ClearReachMillimetres` (1500) of a pull on the floor, a crate, or a piled
+  or wedged doorway, nearest unclaimed first, heaved away from the hand, from
+  the heaver's side, never spent; a crate set off for is finished after the
+  hand comes off. The calm door errand walks up to the door's approach on the
+  side the person comes from (`SideToUseTheDoorFrom`), does the opposite of
+  `Place.DoorWasOpen` (`AgentErrand.HandWantsItOpen`), clears a wedge whatever
+  the strength (straining `StrainTicks`), and names the press as its cause.
 - **Nudge from a point** (`NudgePersonFrom`): the lurch, 300 mm, is away from
   the point; annoyed (`AgentAnnoyed`), they stay so for 1000 ticks jittered,
   during which a nudge is written down and does nothing else.

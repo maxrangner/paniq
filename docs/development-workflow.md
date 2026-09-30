@@ -137,7 +137,7 @@ word is the feature's name. These are the ones that are not:
 | Code changed | Filter words |
 | --- | --- |
 | `PurseSystem`, `DeckSystem`, `PlayerCommandSystem` (the player's purse, cards and clicks) | `Powers,Economy,UproarTable,TraitCards` |
-| `InfluenceSystem`, `HandHeaveBehaviour` (the hand on a place, the push, what people do for it) | `Influence,Keycard,Alarms,Extinguisher,ReplayFingerprint` |
+| `InfluenceSystem`, `HandHeaveBehaviour`, `HandGatherBehaviour` (the hand on a place, the push, the drag, what people do for it) | `Influence,Keycard,Alarms,Extinguisher,Errands,ReplayFingerprint` |
 | `TugSystem` (the hand on a person) | `Tug,ReplayFingerprint` |
 | `Run` (the tick itself) | `Simulation,ReplayFingerprint` |
 | `UniformGridIndex` (who is near here) | `SpatialIndex` |

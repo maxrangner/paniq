@@ -3199,6 +3199,46 @@ namespace Paniq.Simulation
         /// </summary>
         public int WanderToItPerMille = 1000;
 
+        /// <summary>
+        /// How strongly everybody feels the hand, in percent (2026-09-30, the
+        /// owner: "can we put general attraction as a slider in debug with a
+        /// print out number so I can find the sweetspot and later hardcode
+        /// it?"). Every reading of the hand starts from how strongly a person
+        /// feels it (<see cref="InfluenceSystem.FeltBy"/>), and this scales
+        /// that one reading: more people, from further off, sooner, and past
+        /// more of the thresholds below. Who refuses still refuses. The Tab
+        /// panel's slider sets it in a run; the value here is the one kept.
+        /// </summary>
+        public int StrengthPercent = 100;
+
+        /// <summary>
+        /// The chance, per mille of a full pull felt, that somebody frightened
+        /// answers the hand at a check (<see cref="LeaveTaskCheckTicks"/>)
+        /// and goes to it (2026-09-30, the owner: "when panicked, the agents
+        /// still run around too much"). The same as the calm: a room of the
+        /// frightened turns to the hand within a second or two, the nervous
+        /// first.
+        /// </summary>
+        public int FrightenedAnswerChancePerMille = 400;
+
+        /// <summary>
+        /// Somebody frightened standing at the hand may break away from it:
+        /// once a second, this chance per mille times how far short of a
+        /// full pull they feel it (2026-09-30). Anybody who feels it fully
+        /// stays; somebody who drags their feet (a leader at six tenths)
+        /// breaks away within a few seconds. Character, kept.
+        /// </summary>
+        public int BreakAwayPerMille = 300;
+
+        /// <summary>
+        /// The hand on a fallen crate, or on the floor beside some, clears
+        /// every crate this near it, one after another, not only the one
+        /// pointed at (2026-09-30, the owner: "when influenced they should
+        /// often switch to that specific task, like clearing boxes for a
+        /// path"). A metre and a half: an archway's width.
+        /// </summary>
+        public int ClearReachMillimetres = 1500;
+
         public InfluenceSettings Clone() => (InfluenceSettings)MemberwiseClone();
 
         internal void Validate()
@@ -3211,7 +3251,13 @@ namespace Paniq.Simulation
             Settings.Require(FullWithinPercent >= 0 && FullWithinPercent < 100 && BeaconTicks >= 1 &&
                              ActsAgainstNatureFromPerMille >= 0 && HeaveStrainTicksAtNoStrength >= 0 && WeakBlowDamage >= 0,
                 "the hand");
+            Settings.Require(StrengthPercent >= 0 && StrengthPercent <= MaximumStrengthPercent &&
+                             FrightenedAnswerChancePerMille >= 0 && BreakAwayPerMille >= 0 && ClearReachMillimetres >= 0,
+                "the hand, third pass");
         }
+
+        /// <summary>The most <see cref="StrengthPercent"/> may be: ten times the level's own.</summary>
+        public const int MaximumStrengthPercent = 1000;
     }
 
     internal static class Settings

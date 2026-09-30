@@ -382,7 +382,14 @@ namespace Paniq.Simulation
         /// it, and straining at it until it shifts (2026-09-30). See
         /// <see cref="HandHeaveBehaviour"/>.
         /// </summary>
-        HeavingForTheHand
+        HeavingForTheHand,
+
+        /// <summary>
+        /// Frightened, and answering the player's hand (2026-09-30): going to
+        /// a spot of their own round it and standing there, or walking off
+        /// away from a push. See <see cref="HandGatherBehaviour"/>.
+        /// </summary>
+        AnsweringTheHand
     }
 
     /// <summary>
@@ -1416,7 +1423,28 @@ namespace Paniq.Simulation
         RepelThing,
 
         /// <summary>The player's hand pushes people away from the floor at the point. Free. Ends with <see cref="ReleaseInfluence"/>.</summary>
-        RepelSpot
+        RepelSpot,
+
+        // The hand, third pass (2026-09-30, the owner's notes): a hand held
+        // down moves with the pointer, and a debug slider sets how strongly
+        // the hand is felt. Appended only.
+
+        /// <summary>
+        /// The held hand slides to the point (the owner: "when left click is
+        /// held, if then dragged the influence point should move with the
+        /// pointer. So agents can be guided with this"). It becomes a hand on
+        /// the floor there; whoever was answering it goes on answering it. No
+        /// target. Free.
+        /// </summary>
+        MoveInfluence,
+
+        /// <summary>
+        /// The Tab panel's hand strength (2026-09-30): how strongly everybody
+        /// feels the hand, in percent of the level's own, carried in the
+        /// point's X. A tuning dial for finding the value to keep, in the run
+        /// so a replay replays it. Free.
+        /// </summary>
+        SetHandStrength
     }
 
     /// <summary>

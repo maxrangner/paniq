@@ -30,6 +30,17 @@ namespace Paniq.Presentation
             Vision = CreateLit(new Color(0.25f, 0.7f, 1f));
             Agent = CreateLit(new Color(0.78f, 0.84f, 0.9f));
 
+            // Button eyes (2026-09-30): one shared white and one shared black,
+            // never recoloured, so a crowd's eyes cost two materials in all.
+            // The white is unlit, so a face turned away from the light still
+            // has bright eyes on it rather than grey ones.
+            // Falls back to lit, like everything else, if no unlit shader made
+            // it into the build.
+            var white = new Color(0.97f, 0.97f, 0.95f);
+            Shader unlit = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
+            EyeWhite = unlit != null ? new Material(unlit) { color = white } : CreateLit(white);
+            Pupil = CreateLit(new Color(0.03f, 0.03f, 0.04f));
+
             // Unlit and coloured per vertex, so icons stay bright and can fade.
             Shader iconShader = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit");
             Icon = new Material(iconShader);
@@ -93,6 +104,8 @@ namespace Paniq.Presentation
         public Material Wall { get; }
         public Material Vision { get; }
         public Material Agent { get; }
+        public Material EyeWhite { get; }
+        public Material Pupil { get; }
         public Material Icon { get; }
         public Material Door { get; }
         public Material Box { get; }
@@ -126,7 +139,7 @@ namespace Paniq.Presentation
 
         public void Destroy()
         {
-            foreach (Material material in new[] { Room, Wall, Vision, Agent, Icon, Door, Box, Outside, Fire, SeeThrough, WallMark, FireSeeThrough })
+            foreach (Material material in new[] { Room, Wall, Vision, Agent, EyeWhite, Pupil, Icon, Door, Box, Outside, Fire, SeeThrough, WallMark, FireSeeThrough })
             {
                 if (material != null)
                 {

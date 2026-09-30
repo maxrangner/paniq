@@ -8,7 +8,7 @@ namespace Paniq.Presentation
     /// snowflake while they are frozen with fear, little yellow stars
     /// circling while they are knocked out cold, a "?" while they turn to
     /// see what a noise was, "..." while idling, and the person's number
-    /// (matching the Tab stats panel). Icons live on their own
+    /// (matching the stats table in the Tab panel). Icons live on their own
     /// anchor that always faces the camera, so they never spin with the body
     /// or tip over when it falls. Presentation only.
     /// </summary>
@@ -190,9 +190,21 @@ namespace Paniq.Presentation
             bool idling,
             bool leadingOthers,
             float time,
-            bool forTheHand = false)
+            bool forTheHand = false,
+            bool showMarks = true,
+            bool showNumber = true)
         {
             root.SetPositionAndRotation(anchor, cameraRotation);
+
+            // The Tab panel can hide the marks and the number (2026-09-30).
+            // Only what is drawn is switched off: the timers below run on, so
+            // turning the marks back on shows whatever is still current.
+            forTheHand &= showMarks;
+            bool frozenLook = frozen && showMarks;
+            knockedOut &= showMarks;
+            investigating &= showMarks;
+            idling &= showMarks;
+            leadingOthers &= showMarks;
 
             // Answering the player's hand: a gold hand, bobbing.
             hand.gameObject.SetActive(forTheHand);
@@ -203,7 +215,7 @@ namespace Paniq.Presentation
 
             // "!" pops in with an overshoot, holds, then fades.
             float noticeAge = time - noticeTime;
-            bool showNotice = noticeAge >= 0f && noticeAge < NoticeDuration;
+            bool showNotice = showMarks && noticeAge >= 0f && noticeAge < NoticeDuration;
             notice.gameObject.SetActive(showNotice);
             if (showNotice)
             {
@@ -215,7 +227,7 @@ namespace Paniq.Presentation
 
             // Three arcs appear from the inside out, beside the head on the side the person faces.
             float yellAge = time - yellTime;
-            bool showYell = yellAge >= 0f && yellAge < YellDuration;
+            bool showYell = showMarks && yellAge >= 0f && yellAge < YellDuration;
             yell.gameObject.SetActive(showYell);
             if (showYell)
             {
@@ -240,7 +252,7 @@ namespace Paniq.Presentation
             }
 
             wasFrozen = frozen;
-            snowflake.gameObject.SetActive(frozen && !showNotice);
+            snowflake.gameObject.SetActive(frozenLook && !showNotice);
             if (snowflake.gameObject.activeSelf)
             {
                 float age = time - frozenSince;
@@ -249,7 +261,7 @@ namespace Paniq.Presentation
                 snowflake.localRotation = Quaternion.Euler(0f, 0f, time * 25f + spinOffset);
             }
 
-            number.gameObject.SetActive(true);
+            number.gameObject.SetActive(showNumber);
             // Stars chase each other round a flattened circle, as if orbiting the head.
             SetActive(stars, knockedOut);
             if (knockedOut)
@@ -267,7 +279,7 @@ namespace Paniq.Presentation
             // Annoyed: an orange scribble that shakes and fades, over
             // everything but the "!".
             float annoyedAge = time - annoyedTime;
-            bool showAnnoyed = annoyedAge >= 0f && annoyedAge < AnnoyedDuration && !showNotice;
+            bool showAnnoyed = showMarks && annoyedAge >= 0f && annoyedAge < AnnoyedDuration && !showNotice;
             annoyed.gameObject.SetActive(showAnnoyed);
             if (showAnnoyed)
             {

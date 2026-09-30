@@ -565,7 +565,7 @@ namespace Paniq.Presentation
                 ("W A S D", "move the camera"),
                 ("Q E", "turn an eighth: corner, side, corner"),
                 ("Wheel", "zoom"),
-                ("Tab", "everyone's stats"),
+                ("Tab", "what to show: vision cones, numbers, marks, everyone's stats, the walkable floor"),
                 ("G", "the floor people can walk on"),
                 ("Space", "start and stop the world (or the Pause button, top right)"),
                 ("Reset", "the button top right: back to the start card, keeping the seed"),
@@ -609,14 +609,15 @@ namespace Paniq.Presentation
         /// <summary>
         /// One row per person, numbered like the labels over their heads, then
         /// <paramref name="footer"/>: which physics feel is in use, and so on.
+        /// Its top edge is <paramref name="top"/>, so it can sit under the Tab
+        /// panel when that is open.
         /// </summary>
-        public static void DrawStats(RunSnapshot snapshot, string footer)
+        public static void DrawStats(RunSnapshot snapshot, string footer, float top)
         {
             const float rowHeight = 20f;
             float width = 640f;
             float height = rowHeight * (snapshot.Agents.Count + 3) + 12f;
-            // Below Reset and Pause, which sit in the top-right corner.
-            var area = new Rect(Screen.width - width - 20f, 108f, width, height);
+            var area = new Rect(Screen.width - width - 20f, top, width, height);
             GUI.color = new Color(0f, 0f, 0f, 0.75f);
             GUI.DrawTexture(area, Texture2D.whiteTexture);
             GUI.color = Color.white;

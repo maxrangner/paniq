@@ -432,6 +432,23 @@ own rules are marked.
 | Versions | `SimulationCompatibilityVersion` 74 → 75; `ContentRevision` 86 → 87; all fifteen fingerprints re-recorded (the tower's new fall moves every run it falls in) | -- | -- |
 | Tests | New: `InfluenceTheHandEditModeTests` (the steady answer within seconds and the strong-willed never; a click's three seconds; the push sends the calm away and turns the frightened off a door; a coward fights with the bottle; three weak people break a locked door together; the card door pounded and never broken, and somebody sent for the card; a weak person heaves a crate after straining). `BoxTowerEditModeTests.TheTower_ComesDownWhereTheRunnerStoodWhenItBeganToCreak`. `DoorClicksEditModeTests` (the beacon click and the hold; the card aimed at up on the desk). Changed: the tug stops a runner within twenty ticks; the cruel wedge at evil 8 (9 refuses) | -- | -- |
 
+## Prototype 3: eyes and the Tab panel (2026-09-30)
+
+The owner asked for eyes "so we can see the direction they are facing" and
+for Tab to open "debug settings" with switches for the vision cones, the
+numbers and the icons. Asked, the owner chose **white eyes with black
+pupils** and **everything showing at Play, as before**. The rest was chosen
+on the owner's behalf and is theirs to overturn.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **The eyes** | Two white spheres with a black pupil each, children of the body's capsule (`AgentViews.CreateEyes`), high on the rounded top about 20 degrees above its widest point, 17 cm across on a half-metre person. The whites are unlit, the pupils lit; two shared materials for the whole crowd (`PresentationMaterials.EyeWhite`, `Pupil`). Not recoloured by fear; not drawn through walls | **The owner's choice** of look. Seen in pictures from the play camera: at 11 cm they were lost even close up, and lit whites went grey on a face turned from the light. High on the head, so the camera above still finds them on somebody side-on; from behind they are hidden, which says "facing away" | Bigger crowds make four spheres a person show in the profile; or the model pipeline gives people real faces |
+| **The Tab panel** | Tab opens a small panel top right (`DebugView`) with five switches: vision cones, numbers over heads, marks over heads, everyone's stats (the table Tab used to open alone) and the walkable floor (G still flips it too). The stats table sits under the panel | The table stays one key away, and G keeps working | The panel grows past a handful of switches |
+| **What starts on** | Cones, numbers and marks on; stats and the walkable floor off | **The owner's choice**: as it always looked | -- |
+| **How long a switch lasts** | While the game runs, Reset included; nothing saved to disk, so every press of Play starts from the same picture | A hidden setting carried over from yesterday could look like a bug in a playtest, or change what a test sees | The owner tires of setting them again each time |
+| **What "marks" covers** | Everything over a head except the number: `!`, `)))`, `?`, `#!`, `...`, the snowflake, the stars, the leader's star, the gold hand. Not the group band at the ankles or the influence lines, which are on the body and the floor | The owner's word was "icons", the things floating over a head | The owner wants one of those hidden too |
+| Tests | `RoundPresentationPlayModeTests`: everybody has two eyes, up on the head and on the side they face; the panel's switches hide and bring back the cones, numbers and marks | -- | -- |
+
 ## Alignment with the three requirements for the finished game (2026-09-24)
 
 The owner stated three requirements for the finished game (recorded in the

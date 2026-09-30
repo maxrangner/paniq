@@ -1979,9 +1979,20 @@ namespace Paniq.Simulation
 
             for (int d = 0; d < placedCount; d++)
             {
-                if (IsDoorOpen(d) && doorNeighbour[d] < 0 &&
-                    BeyondDistance(d, position) >= exits.EscapeDepthMillimetres &&
-                    IsInFrontOf(d, position))
+                if (!IsDoorOpen(d) || doorNeighbour[d] >= 0)
+                {
+                    continue;
+                }
+
+                // Straight out of the gap: once far enough out. Off to one side
+                // of it (2026-09-30): once the whole body is clear of the wall,
+                // or somebody walking out at a slant drifts along the outside
+                // wall uncounted, short of the depth, out of every room.
+                long beyond = BeyondDistance(d, position);
+                long along = Math.Abs(AlongOffset(d, position));
+                bool straightOut = along <= doors[d].Width / 2 && beyond >= exits.EscapeDepthMillimetres;
+                bool offToTheSide = along <= doors[d].Width / 2 + EscapeSideMarginMillimetres && beyond >= radius;
+                if (straightOut || offToTheSide)
                 {
                     return d;
                 }
@@ -1989,6 +2000,16 @@ namespace Paniq.Simulation
 
             return -1;
         }
+
+        /// <summary>
+        /// How far to either side of a way out's gap a body clear of its wall
+        /// still counts as out of the building (2026-09-30): somebody carried
+        /// out on their back and getting up half a metre to one side, or
+        /// walking out at a slant after a leader, was outside every room and
+        /// never counted, and wandered off along the outside wall. Inside a
+        /// room never counts.
+        /// </summary>
+        private const int EscapeSideMarginMillimetres = 1500;
 
         private static LogicalPosition Clamp(LogicalPosition position, LogicalBounds bounds, int radius)
         {

@@ -64,10 +64,16 @@ namespace Paniq.Simulation
             bool isTugged = false,
             bool isShakingFree = false,
             bool actingForTheHand = false,
-            bool actingAgainstTheirNature = false)
+            bool actingAgainstTheirNature = false,
+            AgentTell tell = AgentTell.None,
+            int tellProgress = 0,
+            int tellHeading = 0)
         {
             ActingForTheHand = actingForTheHand;
             ActingAgainstTheirNature = actingAgainstTheirNature;
+            Tell = tell;
+            TellProgress = tellProgress;
+            TellHeading = tellHeading;
             GroupId = groupId;
             IsAnnoyed = isAnnoyed;
             IsRattled = isRattled;
@@ -120,6 +126,16 @@ namespace Paniq.Simulation
         /// <see cref="CausalEventType.AgentActedForTheHand"/>): they tremble.
         /// </summary>
         public bool ActingAgainstTheirNature { get; }
+
+        /// <summary>
+        /// Winding up to something dangerous (2026-09-30): going stiff,
+        /// gathering nerve or turning back. A ring shrinks at their feet as
+        /// <see cref="TellProgress"/> runs from 0 to 1000, and a click before it
+        /// closes saves them. <see cref="TellHeading"/> is the way they mean to go.
+        /// </summary>
+        public AgentTell Tell { get; }
+        public int TellProgress { get; }
+        public int TellHeading { get; }
 
         /// <summary>
         /// How high their feet are off the floor and how their body is turned,

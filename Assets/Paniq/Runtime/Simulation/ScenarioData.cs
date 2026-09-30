@@ -841,7 +841,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "88";
+        public string ContentRevision = "89";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -1069,7 +1069,12 @@ namespace Paniq.Simulation
         // come with a bag or an errand still to come, and finish a door or a
         // crate they have begun; a door does what was asked at the press; a
         // noise drops what a calm person was on the way to fetch.
-        public int SimulationCompatibilityVersion = 76;
+        // 77: tells (2026-09-30): a second or so of visible wind-up before
+        // somebody freezes (going stiff), dashes through the heat (gathering
+        // nerve) or heads back toward the flames (turning back), caught by a
+        // poke, a tug or the hand -- and then they run, give the door up, or
+        // stay out of it for a while.
+        public int SimulationCompatibilityVersion = 77;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -1106,6 +1111,9 @@ namespace Paniq.Simulation
         public CalmingSettings Calming = new CalmingSettings();
         public InfluenceSettings Influence = new InfluenceSettings();
         public KeycardSettings Keycard = new KeycardSettings();
+
+        /// <summary>The wind-up before somebody freezes, dashes or goes back toward the flames (2026-09-30).</summary>
+        public TellSettings Tells = new TellSettings();
 
         public AgentDefinition[] Agents = PrototypeBuilding.DefaultAgents();
         public DoorDefinition[] Doors = PrototypeBuilding.DefaultDoors();
@@ -1217,6 +1225,7 @@ namespace Paniq.Simulation
             copy.Calming = Calming?.Clone();
             copy.Influence = Influence?.Clone();
             copy.Keycard = Keycard?.Clone();
+            copy.Tells = Tells?.Clone();
             copy.Agents = (AgentDefinition[])Agents?.Clone();
             copy.Doors = (DoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (PhysicsObjectDefinition[])PhysicsObjects?.Clone();
@@ -1288,6 +1297,7 @@ namespace Paniq.Simulation
             Calming.Validate();
             Influence.Validate();
             Keycard.Validate();
+            Tells.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");

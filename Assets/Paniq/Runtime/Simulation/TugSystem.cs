@@ -75,6 +75,9 @@ namespace Paniq.Simulation
             tug.TearsFreeAtTick = TearFreeTick(agent);
             held = agent.Index;
 
+            // Winding up to something dangerous (2026-09-30): the tug catches it.
+            TellSystem.Catch(context, agent, tug.TugEventId);
+
             // They look round for whoever has hold of them, a beat later, as
             // the nudged do; a tug frightens nobody and annoys nobody.
             nudges.Startle(agent, tug.TugEventId);

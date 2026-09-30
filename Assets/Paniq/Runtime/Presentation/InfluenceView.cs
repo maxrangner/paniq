@@ -32,6 +32,12 @@ namespace Paniq.Presentation
         private readonly Transform parent;
         private readonly ParticleEffects effects;
         private readonly List<LineRenderer> auras = new List<LineRenderer>();
+
+        /// <summary>The countdown rings of people winding up to something dangerous (2026-09-30).</summary>
+        private readonly List<LineRenderer> tellRings = new List<LineRenderer>();
+
+        /// <summary>A hot red-orange: the colour of the danger they are winding up toward.</summary>
+        private static readonly Color TellGlow = new Color(1f, 0.32f, 0.12f, 1f);
         private readonly List<LineRenderer> lines = new List<LineRenderer>();
         private readonly List<float> sparkleCarry = new List<float>();
 
@@ -66,6 +72,27 @@ namespace Paniq.Presentation
                 auras[i].enabled = false;
             }
 
+            // Tells (2026-09-30, the owner: "the visible agent tells"): a ring
+            // at the feet of anybody winding up to something dangerous,
+            // shrinking to nothing as their time runs out -- the creak, for
+            // people. Always drawn, whatever the Tab panel hides: it is play.
+            int tells = 0;
+            int people = snapshot == null ? 0 : snapshot.Agents.Count;
+            for (int i = 0; i < people; i++)
+            {
+                AgentSnapshot agent = snapshot.Agents[i];
+                if (agent.Tell != AgentTell.None && agent.FearState == AgentFearState.Scared && !agent.IsBurning &&
+                    agent.Participation == AgentParticipation.Participating)
+                {
+                    DrawTellRing(tells++, agent, time);
+                }
+            }
+
+            for (int i = tells; i < tellRings.Count; i++)
+            {
+                tellRings[i].enabled = false;
+            }
+
             int pulls = snapshot == null ? 0 : snapshot.InfluencePulls.Count;
             int drawn = 0;
             for (int i = 0; i < pulls; i++)
@@ -85,6 +112,37 @@ namespace Paniq.Presentation
             {
                 lines[i].enabled = false;
             }
+        }
+
+        /// <summary>
+        /// A tell's countdown: a red-orange ring at their feet, closing from
+        /// most of a metre to a hand's width as the wind-up runs out, and
+        /// pulsing faster the closer it gets.
+        /// </summary>
+        private void DrawTellRing(int index, AgentSnapshot agent, float time)
+        {
+            while (tellRings.Count <= index)
+            {
+                tellRings.Add(NewLine("Tell countdown (presentation)", AuraSegments, true));
+            }
+
+            LineRenderer ring = tellRings[index];
+            float wound = Mathf.Clamp01(agent.TellProgress / 1000f);
+            Vector3 middle = ToUnityPosition(agent.Position) + Vector3.up * 0.05f;
+            float radius = Mathf.Lerp(0.85f, 0.12f, wound);
+            for (int s = 0; s < AuraSegments; s++)
+            {
+                float angle = s / (float)AuraSegments * Mathf.PI * 2f;
+                ring.SetPosition(s, middle + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius));
+            }
+
+            float pulse = 0.65f + 0.35f * Mathf.Sin(time * Mathf.Lerp(8f, 26f, wound) + index);
+            Color colour = TellGlow;
+            colour.a = Mathf.Lerp(0.6f, 1f, wound) * pulse;
+            ring.startColor = colour;
+            ring.endColor = colour;
+            ring.widthMultiplier = Mathf.Lerp(0.05f, 0.11f, wound);
+            ring.enabled = true;
         }
 
         /// <summary>A ring on the floor that breathes and flickers, wider and brighter the more clicks it has, throwing off sparks.</summary>

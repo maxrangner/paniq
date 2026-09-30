@@ -429,11 +429,42 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            agent.Doors.DashingUntilTick = checked(tick + context.Jittered(settings.DashTicks));
-            agent.Doors.HidFromHeatAtDoor = -1;
-            context.Events.Append(tick, agent.Id, CausalEventType.AgentDashedThroughHeat, position, 0, 0,
-                agent.Fear.ScaredEventId, doors.IdOf(door));
+            // Gathering nerve (2026-09-30, the owner: "the visible agent
+            // tells"): a second or so on their toes, facing the door, before
+            // they go -- and a poke, a tug or the hand in it calls the dash off.
+            // The door stays their choice meanwhile; the moment the wind-up
+            // runs out, the dash begins (DashNow).
+            if (tells != null && tells.Enabled && !TellSystem.TryPass(agent, AgentTell.GatheringNerve, door))
+            {
+                if (!TellSystem.IsTelling(agent))
+                {
+                    tells.Start(agent, AgentTell.GatheringNerve,
+                        IntegerMath.HeadingBetween(position, ApproachPoint(door, room), agent.Body.Heading), door,
+                        agent.Fear.ScaredEventId);
+                }
+
+                return true;
+            }
+
+            DashNow(agent, door);
             return true;
+        }
+
+        /// <summary>
+        /// Running for a door through the heat, from now: a few seconds,
+        /// jittered, in which the flames at their danger distance neither turn
+        /// them back nor make them shut the door. Straight after a wind-up that
+        /// ran out uncaught (2026-09-30): waiting for the next choice of door
+        /// left a tick in which they shut the door against the fire instead.
+        /// </summary>
+        public void DashNow(Agent agent, int door)
+        {
+            TellSystem.TryPass(agent, AgentTell.GatheringNerve, door);
+            agent.Doors.ExitDoorIndex = door;
+            agent.Doors.DashingUntilTick = checked(context.Tick + context.Jittered(settings.DashTicks));
+            agent.Doors.HidFromHeatAtDoor = -1;
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDashedThroughHeat, agent.Body.Position, 0, 0,
+                agent.Fear.ScaredEventId, doors.IdOf(door));
         }
 
         /// <summary>Whether a straight walk from here to there keeps off burning floor: no burning square within the dash clearance of the line, or of the spot itself.</summary>
@@ -1702,6 +1733,20 @@ namespace Paniq.Simulation
             people = systems.People;
             influence = systems.Influence;
             keycards = systems.Keycards;
+            tells = systems.Tells;
+        }
+
+        /// <summary>The wind-up before a dash through the heat (2026-09-30).</summary>
+        private TellSystem tells;
+
+        /// <summary>
+        /// A dash through the heat caught in its wind-up (2026-09-30): the door
+        /// is given up for a while, as by somebody who chose to hide.
+        /// </summary>
+        public void GiveUpTheHotDoorForAWhile(Agent agent, int door)
+        {
+            agent.Doors.AvoidUntilTick[door] = checked(context.Tick + context.Random.NextIntInclusive(
+                settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
         }
 
         /// <summary>The keycard (2026-09-27): told when somebody finds the card door shut.</summary>

@@ -29,7 +29,11 @@
             objects = systems.Objects;
             cues = systems.Cues;
             influence = systems.Influence;
+            tells = systems.Tells;
         }
+
+        /// <summary>The wind-up before somebody freezes (2026-09-30).</summary>
+        private TellSystem tells;
 
         /// <summary>The player's hand, built after this (2026-09-30): the startled turn to it.</summary>
         private InfluenceSystem influence;
@@ -233,6 +237,14 @@
                 agent.Fear.FreezeEndTick == int.MaxValue ? 0 : agent.Fear.FreezeEndTick - tick,
                 scared.EventId);
             agent.Fear.FrozeEventId = froze.EventId;
+
+            // Going stiff (2026-09-30, the owner: "the visible agent tells"):
+            // a second or so of shivering, harder and harder, before they lock
+            // up -- and one poke, a tug or the hand in it, and they run instead.
+            if (tells != null && tells.Enabled)
+            {
+                tells.Start(agent, AgentTell.GoingStiff, agent.Body.Heading, -1, froze.EventId);
+            }
         }
 
         /// <summary>
@@ -241,6 +253,7 @@
         /// </summary>
         public void Unfreeze(Agent agent, ulong causalParentEventId = 0UL)
         {
+            TellSystem.Forget(agent);
             context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentUnfroze, agent.Body.Position, 0, 0,
                 causalParentEventId != 0UL ? causalParentEventId : agent.Fear.FrozeEventId);
             StartFleeing(agent);
@@ -482,7 +495,7 @@
             bool free = activity == AgentActivityState.Fleeing || activity == AgentActivityState.Hesitating ||
                         activity == AgentActivityState.Frozen || activity == AgentActivityState.Standing;
             if (!free || agent.Body.State != AgentBodyState.Upright || agent.Help.TargetIndex >= 0 ||
-                agent.Sitting.Phase == SitPhase.LeapingUp)
+                agent.Sitting.Phase == SitPhase.LeapingUp || TellSystem.IsTelling(agent))
             {
                 return;
             }

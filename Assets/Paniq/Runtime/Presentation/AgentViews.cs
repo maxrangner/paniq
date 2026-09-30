@@ -394,6 +394,40 @@ namespace Paniq.Presentation
                         shake = side * (Mathf.Sin(time * AnnoyedShakeRate + view.ShakePhase) * 0.05f);
                         roll = Mathf.Sin(time * AnnoyedShakeRate + view.ShakePhase) * 7f;
                     }
+                    else if (agent.Tell != AgentTell.None && agent.FearState == AgentFearState.Scared)
+                    {
+                        // Winding up to something dangerous (2026-09-30, the
+                        // owner: "the visible agent tells"), the ring at their
+                        // feet closing: going stiff shivers harder and harder;
+                        // gathering nerve bounces on the toes; turning back
+                        // looks back over the shoulder, again and again.
+                        float wound = agent.TellProgress / 1000f;
+                        if (agent.Tell == AgentTell.GoingStiff)
+                        {
+                            float rate = Mathf.Lerp(30f, 60f, wound);
+                            float size = Mathf.Lerp(0.01f, 0.045f, wound);
+                            shake = new Vector3(
+                                Mathf.Sin(time * rate + view.ShakePhase) * size,
+                                0f,
+                                Mathf.Sin(time * rate * 1.13f + view.ShakePhase * 1.7f) * size);
+                            roll = Mathf.Sin(time * rate * 0.9f + view.ShakePhase) * Mathf.Lerp(1f, 5f, wound);
+                            twist = 0f;
+                            bounce = 0f;
+                        }
+                        else if (agent.Tell == AgentTell.GatheringNerve)
+                        {
+                            bounce = Mathf.Abs(Mathf.Sin(time * 13f + view.ShakePhase)) * 0.08f;
+                            lean = 10f;
+                            roll = 0f;
+                            twist = 0f;
+                        }
+                        else
+                        {
+                            twist = Mathf.Sin(time * 6f + view.ShakePhase) * 40f;
+                            roll = 0f;
+                            bounce = 0f;
+                        }
+                    }
                     else if (frozen)
                     {
                         // Trembling on the spot.
@@ -548,7 +582,8 @@ namespace Paniq.Presentation
             DebugView show)
         {
             bool participating = agent.Participation == AgentParticipation.Participating;
-            bool frozen = agent.ActivityState == AgentActivityState.Frozen;
+            // Going stiff is not frozen yet (2026-09-30): no snowflake, no ice, until the ring closes.
+            bool frozen = agent.ActivityState == AgentActivityState.Frozen && agent.Tell != AgentTell.GoingStiff;
             bool burning = agent.IsBurning && participating;
             Color bodyColor = agent.Outcome == AgentTerminalOutcome.Lost
                 ? LostColor

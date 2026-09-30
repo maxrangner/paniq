@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("88"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(76));
+            Assert.That(data.ContentRevision, Is.EqualTo("89"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(77));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -738,8 +738,9 @@ namespace Paniq.Tests.EditMode
 
                     // Frozen, staggering and fallen people are meant to stand
                     // still, and so are people working a door handle or
-                    // crouching over someone they are helping.
-                    bool fleeing = agent.FearState == AgentFearState.Scared &&
+                    // crouching over someone they are helping -- and, since
+                    // 2026-09-30, anybody winding up to something (a tell).
+                    bool fleeing = agent.FearState == AgentFearState.Scared && agent.Tell == AgentTell.None &&
                                    agent.BodyState == AgentBodyState.Upright &&
                                    agent.ActivityState != AgentActivityState.Frozen &&
                                    agent.ActivityState != AgentActivityState.OpeningDoor &&
@@ -1042,6 +1043,12 @@ namespace Paniq.Tests.EditMode
             data.Perception.MaximumReactionDelayTicks = 0;
             data.Hearing.YellAlarmRadiusMillimetres = 2500;
             data.Fire.SpawnBounds = new LogicalBounds(2100, 2100, 100, 100);
+
+            // No tells (2026-09-30): the one who freezes would draw a wind-up
+            // from the run's stream, which moves the next yell a few ticks
+            // earlier and startles the listener before they have turned. This
+            // is about the two reaches of a yell.
+            data.Tells.Enabled = false;
 
             var simulation = new Run(data);
             simulation.Step();

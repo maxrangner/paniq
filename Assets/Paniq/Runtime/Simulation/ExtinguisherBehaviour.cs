@@ -22,6 +22,29 @@ namespace Paniq.Simulation
         public void Bind(Systems systems)
         {
             influence = systems.Influence;
+            tells = systems.Tells;
+        }
+
+        /// <summary>The wind-up before going at the fire (2026-09-30).</summary>
+        private TellSystem tells;
+
+        /// <summary>
+        /// Before going at the fire (2026-09-30): the turning-back tell, unless
+        /// the player's hand sent them. Null to go; else the intent to return
+        /// (standing through the wind-up), with <paramref name="refused"/> true
+        /// when a caught tell keeps them out of it for now.
+        /// </summary>
+        private MotorIntent? WindUpToTheFire(Agent agent, bool sentByTheHand, out bool refused)
+        {
+            refused = false;
+            if (tells == null)
+            {
+                return null;
+            }
+
+            TellSystem.GoingBack going = tells.BeforeGoingAtTheFire(agent, agent.Fear.ScaredEventId, sentByTheHand);
+            refused = going == TellSystem.GoingBack.Refuse;
+            return going == TellSystem.GoingBack.Wait ? tells.StandIntent(agent) : (MotorIntent?)null;
         }
 
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
@@ -168,6 +191,12 @@ namespace Paniq.Simulation
             if (!inDanger && held >= 0 && agent.Carry.Holding && agent.Carry.OwnsIt && objects.IsEquipment(held) &&
                 WouldKeepTheBottle(agent) && CanReachTheFlames(agent))
             {
+                MotorIntent? windUp = WindUpToTheFire(agent, agent.Carry.ForTheHand, out bool refused);
+                if (windUp.HasValue || refused)
+                {
+                    return windUp;
+                }
+
                 agent.Carry.OwnsIt = false;
                 agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
                 agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FightTimeoutTicks));
@@ -235,6 +264,12 @@ namespace Paniq.Simulation
             if (extinguisher < 0)
             {
                 return null;
+            }
+
+            MotorIntent? windingUp = WindUpToTheFire(agent, false, out bool refusing);
+            if (windingUp.HasValue || refusing)
+            {
+                return windingUp;
             }
 
             agent.Carry.ItemIndex = extinguisher;

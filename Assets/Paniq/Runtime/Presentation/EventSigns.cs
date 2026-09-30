@@ -307,6 +307,8 @@ namespace Paniq.Presentation
                 case CausalEventType.KeycardDropped: return "the card!";
                 case CausalEventType.DoorUnlockedWithKeycard: return "swiped!";
                 case CausalEventType.AgentActedForTheHand: return "for you...";
+                case CausalEventType.AgentBeganATell: return "going stiff...";
+                case CausalEventType.AgentCaughtInTime: return "caught!";
                 default: return null;
             }
         }
@@ -329,6 +331,7 @@ namespace Paniq.Presentation
                 case CausalEventType.AllClear:
                 case CausalEventType.AgentTookKeycard:
                 case CausalEventType.DoorUnlockedWithKeycard:
+                case CausalEventType.AgentCaughtInTime:
                     return true;
                 default:
                     return false;
@@ -353,10 +356,18 @@ namespace Paniq.Presentation
             // The Director lighting another bin after a quick put-out
             // (2026-09-27) says so, so the player sees it was deliberate.
             bool anotherBin = record.EventType == CausalEventType.DirectorStartedIncident && record.Strength > 1;
-            caption = who + (anotherBin ? "another one!" : WordsFor(record.EventType));
+            caption = who + (anotherBin ? "another one!"
+                : record.EventType == CausalEventType.AgentBeganATell ? TellWords((AgentTell)record.Strength)
+                : WordsFor(record.EventType));
             good = IsGoodNews(record.EventType);
             return true;
         }
+
+        /// <summary>What a tell's sign says (2026-09-30): the wind-up, in the person's own words.</summary>
+        private static string TellWords(AgentTell tell) =>
+            tell == AgentTell.GoingStiff ? "going stiff..."
+            : tell == AgentTell.GatheringNerve ? "here goes..."
+            : "I have to go back!";
 
         /// <summary>
         /// Who a sign is about: the target, for what happens to somebody; the

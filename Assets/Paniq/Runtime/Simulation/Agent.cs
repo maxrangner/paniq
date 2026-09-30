@@ -191,7 +191,10 @@ namespace Paniq.Simulation
                 Tug.Held,
                 tick < Tug.ShookFreeShownUntilTick,
                 actingForTheHand,
-                actingAgainstTheirNature);
+                actingAgainstTheirNature,
+                Intent.Tell,
+                TellSystem.ProgressOf(this, tick),
+                Intent.TellHeading);
         }
     }
 
@@ -382,6 +385,27 @@ namespace Paniq.Simulation
 
         /// <summary>A press whose door they found they could not do what it asked of (an open door that will not shut): not tried again until pressed afresh (2026-09-30).</summary>
         public ulong DoorGaveUpOnPress;
+
+        /// <summary>
+        /// Their tell, if they are winding up to something dangerous
+        /// (2026-09-30; <see cref="TellSystem"/>): what, from when to when,
+        /// which way they face, what it is about, and a catch by the player
+        /// taking hold at <see cref="TellCaughtAtTick"/> (0 for none).
+        /// </summary>
+        public AgentTell Tell;
+        public int TellStartTick;
+        public int TellEndTick;
+        public int TellHeading;
+        public int TellTarget = -1;
+        public int TellCaughtAtTick;
+        public ulong TellCauseEventId;
+
+        /// <summary>A tell that has just run its course uncaught, and what it was about: the commit that follows uses it up.</summary>
+        public AgentTell TellPassed;
+        public int TellPassedTarget = -1;
+
+        /// <summary>Caught turning back toward the flames: they will not head back until this tick.</summary>
+        public int TurnBackRefusedUntilTick;
 
         /// <summary>
         /// What they are doing for the hand is against their nature (2026-09-30):

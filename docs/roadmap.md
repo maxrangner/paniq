@@ -27,7 +27,10 @@ on its runner; its eighth (2026-09-30) is the hand's third pass: the
 frightened coming to the hand instead of running past it, the hand dragged
 to guide people, a hand on fallen boxes clearing them all, a hand-strength
 slider to find the value to keep, and twenty-odd faults found in a read of
-the whole hand. All are under "Prototype 3" further down.
+the whole hand; its ninth (2026-09-30) is tells -- a second of visible wind-up
+before somebody freezes, dashes through the heat or goes back toward the
+flames, in which one click saves them -- and the end card's tally of how much
+the player used their hand. All are under "Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -671,6 +674,62 @@ the owner to find; the value found becomes the new default.
   floor near fallen boxes clears them) is a surprise.
 - Whether finishing a job after a click reads as "they heard you", or as the
   hand not letting go.
+
+## Prototype 3: tells, and the hand's tally (2026-09-30)
+
+After the third pass of the hand the owner asked whether this is a foundation
+for fun. The answer given was that the fun of a game like this is spinning
+plates -- many small crises at once, each one saved by a quick click if you
+see it coming -- and that people had nothing like the tower's creak: every
+dangerous thing they did, they decided and did on the same tick. The owner
+asked for "the visible agent tells", kept "the influence strength slider"
+(built with the third pass), and asked for "the stat at the end about how many
+clicks/influence you used this round". No questions went to the owner; every
+default is in the [decisions](technical-decisions.md#prototype-3-tells-and-the-hands-tally-2026-09-30).
+One batch, one commit, on `feat/prototype-3-gameplay`.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| Going stiff | Behaviour | Somebody about to freeze shivers harder and harder for about a second, a red ring shrinking at their feet, "going stiff...". One poke, a tug or the hand before the ring closes: they run instead. Missed: frozen, as ever, and three pokes to wake |
+| Gathering nerve | Behaviour | Somebody about to dash for a door through the heat stands facing it, bouncing on their toes, "here goes...". Caught: the door is given up for a while, and they hide or go another way |
+| Turning back | Behaviour | Somebody about to head back toward the flames -- the card, a pull station, somebody down, the fire with a bottle -- looks back over their shoulder, "I have to go back!". Caught: they stay out of the flames for about ten seconds. Only when the walk passes near the flames, and never for somebody your hand sent |
+| The tally | Presentation | The end card's hand line counts actions and actions a minute; presses (clicks, pushes), pokes, tugs; seconds held; metres dragged; the hand strength if the slider moved; and what came of it: times somebody answered, times somebody did what they never would, tells caught of tells begun |
+
+**Left alone, measured after this batch** (`HandsOffBaselineMeasurements`,
+fifty seeds, nothing tuned, the owner's rule): **4.5 of 20 on average
+(22%)**, seven seeds clearing the 75% bar and seven saving more than half
+(42, 43, 55, 56, 71, 76, 83); the batch before was 4.2, nine and eleven.
+Nobody catches a tell in that round, so every freeze, dash and walk back
+toward the flames simply comes a second later, and people off to one side of
+the way out now count as out. The fifty-seed check stays red, as it was.
+
+**Found on the way.** People carried out of the way out on their backs, or
+walking out at a slant after a leader, could end up just outside the
+building, off to one side of the door, never counted as out, wandering along
+the outside wall. Anybody clear of the wall beside the way out now counts as
+out. And a dash that had just gathered its nerve could shut its own door
+against the fire on the tick in between; the dash now begins the moment the
+wind-up runs out.
+
+**What this deliberately left out.** Tells for anything else (a trip, a
+bolt away from the flames, a calm person walking toward a noise); a tell for
+the calm half of the day; a live counter on screen during the round (the
+tally is on the end card only); the lazy-player measurement offered in the
+design talk.
+
+**Things to watch at the next playtest.**
+
+- Whether a second is enough to see a ring and reach it with the pointer,
+  and whether three rings at once across the office is frantic in the good
+  way.
+- Whether going stiff is now too easy to cancel, so nobody freezes, or
+  still rare enough to matter.
+- Whether caught people read as saved or as confused (a dash called off
+  leaves somebody by the hot door).
+- The tally: the actions a minute of a round that felt frantic against one
+  that felt calm.
+- And the slider's value: the number that felt right, to keep as the level's
+  own.
 
 ## Foundations reviewed (2026-09-23)
 

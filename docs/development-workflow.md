@@ -139,6 +139,7 @@ word is the feature's name. These are the ones that are not:
 | `PurseSystem`, `DeckSystem`, `PlayerCommandSystem` (the player's purse, cards and clicks) | `Powers,Economy,UproarTable,TraitCards` |
 | `InfluenceSystem`, `HandHeaveBehaviour`, `HandGatherBehaviour` (the hand on a place, the push, the drag, what people do for it) | `Influence,Keycard,Alarms,Extinguisher,Errands,ReplayFingerprint` |
 | `TugSystem` (the hand on a person) | `Tug,ReplayFingerprint` |
+| `TellSystem` (the wind-up before a freeze, a dash or going back), `HandTally` (the end card's count of the hand) | `Tells,Extinguisher,Alarms,Keycard,Helping,Cornered,Nudge,Tug,ReplayFingerprint` |
 | `Run` (the tick itself) | `Simulation,ReplayFingerprint` |
 | `UniformGridIndex` (who is near here) | `SpatialIndex` |
 | `IThreat`, `Threats` (what a danger is) | `ThreatSeam,ReplayFingerprint` |

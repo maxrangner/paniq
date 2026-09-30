@@ -22,7 +22,11 @@ namespace Paniq.Simulation
         public void Bind(Systems systems)
         {
             influence = systems.Influence;
+            tells = systems.Tells;
         }
+
+        /// <summary>The wind-up before going back toward the flames (2026-09-30).</summary>
+        private TellSystem tells;
 
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
         private readonly int bodyRadius;
@@ -120,6 +124,23 @@ namespace Paniq.Simulation
             if (alarm < 0)
             {
                 return null;
+            }
+
+            // Turning back (2026-09-30): a walk to a station past the flames
+            // is wound up to first, unless the player's hand sent them.
+            if (tells != null)
+            {
+                TellSystem.GoingBack going = tells.BeforeGoingBack(agent, alarms.PositionOf(alarm),
+                    TellSystem.AlarmTarget(alarm), agent.Fear.ScaredEventId, forTheHand);
+                if (going == TellSystem.GoingBack.Wait)
+                {
+                    return tells.StandIntent(agent);
+                }
+
+                if (going == TellSystem.GoingBack.Refuse)
+                {
+                    return null;
+                }
             }
 
             if (forTheHand)

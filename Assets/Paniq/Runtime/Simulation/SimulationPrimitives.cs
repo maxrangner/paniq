@@ -301,7 +301,15 @@ namespace Paniq.Simulation
         Alarm,
 
         /// <summary>They saw somebody bolt: leap up, or run, frightened. Appended only.</summary>
-        SawSomeoneRun
+        SawSomeoneRun,
+
+        /// <summary>
+        /// The crowd switch (2026-09-30): the player set the whole crowd off
+        /// on a test level. Nothing to see and nothing to hear, so they
+        /// neither turn toward anything nor flee anything in particular.
+        /// Appended only.
+        /// </summary>
+        CrowdSwitch
     }
 
     /// <summary>What an agent is currently choosing to do. Calm and panic activities are separate.</summary>
@@ -1055,7 +1063,25 @@ namespace Paniq.Simulation
         /// people clear. Source: the trap. Strength: ticks until it falls.
         /// Cause: the trigger.
         /// </summary>
-        TrapCreaked
+        TrapCreaked,
+
+        // The crowd switch (2026-09-30): a test level's button that sets the
+        // whole crowd panicking or calms it down. Appended only.
+
+        /// <summary>
+        /// The player flicked the crowd switch to "panicked": everybody in
+        /// the building takes fright, each a few ticks after the next, and
+        /// nobody settles while the switch stays there. A root event. No
+        /// target.
+        /// </summary>
+        PowerPanickedCrowd,
+
+        /// <summary>
+        /// The player flicked the crowd switch to "calm": everybody
+        /// frightened settles, one at a time, and the ordinary rules take
+        /// over again. A root event. No target.
+        /// </summary>
+        PowerCalmedCrowd
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -1341,7 +1367,23 @@ namespace Paniq.Simulation
         TugPerson,
 
         /// <summary>The player lets go of the person they were holding (the target is the person's ID). Free.</summary>
-        ReleaseTug
+        ReleaseTug,
+
+        // The crowd switch (2026-09-30), on the test levels. Appended only.
+
+        /// <summary>
+        /// The player sets the whole crowd panicking: everybody takes fright,
+        /// each a few ticks after the next, and stays frightened until the
+        /// switch is flicked back. No target. Free, and not a card.
+        /// </summary>
+        SetCrowdPanicked,
+
+        /// <summary>
+        /// The player calms the whole crowd down: everybody frightened
+        /// settles, one at a time, and from then on the ordinary rules say
+        /// who takes fright. No target. Free, and not a card.
+        /// </summary>
+        SetCrowdCalm
     }
 
     /// <summary>

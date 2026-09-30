@@ -327,6 +327,8 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerBlastedWall: return "you blew a hole through a wall";
                 case CausalEventType.PowerPoppedFuseBox: return "you popped the fuse box";
                 case CausalEventType.PowerPulledAlarm: return "you pulled a fire alarm";
+                case CausalEventType.PowerPanickedCrowd: return "you set the whole crowd panicking";
+                case CausalEventType.PowerCalmedCrowd: return "you calmed the whole crowd down";
                 case CausalEventType.PowerHeldDoor: return $"you held {who} shut";
                 case CausalEventType.PowerReleasedDoor: return $"you let go of {who}";
                 case CausalEventType.PowerNudged: return $"you nudged {whom}";

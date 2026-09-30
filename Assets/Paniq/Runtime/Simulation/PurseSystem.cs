@@ -328,6 +328,12 @@ namespace Paniq.Simulation
                 case CausalEventType.AgentCalmedDown:
                 case CausalEventType.DirectorPushed:
 
+                // The crowd switch (2026-09-30): the player's own doing on a
+                // test level. What it sets off -- the shouting, the falls --
+                // is paid for by those events, above.
+                case CausalEventType.PowerPanickedCrowd:
+                case CausalEventType.PowerCalmedCrowd:
+
                 // Influence: the player's own doing, and somebody following it.
                 case CausalEventType.PowerInfluenced:
                 case CausalEventType.AgentDrawnByInfluence:

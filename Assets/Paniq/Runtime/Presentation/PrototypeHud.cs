@@ -153,8 +153,10 @@ namespace Paniq.Presentation
             }
             else if (scenario.Round.HazardWaitsForTrigger)
             {
-                // Nothing is counting down: it waits for the player.
-                fireText = snapshot.EventTriggered ? "FIRE STARTING" : "NO FIRE YET";
+                // Nothing is counting down: it waits for the player. Since
+                // the crowd switch (2026-09-30) a round can be under way with
+                // no fire asked for, so "starting" means the trigger itself.
+                fireText = snapshot.HazardRequested ? "FIRE STARTING" : "NO FIRE YET";
             }
             else
             {
@@ -599,7 +601,8 @@ namespace Paniq.Presentation
                 ("G", "the floor people can walk on"),
                 ("Space", "start and stop the world (or the Pause button, top right)"),
                 ("Reset", "the button top right: back to the start card, keeping the seed"),
-                ("Trigger event", "the red button bottom centre starts the fire, once, and goes")
+                ("Trigger event", "the red button bottom centre starts the fire, once, and goes"),
+                ("Crowd", "on a test level, the button beside it: sets the whole crowd panicking, or calms it down again")
             };
 
             int rows = Math.Max(marks.Length, keys.Length);

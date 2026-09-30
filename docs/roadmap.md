@@ -19,7 +19,9 @@ Director cap the round with the building's tricks, and measures what that
 can and cannot do; its sixth (2026-09-29) is the gameplay loop itself, the
 hand: one hand that pulls people toward a place or holds one person back,
 the building playing in the open, and the round judged against the same seed
-left alone. All are under "Prototype 3" further down.
+left alone; its seventh (2026-09-30) steps aside from the office for three
+blank test levels, a level row on the start card and a crowd switch, so the
+crowd can be watched on its own. All are under "Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -536,6 +538,50 @@ the crowd, never the player.
 - Whether the margin line is the number the owner looks at first, and whether
   the four lines of why say enough to change the next round.
 - Whether the eight camera steps lose anything the free swing gave.
+
+## Prototype 3: blank levels to watch crowds in (2026-09-30)
+
+The owner asked for blank levels to test panicked crowds, with a toggle for
+calm or panicked: a large square room with walls, a maze to test following,
+an interaction test level, and as many tests as reasonable -- and asked
+whether levels should be Unity objects to load or an option inside the game.
+The answer is an option inside the game: the one scene already builds any
+building from its data, so a level row on the start card was the small
+change, and each level stays a small asset underneath. The three buildings
+are drawn by code, as the stress-profile building is. One batch, one commit,
+on `feat/test-levels`, merged into `feat/prototype-3-gameplay`; the page is
+[the test levels](test-levels.md).
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| A level row on the start card | System | Under the level's name: **The Office**, **The Square Room**, **The Maze**, **The Interaction Room**. Press one and the scene reloads into it, behind its own start card, on its own seed. Reset and Play again keep the level; each level keeps its own best |
+| The crowd switch | System | On the test levels, where the red button sits: **Crowd: calm** / **Crowd: panicked**. Panicked, everybody takes fright one after another and stays frightened until the switch is flicked back -- anybody found calm again is startled again; calm, everybody settles one at a time, the bells fall silent, and the ordinary rules take over (a fire lit afterwards frightens them afresh). The owner's rule: "toggle button in UI, calm or panicked, toggling should set their states". Two recorded commands, so a run with it replays; through the same startle and settle as a bell, so nobody moves on the tick it is pressed |
+| The Square Room | Level | A 24 m square with a shut, unlocked door in each wall, a bell on each wall and a pull station; forty people in a block, personalities dealt by the seed; nothing burns, so no Trigger button. Right-click a door to lock it and watch the crush at the others |
+| The Maze | Level | Thirty-six 4 m cells joined by 2 m archways, one way out, sixteen cells and seven dead ends from the far corner, drawn from a picture in the code. One staff member who knows the way and leads; ten visitors who know only their own cell; two signs in the last stretch. Watch who trails the star and who searches |
+| The Interaction Room | Level | One of everything: boxes light and heavy, a chair and an office chair at a desk with a laptop, a bag, a bin, a plant, a lamp, a bottle, a station and bells; a lobby through an archway with the unlocked way out, a side room through swing doors, a closet behind a door, a locked second way out; eight people with one dial each turned up and a visitor. The Trigger button lights a fire in the middle |
+| The trigger in a round already begun | System | Pressing the crowd switch begins the round, so a room that empties ends with a score; the red button still lights the fire afterwards, where before a round already running ignored it |
+
+**What this deliberately left out.** A "left alone" line on levels nothing
+sets off; a maze drawn from the seed; a level made with the scene baker on
+the row (the baker still writes only the office's scenario); any change to
+the office, which plays exactly as before -- no scenario number moved and
+every fingerprint holds.
+
+**Things to watch at the next playtest.**
+
+- Whether forty people at four doors read as a crowd or as a queue, and
+  whether locking two of the doors makes the crush the owner wants to see.
+- Whether the visitors in the maze follow the staff member out or lose them
+  at the first corner; rallying reaches five metres and following lasts
+  eight seconds, both office numbers.
+- Whether "Crowd: calm" on a room still half-way to the doors reads as people
+  changing their minds or as a switch being thrown.
+
+**Not yet checked in the editor.** This batch was written without Unity: the
+code compiles against nothing here, and none of its tests have run. The
+first thing to do in the editor is `tools/CompileAgainstUnity.ps1`, then
+`tools/RunUnityTests.ps1 -Filter TestBuildings,CrowdSwitch,Maze,LevelSession,Alarms,Round,ReplayFingerprint`,
+then the full run.
 
 ## Foundations reviewed (2026-09-23)
 

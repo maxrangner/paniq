@@ -12,7 +12,9 @@ and not everyday English, add it.
 | **Prototype 1, 2, 3** | Groups of stones with one purpose each: 1 made the fire-reaction office, 2 made it a round you can play, 3 makes the level push back. See the [roadmap](roadmap.md). |
 | **Batch** | A set of notes or requests the owner hands over at once, usually after a playtest. A batch normally lands as one commit. See [`AGENTS.md`](../AGENTS.md). |
 | **Playtest** | The owner playing the current build and writing down what felt wrong or right. It decides the next stone. |
-| **Level** | One building with its people, things and timetable. The game has one so far: [the office level](the-office-level.md). |
+| **Level** | One building with its people, things and timetable. The game has [the office level](the-office-level.md), and since 2026-09-30 three blank [test levels](test-levels.md) picked from a row on the start card. |
+| **Test level** | A blank building for watching the crowd rather than playing a round: the square room, the maze, the interaction room. Drawn by code on the office's numbers. See [the test levels](test-levels.md). |
+| **Crowd switch** | The button on a test level that sets the whole crowd panicking, each person a few ticks after the next, or calms it down again one at a time. See [the test levels](test-levels.md). |
 | **Scenario** | The code's word for a level's starting situation: the building, the cast and every setting, before anything has happened. See [scenario data and runtime state](scenario-runtime-state.md). |
 | **Bake** | Turning a floor plan laid out by dragging objects in a Unity scene into scenario data (**Paniq > Bake Scenario From Scene**). See [development workflow](development-workflow.md#building-a-floor-plan). |
 | **Live page / history** | The docs keep only what is current on the live pages; the records of finished stones sit unchanged in `docs/history/`. |

@@ -158,6 +158,9 @@ word is the feature's name. These are the ones that are not:
 | `FrightenedWalk`, `ExtinguisherBehaviour` (the frightened walk through doors) | `FrightenedWalks,Extinguisher,Alarms,CrossRoom` |
 | `NudgeSystem` (nudging people) | `Nudge` |
 | `FearSystem.Settle` (calming down) | `CalmingDown,CorridorStarers,ReplayFingerprint` |
+| `FearSystem.PanicEveryone` / `CalmEveryone`, the crowd switch commands | `CrowdSwitch,CalmingDown,ReplayFingerprint` |
+| `TestBuildings`, `BuiltInBuilding` (the blank test levels) | `TestBuildings,Maze,CrowdSwitch` |
+| `LevelDefinition`, `LevelSession`, `LevelLoader`, `RunDriver.Levels` (the level row) | `LevelSession,BootstrapSceneFlow` |
 | `BurningThingsThreat`, `BurningPeopleThreat` (danger is danger) | `DangerIsDanger,ThreatSeam,Extinguisher,ReplayFingerprint` |
 | `PowerSystem` (the cable) | `PowerSystem,DirectorLadder` |
 | `PerceptionSystem`, `SoundSystem` (what a person sees and hears) | `Perception,Hearing,Simulation` |
@@ -259,6 +262,25 @@ folder the editor has open)
   modified in the working tree, and differs between branches, so
   `git checkout <branch>` can refuse; use a temporary `git worktree` for work
   on another branch.
+
+## Adding a level
+
+A level is a small asset (`Assets/Paniq/Content/Levels/*.asset`, a
+`LevelDefinition`) that names a scenario, a physics feel, and how a round in
+it is played, and since 2026-09-30 which building it plays: the scenario's
+own, or one drawn by code (`BuiltInBuilding`). The start card's level row is
+the runner's `levels` list in `FireReactionPrototype.unity`.
+
+1. Make the asset: **Assets > Create > Paniq > Level**, or add a row to
+   `CreateLevels.Rows` and run **Paniq > Create Or Update The Levels**, which
+   rewrites every level asset and the runner's list.
+2. If it is made by hand, drag it into the runner's *Levels* list in the
+   prototype scene and save the scene.
+3. A building drawn by code is a new method in `TestBuildings` and a new
+   value appended to `BuiltInBuilding`; a building laid out by hand is a
+   scenario asset of its own (the baker still writes the office's).
+
+See [the test levels](test-levels.md) for the three that exist.
 
 ## Building a floor plan
 

@@ -155,6 +155,7 @@ namespace Paniq.Simulation
                     case AgentActivityState.Following:
                     case AgentActivityState.RunningAnErrand:
                     case AgentActivityState.FetchingKeycard:
+                    case AgentActivityState.HeavingForTheHand:
                         return true;
                     default:
                         return false;
@@ -162,7 +163,7 @@ namespace Paniq.Simulation
             }
         }
 
-        public AgentSnapshot ToSnapshot(int tick)
+        public AgentSnapshot ToSnapshot(int tick, bool actingForTheHand = false, bool actingAgainstTheirNature = false)
         {
             return new AgentSnapshot(
                 Id,
@@ -188,7 +189,9 @@ namespace Paniq.Simulation
                 tick < Nudge.AnnoyedUntilTick,
                 Fear.IsRattledAt(tick),
                 Tug.Held,
-                tick < Tug.ShookFreeShownUntilTick);
+                tick < Tug.ShookFreeShownUntilTick,
+                actingForTheHand,
+                actingAgainstTheirNature);
         }
     }
 
@@ -340,6 +343,44 @@ namespace Paniq.Simulation
 
         /// <summary>They got up, or left an errand, because the player's influence drew them: what they choose next is to go to it.</summary>
         public bool GoingToTheInfluence;
+
+        /// <summary>
+        /// The press they answered (2026-09-30), or 0: while the hand is still
+        /// on that press, they are doing what it asks whatever their nature
+        /// says -- the coward fights, the weak batter and heave (the owner:
+        /// "agents acted upon should do stuff they normally wouldn't"). Asked
+        /// through <see cref="InfluenceSystem.IsActingFor"/>, which knows
+        /// whether the hand is still there.
+        /// </summary>
+        public ulong ForTheHandPress;
+
+        /// <summary>A push they have already walked away from (2026-09-30), so one push sends them off once.</summary>
+        public ulong PushedByPress;
+
+        /// <summary>
+        /// The press they have taken in, and the tick they react to it on
+        /// (2026-09-30): nobody reacts to the hand on the tick it lands, and
+        /// no two on the same tick. See <see cref="InfluenceSystem.HasNoticed"/>.
+        /// </summary>
+        public ulong NoticedHandPress;
+        public int NoticedHandAtTick;
+
+        /// <summary>A press whose crate they set off for and gave up on: not tried again until pressed afresh.</summary>
+        public ulong HeaveGaveUpOnPress;
+
+        /// <summary>
+        /// What they are doing for the hand is against their nature (2026-09-30):
+        /// set when <see cref="CausalEventType.AgentActedForTheHand"/> is written,
+        /// cleared when they stop acting for it. The drawing trembles them.
+        /// </summary>
+        public bool AgainstTheirNature;
+
+        /// <summary>
+        /// When they next strain at a held box for the hand, and when the
+        /// straining is done (2026-09-30): the weak take a while, visibly.
+        /// </summary>
+        public int HeavingUntilTick;
+        public int HeavingThing = -1;
 
         /// <summary>
         /// Ticks in a row they have been running at something and creeping
@@ -1106,6 +1147,15 @@ namespace Paniq.Simulation
         /// it is in their hands it is theirs (<see cref="OwnsIt"/>).
         /// </summary>
         public bool KeepIt;
+
+        /// <summary>
+        /// The bottle was taken for the player's hand (2026-09-30): once the
+        /// fright comes they keep it and go at the flames with it whatever
+        /// their nerve, trembling if they have none (the owner: "a cowardly
+        /// agent should pick up the fire extinguisher"). Lasts while they hold
+        /// it, so the hand can move to the fire and they follow.
+        /// </summary>
+        public bool ForTheHand;
 
         /// <summary>
         /// Fetching it to pocket (2026-09-27): the keycard, because the

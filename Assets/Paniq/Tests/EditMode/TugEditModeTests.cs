@@ -93,7 +93,7 @@ namespace Paniq.Tests.EditMode
         private static int SpeedOf(Run simulation) => simulation.GetAgent(Somebody).SpeedMillimetresPerTick;
 
         [Test]
-        public void ATug_SlowsARunnerToAStopOverAboutASecond_AndHoldsThemThere_UntilLetGoOf()
+        public void ATug_StopsARunnerInAQuarterOfASecond_AndHoldsThemThere_UntilLetGoOf()
         {
             ScenarioData data = RunnerInTheOffice(AgentTraitValues.AllOrdinary);
             using (var simulation = new Run(data, 42UL))
@@ -111,8 +111,13 @@ namespace Paniq.Tests.EditMode
                 Assert.That(simulation.GetAgent(Somebody).IsTugged, Is.True);
                 Assert.That(SpeedOf(simulation), Is.GreaterThan(0), "Not stopped dead: a hand on a shirt, not a wall.");
 
-                Advance(simulation, 10);
+                Advance(simulation, 5);
                 Assert.That(SpeedOf(simulation), Is.LessThan(running), "Slowing.");
+
+                // Quicker since 2026-09-30 (the owner: "a tug must stop
+                // agents quicker"): a quarter of a second, not a second.
+                Advance(simulation, 15);
+                Assert.That(SpeedOf(simulation), Is.Zero, "Stopped within twenty ticks of the hand going on.");
                 LogicalPosition where = simulation.GetAgent(Somebody).Position;
                 Advance(simulation, 2 * Run.TicksPerSecond);
                 Assert.That(SpeedOf(simulation), Is.Zero, "Stopped inside a couple of seconds.");

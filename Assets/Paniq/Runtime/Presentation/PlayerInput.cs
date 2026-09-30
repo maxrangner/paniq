@@ -8,21 +8,25 @@ using UnityEngine.InputSystem;
 namespace Paniq.Presentation
 {
     /// <summary>
-    /// The player's pointer and keys. Two hands (2026-09-29, the owner's
-    /// rules): the left button is the crowd, the right button is the
-    /// building.
+    /// The player's pointer and keys. One hand, two ways (2026-09-30, the
+    /// owner's rules): the left button draws people, the right button pushes
+    /// them away.
     /// <list type="bullet">
     /// <item>the left button held down on a door, a thing, a pull station or
     /// a patch of floor is the player's hand on it: a full pull the moment it
-    /// goes down, gone the moment it comes up, one place at a time;</item>
+    /// goes down, gone the moment it comes up, one place at a time. A quick
+    /// click leaves it there for three seconds (the owner: "a single click
+    /// should place an influence beacon for 3 seconds");</item>
+    /// <item>the right button does the same the other way round: people are
+    /// pushed away from the place (the owner: "an anti-influence. Works same
+    /// as the left mouse button, but in reverse"). On a person it pushes the
+    /// people round them. The key and the hand holding a door shut are gone
+    /// from the mouse (the owner's choice, "pure push-away");</item>
     /// <item>the left button held down on a person is a tug on their shirt:
     /// they are held where they are until it comes up, unless they are strong
     /// enough to tear free; a quick left click on a person is still a poke,
     /// sent when the button comes back up inside the window;</item>
-    /// <item>a right click on a door turns its key; the right button held
-    /// down on a door is a hand holding it shut (prototype 3, 2026-09-25,
-    /// moved from the left button); a right click elsewhere puts down the
-    /// card in hand.</item>
+    /// <item>a right click with a card in hand puts the card down.</item>
     /// </list>
     /// With a card picked, a left click plays it on the spot on the floor
     /// under the pointer. A card is picked up by clicking it on the screen
@@ -69,6 +73,16 @@ namespace Paniq.Presentation
         /// <summary>How near the pointer must be to a thing, on the screen, to count as pointing at it.</summary>
         private const float PickThingPixels = 30f;
 
+        /// <summary>
+        /// The same for a small thing (under <see cref="SmallThingMillimetres"/>):
+        /// the keycard is the size of a hand and was too hard to hit (the
+        /// owner, 2026-09-30: "I couldn't get them to pick up keycard. Hit box
+        /// too small").
+        /// </summary>
+        private const float PickSmallThingPixels = 42f;
+
+        private const int SmallThingMillimetres = 200;
+
         /// <summary>How far in front of where the pointer meets somebody's body a nudge is taken to come from, toward the camera, in metres.</summary>
         private const float NudgeFromMetres = 0.3f;
 
@@ -78,17 +92,14 @@ namespace Paniq.Presentation
         private readonly RunDriver runner;
         private readonly RoomView room;
 
-        /// <summary>The right button on a door: a click is the key, a hold is a hand on it.</summary>
-        private readonly DoorClicks rightHand = new DoorClicks();
-
         /// <summary>The left button on a person: a click is a poke, a hold is a tug.</summary>
         private readonly DoorClicks leftHand = new DoorClicks();
 
         /// <summary>Where the press on a person landed, for the poke it may turn out to be.</summary>
         private LogicalPosition pokeFrom;
 
-        /// <summary>The left button is down on a place (a door, a thing, the floor): the hand is on it until the button comes up.</summary>
-        private bool handOnAPlace;
+        /// <summary>The hand on a place (a door, a thing, the floor), and which button put it there.</summary>
+        private readonly PlaceHold place = new PlaceHold();
 
         /// <summary>The ground, for turning a screen position into a place on the floor.</summary>
         private static readonly Plane Ground = new Plane(Vector3.up, 0f);
@@ -105,14 +116,14 @@ namespace Paniq.Presentation
         /// <summary>The door under the pointer, for the hover highlight.</summary>
         public SimulationId? HoveredDoor { get; private set; }
 
-        /// <summary>The door the player is holding shut with the right button, for the hover line.</summary>
-        public SimulationId? HeldDoor => rightHand.Held;
-
         /// <summary>The person the player has by the shirt, for the hover line.</summary>
         public SimulationId? TuggedPerson => leftHand.Held;
 
         /// <summary>Whether the player's hand is on a place right now.</summary>
-        public bool HandOnAPlace => handOnAPlace;
+        public bool HandOnAPlace => place.IsOn;
+
+        /// <summary>Whether the hand on a place is the right button's, which pushes people away.</summary>
+        public bool HandRepels => place.Repels;
 
         /// <summary>The fire alarm under the pointer, for the hover line.</summary>
         public SimulationId? HoveredAlarm { get; private set; }
@@ -199,7 +210,6 @@ namespace Paniq.Presentation
         public void Update(Camera camera, RunSnapshot snapshot, bool lookOnly = false,
             bool pointerOverHud = false, float now = 0f)
         {
-            SimulationId? doorLastFrame = HoveredDoor;
             HoveredDoor = null;
             HoveredAlarm = null;
             HoveredPerson = null;
@@ -215,6 +225,10 @@ namespace Paniq.Presentation
                 SelectedCard = null;
             }
 
+            // A card in hand as the frame begins: a right click this frame puts
+            // it down, and is nothing else -- not a push as well.
+            bool hadACard = SelectedCard.HasValue;
+
             Mouse mouse = Mouse.current;
             bool leftDown = mouse != null && mouse.leftButton.isPressed;
             bool rightDown = mouse != null && mouse.rightButton.isPressed;
@@ -229,8 +243,8 @@ namespace Paniq.Presentation
             }
             else
             {
-                ReadKeys(rightDown, now, doorLastFrame);
-                ReadTheLeftButtonComingUp(leftDown, now);
+                ReadKeys();
+                ReadTheButtonsComingUp(leftDown, rightDown, now);
             }
 
             if (mouse == null || camera == null || snapshot == null || pointerOverHud)
@@ -242,7 +256,10 @@ namespace Paniq.Presentation
             bool pressed = mouse.leftButton.wasPressedThisFrame && !lookOnly;
             if (SelectedCard == null)
             {
-                UpdateWorldPress(camera, snapshot, pointer, pressed, now);
+                // The right button pushes (2026-09-30); the left wins a
+                // press of both on one frame.
+                bool pushed = !pressed && !hadACard && mouse.rightButton.wasPressedThisFrame && !lookOnly;
+                UpdateWorldPress(camera, snapshot, pointer, pressed, pushed, now);
                 return;
             }
 
@@ -276,12 +293,11 @@ namespace Paniq.Presentation
             }
         }
 
-        /// <summary>Every hand off: the place, the person and the door, whatever the buttons are doing.</summary>
+        /// <summary>Every hand off: the place and the person, whatever the buttons are doing.</summary>
         private void LetGoOfEverything()
         {
-            if (handOnAPlace)
+            if (place.Clear())
             {
-                handOnAPlace = false;
                 runner.QueueReleaseInfluence();
             }
 
@@ -290,26 +306,25 @@ namespace Paniq.Presentation
             {
                 runner.QueueReleaseTug(person.Value);
             }
-
-            SimulationId? door = rightHand.Clear();
-            if (door.HasValue)
-            {
-                runner.QueueReleaseDoor(door.Value);
-            }
         }
 
         /// <summary>
-        /// The left button coming back up, wherever the pointer is now: the
-        /// hand comes off the place, or off the person; a press on a person
-        /// let go of inside the window was a poke. The tug is asked for
-        /// before the poke, because the two turn on the same instant.
+        /// The buttons coming back up, wherever the pointer is now: the hand
+        /// comes off the place -- or, after a click, stays there a moment as a
+        /// beacon (2026-09-30) -- or off the person; a press on a person let
+        /// go of inside the window was a poke. The tug is asked for before
+        /// the poke, because the two turn on the same instant.
         /// </summary>
-        private void ReadTheLeftButtonComingUp(bool leftDown, float now)
+        private void ReadTheButtonsComingUp(bool leftDown, bool rightDown, float now)
         {
-            if (handOnAPlace && !leftDown)
+            switch (place.ComingUp(leftDown, rightDown, now))
             {
-                handOnAPlace = false;
-                runner.QueueReleaseInfluence();
+                case PlaceHold.Ending.Release:
+                    runner.QueueReleaseInfluence();
+                    break;
+                case PlaceHold.Ending.Leave:
+                    runner.QueueLeaveInfluence();
+                    break;
             }
 
             SimulationId? letGo = leftHand.Release(leftDown);
@@ -333,14 +348,20 @@ namespace Paniq.Presentation
 
         /// <summary>
         /// With nothing in hand: a fire alarm or a door under the pointer
-        /// first (they are solid things the ray can hit), then the nearest
-        /// person on the screen, then the nearest thing, then the floor. The
-        /// left button going down on a place is the hand going on it, sent at
-        /// once; going down on a person starts the window that tells a poke
-        /// from a tug.
+        /// first (they are solid things the ray can hit), then whichever is
+        /// drawn nearer the pointer of the nearest person and the nearest
+        /// thing, then the floor. A button going down on a place is the hand
+        /// going on it, sent at once -- the left to draw people, the right to
+        /// push them away (2026-09-30). The left going down on a person
+        /// starts the window that tells a poke from a tug; the right going
+        /// down on a person pushes away the people round them.
         /// </summary>
-        private void UpdateWorldPress(Camera camera, RunSnapshot snapshot, Vector2 pointer, bool pressed, float now)
+        private void UpdateWorldPress(Camera camera, RunSnapshot snapshot, Vector2 pointer, bool pressed, bool pushed,
+            float now)
         {
+            int button = pressed ? 1 : pushed ? 2 : 0;
+            bool repels = button == 2;
+
             // Door leaves swing, so their colliders must be where they are drawn.
             Physics.SyncTransforms();
             Ray ray = camera.ScreenPointToRay(pointer);
@@ -349,20 +370,17 @@ namespace Paniq.Presentation
                 // A fire alarm: pulled, where the level lets the player (the
                 // run decides the price, see PlayerCommandSystem); on the
                 // office only people pull them, and the hand on it draws
-                // people to it.
+                // people to it -- or, with the right button, away.
                 if (room.TryGetAlarm(hit.collider, out SimulationId alarmId))
                 {
                     HoveredAlarm = alarmId;
-                    if (pressed)
+                    if (pressed && snapshot.PlayerMayPullAlarms)
                     {
-                        if (snapshot.PlayerMayPullAlarms)
-                        {
-                            runner.QueueAlarmPull(alarmId);
-                        }
-                        else if (TryAlarmPosition(alarmId, out LogicalPosition at))
-                        {
-                            HandOn(() => runner.QueueInfluenceSpot(at));
-                        }
+                        runner.QueueAlarmPull(alarmId);
+                    }
+                    else if (button != 0 && TryAlarmPosition(alarmId, out LogicalPosition at))
+                    {
+                        HandOn(() => runner.QueueInfluenceSpot(at, repels), button, now);
                     }
 
                     return;
@@ -371,9 +389,9 @@ namespace Paniq.Presentation
                 if (room.TryGetDoor(hit.collider, out SimulationId doorId))
                 {
                     HoveredDoor = doorId;
-                    if (pressed)
+                    if (button != 0)
                     {
-                        HandOn(() => runner.QueueInfluenceDoor(doorId));
+                        HandOn(() => runner.QueueInfluenceDoor(doorId, repels), button, now);
                     }
 
                     return;
@@ -384,33 +402,47 @@ namespace Paniq.Presentation
 
             // Somebody, perhaps. A press always looks for the person afresh;
             // the hover line looks ten times a second.
-            if (pressed || now >= nextPersonLook)
+            if (button != 0 || now >= nextPersonLook)
             {
-                personUnderPointer = NearestPerson(camera, snapshot, pointer);
+                personUnderPointer = NearestPerson(camera, snapshot, pointer, out personPixels);
                 nextPersonLook = now + PersonHoverSeconds;
             }
 
-            HoveredPerson = personUnderPointer;
-            if (HoveredPerson.HasValue)
+            // A thing drawn nearer the pointer than the nearest person wins
+            // it (2026-09-30): the keycard on a desk with somebody sitting at
+            // it used to be unclickable, because a person anywhere near always
+            // came first.
+            SimulationId? thing = NearestThing(camera, snapshot, pointer, out float thingPixels);
+            bool personFirst = personUnderPointer.HasValue && (!thing.HasValue || personPixels <= thingPixels);
+
+            if (personFirst)
             {
+                HoveredPerson = personUnderPointer;
                 if (pressed)
                 {
                     // A poke or a tug: which, the button coming back up decides.
                     pokeFrom = WhereANudgeComesFrom(camera, pointer, snapshot, HoveredPerson.Value);
                     leftHand.Press(HoveredPerson.Value, now);
                 }
+                else if (pushed)
+                {
+                    // Push the people round them away (2026-09-30).
+                    LogicalPosition at = PositionOf(snapshot, HoveredPerson.Value);
+                    HandOn(() => runner.QueueInfluenceSpot(at, true), button, now);
+                }
 
                 return;
             }
 
-            // A thing: the hand on it draws people to where it stands.
-            HoveredThing = NearestThing(camera, snapshot, pointer);
+            // A thing: the hand on it draws people to where it stands, or
+            // pushes them from it.
+            HoveredThing = thing;
             if (HoveredThing.HasValue)
             {
-                if (pressed)
+                if (button != 0)
                 {
-                    SimulationId thing = HoveredThing.Value;
-                    HandOn(() => runner.QueueInfluenceThing(thing));
+                    SimulationId pointed = HoveredThing.Value;
+                    HandOn(() => runner.QueueInfluenceThing(pointed, repels), button, now);
                 }
 
                 return;
@@ -420,18 +452,21 @@ namespace Paniq.Presentation
             if (onTheFloor)
             {
                 HoveredFloor = floor;
-                if (pressed)
+                if (button != 0)
                 {
-                    HandOn(() => runner.QueueInfluenceSpot(floor));
+                    HandOn(() => runner.QueueInfluenceSpot(floor, repels), button, now);
                 }
             }
         }
 
-        /// <summary>The hand goes on a place: the press is sent at once, and the button coming up will send the release.</summary>
-        private void HandOn(Action press)
+        /// <summary>How far the nearest person was from the pointer on the screen, the last time anybody was looked for.</summary>
+        private float personPixels = float.MaxValue;
+
+        /// <summary>The hand goes on a place: the press is sent at once, and the button coming up will send the release, or leave a beacon.</summary>
+        private void HandOn(Action press, int button, float now)
         {
             press();
-            handOnAPlace = true;
+            place.Press(button, now);
         }
 
         /// <summary>
@@ -470,10 +505,17 @@ namespace Paniq.Presentation
             return default;
         }
 
-        /// <summary>The loose thing drawn nearest the pointer, if any is near enough: one in the world, not held, not wreckage.</summary>
-        private static SimulationId? NearestThing(Camera camera, RunSnapshot snapshot, Vector2 pointer)
+        /// <summary>
+        /// The loose thing drawn nearest the pointer, if any is near enough:
+        /// one in the world, not held, not wreckage. Measured to the middle of
+        /// the thing where it is drawn -- up on the desk for a card or a laptop
+        /// (2026-09-30: it used to be measured to a spot a few centimetres off
+        /// the floor under it, most of a desk's height below the card) -- and
+        /// a small thing may be a little further off.
+        /// </summary>
+        private static SimulationId? NearestThing(Camera camera, RunSnapshot snapshot, Vector2 pointer, out float pixels)
         {
-            float best = PickThingPixels * PickThingPixels;
+            float best = float.MaxValue;
             SimulationId? found = null;
             for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
             {
@@ -483,23 +525,40 @@ namespace Paniq.Presentation
                     continue;
                 }
 
-                Vector3 middle = PresentationUtility.ToUnityPosition(thing.Position) +
-                                 Vector3.up * Mathf.Min(0.5f, thing.SizeMillimetres / 2000f);
-                Vector3 onScreen = camera.WorldToScreenPoint(middle);
+                Vector3 onScreen = camera.WorldToScreenPoint(DrawnMiddle(thing));
                 if (onScreen.z <= 0f)
                 {
                     continue;
                 }
 
-                float distance = (new Vector2(onScreen.x, onScreen.y) - pointer).sqrMagnitude;
-                if (distance <= best)
+                float reach = thing.SizeMillimetres < SmallThingMillimetres ? PickSmallThingPixels : PickThingPixels;
+                float distance = (new Vector2(onScreen.x, onScreen.y) - pointer).magnitude;
+                if (distance <= reach && distance < best)
                 {
                     best = distance;
                     found = thing.ObjectId;
                 }
             }
 
+            pixels = best;
             return found;
+        }
+
+        /// <summary>
+        /// The middle of a thing as it is drawn: where the engine has it, when
+        /// it keeps a pose for it; else on the floor, or on the desk for a
+        /// thing resting on one.
+        /// </summary>
+        internal static Vector3 DrawnMiddle(PhysicsObjectSnapshot thing)
+        {
+            float half = Mathf.Min(0.5f, thing.SizeMillimetres / 2000f);
+            if (thing.Pose.IsKnown)
+            {
+                return BoxViews.PoseOrigin(thing.Pose) + Vector3.up * Mathf.Min(0.1f, half);
+            }
+
+            float floor = thing.Resting ? RoomView.TableHeight : 0f;
+            return PresentationUtility.ToUnityPosition(thing.Position) + Vector3.up * (floor + half);
         }
 
         /// <summary>Where a fire alarm is on the wall, from the level's own list of them.</summary>
@@ -520,79 +579,18 @@ namespace Paniq.Presentation
         }
 
         /// <summary>
-        /// Whether a hand can go on this door, as the run last drew it: a
-        /// door in a frame that is shut or open, not locked, broken, a pair of
-        /// swing doors or a hole. The run decides again when the command
-        /// lands; this only keeps the screen from believing in a hold the run
-        /// was never going to take.
+        /// The keys, and the right button with a card in hand: Escape or a
+        /// right click puts the card back down. With no card in hand the right
+        /// button is the hand pushing people away (2026-09-30), read with the
+        /// rest of the world's presses; the key and the hand holding a door
+        /// shut are gone from the mouse (the owner's choice).
         /// </summary>
-        private static bool CanBeHeld(RunSnapshot snapshot, SimulationId door)
-        {
-            if (snapshot == null)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < snapshot.Doors.Count; i++)
-            {
-                DoorSnapshot d = snapshot.Doors[i];
-                if (d.DoorId == door)
-                {
-                    return !d.Swings && !d.IsHole &&
-                           (d.State == DoorState.Unlocked || d.State == DoorState.Open);
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// The right button and the keys. Escape or a right click puts the
-        /// card in hand back down; with no card in hand, the right button on
-        /// a door is the key (a click) or a hand holding it shut (a hold), told
-        /// apart by the same window the left button uses on a person. There is
-        /// no drag any more to wait for, so the card is put down on the press.
-        /// </summary>
-        private void ReadKeys(bool rightDown, float now, SimulationId? doorUnderThePointer)
+        private void ReadKeys()
         {
             Keyboard keyboard = Keyboard.current;
             Mouse mouse = Mouse.current;
             bool rightPressed = mouse != null && mouse.rightButton.wasPressedThisFrame;
-
-            SimulationId? released = rightHand.Release(rightDown);
-            if (released.HasValue)
-            {
-                runner.QueueReleaseDoor(released.Value);
-            }
-
-            SimulationId? taken = rightHand.Hold(now, rightDown);
-            if (taken.HasValue)
-            {
-                if (CanBeHeld(runner.Snapshot, taken.Value))
-                {
-                    runner.QueueHoldDoor(taken.Value);
-                }
-                else
-                {
-                    // Swing doors, holes, broken and locked doors take no
-                    // hand: nothing is sent, and nothing is thought held.
-                    rightHand.Release(false);
-                }
-            }
-
-            SimulationId? keyed = rightHand.Clicked(rightDown);
-            if (keyed.HasValue)
-            {
-                runner.QueueLockToggle(keyed.Value);
-            }
-
-            if (rightPressed && SelectedCard == null && doorUnderThePointer.HasValue)
-            {
-                rightHand.Press(doorUnderThePointer.Value, now);
-                return;
-            }
-
-            if ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) || rightPressed)
+            if ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) || (rightPressed && SelectedCard != null))
             {
                 SelectedCard = null;
             }
@@ -638,7 +636,11 @@ namespace Paniq.Presentation
         /// than across the floor: a body stands a metre up in the air, so the
         /// two are nowhere near each other once the camera tilts.
         /// </summary>
-        internal static SimulationId? NearestPerson(Camera camera, RunSnapshot snapshot, Vector2 pointer)
+        internal static SimulationId? NearestPerson(Camera camera, RunSnapshot snapshot, Vector2 pointer) =>
+            NearestPerson(camera, snapshot, pointer, out _);
+
+        /// <summary>The same, and how far from the pointer they are drawn, in pixels.</summary>
+        internal static SimulationId? NearestPerson(Camera camera, RunSnapshot snapshot, Vector2 pointer, out float pixels)
         {
             float best = PickPersonPixels * PickPersonPixels;
             SimulationId? found = null;
@@ -667,6 +669,7 @@ namespace Paniq.Presentation
                 }
             }
 
+            pixels = found.HasValue ? Mathf.Sqrt(best) : float.MaxValue;
             return found;
         }
     }

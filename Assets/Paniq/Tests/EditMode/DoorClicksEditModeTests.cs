@@ -108,6 +108,77 @@ namespace Paniq.Tests.EditMode
             Assert.That(clicks.Clicked(false), Is.Null);
         }
 
+        /// <summary>
+        /// The hand on a place (2026-09-30): held past the window, the button
+        /// coming up takes the hand off; a quick click leaves it there as a
+        /// three-second beacon (the owner: "a single click should place an
+        /// influence beacon for 3 seconds"). Only the button that put it
+        /// there ends it: the right button's push is not ended by the left
+        /// button coming up.
+        /// </summary>
+        [Test]
+        public void TheHandOnAPlace_AClickLeavesABeacon_AHoldComesOff_AndOnlyItsOwnButtonEndsIt()
+        {
+            var hand = new PlaceHold();
+            hand.Press(1, 0f);
+            Assert.That(hand.IsOn && !hand.Repels, Is.True, "The left button pulls.");
+            Assert.That(hand.ComingUp(true, false, 0.1f), Is.EqualTo(PlaceHold.Ending.None), "Still down.");
+            Assert.That(hand.ComingUp(false, false, 0.2f), Is.EqualTo(PlaceHold.Ending.Leave), "Up inside the window: a beacon.");
+            Assert.That(hand.IsOn, Is.False);
+            Assert.That(hand.ComingUp(false, false, 0.3f), Is.EqualTo(PlaceHold.Ending.None), "And only once.");
+
+            hand.Press(2, 1f);
+            Assert.That(hand.Repels, Is.True, "The right button pushes.");
+            Assert.That(hand.ComingUp(false, true, 2f), Is.EqualTo(PlaceHold.Ending.None), "The left button being up ends nothing of the right's.");
+            Assert.That(hand.ComingUp(false, false, 2f), Is.EqualTo(PlaceHold.Ending.Release), "Held a second: the hand comes off.");
+
+            hand.Press(1, 3f);
+            Assert.That(hand.Clear(), Is.True, "Paused: let go of.");
+            Assert.That(hand.Clear(), Is.False);
+        }
+
+        /// <summary>
+        /// The owner (2026-09-30): "I couldn't get them to pick up keycard. Hit
+        /// box too small." The card lies on a desk, and the pointer is now
+        /// measured to where it is drawn -- up on the desk -- rather than to a
+        /// spot a few centimetres off the floor beneath it.
+        /// </summary>
+        [Test]
+        public void TheKeycardOnADesk_IsAimedAtWhereItIsDrawn_UpOnTheDesk()
+        {
+            var scenario = Paniq.Gameplay.ScenarioAsset.CreateDefault();
+            try
+            {
+                ScenarioData data = scenario.ToRuntimeData();
+                data.Keycard.Enabled = true;
+                using (var simulation = new Run(data, 42UL))
+                {
+                    simulation.PutKeycardOnATableForTests(0);
+                    simulation.Step();
+                    RunSnapshot snapshot = simulation.GetSnapshot();
+                    bool found = false;
+                    for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
+                    {
+                        PhysicsObjectSnapshot thing = snapshot.PhysicsObjects[i];
+                        if (thing.Kind != PhysicsObjectKind.Keycard)
+                        {
+                            continue;
+                        }
+
+                        found = true;
+                        Assert.That(PlayerInput.DrawnMiddle(thing).y, Is.GreaterThan(RoomView.TableHeight - 0.05f),
+                            "Aimed at up on the desk, where it is drawn.");
+                    }
+
+                    Assert.That(found, Is.True, "The card is in the building.");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(scenario);
+            }
+        }
+
         [Test]
         public void TheHud_CoversWhatItClaimed_UntilTheNextFrameIsDrawn()
         {

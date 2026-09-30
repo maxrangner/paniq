@@ -841,7 +841,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "86";
+        public string ContentRevision = "87";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -1048,7 +1048,20 @@ namespace Paniq.Simulation
         // nothing added once the round is a massacre; the player's pull on the
         // card fetches frightened people too; a box held where it lies is
         // shoved on only by a heaved thing, not by any box that slides into it.
-        public int SimulationCompatibilityVersion = 74;
+        // 74: the hand (2026-09-29): influence is a hold, one place at a time,
+        // reaching through an open doorway; the tug; every trap creaks for
+        // three seconds before it falls; two flight rules (an escape spot
+        // they can reach, creeping counted as blocked).
+        // 75: the hand, second pass (2026-09-30): everybody but the strongest
+        // wills answers the hand, full within six metres; the calm leave what
+        // they are doing for it, the startled turn to it, the frightened weigh
+        // it at twenty metres; a click is a three-second beacon; the right
+        // button pushes people away; people do for the hand what they would
+        // not (the coward fights with the bottle, the weak batter a door and
+        // heave a crate, anybody pulls the alarm or fetches the card, the hand
+        // on the card door sends for the card); the tug brakes four times as
+        // hard; the tower by the archway falls on where its runner stood.
+        public int SimulationCompatibilityVersion = 75;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

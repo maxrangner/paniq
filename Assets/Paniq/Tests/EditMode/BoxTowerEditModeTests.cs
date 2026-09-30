@@ -192,12 +192,17 @@ namespace Paniq.Tests.EditMode
         /// <summary>Just inside the corridor's east end, within reach of the tower and out of the archway.</summary>
         private static readonly LogicalPosition NearTheTower = new LogicalPosition(12500, 6800);
 
-        /// <summary>Once the fire is lit: the runner takes fright and runs, and the tower comes down a beat later.</summary>
+        /// <summary>
+        /// Once the fire is lit: the runner takes fright and runs, and the
+        /// tower comes down a beat later -- since 2026-09-30 once somebody runs
+        /// past it in the crossbar, so the runner's whole length of corridor
+        /// is allowed for, and the creak.
+        /// </summary>
         private static CausalEvent BringTheTowerDown(Run simulation)
         {
             simulation.FrightenForTests(1);
-            CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
-            Assert.That(fell.HasValue, "The runner in the corridor should have brought the tower down.");
+            CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 600);
+            Assert.That(fell.HasValue, "The runner should have run past the tower and brought it down.");
             return fell.Value;
         }
 
@@ -306,7 +311,12 @@ namespace Paniq.Tests.EditMode
                 List<CausalEvent> triggered = EventsOfType(simulation, CausalEventType.TrapTriggered);
                 Assert.That(triggered, Has.Count.EqualTo(1));
                 Assert.That(triggered[0].Tick, Is.GreaterThanOrEqualTo(200), "Armed by the fire.");
-                Assert.That(triggered[0].TargetId, Is.EqualTo(TheRunner), "Sprung by the person running along the corridor.");
+                // Sprung by somebody running past it (2026-09-30): whoever ran
+                // within reach of it first -- here the one beside it, who takes
+                // fright when the runner comes shouting down the corridor.
+                Assert.That(triggered[0].HasTarget, Is.True, "Sprung by somebody running past it.");
+                Assert.That(IntegerMath.Distance(triggered[0].Position, new LogicalPosition(13900, 6350)),
+                    Is.LessThanOrEqualTo(data.Traps.TriggerReachMillimetres + 400), "Close to it.");
 
                 // Sprung, it creaks first (2026-09-29): a few seconds of
                 // swaying, jittered, heard in its room, before it comes down.
@@ -359,6 +369,52 @@ namespace Paniq.Tests.EditMode
 
                 var story = new Paniq.Presentation.EventStory(simulation.GetSnapshot());
                 Assert.That(story.Describe(fell), Is.EqualTo("the tower of boxes came down toward door 2016"));
+            }
+        }
+
+        /// <summary>
+        /// The owner's rule (2026-09-30): "box tower should fall next to the
+        /// first person running past, not in the corridor"; asked how close,
+        /// "where they were". The runner alone in the corridor, the tower
+        /// creaking its full three seconds: the boxes come down in a heap on
+        /// the spot where the runner stood when it began to creak, and the
+        /// runner, who kept running, is well clear of it.
+        /// </summary>
+        [Test]
+        public void TheTower_ComesDownWhereTheRunnerStoodWhenItBeganToCreak()
+        {
+            ScenarioData data = TwoPeopleAndTheTower(new LogicalPosition(-5000, -5000), AgentTraitValues.AllOrdinary, 200);
+            data.Traps.CreakTicks = new TrapSettings().CreakTicks;
+            using (var simulation = new Run(data, 42UL))
+            {
+                Advance(simulation, 201);
+                simulation.FrightenForTests(1);
+                CausalEvent? triggered = AdvanceUntil(simulation, CausalEventType.TrapTriggered, 600);
+                Assert.That(triggered.HasValue, "The runner ran past the tower.");
+                Assert.That(triggered.Value.TargetId, Is.EqualTo(TheRunner));
+                LogicalPosition stood = simulation.GetAgent(1).Position;
+                Assert.That(IntegerMath.Distance(stood, new LogicalPosition(13900, 6350)),
+                    Is.LessThanOrEqualTo(data.Traps.TriggerReachMillimetres + 400), "Sprung by running past it, close.");
+
+                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
+                Assert.That(fell.HasValue, "It came down after its creak.");
+                Assert.That(IntegerMath.Distance(fell.Value.Position, stood), Is.LessThanOrEqualTo(150),
+                    "It comes down where the runner stood at the creak.");
+                Assert.That(IntegerMath.Distance(simulation.GetAgent(1).Position, stood), Is.GreaterThan(1500),
+                    "The runner kept running and is clear of it.");
+
+                Advance(simulation, 4 * Run.TicksPerSecond);
+                int nearTheSpot = 0;
+                foreach (PhysicsObjectSnapshot box in TowerBoxes(simulation))
+                {
+                    if (IntegerMath.Distance(box.Position, stood) <= 2000)
+                    {
+                        nearTheSpot++;
+                    }
+                }
+
+                Assert.That(nearTheSpot, Is.GreaterThanOrEqualTo(5),
+                    $"Most of the boxes lie in a heap on the spot: {nearTheSpot} of 8 within two metres.");
             }
         }
 

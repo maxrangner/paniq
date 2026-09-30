@@ -163,6 +163,7 @@ namespace Paniq.Simulation
                 var walk = new FrightenedWalk(context, geometry, doors, locomotion);
                 keycards = new KeycardSystem(context, crowd, geometry, doors, objects, threats, walk);
                 extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items, walk);
+                var handHeave = new HandHeaveBehaviour(context, crowd, geometry, objects, walk);
                 leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion,
                     wayfinding);
                 alarms = new AlarmSystem(context, sound, geometry, objects, flammables);
@@ -183,7 +184,7 @@ namespace Paniq.Simulation
                     Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms, Groups = groups,
                     AlarmBehaviour = alarmBehaviour, Barricades = barricades,
                     Cues = cues, Errands = errands, Director = director, Nudges = nudges, Tugs = tugs, Traps = traps,
-                    Influence = influence, Keycards = keycards
+                    Influence = influence, Keycards = keycards, HandHeave = handHeave
                 };
                 systems.BindAll();
 
@@ -515,7 +516,11 @@ namespace Paniq.Simulation
 
         public int PhysicsObjectCount => objects.Count;
 
-        public AgentSnapshot GetAgent(int index) => agents[index].ToSnapshot(context.Tick);
+        public AgentSnapshot GetAgent(int index) => SnapshotOf(agents[index]);
+
+        /// <summary>One person as the display sees them, with what they are doing for the hand.</summary>
+        private AgentSnapshot SnapshotOf(Agent agent) =>
+            agent.ToSnapshot(context.Tick, influence.IsActingFor(agent), influence.IsActingAgainstNature(agent));
 
         /// <summary>
         /// Whether this person is on their way to the given way out: it is the
@@ -537,7 +542,7 @@ namespace Paniq.Simulation
                 throw new KeyNotFoundException($"Unknown agent ID {id}.");
             }
 
-            return agents[i].ToSnapshot(context.Tick);
+            return SnapshotOf(agents[i]);
         }
 
         public DoorSnapshot GetDoor(int index) => doors.GetSnapshot(index);
@@ -1164,7 +1169,7 @@ namespace Paniq.Simulation
             AgentSnapshot[] people = into.AgentBuffer;
             for (int i = 0; i < agents.Length; i++)
             {
-                people[i] = agents[i].ToSnapshot(context.Tick);
+                people[i] = SnapshotOf(agents[i]);
             }
 
             // Only the openings that are really there: a spare hole slot has no

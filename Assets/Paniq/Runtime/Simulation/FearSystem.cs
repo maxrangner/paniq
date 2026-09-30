@@ -28,7 +28,11 @@
             geometry = systems.Geometry;
             objects = systems.Objects;
             cues = systems.Cues;
+            influence = systems.Influence;
         }
+
+        /// <summary>The player's hand, built after this (2026-09-30): the startled turn to it.</summary>
+        private InfluenceSystem influence;
 
         /// <summary>
         /// Temperaments are dealt like a deck rather than rolled one by one,
@@ -116,6 +120,9 @@
             int tick = context.Tick;
             agent.Fear.State = AgentFearState.Alert;
             agent.Fear.AlertSource = alertSource;
+
+            // Whatever they were doing for the hand, calm, is over (2026-09-30).
+            InfluenceSystem.StopActing(agent);
             agent.Fear.SawTheThreat = alertSource == AgentAlertSource.Visual;
             agent.Intent.Activity = AgentActivityState.Reacting;
             agent.Intent.SocialPartnerIndex = -1;
@@ -183,6 +190,7 @@
             int tick = context.Tick;
             agent.Fear.State = AgentFearState.Scared;
             agent.Fear.LastFrightTick = tick;
+            InfluenceSystem.StopActing(agent);
             agent.Fear.CalmsAtTick = 0;
             if (context.Scenario.Calming.Enabled)
             {
@@ -255,12 +263,20 @@
         /// <summary>
         /// A startled person stops. If they saw the danger they turn to face
         /// it; if they were yelled at or bumped, they turn toward where that
-        /// came from.
+        /// came from. Since 2026-09-30 the player's hand beats both: felt at
+        /// half strength or more, they turn to a pull and edge toward it, or
+        /// turn from a push and edge away (the owner: "we need clear
+        /// influence"; the startled used to ignore it altogether).
         /// </summary>
         public MotorIntent AlertIntent(Agent agent)
         {
             agent.Intent.Activity = AgentActivityState.Reacting;
             int goalHeading = agent.Body.Heading;
+            if (TryTurnToTheHand(agent, out int toTheHand, out int edge))
+            {
+                return new MotorIntent(toTheHand, edge, agent.Personality.PanicTurnRate, context.Scenario.Panic.Acceleration);
+            }
+
             if (agent.Fear.AlertSource == AgentAlertSource.Visual &&
                 threats.NearestDistanceSquared(agent.Body.Position, out LogicalPosition dangerPoint, out _) < long.MaxValue)
             {
@@ -273,6 +289,39 @@
 
             return new MotorIntent(goalHeading, 0, agent.Personality.PanicTurnRate, context.Scenario.Panic.Acceleration);
         }
+
+        /// <summary>
+        /// The hand felt at half strength or more, by somebody startled: which
+        /// way to face (toward a pull, away from a push) and how fast to edge
+        /// that way (half a calm walk). Draws nothing.
+        /// </summary>
+        private bool TryTurnToTheHand(Agent agent, out int heading, out int speed)
+        {
+            heading = agent.Body.Heading;
+            speed = 0;
+            if (influence == null || influence.Count == 0)
+            {
+                return false;
+            }
+
+            InfluenceSystem.Place place = influence[0];
+            int felt = influence.FeltBy(agent, 0);
+            if (felt < StartledTurnToTheHandPerMille || !influence.HasNoticed(agent))
+            {
+                // Not felt enough, or not yet: they take it in a beat after
+                // it lands, each on their own tick.
+                return false;
+            }
+
+            heading = place.Repels
+                ? IntegerMath.HeadingBetween(place.At, agent.Body.Position, agent.Body.Heading)
+                : IntegerMath.HeadingBetween(agent.Body.Position, place.At, agent.Body.Heading);
+            speed = agent.Personality.CalmSpeed / 2;
+            return true;
+        }
+
+        /// <summary>How strongly somebody startled must feel the hand to turn to it: half a full pull.</summary>
+        private const int StartledTurnToTheHandPerMille = 500;
 
         // ---------------------------------------------------------------- calming down
 
@@ -439,6 +488,7 @@
             int rattled = fear.SawTheThreat ? calming.RattledAfterSeeingTicks : calming.RattledAfterHearingTicks;
             fear.State = AgentFearState.Calm;
             fear.AlertSource = AgentAlertSource.None;
+            InfluenceSystem.StopActing(agent);
             fear.CalmsAtTick = 0;
             fear.FreezeEndTick = 0;
             fear.RattledUntilTick = checked(tick + context.Jittered(rattled));

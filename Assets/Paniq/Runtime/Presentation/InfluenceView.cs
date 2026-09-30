@@ -25,6 +25,9 @@ namespace Paniq.Presentation
         /// <summary>A pale gold-white: not the orange of fire, not the blue of a held door.</summary>
         private static readonly Color Glow = new Color(1f, 0.93f, 0.62f, 1f);
 
+        /// <summary>The right button's push (2026-09-30): a cool blue-grey, the other way from the gold.</summary>
+        private static readonly Color PushGlow = new Color(0.62f, 0.8f, 1f, 1f);
+
         private readonly Material material;
         private readonly Transform parent;
         private readonly ParticleEffects effects;
@@ -73,8 +76,9 @@ namespace Paniq.Presentation
                     continue;
                 }
 
-                DrawLine(drawn++, snapshot.Agents[pull.AgentIndex].Position, snapshot.InfluencePlaces[pull.Place].At,
-                    Mathf.Clamp01(pull.FeltPerMille / 1000f), time);
+                InfluencePlaceSnapshot from = snapshot.InfluencePlaces[pull.Place];
+                DrawLine(drawn++, snapshot.Agents[pull.AgentIndex].Position, from.At,
+                    Mathf.Clamp01(pull.FeltPerMille / 1000f), time, from.Repels, pull.ActingForTheHand);
             }
 
             for (int i = drawn; i < lines.Count; i++)
@@ -101,8 +105,12 @@ namespace Paniq.Presentation
                 ring.SetPosition(s, middle + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius));
             }
 
-            float flicker = 0.85f + 0.15f * Mathf.Sin(time * 23f + index * 1.7f);
-            Color colour = Glow;
+            // A click's beacon (2026-09-30) throbs, so it reads as something
+            // that will not stay.
+            float flicker = place.IsBeacon
+                ? 0.7f + 0.3f * Mathf.Sin(time * 12f)
+                : 0.85f + 0.15f * Mathf.Sin(time * 23f + index * 1.7f);
+            Color colour = place.Repels ? PushGlow : Glow;
             colour.a = Mathf.Lerp(0.2f, 1f, strength) * flicker;
             ring.startColor = colour;
             ring.endColor = colour;
@@ -114,8 +122,15 @@ namespace Paniq.Presentation
             sparkleCarry[index] = carry;
         }
 
-        /// <summary>A thin line from a person's chest to the place, shimmering along its length, brighter the harder they are pulled.</summary>
-        private void DrawLine(int index, LogicalPosition person, LogicalPosition place, float felt, float time)
+        /// <summary>
+        /// A thin line from a person's chest to the place, shimmering along its
+        /// length, brighter the harder they are pulled -- and brighter and
+        /// thicker still for somebody doing what the hand asked (2026-09-30).
+        /// A push is drawn the other way: a short blue line from the person
+        /// on away from the place, the shimmer running outward.
+        /// </summary>
+        private void DrawLine(int index, LogicalPosition person, LogicalPosition place, float felt, float time,
+            bool pushes = false, bool acting = false)
         {
             const int Points = 12;
             while (lines.Count <= index)
@@ -126,6 +141,15 @@ namespace Paniq.Presentation
             LineRenderer line = lines[index];
             Vector3 from = ToUnityPosition(person) + Vector3.up * 0.9f;
             Vector3 to = ToUnityPosition(place) + Vector3.up * 0.3f;
+            if (pushes)
+            {
+                // From the person, a metre and a half on away from the push.
+                Vector3 away = from - (ToUnityPosition(place) + Vector3.up * 0.9f);
+                away.y = 0f;
+                away = away.sqrMagnitude > 0.0001f ? away.normalized : Vector3.forward;
+                to = from + away * 1.5f + Vector3.down * 0.6f;
+            }
+
             for (int p = 0; p < Points; p++)
             {
                 float along = p / (float)(Points - 1);
@@ -136,13 +160,14 @@ namespace Paniq.Presentation
                 line.SetPosition(p, Vector3.Lerp(from, to, along) + Vector3.up * (Mathf.Sin(along * Mathf.PI) * 0.25f + shimmer));
             }
 
-            Color start = Glow;
-            start.a = Mathf.Lerp(0.08f, 0.8f, felt);
-            Color end = Glow;
-            end.a = start.a * 0.35f;
+            Color start = pushes ? PushGlow : Glow;
+            start.a = acting ? 1f : Mathf.Lerp(0.08f, 0.8f, felt);
+            Color end = start;
+            end.a = start.a * (acting ? 0.7f : 0.35f);
             line.startColor = start;
             line.endColor = end;
-            line.widthMultiplier = Mathf.Lerp(0.01f, 0.05f, felt) * (0.9f + 0.1f * Mathf.Sin(time * 17f + index));
+            float width = acting ? 0.08f : Mathf.Lerp(0.01f, 0.05f, felt);
+            line.widthMultiplier = width * (0.9f + 0.1f * Mathf.Sin(time * 17f + index));
             line.enabled = true;
         }
 

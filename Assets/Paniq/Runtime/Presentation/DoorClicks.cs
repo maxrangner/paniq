@@ -101,4 +101,65 @@ namespace Paniq.Presentation
             return letGo;
         }
     }
+
+    /// <summary>
+    /// The hand on a place (2026-09-30): which button put it there, and
+    /// whether, when that button comes up, it was a hold -- the hand comes
+    /// off -- or a click, which leaves a beacon behind for a few seconds (the
+    /// owner: "a single click should place an influence beacon for 3
+    /// seconds"). The left button pulls, the right pushes; one hand, so a
+    /// press of either replaces what the other had. Plain arithmetic, so it
+    /// can be checked without a scene.
+    /// </summary>
+    internal sealed class PlaceHold
+    {
+        /// <summary>What the button coming up means.</summary>
+        public enum Ending
+        {
+            /// <summary>Nothing held, or its button is still down.</summary>
+            None,
+
+            /// <summary>It was a hold: the hand comes off now.</summary>
+            Release,
+
+            /// <summary>It was a click: the place stays a moment, then comes off by itself.</summary>
+            Leave
+        }
+
+        /// <summary>0 when the hand is on no place, 1 for the left button, 2 for the right.</summary>
+        private int button;
+        private float pressedAt;
+
+        public bool IsOn => button != 0;
+
+        /// <summary>The right button's hand: it pushes people away.</summary>
+        public bool Repels => button == 2;
+
+        /// <summary>The hand went on a place, with this button (1 left, 2 right).</summary>
+        public void Press(int whichButton, float now)
+        {
+            button = whichButton;
+            pressedAt = now;
+        }
+
+        /// <summary>What to send, if the button that has the place has come up.</summary>
+        public Ending ComingUp(bool leftDown, bool rightDown, float now)
+        {
+            if (button == 0 || (button == 1 && leftDown) || (button == 2 && rightDown))
+            {
+                return Ending.None;
+            }
+
+            button = 0;
+            return now - pressedAt <= DoorClicks.WindowSeconds ? Ending.Leave : Ending.Release;
+        }
+
+        /// <summary>Everything off at once (pause, a card over the screen): true when a place was held, to be let go of.</summary>
+        public bool Clear()
+        {
+            bool was = button != 0;
+            button = 0;
+            return was;
+        }
+    }
 }

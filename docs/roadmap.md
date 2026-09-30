@@ -19,7 +19,11 @@ Director cap the round with the building's tricks, and measures what that
 can and cannot do; its sixth (2026-09-29) is the gameplay loop itself, the
 hand: one hand that pulls people toward a place or holds one person back,
 the building playing in the open, and the round judged against the same seed
-left alone. All are under "Prototype 3" further down.
+left alone; its seventh (2026-09-30) is the hand's second pass, after the
+owner's first play of it: influence everybody but the strongest wills
+answers, people doing for the hand what they never would, a click that
+leaves a beacon, the right button pushing people away, and the tower falling
+on its runner. All are under "Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -536,6 +540,73 @@ the crowd, never the player.
 - Whether the margin line is the number the owner looks at first, and whether
   the four lines of why say enough to change the next round.
 - Whether the eight camera steps lose anything the free swing gave.
+
+## Prototype 3: the hand, second pass (2026-09-30)
+
+The owner played the hand on seeds 42 and 3: "This last commit was a HUGE step
+forward. I actually had glimpses of gameplay. But far from tweaked." The
+notes: influence barely felt ("holding next to a group barely made them come
+closer. Must be much more noticeable"); holding is what you do, so a single
+click should leave a beacon for three seconds; a tug must stop people quicker,
+and they should visibly try to shake it off by personality; the keycard could
+not be clicked; a hold on the fallen boxes moved none of them; a hold on the
+exit gathered a crowd that did not try to break it down; people acted upon
+should do what they normally would not ("a cowardly agent should pick up fire
+extinguisher, an agent with low strength will bash on door"); in sum, "agents
+doesn't SHOW the influence in behavior very well"; and seeds 42 and 3 saved
+nobody left alone. New: the right button an anti-influence. Changed: the
+tower should fall next to the first person running past, not in the corridor.
+Asked, the owner chose: most answer and **strong wills refuse**, "but against
+their will should be often. Again -- we need clear influence"; the right
+button is **pure push-away**; the card door is **battered but holds**, and
+the hand there sends for the card; the tower falls **where the runner was**;
+and **left alone stays as it is**. One batch, one commit, on
+`feat/prototype-3-gameplay`.
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| Everybody answers | Behaviour | Hold beside a group and they come: within a second or two, the nervous first and the steady last, one after another -- from their desks, off their errands, from standing about. The pull is full within six metres. The strongest wills refuse it: on the office, the host and the bully. Somebody startled turns to the hand; somebody frightened swings to it (a close hand is worth twenty metres of walk, where it was six) |
+| A click is a beacon | Controls | A quick click leaves the hand where it was for three seconds, its ring throbbing, and then it comes off by itself. Holding is as before |
+| Push away | System | The right button, held or clicked, pushes people away from a door, a thing, a person or the floor: the calm walk off out of it, anybody sitting gets up to, the frightened steer away, and a door pushed from is no way out to anybody who feels it. A cool blue ring, and blue lines running away. The key and the hand holding a door shut are gone from the mouse (the owner's choice) |
+| Against their nature | Behaviour | Whoever feels the hand strongly does what it asks, whoever they are: the coward drawn to the bottle takes it and sprays the fire; the weak drawn to a locked door throw themselves at it, keep at it, and a few together break it; a crate too heavy for anybody to carry is heaved aside by whoever comes, after a few seconds of straining if they are weak; anybody pulls the alarm; anybody goes back for the card |
+| The card door holds | Behaviour | Hold the way out and the crowd pounds on it, and it never gives (the owner's rule); after a second somebody who knows where the card lies goes back for it |
+| You can see it | Presentation | A gold hand bobs over anybody doing what the hand asked, and their line is thick and bright; somebody doing it against their nature trembles, and a gold "for you..." sign goes up as they start. The end card counts the times somebody did for you what they never would have |
+| The tug bites | Behaviour | A runner is stopped in about a quarter of a second (it was a second), and struggles all the while you hold them, their own way: the frightened hardest, the nervous flailing fast and small, the strong heaving slow and big. Tearing free is as before |
+| The keycard clicks | Controls | The card on a desk is aimed at where it is drawn, a small thing may be a little further off the pointer, and a thing nearer the pointer than a person wins the click. Somebody calm sent for it walks round the desk to it |
+| The tower falls on the runner | System | The tower comes down when a frightened person runs past it -- within three and a half metres, in the crossbar -- and falls, after its creak, in a heap on the spot where they stood when it began to creak. The runner is usually clear; whoever follows them runs into it. The archway still shuts if three boxes happen to land in it |
+
+**Left alone, measured after this batch** (`HandsOffBaselineMeasurements`,
+fifty seeds, nothing tuned, the owner's choice): **3.9 of 20 on average
+(19%)**, seven seeds clearing the 75% bar and nine saving more than half
+(44, 58, 59, 60, 65, 68, 76, 77, 80). The batch before was 3.0 of 20, four
+clearing, six over half. Most of the rise is likely the tower: it no longer
+falls across the corridor, so the corridor's crowd is no longer walled in
+by it. The fifty-seed check stays red, as it was. Seed 42 left alone saves 5
+of 20 here; the owner saw none on seed 42, most likely because the
+measurement lets the fire start at the Director's own time while in play
+Trigger event was pressed early (the left-alone round starts its fire when
+the player's does). Seed 3 is outside the measured range.
+
+**What this deliberately left out.** Tuning left alone (the owner's choice);
+a floor under it; the key anywhere on the controls; a hand that steadies or
+topples the tower; a hand on the tower's standing boxes; people who refuse by
+anything but leadership and evil; the stockroom's stack falling on its
+runner (it falls across its lane as before); the hand reaching more than one
+doorway.
+
+**Things to watch at the next playtest.**
+
+- Whether the hand now reads as clear, or as a puppet string: everybody but
+  two coming within a second or two may be too much.
+- Whether a click's three seconds is a useful tap, or too short to matter.
+- Whether the push reads as the hand's opposite, and whether a door nobody
+  will take while pushed is too absolute.
+- Whether the coward at the fire and the weak at the door are seen as
+  against their nature (the tremble, the sign), or just as people doing
+  things.
+- Whether the tower falling on a runner in the crossbar is a trap or a
+  nuisance, now that it rarely cuts the corridor.
+- Whether the struggle under the tug reads by personality.
 
 ## Foundations reviewed (2026-09-23)
 

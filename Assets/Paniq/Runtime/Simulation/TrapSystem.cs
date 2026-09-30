@@ -39,6 +39,21 @@ namespace Paniq.Simulation
     /// over early; from the fall on they are ordinary boxes, pinned by
     /// nothing.
     /// </para>
+    /// <para>
+    /// Since 2026-09-30 a tower by a doorway falls on the runner, not across
+    /// the doorway (the owner: "box tower should fall next to the first
+    /// person running past, not in the corridor"; asked how close, "where
+    /// they were"). It is sprung by the first frightened person to run past
+    /// within <see cref="TrapSettings.TriggerReachMillimetres"/> of it in its
+    /// own room -- the crossbar, for the archway's tower, never the corridor
+    /// on the far side of the wall, which the boxes could not reach -- and
+    /// its boxes come down in a heap on the spot where they stood when it
+    /// began to creak: somebody who kept running is clear, anybody following
+    /// them walks into it. The doorway still shuts if the heap happens to lie
+    /// in it. The Director springing it with no runner brings it down on the
+    /// nearest frightened person, or across the doorway as before if nobody
+    /// is near.
+    /// </para>
     /// Phase 1½, from the Director; it reads the fire and the crowd only.
     /// </summary>
     internal sealed class TrapSystem
@@ -84,6 +99,17 @@ namespace Paniq.Simulation
         /// <summary>Ticks in a row that enough boxes have lain still in the doorway, while it is not yet shut.</summary>
         private readonly int[] settledTicks;
 
+        /// <summary>Where a tower by a doorway stands: the middle of its boxes' feet, before it falls.</summary>
+        private readonly LogicalPosition[] towerFoot;
+
+        /// <summary>
+        /// Where the runner stood, and which way they ran, when a tower by a
+        /// doorway began to creak (2026-09-30): the heap comes down there.
+        /// </summary>
+        private readonly LogicalPosition[] runnerSpot;
+        private readonly int[] runnerHeading;
+        private readonly bool[] hasRunnerSpot;
+
         public TrapSystem(SimulationContext context, Crowd crowd, WorldGeometry geometry, DoorSystem doors,
             PhysicsObjectSystem objects, FlammablesSystem flammables, SoundSystem sound)
         {
@@ -105,6 +131,10 @@ namespace Paniq.Simulation
             fellEventId = new ulong[traps.Length];
             heapEventId = new ulong[traps.Length];
             settledTicks = new int[traps.Length];
+            towerFoot = new LogicalPosition[traps.Length];
+            runnerSpot = new LogicalPosition[traps.Length];
+            runnerHeading = new int[traps.Length];
+            hasRunnerSpot = new bool[traps.Length];
             for (int t = 0; t < traps.Length; t++)
             {
                 doorOf[t] = traps[t].IsDoorTrap ? doors.IndexOf(traps[t].DoorId) : -1;
@@ -131,6 +161,7 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                long sumX = 0L, sumZ = 0L;
                 for (int b = 0; b < boxesOf[t].Length; b++)
                 {
                     // Standing, the tower is pinned and nobody may take from
@@ -138,9 +169,24 @@ namespace Paniq.Simulation
                     // thing that brings it down, and neither may somebody
                     // tidying up or a strong runner barging past.
                     objects.Pin(boxesOf[t][b]);
+                    LogicalPosition at = objects.PositionOf(boxesOf[t][b]);
+                    sumX += at.X;
+                    sumZ += at.Z;
                 }
+
+                towerFoot[t] = new LogicalPosition((int)(sumX / boxesOf[t].Length), (int)(sumZ / boxesOf[t].Length));
             }
         }
+
+        /// <summary>
+        /// A tower by a doorway comes down on whoever ran past it, where they
+        /// stood at the creak (2026-09-30). A trap across a lane falls along
+        /// its lane as before.
+        /// </summary>
+        private bool FallsOnTheRunner(int trap) => doorOf[trap] >= 0 && hasRunnerSpot[trap];
+
+        /// <summary>Where the tower creaks from: the tower itself, by a doorway; the lane's line, for a lane.</summary>
+        private LogicalPosition CreakFrom(int trap) => doorOf[trap] >= 0 ? towerFoot[trap] : Landing(trap);
 
         public int Count => traps.Length;
 
@@ -157,9 +203,14 @@ namespace Paniq.Simulation
             return -1;
         }
 
-        /// <summary>Where a trap's boxes come down: the middle of its doorway, or of its line across the lane.</summary>
+        /// <summary>
+        /// Where a trap's boxes come down: where the runner stood, for a tower
+        /// by a doorway that somebody ran past (2026-09-30); else the middle
+        /// of its doorway, or of its line across the lane.
+        /// </summary>
         private LogicalPosition Landing(int trap) =>
-            doorOf[trap] >= 0 ? geometry.DoorCentre(doorOf[trap]) : traps[trap].LandingCentre;
+            FallsOnTheRunner(trap) ? runnerSpot[trap]
+            : doorOf[trap] >= 0 ? geometry.DoorCentre(doorOf[trap]) : traps[trap].LandingCentre;
 
         /// <summary>Whether this trap's boxes are lying across their doorway, shutting it -- or, for a trap across a lane, have come down at all.</summary>
         public bool IsFallen(int trap) =>
@@ -194,9 +245,76 @@ namespace Paniq.Simulation
                 return;
             }
 
+            // No runner: by a doorway, on the nearest frightened person near
+            // the tower, if there is one (2026-09-30); else across the doorway.
+            if (doorOf[trap] >= 0)
+            {
+                Agent nearest = NearestRunnerPast(trap, 0);
+                if (nearest != null)
+                {
+                    MarkTheRunner(trap, nearest);
+                }
+            }
+
             triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
                 Landing(trap), 0, 0, cause).EventId;
             Creak(trap);
+        }
+
+        /// <summary>Remembers where the runner stood and which way they ran: the heap comes down there.</summary>
+        private void MarkTheRunner(int trap, Agent runner)
+        {
+            runnerSpot[trap] = runner.Body.Position;
+            runnerHeading[trap] = runner.Body.Heading;
+            hasRunnerSpot[trap] = true;
+        }
+
+        /// <summary>
+        /// The frightened person on their feet running past a tower by a
+        /// doorway: within <see cref="TrapSettings.TriggerReachMillimetres"/>
+        /// of its foot, in its room and in sight of it, at
+        /// <paramref name="pace"/> or more.
+        /// The lowest index for a runner, so a replay names the same person;
+        /// the nearest when the Director asks with no pace. Draws nothing.
+        /// </summary>
+        private Agent NearestRunnerPast(int trap, int pace)
+        {
+            LogicalPosition foot = towerFoot[trap];
+            long reach = settings.TriggerReachMillimetres;
+            int footRoom = geometry.RoomAtPoint(foot);
+            Agent found = null;
+            long best = long.MaxValue;
+            using Crowd.Nearby near = crowd.Within(foot, reach);
+            for (int c = 0; c < near.Count; c++)
+            {
+                Agent agent = crowd.All[near[c]];
+                if (!agent.IsParticipating || agent.Fear.State != AgentFearState.Scared ||
+                    agent.Body.State != AgentBodyState.Upright || agent.Body.Speed < pace)
+                {
+                    continue;
+                }
+
+                // In the tower's own room: through the wall beside a doorway
+                // the boxes could never reach them.
+                long distance = LogicalPosition.DistanceSquared(agent.Body.Position, foot);
+                int room = geometry.RoomAt(agent.Body.Position);
+                if (distance > reach * reach || room < 0 || room != footRoom ||
+                    !geometry.CanSeeBetween(room, agent.Body.Position, footRoom, foot))
+                {
+                    continue;
+                }
+
+                bool better = pace > 0
+                    ? found == null || agent.Index < found.Index
+                    : distance < best || (distance == best && agent.Index < found.Index);
+                if (better)
+                {
+                    found = agent;
+                    best = distance;
+                }
+            }
+
+            return found;
         }
 
         /// <summary>
@@ -211,8 +329,8 @@ namespace Paniq.Simulation
             phase[trap] = TrapPhase.Falling;
             fallTick[trap] = checked(context.Tick + wait);
             ulong creaked = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapCreaked,
-                Landing(trap), wait, 0, triggerEventId[trap]).EventId;
-            sound.Crash(traps[trap].TrapId, Landing(trap), settings.CreakHearingMillimetres, creaked);
+                CreakFrom(trap), wait, 0, triggerEventId[trap]).EventId;
+            sound.Crash(traps[trap].TrapId, CreakFrom(trap), settings.CreakHearingMillimetres, creaked);
         }
 
         /// <summary>Sprung and not yet down: the stack is swaying.</summary>
@@ -313,6 +431,22 @@ namespace Paniq.Simulation
             int room = triggerRoom[trap];
             int pace = settings.TriggerSpeedMillimetresPerTick;
             Agent runner = null;
+            if (doorOf[trap] >= 0)
+            {
+                // By a doorway (2026-09-30): somebody running past it, close.
+                runner = NearestRunnerPast(trap, pace);
+                if (runner == null)
+                {
+                    return;
+                }
+
+                MarkTheRunner(trap, runner);
+                triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
+                    Landing(trap), 0, 0, cause, runner.Id).EventId;
+                Creak(trap);
+                return;
+            }
+
             using (Crowd.Nearby near = crowd.Gather(geometry.RoomBounds(room)))
             {
                 for (int c = 0; c < near.Count; c++)
@@ -384,6 +518,12 @@ namespace Paniq.Simulation
                 objects.Unpin(boxes[b]);
             }
 
+            if (FallsOnTheRunner(trap))
+            {
+                ToppleOntoTheRunner(trap, fell);
+                return;
+            }
+
             int door = doorOf[trap];
             int width = door >= 0 ? doors.WidthOf(door) : traps[trap].LandingWidthMillimetres;
             int along = -width / 2;
@@ -407,6 +547,40 @@ namespace Paniq.Simulation
                     settings.ToppleTumbles, fell);
                 along += size;
                 placedInRow++;
+            }
+        }
+
+        /// <summary>
+        /// A tower by a doorway coming down on where the runner stood
+        /// (2026-09-30): a heap of rows across the way they were running,
+        /// <see cref="TrapSettings.HeapWidthMillimetres"/> wide, the rows one
+        /// box deep and centred on the spot, each slot kept on floor. Aimed,
+        /// thrown by the engine, and where they land is where they land.
+        /// </summary>
+        private void ToppleOntoTheRunner(int trap, ulong fell)
+        {
+            int[] boxes = boxesOf[trap];
+            LogicalPosition spot = runnerSpot[trap];
+            int across = IntegerMath.NormalizeDegrees(runnerHeading[trap] + 90);
+            int ahead = runnerHeading[trap];
+            int width = Math.Max(1, settings.HeapWidthMillimetres);
+            int size = objects.SizeOf(boxes[0]);
+            int perRow = Math.Max(1, width / Math.Max(1, size));
+            int rows = (boxes.Length + perRow - 1) / perRow;
+            for (int b = 0; b < boxes.Length; b++)
+            {
+                int box = boxes[b];
+                int row = b / perRow;
+                int inRow = b % perRow;
+                int countInRow = Math.Min(perRow, boxes.Length - row * perRow);
+                int along = (2 * inRow - (countInRow - 1)) * size / 2;
+                int deep = (2 * row - (rows - 1)) * size / 2;
+                LogicalPosition slot = spot + IntegerMath.Displacement(across, along) + IntegerMath.Displacement(ahead, deep);
+                slot = geometry.ClampIntoRoom(spot, slot);
+                LogicalPosition from = objects.PositionOf(box);
+                int heading = IntegerMath.HeadingBetween(from, slot, 0);
+                objects.Topple(box, heading, SpeedToReach(box, IntegerMath.Distance(from, slot)), settings.ToppleLiftPercent,
+                    settings.ToppleTumbles, fell);
             }
         }
 

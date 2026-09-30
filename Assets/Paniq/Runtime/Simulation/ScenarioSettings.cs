@@ -1537,12 +1537,14 @@ namespace Paniq.Simulation
         public int PulledToTheCardPerMille = 250;
 
         /// <summary>
-        /// How long the player's hand has to have been on the card before
-        /// somebody frightened goes for it (2026-09-29): two seconds. A pull
-        /// is full the moment it is pressed, so the wait is what keeps a
-        /// glancing press from turning somebody back into the building.
+        /// How long the player's hand has to have been on the card -- or,
+        /// since 2026-09-30, on the door it opens -- before somebody frightened
+        /// goes for it: a second (it was two, 2026-09-29). A pull is full the
+        /// moment it is pressed, so the wait is what keeps a glancing press
+        /// from turning somebody back into the building; a click's three-second
+        /// beacon clears it.
         /// </summary>
-        public int PulledAfterTicks = 100;
+        public int PulledAfterTicks = 50;
 
         public KeycardSettings Clone() => (KeycardSettings)MemberwiseClone();
 
@@ -2732,13 +2734,30 @@ namespace Paniq.Simulation
         /// <summary>How far the creak is heard: six metres, the room it stands in. Calm people look; it frightens nobody.</summary>
         public int CreakHearingMillimetres = 6000;
 
+        /// <summary>
+        /// How close to a tower by a doorway somebody frightened must run, in
+        /// sight of it, to bring it down (2026-09-30): three and a half
+        /// metres, about as far as a four-high stack of boxes can reach when
+        /// it goes over. It used to be anybody running anywhere in the
+        /// corridor; now it is somebody running past it.
+        /// </summary>
+        public int TriggerReachMillimetres = 3500;
+
+        /// <summary>
+        /// How wide the heap is laid out across the runner's way when a tower
+        /// by a doorway comes down on where they stood (2026-09-30): a metre
+        /// and eight, three boxes to a row.
+        /// </summary>
+        public int HeapWidthMillimetres = 1800;
+
         public TrapSettings Clone() => (TrapSettings)MemberwiseClone();
 
         internal void Validate()
         {
             Settings.Require(TriggerSpeedMillimetresPerTick >= 0 && PileHoldsAtBoxes >= 1 && CrashSoundRadiusMillimetres >= 0 &&
                              ToppleSpeedPercent >= 0 && ToppleLiftPercent >= 0 && HeapSettleTicks >= 1 && HeapGapMillimetres >= 0 &&
-                             PileBeyondMillimetres >= 0 && CreakTicks >= 1 && CreakHearingMillimetres >= 0, "traps");
+                             PileBeyondMillimetres >= 0 && CreakTicks >= 1 && CreakHearingMillimetres >= 0 &&
+                             TriggerReachMillimetres >= 0 && HeapWidthMillimetres >= 1, "traps");
         }
     }
 
@@ -3008,8 +3027,13 @@ namespace Paniq.Simulation
         /// How hard the hand brakes them, in millimetres a tick each tick:
         /// somebody sprinting at five metres a second (a hundred a tick) is
         /// stopped in about a second. A hand closing on a shirt, not a wall.
+        /// <para>
+        /// Eight since 2026-09-30 (it was two, a second from a sprint): the
+        /// owner, "a tug must stop agents quicker". A sprinter is stopped in
+        /// about a quarter of a second; somebody walking, at once.
+        /// </para>
         /// </summary>
-        public int BrakeMillimetresPerTickPerTick = 2;
+        public int BrakeMillimetresPerTickPerTick = 8;
 
         /// <summary>Below this strength they stay as long as the hand is on them: an ordinary person (five) cannot tear free.</summary>
         public int TearsFreeFromStrength = 6;
@@ -3072,8 +3096,22 @@ namespace Paniq.Simulation
         /// reading an exit sign pointing that way, and more than a door
         /// standing open (four) or the rest of a group going that way (three).
         /// One click at the edge of its reach is worth next to nothing.
+        /// <para>
+        /// Twenty metres since 2026-09-30 (it was six, "the same as an exit
+        /// sign"): a close hand now beats most differences between the ways
+        /// out of a room, so a frightened crowd visibly swings to it (the
+        /// owner: "we need clear influence").
+        /// </para>
         /// </summary>
-        public int FullPullBonusMillimetres = 6000;
+        public int FullPullBonusMillimetres = 20000;
+
+        /// <summary>
+        /// Within this share of <see cref="ReachMillimetres"/> the pull is
+        /// full; beyond it, it fades to nothing at the reach (2026-09-30: it
+        /// used to fade from the place itself, so a group two metres off felt
+        /// four fifths and one six metres off half).
+        /// </summary>
+        public int FullWithinPercent = 50;
 
         /// <summary>How easily led somebody is: percent more for each point of nervousness above five (less below).</summary>
         public int PercentPerNervousness = 12;
@@ -3087,26 +3125,73 @@ namespace Paniq.Simulation
         /// <summary>Percent more for a visitor, who does not know the building and takes any hint going.</summary>
         public int VisitorPercent = 50;
 
-        public int MinimumPercent = 10;
+        /// <summary>
+        /// Everybody who does not refuse feels at least this share of an
+        /// ordinary person's pull (2026-09-30; it was ten): leaders and the
+        /// cruel drag their feet, but they come.
+        /// </summary>
+        public int MinimumPercent = 60;
         public int MaximumPercent = 200;
 
         /// <summary>
-        /// Calm people who are easily led -- this nervous, or a visitor -- may
-        /// get up from a chair or leave an errand for a strong enough pull.
+        /// The strongest wills refuse the hand altogether (the owner,
+        /// 2026-09-30: "most, strong wills refuse"): this much leadership,
+        /// or <see cref="RefusesFromEvil"/> this much evil. Nine: on the
+        /// office, the host (leadership nine) and the bully (evil nine).
+        /// </summary>
+        public int RefusesFromLeadership = 9;
+        public int RefusesFromEvil = 9;
+
+        /// <summary>
+        /// A pull felt at this much, per mille, or more makes somebody do what
+        /// it asks against their own nature (2026-09-30, the owner: "against
+        /// their will should be often"): the coward takes the bottle and
+        /// fights, the weak batter the door and heave the box.
+        /// </summary>
+        public int ActsAgainstNatureFromPerMille = 250;
+
+        /// <summary>
+        /// Kept for levels that want only the nervous to leave what they are
+        /// doing; nothing asks it since 2026-09-30, when everybody who does
+        /// not refuse the hand may.
         /// </summary>
         public int EasilyLedNervousness = 7;
 
-        /// <summary>How often an easily led person, sitting or busy, weighs up a pull: every second, on their own beat.</summary>
-        public int LeaveTaskCheckTicks = 50;
+        /// <summary>How often somebody sitting, busy or idling weighs up the hand: five times a second, on their own beat (2026-09-30; it was once a second).</summary>
+        public int LeaveTaskCheckTicks = 10;
 
         /// <summary>
-        /// The chance, per mille, that they get up at a check, for a full pull
-        /// felt: three in ten (2026-09-29; it was one in ten under clicks). A
-        /// faint pull, proportionally less. So within a couple of seconds of
-        /// a hand on a place the nervous start getting up out of a meeting,
-        /// while the steady sit on.
+        /// The chance, per mille, that they go at a check, for a full pull
+        /// felt: four in ten (2026-09-30; three in ten a second, for the easily
+        /// led only, the day before). A faint pull, proportionally less; the
+        /// nervous feel more than a full pull and go first, the steady feel
+        /// less and go last. So a room stirs within one to two seconds of a
+        /// hand, one person after another rather than all on one tick.
         /// </summary>
-        public int LeaveTaskChancePerMille = 300;
+        public int LeaveTaskChancePerMille = 400;
+
+        /// <summary>
+        /// How long a click's beacon stays under the hand, from the press:
+        /// three seconds (the owner, 2026-09-30: "a single click should place
+        /// an influence beacon for 3 seconds").
+        /// </summary>
+        public int BeaconTicks = 150;
+
+        /// <summary>
+        /// How long somebody too weak to heave a held box strains at it for
+        /// the hand, at strength zero; less for every point up to
+        /// <see cref="BlockadeSettings.ShoveMinimumStrength"/>, where it is at
+        /// once. Five seconds at nothing, about three at three.
+        /// </summary>
+        public int HeaveStrainTicksAtNoStrength = 250;
+
+        /// <summary>
+        /// Somebody frightened pounding a door for the hand without the
+        /// strength to break it does at least this much to it a blow
+        /// (2026-09-30): a few of the weak together break an ordinary door in
+        /// time. The card door never gives (the owner's rule).
+        /// </summary>
+        public int WeakBlowDamage = 1;
 
         /// <summary>
         /// The chance, per mille of a full pull felt, that a calm person with
@@ -3123,6 +3208,9 @@ namespace Paniq.Simulation
                              MinimumPercent >= 0 && MaximumPercent >= MinimumPercent &&
                              LeaveTaskCheckTicks >= 1 && LeaveTaskChancePerMille >= 0 && WanderToItPerMille >= 0,
                 "influence");
+            Settings.Require(FullWithinPercent >= 0 && FullWithinPercent < 100 && BeaconTicks >= 1 &&
+                             ActsAgainstNatureFromPerMille >= 0 && HeaveStrainTicksAtNoStrength >= 0 && WeakBlowDamage >= 0,
+                "the hand");
         }
     }
 

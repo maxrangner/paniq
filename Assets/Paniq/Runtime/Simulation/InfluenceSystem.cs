@@ -63,6 +63,23 @@ namespace Paniq.Simulation
 
             /// <summary>Somebody has done what it asked: it gathers still, but is not used again until pressed afresh.</summary>
             public bool Spent;
+
+            /// <summary>
+            /// The right button's hand (2026-09-30): it pushes people away
+            /// rather than drawing them. Nothing is used at a place that
+            /// pushes, and a door that pushes is never chosen.
+            /// </summary>
+            public bool Repels;
+
+            /// <summary>
+            /// The tick a click's beacon comes off by itself, or 0 while the
+            /// button is still held (2026-09-30, the owner: "a single click
+            /// should place an influence beacon for 3 seconds").
+            /// </summary>
+            public int EndsAtTick;
+
+            /// <summary>Whether this place draws people to it: the left button's hand.</summary>
+            public bool Pulls => !Repels;
         }
 
         private readonly SimulationContext context;
@@ -92,22 +109,22 @@ namespace Paniq.Simulation
         public int HeldFor(int i) => context.Tick - places[i].PressTick;
 
         /// <summary>The player's hand goes on a door. The door must be one the building has; the command system has checked.</summary>
-        public void OnDoor(int door, SimulationId doorId)
+        public void OnDoor(int door, SimulationId doorId, bool repels = false)
         {
             int roomA = geometry.DoorRoom(door);
             int roomB = geometry.RoomBeyond(door, roomA);
-            Press(door, -1, doorId, geometry.DoorCentre(door), roomA, roomB);
+            Press(door, -1, doorId, geometry.DoorCentre(door), roomA, roomB, repels);
         }
 
         /// <summary>The player's hand goes on a thing: the pull comes from where it stands now, and stays there.</summary>
-        public void OnThing(int thing, SimulationId thingId, LogicalPosition at)
+        public void OnThing(int thing, SimulationId thingId, LogicalPosition at, bool repels = false)
         {
             int room = geometry.RoomAtPoint(at);
-            Press(-1, thing, thingId, at, room, room);
+            Press(-1, thing, thingId, at, room, room, repels);
         }
 
         /// <summary>The player's hand goes on the floor. False, and nothing written, when the spot is not floor in any room.</summary>
-        public bool TryOnSpot(LogicalPosition at)
+        public bool TryOnSpot(LogicalPosition at, bool repels = false)
         {
             int room = geometry.RoomAtPoint(at);
             if (room < 0)
@@ -115,8 +132,27 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            Press(-1, -1, default, at, room, room);
+            Press(-1, -1, default, at, room, room, repels);
             return true;
+        }
+
+        /// <summary>
+        /// The button came up inside a click (2026-09-30): the place pressed a
+        /// moment ago stays under the hand until
+        /// <see cref="InfluenceSettings.BeaconTicks"/> after its press, then
+        /// comes off by itself. Nothing when nothing is held, or when it is a
+        /// beacon already.
+        /// </summary>
+        public void Leave()
+        {
+            if (places.Count == 0 || places[0].EndsAtTick > 0)
+            {
+                return;
+            }
+
+            Place place = places[0];
+            place.EndsAtTick = System.Math.Max(context.Tick + 1, place.PressTick + settings.BeaconTicks);
+            places[0] = place;
         }
 
         /// <summary>
@@ -143,7 +179,7 @@ namespace Paniq.Simulation
         /// on before. Pressing the place already held presses it afresh, which
         /// is how a door used once is asked for the opposite.
         /// </summary>
-        private void Press(int door, int thing, SimulationId target, LogicalPosition at, int roomA, int roomB)
+        private void Press(int door, int thing, SimulationId target, LogicalPosition at, int roomA, int roomB, bool repels)
         {
             places.Clear();
             places.Add(new Place
@@ -155,18 +191,20 @@ namespace Paniq.Simulation
                 RoomA = roomA,
                 RoomB = roomB,
                 PressTick = context.Tick,
-                EventId = context.Events.Append(context.Tick, default, CausalEventType.PowerInfluenced, at,
+                EventId = context.Events.Append(context.Tick, default,
+                    repels ? CausalEventType.PowerRepelled : CausalEventType.PowerInfluenced, at,
                     settings.MaximumLevel, 0, 0UL, target).EventId,
-                Spent = false
+                Spent = false,
+                Repels = repels
             });
         }
 
-        /// <summary>The unspent place on this door, or -1: the door is there to be used.</summary>
+        /// <summary>The unspent pull on this door, or -1: the door is there to be used.</summary>
         public int PlaceOfDoor(int door)
         {
             for (int i = 0; i < places.Count; i++)
             {
-                if (places[i].Door == door && !places[i].Spent)
+                if (places[i].Door == door && !places[i].Spent && places[i].Pulls)
                 {
                     return i;
                 }
@@ -175,12 +213,40 @@ namespace Paniq.Simulation
             return -1;
         }
 
-        /// <summary>The unspent place on this thing, or -1: the thing is there to be used.</summary>
+        /// <summary>The pull on this door, spent or not, or -1: the hand is drawing people to it.</summary>
+        public int PullOnDoor(int door)
+        {
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door == door && places[i].Pulls)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>Whether the hand is pushing people away from this door.</summary>
+        public bool IsRepelling(int door)
+        {
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door == door && places[i].Repels)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>The unspent pull on this thing, or -1: the thing is there to be used.</summary>
         public int PlaceOfThing(int thing)
         {
             for (int i = 0; i < places.Count; i++)
             {
-                if (places[i].Thing == thing && !places[i].Spent)
+                if (places[i].Thing == thing && !places[i].Spent && places[i].Pulls)
                 {
                     return i;
                 }
@@ -209,7 +275,7 @@ namespace Paniq.Simulation
             long stack = settings.StackRadiusMillimetres;
             for (int i = 0; i < places.Count; i++)
             {
-                if (places[i].Door < 0 && !places[i].Spent &&
+                if (places[i].Door < 0 && !places[i].Spent && places[i].Pulls &&
                     LogicalPosition.DistanceSquared(places[i].At, at) <= stack * stack)
                 {
                     return SpendAt(by, i);
@@ -225,7 +291,7 @@ namespace Paniq.Simulation
             long stack = settings.StackRadiusMillimetres;
             for (int i = 0; i < places.Count; i++)
             {
-                if (places[i].Door < 0 && !places[i].Spent &&
+                if (places[i].Door < 0 && !places[i].Spent && places[i].Pulls &&
                     LogicalPosition.DistanceSquared(places[i].At, at) <= stack * stack)
                 {
                     return true;
@@ -245,18 +311,28 @@ namespace Paniq.Simulation
             return spent;
         }
 
-        /// <summary>Phase 1's tail. Nothing fades any more; kept so the tick's order reads as it did.</summary>
+        /// <summary>
+        /// Phase 1's tail: a click's beacon whose time is up comes off by
+        /// itself, exactly as a release would (2026-09-30). Nothing fades.
+        /// </summary>
         public void Advance()
         {
+            if (places.Count > 0 && places[0].EndsAtTick > 0 && context.Tick >= places[0].EndsAtTick)
+            {
+                Release();
+            }
         }
 
         /// <summary>
         /// How strongly this person feels this place, per mille of a full pull
-        /// felt by an ordinary person standing on it: less the further off
-        /// they are, times how easily led they are (<see cref="Susceptibility"/>).
+        /// felt by an ordinary person standing on it, times how easily led
+        /// they are (<see cref="Susceptibility"/>). Full within half the reach
+        /// -- "next to a group" is a full pull (the owner, 2026-09-30: "holding
+        /// next to a group barely made them come closer") -- then fading to
+        /// nothing at <see cref="InfluenceSettings.ReachMillimetres"/>.
         /// Distance is a walk: across the room, or through one open doorway
-        /// from the room next door; nothing through a wall or a shut door, and
-        /// nothing from beyond <see cref="InfluenceSettings.ReachMillimetres"/>.
+        /// from the room next door; nothing through a wall or a shut door.
+        /// The same for a pull and a push: which way it acts is the caller's.
         /// </summary>
         public int FeltBy(Agent agent, int i)
         {
@@ -274,7 +350,8 @@ namespace Paniq.Simulation
                 return 0;
             }
 
-            long felt = 1000L * (reach - distance) / reach;
+            long full = reach * settings.FullWithinPercent / 100L;
+            long felt = distance <= full ? 1000L : 1000L * (reach - distance) / System.Math.Max(1L, reach - full);
             return (int)(felt * Susceptibility(agent) / 100L);
         }
 
@@ -320,12 +397,27 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Whether this person will have none of the player's hand: the
+        /// strongest wills in the building (the owner, 2026-09-30: "most,
+        /// strong wills refuse"). On the office, the bully and the host.
+        /// </summary>
+        public bool Refuses(Agent agent) =>
+            agent.Traits.Leadership >= settings.RefusesFromLeadership || agent.Traits.Evil >= settings.RefusesFromEvil;
+
+        /// <summary>
         /// How easily led somebody is, in percent of an ordinary person: the
         /// nervous and strangers to the building more, leaders and the cruel
-        /// much less. Nobody feels nothing at all, and nobody more than twice.
+        /// less. The strongest wills feel nothing at all (<see cref="Refuses"/>);
+        /// everybody else feels at least <see cref="InfluenceSettings.MinimumPercent"/>,
+        /// and nobody more than <see cref="InfluenceSettings.MaximumPercent"/>.
         /// </summary>
         public int Susceptibility(Agent agent)
         {
+            if (Refuses(agent))
+            {
+                return 0;
+            }
+
             AgentTraitValues traits = agent.Traits;
             int percent = 100 + settings.PercentPerNervousness * (traits.Nervousness - 5) -
                           settings.PercentPerLeadership * System.Math.Max(0, traits.Leadership - 5) -
@@ -347,7 +439,7 @@ namespace Paniq.Simulation
             {
                 Place place = places[i];
                 intoPlaces.Add(new InfluencePlaceSnapshot(place.Target, place.Door >= 0, place.At, settings.MaximumLevel,
-                    settings.MaximumLevel));
+                    settings.MaximumLevel, place.Repels, place.EndsAtTick > 0));
             }
 
             if (places.Count == 0)
@@ -362,21 +454,119 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                int felt = StrongestFeltBy(agents[a], out int strongest);
+                int felt = FeltBy(agents[a], 0);
                 if (felt > 0)
                 {
-                    intoPulls.Add(new InfluencePullSnapshot(agents[a].Id, a, strongest, felt));
+                    intoPulls.Add(new InfluencePullSnapshot(agents[a].Id, a, 0, felt, IsActingFor(agents[a])));
                 }
             }
         }
 
-        /// <summary>The strongest pull this person feels, and from which place; 0 and -1 when none.</summary>
+        /// <summary>
+        /// Whether this person is doing what the hand asked, whatever their
+        /// nature says (2026-09-30): they answered the press the hand is still
+        /// on, or they hold a bottle they took for it. Asks nothing random.
+        /// </summary>
+        public bool IsActingFor(Agent agent)
+        {
+            if (agent.Carry.ForTheHand && agent.Carry.Holding)
+            {
+                return true;
+            }
+
+            ulong press = agent.Intent.ForTheHandPress;
+            return press != 0UL && places.Count > 0 && places[0].EventId == press;
+        }
+
+        /// <summary>The hand's press, while one is on: what somebody answering it remembers. 0 when the hand is off.</summary>
+        public ulong CurrentPress => places.Count > 0 ? places[0].EventId : 0UL;
+
+        /// <summary>
+        /// Whether this person has taken in the hand now on (2026-09-30, the
+        /// owner's rule: nobody reacts on the tick a thing happens, and no two
+        /// on the same tick). The first time they are asked about a press they
+        /// draw their own reaction tick; from then on it is simply whether that
+        /// tick has come. Ask it only of somebody who feels the hand, so a hand
+        /// nobody is near draws nothing.
+        /// </summary>
+        public bool HasNoticed(Agent agent)
+        {
+            ulong press = CurrentPress;
+            if (press == 0UL)
+            {
+                return false;
+            }
+
+            if (agent.Intent.NoticedHandPress != press)
+            {
+                agent.Intent.NoticedHandPress = press;
+                agent.Intent.NoticedHandAtTick = context.ReactionTick();
+            }
+
+            return context.Tick >= agent.Intent.NoticedHandAtTick;
+        }
+
+        /// <summary>They are no longer doing anything for the hand: done, given up, or on to something else.</summary>
+        public static void StopActing(Agent agent)
+        {
+            agent.Intent.ForTheHandPress = 0UL;
+            agent.Intent.AgainstTheirNature = false;
+        }
+
+        /// <summary>
+        /// Somebody does for the hand what they never would of their own
+        /// accord: written once, for the sign and the story, and remembered so
+        /// the drawing trembles them while they do it.
+        /// </summary>
+        public void ActedAgainstNature(Agent agent, AgainstTheirNature what, ulong press, SimulationId target,
+            LogicalPosition at)
+        {
+            agent.Intent.AgainstTheirNature = true;
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentActedForTheHand, at, (int)what, 0,
+                press, target);
+        }
+
+        /// <summary>Doing for the hand, right now, what is against their nature: the drawing trembles them.</summary>
+        public bool IsActingAgainstNature(Agent agent) => agent.Intent.AgainstTheirNature && IsActingFor(agent);
+
+        /// <summary>
+        /// The strongest pull this person feels, and from which place; 0 and
+        /// -1 when none. A place that pushes is no pull (<see cref="StrongestPushFeltBy"/>).
+        /// </summary>
         public int StrongestFeltBy(Agent agent, out int strongest)
         {
             strongest = -1;
             int best = 0;
             for (int i = 0; i < places.Count; i++)
             {
+                if (places[i].Repels)
+                {
+                    continue;
+                }
+
+                int felt = FeltBy(agent, i);
+                if (felt > best)
+                {
+                    best = felt;
+                    strongest = i;
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>The strongest push this person feels, and from which place; 0 and -1 when none.</summary>
+        public int StrongestPushFeltBy(Agent agent, out int strongest)
+        {
+            strongest = -1;
+            int best = 0;
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (!places[i].Repels)
+                {
+                    continue;
+                }
+
                 int felt = FeltBy(agent, i);
                 if (felt > best)
                 {
@@ -391,7 +581,8 @@ namespace Paniq.Simulation
         /// <summary>
         /// What running for this door is worth to somebody, in millimetres, for
         /// the door choice to add: the full bonus for the hand on it felt close
-        /// to it, nothing when the door is not held or they cannot feel it.
+        /// to it, nothing when the door is not held or they cannot feel it --
+        /// and as much taken off for a hand pushing people away from it.
         /// </summary>
         public long DoorBonus(Agent agent, int door)
         {
@@ -399,7 +590,8 @@ namespace Paniq.Simulation
             {
                 if (places[i].Door == door)
                 {
-                    return (long)FeltBy(agent, i) * settings.FullPullBonusMillimetres / 1000L;
+                    long bonus = (long)FeltBy(agent, i) * settings.FullPullBonusMillimetres / 1000L;
+                    return places[i].Repels ? -bonus : bonus;
                 }
             }
 
@@ -411,9 +603,13 @@ namespace Paniq.Simulation
         /// a held place on the floor or on a thing they can feel, its pull times
         /// how far the way to the candidate agrees with the way to the place
         /// (the full pull for straight toward it, nothing square to it, the
-        /// same off for straight away). Doors are left to <see cref="DoorBonus"/>.
+        /// same off for straight away), and the other way round for a place
+        /// that pushes -- a door that pushes included, so a frightened crowd
+        /// steers off it. A door that pulls is left to <see cref="DoorBonus"/>,
+        /// and so is <paramref name="exceptDoor"/>, the door a choice is
+        /// scoring already, so a push on it is not counted twice.
         /// </summary>
-        public long SpotBonus(Agent agent, LogicalPosition candidate)
+        public long SpotBonus(Agent agent, LogicalPosition candidate, int exceptDoor = -1)
         {
             if (places.Count == 0)
             {
@@ -425,7 +621,7 @@ namespace Paniq.Simulation
             for (int i = 0; i < places.Count; i++)
             {
                 Place place = places[i];
-                if (place.Door >= 0)
+                if (place.Door >= 0 && (place.Pulls || place.Door == exceptDoor))
                 {
                     continue;
                 }
@@ -438,7 +634,8 @@ namespace Paniq.Simulation
 
                 int towardIt = IntegerMath.HeadingBetween(from, place.At, agent.Body.Heading);
                 long agreement = ExitSignBehaviour.Agreement(from, candidate, towardIt);
-                total += (long)felt * settings.FullPullBonusMillimetres / 1000L * agreement / IntegerMath.TrigScale;
+                long bonus = (long)felt * settings.FullPullBonusMillimetres / 1000L * agreement / IntegerMath.TrigScale;
+                total += place.Repels ? -bonus : bonus;
             }
 
             return total;

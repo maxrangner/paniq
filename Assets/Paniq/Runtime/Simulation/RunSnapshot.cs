@@ -62,8 +62,12 @@ namespace Paniq.Simulation
             bool isAnnoyed = false,
             bool isRattled = false,
             bool isTugged = false,
-            bool isShakingFree = false)
+            bool isShakingFree = false,
+            bool actingForTheHand = false,
+            bool actingAgainstTheirNature = false)
         {
+            ActingForTheHand = actingForTheHand;
+            ActingAgainstTheirNature = actingAgainstTheirNature;
             GroupId = groupId;
             IsAnnoyed = isAnnoyed;
             IsRattled = isRattled;
@@ -103,6 +107,19 @@ namespace Paniq.Simulation
 
         /// <summary>Just tore free of the player's hand: the shake of it is drawn for a couple of seconds (2026-09-29).</summary>
         public bool IsShakingFree { get; }
+
+        /// <summary>
+        /// Doing what the player's hand asked (2026-09-30): a gold hand is
+        /// drawn over them.
+        /// </summary>
+        public bool ActingForTheHand { get; }
+
+        /// <summary>
+        /// Doing it without the nerve or the strength they would need of their
+        /// own accord, as the run judged it (the same test that writes
+        /// <see cref="CausalEventType.AgentActedForTheHand"/>): they tremble.
+        /// </summary>
+        public bool ActingAgainstTheirNature { get; }
 
         /// <summary>
         /// How high their feet are off the floor and how their body is turned,
@@ -394,14 +411,23 @@ namespace Paniq.Simulation
     /// <summary>One place the player's influence is on (2026-09-26): where, what, and how strong now.</summary>
     public readonly struct InfluencePlaceSnapshot
     {
-        public InfluencePlaceSnapshot(SimulationId target, bool isDoor, LogicalPosition at, int level, int maximumLevel)
+        public InfluencePlaceSnapshot(SimulationId target, bool isDoor, LogicalPosition at, int level, int maximumLevel,
+            bool repels = false, bool isBeacon = false)
         {
             Target = target;
             IsDoor = isDoor;
             At = at;
             Level = level;
             MaximumLevel = maximumLevel;
+            Repels = repels;
+            IsBeacon = isBeacon;
         }
+
+        /// <summary>The right button's hand: it pushes people away (2026-09-30).</summary>
+        public bool Repels { get; }
+
+        /// <summary>Left by a click, and coming off by itself in a moment (2026-09-30).</summary>
+        public bool IsBeacon { get; }
 
         /// <summary>The door or thing clicked, or the default ID for a patch of floor.</summary>
         public SimulationId Target { get; }
@@ -420,13 +446,18 @@ namespace Paniq.Simulation
     /// <summary>Somebody feeling a pull: who, from which place, and how strongly (per mille of a full pull on an ordinary person).</summary>
     public readonly struct InfluencePullSnapshot
     {
-        public InfluencePullSnapshot(SimulationId agentId, int agentIndex, int place, int feltPerMille)
+        public InfluencePullSnapshot(SimulationId agentId, int agentIndex, int place, int feltPerMille,
+            bool actingForTheHand = false)
         {
             AgentId = agentId;
             AgentIndex = agentIndex;
             Place = place;
             FeltPerMille = feltPerMille;
+            ActingForTheHand = actingForTheHand;
         }
+
+        /// <summary>Doing what the hand asked, whatever it takes (2026-09-30): drawn brighter, with a hand over their head.</summary>
+        public bool ActingForTheHand { get; }
 
         public SimulationId AgentId { get; }
 

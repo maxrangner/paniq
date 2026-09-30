@@ -77,6 +77,8 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerTugged:
                 case CausalEventType.PowerReleasedTug:
                 case CausalEventType.TrapCreaked:
+                case CausalEventType.PowerRepelled:
+                case CausalEventType.AgentPushedAwayByInfluence:
                     return true;
                 default:
                     return false;
@@ -95,7 +97,7 @@ namespace Paniq.Presentation
             var lines = new List<string>(4);
             IReadOnlyList<CausalEvent> events = snapshot.Events;
 
-            int placesHeld = 0, peopleHeld = 0, tornFree = 0, heldTicks = 0;
+            int placesHeld = 0, peopleHeld = 0, tornFree = 0, heldTicks = 0, actsForTheHand = 0;
             CausalEvent? cardStarted = null, cardTaken = null, cardSwiped = null, cardDropped = null;
             CausalEvent? towerFell = null, fireLoose = null, putOut = null;
             int outAfterTheFall = 0;
@@ -105,6 +107,8 @@ namespace Paniq.Presentation
                 switch (record.EventType)
                 {
                     case CausalEventType.PowerInfluenced: placesHeld++; break;
+                    case CausalEventType.PowerRepelled: placesHeld++; break;
+                    case CausalEventType.AgentActedForTheHand: actsForTheHand++; break;
                     case CausalEventType.PowerReleasedInfluence: heldTicks += record.Strength; break;
                     case CausalEventType.PowerTugged: peopleHeld++; break;
                     case CausalEventType.PowerReleasedTug: heldTicks += record.Strength; break;
@@ -140,8 +144,9 @@ namespace Paniq.Presentation
             else
             {
                 string tore = tornFree > 0 ? $", {tornFree} tore free" : "";
+                string against = actsForTheHand > 0 ? $" {Count(actsForTheHand, "time")} somebody did for you what they never would have." : "";
                 lines.Add($"Your hand: on {Count(placesHeld, "place")} and {Count(peopleHeld, "person", "people")}{tore}, " +
-                          $"about {heldTicks / Run.TicksPerSecond} seconds in all.");
+                          $"about {heldTicks / Run.TicksPerSecond} seconds in all.{against}");
             }
 
             // The card.
@@ -358,6 +363,19 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerReleasedTug: return $"you let go of {whom}";
                 case CausalEventType.AgentShookFree: return $"{who} tore free of your hand";
                 case CausalEventType.TrapCreaked: return $"{who} creaked and swayed";
+                case CausalEventType.PowerRepelled:
+                    return record.HasTarget ? $"you pushed people away from {whom}" : "you pushed people away from a spot on the floor";
+                case CausalEventType.AgentPushedAwayByInfluence: return $"{who} moved away from your hand";
+                case CausalEventType.AgentActedForTheHand:
+                    switch ((AgainstTheirNature)record.Strength)
+                    {
+                        case AgainstTheirNature.FoughtTheFire: return $"{who} had no nerve for it, and fought the fire for you";
+                        case AgainstTheirNature.BatteredTheDoor: return $"{who} had no strength for it, and threw themselves at {whom} for you";
+                        case AgainstTheirNature.HeavedTheBox: return $"{who} had no strength for it, and heaved {whom} aside for you";
+                        case AgainstTheirNature.PulledTheAlarm: return $"{who} had no nerve for it, and pulled the alarm for you";
+                        case AgainstTheirNature.WentForTheCard: return $"{who} had no nerve for it, and went back for the keycard for you";
+                        default: return $"{who} did something for you";
+                    }
                 case CausalEventType.AgentPokedAwake: return $"{who} was poked awake";
                 case CausalEventType.AgentKnockedOffChair: return $"{who} was poked off their chair";
 

@@ -304,9 +304,24 @@ namespace Paniq.Presentation
                     else if (agent.IsTugged)
                     {
                         // Held by the shirt (2026-09-29): leaning into the
-                        // hand that has them, straining the way they meant to go.
-                        lean = Mathf.Max(lean, 10f);
-                        twist = 0f;
+                        // hand that has them, straining the way they meant to
+                        // go -- and since 2026-09-30 visibly trying to shake it
+                        // off, each their own way (the owner: "they visibly try
+                        // to shake away depending on personality"). The
+                        // frightened fight it hardest and the calm barely; the
+                        // nervous flail, fast and small; the strong heave, slow
+                        // and big.
+                        float fright = agent.FearState == AgentFearState.Scared ? 1f
+                            : agent.FearState == AgentFearState.Alert ? 0.7f : 0.3f;
+                        float nerves = agent.Traits.Nervousness / 10f;
+                        float might = agent.Traits.Strength / 10f;
+                        float rate = Mathf.Lerp(7f, 24f, nerves);
+                        float wave = Mathf.Sin(time * rate + view.ShakePhase);
+                        Vector3 side = Quaternion.Euler(0f, yaw + 90f, 0f) * Vector3.forward;
+                        shake = side * (wave * (0.015f + 0.05f * nerves) * fright);
+                        roll = wave * (3f + 12f * might) * fright;
+                        twist = Mathf.Sin(time * rate * 0.5f + view.ShakePhase) * (5f + 20f * might) * fright;
+                        lean = Mathf.Max(lean, 10f + 10f * might * fright);
                     }
                     else if (agent.IsAnnoyed && view.Icons.AnnoyedAge(time) < AnnoyedShakeSeconds)
                     {
@@ -330,6 +345,19 @@ namespace Paniq.Presentation
                         roll = Mathf.Sin(time * 41f + view.ShakePhase) * 2.5f;
                         twist = 0f;
                         bounce = 0f;
+                    }
+
+                    // Doing for the player's hand what they have no nerve or
+                    // no strength for (2026-09-30): a coward at the fire, a
+                    // weakling at a crate. They tremble as they do it, on top
+                    // of whatever else they are doing.
+                    if (agent.ActingAgainstTheirNature)
+                    {
+                        shake += new Vector3(
+                            Mathf.Sin(time * 43f + view.ShakePhase) * 0.02f,
+                            0f,
+                            Mathf.Sin(time * 49f + view.ShakePhase * 1.3f) * 0.02f);
+                        roll += Mathf.Sin(time * 37f + view.ShakePhase) * 2f;
                     }
 
                     // A shoulder thrown at a stuck door.
@@ -504,7 +532,8 @@ namespace Paniq.Presentation
                     calm && (agent.ActivityState == AgentActivityState.Standing ||
                              agent.ActivityState == AgentActivityState.LookingAround),
                     agent.IsLeading,
-                    time);
+                    time,
+                    agent.ActingForTheHand);
             }
 
             UpdateVisionCone(agent, view.Vision, planar, yaw);

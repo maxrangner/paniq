@@ -137,7 +137,7 @@ word is the feature's name. These are the ones that are not:
 | Code changed | Filter words |
 | --- | --- |
 | `PurseSystem`, `DeckSystem`, `PlayerCommandSystem` (the player's purse, cards and clicks) | `Powers,Economy,UproarTable,TraitCards` |
-| `InfluenceSystem` (the hand on a place) | `Influence,Keycard,ReplayFingerprint` |
+| `InfluenceSystem`, `HandHeaveBehaviour` (the hand on a place, the push, what people do for it) | `Influence,Keycard,Alarms,Extinguisher,ReplayFingerprint` |
 | `TugSystem` (the hand on a person) | `Tug,ReplayFingerprint` |
 | `Run` (the tick itself) | `Simulation,ReplayFingerprint` |
 | `UniformGridIndex` (who is near here) | `SpatialIndex` |
@@ -149,7 +149,7 @@ word is the feature's name. These are the ones that are not:
 | `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered,HeldDoors,BoxTower` |
 | `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
 | `GroupSystem` (sticking together) | `Groups,TraitCards` |
-| `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking,HeldDoors,Nudge,Tug` |
+| `PlayerInput`, `DoorClicks`, `PlaceHold`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking,Nudge,Tug` |
 | `CameraRig` (Q, E and the wheel) | `CameraRig` |
 | `EventStory`, `RoundScreens` (the read-back and the end card) | `EventLogScreen,EventSigns` |
 | `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |

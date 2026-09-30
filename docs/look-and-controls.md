@@ -4,7 +4,7 @@
 on 2026-09-29 for the hand: the camera moves, steps an eighth of a turn on Q
 and E, and zooms with a coupled tilt, exactly as this note describes. The
 right-button drag that swung the view to any angle is gone (the owner's
-call): the right button is the building's now. The look is partly built: the building now reads as one
+call). Since 2026-09-30 the right button is the hand pushing people away. The look is partly built: the building now reads as one
 floor of an office tower, and the two *Future goals* at the bottom — a slight
 perspective with depth of field, and the cutaway walls — are still parked.
 
@@ -45,12 +45,12 @@ every zoom level.
 | **Q / E** | step an eighth of a turn to the next tidy view, from wherever the view is now: corner, side, corner (2026-09-29; it was a quarter turn) |
 | **Mouse wheel** | zoom in and out, tilting the camera as described above |
 | **Left mouse button** | on a card along the bottom: pick it up (or put it down again); on the floor with a card in hand: throw it there |
-| **Hold the left button on a door, a thing, a pull station or the floor** (nothing in hand) | the hand (2026-09-29): a full pull toward it the moment the button goes down, drawing people near it -- about a room's length away as a walk, through an open doorway but never a wall -- to go there or use it; gone the moment the button comes up. One hand, one place at a time. What is pointed at is used (2026-09-27): a door is opened if shut or shut if open (the cruel wedge it instead), a chair sat on, a box carried off, the bottle taken (and used, by the brave, when the fright comes), the card pocketed; using it spends its use, so the hand goes on gathering people there but the next press asks for the opposite. A sparkling aura shows it, and a sparkling line runs to everybody feeling it, brighter the harder they are pulled |
+| **Hold the left button on a door, a thing, a pull station or the floor** (nothing in hand) | the hand (2026-09-29): a full pull toward it the moment the button goes down, drawing people near it -- about a room's length away as a walk, through an open doorway but never a wall -- to go there or use it; gone the moment the button comes up. One hand, one place at a time. Everybody but the strongest wills answers it within a second or two (2026-09-30). What is pointed at is used (2026-09-27), whatever their nature (2026-09-30): a door is opened if shut or shut if open (the cruel wedge it instead) and a locked one pounded on, a chair sat on, a box carried off and a crate too heavy to carry heaved aside, the bottle taken and used on the fire, the pull station pulled, the card pocketed; using it spends its use, so the hand goes on gathering people there but the next press asks for the opposite. A sparkling aura shows it, a sparkling line runs to everybody feeling it, brighter the harder they are pulled, and a gold hand bobs over anybody doing what it asked |
+| **Click the left button on a place** | the same, left there for three seconds and then off by itself (the owner, 2026-09-30: "a single click should place an influence beacon for 3 seconds"). The ring throbs while it lasts |
 | **Click a person** (nothing in hand) | poke them: they step away from where the click landed. Three pokes in ten seconds and they are annoyed -- a fast shake for a couple of seconds, and for about twenty seconds they are still shoved but stop looking round for it. Three quick pokes wake somebody frozen with fear, or knock somebody sitting down off their chair |
-| **Hold the left button on a person** | the tug (2026-09-29): a hand on their shirt. They slow to a stop over about a second and stay there while you hold, and are off again the moment you let go. The strong tear free, sooner the stronger, with a shake; nobody alight or down can be held. A gold ring at their feet shows who you have |
-| **Right click a door** | turn its key: unlock a locked one, lock a shut one, or shut and lock an open one. Not the way out (2026-09-27): it is a card door, and only somebody carrying the keycard opens it |
-| **Hold the right button on a door** | a hand holding it shut (prototype 3; the right button since 2026-09-29): an open door pulls shut as soon as the doorway is clear, and nobody opens it while you hold it. Somebody strong enough bursts through in one push, and then there is nothing left to hold. A locked door needs no hand, and swing doors and gaps take none. Let go of the button and it is a door again |
-| **Right click** elsewhere | put down the card in hand |
+| **Hold the left button on a person** | the tug (2026-09-29): a hand on their shirt. They are stopped within about a quarter of a second (2026-09-30) and stay there while you hold, struggling against it their own way, and are off again the moment you let go. The strong tear free, sooner the stronger, with a shake; nobody alight or down can be held. A gold ring at their feet shows who you have |
+| **Hold the right button on a door, a thing, a person or the floor** (nothing in hand) | push people away (the owner, 2026-09-30: "an anti-influence. Works same as the left mouse button, but in reverse"): the calm walk off out of it, the frightened steer away, and a door pushed from is no way out to anybody who feels it strongly. On a person it pushes the people round them. A click leaves it for three seconds. A cool blue ring, and blue lines running away from it |
+| **Right click** with a card in hand | put the card down |
 | **Reset** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
 | **Pause** (the button under Reset) | stop and start the world, as Space does |
 | **Trigger event** (the red button bottom centre) | start the fire. It goes the moment it is pressed |
@@ -64,19 +64,21 @@ Chosen on the owner's behalf:
   camera control. Only use the q, e, but add double the amount of steps it
   snaps to"). From 2026-09-25 to 2026-09-29 the view also swung freely under
   a right-button drag, so a thing hidden behind a wall could be leaned
-  around; the right button is the building's now (the key, and the hand on a
-  door), and the four side views, looking straight along the corridor, are
-  what a lean bought. Q and E measure from wherever the view is heading, so
+  around; the right button is the push now, and the four side views,
+  looking straight along the corridor, are what a lean bought. Q and E measure from wherever the view is heading, so
   two quick taps turn two steps.
-- **Left is the crowd, right is the building.** The left button held on a
-  place is the hand; held on a person, the tug; a quick click on a person,
-  a poke. The right button clicked on a door is the key; held on a door, a
-  hand keeping it shut; clicked anywhere else, it puts the card down. A click
-  is told from a hold by whether the button comes back up inside a third of
-  a second (`DoorClicks`, used for the right button on a door and the left
-  button on a person alike). The press on a place is sent at once, because
-  there is nothing to wait for: the hand goes on when the button goes down
-  and comes off when it comes up.
+- **Left draws, right pushes** (2026-09-30; from 2026-09-29 it was "left
+  is the crowd, right is the building", with the key and a hand holding a
+  door shut on the right button, both gone at the owner's choice, "pure
+  push-away"). The left button held on a place is the hand; held on a
+  person, the tug; a quick click on a person, a poke. The right button held
+  on a place pushes people away, and on a person pushes the people round
+  them; with a card in hand, a right click puts the card down. A click is
+  told from a hold by whether the button comes back up inside a third of a
+  second (`DoorClicks` for a person, `PlaceHold` for a place). The press on a
+  place is sent at once, because there is nothing to wait for: the hand goes
+  on when the button goes down, and when it comes up the hand comes off --
+  or, after a click, stays three seconds as a beacon.
 - **A click on a card or a button never reaches the world.** Every card and
   button claims its patch of screen as it is drawn, and the next frame's
   click checks those patches first; until 2026-09-25 a click on "Trigger
@@ -103,8 +105,12 @@ Chosen on the owner's behalf:
   right and one in the middle sends them away from the camera. The tug goes
   to the same person the press found.
 - **What a press lands on**, with nothing in hand: a pull station or a door
-  the ray hits first, then the person drawn nearest the pointer, then the
-  thing drawn nearest, then the floor itself. The rule that a click near a
+  the ray hits first, then whichever of the nearest person and the nearest
+  thing is drawn nearer the pointer (2026-09-30; a person used to win
+  whenever one was within reach, so the keycard on a desk with somebody at
+  it could not be clicked), then the floor itself. A thing is measured to
+  where it is drawn -- up on the desk, for the card -- and a small one may be
+  a little further off (42 pixels rather than 30). The rule that a click near a
   patch already influenced added to it is gone with the stacking: pressing
   near a held spot simply moves the hand.
 - **A button coming back up over a card or a button still lets go.** A press

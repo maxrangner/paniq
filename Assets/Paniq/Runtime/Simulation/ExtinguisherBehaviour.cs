@@ -12,9 +12,17 @@ namespace Paniq.Simulation
     /// in the bottle, and a weak person is shoved backwards by the recoil
     /// instead of holding their ground.
     /// </summary>
-    internal sealed class ExtinguisherBehaviour : IPanicOption
+    internal sealed class ExtinguisherBehaviour : IPanicOption, IBindable
     {
         private readonly SimulationContext context;
+
+        /// <summary>The player's hand, built after this behaviour.</summary>
+        private InfluenceSystem influence;
+
+        public void Bind(Systems systems)
+        {
+            influence = systems.Influence;
+        }
 
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
         private readonly int bodyRadius;
@@ -93,10 +101,54 @@ namespace Paniq.Simulation
         public bool WouldKeepTheBottle(Agent agent)
         {
             // Startled or frightened: the fright begins as a startle, which
-            // is when everybody else lets go of what they carry.
+            // is when everybody else lets go of what they carry. Taken for
+            // the hand (2026-09-30), the nerve is not asked for: the coward
+            // keeps it too, trembling.
             return agent.Fear.State != AgentFearState.Calm && agent.Body.State == AgentBodyState.Upright &&
-                   !agent.Burning.IsBurning && agent.Traits.Bravery >= settings.FightMinimumBravery &&
+                   !agent.Burning.IsBurning &&
+                   (agent.Traits.Bravery >= settings.FightMinimumBravery || agent.Carry.ForTheHand) &&
                    fire.BurningCount + flammables.BurningCount > 0;
+        }
+
+        /// <summary>
+        /// Whether this person lacks the nerve to fight a fire of their own
+        /// accord: what makes their fighting it for the hand worth a sign.
+        /// </summary>
+        public bool LacksTheNerve(Agent agent) => agent.Traits.Bravery < settings.FightMinimumBravery;
+
+        /// <summary>
+        /// The hand on a bottle, felt strongest by this frightened person
+        /// (2026-09-30): the bottle's index, or -1. Whoever feels it goes and
+        /// takes it and fights, brave or not (the owner: "a cowardly agent
+        /// should pick up the fire extinguisher"). A bottle in somebody's
+        /// hands is nobody else's.
+        /// </summary>
+        private int BottleTheHandIsOn(Agent agent, out ulong press)
+        {
+            press = 0UL;
+            if (influence == null || influence.Count == 0)
+            {
+                return -1;
+            }
+
+            // What the hand is on first, which costs nothing; only then how
+            // strongly they feel it, which walks the doors; and they take it
+            // in a beat later, each on their own tick.
+            InfluenceSystem.Place pull = influence[0];
+            if (pull.Repels || pull.Thing < 0 || pull.Spent || !objects.IsEquipment(pull.Thing) ||
+                objects.IsDormant(pull.Thing) || objects.HolderOf(pull.Thing) >= 0 || objects.FuelOf(pull.Thing) <= 0)
+            {
+                return -1;
+            }
+
+            if (influence.FeltBy(agent, 0) < context.Scenario.Influence.ActsAgainstNatureFromPerMille ||
+                !influence.HasNoticed(agent))
+            {
+                return -1;
+            }
+
+            press = pull.EventId;
+            return pull.Thing;
         }
 
         /// <summary>
@@ -119,6 +171,11 @@ namespace Paniq.Simulation
                 agent.Carry.OwnsIt = false;
                 agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
                 agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FightTimeoutTicks));
+                if (agent.Carry.ForTheHand && LacksTheNerve(agent))
+                {
+                    ActedForTheHand(agent, 0UL, held);
+                }
+
                 return Update(agent, inDanger);
             }
 
@@ -126,6 +183,31 @@ namespace Paniq.Simulation
             {
                 // Too close to the flames to think about fighting them.
                 return null;
+            }
+
+            // The hand on a bottle (2026-09-30): whoever feels it goes for it
+            // and fights with it, nerve or none -- a coward included. Nothing
+            // to put out, or far too much of it, and it is left on its wall.
+            int pointedAt = BottleTheHandIsOn(agent, out ulong press);
+            if (pointedAt >= 0 && agent.Carry.ItemIndex < 0 && agent.Help.TargetIndex < 0 &&
+                agent.Body.State == AgentBodyState.Upright &&
+                fire.BurningCount + flammables.BurningCount > 0 && fire.BurningCount <= settings.FightMaximumFireCells &&
+                CanReachTheFlames(agent))
+            {
+                agent.Carry.ItemIndex = pointedAt;
+                agent.Carry.Holding = false;
+                agent.Carry.ForTheHand = true;
+                agent.Intent.ForTheHandPress = press;
+                agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
+                agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FetchTimeoutTicks));
+                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
+                    0, 0, press, objects.IdOf(pointedAt));
+                if (LacksTheNerve(agent))
+                {
+                    ActedForTheHand(agent, press, pointedAt);
+                }
+
+                return Update(agent, inDanger);
             }
 
             int burningPerson = NearestBurningPerson(agent);
@@ -157,9 +239,21 @@ namespace Paniq.Simulation
 
             agent.Carry.ItemIndex = extinguisher;
             agent.Carry.Holding = false;
+            agent.Carry.ForTheHand = false;
             agent.Intent.Activity = AgentActivityState.FetchingExtinguisher;
             agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.FetchTimeoutTicks));
             return Update(agent, inDanger);
+        }
+
+        /// <summary>
+        /// Somebody without the nerve for it takes the fire on for the hand:
+        /// written once, for the sign and the story. <paramref name="press"/>
+        /// is the hand's press, or 0 when it was a bottle taken calm and kept.
+        /// </summary>
+        private void ActedForTheHand(Agent agent, ulong press, int bottle)
+        {
+            influence?.ActedAgainstNature(agent, AgainstTheirNature.FoughtTheFire, press, objects.IdOf(bottle),
+                agent.Body.Position);
         }
 
         /// <summary>
@@ -220,7 +314,11 @@ namespace Paniq.Simulation
 
             // With the bottle in their hands they will stand closer to the
             // flames than they otherwise would, but not in them.
-            long nerve = TraitEffects.DangerDistance(agent, context.Scenario) * settings.DangerTolerancePercent / 100L;
+            // For the hand, a coward stands where the brave would (2026-09-30).
+            int bravery = agent.Carry.ForTheHand
+                ? System.Math.Max(agent.Traits.Bravery, settings.FightMinimumBravery)
+                : agent.Traits.Bravery;
+            long nerve = TraitEffects.DangerDistanceAt(bravery, context.Scenario) * settings.DangerTolerancePercent / 100L;
             bool tooClose = agent.Carry.Holding
                 ? NearestFlames(agent.Body.Position, out _) < nerve * nerve
                 : inDanger;
@@ -256,8 +354,12 @@ namespace Paniq.Simulation
                 objects.PickUp(item, agent);
                 agent.Carry.Holding = true;
                 agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.FightTimeoutTicks));
+
+                // Fetched for the hand (2026-09-30): its use is spent, and
+                // that is what taking it names.
+                ulong spent = agent.Carry.ForTheHand && influence != null ? influence.Spend(agent, -1, item) : 0UL;
                 context.Events.Append(tick, agent.Id, CausalEventType.AgentTookExtinguisher,
-                    agent.Body.Position, 0, 0, agent.Fear.ScaredEventId, objects.IdOf(item));
+                    agent.Body.Position, 0, 0, spent != 0UL ? spent : agent.Fear.ScaredEventId, objects.IdOf(item));
                 return WalkOrGiveUp(agent, where, 0);
             }
 
@@ -578,6 +680,12 @@ namespace Paniq.Simulation
         private void GiveUp(Agent agent)
         {
             walk.Forget(agent);
+            if (!agent.Carry.Holding)
+            {
+                agent.Carry.ForTheHand = false;
+                InfluenceSystem.StopActing(agent);
+            }
+
             if (IsFighting(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;

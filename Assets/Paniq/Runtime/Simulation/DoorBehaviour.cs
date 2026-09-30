@@ -215,7 +215,18 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                if (context.Tick < agent.Doors.AvoidUntilTick[next])
+                // The player's hand pushing people off this door, felt
+                // strongly (2026-09-30): it is not a way out to them while it
+                // does -- the owner's push is meant to be seen to work.
+                if (HandPushesFrom(agent, next))
+                {
+                    continue;
+                }
+
+                // The player's hand on this door, felt strongly (2026-09-30):
+                // a door they gave up on, or found shut, is worth another go.
+                bool handOnIt = HandIsOn(agent, next);
+                if (context.Tick < agent.Doors.AvoidUntilTick[next] && !handOnIt)
                 {
                     // They have given up on this way for the moment. That
                     // happens for two reasons -- the door would not open, or
@@ -235,7 +246,7 @@ namespace Paniq.Simulation
                 // along that they walked at and could not shift, or shut
                 // themselves, still blocks the route as surely as it ever did.
                 bool wayOutIsOpen = geometry.IsDoorOpen(d);
-                if (!open && (agent.Doors.FoundShut[next] || (agent.Doors.FoundShut[d] && !wayOutIsOpen)))
+                if (!open && !handOnIt && (agent.Doors.FoundShut[next] || (agent.Doors.FoundShut[d] && !wayOutIsOpen)))
                 {
                     // A door they have already found shut is no longer a way
                     // out to them: either the door they would walk at now (a
@@ -1132,13 +1143,22 @@ namespace Paniq.Simulation
                     // give up on it as on any door that will not open. Nor a
                     // card door (2026-09-27): no shoulder marks it, so nobody
                     // tries.
-                    if (!agent.Doors.ShutByThem[door] && !doors.NeedsKeycard(door) &&
-                        context.Random.NextPercent(TraitEffects.DoorForceChancePercent(agent, context.Scenario)))
+                    // The player's hand on it (2026-09-30): they throw
+                    // themselves at it whoever they are, the card door too --
+                    // it never gives (the owner: "they batter it, it holds").
+                    bool forTheHand = HandIsOn(agent, door);
+                    if (forTheHand ||
+                        (!agent.Doors.ShutByThem[door] && !doors.NeedsKeycard(door) &&
+                         context.Random.NextPercent(TraitEffects.DoorForceChancePercent(agent, context.Scenario))))
                     {
                         agent.Intent.Activity = AgentActivityState.ForcingDoor;
                         agent.Intent.ActivityEndTick = checked(tick + context.Random.NextIntInclusive(
                             settings.DoorForceMinimumTicks, settings.DoorForceMaximumTicks));
                         agent.Doors.NextShoveTick = tick + 1;
+                        if (forTheHand)
+                        {
+                            ForceForTheHand(agent, door);
+                        }
                     }
                     else
                     {
@@ -1161,10 +1181,19 @@ namespace Paniq.Simulation
                             agent.Doors.AttemptEventId,
                             doors.IdOf(door));
                         sound.Thud(agent.Id, doorCentre, shove.EventId);
-                        if (doors.Batter(door, agent, TraitEffects.DoorShoveDamage(agent, context.Scenario), shove.EventId))
+                        int damage = TraitEffects.DoorShoveDamage(agent, context.Scenario);
+                        if (HandIsOn(agent, door))
+                        {
+                            // For the hand, the weak do a little too: a few of
+                            // them together break an ordinary door in time.
+                            damage = System.Math.Max(damage, context.Scenario.Influence.WeakBlowDamage);
+                        }
+
+                        if (doors.Batter(door, agent, damage, shove.EventId))
                         {
                             // Battered enough: the door bursts off its hinges.
                             agent.Intent.Activity = AgentActivityState.Fleeing;
+                            InfluenceSystem.StopActing(agent);
                             return false;
                         }
 
@@ -1173,13 +1202,33 @@ namespace Paniq.Simulation
                     }
 
                     if (tick >= agent.Intent.ActivityEndTick &&
-                        !LeaderBehaviour.IsUnderOrdersAtThisDoor(agent, door, tick))
+                        !LeaderBehaviour.IsUnderOrdersAtThisDoor(agent, door, tick) && !HandIsOn(agent, door))
                     {
-                        // Sent at this door by somebody: they keep at it.
+                        // Sent at this door by somebody, or the player's hand
+                        // still on it: they keep at it.
                         GiveUp(agent);
                     }
 
                     return true;
+            }
+        }
+
+        /// <summary>
+        /// Somebody starts pounding a door because the player's hand is on it
+        /// (2026-09-30): they answer the press; and somebody too weak to break
+        /// a door of their own accord is doing what they never would, which the
+        /// log says, once, for the sign and the story.
+        /// </summary>
+        private void ForceForTheHand(Agent agent, int door)
+        {
+            int place = influence.PullOnDoor(door);
+            ulong press = influence[place].EventId;
+            bool wasAnswering = agent.Intent.ForTheHandPress == press;
+            agent.Intent.ForTheHandPress = press;
+            if (!wasAnswering && TraitEffects.DoorShoveDamage(agent, context.Scenario) <= 0)
+            {
+                influence.ActedAgainstNature(agent, AgainstTheirNature.BatteredTheDoor, press, doors.IdOf(door),
+                    geometry.DoorCentre(door));
             }
         }
 
@@ -1198,6 +1247,7 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             int door = agent.Doors.ExitDoorIndex;
+            InfluenceSystem.StopActing(agent);
             context.Events.Append(tick, agent.Id, CausalEventType.AgentGaveUpOnDoor, geometry.DoorCentre(door),
                 0, 0, agent.Doors.AttemptEventId, doors.IdOf(door));
             agent.Doors.AvoidUntilTick[door] = checked(tick + context.Random.NextIntInclusive(
@@ -1679,7 +1729,8 @@ namespace Paniq.Simulation
                 int side = geometry.DoorRoom(k);
                 int into = side == room ? geometry.RoomBeyond(k, room) : geometry.RoomBeyond(k, side) == room ? side : -1;
                 if (into < 0 || into == agent.Doors.PreviousRoom || threats.IsInRoom(into) ||
-                    (!geometry.IsDoorOpen(k) && (agent.Doors.FoundShut[k] || context.Tick < agent.Doors.AvoidUntilTick[k])))
+                    (!geometry.IsDoorOpen(k) && !HandIsOn(agent, k) &&
+                     (agent.Doors.FoundShut[k] || context.Tick < agent.Doors.AvoidUntilTick[k])))
                 {
                     continue;
                 }
@@ -1733,6 +1784,34 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// Whether the player's hand is pulling this person to this door
+        /// strongly enough for them to do what they otherwise would not
+        /// (2026-09-30): come back to a door they gave up on, and throw
+        /// themselves at it whatever their strength. Draws nothing.
+        /// </summary>
+        private bool HandIsOn(Agent agent, int door)
+        {
+            if (influence == null || influence.Count == 0 || door < 0)
+            {
+                return false;
+            }
+
+            int place = influence.PullOnDoor(door);
+            return place >= 0 && influence.FeltBy(agent, place) >= context.Scenario.Influence.ActsAgainstNatureFromPerMille;
+        }
+
+        /// <summary>Whether the player's hand is pushing this person off this door strongly enough to rule it out (2026-09-30). Draws nothing.</summary>
+        private bool HandPushesFrom(Agent agent, int door)
+        {
+            if (influence == null || influence.Count == 0 || door < 0 || !influence.IsRepelling(door))
+            {
+                return false;
+            }
+
+            return influence.FeltBy(agent, 0) >= context.Scenario.Influence.ActsAgainstNatureFromPerMille;
+        }
+
         /// <summary>The influenced place this person feels most, for naming as the cause of a choice it changed.</summary>
         private InfluenceSystem.Place StrongestPlaceFelt(Agent agent)
         {
@@ -1757,7 +1836,7 @@ namespace Paniq.Simulation
                 return 0L;
             }
 
-            return influence.DoorBonus(agent, door) + influence.SpotBonus(agent, toward);
+            return influence.DoorBonus(agent, door) + influence.SpotBonus(agent, toward, door);
         }
 
         /// <summary>Everybody's physical body, for hauling somebody down in a doorway through it. Bound after construction like the objects.</summary>

@@ -279,6 +279,85 @@
         /// <summary>The ticks on which somebody is due to settle, so no two settle on the same one.</summary>
         private readonly System.Collections.Generic.HashSet<int> calmEndsTaken = new System.Collections.Generic.HashSet<int>();
 
+        // The crowd switch (2026-09-30), a button on the test levels: the
+        // owner's rule, "toggle button in UI, calm or panicked, toggling
+        // should set their states". It is two player commands, so a replay
+        // carries it, and it goes through the same startle and settle as
+        // anything else, so nobody moves on the tick it is pressed and no
+        // two people on one tick.
+
+        /// <summary>
+        /// Whether the switch stands at "panicked": everybody is kept
+        /// frightened, and anybody found calm is startled again.
+        /// </summary>
+        public bool HoldsPanicked { get; private set; }
+
+        /// <summary>The switch's last press, for the log lines it causes.</summary>
+        private ulong switchEventId;
+
+        /// <summary>
+        /// The switch flicked to "panicked": everybody calm is startled, each
+        /// with their own lag and reaction delay and a tick of their own to
+        /// finish on, exactly as a bell startles them; everybody already
+        /// frightened has their fear filled again. Held until
+        /// <see cref="CalmEveryone"/>: nobody settles, and whoever is found
+        /// calm again (up off the floor, say) is startled again in
+        /// <see cref="Settle"/>.
+        /// </summary>
+        public void PanicEveryone(ulong causeEventId, Agent[] agents)
+        {
+            HoldsPanicked = true;
+            switchEventId = causeEventId;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                agent.Fear.CalmOrdered = false;
+                if (!agent.IsParticipating || agent.Burning.IsBurning)
+                {
+                    continue;
+                }
+
+                if (agent.Fear.State == AgentFearState.Calm)
+                {
+                    if (agent.Body.State == AgentBodyState.Upright)
+                    {
+                        StartAlert(agent, causeEventId, AgentAlertSource.CrowdSwitch);
+                    }
+                }
+                else
+                {
+                    Refresh(agent);
+                }
+            }
+        }
+
+        /// <summary>
+        /// The switch flicked to "calm": the hold is off, and everybody
+        /// startled or frightened is given a tick of their own, a few ticks
+        /// out, to settle on -- whatever the calming rules would have said,
+        /// but never before they are free to (<see cref="CalmDown"/> waits
+        /// for someone mid-way through a door or on the floor). From then on
+        /// the ordinary rules decide who takes fright: a fire lit afterwards
+        /// frightens them as it always did.
+        /// </summary>
+        public void CalmEveryone(ulong causeEventId, Agent[] agents)
+        {
+            HoldsPanicked = false;
+            switchEventId = causeEventId;
+            int tick = context.Tick;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                if (!agent.IsParticipating || agent.Burning.IsBurning || agent.Fear.State == AgentFearState.Calm)
+                {
+                    continue;
+                }
+
+                agent.Fear.CalmOrdered = true;
+                agent.Fear.CalmsAtTick = checked(tick + Staggered(calmEndsTaken, tick, context.ReactionLag()));
+            }
+        }
+
         /// <summary>
         /// Something frightening again -- a bell, a bang, the danger back in
         /// sight: their fear is full again and the quiet spell starts over.
@@ -324,13 +403,53 @@
         public void Settle(Agent agent)
         {
             CalmingSettings calming = context.Scenario.Calming;
-            if (!calming.Enabled || agent.Fear.State != AgentFearState.Scared || !agent.IsParticipating)
+            int tick = context.Tick;
+            AgentFear fear = agent.Fear;
+            if (!agent.IsParticipating)
             {
                 return;
             }
 
-            int tick = context.Tick;
-            AgentFear fear = agent.Fear;
+            // The crowd switch's orders come before the calming rules
+            // (2026-09-30). Told to calm down, they settle on their tick
+            // whatever is going on; held panicked, nobody settles and anybody
+            // found calm is startled again, on a lag of their own.
+            if (fear.CalmOrdered)
+            {
+                if (fear.State == AgentFearState.Calm)
+                {
+                    fear.CalmOrdered = false;
+                }
+                else if (tick >= fear.CalmsAtTick && !agent.Burning.IsBurning)
+                {
+                    CalmDown(agent);
+                }
+
+                return;
+            }
+
+            if (HoldsPanicked)
+            {
+                if (fear.State == AgentFearState.Calm)
+                {
+                    if (!agent.Burning.IsBurning && agent.Body.State == AgentBodyState.Upright)
+                    {
+                        StartAlert(agent, switchEventId, AgentAlertSource.CrowdSwitch);
+                    }
+                }
+                else
+                {
+                    Refresh(agent);
+                }
+
+                return;
+            }
+
+            if (!calming.Enabled || fear.State != AgentFearState.Scared)
+            {
+                return;
+            }
+
             if (agent.Burning.IsBurning ||
                 ((tick + agent.Index) % calming.CheckEveryTicks == 0 && StillFrightening(agent)))
             {
@@ -425,8 +544,13 @@
         private void CalmDown(Agent agent)
         {
             AgentActivityState activity = agent.Intent.Activity;
+
+            // Somebody only startled, not yet frightened, has done nothing
+            // yet and can be stood down where they are (the crowd switch is
+            // the one thing that asks, 2026-09-30).
             bool free = activity == AgentActivityState.Fleeing || activity == AgentActivityState.Hesitating ||
-                        activity == AgentActivityState.Frozen || activity == AgentActivityState.Standing;
+                        activity == AgentActivityState.Frozen || activity == AgentActivityState.Standing ||
+                        agent.Fear.State == AgentFearState.Alert;
             if (!free || agent.Body.State != AgentBodyState.Upright || agent.Help.TargetIndex >= 0 ||
                 agent.Sitting.Phase == SitPhase.LeapingUp)
             {
@@ -437,6 +561,9 @@
             AgentFear fear = agent.Fear;
             CalmingSettings calming = context.Scenario.Calming;
             int rattled = fear.SawTheThreat ? calming.RattledAfterSeeingTicks : calming.RattledAfterHearingTicks;
+            ulong cause = fear.CalmOrdered ? switchEventId
+                : fear.ScaredEventId != 0UL ? fear.ScaredEventId : fear.AlertEventId;
+            fear.CalmOrdered = false;
             fear.State = AgentFearState.Calm;
             fear.AlertSource = AgentAlertSource.None;
             fear.CalmsAtTick = 0;
@@ -463,7 +590,7 @@
             agent.Body.BlockedTicks = 0;
 
             context.Events.Append(tick, agent.Id, CausalEventType.AgentCalmedDown, agent.Body.Position, rattled, 0,
-                fear.ScaredEventId);
+                cause);
 
             if (cues != null && agent.Home.Exists && !threats.IsInRoom(HomeRoom(agent)))
             {

@@ -128,6 +128,45 @@ namespace Paniq.Tests.PlayMode
             Paniq.Gameplay.LevelSession.ClearRequestedSeed();
         }
 
+        /// <summary>
+        /// The level row on the start card (2026-09-30): asking for another
+        /// level and reloading the scene builds that level, behind its own
+        /// start card, with the display built for it.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator PickingAnotherLevel_ReloadsTheSceneIntoIt()
+        {
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            try
+            {
+                // What the level row does, without the button: ask for the
+                // level, drop the seed, reload.
+                Paniq.Gameplay.LevelSession.RequestLevel("square");
+                Paniq.Gameplay.LevelSession.ClearRequestedSeed();
+                yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+
+                Paniq.Gameplay.RunDriver runner = Object.FindFirstObjectByType<Paniq.Gameplay.RunDriver>();
+                Assert.That(runner, Is.Not.Null);
+                Assert.That(runner.Level, Is.Not.Null);
+                Assert.That(runner.Level.LevelId, Is.EqualTo("square"), "The level asked for has to survive the reload.");
+                Assert.That(runner.Levels.Count, Is.GreaterThanOrEqualTo(4), "The office and the three test levels are on offer.");
+                Assert.That(runner.IsWaitingToStart, Is.True, "Another level opens behind its own start card.");
+                Assert.That(runner.Snapshot.CrowdSize, Is.EqualTo(40), "The square room holds forty people.");
+                Assert.That(runner.Level.OffersCrowdSwitch, Is.True);
+                Assert.That(runner.Level.TriggerStartsAHazard, Is.False);
+
+                var presentation = Object.FindFirstObjectByType<Paniq.Presentation.RunPresentation>();
+                Assert.That(presentation, Is.Not.Null);
+                Assert.That(presentation.StartupErrorForTests, Is.Null, "The display was not built for the square room.");
+            }
+            finally
+            {
+                // Leave nothing behind for the next test.
+                Paniq.Gameplay.LevelSession.RequestLevel(null);
+                Paniq.Gameplay.LevelSession.ClearRequestedSeed();
+            }
+        }
+
         [UnityTest]
         public IEnumerator FireReactionPrototype_DoorClicksUnlockThenOpen()
         {

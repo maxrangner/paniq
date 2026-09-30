@@ -22,6 +22,9 @@ namespace Paniq.Presentation
         private static readonly Color NotCleared = new Color(1f, 0.6f, 0.45f);
         private static readonly Color TriggerReady = new Color(0.75f, 0.2f, 0.15f, 0.95f);
         private static readonly Color Spent = new Color(0.18f, 0.18f, 0.2f, 0.8f);
+        private static readonly Color CrowdPanicked = new Color(0.85f, 0.35f, 0.2f, 0.95f);
+        private static readonly Color CrowdCalm = new Color(0.25f, 0.55f, 0.8f, 0.95f);
+        private static readonly Color CurrentLevel = new Color(0.55f, 0.75f, 1f);
 
         private readonly RunDriver runner;
 
@@ -45,6 +48,27 @@ namespace Paniq.Presentation
 
         private string LevelId => runner.Level != null ? runner.Level.LevelId : "the-office";
         private string LevelName => runner.Level != null ? runner.Level.DisplayName : "The Office";
+        private bool OffersCrowdSwitch => runner.Level != null && runner.Level.OffersCrowdSwitch;
+        private bool TriggerStartsAHazard => runner.Level == null || runner.Level.TriggerStartsAHazard;
+
+        /// <summary>The line under PLAY: what sets this level off.</summary>
+        private string HowItStarts
+        {
+            get
+            {
+                if (OffersCrowdSwitch && TriggerStartsAHazard)
+                {
+                    return "Calm until you press Crowd: panicked, or Trigger event for a fire.";
+                }
+
+                if (OffersCrowdSwitch)
+                {
+                    return "Calm until you press Crowd: panicked. Nothing burns here.";
+                }
+
+                return $"{LevelName} is calm until you press Trigger event yourself.";
+            }
+        }
 
         /// <summary>Reset and Pause in the top-right corner, and Trigger event bottom centre. (The running score is drawn by the HUD, packed under the alarm band.)</summary>
         public void DrawStrip(RunSnapshot snapshot)
@@ -68,15 +92,43 @@ namespace Paniq.Presentation
             // The trigger sits bottom centre and goes the moment it is pressed
             // (the owner asked, 2026-09-25): nothing left to press means the
             // fire has been set going. Kept clear of the hand on a narrow
-            // screen.
-            if (!snapshot.EventTriggered)
+            // screen. Not on a level with nothing for it to start
+            // (2026-09-30), and since then the crowd switch may have begun
+            // the round without it, so it stays until the fire is asked for.
+            float bottomLeft = Mathf.Max(Screen.width * 0.5f - 110f, 460f);
+            bool triggerShown = TriggerStartsAHazard && !snapshot.HazardRequested && !snapshot.RoundIsOver;
+            if (triggerShown)
             {
-                var trigger = new Rect(Mathf.Max(Screen.width * 0.5f - 110f, 460f), Screen.height - 64f, 220f, 36f);
+                var trigger = new Rect(bottomLeft, Screen.height - 64f, 220f, 36f);
                 HudHitTest.Claim(trigger);
                 GUI.backgroundColor = TriggerReady;
                 if (GUI.Button(trigger, "Trigger event"))
                 {
                     runner.QueueTriggerEvent();
+                }
+
+                GUI.backgroundColor = Color.white;
+            }
+
+            // The crowd switch (2026-09-30, the test levels): one button that
+            // reads what the crowd is being held at and flicks it the other
+            // way. Beside the trigger, or where the trigger would be.
+            if (OffersCrowdSwitch && !runner.IsWaitingToStart && !snapshot.RoundIsOver)
+            {
+                float x = triggerShown ? bottomLeft - 230f : bottomLeft;
+                var crowd = new Rect(x, Screen.height - 64f, 220f, 36f);
+                HudHitTest.Claim(crowd);
+                GUI.backgroundColor = snapshot.CrowdHeldPanicked ? CrowdPanicked : CrowdCalm;
+                if (GUI.Button(crowd, snapshot.CrowdHeldPanicked ? "Crowd: panicked" : "Crowd: calm"))
+                {
+                    if (snapshot.CrowdHeldPanicked)
+                    {
+                        runner.QueueCrowdCalm();
+                    }
+                    else
+                    {
+                        runner.QueueCrowdPanicked();
+                    }
                 }
 
                 GUI.backgroundColor = Color.white;
@@ -98,7 +150,9 @@ namespace Paniq.Presentation
         /// <summary>The card before the round: the level, the target, the best so far, and the seed.</summary>
         public void DrawStartCard(RunSnapshot snapshot)
         {
-            const float height = 250f;
+            IReadOnlyList<LevelDefinition> levels = runner.Levels;
+            bool levelRow = levels.Count > 1;
+            float height = levelRow ? 290f : 250f;
             Rect card = CentredCard(height);
             float x = card.x + 24f;
             float y = card.y + 20f;
@@ -106,6 +160,29 @@ namespace Paniq.Presentation
 
             GUI.Label(new Rect(x, y, width, 26f), LevelName.ToUpperInvariant());
             y += 30f;
+
+            // The level row (2026-09-30): every level the runner offers, the
+            // one on screen lit. Another one reloads the scene into it,
+            // behind its own start card.
+            if (levelRow)
+            {
+                float gap = 6f;
+                float each = (width - gap * (levels.Count - 1)) / levels.Count;
+                for (int i = 0; i < levels.Count; i++)
+                {
+                    bool current = ReferenceEquals(levels[i], runner.Level);
+                    GUI.backgroundColor = current ? CurrentLevel : Color.white;
+                    if (GUI.Button(new Rect(x + i * (each + gap), y, each, 28f), levels[i].DisplayName) && !current)
+                    {
+                        LevelLoader.SwitchLevel(levels[i].LevelId);
+                        GUI.backgroundColor = Color.white;
+                        return;
+                    }
+                }
+
+                GUI.backgroundColor = Color.white;
+                y += 40f;
+            }
             GUI.Label(new Rect(x, y, width, 22f),
                 $"Save {snapshot.TargetSavedCount} of {snapshot.CrowdSize} people to clear it.");
             y += 24f;
@@ -122,8 +199,7 @@ namespace Paniq.Presentation
 
             y += 44f;
             GUI.color = new Color(0.75f, 0.78f, 0.82f);
-            GUI.Label(new Rect(x, y, width, 22f),
-                "The office is calm until you press Trigger event yourself.");
+            GUI.Label(new Rect(x, y, width, 22f), HowItStarts);
             GUI.color = Color.white;
         }
 

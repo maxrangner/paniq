@@ -195,6 +195,7 @@ way; a third would need a reason just as clear.
   | --- | --- |
   | Any task: where things stand, what is open | `docs/roadmap.md` (top and *Left open*) |
   | A playtest note, or how the level plays | `docs/the-office-level.md` |
+  | The blank test levels and the crowd switch | `docs/test-levels.md` |
   | How people behave: fear, panic, helping, doors | `docs/the-office-level.md`, `docs/agent-state-model.md` |
   | Randomness, ticks, order, replays | `docs/simulation-contract.md` |
   | Rooms, walls, bodies, finding the way | `docs/spatial-world-rules.md` |

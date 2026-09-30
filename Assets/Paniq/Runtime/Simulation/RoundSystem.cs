@@ -90,6 +90,29 @@
         /// </summary>
         public void TriggerEvent()
         {
+            // Already asked for (by this button or the hazard's own clock),
+            // or a round that is over: nothing. A round the crowd switch
+            // began (2026-09-30) is Running without a hazard, and the
+            // button still lights the fire in it.
+            if (Phase == RoundPhase.Over || threats.StartRequested)
+            {
+                return;
+            }
+
+            Begin(0UL);
+            threats.RequestStart();
+        }
+
+        /// <summary>
+        /// The round is on, whether or not any hazard has been asked to
+        /// start: the crowd switch (2026-09-30) begins it so that a test
+        /// level which empties ends with a score. The first call moves the
+        /// phase and logs it against <paramref name="causeEventId"/> (the
+        /// switch's press, or nothing for the trigger button); later calls do
+        /// nothing.
+        /// </summary>
+        public void Begin(ulong causeEventId)
+        {
             if (Phase != RoundPhase.BeforeEvent)
             {
                 return;
@@ -101,9 +124,10 @@
                 default,
                 CausalEventType.RoundEventTriggered,
                 geometry.FireArea.Centre,
-                context.Tick);
+                context.Tick,
+                0,
+                causeEventId);
             TriggerEventId = triggered.EventId;
-            threats.RequestStart();
         }
 
         /// <summary>

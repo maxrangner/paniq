@@ -868,7 +868,9 @@ a door draws people to it; a right click turns its key; the right button held
 keeps it shut. Point at a door, a red pull station, a person, a thing or the
 floor and the line under the score says what the hand will do there. **Reset**, top right, goes straight back to the start card with the
 seed kept; **Pause** sits under it; the red **Trigger event** button sits
-bottom centre and goes the moment it is pressed.
+bottom centre and goes the moment it is pressed. The start card also offers
+the other levels (2026-09-30): three blank rooms for watching the crowd, with
+a crowd switch of their own, on [their own page](test-levels.md).
 
 The five **trait cards** are thrown at a patch of floor about a doorway and a
 half across — not at a chosen person — and slam one dial to the end of its scale

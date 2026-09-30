@@ -63,6 +63,10 @@ game-development knowledge to answer.
   groups before committing. The binding rule is in
   [`AGENTS.md`](../AGENTS.md) under *Quality checks*; the commands and the
   coverage table are below.
+- A **sketch** runs neither gear, only the compile check: it is an idea
+  handed to the owner to play before it is built to keep. The binding rule is
+  in [`AGENTS.md`](../AGENTS.md) under *Sketch and keep*, and the short form
+  is below.
 - The replay fingerprint tests (`ReplayFingerprintEditModeTests`) squash whole
   runs into single numbers. A change meant to be invisible to players, such as
   a restructure, must keep every number. A change meant to alter behaviour
@@ -101,12 +105,28 @@ then use `-Reset` if the run never reports back.
 libraries without Unity running: a quick check that a change builds before
 handing it to the editor.
 
+### Sketch and keep
+
+Two speeds of prototype work (2026-09-30, the owner's decision; the binding
+text is in `AGENTS.md`). The owner names the speed:
+
+- **Sketch**: change the game code, run the compile check, hand it over.
+  No new tests, no docs, no fingerprints, no version bump; red tests are
+  said in a line; the report is three lines (what is different, how to try
+  it, what is unproven); nothing is committed.
+- **Keep**: revert what the owner dropped, then tests, docs, fingerprints
+  and versions, the full run, one commit -- everything below, unchanged.
+- **Neither named, or unclear**: ask, in one line with a recommendation,
+  before doing anything. There is no default.
+
 ### Two gears
 
-The full suite is 425 tests and about three minutes, because every test that
-builds a run needs the physics engine inside the editor. Run after every step
-of a six-step task, that is fifteen minutes spent re-proving what the step
-could not have touched. So checking work has two gears:
+The full suite is about 690 edit-mode tests and 19 play-mode ones: six and a
+half minutes end to end with the compile check (measured 2026-10-01; the
+"three minutes" this page used to say dated from a suite of 425), because
+every test that builds a run needs the physics engine inside the editor. Run
+after every step of a six-step task, that is forty minutes spent re-proving
+what the step could not have touched. So checking work has two gears:
 
 1. **While iterating.** After every edit, the compile check above. Once a
    step has a claim worth checking (a behaviour is in, not a file saved), the
@@ -126,7 +146,12 @@ prompt waits less in total than the same work split into small prompts.
 
 `-Slowest 10` after any run, or `-Slowest 10 -LastRun` afterwards with no
 editor, lists the tests the suite spends its time on. Trim on that evidence,
-not by feel.
+not by feel -- and take it from a *full* run: a filtered run's list names
+only what ran, and `-LastRun` reads whichever run was last (the 2026-10-01
+trim started from a filtered list and named the wrong tests). The tests at
+the top are whole-building runs over several seeds; the cost is the stepping,
+not the checks. A "does it ever happen" test stops at the first seed that
+says yes; an every-tick invariant keeps its seeds.
 
 ### Which tests cover what
 

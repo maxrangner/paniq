@@ -142,15 +142,20 @@ a tug or the hand before it closes, and "caught!" goes up in green.
 Keys the prototype already uses, which these live alongside: **Tab** opens a
 small panel of switches for what is drawn besides the building and the people
 (the vision cones, the numbers and marks over heads, the table of everyone's
-traits, and the walkable floor; 2026-09-30), and under them the **Hand
-strength** slider (2026-09-30, the owner: "a slider in debug with a print out
-number so I can find the sweetspot and later hardcode it"): 0 to 300 % in
-tens, with the percent and how many people are answering the hand right now
-printed above it. **G** paints the floor people can
+traits, and the walkable floor; 2026-09-30), and under them the hand's two
+dials (2026-09-30, the owner: "a slider in debug with a print out number so I
+can find the sweetspot and later hardcode it", and, asked which feelings they
+tune most by hand, "influence strength and influence area"): the **Hand
+strength** slider, 0 to 300 % in tens, with the percent and how many people
+are answering the hand right now printed above it; the **Hand reach** slider,
+2 to 24 m in half metres, with the metres and how many people feel the hand
+at all printed above it; and a **Level's own** button that puts both back to
+what the level says. **G** paints the floor people can
 walk on (the same switch as in the panel), and **Space** pauses. Everything the
 panel switches starts as it always looked -- cones, numbers and marks on, the
-hand at 100 % -- and stays as set until Play is pressed again. The hand
-strength is sent to the run as a command, so a replay replays it.
+dials at the level's own -- and stays as set until Play is pressed again. Each
+dial is sent to the run as a command, so a replay replays it, and the end card
+names a dial that was off the level's own.
 
 The values chosen when the camera was built, recorded in
 [technical decisions](history/decisions-prototype-2.md#prototype-2-decision-building-the-round): the view pans at 14 metres a

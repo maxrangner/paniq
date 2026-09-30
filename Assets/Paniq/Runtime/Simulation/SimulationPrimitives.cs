@@ -1488,7 +1488,16 @@ namespace Paniq.Simulation
         /// point's X. A tuning dial for finding the value to keep, in the run
         /// so a replay replays it. Free.
         /// </summary>
-        SetHandStrength
+        SetHandStrength,
+
+        /// <summary>
+        /// The Tab panel's hand reach (2026-09-30, the owner's second dial:
+        /// "influence strength and influence area"): how far the hand is
+        /// felt, in millimetres of walk, carried in the point's X. The same
+        /// kind of tuning dial as the strength, in the run so a replay
+        /// replays it. Free.
+        /// </summary>
+        SetHandReach
     }
 
     /// <summary>

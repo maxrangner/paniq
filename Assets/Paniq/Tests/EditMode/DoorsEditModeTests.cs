@@ -211,10 +211,13 @@ namespace Paniq.Tests.EditMode
                     for (int i = 0; i < simulation.AgentCount; i++)
                     {
                         AgentSnapshot agent = simulation.GetAgent(i);
-                        if (agent.Participation == AgentParticipation.Participating)
+                        // A plain test, not Assert.That, in a loop that runs
+                        // a hundred thousand times a seed: the constraint
+                        // objects were most of this test's ten seconds.
+                        if (agent.Participation == AgentParticipation.Participating &&
+                            !IsInRoomOrDoorway(simulation, data, agent.Position))
                         {
-                            Assert.That(IsInRoomOrDoorway(simulation, data, agent.Position), Is.True,
-                                $"Seed {seed}: agent {agent.AgentId} got out of the building at tick {simulation.Tick}.");
+                            Assert.Fail($"Seed {seed}: agent {agent.AgentId} got out of the building at tick {simulation.Tick}.");
                         }
                     }
                 }
@@ -310,15 +313,21 @@ namespace Paniq.Tests.EditMode
                         // between one tick and the next. Doorways are gaps in
                         // the walls, so going through one is fine, and once out
                         // in the street people may wander where they like.
-                        Assert.That(CrossesAWall(walls, from, agent.Position), Is.False,
-                            $"Seed {seed}: agent {agent.AgentId} walked through a wall at tick {simulation.Tick}.");
+                        // Plain tests, not Assert.That, in loops that run a
+                        // million times a seed: the constraint objects were
+                        // most of this test's seventeen seconds.
+                        if (CrossesAWall(walls, from, agent.Position))
+                        {
+                            Assert.Fail($"Seed {seed}: agent {agent.AgentId} walked through a wall at tick {simulation.Tick}.");
+                        }
+
                         for (int j = 0; j < i; j++)
                         {
                             AgentSnapshot other = simulation.GetAgent(j);
-                            if (other.Participation == AgentParticipation.Participating && !agent.IsDown && !other.IsDown)
+                            if (other.Participation == AgentParticipation.Participating && !agent.IsDown && !other.IsDown &&
+                                LogicalPosition.DistanceSquared(agent.Position, other.Position) < touching * touching)
                             {
-                                Assert.That(LogicalPosition.DistanceSquared(agent.Position, other.Position),
-                                    Is.GreaterThanOrEqualTo(touching * touching));
+                                Assert.Fail($"Seed {seed}: agents {agent.AgentId} and {other.AgentId} overlapped at tick {simulation.Tick}.");
                             }
                         }
                     }

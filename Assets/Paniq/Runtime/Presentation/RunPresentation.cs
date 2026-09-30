@@ -243,7 +243,7 @@ namespace Paniq.Presentation
             }
 
             navigationGrid?.Show(view.WalkableFloor);
-            SendTheHandStrength();
+            SendTheHandDials();
 
             // Space pauses, but only once the round is actually going: there
             // is nothing to pause behind the start card or after the end one.
@@ -349,7 +349,8 @@ namespace Paniq.Presentation
                 else if (frameSnapshot.RoundIsOver)
                 {
                     story ??= new EventStory(frameSnapshot, runner.Simulation.Commands);
-                    retold ??= story.Retell(frameSnapshot, runner.Simulation.Scenario.Influence.StrengthPercent);
+                    retold ??= story.Retell(frameSnapshot, runner.Simulation.Scenario.Influence.StrengthPercent,
+                        runner.Simulation.Scenario.Influence.ReachMillimetres, view.LevelReachMillimetres);
                     screens.DrawEndCard(frameSnapshot, runner.LeftAloneSavedCount, runner.LeftAloneStillWorking,
                         retold);
                 }
@@ -369,29 +370,61 @@ namespace Paniq.Presentation
             }
         }
 
-        /// <summary>The run the slider's value was last sent to, and the value, so it is sent once a change and once a round.</summary>
-        private Run strengthSentTo;
+        /// <summary>The run the sliders' values were last sent to, and the values, so each is sent once a change and once a round.</summary>
+        private Run dialsSentTo;
         private int strengthSent = -1;
+        private int reachSent = -1;
 
         /// <summary>
-        /// The Tab panel's hand strength reaches the run (2026-09-30): sent as
-        /// a command when the slider moves, and again to a fresh round after
-        /// Reset, so it lasts the session. A round at the level's own
-        /// strength is sent nothing.
+        /// The Tab panel's hand dials reach the run (2026-09-30): each sent
+        /// as a command when its slider moves, and again to a fresh round
+        /// after Reset, so they last the session. A round at the level's own
+        /// values is sent nothing. The first round seen tells the panel what
+        /// the level's own values are, so "Level's own" has something to go
+        /// back to and the end card can say when a dial was off them.
         /// </summary>
-        private void SendTheHandStrength()
+        private void SendTheHandDials()
         {
             Run run = runner.Simulation;
-            if (run == null || (run == strengthSentTo && view.HandStrengthPercent == strengthSent))
+            if (run == null)
             {
                 return;
             }
 
-            strengthSentTo = run;
-            strengthSent = view.HandStrengthPercent;
-            if (run.Scenario.Influence.StrengthPercent != view.HandStrengthPercent)
+            if (run != dialsSentTo)
             {
-                runner.QueueHandStrength(view.HandStrengthPercent);
+                // A fresh round's settings are still the level's own: nothing
+                // has been sent to it yet.
+                InfluenceSettings own = run.Scenario.Influence;
+                if (dialsSentTo == null)
+                {
+                    view.HandStrengthPercent = own.StrengthPercent;
+                    view.HandReachMillimetres = own.ReachMillimetres;
+                }
+
+                view.LevelStrengthPercent = own.StrengthPercent;
+                view.LevelReachMillimetres = own.ReachMillimetres;
+                dialsSentTo = run;
+                strengthSent = -1;
+                reachSent = -1;
+            }
+
+            if (view.HandStrengthPercent != strengthSent)
+            {
+                strengthSent = view.HandStrengthPercent;
+                if (run.Scenario.Influence.StrengthPercent != strengthSent)
+                {
+                    runner.QueueHandStrength(strengthSent);
+                }
+            }
+
+            if (view.HandReachMillimetres != reachSent)
+            {
+                reachSent = view.HandReachMillimetres;
+                if (run.Scenario.Influence.ReachMillimetres != reachSent)
+                {
+                    runner.QueueHandReach(reachSent);
+                }
             }
         }
 

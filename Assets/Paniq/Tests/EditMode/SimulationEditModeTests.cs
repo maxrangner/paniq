@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("91"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(79));
+            Assert.That(data.ContentRevision, Is.EqualTo("92"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(80));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -1361,11 +1361,13 @@ namespace Paniq.Tests.EditMode
                         // can be shoved along by the crowd, or slide on from the
                         // knock that floored them, but never at more than a
                         // stumble's pace.
-                        if (agent.IsDown && agent.BodyState == previous[i].BodyState && !SomeoneIsDragging(simulation))
+                        // Plain tests, not Assert.That, in loops that run a
+                        // million times a seed: the constraint objects were
+                        // most of this test's fifteen seconds.
+                        if (agent.IsDown && agent.BodyState == previous[i].BodyState && !SomeoneIsDragging(simulation) &&
+                            LogicalPosition.DistanceSquared(agent.Position, previous[i].Position) > 150L * 150L)
                         {
-                            Assert.That(LogicalPosition.DistanceSquared(agent.Position, previous[i].Position),
-                                Is.LessThanOrEqualTo(150L * 150L),
-                                $"Seed {seed}: agent {agent.AgentId} moved too fast while not on its feet.");
+                            Assert.Fail($"Seed {seed}: agent {agent.AgentId} moved too fast while not on its feet.");
                         }
 
                         // One spell on the floor at a time. Somebody hauled up
@@ -1376,17 +1378,18 @@ namespace Paniq.Tests.EditMode
                         downTicks[i] = agent.IsDown && agent.BodyState == previous[i].BodyState
                             ? downTicks[i] + 1
                             : 0;
-                        Assert.That(downTicks[i], Is.LessThanOrEqualTo(longestDown),
-                            $"Seed {seed}: agent {agent.AgentId} never got back up.");
+                        if (downTicks[i] > longestDown)
+                        {
+                            Assert.Fail($"Seed {seed}: agent {agent.AgentId} never got back up.");
+                        }
 
                         for (int j = 0; j < i; j++)
                         {
                             AgentSnapshot other = simulation.GetAgent(j);
-                            if (other.Participation == AgentParticipation.Participating && !agent.IsDown && !other.IsDown)
+                            if (other.Participation == AgentParticipation.Participating && !agent.IsDown && !other.IsDown &&
+                                LogicalPosition.DistanceSquared(agent.Position, other.Position) < touching * touching)
                             {
-                                Assert.That(LogicalPosition.DistanceSquared(agent.Position, other.Position),
-                                    Is.GreaterThanOrEqualTo(touching * touching),
-                                    $"Seed {seed}: agents overlapped at tick {simulation.Tick}.");
+                                Assert.Fail($"Seed {seed}: agents {agent.AgentId} and {other.AgentId} overlapped at tick {simulation.Tick}.");
                             }
                         }
 

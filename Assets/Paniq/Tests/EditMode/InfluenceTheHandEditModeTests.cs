@@ -578,6 +578,45 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
+        /// The second dial (2026-09-30, the owner, asked which feelings they
+        /// tune most by hand: "influence strength and influence area"). The
+        /// hand reach sets how far the hand is felt: somebody three and a bit
+        /// metres from it feels it in full at the level's twelve, nothing at
+        /// two, and a little at four and a half, where they stand in the
+        /// fading outer half.
+        /// </summary>
+        [Test]
+        public void TheHandReach_SetsHowFarTheHandIsFelt()
+        {
+            var hand = new LogicalPosition(0, -1500);
+            using (var simulation = new Run(Office(Person(Somebody, new LogicalPosition(-3000, -3000), AgentTraitValues.AllOrdinary)), 42UL))
+            {
+                Advance(simulation, 10);
+                Press(simulation, PlayerCommandType.InfluenceSpot, hand);
+                InfluenceSystem influence = simulation.InfluenceForTests;
+                int full = influence.FeltBy(simulation.AgentForTests(0), 0);
+                Assert.That(full, Is.GreaterThan(0));
+
+                Press(simulation, PlayerCommandType.SetHandReach, new LogicalPosition(2000, 0));
+                Assert.That(simulation.Scenario.Influence.ReachMillimetres, Is.EqualTo(2000), "The run's own setting has it.");
+                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.Zero, "Out of reach: nothing at all.");
+
+                Press(simulation, PlayerCommandType.SetHandReach, new LogicalPosition(4500, 0));
+                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.GreaterThan(0).And.LessThan(full),
+                    "In the fading outer half of a short reach: a little.");
+
+                Press(simulation, PlayerCommandType.SetHandReach, new LogicalPosition(24000, 0));
+                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.EqualTo(full),
+                    "Twice the level's reach: full, as it was.");
+
+                // The dial is clamped, not trusted: a reach of nothing would
+                // be a hand nobody could ever feel.
+                Press(simulation, PlayerCommandType.SetHandReach, new LogicalPosition(0, 0));
+                Assert.That(simulation.Scenario.Influence.ReachMillimetres, Is.EqualTo(InfluenceSettings.MinimumReachMillimetres));
+            }
+        }
+
+        /// <summary>
         /// Somebody with an errand still to come -- a meeting later in the day
         /// -- used to get up for the hand and then never go to it, because
         /// having any errand at all kept them from it. They come now; the

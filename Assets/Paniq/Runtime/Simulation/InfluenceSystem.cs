@@ -247,6 +247,18 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// The Tab panel's second dial (2026-09-30): how far the hand is felt
+        /// from the next tick on, in this run's own settings. Nothing is
+        /// cached from the reach, so a person at the old edge simply feels
+        /// more or nothing next tick.
+        /// </summary>
+        public void SetReach(int millimetres)
+        {
+            settings.ReachMillimetres = Math.Max(InfluenceSettings.MinimumReachMillimetres,
+                Math.Min(InfluenceSettings.MaximumReachMillimetres, millimetres));
+        }
+
+        /// <summary>
         /// The player lets go: the place is gone at once. Whoever was acting
         /// for it keeps the task if their conviction has reached the commit
         /// line, and drops it otherwise (<see cref="Advance"/>, this tick).

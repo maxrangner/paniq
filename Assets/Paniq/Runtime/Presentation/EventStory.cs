@@ -115,9 +115,13 @@ namespace Paniq.Presentation
         /// the plain-language retelling the game vision asks for, for the end
         /// card. What the player's hand did, the keycard, the corridor, and
         /// the fire, each from the events that decided it. Reads the log and
-        /// decides nothing.
+        /// decides nothing. The hand's dials are named on the hand's line when
+        /// they were off the level's own (the strength's own is 100; the
+        /// reach's is whatever the caller says it is, nought meaning "do not
+        /// say").
         /// </summary>
-        public List<string> Retell(RunSnapshot snapshot, int handStrengthPercent = 100)
+        public List<string> Retell(RunSnapshot snapshot, int handStrengthPercent = 100, int handReachMillimetres = 0,
+            int levelReachMillimetres = 0)
         {
             var lines = new List<string>(5);
             IReadOnlyList<CausalEvent> events = snapshot.Events;
@@ -159,7 +163,18 @@ namespace Paniq.Presentation
             // many clicks/influence you used this round"): what you did, how
             // often, and what came of it.
             HandTally tally = HandTally.From(events, commands, snapshot.Tick);
-            string strength = handStrengthPercent != 100 ? $" (hand strength {handStrengthPercent}%)" : "";
+            var dials = new List<string>(2);
+            if (handStrengthPercent != 100)
+            {
+                dials.Add($"hand strength {handStrengthPercent}%");
+            }
+
+            if (levelReachMillimetres > 0 && handReachMillimetres != levelReachMillimetres)
+            {
+                dials.Add($"reach {DebugView.Metres(handReachMillimetres)} m");
+            }
+
+            string strength = dials.Count > 0 ? $" ({string.Join(", ", dials)})" : "";
             if (tally.Actions == 0)
             {
                 lines.Add($"Your hand: never on anything. The building played itself.{strength}");

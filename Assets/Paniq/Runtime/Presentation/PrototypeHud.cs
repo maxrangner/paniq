@@ -366,7 +366,7 @@ namespace Paniq.Presentation
                 ("W A S D", "move the camera"),
                 ("Q E", "turn an eighth: corner, side, corner"),
                 ("Wheel", "zoom"),
-                ("Tab", "what to show: vision cones, numbers, marks, everyone's stats, the walkable floor; and the hand strength slider"),
+                ("Tab", "what to show: vision cones, numbers, marks, everyone's stats, the walkable floor; and the hand's strength and reach sliders"),
                 ("G", "the floor people can walk on"),
                 ("Space", "start and stop the world (or the Pause button, top right)"),
                 ("Reset", "the button top right: back to the start card, keeping the seed"),

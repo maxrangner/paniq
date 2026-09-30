@@ -167,7 +167,10 @@ namespace Paniq.Tests.EditMode
         public void PanickedCrowds_SometimesKnockSomeoneOut()
         {
             int knockouts = 0;
-            for (ulong seed = 40UL; seed <= 46UL; seed++)
+            // Stops at the first seed in which somebody is knocked out
+            // (2026-10-01): the question is whether it ever happens, and a
+            // whole-building minute costs two and a half seconds a seed.
+            for (ulong seed = 40UL; seed <= 46UL && knockouts == 0; seed++)
             {
                 var simulation = new Run(DefaultData(), seed);
                 for (int t = 0; t < 60 * Run.TicksPerSecond; t++)

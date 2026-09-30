@@ -41,8 +41,8 @@ namespace Paniq.Tests.EditMode
         /// well as by their own tests, so the whole command path is covered by
         /// replay. This run waits to be triggered, as a played level does.
         /// </summary>
-        [TestCase(42UL, 0x9DEB89DD119CF1B4UL)]
-        [TestCase(40UL, 0x2312666625F70B21UL)]
+        [TestCase(42UL, 0xA6391A2A49191069UL)]
+        [TestCase(40UL, 0xA2DFBBC7268E8CB3UL)]
         public void CardsPlayed_ReplayToTheRecordedFingerprint(ulong seed, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();
@@ -205,7 +205,7 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         [TestCase(41UL, RecordedRun.DoorsLocked, 0xED2E34409966C5D9UL)]
         [TestCase(41UL, RecordedRun.DoorsOpened, 0x03C4DE08ED49E649UL)]
-        [TestCase(42UL, RecordedRun.CardsPlayed, 0xAAE78A23917FE214UL)]
+        [TestCase(42UL, RecordedRun.CardsPlayed, 0xFF4EB1E0AE33D986UL)]
         public void WithNoVisitors_TheFloorReplaysExactlyAsItDidBefore(ulong seed, RecordedRun run, ulong expected)
         {
             ScenarioAsset scenario = ScenarioAsset.CreateDefault();

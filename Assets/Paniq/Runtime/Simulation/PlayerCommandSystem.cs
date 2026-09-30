@@ -141,6 +141,7 @@ namespace Paniq.Simulation
                 case PlayerCommandType.LeaveInfluence:
                 case PlayerCommandType.MoveInfluence:
                 case PlayerCommandType.SetHandStrength:
+                case PlayerCommandType.SetHandReach:
                     break;
                 case PlayerCommandType.NudgePerson:
                 case PlayerCommandType.NudgePersonFrom:
@@ -359,11 +360,17 @@ namespace Paniq.Simulation
                 return;
             }
 
-            // The Tab panel's dial (2026-09-30): this run's own settings,
+            // The Tab panel's dials (2026-09-30): this run's own settings,
             // from the next tick on.
             if (command.CommandType == PlayerCommandType.SetHandStrength)
             {
                 influence.SetStrength((int)command.Point.X);
+                return;
+            }
+
+            if (command.CommandType == PlayerCommandType.SetHandReach)
+            {
+                influence.SetReach((int)command.Point.X);
                 return;
             }
 

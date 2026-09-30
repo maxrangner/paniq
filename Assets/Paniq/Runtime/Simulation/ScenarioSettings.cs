@@ -3164,7 +3164,8 @@ namespace Paniq.Simulation
         /// big room across (the owner, 2026-09-29: "limit range to be around
         /// a room's length"). Measured as a walk: straight across the room it
         /// is in, or through one open doorway into the next room, never
-        /// through a wall or a shut door.
+        /// through a wall or a shut door. The Tab panel's reach slider sets
+        /// it in a run (2026-09-30); the value here is the one kept.
         /// </summary>
         public int ReachMillimetres = 12000;
 
@@ -3345,10 +3346,20 @@ namespace Paniq.Simulation
                 "the hand");
             Settings.Require(StrengthPercent >= 0 && StrengthPercent <= MaximumStrengthPercent && ClearReachMillimetres >= 0,
                 "the hand, third pass");
+            Settings.Require(ReachMillimetres >= MinimumReachMillimetres && ReachMillimetres <= MaximumReachMillimetres,
+                "the hand's reach");
         }
 
         /// <summary>The most <see cref="StrengthPercent"/> may be: ten times the level's own.</summary>
         public const int MaximumStrengthPercent = 1000;
+
+        /// <summary>
+        /// What <see cref="ReachMillimetres"/> may be set to, by the level or
+        /// the dial: half a metre (a hand felt only by whoever stands on it)
+        /// to thirty (the whole building's length, walls allowing).
+        /// </summary>
+        public const int MinimumReachMillimetres = 500;
+        public const int MaximumReachMillimetres = 30000;
     }
 
     /// <summary>

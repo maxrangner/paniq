@@ -114,8 +114,18 @@ namespace Paniq.Simulation
 
         public static int DangerDistance(Agent agent, ScenarioData scenario)
         {
+            return DangerDistanceAt(agent.Traits.Bravery, scenario);
+        }
+
+        /// <summary>
+        /// How close somebody of this much bravery lets the flames come. Asked
+        /// with a borrowed bravery for somebody fighting a fire for the
+        /// player's hand (2026-09-30): the coward stands where the brave would.
+        /// </summary>
+        public static int DangerDistanceAt(int bravery, ScenarioData scenario)
+        {
             return (int)Scale(scenario.Panic.DangerDistanceMillimetres,
-                -scenario.Traits.BraveryDangerDistancePercentPerPoint, agent.Traits.Bravery);
+                -scenario.Traits.BraveryDangerDistancePercentPerPoint, bravery);
         }
 
         // ---------------------------------------------------------------- nervousness

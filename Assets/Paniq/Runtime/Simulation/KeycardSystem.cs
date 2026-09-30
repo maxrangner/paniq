@@ -484,8 +484,22 @@ namespace Paniq.Simulation
             // or they work here, the card lies free close by, and they grab
             // it on the way out rather than run to a door they know needs it.
             int pulledBy = PulledToTheCard(agent, out int felt);
+            bool viaTheDoor = pulledBy >= 0 && influence[pulledBy].Door >= 0;
             LogicalPosition where;
-            if (pulledBy >= 0)
+            if (viaTheDoor)
+            {
+                // The hand on the card door (2026-09-30, the owner: "the
+                // hand there also sends someone who knows where the card is
+                // to fetch it"): only somebody who believes it lies free
+                // somewhere, and they go where they believe it lies.
+                if (!belief.Knows || belief.WithSomebody)
+                {
+                    return null;
+                }
+
+                where = belief.Place;
+            }
+            else if (pulledBy >= 0)
             {
                 where = influence[pulledBy].At;
             }
@@ -540,10 +554,22 @@ namespace Paniq.Simulation
                 // Where the player pointed is where they believe it lies,
                 // until they are standing over the spot.
                 InfluenceSystem.Place pull = influence[pulledBy];
-                Believe(belief, -1, where);
+                if (!viaTheDoor)
+                {
+                    Believe(belief, -1, where);
+                }
+
                 belief.PulledEventId = pull.EventId;
+                agent.Intent.ForTheHandPress = pull.EventId;
                 context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
                     felt, 0, pull.EventId, pull.Target);
+                if (agent.Traits.Bravery < settings.FetchBraveryMinimum)
+                {
+                    // Without the nerve to go back into the building for it
+                    // of their own accord (2026-09-30).
+                    influence.ActedAgainstNature(agent, AgainstTheirNature.WentForTheCard, pull.EventId, objects.IdOf(card),
+                        agent.Body.Position);
+                }
             }
             else
             {
@@ -571,6 +597,12 @@ namespace Paniq.Simulation
             }
 
             int place = influence.PlaceOfThing(card);
+            if (place < 0)
+            {
+                // Or the hand on the door the card opens (2026-09-30).
+                place = PullOnTheCardDoor();
+            }
+
             if (place < 0 || influence.HeldFor(place) < settings.PulledAfterTicks)
             {
                 // No hand on it, or not for long enough yet (2026-09-29): a
@@ -579,7 +611,25 @@ namespace Paniq.Simulation
             }
 
             felt = influence.StrongestFeltBy(agent, out int strongest);
-            return strongest == place && felt >= settings.PulledToTheCardPerMille ? place : -1;
+            return strongest == place && felt >= settings.PulledToTheCardPerMille && influence.HasNoticed(agent) ? place : -1;
+        }
+
+        /// <summary>The hand on a door that still wants the card, or -1.</summary>
+        private int PullOnTheCardDoor()
+        {
+            for (int d = 0; d < doors.Count; d++)
+            {
+                if (doors.NeedsKeycard(d))
+                {
+                    int place = influence.PullOnDoor(d);
+                    if (place >= 0)
+                    {
+                        return place;
+                    }
+                }
+            }
+
+            return -1;
         }
 
         /// <summary>Whether any door still wants the card.</summary>
@@ -717,6 +767,7 @@ namespace Paniq.Simulation
 
             Pocket(agent, card, cause);
             agent.Intent.Activity = AgentActivityState.Fleeing;
+            InfluenceSystem.StopActing(agent);
             return null;
         }
 
@@ -725,6 +776,7 @@ namespace Paniq.Simulation
         {
             walk.Forget(agent);
             agent.Keycard.PulledEventId = 0UL;
+            InfluenceSystem.StopActing(agent);
             if (claimedBy == agent.Index)
             {
                 claimedBy = -1;

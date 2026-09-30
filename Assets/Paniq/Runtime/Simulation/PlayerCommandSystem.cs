@@ -118,6 +118,7 @@ namespace Paniq.Simulation
 
                     break;
                 case PlayerCommandType.InfluenceDoor:
+                case PlayerCommandType.RepelDoor:
                     if (doors.IndexOf(targetId) < 0)
                     {
                         throw new ArgumentException($"Unknown door ID {targetId}.", nameof(targetId));
@@ -125,6 +126,7 @@ namespace Paniq.Simulation
 
                     break;
                 case PlayerCommandType.InfluenceThing:
+                case PlayerCommandType.RepelThing:
                     if (objects.IndexOf(targetId) < 0)
                     {
                         throw new ArgumentException($"Unknown thing ID {targetId}.", nameof(targetId));
@@ -132,7 +134,9 @@ namespace Paniq.Simulation
 
                     break;
                 case PlayerCommandType.InfluenceSpot:
+                case PlayerCommandType.RepelSpot:
                 case PlayerCommandType.ReleaseInfluence:
+                case PlayerCommandType.LeaveInfluence:
                     break;
                 case PlayerCommandType.NudgePerson:
                 case PlayerCommandType.NudgePersonFrom:
@@ -289,32 +293,45 @@ namespace Paniq.Simulation
             // press is the hand going on a place, full at once, and the
             // release is it coming off. A spot off the floor is no place at
             // all, and nothing is written.
-            if (command.CommandType == PlayerCommandType.InfluenceDoor)
+            // Since 2026-09-30 the right button's hand is the same hand the
+            // other way round: it pushes people away from the place.
+            bool repels = command.CommandType == PlayerCommandType.RepelDoor ||
+                          command.CommandType == PlayerCommandType.RepelThing ||
+                          command.CommandType == PlayerCommandType.RepelSpot;
+            if (command.CommandType == PlayerCommandType.InfluenceDoor || command.CommandType == PlayerCommandType.RepelDoor)
             {
-                influence.OnDoor(doors.IndexOf(command.TargetId), command.TargetId);
+                influence.OnDoor(doors.IndexOf(command.TargetId), command.TargetId, repels);
                 return;
             }
 
-            if (command.CommandType == PlayerCommandType.InfluenceThing)
+            if (command.CommandType == PlayerCommandType.InfluenceThing || command.CommandType == PlayerCommandType.RepelThing)
             {
                 int thing = objects.IndexOf(command.TargetId);
                 if (!objects.IsDormant(thing))
                 {
-                    influence.OnThing(thing, command.TargetId, objects.PositionOf(thing));
+                    influence.OnThing(thing, command.TargetId, objects.PositionOf(thing), repels);
                 }
 
                 return;
             }
 
-            if (command.CommandType == PlayerCommandType.InfluenceSpot)
+            if (command.CommandType == PlayerCommandType.InfluenceSpot || command.CommandType == PlayerCommandType.RepelSpot)
             {
-                influence.TryOnSpot(command.Point);
+                influence.TryOnSpot(command.Point, repels);
                 return;
             }
 
             if (command.CommandType == PlayerCommandType.ReleaseInfluence)
             {
                 influence.Release();
+                return;
+            }
+
+            // A click rather than a hold (2026-09-30): the place stays a
+            // moment, then comes off by itself.
+            if (command.CommandType == PlayerCommandType.LeaveInfluence)
+            {
+                influence.Leave();
                 return;
             }
 

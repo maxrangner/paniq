@@ -342,24 +342,6 @@ namespace Paniq.Gameplay
             Simulation.QueueCommand(PlayerCommandType.ClickDoor, doorId, Simulation.Tick + 1);
         }
 
-        /// <summary>The player turning a door's key (a right click since 2026-09-26), queued for the next tick that has not started.</summary>
-        public void QueueLockToggle(SimulationId doorId)
-        {
-            Simulation.QueueCommand(PlayerCommandType.ToggleLock, doorId, Simulation.Tick + 1);
-        }
-
-        /// <summary>The player taking hold of a door to keep it shut (prototype 3), queued for the next tick that has not started.</summary>
-        public void QueueHoldDoor(SimulationId doorId)
-        {
-            Simulation.QueueCommand(PlayerCommandType.HoldDoor, doorId, Simulation.Tick + 1);
-        }
-
-        /// <summary>The player letting go of a held door, queued for the next tick that has not started.</summary>
-        public void QueueReleaseDoor(SimulationId doorId)
-        {
-            Simulation.QueueCommand(PlayerCommandType.ReleaseDoor, doorId, Simulation.Tick + 1);
-        }
-
         /// <summary>The player nudging somebody (prototype 3), queued for the next tick that has not started.</summary>
         public void QueueNudge(SimulationId personId)
         {
@@ -372,28 +354,42 @@ namespace Paniq.Gameplay
             Simulation.QueueCommand(PlayerCommandType.NudgePersonFrom, personId, from, Simulation.Tick + 1);
         }
 
-        /// <summary>The player's hand going on a door (2026-09-26; a hold since 2026-09-29), queued for the next tick that has not started.</summary>
-        public void QueueInfluenceDoor(SimulationId doorId)
+        /// <summary>
+        /// The player's hand going on a door (2026-09-26; a hold since
+        /// 2026-09-29), queued for the next tick that has not started.
+        /// <paramref name="repels"/>: the right button's hand, which pushes
+        /// people away (2026-09-30).
+        /// </summary>
+        public void QueueInfluenceDoor(SimulationId doorId, bool repels = false)
         {
-            Simulation.QueueCommand(PlayerCommandType.InfluenceDoor, doorId, Simulation.Tick + 1);
+            Simulation.QueueCommand(repels ? PlayerCommandType.RepelDoor : PlayerCommandType.InfluenceDoor, doorId,
+                Simulation.Tick + 1);
         }
 
         /// <summary>The player's hand going on a thing.</summary>
-        public void QueueInfluenceThing(SimulationId thingId)
+        public void QueueInfluenceThing(SimulationId thingId, bool repels = false)
         {
-            Simulation.QueueCommand(PlayerCommandType.InfluenceThing, thingId, Simulation.Tick + 1);
+            Simulation.QueueCommand(repels ? PlayerCommandType.RepelThing : PlayerCommandType.InfluenceThing, thingId,
+                Simulation.Tick + 1);
         }
 
         /// <summary>The player's hand going on a patch of floor, in whole millimetres.</summary>
-        public void QueueInfluenceSpot(LogicalPosition spot)
+        public void QueueInfluenceSpot(LogicalPosition spot, bool repels = false)
         {
-            Simulation.QueueCommand(PlayerCommandType.InfluenceSpot, spot, Simulation.Tick + 1);
+            Simulation.QueueCommand(repels ? PlayerCommandType.RepelSpot : PlayerCommandType.InfluenceSpot, spot,
+                Simulation.Tick + 1);
         }
 
         /// <summary>The player's hand coming off the place it was on (2026-09-29).</summary>
         public void QueueReleaseInfluence()
         {
             Simulation.QueueCommand(PlayerCommandType.ReleaseInfluence, default(SimulationId), Simulation.Tick + 1);
+        }
+
+        /// <summary>A click rather than a hold (2026-09-30): the place just pressed stays a moment, then comes off by itself.</summary>
+        public void QueueLeaveInfluence()
+        {
+            Simulation.QueueCommand(PlayerCommandType.LeaveInfluence, default(SimulationId), Simulation.Tick + 1);
         }
 
         /// <summary>The player taking hold of somebody by the shirt (2026-09-29).</summary>

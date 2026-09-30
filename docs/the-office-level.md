@@ -181,13 +181,15 @@ counter at the top left shows calm, scared (and frozen), down and lost people.
 **Doors.** Doors are 1 m wide. The one way out starts locked; every door
 inside the building starts shut but unlocked, so people work them
 themselves. The player does not open or shut doors: the left button held on
-a door is the player's hand, drawing people to use it (influence, below);
-the right button held on it keeps it shut (prototype 3's hand on a door,
-moved to the right button on 2026-09-29); and a right click turns its key.
-Since 2026-09-27 the way out is a **card door**: no key fits it, nobody
-batters it, the fire does not burn through it, and only somebody with the
-keycard in their pocket opens it -- after which it is an ordinary door for
-the rest of the round. The full controls are in
+a door is the player's hand, drawing people to use it (influence, below),
+and the right button held on it pushes people away from it. Since
+2026-09-30 the mouse has no key and no hand holding a door shut (the
+owner's choice, "pure push-away"). Since 2026-09-27 the way out is a **card
+door**: no key fits it, it never gives to a shoulder, the fire does not burn
+through it, and only somebody with the keycard in their pocket opens it --
+after which it is an ordinary door for the rest of the round. With your hand
+on it the crowd pounds on it anyway, and it holds (the owner's rule,
+2026-09-30). The full controls are in
 [look and controls](look-and-controls.md). On this level none of it costs
 anything.
 
@@ -545,17 +547,26 @@ does not light two fires. **A bin doused before the carpet ever caught was no
 fire** (the owner's rule, 2026-09-27): another of the room's three bins
 catches a beat later, and a third after that.
 
-**The moment the first frightened person runs along the corridor, the tower
-of boxes comes down** (the owner's order, 2026-09-27: bin, boxes, outlet),
-whatever the fire is doing -- **after about three seconds of creaking**
-(2026-09-29: the building plays in the open). Sprung, the tower sways, the
-creak is heard across its room so calm people look up at it, and a sign says
-"it's going!"; a player who is watching has those seconds to get people
-clear, with a hand on the floor away from the archway. Nothing can be done to
-the tower itself. The stockroom's stack creaks the same way. Then the boxes
-tumble by physics toward the archway between the corridor and the crossbar;
-where they land is where they land, and while three or more lie still in the
-archway it is shut for people and fire.
+**The moment the first frightened person runs past the tower of boxes, it
+comes down** (the owner's order, 2026-09-27: bin, boxes, outlet), whatever
+the fire is doing -- **after about three seconds of creaking** (2026-09-29:
+the building plays in the open). Since 2026-09-30 "past" means close: within
+three and a half metres of it, in the crossbar where it stands, in sight of
+it. It used to be anybody running anywhere along the corridor. Sprung, the
+tower sways, the creak is heard across its room so calm people look up at
+it, and a sign says "it's going!"; a player who is watching has those
+seconds to get people clear, with a hand on the floor or a push. Nothing can
+be done to the tower itself. **It falls where the runner was when it began to
+creak** (the owner, 2026-09-30: "box tower should fall next to the first
+person running past, not in the corridor"; asked how close, "where they
+were"): the boxes are thrown by physics into a heap on that spot, three to a
+row across the way the runner was going. The runner, who kept running, is
+usually clear; whoever was following them runs into it. Where they land is
+where they land. If three or more happen to lie still in the archway between
+the corridor and the crossbar, it is shut for people and fire, as before.
+The Director springing it with no runner brings it down on the nearest
+frightened person in the crossbar, or across the archway if there is nobody.
+The stockroom's stack creaks the same way and still falls across its lane.
 
 **If the bin is put out** -- nothing burning anywhere, and it never got out of
 the meeting room -- any bell that was pulled falls silent about ten seconds
@@ -693,7 +704,8 @@ that swung the view anywhere is gone, because the right button is the
 building's now). The **mouse wheel** zooms, and tilts as it goes: pulled out
 you look down on the building at the isometric angle, pushed in you look
 along the floor. A right *click* puts down the card in your hand, or, with
-none in hand, turns the key of the door under the pointer. The camera keeps
+none in hand, pushes people away from the place under the pointer for three
+seconds (2026-09-30; it used to turn a door's key). The camera keeps
 working while the game is paused. The full description is in
 [look and controls](look-and-controls.md).
 
@@ -710,11 +722,17 @@ keycard opens it (see *The round*). A level whose way out is a plain locked
 door still works as above.
 
 **The keycard.** Hold the button on it and somebody calm nearby goes and
-pockets it, the use spent; hold it a couple of seconds and somebody
-frightened does, brave or not. Hold the way out and whoever has the card is
-drawn there like anybody else. Poke a frozen holder awake and they run for
-the door with it. A holder out cold or dead drops it where they lie, and the
-hand on the card sends somebody for it.
+pockets it, walking round the desk to it (2026-09-30), the use spent; hold
+it a second and somebody frightened does, brave or not. Since 2026-09-30 the
+card on a desk is aimed at where it is drawn, up on the desk, a small thing
+may be a little further off the pointer, and a thing drawn nearer the
+pointer than a person wins the click (the owner could not click it). Hold
+the way out and whoever has the card is drawn there like anybody else --
+and, since 2026-09-30, the people there pound on it (it holds), and after a
+second somebody who knows where the card lies goes back for it. Poke a
+frozen holder awake and they run for the door with it. A holder out cold or
+dead drops it where they lie, and the hand on the card sends somebody for
+it.
 
 **The office has no purse (prototype 3, 2026-09-25).** The owner had
 influence switched off for now: every door, alarm and card is free, nothing
@@ -766,12 +784,25 @@ that is already ringing does nothing and costs nothing. Either way the bells
 stop about ten seconds after the Director judges a fire put out.
 
 **Influence: the hand on a place** (2026-09-26, the owner's idea; a hold
-since 2026-09-29). Press and hold the left button on a door, a thing or a
-patch of floor and people near it are drawn toward it for as long as you
-hold -- never ordered there. The owner's rule for the hold: "when you
+since 2026-09-29; made much stronger on 2026-09-30). Press and hold the left
+button on a door, a thing or a patch of floor and people near it are drawn
+toward it for as long as you hold. The owner's rule for the hold: "when you
 interact the influence is clear and instant, but as soon as you let go the
 agents are on their own." And: "it also makes all decisions a priority. You
-can't be everywhere at once."
+can't be everywhere at once." And on 2026-09-30, after playing it: "we need
+clear influence." **A quick click leaves the hand there for three seconds**
+and it comes off by itself (the owner: "holding is what you do ... a single
+click should place an influence beacon for 3 seconds"); the ring throbs
+while it lasts.
+
+**Push away: the right button** (2026-09-30, the owner: "an anti-influence.
+Works same as the left mouse button, but in reverse -- repelling agents").
+Held (or clicked, for three seconds) on a door, a thing, the floor or a
+person, it pushes people away from the place: the calm walk off out of its
+full strength, anybody sitting or busy gets up to, and the frightened steer
+away from it; a door you push people from is not a way out to anybody who
+feels the push strongly. On a person it pushes the people round them. The
+ring and the lines are a cool blue, the lines running away from the place.
 
 - **A press is a full pull at once, and a release takes it away at once.**
   Nothing stacks and nothing fades: a place is either under your hand or it
@@ -779,50 +810,82 @@ can't be everywhere at once."
   to fade.
 - **One hand.** One place at a time: pressing somewhere else moves the hand
   there, and the place it was on is let go of.
-- **It sticks to its place and fades with distance, about a room's length**:
-  anybody within about twelve metres of it *as a walk* feels it, more the
-  nearer they are, including somebody who wanders in later. Through an open
+- **It sticks to its place and reaches about a room's length**: anybody
+  within about twelve metres of it *as a walk* feels it, the full pull
+  within six metres and fading beyond (2026-09-30: it used to fade from the
+  place itself, so a group a few metres off barely felt it), including
+  somebody who wanders in later. Through an open
   doorway into the next room, yes (the walk round by the doorway counts);
   through a wall or a shut door, never. A door's own pull is felt in both
   rooms it joins.
-- **Everybody weighs it by who they are.** The nervous and visitors follow
-  readily (up to twice an ordinary person); leaders and the cruel mostly ignore
-  it (a tenth, at the extreme). Nobody is drawn into a room that is alight, or
+- **Everybody but the strongest wills answers it** (the owner, 2026-09-30:
+  "most, strong wills refuse"). Leadership 9 or more, or evil 9 or more,
+  and the hand is nothing to them: on the office, the host and the bully.
+  Everybody else feels it by who they are: the nervous and visitors most (up
+  to twice an ordinary person), leaders and the cruel less, but never less
+  than six tenths of an ordinary person. Nobody is drawn into a room that is alight, or
   through the heat, or straight back through the door they just came in by.
 - **Frightened people** choose their door and where to run with it added in: a
-  full, close pull is worth as much as an exit sign pointing that way, more
-  than a door standing open. An influenced door on the wall of their room is
+  full, close pull is worth twenty metres of walk (2026-09-30; it was six,
+  as much as an exit sign), enough to beat most differences between the
+  ways out of a room. **Startled people** -- something caught their eye and
+  they have not yet taken fright -- turn to a hand they feel strongly and
+  edge toward it, or away from a push. An influenced door on the wall of their room is
   considered as a way round even when it is not on the shortest walk -- the
   office's stockroom door can beat the corridor.
-- **Calm people feel it too.** With nothing in particular to do, they go to
-  it, the likelier the nearer. The easily led -- nervousness 7 or more, or a
-  visitor -- may get up from their seat or leave an errand for it within a
-  couple of seconds (three chances in ten each second since 2026-09-29; it
-  was one in ten), but only between the moving parts of it: never halfway
-  into a chair, mid-conversation, or while somebody is waiting to meet them.
-  The steady carry on. So the player can thin out a meeting before anything
-  happens, but not empty it. The hand works fully before the fire: it is the
-  toy half, and the board can be set before Trigger event.
+- **Calm people answer it within a second or two.** Anybody who does not
+  refuse it -- sitting at their desk, out on an errand, or standing about --
+  weighs it five times a second, on their own beat, and goes the likelier
+  the stronger they feel it (2026-09-30: before, only the nervous and
+  visitors got up, once a second, and the steady sat on). So the nervous go
+  first and the steady last, one after another, never all on one tick;
+  never halfway into a chair, mid-conversation, or while somebody is waiting
+  to meet them. The hand works fully before the fire: it is the toy half,
+  and the board can be set before Trigger event.
 - **What is pointed at is used** (the owner's rule, 2026-09-27: "influence
   objects should make agents want to interact with them, not just walk
   over"). A door is opened if shut and shut if open; the cruel (evil 7+)
   wedge a shut door with the nearest thing instead. A free chair is sat on,
   whoever's it is. A box, a bin or a bag is picked up and carried off. The
   bottle on the wall is taken and held on to, like a bag -- and since
-  2026-09-29 somebody brave enough to fight a fire (bravery 5+) who is
-  holding it when the fright comes keeps it and goes at the flames with it,
-  where everybody else flings what they hold. Using a thing spends its
+  2026-09-30 whoever took it for you keeps it when the fright comes and
+  goes at the flames with it, however little nerve they have. Using a thing spends its
   *use*: the hand goes on gathering people there, but nobody uses it again
   until you press it afresh, so a door opened for you is not shut for you a
   moment later by the next person drawn to it, and pressing it again asks
   for the opposite. A door they cannot use -- locked, held, jammed -- keeps
   its use. A patch of floor, a table or a laptop gathers people as before,
   each to a spot of their own in front of a door.
+- **Against their nature** (the owner, 2026-09-30: "agents acted upon should
+  be stuff they normally wouldn't, like a cowardly agent should pick up the
+  fire extinguisher, an agent with low strength will bash on door"; and
+  "against their will should be often"). Anybody who feels the hand at a
+  quarter of full or more does what it asks whoever they are:
+  - the hand on the bottle, with a fire going: whoever feels it goes for it
+    and sprays the fire, the coward too, standing as close as the brave
+    would;
+  - the hand on a shut or locked door: the frightened throw themselves at
+    it whatever their strength, come back to it if they had given it up,
+    and keep at it while the hand stays; the weak do a little each blow, so
+    a few of them together break an ordinary door. The card door never gives;
+  - the hand on a crate too heavy for anybody to carry (a box off the fallen
+    tower): whoever comes strains at it and heaves it aside -- at once if
+    they are strong, after a few seconds of visible straining if they are
+    weak, half the time with two at it. The tower still standing and the
+    stockroom's walls of crates are off limits, as ever;
+  - the hand on the pull station: whoever comes pulls it, whatever their
+    nerve;
+  - the hand on the card, or on the card door: somebody goes back for the
+    card, whatever their nerve.
 - **You can see it work.** A sparkling aura on the place under your hand, and
   a sparkling line from everybody feeling the pull to it, faint for a gentle
-  pull and bright for a strong one. When influence actually changes
-  somebody's mind, the log says so. The line under the score says what your
-  hand is doing.
+  pull and bright for a strong one; the line is thick and bright for anybody
+  doing what the hand asked, and a small gold hand bobs over their head.
+  Somebody doing it against their nature trembles as they do it, and a gold
+  sign says "for you..." as they begin. When influence actually changes
+  somebody's mind, the log says so, and the end card counts the times
+  somebody did for you what they never would have. The line under the score
+  says what your hand is doing.
 
 **Poke a person.** Click somebody (press and let go inside a third of a
 second) and they step away from where the click landed, stagger, and look
@@ -837,8 +900,13 @@ floor. A poke frightens nobody.
 **The tug: a hand on a person** (2026-09-29, the owner's rule). Press and
 *hold* the button on somebody and you have them by the shirt: "it holds them
 in place. Should not be 100% instant, more like tugging someone's shirt. So
-you can save someone running into fire." They slow to a stop over about a
-second and stay where they are for as long as you hold, still frightened,
+you can save someone running into fire." They are stopped within about a
+quarter of a second (2026-09-30, the owner: "a tug must stop agents
+quicker"; it used to take a second) and stay where they are for as long as
+you hold, visibly trying to shake you off in their own way the whole time
+(the owner: "they visibly try to shake away depending on personality"): the
+frightened fight it hardest and the calm barely, the nervous flail fast and
+small, the strong heave slow and big. Still frightened,
 still meaning to go wherever they meant to go, and the moment you let go
 they are on their own again and off. They look round a beat later for
 whoever has them, as the poked do, and are not annoyed by it. **The strong
@@ -864,8 +932,8 @@ exactly the patch it will catch, brightening when somebody is standing in it.
 Click a card to pick it up, then click the floor to throw it (2026-09-25;
 the number keys are gone). Escape or a right click puts it back down. Two of
 a kind sit as one card with the count in its corner. The left button held on
-a door draws people to it; a right click turns its key; the right button held
-keeps it shut. Point at a door, a red pull station, a person, a thing or the
+a door draws people to it; the right button held pushes them away from it; a
+click of either leaves the hand for three seconds. Point at a door, a red pull station, a person, a thing or the
 floor and the line under the score says what the hand will do there. **Reset**, top right, goes straight back to the start card with the
 seed kept; **Pause** sits under it; the red **Trigger event** button sits
 bottom centre and goes the moment it is pressed.

@@ -185,7 +185,14 @@ namespace Paniq.Simulation
                     }
 
                     LogicalPosition itemAt = objects.PositionOf(item);
-                    goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, itemAt, agent.Body.Heading);
+                    goalHeading = agent.Carry.Pocket
+                        // The card lies on a desk (2026-09-30): walked round
+                        // to floor beside it, as the frightened fetch does,
+                        // rather than straight into the desk's edge.
+                        ? geometry.Routes.HeadingToward(agent.Body.Position,
+                            geometry.Navigation.NearestStandableTo(itemAt, bodyRadius, CardStandingRoomMillimetres),
+                            bodyRadius, agent.Body.Heading)
+                        : IntegerMath.HeadingBetween(agent.Body.Position, itemAt, agent.Body.Heading);
                     if (IsWithinReach(agent, item))
                     {
                         intent.Activity = AgentActivityState.PickingUp;
@@ -237,6 +244,10 @@ namespace Paniq.Simulation
                         // else -- and then it is a free bottle for the brave.
                         agent.Carry.KeepIt = false;
                         agent.Carry.OwnsIt = true;
+
+                        // Taken for the hand (2026-09-30): when the fright
+                        // comes they fight with it, nerve or none.
+                        agent.Carry.ForTheHand = true;
                         context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentTookExtinguisher,
                             agent.Body.Position, 0, 0, spent, objects.IdOf(item));
                         return false;
@@ -304,8 +315,17 @@ namespace Paniq.Simulation
         private bool IsWithinReach(Agent agent, int item)
         {
             long reach = context.Scenario.World.OccupancyRadiusMillimetres + (long)objects.RadiusOf(item) + settings.ReachMillimetres;
+            if (agent.Carry.Pocket)
+            {
+                // Across a desk to the card: the frightened fetch's reach.
+                reach = Math.Max(reach, context.Scenario.Keycard.PickUpDistanceMillimetres);
+            }
+
             return LogicalPosition.DistanceSquared(agent.Body.Position, objects.PositionOf(item)) <= reach * reach;
         }
+
+        /// <summary>How far around the card to look for floor to stand on beside it.</summary>
+        private const int CardStandingRoomMillimetres = 2500;
 
         /// <summary>A load slows the carrier: up to the scenario's percentage, in proportion to how much of their limit it is.</summary>
         public MotorIntent Burdened(Agent agent, MotorIntent intent)
@@ -349,6 +369,8 @@ namespace Paniq.Simulation
             objects.Release(item, spot, 0, 0, dropped);
             agent.Carry.ItemIndex = -1;
             agent.Carry.Holding = false;
+            agent.Carry.ForTheHand = false;
+            InfluenceSystem.StopActing(agent);
         }
 
         public void DropFromLost(Agent agent)
@@ -365,6 +387,8 @@ namespace Paniq.Simulation
             objects.Release(item, spot, 0, 0, dropped);
             agent.Carry.ItemIndex = -1;
             agent.Carry.Holding = false;
+            agent.Carry.ForTheHand = false;
+            InfluenceSystem.StopActing(agent);
         }
 
         /// <summary>
@@ -399,7 +423,8 @@ namespace Paniq.Simulation
 
             // Somebody brave who took the bottle for the player keeps it when
             // the fright comes and takes the fire on with it (2026-09-29),
-            // instead of flinging it away and going back for it.
+            // instead of flinging it away and going back for it; since
+            // 2026-09-30 anybody who took it for the hand does, nerve or none.
             if (agent.Carry.OwnsIt && extinguishers != null && objects.IsEquipment(agent.Carry.ItemIndex) &&
                 extinguishers.WouldKeepTheBottle(agent))
             {
@@ -428,6 +453,8 @@ namespace Paniq.Simulation
                 agent.Carry.ItemIndex = -1;
                 agent.Carry.Holding = false;
                 agent.Carry.OwnsIt = false;
+                agent.Carry.ForTheHand = false;
+                InfluenceSystem.StopActing(agent);
                 return;
             }
 
@@ -456,6 +483,8 @@ namespace Paniq.Simulation
             agent.Carry.ItemIndex = -1;
             agent.Carry.Holding = false;
             agent.Carry.OwnsIt = false;
+            agent.Carry.ForTheHand = false;
+            InfluenceSystem.StopActing(agent);
         }
     }
 }

@@ -423,7 +423,9 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void ACruelPerson_DrawnToAShutDoor_WedgesAThingInItInstead()
         {
-            ScenarioData data = OfficeWithThingsToUse(0, 3000, AgentTraitValues.AllOrdinary.With(AgentTrait.Evil, 10));
+            // Cruel, but not so strong-willed as to refuse the hand (nine and
+            // up do, since 2026-09-30).
+            ScenarioData data = OfficeWithThingsToUse(0, 3000, AgentTraitValues.AllOrdinary.With(AgentTrait.Evil, 8));
             using (var simulation = new Run(data, 42UL))
             {
                 HoldTheDoor(simulation, TheBuilding.OfficeDoor);

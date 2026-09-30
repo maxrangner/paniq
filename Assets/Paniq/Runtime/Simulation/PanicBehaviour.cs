@@ -83,11 +83,13 @@ namespace Paniq.Simulation
             // The keycard first (2026-09-27): somebody with a reason to grab
             // the card does that before following anybody or fighting a
             // fire. Measured behind the leaders, whoever was following one
-            // was never asked.
+            // was never asked. Then a crate the player's hand is on
+            // (2026-09-30): the hand is asked before the leaders, or nobody
+            // following one would ever answer it.
             options = new IPanicOption[]
             {
-                systems.Keycards, systems.Leaders, systems.Extinguishers, systems.Help, systems.AlarmBehaviour,
-                systems.Barricades
+                systems.Keycards, systems.HandHeave, systems.Leaders, systems.Extinguishers, systems.Help,
+                systems.AlarmBehaviour, systems.Barricades
             };
         }
 

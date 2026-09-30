@@ -91,17 +91,27 @@ namespace Paniq.Simulation
             // it is worth going for from as far as the pull reaches, not only
             // the usual short walk, and takes a little less nerve.
             int pulledStation = influence != null ? alarms.StationTheHandIsOn(influence) : -1;
-            bool pulledToIt = pulledStation >= 0 && influence.StrongestFeltBy(agent, out _) > 0;
-            if (!WouldRaiseIt(agent, pulledToIt))
+            int felt = pulledStation >= 0 ? influence.StrongestFeltBy(agent, out _) : 0;
+            bool pulledToIt = felt > 0;
+
+            // Felt strongly (2026-09-30): they go whatever their nerve, and
+            // for the station the hand is on (the owner: "agents acted upon
+            // should be stuff they normally wouldn't").
+            bool forTheHand = felt >= context.Scenario.Influence.ActsAgainstNatureFromPerMille && influence.HasNoticed(agent);
+            bool wouldAnyway = WouldRaiseIt(agent, pulledToIt);
+            if (!wouldAnyway && !(forTheHand && agent.Carry.ItemIndex < 0 && agent.Help.TargetIndex < 0 &&
+                                  agent.Body.State == AgentBodyState.Upright))
             {
                 return null;
             }
 
-            int alarm = alarms.NearestUnpulledWithin(
-                agent.Body.Position,
-                geometry.RoomOf(agent),
-                geometry.Routes.ReachFrom(agent.Body.Position, bodyRadius),
-                geometry.Routes);
+            int alarm = forTheHand
+                ? pulledStation
+                : alarms.NearestUnpulledWithin(
+                    agent.Body.Position,
+                    geometry.RoomOf(agent),
+                    geometry.Routes.ReachFrom(agent.Body.Position, bodyRadius),
+                    geometry.Routes);
             if (alarm < 0 && pulledToIt)
             {
                 alarm = pulledStation;
@@ -110,6 +120,17 @@ namespace Paniq.Simulation
             if (alarm < 0)
             {
                 return null;
+            }
+
+            if (forTheHand)
+            {
+                ulong press = influence.CurrentPress;
+                agent.Intent.ForTheHandPress = press;
+                if (!WouldRaiseIt(agent, false))
+                {
+                    influence.ActedAgainstNature(agent, AgainstTheirNature.PulledTheAlarm, press, alarms.IdOf(alarm),
+                        agent.Body.Position);
+                }
             }
 
             agent.Alarm.AlarmIndex = alarm;
@@ -184,6 +205,7 @@ namespace Paniq.Simulation
         {
             agent.Alarm.AlarmIndex = -1;
             walk.Forget(agent);
+            InfluenceSystem.StopActing(agent);
             if (IsRaisingTheAlarm(agent))
             {
                 agent.Intent.Activity = AgentActivityState.Fleeing;

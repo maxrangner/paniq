@@ -66,6 +66,7 @@ namespace Paniq.Simulation
         public InfluenceSystem Influence;
         public TrapSystem Traps;
         public KeycardSystem Keycards;
+        public HandHeaveBehaviour HandHeave;
 
         /// <summary>Hands every system that asked for it the finished set, in a fixed order.</summary>
         public void BindAll()
@@ -73,7 +74,7 @@ namespace Paniq.Simulation
             IBindable[] bindable =
             {
                 Doors, Body, Objects, People, DoorBehaviour, Help, Panic, Round, PlayerCommands, Director, Fear, Calm,
-                Errands, Items, Chairs, Alarms, AlarmBehaviour, Keycards
+                Errands, Items, Chairs, Alarms, AlarmBehaviour, Keycards, Extinguishers, HandHeave
             };
 
             for (int i = 0; i < bindable.Length; i++)

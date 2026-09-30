@@ -1150,11 +1150,30 @@ namespace Paniq.Simulation
         /// (<see cref="BlockadeSettings.ShoveMinimumStrength"/>). Anybody
         /// weaker goes round, or gives that way up.
         /// </summary>
-        public bool CanHeaveAside(Agent agent, int index)
+        public bool CanHeaveAside(Agent agent, int index) =>
+            CanHeaveForTheHand(index) && agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength;
+
+        /// <summary>
+        /// Whether a thing could be heaved aside at all, by anybody strong
+        /// enough (2026-09-30): on the map, loose on the floor, nobody's, not
+        /// fixed to the wall. <see cref="CanHeaveAside"/> adds the strength;
+        /// anybody the player's hand sends strains at it until it shifts. The
+        /// tower still standing is off limits, as it is to everybody.
+        /// </summary>
+        public bool CanHeaveForTheHand(int index) =>
+            IsOnTheMap(index) && !IsOutOfPlay(index) && !IsFixedInPlace(index) && !IsOffLimits(index) &&
+            bodies[index].OccupiedBy < 0;
+
+        /// <summary>
+        /// The heave at the end of straining for the hand: as hard as somebody
+        /// just strong enough to heave it at all, or harder if they are.
+        /// </summary>
+        public void HeaveForTheHand(Agent agent, int index, int heading, ulong causeEventId)
         {
-            PhysicsBody thing = bodies[index];
-            return IsOnTheMap(index) && !IsOutOfPlay(index) && !IsFixedInPlace(index) && !IsOffLimits(index) &&
-                   thing.OccupiedBy < 0 && agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength;
+            BlockadeSettings blockades = context.Scenario.Blockades;
+            int strength = Math.Max(agent.Traits.Strength, blockades.ShoveMinimumStrength);
+            ShoveAside(index, agent, heading, blockades.ShoveSpeedBase + blockades.ShoveSpeedPerStrength * strength,
+                causeEventId);
         }
 
         /// <summary>

@@ -341,6 +341,13 @@ namespace Paniq.Simulation
                 case CausalEventType.AgentShookFree:
                 case CausalEventType.TrapCreaked:
 
+                // The hand, second pass (2026-09-30): the push, and what
+                // people do for the hand. The door it batters and the fire
+                // it fights pay by those events, as anybody's would.
+                case CausalEventType.PowerRepelled:
+                case CausalEventType.AgentPushedAwayByInfluence:
+                case CausalEventType.AgentActedForTheHand:
+
                 // Bookkeeping: things happening quietly to people, things and doors.
                 case CausalEventType.AgentGotUp:
                 case CausalEventType.AgentCameTo:

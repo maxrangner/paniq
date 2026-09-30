@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: fire-reaction-prototype
-    ContentRevision: 86
+    ContentRevision: 87
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 74
+    SimulationCompatibilityVersion: 75
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -937,6 +937,8 @@ MonoBehaviour:
       PileBeyondMillimetres: 350
       CreakTicks: 150
       CreakHearingMillimetres: 6000
+      TriggerReachMillimetres: 3500
+      HeapWidthMillimetres: 1800
     Nudge:
       LurchMillimetres: 300
       AnnoyedWindowTicks: 500
@@ -944,7 +946,7 @@ MonoBehaviour:
       AnnoyedForTicks: 1000
       KnockOffChairMillimetres: 500
     Tug:
-      BrakeMillimetresPerTickPerTick: 2
+      BrakeMillimetresPerTickPerTick: 8
       TearsFreeFromStrength: 6
       TearFreeTicksAtThreshold: 400
       ShookFreeShownTicks: 100
@@ -987,16 +989,23 @@ MonoBehaviour:
       MaximumLevel: 20
       ReachMillimetres: 12000
       StackRadiusMillimetres: 1000
-      FullPullBonusMillimetres: 6000
+      FullPullBonusMillimetres: 20000
+      FullWithinPercent: 50
       PercentPerNervousness: 12
       PercentPerLeadership: 12
       PercentPerEvil: 12
       VisitorPercent: 50
-      MinimumPercent: 10
+      MinimumPercent: 60
       MaximumPercent: 200
+      RefusesFromLeadership: 9
+      RefusesFromEvil: 9
+      ActsAgainstNatureFromPerMille: 250
       EasilyLedNervousness: 7
-      LeaveTaskCheckTicks: 50
-      LeaveTaskChancePerMille: 300
+      LeaveTaskCheckTicks: 10
+      LeaveTaskChancePerMille: 400
+      BeaconTicks: 150
+      HeaveStrainTicksAtNoStrength: 250
+      WeakBlowDamage: 1
       WanderToItPerMille: 1000
     Keycard:
       Enabled: 1
@@ -1011,7 +1020,7 @@ MonoBehaviour:
       BlockedGiveUpTicks: 50
       FlamesKeepAwayMillimetres: 1500
       PulledToTheCardPerMille: 250
-      PulledAfterTicks: 100
+      PulledAfterTicks: 50
     Agents:
     - agentId:
         value: 1001

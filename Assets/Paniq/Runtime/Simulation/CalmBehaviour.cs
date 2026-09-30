@@ -20,6 +20,9 @@ namespace Paniq.Simulation
         /// <summary>Built after this: the places the player is drawing people toward (2026-09-26).</summary>
         private InfluenceSystem influence;
 
+        /// <summary>Built after this: heaving a crate for the hand (2026-09-30).</summary>
+        private HandHeaveBehaviour handHeave;
+
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
         private readonly int bodyRadius;
         private readonly Crowd crowd;
@@ -59,6 +62,7 @@ namespace Paniq.Simulation
         public void Bind(Systems systems)
         {
             influence = systems.Influence;
+            handHeave = systems.HandHeave;
         }
 
         public MotorIntent Decide(Agent agent)
@@ -207,6 +211,16 @@ namespace Paniq.Simulation
                     ChooseNext(agent, true);
                     break;
 
+                case AgentActivityState.HeavingForTheHand:
+                    if (handHeave != null && handHeave.UpdateCalm(agent, out goalHeading, out goalSpeed))
+                    {
+                        steer = goalSpeed > 0;
+                        break;
+                    }
+
+                    ChooseNext(agent, true);
+                    break;
+
                 default:
                     // Coming back to calm from another state is not possible
                     // in this prototype, but choose afresh if it ever happens.
@@ -285,7 +299,11 @@ namespace Paniq.Simulation
         private void ChooseActivity(Agent agent, bool justMoved)
         {
             agent.Body.BlockedTicks = 0;
-            if (TryWanderToTheInfluence(agent))
+
+            // Whatever they did for the hand is done: they answer it afresh
+            // below, or they are on to something of their own (2026-09-30).
+            InfluenceSystem.StopActing(agent);
+            if (TryMoveAwayFromThePush(agent) || TryWanderToTheInfluence(agent))
             {
                 return;
             }
@@ -506,6 +524,7 @@ namespace Paniq.Simulation
                 // wander off, which is how a pull gathers people, until it
                 // fades.
                 StartStanding(agent);
+                agent.Intent.ForTheHandPress = drawnBy.EventId;
                 return true;
             }
 
@@ -521,13 +540,22 @@ namespace Paniq.Simulation
                 StartStrollTo(agent, target);
             }
 
+            // Answering this press (2026-09-30): until the hand comes off it,
+            // they do what it asks whatever their nature says.
+            agent.Intent.ForTheHandPress = drawnBy.EventId;
             context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
                 felt, 0, drawnBy.EventId, drawnBy.Target);
             return true;
         }
 
-        /// <summary>A thing with a use of its own: a free chair, or anything this person could pick up, a bottle on its wall included.</summary>
-        private bool CanUse(Agent agent, int thing) => chairs.CanSitOn(thing) || items.CanFetchForTheInfluence(agent, thing);
+        /// <summary>
+        /// A thing with a use of its own: a free chair, anything this person
+        /// could pick up (a bottle on its wall included), or a crate too heavy
+        /// for anybody that the hand wants heaved aside (2026-09-30).
+        /// </summary>
+        private bool CanUse(Agent agent, int thing) =>
+            chairs.CanSitOn(thing) || items.CanFetchForTheInfluence(agent, thing) ||
+            (handHeave != null && handHeave.CanHeave(thing));
 
         /// <summary>
         /// Sets about using what was pointed at. A door is an errand, taken
@@ -554,7 +582,12 @@ namespace Paniq.Simulation
                 return chairs.TryStartSittingOn(agent, drawnBy.Thing, false);
             }
 
-            return items.FetchForTheInfluence(agent, drawnBy.Thing);
+            if (items.FetchForTheInfluence(agent, drawnBy.Thing))
+            {
+                return true;
+            }
+
+            return handHeave != null && handHeave.Start(agent, drawnBy.Thing, drawnBy.EventId);
         }
 
         /// <summary>
@@ -572,57 +605,143 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// The easily led -- the nervous, and visitors -- sitting in a chair or
-        /// out on an errand may get up for a strong enough pull. Checked once a
-        /// second, each on their own beat; somebody steady never does, however
-        /// hard the player clicks. Nobody leaves a stall, a door they are
-        /// waiting at, or a conversation.
+        /// Anybody calm who does not refuse the hand -- sitting in a chair,
+        /// out on an errand, or standing, glancing or strolling about -- may
+        /// leave it for a hand they feel (2026-09-30; before, only the
+        /// nervous and visitors, and only from a chair or an errand: the
+        /// owner held beside a group and "barely made them come closer").
+        /// Checked every half second, each on their own beat; the likelier
+        /// the stronger they feel it, so the nervous go first and the steady
+        /// last. A pull draws them to it; a push sends them away from it.
+        /// Nobody leaves a stall, a door they are waiting at, or a
+        /// conversation, and nobody is asked twice by the same press.
         /// </summary>
         private void MaybeLeaveForTheInfluence(Agent agent, int tick)
         {
             InfluenceSettings rules = context.Scenario.Influence;
-            if (influence == null || influence.Count == 0 || (tick + agent.Index) % rules.LeaveTaskCheckTicks != 0 ||
-                !IsEasilyLed(agent, rules))
+            if (influence == null || influence.Count == 0 || (tick + agent.Index) % rules.LeaveTaskCheckTicks != 0)
             {
+                return;
+            }
+
+            bool pushes = influence[0].Repels;
+            if (pushes ? agent.Intent.PushedByPress == influence.CurrentPress : influence.IsActingFor(agent))
+            {
+                // Already on their way to it, or away from it.
                 return;
             }
 
             // Only between the moving parts of a task: settled in the chair,
-            // or walking or standing about on an errand of their own. Never
-            // halfway into or out of a seat, and never in the middle of a
-            // conversation or a meeting-up somebody else is waiting on.
+            // or walking or standing about on an errand of their own, or
+            // idling. Never halfway into or out of a seat, and never in the
+            // middle of a conversation or a meeting-up somebody else is
+            // waiting on.
+            AgentActivityState activity = agent.Intent.Activity;
             bool seated = agent.Sitting.OnIt && agent.Sitting.Phase == SitPhase.None &&
-                          agent.Intent.Activity == AgentActivityState.Sitting;
-            bool onAnErrand = agent.Errand.Active && agent.Intent.Activity == AgentActivityState.RunningAnErrand &&
+                          activity == AgentActivityState.Sitting;
+            bool onAnErrand = agent.Errand.Active && activity == AgentActivityState.RunningAnErrand &&
                               (agent.Errand.Phase == ErrandPhase.Walking || agent.Errand.Phase == ErrandPhase.Standing) &&
                               agent.Errand.PartnerIndex < 0 && !ErrandBehaviour.IsStayingPut(agent);
-            if (!seated && !onAnErrand)
+            bool idle = !agent.Sitting.OnIt && agent.Carry.ItemIndex < 0 &&
+                        (activity == AgentActivityState.Standing || activity == AgentActivityState.LookingAround ||
+                         activity == AgentActivityState.Strolling);
+            if (!seated && !onAnErrand && !idle)
             {
                 return;
             }
 
-            int felt = influence.StrongestFeltBy(agent, out _);
+            int felt = pushes ? influence.StrongestPushFeltBy(agent, out _) : influence.StrongestFeltBy(agent, out _);
             if (felt <= 0 ||
                 context.Random.NextIntInclusive(0, 999) >= Math.Min(1000, felt) * rules.LeaveTaskChancePerMille / 1000)
             {
                 return;
             }
 
-            agent.Intent.GoingToTheInfluence = true;
+            agent.Intent.GoingToTheInfluence = !pushes;
             if (seated)
             {
-                // Up out of the chair; choosing what next leads them to it.
+                // Up out of the chair; choosing what next leads them to it,
+                // or away from it.
                 chairs.StartStandingUp(agent);
                 return;
             }
 
-            agent.Errand.Clear();
+            if (onAnErrand)
+            {
+                agent.Errand.Clear();
+            }
+
+            // A beat, then they choose again, and the hand is what they choose.
+            agent.Doors.StrollDoorIndex = -1;
             agent.Intent.Activity = AgentActivityState.Standing;
             agent.Intent.ActivityEndTick = checked(tick + context.ReactionLag());
         }
 
-        private static bool IsEasilyLed(Agent agent, InfluenceSettings rules) =>
-            agent.Traits.Nervousness >= rules.EasilyLedNervousness || !agent.Knowledge.KnowsEverything;
+        /// <summary>
+        /// The right button's hand (2026-09-30): somebody calm who feels a
+        /// push walks off to floor of their own away from it -- out of its
+        /// full strength, in the room they are in -- and the log says so.
+        /// Somebody still inside it when they get there moves on again.
+        /// Draws nothing but the stroll's own wander.
+        /// </summary>
+        private bool TryMoveAwayFromThePush(Agent agent)
+        {
+            if (influence == null || influence.Count == 0 || agent.Errand.Has || agent.Carry.ItemIndex >= 0)
+            {
+                return false;
+            }
+
+            int felt = influence.StrongestPushFeltBy(agent, out int place);
+            if (felt <= 0)
+            {
+                return false;
+            }
+
+            InfluenceSystem.Place push = influence[place];
+            InfluenceSettings rules = context.Scenario.Influence;
+            LogicalPosition from = agent.Body.Position;
+            long distance = IntegerMath.Distance(from, push.At);
+            int away = distance > 0
+                ? IntegerMath.HeadingBetween(push.At, from, agent.Body.Heading)
+                : IntegerMath.NormalizeDegrees(agent.Body.Heading + 180);
+            long fullRadius = (long)rules.ReachMillimetres * rules.FullWithinPercent / 100L;
+            int walk = (int)Math.Max(MinimumPushWalkMillimetres,
+                Math.Min(MaximumPushWalkMillimetres, fullRadius + PushClearanceMillimetres - distance));
+
+            int room = geometry.RoomOf(agent);
+            LogicalPosition target = from + IntegerMath.Displacement(away, walk);
+            for (int attempt = 0; attempt < 3 && geometry.RoomAtPoint(target) != room; attempt++)
+            {
+                walk /= 2;
+                target = from + IntegerMath.Displacement(away, walk);
+            }
+
+            target = geometry.ClampIntoRoom(from, target);
+            bool first = agent.Intent.PushedByPress != push.EventId;
+            if (!first && IntegerMath.Distance(from, target) < PushClearanceMillimetres)
+            {
+                // Already as far off as the room lets them: they stand their
+                // ground at the wall rather than pace on the spot.
+                StartStanding(agent);
+                return true;
+            }
+
+            StartStrollTo(agent, target);
+            agent.Intent.PushedByPress = push.EventId;
+            if (first)
+            {
+                // Written once a push: moving on again is the same push.
+                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentPushedAwayByInfluence, from,
+                    felt, 0, push.EventId, push.Target);
+            }
+
+            return true;
+        }
+
+        /// <summary>How far somebody pushed walks, at the least and the most, and how far past the push's full strength they aim.</summary>
+        private const int MinimumPushWalkMillimetres = 2000;
+        private const int MaximumPushWalkMillimetres = 8000;
+        private const int PushClearanceMillimetres = 1500;
 
         /// <summary>
         /// Where to walk to for a place: the spot itself, or for a door, a

@@ -42,8 +42,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = DefaultData();
             Assert.That(data.Agents, Has.Length.EqualTo(20));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("86"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(74));
+            Assert.That(data.ContentRevision, Is.EqualTo("87"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(75));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -960,8 +960,32 @@ namespace Paniq.Tests.EditMode
                     continue;
                 }
 
+                if (record.EventType == CausalEventType.DoorBlocked && !record.HasCausalParent &&
+                    IsTheRobotVacuum(simulation, record.SourceId))
+                {
+                    // A thing nobody ever pushed is its own cause
+                    // (PhysicsObjectSystem.RecordBlockage), and the robot
+                    // vacuum drives itself: on version 75's run it trundled
+                    // into the office doorway on its own and jammed it.
+                    continue;
+                }
+
                 Assert.That(record.HasCausalParent, Is.True, $"Event {i} ({record.EventType}) has no cause.");
             }
+        }
+
+        private static bool IsTheRobotVacuum(Run simulation, SimulationId id)
+        {
+            for (int i = 0; i < simulation.PhysicsObjectCount; i++)
+            {
+                PhysicsObjectSnapshot thing = simulation.GetPhysicsObject(i);
+                if (thing.ObjectId == id)
+                {
+                    return thing.Kind == PhysicsObjectKind.RobotVacuum;
+                }
+            }
+
+            return false;
         }
 
         // ---------------------------------------------------------------- hearing

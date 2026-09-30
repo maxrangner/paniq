@@ -375,7 +375,14 @@ namespace Paniq.Simulation
         /// out was found locked, they know where the card is, and they are
         /// going to get it. See <see cref="KeycardSystem"/>.
         /// </summary>
-        FetchingKeycard
+        FetchingKeycard,
+
+        /// <summary>
+        /// Going to a box too heavy for them because the player's hand is on
+        /// it, and straining at it until it shifts (2026-09-30). See
+        /// <see cref="HandHeaveBehaviour"/>.
+        /// </summary>
+        HeavingForTheHand
     }
 
     /// <summary>
@@ -1055,7 +1062,54 @@ namespace Paniq.Simulation
         /// people clear. Source: the trap. Strength: ticks until it falls.
         /// Cause: the trigger.
         /// </summary>
-        TrapCreaked
+        TrapCreaked,
+
+        // The hand, second pass (2026-09-30). Appended only.
+
+        /// <summary>
+        /// The player's hand pushes people away from a door, a thing or a
+        /// patch of floor. A root event. Target: the door or thing, or none
+        /// for floor.
+        /// </summary>
+        PowerRepelled,
+
+        /// <summary>
+        /// Somebody calm moved off because the player's hand pushed them away.
+        /// Source: the person. Cause: the push. Strength: how strongly they
+        /// felt it, per mille.
+        /// </summary>
+        AgentPushedAwayByInfluence,
+
+        /// <summary>
+        /// Somebody did for the player's hand what they would never have done
+        /// of their own accord (the owner's rule, 2026-09-30: "a cowardly
+        /// agent should pick up the fire extinguisher, an agent with low
+        /// strength will bash on the door"): fought the fire without the
+        /// nerve for it, battered a door without the strength, heaved a box
+        /// too heavy for them. Source: the person. Target: the door or
+        /// thing. Cause: the press. Strength: what it was, as an
+        /// <see cref="AgainstTheirNature"/>.
+        /// </summary>
+        AgentActedForTheHand
+    }
+
+    /// <summary>What somebody did against their own nature for the player's hand, carried as the strength of <see cref="CausalEventType.AgentActedForTheHand"/>.</summary>
+    public enum AgainstTheirNature
+    {
+        /// <summary>Kept the bottle and went at the flames, without the nerve to.</summary>
+        FoughtTheFire,
+
+        /// <summary>Threw themselves at a shut door, without the strength to.</summary>
+        BatteredTheDoor,
+
+        /// <summary>Strained at a box too heavy for them.</summary>
+        HeavedTheBox,
+
+        /// <summary>Pulled the alarm, without the nerve to.</summary>
+        PulledTheAlarm,
+
+        /// <summary>Went back for the keycard, without the nerve to.</summary>
+        WentForTheCard
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -1341,7 +1395,28 @@ namespace Paniq.Simulation
         TugPerson,
 
         /// <summary>The player lets go of the person they were holding (the target is the person's ID). Free.</summary>
-        ReleaseTug
+        ReleaseTug,
+
+        // The hand, second pass (2026-09-30, the owner's rules): a click
+        // leaves the hand where it was for a moment, and the right button
+        // pushes people away. Appended only.
+
+        /// <summary>
+        /// The player clicked rather than held: the place pressed a moment ago
+        /// stays under the hand for <see cref="InfluenceSettings.BeaconTicks"/>
+        /// and then comes off by itself (the owner: "a single click should
+        /// place an influence beacon for 3 seconds"). No target. Free.
+        /// </summary>
+        LeaveInfluence,
+
+        /// <summary>The player's hand pushes people away from a door (the target is the door's ID). Free. Ends with <see cref="ReleaseInfluence"/>.</summary>
+        RepelDoor,
+
+        /// <summary>The player's hand pushes people away from a thing (the target is the thing's ID). Free. Ends with <see cref="ReleaseInfluence"/>.</summary>
+        RepelThing,
+
+        /// <summary>The player's hand pushes people away from the floor at the point. Free. Ends with <see cref="ReleaseInfluence"/>.</summary>
+        RepelSpot
     }
 
     /// <summary>

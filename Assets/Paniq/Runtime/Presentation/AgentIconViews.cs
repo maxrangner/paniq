@@ -33,6 +33,9 @@ namespace Paniq.Presentation
         private static readonly Color StarYellow = new Color(1f, 0.9f, 0.2f);
         private static readonly Color NumberWhite = new Color(1f, 1f, 1f, 0.85f);
 
+        /// <summary>The hand over somebody doing what the player's hand asked (2026-09-30): the gold of the hand's aura.</summary>
+        private static readonly Color HandGold = new Color(1f, 0.84f, 0.3f);
+
         /// <summary>The scribble over somebody annoyed at being nudged (prototype 3).</summary>
         private static readonly Color AnnoyedOrange = new Color(1f, 0.5f, 0.15f);
         private const float AnnoyedDuration = 1.6f;
@@ -124,10 +127,31 @@ namespace Paniq.Presentation
             leadingStroke.loop = true;
             SetColor(new[] { leadingStroke }, LeaderGreen);
 
+            // A little open hand, palm and four fingers and a thumb, over
+            // whoever is doing what the player's hand asked (2026-09-30, the
+            // owner: "agents doesn't SHOW the influence in behavior very
+            // well"). Beside the head, so a leader's star can share it.
+            hand = CreateGroup("For the hand", new Vector3(-0.3f, 0.12f, 0f));
+            handStrokes = new[]
+            {
+                CreateStroke(hand, lineMaterial, 0.028f, 0.028f, 4, ArcPoints(0.07f, 220f, 11)),
+                CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(-0.045f, 0.03f, 0f), new Vector3(-0.055f, 0.13f, 0f)),
+                CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(-0.015f, 0.04f, 0f), new Vector3(-0.018f, 0.16f, 0f)),
+                CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(0.015f, 0.04f, 0f), new Vector3(0.018f, 0.155f, 0f)),
+                CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(0.045f, 0.03f, 0f), new Vector3(0.055f, 0.12f, 0f)),
+                CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(0.06f, -0.02f, 0f), new Vector3(0.12f, 0.03f, 0f))
+            };
+            hand.localRotation = Quaternion.identity;
+            handStrokes[0].transform.localRotation = Quaternion.Euler(0f, 0f, -90f);
+            SetColor(handStrokes, HandGold);
+
             SetColor(noticeStrokes, NoticeRed);
             SetColor(snowflakeStrokes, IceBlue);
             HideAll();
         }
+
+        private readonly Transform hand;
+        private readonly LineRenderer[] handStrokes;
 
         /// <summary>The person just noticed something: pop the red "!".</summary>
         public void Notice(float time) => noticeTime = time;
@@ -150,6 +174,7 @@ namespace Paniq.Presentation
             question.gameObject.SetActive(false);
             annoyed.gameObject.SetActive(false);
             leading.gameObject.SetActive(false);
+            hand.gameObject.SetActive(false);
             idle.gameObject.SetActive(false);
             number.gameObject.SetActive(false);
         }
@@ -164,9 +189,17 @@ namespace Paniq.Presentation
             bool investigating,
             bool idling,
             bool leadingOthers,
-            float time)
+            float time,
+            bool forTheHand = false)
         {
             root.SetPositionAndRotation(anchor, cameraRotation);
+
+            // Answering the player's hand: a gold hand, bobbing.
+            hand.gameObject.SetActive(forTheHand);
+            if (forTheHand)
+            {
+                hand.localPosition = new Vector3(-0.3f, 0.12f + 0.025f * Mathf.Sin(time * 5f + spinOffset), 0f);
+            }
 
             // "!" pops in with an overshoot, holds, then fades.
             float noticeAge = time - noticeTime;

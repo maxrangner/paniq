@@ -58,6 +58,9 @@ namespace Paniq.Presentation
         private static readonly Color BadInk = new Color(0.78f, 0.12f, 0.08f);
         private static readonly Color GoodInk = new Color(0.10f, 0.52f, 0.18f);
 
+        /// <summary>Somebody doing for the player's hand what they never would (2026-09-30): the hand's gold, dark enough to read.</summary>
+        private static readonly Color HandInk = new Color(0.72f, 0.5f, 0.02f);
+
         private sealed class Sign
         {
             public Transform Root;
@@ -117,7 +120,7 @@ namespace Paniq.Presentation
 
             // Who the sign belongs to. Most of these happen *to* somebody, so
             // the target is the subject; where there is no target the source is.
-            SimulationId subject = record.HasTarget ? record.TargetId : record.SourceId;
+            SimulationId subject = SubjectOf(record);
             if (lastShown.TryGetValue(subject.Value, out float when) && time - when < PerPersonRest)
             {
                 return;
@@ -128,7 +131,7 @@ namespace Paniq.Presentation
             Sign sign = Oldest(subject.Value);
             sign.Person = subject.Value;
             sign.Born = time;
-            sign.Ink = good ? GoodInk : BadInk;
+            sign.Ink = record.EventType == CausalEventType.AgentActedForTheHand ? HandInk : good ? GoodInk : BadInk;
             sign.Anchor = ToUnityPosition(record.Position) + Vector3.up * SignHeight;
             sign.HasArrow = TryFindCause(record, out sign.PointAt);
             sign.Label.text = caption;
@@ -303,6 +306,7 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentTookKeycard: return "got the card!";
                 case CausalEventType.KeycardDropped: return "the card!";
                 case CausalEventType.DoorUnlockedWithKeycard: return "swiped!";
+                case CausalEventType.AgentActedForTheHand: return "for you...";
                 default: return null;
             }
         }
@@ -344,7 +348,7 @@ namespace Paniq.Presentation
                 return false;
             }
 
-            SimulationId subject = record.HasTarget ? record.TargetId : record.SourceId;
+            SimulationId subject = SubjectOf(record);
             string who = story.NumberOf(subject) is int number ? number + ": " : string.Empty;
             // The Director lighting another bin after a quick put-out
             // (2026-09-27) says so, so the player sees it was deliberate.
@@ -353,6 +357,14 @@ namespace Paniq.Presentation
             good = IsGoodNews(record.EventType);
             return true;
         }
+
+        /// <summary>
+        /// Who a sign is about: the target, for what happens to somebody; the
+        /// source when there is no target, and for somebody acting for the
+        /// hand, whose target is the door or the thing they act on.
+        /// </summary>
+        private static SimulationId SubjectOf(CausalEvent record) =>
+            record.HasTarget && record.EventType != CausalEventType.AgentActedForTheHand ? record.TargetId : record.SourceId;
 
         private Sign Build(int index, PresentationMaterials materials, Transform parent)
         {

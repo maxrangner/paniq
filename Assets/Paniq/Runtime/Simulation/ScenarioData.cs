@@ -841,7 +841,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "prototype-fire-1-fl-small";
-        public string ContentRevision = "91";
+        public string ContentRevision = "92";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -1074,7 +1074,7 @@ namespace Paniq.Simulation
         // nerve) or heads back toward the flames (turning back), caught by a
         // poke, a tug or the hand -- and then they run, give the door up, or
         // stay out of it for a while.
-        public int SimulationCompatibilityVersion = 79;
+        public int SimulationCompatibilityVersion = 80;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

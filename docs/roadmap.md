@@ -35,8 +35,11 @@ every person holds the hand's ask as a goal of their own with a conviction
 that builds and fades, a bar the hand drains and that refills by itself, the
 card door giving to a long pounding under the hand, a card over whoever has
 the keycard, the top strip cut to four numbers, the cards gone, the walls as
-thick as they look, and the scene renamed `prototype_fire_1_fl_small`. All are
-under "Prototype 3" further down.
+thick as they look, and the scene renamed `prototype_fire_1_fl_small`; its
+eleventh (2026-10-01) is about how fast the prototype can be iterated rather
+than about the game: the sketch-and-keep agreement (an idea is played before
+it is built to keep), a second dial in the Tab panel for how far the hand
+reaches, and a faster test suite. All are under "Prototype 3" further down.
 
 ## Foundation (complete)
 

@@ -312,10 +312,17 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void NobodyShouldersADoorTheyShutThemselves()
         {
-            for (ulong seed = 40UL; seed <= 46UL; seed++)
+            // Five seeds for forty-five seconds, not seven for a minute
+            // (2026-09-30). This is a whole-building run with nothing but
+            // stepping in it, so it costs what it steps: seven minutes of
+            // game time was seventeen seconds, the slowest test in the
+            // suite. The fault it guards -- shut a door, turn round, hammer
+            // on it -- happens in the rush after the fire (five seconds in),
+            // and the rush is over well inside forty seconds.
+            for (ulong seed = 40UL; seed <= 44UL; seed++)
             {
                 var simulation = new Run(TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()), seed);
-                for (int t = 0; t < 60 * Run.TicksPerSecond; t++)
+                for (int t = 0; t < 45 * Run.TicksPerSecond; t++)
                 {
                     simulation.Step();
                 }

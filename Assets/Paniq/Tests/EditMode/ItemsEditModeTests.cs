@@ -188,7 +188,10 @@ namespace Paniq.Tests.EditMode
         {
             int hurled = 0;
             int thrownAtPeopleHit = 0;
-            for (ulong seed = 40UL; seed <= 46UL; seed++)
+            // Stops at the first seed in which something is thrown
+            // (2026-10-01): the question is whether it ever happens, and a
+            // whole-building minute costs two and a half seconds a seed.
+            for (ulong seed = 40UL; seed <= 46UL && hurled == 0; seed++)
             {
                 var simulation = new Run(scenario.ToRuntimeData(), seed);
                 for (int t = 0; t < 60 * Run.TicksPerSecond; t++)
@@ -212,7 +215,7 @@ namespace Paniq.Tests.EditMode
             }
 
             Assert.That(hurled, Is.GreaterThan(0), "Nobody ever threw anything.");
-            TestContext.WriteLine($"Seeds 40-46, 60 s: {hurled} items thrown; {thrownAtPeopleHit} thrown items hit someone hard enough to count.");
+            TestContext.WriteLine($"Seeds from 40, 60 s, until something was thrown: {hurled} items thrown; {thrownAtPeopleHit} thrown items hit someone hard enough to count.");
         }
     }
 }

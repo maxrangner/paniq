@@ -718,8 +718,8 @@ five lines of why**: what your hand did -- since 2026-09-30 a tally (the
 owner: "the stat at the end about how many clicks/influence you used this
 round"): how many actions and how many a minute; presses, of them clicks and
 pushes; pokes; tugs and who tore free; how long the hand was on something;
-how far it was dragged; and, when the Tab panel's slider was moved, the hand
-strength -- then what came of it: how many times somebody answered it, how
+how far it was dragged; and, when a Tab panel dial was moved, the hand
+strength or reach -- then what came of it: how many times somebody answered it, how
 many did for you what they never would, and how many tells you caught of how
 many; the keycard (where it began, who had it, and
 whether the door opened), the corridor (when the boxes came down and how
@@ -855,7 +855,21 @@ prints the percent and how many people are answering right now. Turned up,
 more people come, from further off, sooner, and more of them do what they
 never would; turned down, fewer. The strongest wills refuse it at any
 strength. The level's own value is `InfluenceSettings.StrengthPercent`, 100;
-the slider lasts through Reset and is back to 100 at every Play.
+the slider lasts through Reset and is back to the level's own at every Play.
+
+**How far the hand reaches** (2026-09-30, the owner, asked which feelings
+they tune most by hand: "influence strength and influence area"). The hand is
+felt up to a certain walk away from it -- across the room, or through one
+open doorway into the next, never through a wall -- in full over the nearer
+half of that walk and fading to nothing at its end. The Tab panel's **Hand
+reach** slider sets that walk, from two metres (a huddle round the hand) to
+twenty-four (the length of the building, walls allowing), and prints the
+metres and how many people feel the hand at all right now. Turned down, the
+hand becomes a thing for the people beside it; turned up, a whole floor
+notices. No ring is drawn for it: a ring would reach through the walls the
+hand does not. The level's own value is `InfluenceSettings.ReachMillimetres`,
+12 m; the slider lasts through Reset and is back to the level's own at every
+Play, and the panel's **Level's own** button puts both dials back at once.
 
 **Push away: the right button** (2026-09-30, the owner: "an anti-influence.
 Works same as the left mouse button, but in reverse -- repelling agents").

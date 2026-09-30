@@ -409,6 +409,17 @@ namespace Paniq.Gameplay
                 Simulation.Tick + 1);
         }
 
+        /// <summary>
+        /// The Tab panel's hand reach (2026-09-30), in millimetres: how far
+        /// the hand is felt from the next tick on. In the run, as the
+        /// strength is.
+        /// </summary>
+        public void QueueHandReach(int millimetres)
+        {
+            Simulation.QueueCommand(PlayerCommandType.SetHandReach, new LogicalPosition(millimetres, 0),
+                Simulation.Tick + 1);
+        }
+
         /// <summary>The player taking hold of somebody by the shirt (2026-09-29).</summary>
         public void QueueTug(SimulationId personId)
         {

@@ -18,7 +18,7 @@
     Only run tests whose full name contains this text. Several names,
     separated by commas, run every test matching any of them: the small gear
     while iterating, so -Filter Doors,ClosingDoors checks the two areas a
-    change touched without the three-minute full run.
+    change touched without the six-minute full run.
 
 .PARAMETER Category
     Only run tests in this NUnit category. UnityPhysics, on the

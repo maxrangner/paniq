@@ -12,6 +12,7 @@ and not everyday English, add it.
 | **Prototype 1, 2, 3** | Groups of stones with one purpose each: 1 made the fire-reaction office, 2 made it a round you can play, 3 makes the level push back. See the [roadmap](roadmap.md). |
 | **Batch** | A set of notes or requests the owner hands over at once, usually after a playtest. A batch normally lands as one commit. See [`AGENTS.md`](../AGENTS.md). |
 | **Playtest** | The owner playing the current build and writing down what felt wrong or right. It decides the next stone. |
+| **Sketch / keep** | The two speeds of prototype work (2026-09-30). A *sketch* is game code plus the compile check, handed over to play and never committed; a *keep* is the full build-out: tests, documentation, fingerprints, one commit. The owner names the speed; when neither is named, the assistant asks. See [`AGENTS.md`](../AGENTS.md). |
 | **Level** | One building with its people, things and timetable. The game has one so far: [the office level](the-office-level.md). |
 | **Scenario** | The code's word for a level's starting situation: the building, the cast and every setting, before anything has happened. See [scenario data and runtime state](scenario-runtime-state.md). |
 | **Bake** | Turning a floor plan laid out by dragging objects in a Unity scene into scenario data (**Paniq > Bake Scenario From Scene**). See [development workflow](development-workflow.md#building-a-floor-plan). |
@@ -87,5 +88,5 @@ and not everyday English, add it.
 | --- | --- |
 | **Edit-mode / play-mode tests** | Automatic checks. Edit-mode tests run pieces of the game without pressing Play; play-mode tests press Play and look at the scene. |
 | **Test bridge** | A small helper inside the open Unity editor that lets a script outside it run the tests (`tools/RunUnityTests.ps1`). See [development workflow](development-workflow.md). |
-| **The two gears** | Quick targeted tests while working, the full suite (about three minutes) before every commit. |
+| **The two gears** | Quick targeted tests while working, the full suite (about six and a half minutes) before every commit. A sketch runs neither, only the compile check. |
 | **Compile check** | `tools/CompileAgainstUnity.ps1`: checks the code builds, in seconds, without Unity open. |

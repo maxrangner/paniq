@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: prototype-fire-1-fl-small
-    ContentRevision: 91
+    ContentRevision: 92
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 79
+    SimulationCompatibilityVersion: 80
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120

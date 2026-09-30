@@ -79,9 +79,35 @@ Acceptable:
 >
 > I only need your answer on the feel you want; I will pick the settings.
 
+## Sketch and keep: two speeds for prototype work
+
+Building every idea to keep quality on the first pass -- tests,
+documentation, fingerprints, the full run -- is most of what a batch costs,
+and most prototype ideas are retuned or dropped once the owner has played
+them. So work on a prototype stone runs at one of two speeds, and **the owner
+names the speed**:
+
+- **Sketch.** The owner says "sketch". Change the game code, run the compile
+  check, hand it over to play. No new tests, no documentation, no fingerprint
+  re-recording, no version bump; existing tests may go red, and the report
+  says so in a line. The report is three lines: what is different, how to try
+  it, what is unproven. Nothing is committed and nothing is pushed. A sketch
+  is a question put to the owner's hands, not yet a change to the game.
+- **Keep.** The owner says "keep" (or "keep the drag, drop the beacon").
+  Revert what was dropped, then harden what stays: tests, documentation,
+  fingerprints and versions, the full run, and one commit for the batch under
+  the rules below. Nothing about a keep pass is lighter than it was before
+  sketches existed.
+- **Neither, or unclear: ask before doing anything.** If the owner named no
+  speed, or a note is half a fix and half an idea, or it touches shared
+  simulation code, or a sketch has sat for a day without a keep or a drop:
+  ask, in one line, with a recommendation, and start nothing until the answer
+  comes. There is no default speed. (The owner's rule, 2026-09-30.)
+
 ## Reporting finished work
 
-Every completed task ends with a report in this shape:
+A sketch's report is the three lines above, not this shape. Every other
+completed task ends with a report in this shape:
 
 - **What is different in the game now**, in plain language and player terms.
 - **How to see it for yourself** — exact, copyable, click-by-click steps for
@@ -230,7 +256,8 @@ way; a third would need a reason just as clear.
 ## Quality checks
 
 - Add or update relevant edit-mode and play-mode tests with behavior changes.
-- **Checking work runs in two gears.** After every edit, run
+- **Checking work runs in two gears** (a sketch runs only the first; see
+  *Sketch and keep*). After every edit, run
   `tools/CompileAgainstUnity.ps1`: it needs no editor and answers in seconds.
   While iterating, once a step has a claim worth checking (a behaviour is in,
   not a file saved), run `tools/RunUnityTests.ps1 -Filter` with the names of
@@ -245,7 +272,7 @@ way; a third would need a reason just as clear.
   `tools/RunUnityTests.ps1 -All`. "Validation passed" means that run passed;
   a targeted run is reported as a targeted check, naming what ran. Do not run
   the full suite between the steps of one task: it re-proves what the step
-  could not have touched, at three minutes a time.
+  could not have touched, at six minutes a time.
 - A new test that plays a whole run (3,000 ticks, a minute of game time) says
   in its commit why a shorter one would not do. `-Slowest 10` shows what the
   suite already pays for.

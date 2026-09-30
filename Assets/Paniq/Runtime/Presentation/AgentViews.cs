@@ -14,7 +14,8 @@ namespace Paniq.Presentation
     /// flail with little flames licking up them when on fire, lunge at doors
     /// they shove, shake whoever they are shaking awake, lean back when
     /// dragging someone, and shrink away when they escape. Each has
-    /// a vision-cone outline and floating icons.
+    /// button eyes on the side they face, a vision-cone outline and floating
+    /// icons; the Tab panel can hide the cones, the numbers and the marks.
     /// </summary>
     internal sealed class AgentViews
     {
@@ -97,6 +98,10 @@ namespace Paniq.Presentation
                 ShowThroughWalls(band, materials);
                 band.SetActive(false);
 
+                // After the see-through outline is added, so the ghost behind
+                // a wall stays a plain outline with no eyes on it.
+                CreateEyes(agentObject.transform, materials);
+
                 var visionObject = new GameObject($"Agent {definition.AgentId.Value} vision cone (presentation)");
                 visionObject.transform.SetParent(parent, false);
                 LineRenderer vision = visionObject.AddComponent<LineRenderer>();
@@ -121,6 +126,60 @@ namespace Paniq.Presentation
                 });
             }
         }
+
+        /// <summary>
+        /// Two button eyes, white with a black pupil, on the front of the head
+        /// (2026-09-30, the owner: "Put eyes on agents so we can see the
+        /// direction they are facing"). Children of the capsule, so they lean,
+        /// waddle, fall and shrink away with it and cost nothing per frame.
+        /// They sit high on the rounded top, about 20 degrees up from its
+        /// widest point, so the camera looking down still finds them on
+        /// somebody turned side-on; from behind they are hidden, which says
+        /// "facing away" just as plainly.
+        /// </summary>
+        private static void CreateEyes(Transform body, PresentationMaterials materials)
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                // Capsule space: the rounded top is centred 0.5 up with a
+                // radius of 0.5, and the person faces +Z.
+                GameObject eye = CreateEyePart("Eye", body, materials.EyeWhite);
+                eye.transform.localPosition = new Vector3(side * EyeSpacing, 0.66f, 0.4f);
+                eye.transform.localScale = Vector3.one * EyeSize;
+
+                // In the eye's own space, poking out of the front and tipped a
+                // little up toward a camera that looks down on everybody.
+                GameObject pupil = CreateEyePart("Pupil", eye.transform, materials.Pupil);
+                pupil.transform.localPosition = new Vector3(0f, 0.06f, 0.33f);
+                pupil.transform.localScale = Vector3.one * PupilSize;
+            }
+        }
+
+        private static GameObject CreateEyePart(string name, Transform parent, Material material)
+        {
+            GameObject part = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            part.name = name;
+            RemoveCollider(part);
+            part.transform.SetParent(parent, false);
+            Renderer renderer = part.GetComponent<Renderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            return part;
+        }
+
+        /// <summary>How far each eye sits from the middle of the face, in capsule space (the body is 1 across).</summary>
+        private const float EyeSpacing = 0.19f;
+
+        /// <summary>
+        /// An eye's width in capsule space: about 17 cm on a half-metre-wide
+        /// person, cartoon big, so the way somebody faces still shows with the
+        /// whole building in view. A first try at 11 cm was lost even close up.
+        /// </summary>
+        private const float EyeSize = 0.34f;
+
+        /// <summary>A pupil's width as a share of its eye.</summary>
+        private const float PupilSize = 0.5f;
 
         /// <summary>A red "!" for noticing something.</summary>
         public void Notice(SimulationId agentId, float time)
@@ -163,7 +222,7 @@ namespace Paniq.Presentation
         }
 
         public void Update(RunSnapshot snapshot, RunSnapshot previousSnapshot, float blend, float time,
-            Transform cameraTransform)
+            Transform cameraTransform, DebugView show)
         {
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
@@ -394,7 +453,7 @@ namespace Paniq.Presentation
                 }
 
                 bool down = lost || view.Transform.up.y < 0.7f;
-                UpdateAppearance(agent, view, planar, yaw, down, alertJump, headHeight, time, cameraTransform);
+                UpdateAppearance(agent, view, planar, yaw, down, alertJump, headHeight, time, cameraTransform, show);
             }
         }
 
@@ -485,7 +544,8 @@ namespace Paniq.Presentation
             float alertJump,
             float headHeight,
             float time,
-            Transform cameraTransform)
+            Transform cameraTransform,
+            DebugView show)
         {
             bool participating = agent.Participation == AgentParticipation.Participating;
             bool frozen = agent.ActivityState == AgentActivityState.Frozen;
@@ -533,10 +593,12 @@ namespace Paniq.Presentation
                              agent.ActivityState == AgentActivityState.LookingAround),
                     agent.IsLeading,
                     time,
-                    agent.ActingForTheHand);
+                    agent.ActingForTheHand,
+                    show.Marks,
+                    show.Numbers);
             }
 
-            UpdateVisionCone(agent, view.Vision, planar, yaw);
+            UpdateVisionCone(agent, view.Vision, planar, yaw, show.VisionCones);
         }
 
         private static readonly Color FlameRed = PresentationMaterials.FlameRed;
@@ -597,9 +659,9 @@ namespace Paniq.Presentation
         /// </summary>
         private const float RunningWaddle = 1.45f;
 
-        private void UpdateVisionCone(AgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw)
+        private void UpdateVisionCone(AgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw, bool shown)
         {
-            vision.enabled = agent.Participation == AgentParticipation.Participating;
+            vision.enabled = shown && agent.Participation == AgentParticipation.Participating;
             if (!vision.enabled)
             {
                 return;

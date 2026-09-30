@@ -45,11 +45,12 @@ namespace Paniq.Presentation
         /// <summary>Whether the overlay is being shown.</summary>
         public bool Shown => root != null && root.activeSelf;
 
-        public void Toggle()
+        /// <summary>Shows or hides the overlay, doing nothing when it already is as asked.</summary>
+        public void Show(bool shown)
         {
-            if (root != null)
+            if (root != null && root.activeSelf != shown)
             {
-                root.SetActive(!root.activeSelf);
+                root.SetActive(shown);
             }
         }
 

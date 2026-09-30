@@ -87,7 +87,11 @@ namespace Paniq.Presentation
 
         private SimulationId? hoveredDoor;
         private SimulationId? hoveredAlarm;
-        private bool showStats;
+        /// <summary>The Tab panel and what it switches on and off (2026-09-30).</summary>
+        private readonly DebugView view = new DebugView();
+
+        /// <summary>The Tab panel's switches, so a test can flip them without clicking.</summary>
+        internal DebugView ViewForTests => view;
         private int eventsSeen;
 
         private void Awake()
@@ -124,7 +128,7 @@ namespace Paniq.Presentation
                 _ = new ExitSignView(scenario.ExitSigns, materials, root);
                 input = new PlayerInput(runner, room);
 
-                // Off until G is pressed: the floor painted square by square
+                // Off until G is pressed or its switch ticked in the Tab panel: the floor painted square by square
                 // wherever somebody could stand.
                 navigationGrid = new NavigationGridView(
                     runner.Simulation, root, scenario.World.OccupancyRadiusMillimetres);
@@ -228,13 +232,17 @@ namespace Paniq.Presentation
 
             if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
             {
-                showStats = !showStats;
+                view.PanelOpen = !view.PanelOpen;
             }
 
+            // G is still the shortcut for the walkable floor, and the panel's
+            // switch shows the same thing, whichever flipped it.
             if (keyboard != null && keyboard.gKey.wasPressedThisFrame)
             {
-                navigationGrid?.Toggle();
+                view.WalkableFloor = !view.WalkableFloor;
             }
+
+            navigationGrid?.Show(view.WalkableFloor);
 
             // Space pauses, but only once the round is actually going: there
             // is nothing to pause behind the start card or after the end one.
@@ -245,7 +253,7 @@ namespace Paniq.Presentation
 
             effects.BeginFrame();
             PlayNewEvents(frameSnapshot, time);
-            agents.Update(frameSnapshot, previous, blend, time, prototypeCamera.transform);
+            agents.Update(frameSnapshot, previous, blend, time, prototypeCamera.transform, view);
             room.Update(frameSnapshot, hoveredDoor, time, Time.deltaTime);
             room.UpdateHoles(frameSnapshot);
             boxes.Update(frameSnapshot, previous, blend, time);
@@ -325,7 +333,10 @@ namespace Paniq.Presentation
                     PrototypeHud.DrawPauseHelp(frameSnapshot);
                 }
 
-                if (showStats)
+                // Below Reset and Pause, which sit in the top-right corner;
+                // the traits table goes under the panel rather than over it.
+                float belowPanel = view.Draw(108f);
+                if (view.Stats)
                 {
                     string feel = runner.PhysicsFeelName ?? "the scenario's own";
                     string footer = $"Physics feel: {feel}.  Particles: {effects.LiveParticles} of {effects.Settings.LiveParticleBudget}.";
@@ -334,7 +345,7 @@ namespace Paniq.Presentation
                         footer += "  Tuned live: this run cannot be replayed.";
                     }
 
-                    PrototypeHud.DrawStats(frameSnapshot, footer);
+                    PrototypeHud.DrawStats(frameSnapshot, footer, belowPanel);
                 }
 
                 // Last, so a card sits over everything else.

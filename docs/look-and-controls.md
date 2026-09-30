@@ -119,9 +119,13 @@ Chosen on the owner's behalf:
 - The angles, zoom limits and how far the tilt travels are presentation values,
   chosen when the camera was built and listed below.
 
-Keys the prototype already uses, which these live alongside: **Tab** shows
-the table of everyone's traits, **G** paints the floor people can walk on,
-and **Space** pauses.
+Keys the prototype already uses, which these live alongside: **Tab** opens a
+small panel of switches for what is drawn besides the building and the people
+(the vision cones, the numbers and marks over heads, the table of everyone's
+traits, and the walkable floor; 2026-09-30), **G** paints the floor people can
+walk on (the same switch as in the panel), and **Space** pauses. Everything the
+panel switches starts as it always looked -- cones, numbers and marks on --
+and stays as set until Play is pressed again.
 
 The values chosen when the camera was built, recorded in
 [technical decisions](history/decisions-prototype-2.md#prototype-2-decision-building-the-round): the view pans at 14 metres a
@@ -167,7 +171,12 @@ Standing rules from the owner, not to be undone by a later change:
 - **The play view stays clean** (the owner, 2026-09-19: "Let's try to keep
   gameplay clean"). Over a head go the person's number and the marks that say
   what they are doing (the `!`, the snowflake, the star); traits and state go
-  in the panel **Tab** opens. No always-on trait bars.
+  in the stats table, a switch in the panel **Tab** opens. No always-on trait
+  bars. The Tab panel can hide the numbers, the marks and the vision cones.
+- **People have eyes** (the owner, 2026-09-30: "so we can see the direction
+  they are facing"): two white button eyes with black pupils, high on the
+  front of the head, cartoon big so they still show with the whole building in
+  view. Somebody facing away shows none.
 
 What prototype 3's second batch added to the picture (2026-09-26):
 

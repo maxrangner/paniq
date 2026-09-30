@@ -62,8 +62,9 @@ the simulation, and nobody can walk on it.
 
 **Everyone has a personality.** Each person has seven traits from 0 to 10:
 strength, speed, bravery, compassion, evil, nervousness and leadership. 5 is an
-ordinary person. A number floats beside each head; press **Tab** for a table of
-everyone's traits, how they will panic, and what they are doing now. The people
+ordinary person. A number floats beside each head; press **Tab** and tick
+"Everyone's stats" for a table of everyone's traits, how they will panic, and
+what they are doing now. The people
 are authored as a cast (a scenario can also leave traits out and let the seed
 draw them), in `PrototypeBuilding.DefaultAgents`:
 

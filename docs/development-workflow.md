@@ -91,6 +91,7 @@ in the editor that is already open:
 .\tools\RunUnityTests.ps1 -PlayMode                  # the play-mode tests
 .\tools\RunUnityTests.ps1 -Category UnityPhysics     # the physics-foundation checks
 .\tools\RunUnityTests.ps1 -Filter SeedsFortyToFortyNine -ShowPassed  # the office left alone, ten seeds: the tuning table (Category Measure), skipped by normal runs, about a minute
+.\tools\RunUnityTests.ps1 -Filter New_Nobody_Pressed -ShowPassed     # the office played by machine: one layout, one scripted player, thirty seeds (LevelTuningMeasurements), about five minutes
 .\tools\RunUnityTests.ps1 -Filter FiftySeeds -ShowPassed  # fifty seeds left alone: fails on any seed that saves more than half (the owner's rule); about four and a half minutes; run before the commit of any batch that touches the Director, the card or the traps
 .\tools\RunUnityTests.ps1 -Reset                     # the bridge is stuck on a run Unity dropped
 ```
@@ -188,13 +189,14 @@ word is the feature's name. These are the ones that are not:
 | `InfluenceSystem`, `HandHeaveBehaviour`, `HandGatherBehaviour`, `AgentHand` (the hand on a place, the push, the drag, the goal and its conviction, what people do for it) | `Influence,Keycard,Alarms,Extinguisher,Errands,Doors,ReplayFingerprint` |
 | `HandChargeSystem` (the hand's bar) | `HandCharge,ReplayFingerprint` |
 | `HandOnTheWayOutMeasurements` (the seed 41-43 diagnostics and the walls sweep, run on purpose) | `-Filter HandOnTheWayOut -ShowPassed` |
+| `LevelTuningMeasurements` (the office played by machine: a layout candidate, a scripted player, thirty seeds; run on purpose, one case by name, about five minutes a case) | `-Filter New_Nobody_Pressed -ShowPassed` |
 | `TugSystem` (the hand on a person) | `Tug,ReplayFingerprint` |
 | `TellSystem` (the wind-up before a freeze, a dash or going back), `HandTally` (the end card's count of the hand) | `Tells,Extinguisher,Alarms,Keycard,Helping,Cornered,Nudge,Tug,ReplayFingerprint` |
 | `Run` (the tick itself) | `Simulation,ReplayFingerprint` |
 | `UniformGridIndex` (who is near here) | `SpatialIndex` |
 | `IThreat`, `Threats` (what a danger is) | `ThreatSeam,ReplayFingerprint` |
 | `CollisionSystem`, `BodySystem`, `PhysicsWorld` | `HardKnocks,Shoving,PhysicsFoundation,PhysicsObjects` |
-| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors,HeavyThings,Influence` |
+| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors,HeavyThings,Influence,CubicleLandscape,BoxTower,StockroomTrap,PowerSystem,Furniture,NewProps,Alarms` |
 | `TestBuildings` (the square room, the maze, the interaction room) | `TestBuildings` |
 | `LevelDefinition`, `LevelSession`, `LevelLoader`, `RunDriver` (the level row, the seed, the best) | `LevelSession,TestBuildings` |
 | `FearSystem.PanicEveryone`, `CalmEveryone` (the Crowd button) | `CrowdSwitch,CalmingDown,ReplayFingerprint` |
@@ -208,8 +210,9 @@ word is the feature's name. These are the ones that are not:
 | `CameraRig` (Q, E and the wheel) | `CameraRig` |
 | `EventStory`, `RoundScreens` (the read-back and the end card) | `EventLogScreen,EventSigns` |
 | `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |
-| `TrapSystem`, `DirectorSystem` (the tower of boxes, the stockroom's stack, the Director's ladder and its cap) | `BoxTower,StockroomTrap,DirectorLadder,DirectorCap,Cues,Doors,Stockroom` |
-| `KeycardSystem` (the card, its fetchers, the player's pull on it) | `Keycard,DirectorCap,Influence` |
+| `TrapSystem`, `DirectorSystem` (the tower of boxes, the stockroom's stack, the Director's ladder and its cap) | `BoxTower,StockroomTrap,DirectorLadder,DirectorCap,Cues,Doors,Stockroom,CubicleLandscape` |
+| `KeycardSystem` (the card, where it starts, its fetchers, the player's pull on it) | `Keycard,DirectorCap,Influence` |
+| `ErrandBehaviour`, `CueSystem`, `CalmBehaviour` (the calm day: errands, home time, chats) | `Errands,Cues,Sitting,MeetingRoom,Simulation,ReplayFingerprint` |
 | `FrightenedWalk`, `ExtinguisherBehaviour` (the frightened walk through doors) | `FrightenedWalks,Extinguisher,Alarms,CrossRoom` |
 | `NudgeSystem` (nudging people) | `Nudge` |
 | `FearSystem.Settle` (calming down) | `CalmingDown,CorridorStarers,ReplayFingerprint` |
@@ -238,6 +241,21 @@ code defaults in `SimulationEditModeTests`.
 
 Each of these was found the slow way. They look like your own breakage and
 are not.
+
+**Measuring a level**
+- Ten seeds are noise on the office. A round ends with nobody, about half or
+  everybody saved, so a ten-seed average is good to about four people either
+  way, and one prop moved changes every draw after it: the first ten-seed
+  round of 2026-10-02 said 9.6 of 34 saved left alone, and thirty seeds said
+  16 to 20 for the same floor. Compare layouts on thirty
+  (`LevelTuningMeasurements`), and trust only differences bigger than four.
+- A measurement that plays thirty seeds runs longer than NUnit's default
+  three minutes for one test and is reported as failed for it, with its
+  table printed all the same. `LevelTuningMeasurements` carries a
+  `[Timeout]` for that reason.
+- The level reads the baked scenario asset. After moving anything in
+  `PrototypeBuilding`, rewrite the asset before measuring, or the machine
+  plays the old floor.
 
 **The test bridge**
 - `-Filter` matches plain text, and a comma separates names

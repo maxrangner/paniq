@@ -192,13 +192,13 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
-    /// A trap the Director springs (prototype 3, 2026-09-25): a tower of
-    /// boxes standing beside a doorway. Once the fire is lit, the first
-    /// frightened person to run through the doorway's own room brings it
-    /// down a beat later (2026-09-27), and the boxes tumble toward the
-    /// doorway: while enough of them lie in it, it is shut for people and
-    /// fire. The boxes are ordinary boxes authored stacked at the tower's
-    /// spot.
+    /// A stack of boxes that comes down when somebody runs into it
+    /// (prototype 3, 2026-09-25; since 2026-10-02 nothing else brings it
+    /// down, see <see cref="TrapSystem"/>): the boxes, and for a stack
+    /// standing beside an archway, the archway. The boxes tumble the way
+    /// the bumper was going; while enough of them lie in the archway, it is
+    /// shut for people and fire. The boxes are ordinary boxes authored
+    /// stacked at the stack's spot.
     /// </summary>
     [Serializable]
     public struct TrapDefinition
@@ -206,72 +206,48 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private SimulationId trapId;
         [UnityEngine.SerializeField] private SimulationId doorId;
         [UnityEngine.SerializeField] private SimulationId[] boxIds;
-        [UnityEngine.SerializeField] private SimulationId triggerRoomId;
-        [UnityEngine.SerializeField] private LogicalPosition landingCentre;
-        [UnityEngine.SerializeField] private int landingHeadingDegrees;
-        [UnityEngine.SerializeField] private int landingWidthMillimetres;
 
-        /// <summary>A tower beside a doorway: the boxes fall across the doorway, which is shut while enough of them lie in it. Sprung by a runner in the doorway's own room.</summary>
+        /// <summary>
+        /// A tower beside a doorway: knocked down, its boxes shut the
+        /// doorway while enough of them happen to lie in it.
+        /// </summary>
         public TrapDefinition(SimulationId trapId, SimulationId doorId, SimulationId[] boxIds)
         {
             this.trapId = trapId;
             this.doorId = doorId;
             this.boxIds = boxIds;
-            triggerRoomId = default;
-            landingCentre = default;
-            landingHeadingDegrees = 0;
-            landingWidthMillimetres = 0;
         }
 
         /// <summary>
-        /// A stack in a room (2026-09-27): the boxes fall along a line across
-        /// a lane -- <paramref name="landingWidthMillimetres"/> of it, centred
-        /// on <paramref name="landingCentre"/>, running along
-        /// <paramref name="landingHeadingDegrees"/> -- and block it by their
-        /// weight alone. Sprung by a runner in <paramref name="triggerRoomId"/>.
+        /// A stack standing in a room, by no doorway (2026-09-27): knocked
+        /// down, its crates block whatever they land across by their weight
+        /// alone. Until 2026-10-02 it also named a room to watch for a
+        /// runner and a line to fall along; a stack now falls where it is
+        /// knocked, the way it is knocked.
         /// </summary>
-        public TrapDefinition(SimulationId trapId, SimulationId[] boxIds, SimulationId triggerRoomId,
-            LogicalPosition landingCentre, int landingHeadingDegrees, int landingWidthMillimetres)
+        public TrapDefinition(SimulationId trapId, SimulationId[] boxIds)
         {
             this.trapId = trapId;
             doorId = default;
             this.boxIds = boxIds;
-            this.triggerRoomId = triggerRoomId;
-            this.landingCentre = landingCentre;
-            this.landingHeadingDegrees = landingHeadingDegrees;
-            this.landingWidthMillimetres = landingWidthMillimetres;
         }
 
         public SimulationId TrapId => trapId;
 
-        /// <summary>The doorway the boxes fall across, or a zero ID for a trap that falls across a lane.</summary>
+        /// <summary>The doorway the stack stands by, or a zero ID for a stack that stands by none.</summary>
         public SimulationId DoorId => doorId;
 
-        /// <summary>Whether this trap falls across a doorway (shutting it) rather than across a lane.</summary>
+        /// <summary>Whether this stack stands by a doorway its boxes can shut.</summary>
         public bool IsDoorTrap => doorId.Value != 0UL;
 
-        /// <summary>The boxes that make the tower, lowest first.</summary>
+        /// <summary>The boxes that make the stack, lowest first.</summary>
         public SimulationId[] BoxIds => boxIds ?? Array.Empty<SimulationId>();
-
-        /// <summary>The room a runner springs a lane trap in.</summary>
-        public SimulationId TriggerRoomId => triggerRoomId;
-
-        /// <summary>The middle of the line a lane trap's boxes are aimed along.</summary>
-        public LogicalPosition LandingCentre => landingCentre;
-
-        /// <summary>Which way that line runs, in whole degrees.</summary>
-        public int LandingHeadingDegrees => landingHeadingDegrees;
-
-        /// <summary>How long that line is.</summary>
-        public int LandingWidthMillimetres => landingWidthMillimetres;
 
         // The boxes are an array: compared box by box, so an asset written
         // from the code compares equal to the code (see CueDefinition).
         public override bool Equals(object obj)
         {
-            if (!(obj is TrapDefinition other) || trapId != other.trapId || doorId != other.doorId ||
-                triggerRoomId != other.triggerRoomId || !landingCentre.Equals(other.landingCentre) ||
-                landingHeadingDegrees != other.landingHeadingDegrees || landingWidthMillimetres != other.landingWidthMillimetres)
+            if (!(obj is TrapDefinition other) || trapId != other.trapId || doorId != other.doorId)
             {
                 return false;
             }
@@ -804,6 +780,14 @@ namespace Paniq.Simulation
     /// A table: a fixed rectangle on the floor that people walk around and
     /// loose objects bounce off. <see cref="WidthMillimetres"/> runs along X,
     /// <see cref="DepthMillimetres"/> along Z.
+    /// <para>
+    /// A <em>partition</em> (2026-10-02) is the same rectangle stood up as a
+    /// low screen between desks: fixed where it stands, so nothing shoves,
+    /// heaves or tips it; on the map people steer by and solid to their
+    /// bodies, as a table is; taller than a table and shorter than a
+    /// person, so -- like a table -- it hides nothing, muffles nothing and
+    /// stops no fire. It burns as a table does.
+    /// </para>
     /// </summary>
     [Serializable]
     public struct TableDefinition
@@ -812,14 +796,20 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private LogicalPosition centre;
         [UnityEngine.SerializeField] private int widthMillimetres;
         [UnityEngine.SerializeField] private int depthMillimetres;
+        [UnityEngine.SerializeField] private bool isPartition;
 
-        public TableDefinition(SimulationId tableId, LogicalPosition centre, int widthMillimetres, int depthMillimetres)
+        public TableDefinition(SimulationId tableId, LogicalPosition centre, int widthMillimetres, int depthMillimetres,
+            bool isPartition = false)
         {
             this.tableId = tableId;
             this.centre = centre;
             this.widthMillimetres = widthMillimetres;
             this.depthMillimetres = depthMillimetres;
+            this.isPartition = isPartition;
         }
+
+        /// <summary>A low fixed screen between desks rather than a table (2026-10-02).</summary>
+        public bool IsPartition => isPartition;
 
         public SimulationId TableId => tableId;
         public LogicalPosition Centre => centre;
@@ -841,7 +831,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "prototype-fire-1-fl-small";
-        public string ContentRevision = "93";
+        public string ContentRevision = "94";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -1078,7 +1068,7 @@ namespace Paniq.Simulation
         // (two commands that panic or calm the whole crowd, each on their
         // own tick, and begin the round); the hand through a doorway is felt
         // only where it can be seen, fading over the doorway's soft edge.
-        public int SimulationCompatibilityVersion = 81;
+        public int SimulationCompatibilityVersion = 82;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -1428,7 +1418,6 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Trap {trap.TrapId} has no boxes to fall.");
                 }
 
-                int widest = 0;
                 for (int b = 0; b < trap.BoxIds.Length; b++)
                 {
                     int box = Array.FindIndex(PhysicsObjects, o => o.ObjectId == trap.BoxIds[b]);
@@ -1436,32 +1425,6 @@ namespace Paniq.Simulation
                     {
                         throw new InvalidOperationException(
                             $"Trap {trap.TrapId} names {trap.BoxIds[b]} as a box, and it is a {PhysicsObjects[box].Kind}.");
-                    }
-
-                    if (box >= 0)
-                    {
-                        widest = Math.Max(widest, PhysicsObjects[box].SizeMillimetres);
-                    }
-                }
-
-                if (!trap.IsDoorTrap)
-                {
-                    // A lane trap: a room to watch, and a line to fall along
-                    // that is inside it and long enough for its boxes.
-                    if (trap.TriggerRoomId.Value == 0UL)
-                    {
-                        throw new InvalidOperationException($"Trap {trap.TrapId} falls across no doorway and watches no room.");
-                    }
-
-                    int room = Array.FindIndex(Rooms, r => r.RoomId == trap.TriggerRoomId);
-                    if (room >= 0 && !Rooms[room].Bounds.ContainsCircle(trap.LandingCentre, 0))
-                    {
-                        throw new InvalidOperationException($"Trap {trap.TrapId} lands outside the room it watches.");
-                    }
-
-                    if (trap.LandingWidthMillimetres < widest)
-                    {
-                        throw new InvalidOperationException($"Trap {trap.TrapId} falls along a line shorter than its widest box.");
                     }
                 }
             }

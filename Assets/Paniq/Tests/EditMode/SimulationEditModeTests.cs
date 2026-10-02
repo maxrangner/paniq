@@ -40,10 +40,10 @@ namespace Paniq.Tests.EditMode
         {
             Assert.That(scenario.IsValid(out string error), Is.True, error);
             ScenarioData data = DefaultData();
-            Assert.That(data.Agents, Has.Length.EqualTo(20));
+            Assert.That(data.Agents, Has.Length.EqualTo(34));
             Assert.That(data.DefaultSeed, Is.EqualTo(42UL));
-            Assert.That(data.ContentRevision, Is.EqualTo("93"));
-            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(81));
+            Assert.That(data.ContentRevision, Is.EqualTo("94"));
+            Assert.That(data.SimulationCompatibilityVersion, Is.EqualTo(82));
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(250));
             Assert.That(data.Fire.CellSizeMillimetres, Is.EqualTo(500));
             Assert.That(data.Panic.SpeedMinimum - data.Traits.PanicSpeedJitter,
@@ -571,15 +571,17 @@ namespace Paniq.Tests.EditMode
             // walking about, and this is a test of walking about.
             TheBuilding.WithChatLength(data, 150, 400);
 
-            // Everybody who starts seated -- the meeting, and the two at the
-            // cafeteria table -- is got up at once, so they walk about too.
+            // Everybody who starts seated -- the meeting, the two at the
+            // cafeteria table and the twelve at their cubicle desks -- is got
+            // up at once, so they walk about too.
             // Nobody has a desk to drift back to: the two in the cafeteria sit
             // on their own chairs, and "the meeting is over" leaves somebody
             // who is already at their desk where they are.
             data.Timetable = new[]
             {
                 new ScheduledCue(CueKind.MeetingEnds, 1, 0, PrototypeBuilding.MeetingRoom),
-                new ScheduledCue(CueKind.MeetingEnds, 1, 0, PrototypeBuilding.Cafeteria)
+                new ScheduledCue(CueKind.MeetingEnds, 1, 0, PrototypeBuilding.Cafeteria),
+                new ScheduledCue(CueKind.MeetingEnds, 1, 0, PrototypeBuilding.CubicleLandscape)
             };
             for (int i = 0; i < data.Agents.Length; i++)
             {
@@ -635,9 +637,16 @@ namespace Paniq.Tests.EditMode
                     int gap = Math.Min(
                         Math.Min(agent.Position.X - room.MinX, room.MaxX - agent.Position.X),
                         Math.Min(agent.Position.Z - room.MinZ, room.MaxZ - agent.Position.Z)) - data.World.OccupancyRadiusMillimetres;
+                    //
+                    // Somebody on an errand who is pinned gives it up after
+                    // three seconds (DaySettings.BlockedGiveUpTicks), so three
+                    // seconds against a wall is that rule at work -- the host
+                    // walking over for a chat, with the whiteboard between
+                    // her and whoever she was going to talk to -- and a
+                    // second more is nobody giving up.
                     wallRun[i] = gap < 300 && !standingOnPurpose ? wallRun[i] + 1 : 0;
-                    Assert.That(wallRun[i], Is.LessThan(3 * Run.TicksPerSecond),
-                        $"Calm agent {agent.AgentId} hugged a wall for 3 s.");
+                    Assert.That(wallRun[i], Is.LessThan(data.Day.BlockedGiveUpTicks + Run.TicksPerSecond),
+                        $"Calm agent {agent.AgentId} hugged a wall for 4 s: tick {simulation.Tick}, {simulation.DescribeForTests(i)}");
                 }
             }
 

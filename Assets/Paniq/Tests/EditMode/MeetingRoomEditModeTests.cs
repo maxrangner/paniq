@@ -45,7 +45,7 @@ namespace Paniq.Tests.EditMode
         private static bool AcrossTheCorridor(LogicalPosition where) => where.Z > 9000;
 
         [Test]
-        public void EightPeople_StartTheRunSeated_SixOfThemInTheMeeting()
+        public void TwentyPeople_StartTheRunSeated_SixOfThemInTheMeeting()
         {
             var simulation = new Run(DefaultData());
             RunSnapshot snapshot = simulation.GetSnapshot();
@@ -63,8 +63,8 @@ namespace Paniq.Tests.EditMode
                 seatedInTheMeetingRoom += AcrossTheCorridor(person.Position) && person.Position.X < 2000 ? 1 : 0;
             }
 
-            Assert.That(seated, Is.EqualTo(8),
-                "Six round the meeting table and two at a cafeteria table, before anything happens.");
+            Assert.That(seated, Is.EqualTo(20),
+                "Six round the meeting table, two at a cafeteria table and twelve at their cubicle desks, before anything happens.");
             Assert.That(seatedInTheMeetingRoom, Is.EqualTo(6), "Six of them are in the meeting.");
         }
 
@@ -365,8 +365,8 @@ namespace Paniq.Tests.EditMode
                 }
             }
 
-            Assert.That(chairs, Is.EqualTo(16),
-                "Eight at the office desks, six at the meeting table and two in the cafeteria.");
+            Assert.That(chairs, Is.EqualTo(31),
+                "Eight at the office desks, six at the meeting table, two in the cafeteria and fifteen at the cubicles' desks.");
             Assert.That(laptops, Is.GreaterThan(0));
         }
 

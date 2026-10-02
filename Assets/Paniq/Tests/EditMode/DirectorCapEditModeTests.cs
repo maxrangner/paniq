@@ -129,7 +129,7 @@ namespace Paniq.Tests.EditMode
         // ---------------------------------------------------------------- the allowance
 
         [Test]
-        public void TheAllowance_IsDrawnFromItsOwnStream_SoTheLadderIsUntouched_AndItIsTwoToEightOfTwenty()
+        public void TheAllowance_IsDrawnFromItsOwnStream_SoTheLadderIsUntouched_AndItIsATenthToTwoFifthsOfTheCrowd()
         {
             int binTickWithout;
             using (var simulation = new Run(TheCapOff(), 42UL))
@@ -145,11 +145,13 @@ namespace Paniq.Tests.EditMode
                 data.Director.ClimbsTheLadder = true;
                 data.Director.CapsTheRound = true;
                 data.Director.FirstIncidentThings = new[] { BinByTheDoor };
+                int crowd = data.Agents.Length;
                 using (var simulation = new Run(data, seed))
                 {
                     Assert.That(simulation.DirectorForTests.CapsForTests, Is.True);
                     int allowance = simulation.DirectorForTests.AllowanceForTests;
-                    Assert.That(allowance, Is.InRange(2, 8), $"Seed {seed}: ten to forty percent of twenty.");
+                    Assert.That(allowance, Is.InRange((crowd * 10 + 50) / 100, (crowd * 40 + 50) / 100),
+                        $"Seed {seed}: ten to forty percent of the {crowd} in the building.");
                     allowances.Add(allowance);
                     if (seed == 42UL)
                     {
@@ -165,17 +167,17 @@ namespace Paniq.Tests.EditMode
 
         // ---------------------------------------------------------------- ahead
 
+        /// <summary>
+        /// The Director no longer springs the tower (2026-10-02, the owner:
+        /// "No director trigger"). With it standing on the crowd's way and
+        /// the round ahead, the push is the socket, and nothing the
+        /// Director does brings the boxes down.
+        /// </summary>
         [Test]
-        public void Ahead_WithATrapStandingOnTheCrowdsWay_TheDirectorSpringsItItself_ABeatLater()
+        public void Ahead_WithTheTowerStillStanding_TheDirectorLeavesItAlone_AndTheSocketIsThePush()
         {
             ScenarioData data = WithTheWayOutOpenable(TheCap(10));
             SixInTheOffice(data);
-
-            // One of the six stands in the corridor, in the tower's own room;
-            // and no runner may bring the tower down, so only the Director can.
-            data.Agents[5] = new AgentDefinition(new SimulationId(6UL), new LogicalPosition(9000, 7500), CardinalDirection.East,
-                AgentTraitValues.AllOrdinary);
-            data.Traps.TriggerSpeedMillimetresPerTick = 100000;
             using (var simulation = new Run(data, 42UL))
             {
                 Assert.That(simulation.DirectorForTests.AllowanceForTests, Is.EqualTo(1), "A tenth of six, rounded: one.");
@@ -190,18 +192,14 @@ namespace Paniq.Tests.EditMode
                 Assert.That(pushed.HasValue, "Six frightened people able to reach the open door, one allowed: the Director pushes.");
                 Assert.That(pushed.Value.Strength, Is.EqualTo(6), "Six on course.");
                 Assert.That(pushed.Value.DurationTicks, Is.EqualTo(1), "Against an allowance of one.");
+                Assert.That(pushed.Value.TargetId, Is.Not.EqualTo(TheBuilding.TheTrap), "Not the tower.");
 
-                List<CausalEvent> triggered = EventsOfType(simulation, CausalEventType.TrapTriggered);
-                Assert.That(triggered, Has.Count.EqualTo(1), "The tower, with somebody on course in the corridor, is sprung by the push.");
-                Assert.That(triggered[0].SourceId, Is.EqualTo(TheBuilding.TheTrap));
-                Assert.That(triggered[0].HasTarget, Is.False, "By the Director, not by a runner.");
-                Assert.That(triggered[0].CausalParentEventId, Is.EqualTo(pushed.Value.EventId));
-                Assert.That(triggered[0].Tick, Is.EqualTo(pushed.Value.Tick));
-
-                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
-                Assert.That(fell.HasValue);
-                Assert.That(fell.Value.Tick - triggered[0].Tick, Is.InRange(data.Traps.CreakTicks * 4 / 5, data.Traps.CreakTicks * 6 / 5),
-                    "Never on the tick it was decided: it creaks first, as for a runner (2026-09-29).");
+                List<CausalEvent> crackles = EventsOfType(simulation, CausalEventType.SocketCrackling);
+                Assert.That(crackles, Has.Count.EqualTo(1), "The socket where the crowd is, though the tower stands.");
+                Assert.That(crackles[0].CausalParentEventId, Is.EqualTo(pushed.Value.EventId));
+                Assert.That(EventsOfType(simulation, CausalEventType.TrapTriggered).Exists(
+                        knock => knock.CausalParentEventId == pushed.Value.EventId), Is.False,
+                    "Nothing the Director does knocks the tower: only a body running into it.");
             }
         }
 
@@ -237,32 +235,57 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void Ahead_OnceASocketHasGone_AndNoneIsLeftWhereTheCrowdIs_TheFuseBoxIsThePush()
+        public void Ahead_OnceASocketHasGone_AndNoneIsLeftWhereTheCrowdIs_TheFuseBoxIsThePush_AndTakesEverySocket()
         {
             ScenarioData data = WithTheWayOutOpenable(TheCap(10));
             SixInTheOffice(data);
             data.TrapDefinitions = Array.Empty<TrapDefinition>();
+
+            // A short crackle and no rest between pushes, so the second
+            // push comes while the six are still on their way out.
+            data.Director.CrackleTicks = 50;
+            data.Director.PushMinimumTicks = 1;
+            data.Director.PushMaximumTicks = 1;
             using (var simulation = new Run(data, 42UL))
             {
-                // The ladder's own socket first: the bin put out, the socket
-                // pops five to ten seconds later in the busiest room, the
-                // office. That is the socket rung spent.
-                LightTheBin(simulation);
-                Advance(simulation, 50);
-                simulation.PutEverythingOutForTests();
-                CausalEvent? bang = AdvanceUntil(simulation, CausalEventType.ObjectExploded, 2400);
-                Assert.That(bang.HasValue, "The ladder's socket went.");
-                Assert.That(EventsOfType(simulation, CausalEventType.DirectorPushed), Is.Empty, "Not a push: the ladder.");
-
+                // The first push is the socket in the office, where all six
+                // are: since 2026-10-02 a socket goes only as a push.
                 OpenTheWayOut(simulation);
+                LightTheBin(simulation);
                 FrightenEverybody(simulation);
-                CausalEvent? pushed = AdvanceUntil(simulation, CausalEventType.DirectorPushed, 100);
-                Assert.That(pushed.HasValue, "Ahead: a push.");
-                Assert.That(pushed.Value.TargetId, Is.EqualTo(TheFuseBox),
-                    "The office's other socket is in the incident's room and the cafeteria has nobody on course; a socket has gone, so the fuse box.");
+                CausalEvent? first = AdvanceUntil(simulation, CausalEventType.DirectorPushed, 100);
+                Assert.That(first.HasValue, "Ahead: a push.");
+                Assert.That(first.Value.TargetId, Is.Not.EqualTo(TheFuseBox), "A socket first: the fuse box is the last resort.");
+                CausalEvent? bang = AdvanceUntil(simulation, CausalEventType.ObjectExploded, 100);
+                Assert.That(bang.HasValue, "The socket went.");
+
+                CausalEvent? second = AdvanceUntilCount(simulation, CausalEventType.DirectorPushed, 2, 100);
+                Assert.That(second.HasValue, "Still ahead: a second push.");
+                Assert.That(second.Value.TargetId, Is.EqualTo(TheFuseBox),
+                    "The office's other socket is in the incident's room and no other socket has anybody on course beside it; a socket has gone, so the fuse box.");
                 List<CausalEvent> crackles = EventsOfType(simulation, CausalEventType.SocketCrackling);
                 Assert.That(crackles[crackles.Count - 1].SourceId, Is.EqualTo(TheFuseBox));
-                Assert.That(crackles[crackles.Count - 1].CausalParentEventId, Is.EqualTo(pushed.Value.EventId));
+                Assert.That(crackles[crackles.Count - 1].CausalParentEventId, Is.EqualTo(second.Value.EventId));
+
+                // Crackle, go, and the spark down the cable to the last
+                // socket, in the cubicle landscape: fires in half the
+                // building at once, all of them the fuse box's own doing
+                // and none of them a fire that got loose.
+                Advance(simulation, data.Director.CrackleTicks + data.Director.BangSettlesTicks + Run.TicksPerSecond);
+                Assert.That(EventsOfType(simulation, CausalEventType.FireEscapedItsRoom), Is.Empty,
+                    "The fuse box's own cascade is the incident, not a fire getting out of its room.");
+                var gone = new HashSet<SimulationId>();
+                foreach (CausalEvent pop in EventsOfType(simulation, CausalEventType.ObjectExploded))
+                {
+                    gone.Add(pop.SourceId);
+                }
+
+                Assert.That(gone, Does.Contain(TheFuseBox));
+                foreach (PowerLineDefinition cable in data.PowerLines)
+                {
+                    Assert.That(gone, Does.Contain(cable.ToObjectId),
+                        $"The spark ran down the cable and took socket {cable.ToObjectId} with it.");
+                }
             }
         }
 
@@ -303,15 +326,103 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>Six ordinary members of staff standing in the arm that leads to the way out, at its south end, deciding nothing of their own.</summary>
+        private static void SixInTheArmToTheWayOut(ScenarioData data)
+        {
+            data.Agents = new[]
+            {
+                new AgentDefinition(new SimulationId(1UL), new LogicalPosition(13700, 9800), CardinalDirection.North, AgentTraitValues.AllOrdinary),
+                new AgentDefinition(new SimulationId(2UL), new LogicalPosition(14500, 9800), CardinalDirection.North, AgentTraitValues.AllOrdinary),
+                new AgentDefinition(new SimulationId(3UL), new LogicalPosition(15300, 9800), CardinalDirection.North, AgentTraitValues.AllOrdinary),
+                new AgentDefinition(new SimulationId(4UL), new LogicalPosition(13700, 10800), CardinalDirection.North, AgentTraitValues.AllOrdinary),
+                new AgentDefinition(new SimulationId(5UL), new LogicalPosition(14500, 10800), CardinalDirection.North, AgentTraitValues.AllOrdinary),
+                new AgentDefinition(new SimulationId(6UL), new LogicalPosition(15300, 10800), CardinalDirection.North, AgentTraitValues.AllOrdinary)
+            };
+            data.Calm.DecisionMinimumTicks = 100000;
+            data.Calm.DecisionMaximumTicks = 100000;
+        }
+
+        /// <summary>
+        /// The building may strike in the last stretch (2026-10-02, the
+        /// owner: "yes, with a way round"): with the crowd in the arm that
+        /// leads to the way out, the socket on that arm's wall is the one
+        /// that crackles. Before it had one, the Director reached for a
+        /// socket in a room the crowd had already left.
+        /// </summary>
+        [Test]
+        public void Ahead_WithTheCrowdInTheArmToTheWayOut_TheSocketThereIsThePush()
+        {
+            ScenarioData data = WithTheWayOutOpenable(TheCap(10));
+            SixInTheArmToTheWayOut(data);
+            data.TrapDefinitions = Array.Empty<TrapDefinition>();
+            using (var simulation = new Run(data, 42UL))
+            {
+                OpenTheWayOut(simulation);
+                LightTheBin(simulation);
+                FrightenEverybody(simulation);
+
+                CausalEvent? pushed = AdvanceUntil(simulation, CausalEventType.DirectorPushed, 100);
+                Assert.That(pushed.HasValue, "Six frightened people a few strides from an open door, one allowed: the Director pushes.");
+                Assert.That(pushed.Value.TargetId, Is.EqualTo(PrototypeBuilding.ExitArmSocket), "With the socket where they are.");
+                List<CausalEvent> crackles = EventsOfType(simulation, CausalEventType.SocketCrackling);
+                Assert.That(crackles, Has.Count.EqualTo(1));
+                Assert.That(crackles[0].SourceId, Is.EqualTo(PrototypeBuilding.ExitArmSocket));
+                Assert.That(crackles[0].Tick, Is.GreaterThan(pushed.Value.Tick - 1), "It crackles first: five seconds to get people clear.");
+                Assert.That(EventsOfType(simulation, CausalEventType.ObjectExploded), Is.Empty, "And has not gone yet.");
+            }
+        }
+
+        /// <summary>
+        /// A card door pounded down under the player's hand is a way out
+        /// standing open. Until 2026-10-02 the Director read it as shut,
+        /// because a broken card door still "needs the card" on paper: the
+        /// building never turned on a crowd that had broken its way out, and
+        /// a hand held on the way out and nothing else saved two thirds of
+        /// the office.
+        /// </summary>
+        [Test]
+        public void ACardDoorPoundedDownUnderTheHand_IsAWayOutOpen_AndTheBuildingTurnsOnTheCrowd()
+        {
+            ScenarioData data = TheCap(10);
+            SixInTheArmToTheWayOut(data);
+            data.TrapDefinitions = Array.Empty<TrapDefinition>();
+
+            // A door that gives in a few seconds, so the test is about what
+            // the Director makes of a broken card door and not about how
+            // long the pounding takes.
+            data.Exits.CardDoorPoundTicks = 150;
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.PutKeycardOnATableForTests(0);
+                LightTheBin(simulation);
+                FrightenEverybody(simulation);
+                simulation.QueueCommand(PlayerCommandType.InfluenceDoor, TheBuilding.TheWayOut, simulation.Tick + 1);
+
+                CausalEvent? broken = AdvanceUntil(simulation, CausalEventType.DoorBrokenDown, 60 * Run.TicksPerSecond);
+                Assert.That(broken.HasValue, "Pounded for the hand, the card door gives.");
+                Assert.That(Door(simulation, TheBuilding.TheWayOut).State, Is.EqualTo(DoorState.Broken));
+                foreach (CausalEvent early in EventsOfType(simulation, CausalEventType.DirectorPushed))
+                {
+                    Assert.That(early.Tick, Is.GreaterThanOrEqualTo(broken.Value.Tick), "Nothing is pushed while the door still holds.");
+                }
+
+                CausalEvent? pushed = AdvanceUntil(simulation, CausalEventType.DirectorPushed, 100);
+                Assert.That(pushed.HasValue, "The way out stands open and more are on course than the one allowed: the building turns on them.");
+                Assert.That(simulation.DirectorForTests.IsAheadForTests, Is.True);
+            }
+        }
+
         // ---------------------------------------------------------------- a massacre
 
         [Test]
-        public void AMassacre_GetsNothingMore_NoTrapArmed_NoSocketAfterAPutOut()
+        public void AMassacre_GetsNothingMore_NoPush_AndNoRelitBin()
         {
             // Two people and an allowance of the whole crowd: from the first
             // reading, only the allowance's worth are left, so the Director
-            // lets up -- the gate is what is tested, not how they died.
+            // lets up -- the gate is what is tested, not how they died. All
+            // three bins are there to relight, and none is.
             ScenarioData data = TheCap(100);
+            data.Director.FirstIncidentThings = PrototypeBuilding.MeetingRoomBins();
             TwoPeople(data);
             using (var simulation = new Run(data, 42UL))
             {
@@ -320,19 +431,18 @@ namespace Paniq.Tests.EditMode
                 Advance(simulation, 30);
                 Assert.That(simulation.DirectorForTests.IsMassacreForTests, Is.True);
 
-                simulation.FrightenForTests(0);
-                Advance(simulation, 200);
-                Assert.That(EventsOfType(simulation, CausalEventType.TrapTriggered), Is.Empty,
-                    "Somebody running along the corridor brings nothing down: the tower is unarmed.");
-
+                // Doused before the carpet caught: on an ordinary day that
+                // lights another bin a beat later.
                 simulation.PutEverythingOutForTests();
                 CausalEvent? putOut = AdvanceUntil(simulation, CausalEventType.IncidentPutOut, 5);
                 Assert.That(putOut.HasValue);
-                Advance(simulation, 700);
-                Assert.That(EventsOfType(simulation, CausalEventType.SocketCrackling), Is.Empty,
-                    "No socket five to ten seconds after the put-out: nothing more is added.");
                 Assert.That(simulation.DirectorForTests.HasSomethingComing, Is.False,
-                    "And the round may end: nothing is on its way.");
+                    "The round may end: nothing is on its way.");
+                Advance(simulation, 700);
+                Assert.That(EventsOfType(simulation, CausalEventType.DirectorStartedIncident), Has.Count.EqualTo(1),
+                    "No second bin: nothing more is added to a massacre.");
+                Assert.That(EventsOfType(simulation, CausalEventType.DirectorPushed), Is.Empty, "And no push.");
+                Assert.That(EventsOfType(simulation, CausalEventType.SocketCrackling), Is.Empty);
             }
         }
 

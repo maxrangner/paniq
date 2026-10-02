@@ -114,6 +114,15 @@ namespace Paniq.Simulation
             /// </summary>
             public bool DoorWasOpen;
 
+            /// <summary>
+            /// What the place asked as this tick began (2026-10-02), read
+            /// once a tick for the live press. A deed changes what
+            /// <see cref="AskAt"/> reads -- the chair is taken, the bell is
+            /// ringing -- so what was done is named from this, not from a
+            /// reading made after it.
+            /// </summary>
+            public HandAsk Ask;
+
             /// <summary>Whether this place draws people to it: the left button's hand.</summary>
             public bool Pulls => !Repels;
         }
@@ -138,6 +147,183 @@ namespace Paniq.Simulation
         public void Bind(Systems systems)
         {
             crowd = systems.Crowd;
+            doors = systems.Doors;
+            objects = systems.Objects;
+            chairs = systems.Chairs;
+            alarms = systems.Alarms;
+            keycards = systems.Keycards;
+            handHeave = systems.HandHeave;
+        }
+
+        /// <summary>What the hand's ask is read from (2026-10-02). Bound after construction; a test building may lack some.</summary>
+        private DoorSystem doors;
+        private PhysicsObjectSystem objects;
+        private ChairBehaviour chairs;
+        private AlarmSystem alarms;
+        private KeycardSystem keycards;
+        private HandHeaveBehaviour handHeave;
+
+        /// <summary>
+        /// What the hand asks of people at this place -- the live press, or
+        /// a person's copy of it (2026-10-02). Read from the same tests the
+        /// behaviours use, in their order, so it says what people will do:
+        /// a push sends them away; a place already used only gathers;
+        /// fallen crates within the clearing reach are cleared; a door is
+        /// opened, shut or pounded (<see cref="HandAsks.ForDoor"/>); the
+        /// card is fetched, a bottle taken, a free chair sat on, loose
+        /// clutter carried off; the floor beside a pull station pulls it;
+        /// anything else gathers. Draws nothing and changes nothing. It
+        /// scans the loose things for crates, so it is read once a tick
+        /// for the live press (<see cref="Place.Ask"/>) rather than once a
+        /// person.
+        /// </summary>
+        public HandAsk AskAt(in Place place)
+        {
+            if (place.EventId == 0UL)
+            {
+                return HandAsk.None;
+            }
+
+            if (place.Repels)
+            {
+                return HandAsk.AwayFromHere;
+            }
+
+            // Fallen crates within reach are cleared whether or not the
+            // place has been used: a clearing hand is never used up while a
+            // crate is left.
+            if (handHeave != null && handHeave.IsClearing(place))
+            {
+                return HandAsk.ClearTheBoxes;
+            }
+
+            if (place.Spent)
+            {
+                return HandAsk.ComeHere;
+            }
+
+            if (place.Door >= 0 && doors != null)
+            {
+                DoorState state = doors.StateOf(place.Door);
+                return HandAsks.ForDoor(place.DoorWasOpen, geometry.IsDoorOpen(place.Door), false,
+                    NeverShuts(place.Door), doors.NeedsKeycard(place.Door),
+                    state == DoorState.Locked, state == DoorState.Broken);
+            }
+
+            if (place.Thing >= 0 && objects != null)
+            {
+                if (keycards != null && place.Thing == keycards.Card)
+                {
+                    return HandAsk.GetTheCard;
+                }
+
+                if (objects.IsEquipment(place.Thing))
+                {
+                    return HandAsk.TakeTheBottle;
+                }
+
+                if (chairs != null && chairs.CanSitOn(place.Thing))
+                {
+                    return HandAsk.SitHere;
+                }
+
+                return objects.IsLooseClutter(place.Thing) ? HandAsk.CarryItOff : HandAsk.ComeHere;
+            }
+
+            return alarms != null && alarms.StationAt(this, place) >= 0 ? HandAsk.PullTheAlarm : HandAsk.ComeHere;
+        }
+
+        /// <summary>What this person's own goal asks of them, or nothing when they have none: the panel's line for them.</summary>
+        public HandAsk AskOf(Agent agent) => agent.Hand.Press != 0UL ? AskFor(agent.Hand.Goal) : HandAsk.None;
+
+        /// <summary>
+        /// What a place asks, for somebody answering it: the live press's
+        /// own reading for this tick when it is the live press (read once a
+        /// tick in <see cref="Advance"/>, not once a person), else worked
+        /// out afresh for a copy somebody kept.
+        /// </summary>
+        private HandAsk AskFor(in Place place) =>
+            places.Count > 0 && places[0].EventId == place.EventId && places[0].Ask != HandAsk.None
+                ? places[0].Ask
+                : AskAt(place);
+
+        /// <summary>
+        /// Whether a hand on this door asks for the door itself to be worked
+        /// -- opened or shut -- by somebody calm (2026-10-02). Not an
+        /// archway, a hole, swing doors or a door off its hinges: nothing
+        /// there shuts, so whoever came used to try, fail, give up and lose
+        /// heart. To them it is a place to come to. It stays a door for
+        /// everything else: the frightened still choose it as their way
+        /// through, and a push still rules it out.
+        /// </summary>
+        public bool WantsTheDoorWorked(in Place place) =>
+            place.Door >= 0 && (doors == null || !NeverShuts(place.Door));
+
+        private bool NeverShuts(int door) =>
+            doors.IsHole(door) || doors.Swings(door) || doors.StateOf(door) == DoorState.Broken;
+
+        /// <summary>The press a crate was last heaved aside for, who heaved it, and for how many ticks nothing has been left to clear there since.</summary>
+        private ulong heavedForPress;
+        private Agent lastHeaver;
+        private int heapQuietTicks;
+
+        /// <summary>Somebody has just heaved a crate aside for this press: the heap under it is being cleared.</summary>
+        public void Heaved(Agent by, ulong press)
+        {
+            if (press != 0UL)
+            {
+                heavedForPress = press;
+                lastHeaver = by;
+                heapQuietTicks = 0;
+            }
+        }
+
+        /// <summary>
+        /// Says when the heap under the hand is cleared (2026-10-02): once a
+        /// crate has been heaved for the live press and then, for
+        /// <see cref="TrapSettings.HeapSettleTicks"/> in a row, no crate is
+        /// left to heave within its reach -- and, for a doorway, nothing is
+        /// heaped across it or wedged in it any more. A crate that comes to
+        /// rest back within reach is simply heaved again, so "cleared" is a
+        /// fact about the floor, not a count of heaves. Written once a
+        /// heap, as the press's use spent ("cleared!"); the place itself is
+        /// not used up, so a hand dragged on to the next heap clears that
+        /// too. Draws nothing.
+        /// </summary>
+        private void WatchTheHeap()
+        {
+            if (heavedForPress == 0UL)
+            {
+                return;
+            }
+
+            if (places.Count == 0 || places[0].EventId != heavedForPress || handHeave == null)
+            {
+                // The hand came off, or went on somewhere else: whoever
+                // keeps at the heap finishes it without it being said.
+                heavedForPress = 0UL;
+                lastHeaver = null;
+                return;
+            }
+
+            Place place = places[0];
+            bool blocked = place.Door >= 0 && doors != null &&
+                           (doors.IsPiled(place.Door) || doors.IsObstructed(place.Door));
+            if (blocked || handHeave.IsClearing(place))
+            {
+                heapQuietTicks = 0;
+                return;
+            }
+
+            if (++heapQuietTicks < context.Scenario.Traps.HeapSettleTicks)
+            {
+                return;
+            }
+
+            context.Events.Append(context.Tick, lastHeaver.Id, CausalEventType.InfluenceSpent, place.At,
+                (int)HandAsk.ClearTheBoxes, 0, place.EventId, place.Target);
+            heavedForPress = 0UL;
+            lastHeaver = null;
         }
 
         /// <summary>How many places are influenced right now: one while the button is down, else none.</summary>
@@ -414,8 +600,19 @@ namespace Paniq.Simulation
         private ulong SpendAt(Agent by, int i)
         {
             Place place = places[i];
+
+            // What was done, for the sign (2026-10-02): a door now standing
+            // the other way from the press was opened or shut (one that
+            // does not -- wedged by the cruel, say -- is only "done"); for
+            // anything else, what the place asked as the tick began, since
+            // the deed itself changes what a fresh reading would say (the
+            // chair is taken now, the bell is ringing).
+            HandAsk done = place.Door >= 0
+                ? geometry.IsDoorOpen(place.Door) == place.DoorWasOpen ? HandAsk.None
+                    : place.DoorWasOpen ? HandAsk.ShutTheDoor : HandAsk.OpenTheDoor
+                : place.Ask != HandAsk.None ? place.Ask : AskAt(place);
             ulong spent = context.Events.Append(context.Tick, by.Id, CausalEventType.InfluenceSpent, place.At,
-                settings.MaximumLevel, 0, place.EventId, place.Target).EventId;
+                (int)done, 0, place.EventId, place.Target).EventId;
             place.Spent = true;
             places[i] = place;
             return spent;
@@ -644,8 +841,21 @@ namespace Paniq.Simulation
             if (hand.AnsweredPress != place.EventId)
             {
                 hand.AnsweredPress = place.EventId;
+                hand.SaidAsk = HandAsk.None;
                 context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
                     drive, 0, place.EventId, place.Target);
+            }
+
+            // What they have taken up, in the hand's own words (2026-10-02):
+            // said once for each ask of a press, so somebody who came to a
+            // dragged hand and then finds boxes under it says that too. Not
+            // for a place already used: standing by it is no news.
+            HandAsk ask = place.Spent ? HandAsk.None : AskFor(place);
+            if (ask != HandAsk.None && ask != hand.SaidAsk)
+            {
+                hand.SaidAsk = ask;
+                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentTookUpTheHandsAsk, agent.Body.Position,
+                    (int)ask, 0, place.EventId, place.Target);
             }
         }
 
@@ -758,6 +968,17 @@ namespace Paniq.Simulation
                 Release();
             }
 
+            // What the hand asks, read once for the tick before anybody
+            // acts on it (2026-10-02), and whether the heap under it has
+            // been cleared.
+            if (places.Count > 0)
+            {
+                Place asked = places[0];
+                asked.Ask = AskAt(asked);
+                places[0] = asked;
+            }
+
+            WatchTheHeap();
             if (crowd == null)
             {
                 return;
@@ -1055,7 +1276,7 @@ namespace Paniq.Simulation
             {
                 Place place = places[i];
                 intoPlaces.Add(new InfluencePlaceSnapshot(place.Target, place.Door >= 0, place.At, settings.MaximumLevel,
-                    settings.MaximumLevel, place.Repels, place.EndsAtTick > 0));
+                    settings.MaximumLevel, place.Repels, place.EndsAtTick > 0, AskAt(place), place.Spent));
             }
 
             for (int a = 0; a < agents.Length; a++)

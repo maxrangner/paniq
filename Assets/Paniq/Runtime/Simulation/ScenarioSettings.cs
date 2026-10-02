@@ -1027,6 +1027,13 @@ namespace Paniq.Simulation
         public int TableHeightMillimetres = 740;
 
         /// <summary>
+        /// How tall a partition between desks stands (2026-10-02): a metre
+        /// and three, a cubicle screen. Shorter than anybody, so people see,
+        /// shout and are seen over it.
+        /// </summary>
+        public int PartitionHeightMillimetres = 1300;
+
+        /// <summary>
         /// How hard a person can push with their own feet: the most their speed
         /// can change in one tick, in millimetres per tick. It is also how hard
         /// they can hold their ground. 3 is a brisk shove: somebody can shoulder
@@ -1493,6 +1500,17 @@ namespace Paniq.Simulation
         public int OnADeskPercent = 50;
 
         /// <summary>
+        /// Whether a pocket card is drawn only among the staff who start in
+        /// the room the card is authored in (2026-10-02, the owner: "sounds
+        /// boring that it can be with someone already close to the exit").
+        /// On the office that is the eight people of the open-plan office,
+        /// so the card always has the corridor or the stockroom lane to
+        /// travel. Off, anybody who works here may have it, as before the
+        /// cubicle landscape put fourteen of them beside the way out.
+        /// </summary>
+        public bool PocketStaysInTheCardsRoom = true;
+
+        /// <summary>
         /// The nerve it takes to go for the card: back across the building
         /// once the way out has been found locked, or off the desk beside
         /// them as they run. Below this, a frightened person who knows
@@ -1528,8 +1546,13 @@ namespace Paniq.Simulation
         /// <summary>
         /// Close enough to reach it: a card on a desk is reached from the
         /// floor beside the desk, half a metre and more from where it lies.
+        /// Nine tenths of a metre since 2026-10-02, the distance the hand's
+        /// own ring of people stands at: at seven tenths, the people a hand
+        /// on the card had gathered round the desk stood on the floor the
+        /// one fetching it needed, and on seed 42 seven people circled the
+        /// desk for a minute and nobody took the card.
         /// </summary>
-        public int PickUpDistanceMillimetres = 700;
+        public int PickUpDistanceMillimetres = 900;
 
         /// <summary>The moment spent pocketing it, jittered.</summary>
         public int PocketTicks = 25;
@@ -2680,23 +2703,14 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
-    /// The Director's traps (prototype 3, 2026-09-25): a tower of boxes that
-    /// comes down across a doorway once the fire is lit and somebody comes
-    /// near it (<see cref="TrapDefinition"/>, <see cref="TrapSystem"/>).
+    /// The stacks of boxes (prototype 3, 2026-09-25): a tower beside a
+    /// doorway, a stack beside a lane, each of which comes down when
+    /// somebody runs into it and only then (2026-10-02)
+    /// (<see cref="TrapDefinition"/>, <see cref="TrapSystem"/>).
     /// </summary>
     [Serializable]
     public sealed class TrapSettings
     {
-        /// <summary>
-        /// How fast somebody frightened has to be moving, in the room the
-        /// trap's doorway belongs to, to bring the tower down: the owner's
-        /// rule (2026-09-27), "once people start running down the corridor".
-        /// Forty millimetres a tick is two metres a second, the same pace
-        /// that reads as somebody bolting (<see cref="PerceptionSettings.BoltSpeedMinimum"/>),
-        /// kept as a number of its own so the two can be tuned apart.
-        /// </summary>
-        public int TriggerSpeedMillimetresPerTick = 40;
-
         /// <summary>
         /// How many of the fallen boxes have to be lying unburnt in the
         /// doorway for it to be shut. Fewer than this and the way is open
@@ -2757,57 +2771,61 @@ namespace Paniq.Simulation
         public int CrashSoundRadiusMillimetres = 12000;
 
         /// <summary>
-        /// How far past the wall line, into the doorway's own room, the
-        /// boxes are aimed as they fall: clear of the doorway's own plug, and
-        /// still inside the strip that counts as the doorway.
-        /// </summary>
-        public int PileBeyondMillimetres = 350;
-
-        /// <summary>
-        /// How long a sprung trap creaks before it falls (2026-09-29): three
-        /// seconds, jittered. The building plays in the open: the stack sways
-        /// and is heard, so a player who is looking can get people clear. It
-        /// used to fall a beat after being sprung.
-        /// </summary>
-        public int CreakTicks = 150;
-
-        /// <summary>How far the creak is heard: six metres, the room it stands in. Calm people look; it frightens nobody.</summary>
-        public int CreakHearingMillimetres = 6000;
-
-        /// <summary>
-        /// How close to a tower by a doorway somebody frightened must run, in
-        /// sight of it, to bring it down (2026-09-30): three and a half
-        /// metres, about as far as a four-high stack of boxes can reach when
-        /// it goes over. It used to be anybody running anywhere in the
-        /// corridor; now it is somebody running past it.
-        /// </summary>
-        public int TriggerReachMillimetres = 3500;
-
-        /// <summary>
-        /// How wide the heap is laid out across the runner's way when a tower
-        /// by a doorway comes down on where they stood (2026-09-30): a metre
-        /// and eight, three boxes to a row.
+        /// How wide the heap is laid out across the bumper's way when a
+        /// stack comes down (2026-09-30): a metre and eight, three boxes to
+        /// a row.
         /// </summary>
         public int HeapWidthMillimetres = 1800;
+
+        /// <summary>
+        /// How fast a body has to be closing on a box of a standing stack to
+        /// bring it down (2026-10-02, the owner: "purely dynamic so if an
+        /// agent actually bumps into it, it falls"): forty millimetres a
+        /// tick, two metres a second, the pace that already reads as bolting
+        /// (<see cref="PerceptionSettings.BoltSpeedMinimum"/>). A calm walk
+        /// tops out at about thirty-four, so people brushing past it all day
+        /// never topple it; anybody at a run does.
+        /// </summary>
+        public int BumpSpeedMillimetresPerTick = 40;
+
+        /// <summary>
+        /// How far ahead of the bumped stack, in the bumper's direction, the
+        /// heap is aimed: a metre and two, two boxes, so the first row lands
+        /// just past where the stack stood.
+        /// </summary>
+        public int HeapAheadMillimetres = 1200;
+
+        /// <summary>
+        /// A harder bump throws the boxes a little further: this many points
+        /// of throw for every ten millimetres a tick over the bump speed,
+        /// and this many for every point of strength over an ordinary five
+        /// (under it, less). Kept between half and one and a half times the
+        /// plain throw.
+        /// </summary>
+        public int BumpThrowPercentPerTenMillimetresPerTick = 5;
+        public int BumpThrowPercentPerStrength = 2;
 
         public TrapSettings Clone() => (TrapSettings)MemberwiseClone();
 
         internal void Validate()
         {
-            Settings.Require(TriggerSpeedMillimetresPerTick >= 0 && PileHoldsAtBoxes >= 1 && CrashSoundRadiusMillimetres >= 0 &&
+            Settings.Require(PileHoldsAtBoxes >= 1 && CrashSoundRadiusMillimetres >= 0 &&
                              ToppleSpeedPercent >= 0 && ToppleLiftPercent >= 0 && HeapSettleTicks >= 1 && HeapGapMillimetres >= 0 &&
-                             PileBeyondMillimetres >= 0 && CreakTicks >= 1 && CreakHearingMillimetres >= 0 &&
-                             TriggerReachMillimetres >= 0 && HeapWidthMillimetres >= 1, "traps");
+                             HeapWidthMillimetres >= 1, "traps");
+            Settings.Require(BumpSpeedMillimetresPerTick >= 0 && HeapAheadMillimetres >= 0 &&
+                             BumpThrowPercentPerTenMillimetresPerTick >= 0 && BumpThrowPercentPerStrength >= 0,
+                "what brings a stack down");
         }
     }
 
     /// <summary>
-    /// The Director's ladder of small incidents (prototype 3, 2026-09-26,
+    /// The Director's ladder (prototype 3, 2026-09-26,
     /// <see cref="DirectorSystem"/>): the round starts with a waste bin
-    /// catching fire; put it out and, a while later, a socket crackles and
-    /// pops in the busiest room; put that out and the fuse box goes, and every
-    /// socket with it. A fire that gets out of the room it started in is the
-    /// real fire, and the Director stops adding to it.
+    /// catching fire; doused before the carpet catches, another bin catches.
+    /// Since 2026-10-02 that is the whole ladder: a socket or the fuse box
+    /// goes only as the cap's push, when the way out is open and more are
+    /// getting out than the building allows. A fire that gets out of the
+    /// room it started in is the real fire, and the ladder adds nothing.
     /// </summary>
     [Serializable]
     public sealed class DirectorSettings
@@ -2837,23 +2855,6 @@ namespace Paniq.Simulation
         public int FirstIncidentMaximumTicks = 4500;
 
         /// <summary>
-        /// How long after a fire is put out the next rung comes, drawn each
-        /// time: five to ten seconds (the owner, 2026-09-27: "if the fire is
-        /// extinguished the director has to trigger the next stage earlier";
-        /// it used to be twenty to forty).
-        /// </summary>
-        public int AfterPutOutMinimumTicks = 250;
-        public int AfterPutOutMaximumTicks = 500;
-
-        /// <summary>
-        /// How long after the tower of boxes comes down the socket crackles,
-        /// whatever the bin fire is doing: five seconds, jittered (the owner,
-        /// 2026-09-27: "socket pop 5 sec after box topple"). The owner's
-        /// order is bin, boxes, outlet.
-        /// </summary>
-        public int SocketAfterFallTicks = 250;
-
-        /// <summary>
         /// How long a socket or the fuse box crackles and smokes before it
         /// goes: five seconds of warning, the owner's choice ("crackle first"),
         /// so a player who is watching can pull people away.
@@ -2872,12 +2873,14 @@ namespace Paniq.Simulation
 
         /// <summary>
         /// For this long after a socket or the fuse box goes, any room it sets
-        /// alight belongs to the incident: five seconds, long enough for the
-        /// fuse box's spark to reach the last socket (about two and a half)
-        /// with room to spare. Fire reaching a new room after that has got
-        /// loose. A bin has no bang, so its incident is its own room.
+        /// alight belongs to the incident: seven seconds, long enough for the
+        /// fuse box's spark to reach the last socket (about four, since the
+        /// cable was run on to the cubicles' two sockets on 2026-10-02; it
+        /// was five seconds for a cable of two and a half) with room to
+        /// spare. Fire reaching a new room after that has got loose. A bin
+        /// has no bang, so its incident is its own room.
         /// </summary>
-        public int BangSettlesTicks = 250;
+        public int BangSettlesTicks = 350;
 
         /// <summary>
         /// Whether the Director also caps the round (2026-09-28, the owner's
@@ -2925,8 +2928,6 @@ namespace Paniq.Simulation
         {
             Settings.Require(FirstIncidentThings != null, "the first incident's things");
             Settings.Require(Settings.Range(FirstIncidentMinimumTicks, FirstIncidentMaximumTicks, 1) &&
-                             Settings.Range(AfterPutOutMinimumTicks, AfterPutOutMaximumTicks, 1) &&
-                             SocketAfterFallTicks >= 1 &&
                              CrackleTicks >= 1 && CrackleHearingMillimetres >= 0 && AllClearAfterTicks >= 1 &&
                              BangSettlesTicks >= 0,
                 "the Director's ladder");

@@ -504,6 +504,9 @@ namespace Paniq.Tests.EditMode
                 Assert.That(spent.HasValue, "Used, the use is spent.");
                 Assert.That(spent.Value.SourceId, Is.EqualTo(Somebody));
                 Assert.That(spent.Value.TargetId, Is.EqualTo(TheBuilding.OfficeDoor));
+                Assert.That(spent.Value.Strength, Is.EqualTo((int)HandAsk.OpenTheDoor), "And it says what was done: opened.");
+                Assert.That(simulation.InfluenceForTests.AskAt(simulation.InfluenceForTests[0]), Is.EqualTo(HandAsk.ComeHere),
+                    "The door open, the hand on it only gathers now.");
                 Assert.That(simulation.InfluenceForTests.PlaceOfDoor(door), Is.LessThan(0), "Nothing left to use on the door.");
                 Assert.That(simulation.InfluenceForTests.Count, Is.EqualTo(1), "But the hand is still on it, gathering.");
                 Advance(simulation, 3 * Run.TicksPerSecond);
@@ -513,7 +516,39 @@ namespace Paniq.Tests.EditMode
                 HoldTheDoor(simulation, TheBuilding.OfficeDoor);
                 CausalEvent? shut = AdvanceUntil(simulation, CausalEventType.DoorClosed, 20 * Run.TicksPerSecond);
                 Assert.That(shut.HasValue, "Pressed afresh, the open door is shut.");
-                Assert.That(EventsOfType(simulation, CausalEventType.InfluenceSpent), Has.Count.EqualTo(2), "And that use is spent too.");
+                List<CausalEvent> spends = EventsOfType(simulation, CausalEventType.InfluenceSpent);
+                Assert.That(spends, Has.Count.EqualTo(2), "And that use is spent too.");
+                Assert.That(spends[1].Strength, Is.EqualTo((int)HandAsk.ShutTheDoor), "Shut, this time.");
+            }
+        }
+
+        /// <summary>
+        /// An archway has nothing to open or shut (2026-10-02): a hand on it
+        /// asks calm people to come to it, and nobody tries to shut it,
+        /// fails and loses heart, as they used to. It is still a hand on a
+        /// door to everything else -- the frightened choose it as their way
+        /// through, and a push rules it out -- so it stays a door press.
+        /// </summary>
+        [Test]
+        public void AHandOnAnArchway_StaysAHandOnADoor_ButAsksNobodyCalmToShutIt()
+        {
+            ScenarioData data = Office(Person(Somebody, 10500, 7500, AgentTraitValues.AllOrdinary));
+            using (var simulation = new Run(data, 42UL))
+            {
+                HoldTheDoor(simulation, TheBuilding.Archway);
+                InfluenceSystem influence = simulation.InfluenceForTests;
+                Assert.That(influence[0].Door, Is.EqualTo(DoorIndex(TheBuilding.Archway)),
+                    "Still a hand on the doorway: the frightened are sent through it, and a push still rules it out.");
+                Assert.That(influence.WantsTheDoorWorked(influence[0]), Is.False, "But there is nothing there to open or shut.");
+                Assert.That(influence.AskAt(influence[0]), Is.EqualTo(HandAsk.ComeHere));
+
+                Advance(simulation, 8 * Run.TicksPerSecond);
+                Agent somebody = simulation.AgentForTests(0);
+                Assert.That(IntegerMath.Distance(somebody.Body.Position, new LogicalPosition(13000, 7500)), Is.LessThan(3000),
+                    "They came to it.");
+                Assert.That(influence.IsActingFor(somebody), Is.True, "And stand answering the hand.");
+                Assert.That(somebody.Hand.RetryFromTick, Is.Zero, "Nobody tried to shut it and gave up.");
+                Assert.That(somebody.Errand.Active, Is.False, "No door errand was taken up for it.");
             }
         }
 
@@ -547,6 +582,8 @@ namespace Paniq.Tests.EditMode
                 CausalEvent? spent = AdvanceUntil(simulation, CausalEventType.InfluenceSpent, 20 * Run.TicksPerSecond);
                 Assert.That(spent.HasValue, "Drawn to a chair, they sit on it, and the use is spent.");
                 Assert.That(spent.Value.TargetId, Is.EqualTo(AChair));
+                Assert.That(spent.Value.Strength, Is.EqualTo((int)HandAsk.SitHere),
+                    "It names what was done from what was asked before the deed: the chair is taken by the time it is written.");
                 Assert.That(simulation.GetAgent(Somebody).SeatedPercent, Is.EqualTo(100), "Sat on it.");
             }
         }
@@ -562,6 +599,7 @@ namespace Paniq.Tests.EditMode
                 CausalEvent? spent = AdvanceUntil(simulation, CausalEventType.InfluenceSpent, 20 * Run.TicksPerSecond);
                 Assert.That(spent.HasValue, "Drawn to a box, they pick it up, and the use is spent.");
                 Assert.That(spent.Value.TargetId, Is.EqualTo(ABox));
+                Assert.That(spent.Value.Strength, Is.EqualTo((int)HandAsk.CarryItOff), "Carried off, though it is in their arms by now.");
                 Assert.That(Thing(simulation, ABox).IsHeld, Is.True, "In their arms.");
                 Advance(simulation, 20 * Run.TicksPerSecond);
                 Assert.That(IntegerMath.Distance(before, Thing(simulation, ABox).Position), Is.GreaterThan(1000), "Carried off and set down somewhere else.");

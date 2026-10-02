@@ -143,7 +143,7 @@ namespace Paniq.Simulation
                 // so the fire still wins every tie it used to.
                 threats.Add(new BurningThingsThreat(context, geometry, flammables));
                 threats.Add(new BurningPeopleThreat(context, geometry, crowd));
-                traps = new TrapSystem(context, crowd, geometry, doors, objects, flammables, sound);
+                traps = new TrapSystem(context, crowd, geometry, doors, objects, flammables, sound, people);
                 items = new ItemBehaviour(context, geometry, objects, flammables);
                 chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
                 cues = new CueSystem(context, crowd, geometry);
@@ -153,7 +153,7 @@ namespace Paniq.Simulation
                 nudges = new NudgeSystem(context, crowd, body, calm, fear);
                 tugs = new TugSystem(context, crowd, nudges);
                 handCharge = new HandChargeSystem(context, influence, tugs);
-                director = new DirectorSystem(context, cues, geometry, traps, doors, fire, flammables, power, objects, crowd,
+                director = new DirectorSystem(context, cues, geometry, doors, fire, flammables, power, objects, crowd,
                     sound);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
@@ -238,7 +238,8 @@ namespace Paniq.Simulation
                 long squareMillimetres = (long)(bounds.MaxX - bounds.MinX) * (bounds.MaxZ - bounds.MinZ);
                 int massGrams = (int)Math.Max(1000L,
                     squareMillimetres * flammables.TableMassGramsPerSquareMetre / 1000000L);
-                physics.AddTable(bounds, massGrams, flammables.TableFloorGripPercent);
+                physics.AddTable(bounds, massGrams, flammables.TableFloorGripPercent,
+                    geometry.TableHeightMillimetres(table), geometry.IsPartition(table));
                 geometry.MoveTable(table, physics.TableFootprint(table), physics.TablePose(table), true);
             }
         }
@@ -528,7 +529,7 @@ namespace Paniq.Simulation
         /// <summary>One person as the display sees them, with what they are doing for the hand.</summary>
         private AgentSnapshot SnapshotOf(Agent agent) =>
             agent.ToSnapshot(context.Tick, influence.IsActingFor(agent), influence.IsActingAgainstNature(agent),
-                influence.IsCommitted(agent));
+                influence.IsCommitted(agent), influence.AskOf(agent));
 
         /// <summary>
         /// Whether this person is on their way to the given way out: it is the
@@ -564,6 +565,9 @@ namespace Paniq.Simulation
         public int TableCount => context.Scenario.Tables.Length;
 
         public TableSnapshot GetTable(int index) => flammables.GetTableSnapshots()[index];
+
+        /// <summary>Tests only: a shove on somebody's body, this fast (millimetres a tick) this way, as a push or a blast gives one.</summary>
+        internal void ShoveAgentForTests(int index, int heading, int speed) => people.Push(agents[index], heading, speed, 0);
 
         /// <summary>Tests only: sets an object sliding at a velocity in millimetres per tick.</summary>
         internal void LaunchObjectForTests(int index, int velocityX, int velocityZ) => objects.Launch(index, velocityX, velocityZ);
@@ -880,9 +884,12 @@ namespace Paniq.Simulation
 
             // Phase 1½: what the building's day holds. A cue called here
             // reaches people at their own reaction tick in phase 4, so nobody
-            // moves on the tick it is called. The same for the Director's
-            // traps and for anybody nudged a beat ago.
+            // moves on the tick it is called. The same for a stack somebody
+            // knocked a beat ago (2026-10-02: only a bump brings one down;
+            // the Director no longer arms or springs it) and for anybody
+            // nudged a beat ago.
             director.Advance();
+            traps.Advance();
             nudges.Advance();
             tugs.Advance();
             threats.Advance();
@@ -987,6 +994,10 @@ namespace Paniq.Simulation
             FollowTheTables();
             objects.AfterStep();
             collisions.Resolve(physics.Contacts);
+
+            // A body that ran into a standing stack has knocked it
+            // (2026-10-02): it comes down a beat later, in traps.Advance.
+            traps.FeelTheBumps(physics.Contacts);
             people.FeelTheSqueeze(physics.Contacts);
 
             items.FollowCarriers(agents);

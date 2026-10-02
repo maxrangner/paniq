@@ -338,6 +338,10 @@ namespace Paniq.Simulation
                     agent.Body.Position);
             }
 
+            // The hand hears of it (2026-10-02): once nothing is left to
+            // heave under it, it says the heap is cleared. The next crate,
+            // if there is one, is still theirs.
+            influence.Heaved(agent, press);
             Stop(agent, frightened, keepAnswering: true);
             return frightened ? (MotorIntent?)null : new MotorIntent(facing, 0, turn, acceleration);
         }

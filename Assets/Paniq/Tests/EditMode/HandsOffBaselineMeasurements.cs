@@ -129,8 +129,9 @@ namespace Paniq.Tests.EditMode
                 }
             }
 
-            report.AppendLine($"{cleared} of {seeds} cleared the 75% bar; {(double)savedInAll / seeds:0.0} of 20 saved on average " +
-                              $"({100.0 * savedInAll / (seeds * 20):0}%; the owner asked for about 25%).");
+            int crowd = level.ToRuntimeData().Agents.Length;
+            report.AppendLine($"{cleared} of {seeds} cleared the 75% bar; {(double)savedInAll / seeds:0.0} of {crowd} saved on average " +
+                              $"({100.0 * savedInAll / (seeds * crowd):0}%; the owner asked for about 25%).");
             report.AppendLine(overHalf.Count == 0
                 ? "No seed saved more than half."
                 : $"Over half on {overHalf.Count} of {seeds}: {string.Join("; ", overHalf)}.");
@@ -224,6 +225,9 @@ namespace Paniq.Tests.EditMode
                 case 3271UL: return "the office's west socket";
                 case 3272UL: return "the office's east socket";
                 case 3273UL: return "the cafeteria's socket";
+                case 3274UL: return "the cubicles' west socket";
+                case 3275UL: return "the cubicles' east socket";
+                case 3276UL: return "the socket in the arm to the way out";
                 case 3281UL: return "the fuse box";
                 case 3205UL:
                 case 3206UL:

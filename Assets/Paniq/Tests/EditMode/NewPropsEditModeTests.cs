@@ -154,9 +154,9 @@ namespace Paniq.Tests.EditMode
             Assert.That(counts[PhysicsObjectKind.StandingLamp], Is.EqualTo(2));
             Assert.That(counts[PhysicsObjectKind.LampShade], Is.EqualTo(2));
             Assert.That(counts[PhysicsObjectKind.RobotVacuum], Is.EqualTo(2));
-            Assert.That(counts[PhysicsObjectKind.Box], Is.EqualTo(61),
-                "Eight in the office, forty-one in the stockroom's stores, four in its stack, and eight in the tower at the junction (2026-09-27).");
-            Assert.That(counts[PhysicsObjectKind.AlarmSounder], Is.EqualTo(7), "A bell in every room people use.");
+            Assert.That(counts[PhysicsObjectKind.Box], Is.EqualTo(64),
+                "Eight in the office, forty-one in the stockroom's stores, four in its stack, eight in the tower by the archway (2026-09-27), and three in the cubicle landscape (2026-10-02).");
+            Assert.That(counts[PhysicsObjectKind.AlarmSounder], Is.EqualTo(8), "A bell in every room people use.");
             using (var simulation = new Run(data))
             {
                 for (int t = 0; t < 5 * Run.TicksPerSecond; t++)

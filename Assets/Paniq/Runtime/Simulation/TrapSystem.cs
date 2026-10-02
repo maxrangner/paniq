@@ -1,69 +1,53 @@
 using System;
+using System.Collections.Generic;
 
 namespace Paniq.Simulation
 {
     /// <summary>
-    /// The Director's traps (prototype 3, 2026-09-25): a tower of boxes
-    /// standing beside a doorway, waiting, or (2026-09-27) a stack of crates
-    /// standing beside a lane. Nothing happens to it while the building is
-    /// calm -- people walk past it to the toilet all day. Once the fire is
-    /// lit, the first frightened person to run through the room it watches
-    /// -- the corridor, for the archway; the stockroom, for the stack --
-    /// brings it down a beat later (their own reaction lag, never the same
-    /// tick): the owner's rule (2026-09-27), "once people start running down
-    /// the corridor".
+    /// The building's stacks (prototype 3, 2026-09-25): a tower of boxes
+    /// standing beside a doorway, or (2026-09-27) a stack of crates standing
+    /// beside a lane. Since 2026-10-02 a stack comes down for one reason
+    /// only: somebody's body actually runs into it (the owner: "the boxes
+    /// falling looks scripted. Keep it, but make it purely dynamic so if an
+    /// agent actually bumps into it, it falls. No director trigger").
     /// <para>
-    /// The fall is the physics engine's (2026-09-27, the owner's rule: "the
-    /// toppled boxes should be normal physics objects"): each box is let go
-    /// of and shoved toward its own slot across the doorway, and where it
-    /// lands is where it lands. While enough of them lie still in the
-    /// doorway's strip (<see cref="TrapSettings.PileHoldsAtBoxes"/>) for
-    /// half a second, the doorway is shut for people and fire, as a doorway
-    /// with things wedged in it already is: its plug keeps bodies out,
-    /// routes go round it, the fire cannot cross it, and at it people do what
-    /// they do at any wedged door -- whoever can lift a box carries or
-    /// throws it clear, the strong shove, and everybody else gives up and
-    /// goes round. Too few boxes left in the gap, carried off or kicked out
-    /// or burnt, and the way is open again; kicked back in, and it shuts
-    /// again. A run where the boxes bounce wide leaves the way open, and
-    /// that is the run.
+    /// A bump is a new contact between a person and one of the stack's
+    /// boxes with the person closing on the box at
+    /// <see cref="TrapSettings.BumpSpeedMillimetresPerTick"/> or more: a
+    /// running pace. Calm people walk slower than that, so the stack stands
+    /// all day while people brush past it; anybody at a run brings it down,
+    /// calm or frightened, shoved or under their own power, fire or no fire.
+    /// Nothing arms it, nothing creaks, and the Director never touches it.
     /// </para>
     /// <para>
-    /// A trap across a lane has no doorway to shut: its crates fall along
-    /// the line the trap names and block the lane by their weight alone --
-    /// and, being too heavy to carry, they go on the map people steer by
-    /// once they have settled, so routes go the other way.
+    /// The fall begins a reaction lag after the bump (never on its tick) and
+    /// is the physics engine's (2026-09-27, the owner's rule: "the toppled
+    /// boxes should be normal physics objects"): each box is let go of and
+    /// thrown toward its own slot in a heap a stride ahead of the bumped
+    /// stack, in the direction the bumper was going, a little harder for a
+    /// faster or stronger bumper. Where the boxes land is where they land.
+    /// While enough of a doorway stack's boxes lie still in the doorway's
+    /// strip (<see cref="TrapSettings.PileHoldsAtBoxes"/>) for half a
+    /// second, the doorway is shut for people and fire, as a doorway with
+    /// things wedged in it already is; too few left in the gap, and the way
+    /// is open again.
     /// </para>
     /// <para>
-    /// The standing tower's boxes are pinned so the crowd cannot shove it
-    /// over early; from the fall on they are ordinary boxes, pinned by
-    /// nothing.
+    /// The standing stack's boxes are pinned, so nothing short of a bump
+    /// moves them and nobody takes one; from the fall on they are ordinary
+    /// boxes, pinned by nothing.
     /// </para>
-    /// <para>
-    /// Since 2026-09-30 a tower by a doorway falls on the runner, not across
-    /// the doorway (the owner: "box tower should fall next to the first
-    /// person running past, not in the corridor"; asked how close, "where
-    /// they were"). It is sprung by the first frightened person to run past
-    /// within <see cref="TrapSettings.TriggerReachMillimetres"/> of it in its
-    /// own room -- the crossbar, for the archway's tower, never the corridor
-    /// on the far side of the wall, which the boxes could not reach -- and
-    /// its boxes come down in a heap on the spot where they stood when it
-    /// began to creak: somebody who kept running is clear, anybody following
-    /// them walks into it. The doorway still shuts if the heap happens to lie
-    /// in it. The Director springing it with no runner brings it down on the
-    /// nearest frightened person, or across the doorway as before if nobody
-    /// is near.
-    /// </para>
-    /// Phase 1½, from the Director; it reads the fire and the crowd only.
+    /// Reads the engine's contacts after its step; the fall and the heap are
+    /// kept in phase 1½.
     /// </summary>
     internal sealed class TrapSystem
     {
         private enum TrapPhase
         {
-            /// <summary>The tower stands, pinned, waiting for the fire and a runner.</summary>
+            /// <summary>The stack stands, pinned, until somebody runs into it.</summary>
             Standing,
 
-            /// <summary>Sprung: the boxes come down at <c>fallTick</c>.</summary>
+            /// <summary>Bumped: the boxes come down at <c>fallTick</c>.</summary>
             Falling,
 
             /// <summary>The boxes are loose; the doorway is shut while enough of them lie in it.</summary>
@@ -80,16 +64,17 @@ namespace Paniq.Simulation
         private readonly PhysicsObjectSystem objects;
         private readonly FlammablesSystem flammables;
         private readonly SoundSystem sound;
+        private readonly PeopleBodies people;
         private readonly TrapSettings settings;
 
         private readonly TrapDefinition[] traps;
 
-        /// <summary>The doorway each trap falls across, or -1 for a trap across a lane.</summary>
+        /// <summary>The doorway each stack stands by, or -1 for a stack beside a lane.</summary>
         private readonly int[] doorOf;
-
-        /// <summary>The room each trap watches for a runner.</summary>
-        private readonly int[] triggerRoom;
         private readonly int[][] boxesOf;
+
+        /// <summary>For every loose thing in the run: the stack it is a box of, or -1.</summary>
+        private readonly int[] trapOfBox;
         private readonly TrapPhase[] phase;
         private readonly int[] fallTick;
         private readonly ulong[] triggerEventId;
@@ -99,19 +84,13 @@ namespace Paniq.Simulation
         /// <summary>Ticks in a row that enough boxes have lain still in the doorway, while it is not yet shut.</summary>
         private readonly int[] settledTicks;
 
-        /// <summary>Where a tower by a doorway stands: the middle of its boxes' feet, before it falls.</summary>
-        private readonly LogicalPosition[] towerFoot;
-
-        /// <summary>
-        /// Where the runner stood, and which way they ran, when a tower by a
-        /// doorway began to creak (2026-09-30): the heap comes down there.
-        /// </summary>
-        private readonly LogicalPosition[] runnerSpot;
-        private readonly int[] runnerHeading;
-        private readonly bool[] hasRunnerSpot;
+        /// <summary>Where the heap is aimed, which way the bumper was going, and how hard the boxes are thrown.</summary>
+        private readonly LogicalPosition[] heapSpot;
+        private readonly int[] heapHeading;
+        private readonly int[] throwPercent;
 
         public TrapSystem(SimulationContext context, Crowd crowd, WorldGeometry geometry, DoorSystem doors,
-            PhysicsObjectSystem objects, FlammablesSystem flammables, SoundSystem sound)
+            PhysicsObjectSystem objects, FlammablesSystem flammables, SoundSystem sound, PeopleBodies people)
         {
             this.context = context;
             this.crowd = crowd;
@@ -120,10 +99,10 @@ namespace Paniq.Simulation
             this.objects = objects;
             this.flammables = flammables;
             this.sound = sound;
+            this.people = people;
             settings = context.Scenario.Traps;
             traps = context.Scenario.TrapDefinitions ?? Array.Empty<TrapDefinition>();
             doorOf = new int[traps.Length];
-            triggerRoom = new int[traps.Length];
             boxesOf = new int[traps.Length][];
             phase = new TrapPhase[traps.Length];
             fallTick = new int[traps.Length];
@@ -131,19 +110,23 @@ namespace Paniq.Simulation
             fellEventId = new ulong[traps.Length];
             heapEventId = new ulong[traps.Length];
             settledTicks = new int[traps.Length];
-            towerFoot = new LogicalPosition[traps.Length];
-            runnerSpot = new LogicalPosition[traps.Length];
-            runnerHeading = new int[traps.Length];
-            hasRunnerSpot = new bool[traps.Length];
+            heapSpot = new LogicalPosition[traps.Length];
+            heapHeading = new int[traps.Length];
+            throwPercent = new int[traps.Length];
+            trapOfBox = new int[objects.Count];
+            for (int b = 0; b < trapOfBox.Length; b++)
+            {
+                trapOfBox[b] = -1;
+            }
+
             for (int t = 0; t < traps.Length; t++)
             {
                 doorOf[t] = traps[t].IsDoorTrap ? doors.IndexOf(traps[t].DoorId) : -1;
-                triggerRoom[t] = doorOf[t] >= 0 ? geometry.DoorRoom(doorOf[t]) : RoomIndexOf(traps[t].TriggerRoomId);
 
                 // Only the boxes that are actually in the building: a test
                 // that empties the floor of loose things has emptied the
-                // tower too, and a trap with no boxes or no doorway is inert.
-                var present = new System.Collections.Generic.List<int>();
+                // stack too, and a stack with no boxes or no doorway is inert.
+                var present = new List<int>();
                 SimulationId[] ids = traps[t].BoxIds;
                 for (int b = 0; b < ids.Length; b++)
                 {
@@ -155,209 +138,31 @@ namespace Paniq.Simulation
                 }
 
                 boxesOf[t] = present.ToArray();
-                if ((traps[t].IsDoorTrap && doorOf[t] < 0) || triggerRoom[t] < 0 || boxesOf[t].Length == 0)
+                if ((traps[t].IsDoorTrap && doorOf[t] < 0) || boxesOf[t].Length == 0)
                 {
                     phase[t] = TrapPhase.Inert;
                     continue;
                 }
 
-                long sumX = 0L, sumZ = 0L;
                 for (int b = 0; b < boxesOf[t].Length; b++)
                 {
-                    // Standing, the tower is pinned and nobody may take from
-                    // it: the crowd walking past it all day must not be the
-                    // thing that brings it down, and neither may somebody
-                    // tidying up or a strong runner barging past.
+                    // Standing, the stack is pinned and nobody may take from
+                    // it: only a body running into it brings it down.
                     objects.Pin(boxesOf[t][b]);
-                    LogicalPosition at = objects.PositionOf(boxesOf[t][b]);
-                    sumX += at.X;
-                    sumZ += at.Z;
+                    trapOfBox[boxesOf[t][b]] = t;
                 }
-
-                towerFoot[t] = new LogicalPosition((int)(sumX / boxesOf[t].Length), (int)(sumZ / boxesOf[t].Length));
             }
         }
-
-        /// <summary>
-        /// A tower by a doorway comes down on whoever ran past it, where they
-        /// stood at the creak (2026-09-30). A trap across a lane falls along
-        /// its lane as before.
-        /// </summary>
-        private bool FallsOnTheRunner(int trap) => doorOf[trap] >= 0 && hasRunnerSpot[trap];
-
-        /// <summary>Where the tower creaks from: the tower itself, by a doorway; the lane's line, for a lane.</summary>
-        private LogicalPosition CreakFrom(int trap) => doorOf[trap] >= 0 ? towerFoot[trap] : Landing(trap);
 
         public int Count => traps.Length;
 
-        private int RoomIndexOf(SimulationId roomId)
-        {
-            for (int r = 0; r < geometry.RoomCount; r++)
-            {
-                if (geometry.RoomId(r) == roomId)
-                {
-                    return r;
-                }
-            }
-
-            return -1;
-        }
-
-        /// <summary>
-        /// Where a trap's boxes come down: where the runner stood, for a tower
-        /// by a doorway that somebody ran past (2026-09-30); else the middle
-        /// of its doorway, or of its line across the lane.
-        /// </summary>
-        private LogicalPosition Landing(int trap) =>
-            FallsOnTheRunner(trap) ? runnerSpot[trap]
-            : doorOf[trap] >= 0 ? geometry.DoorCentre(doorOf[trap]) : traps[trap].LandingCentre;
-
-        /// <summary>Whether this trap's boxes are lying across their doorway, shutting it -- or, for a trap across a lane, have come down at all.</summary>
+        /// <summary>Whether this stack's boxes are lying across their doorway, shutting it -- or, for a stack beside a lane, have come down at all.</summary>
         public bool IsFallen(int trap) =>
             phase[trap] == TrapPhase.Fallen && (doorOf[trap] < 0 || doors.IsPiled(doorOf[trap]));
 
-        /// <summary>Whether this trap has been sprung, whether or not the boxes have landed yet.</summary>
-        public bool IsSprung(int trap) => phase[trap] == TrapPhase.Falling || phase[trap] == TrapPhase.Fallen;
-
-        /// <summary>Whether this trap still stands, waiting: the Director may spring it itself.</summary>
-        public bool IsStanding(int trap) => phase[trap] == TrapPhase.Standing;
-
         public SimulationId IdOf(int trap) => traps[trap].TrapId;
 
-        /// <summary>Where this trap's boxes come down.</summary>
-        public LogicalPosition LandingOf(int trap) => Landing(trap);
-
-        /// <summary>The room this trap watches for a runner, and whose way it cuts when it falls; -1 for an inert trap.</summary>
-        public int TriggerRoom(int trap) => triggerRoom[trap];
-
-        /// <summary>
-        /// The Director springs a standing trap itself (2026-09-28): when the
-        /// round is running away from it and the crowd's way out runs
-        /// through this trap's room, the boxes come down without waiting for
-        /// a runner -- a beat later, as for a runner, never on the tick it
-        /// was decided. <paramref name="cause"/> is the Director's push.
-        /// Nothing happens to a trap already sprung or inert.
-        /// </summary>
-        public void Spring(int trap, ulong cause)
-        {
-            if (phase[trap] != TrapPhase.Standing)
-            {
-                return;
-            }
-
-            // No runner: by a doorway, on the nearest frightened person near
-            // the tower, if there is one (2026-09-30); else across the doorway.
-            if (doorOf[trap] >= 0)
-            {
-                Agent nearest = NearestRunnerPast(trap, 0);
-                if (nearest != null)
-                {
-                    MarkTheRunner(trap, nearest);
-                }
-            }
-
-            triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
-                Landing(trap), 0, 0, cause).EventId;
-            Creak(trap);
-        }
-
-        /// <summary>Remembers where the runner stood and which way they ran: the heap comes down there.</summary>
-        private void MarkTheRunner(int trap, Agent runner)
-        {
-            runnerSpot[trap] = runner.Body.Position;
-            runnerHeading[trap] = runner.Body.Heading;
-            hasRunnerSpot[trap] = true;
-        }
-
-        /// <summary>
-        /// The frightened person on their feet running past a tower by a
-        /// doorway: within <see cref="TrapSettings.TriggerReachMillimetres"/>
-        /// of its foot, in its room and in sight of it, at
-        /// <paramref name="pace"/> or more.
-        /// The lowest index for a runner, so a replay names the same person;
-        /// the nearest when the Director asks with no pace. Draws nothing.
-        /// </summary>
-        private Agent NearestRunnerPast(int trap, int pace)
-        {
-            LogicalPosition foot = towerFoot[trap];
-            long reach = settings.TriggerReachMillimetres;
-            int footRoom = geometry.RoomAtPoint(foot);
-            Agent found = null;
-            long best = long.MaxValue;
-            using Crowd.Nearby near = crowd.Within(foot, reach);
-            for (int c = 0; c < near.Count; c++)
-            {
-                Agent agent = crowd.All[near[c]];
-                if (!agent.IsParticipating || agent.Fear.State != AgentFearState.Scared ||
-                    agent.Body.State != AgentBodyState.Upright || agent.Body.Speed < pace)
-                {
-                    continue;
-                }
-
-                // In the tower's own room: through the wall beside a doorway
-                // the boxes could never reach them.
-                long distance = LogicalPosition.DistanceSquared(agent.Body.Position, foot);
-                int room = geometry.RoomAt(agent.Body.Position);
-                if (distance > reach * reach || room < 0 || room != footRoom ||
-                    !geometry.CanSeeBetween(room, agent.Body.Position, footRoom, foot))
-                {
-                    continue;
-                }
-
-                bool better = pace > 0
-                    ? found == null || agent.Index < found.Index
-                    : distance < best || (distance == best && agent.Index < found.Index);
-                if (better)
-                {
-                    found = agent;
-                    best = distance;
-                }
-            }
-
-            return found;
-        }
-
-        /// <summary>
-        /// Sprung, the trap creaks before it falls (2026-09-29): the fall is
-        /// set a few seconds out, jittered, and the creak is written down and
-        /// heard in its room, so calm people look up at it and a player who
-        /// is watching can get people clear. The building plays in the open.
-        /// </summary>
-        private void Creak(int trap)
-        {
-            int wait = context.Jittered(settings.CreakTicks);
-            phase[trap] = TrapPhase.Falling;
-            fallTick[trap] = checked(context.Tick + wait);
-            ulong creaked = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapCreaked,
-                CreakFrom(trap), wait, 0, triggerEventId[trap]).EventId;
-            sound.Crash(traps[trap].TrapId, CreakFrom(trap), settings.CreakHearingMillimetres, creaked);
-        }
-
-        /// <summary>Sprung and not yet down: the stack is swaying.</summary>
-        public bool IsCreaking(int trap) => phase[trap] == TrapPhase.Falling;
-
-        /// <summary>
-        /// The tick the most recent tower came down, or -1 while none has:
-        /// the Director measures the socket's wait from it (2026-09-27).
-        /// </summary>
-        public int LatestFallTick
-        {
-            get
-            {
-                int latest = -1;
-                for (int t = 0; t < traps.Length; t++)
-                {
-                    if (phase[t] == TrapPhase.Fallen)
-                    {
-                        latest = Math.Max(latest, fallTick[t]);
-                    }
-                }
-
-                return latest;
-            }
-        }
-
-        /// <summary>How many of this trap's boxes are lying still and unburnt in its doorway right now; none for a trap across a lane.</summary>
+        /// <summary>How many of this stack's boxes are lying still and unburnt in its doorway right now; none for a stack beside a lane.</summary>
         public int BoxesInTheDoorway(int trap)
         {
             int count = 0;
@@ -379,26 +184,126 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Every trap, in authored order: armed by the Director once the fire
-        /// is lit (a bin smouldering counts: the owner's rule, 2026-09-27, is
-        /// that the boxes come down when people start running, whatever the
-        /// fire is doing), sprung by the first frightened runner, landing a
-        /// beat later. <paramref name="cause"/> is what armed it, for the
-        /// trigger to name.
+        /// After the engine's step: every new contact between a person and a
+        /// box of a standing stack. A body closing on the box at a running
+        /// pace has knocked it; the stack comes down a reaction lag later.
+        /// One knock a stack: the first in the engine's own contact order,
+        /// which is the same in a replay. The one draw here is that lag.
         /// </summary>
-        public void Advance(bool armed, ulong cause)
+        public void FeelTheBumps(IReadOnlyList<PhysicsWorld.Contact> contacts)
+        {
+            for (int c = 0; c < contacts.Count; c++)
+            {
+                PhysicsWorld.Contact contact = contacts[c];
+                if (!contact.Began || contact.BodyA < 0 || contact.BodyA >= trapOfBox.Length || contact.BodyB < 0)
+                {
+                    continue;
+                }
+
+                int trap = trapOfBox[contact.BodyA];
+                if (trap < 0 || phase[trap] != TrapPhase.Standing)
+                {
+                    continue;
+                }
+
+                Agent agent = people.PersonAt(contact.BodyB);
+                if (agent == null || !agent.IsParticipating)
+                {
+                    continue;
+                }
+
+                // How fast they were closing on the box along the line
+                // between them, as a thing meeting a person is judged: the
+                // box is held still, so only the person's speed counts, and
+                // somebody brushing past its corner is not running into it.
+                LogicalPosition box = objects.PositionOf(contact.BodyA);
+                long nx = (long)agent.Body.Position.X - box.X;
+                long nz = (long)agent.Body.Position.Z - box.Z;
+                long length = IntegerMath.Sqrt(nx * nx + nz * nz);
+                if (length == 0L)
+                {
+                    continue;
+                }
+
+                (long vx, long vz) = people.VelocityOf(agent);
+                int closing = (int)(-(vx * nx + vz * nz) / length / PhysicsWorld.SubMillimetre);
+                if (closing < settings.BumpSpeedMillimetresPerTick)
+                {
+                    continue;
+                }
+
+                Knock(trap, contact.BodyA, agent, closing, IntegerMath.HeadingOf(vx, vz, agent.Body.Heading), contact.Point);
+            }
+        }
+
+        /// <summary>
+        /// Knocked: the heap is aimed a stride ahead of the bumped stack in
+        /// the bumper's direction -- or, with a wall that way, a stride back
+        /// toward the bumper -- thrown a little harder for a faster or
+        /// stronger bumper, and comes down a reaction lag from now.
+        /// </summary>
+        private void Knock(int trap, int box, Agent bumper, int closing, int heading, LogicalPosition point)
+        {
+            LogicalPosition foot = objects.PositionOf(box);
+
+            // A stack with a wall behind it has nowhere to go that way: hit
+            // from the front it topples forward, back the way the bumper
+            // came and on top of them. (The stockroom's stack stands
+            // against its north wall: run into from the lane, it comes down
+            // across the lane.)
+            LogicalPosition ahead = foot + IntegerMath.Displacement(heading, settings.HeapAheadMillimetres);
+            if (geometry.RoomAtPoint(ahead) != geometry.RoomAtPoint(foot))
+            {
+                heading = IntegerMath.NormalizeDegrees(heading + 180);
+                ahead = foot + IntegerMath.Displacement(heading, settings.HeapAheadMillimetres);
+            }
+
+            heapHeading[trap] = heading;
+            heapSpot[trap] = OnTheStacksOwnFloor(foot, ahead);
+            int percent = settings.ToppleSpeedPercent +
+                          (closing - settings.BumpSpeedMillimetresPerTick) / 10 * settings.BumpThrowPercentPerTenMillimetresPerTick +
+                          (bumper.Traits.Strength - 5) * settings.BumpThrowPercentPerStrength;
+            throwPercent[trap] = Math.Max(50, Math.Min(150, percent));
+            triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
+                point, closing, 0, bumper.Fear.State == AgentFearState.Scared ? bumper.Fear.ScaredEventId : 0UL,
+                bumper.Id).EventId;
+            phase[trap] = TrapPhase.Falling;
+            fallTick[trap] = checked(context.Tick + context.ReactionLag());
+        }
+
+        /// <summary>How far in from the wall line a box is aimed when its spot would be beyond the wall: a box's half-width and the wall's.</summary>
+        private const int InFromTheWallMillimetres = 450;
+
+        /// <summary>
+        /// A spot to aim a box at, kept on the floor of the room the stack
+        /// stands in: a stack knocked toward the wall behind it comes down
+        /// against that wall, not through it into the room next door.
+        /// </summary>
+        private LogicalPosition OnTheStacksOwnFloor(LogicalPosition from, LogicalPosition spot)
+        {
+            int room = geometry.RoomAtPoint(from);
+            if (room >= 0 && geometry.RoomAtPoint(spot) != room)
+            {
+                LogicalBounds floor = geometry.RoomBounds(room);
+                spot = new LogicalPosition(
+                    Math.Max(floor.MinX + InFromTheWallMillimetres, Math.Min(floor.MaxX - InFromTheWallMillimetres, spot.X)),
+                    Math.Max(floor.MinZ + InFromTheWallMillimetres, Math.Min(floor.MaxZ - InFromTheWallMillimetres, spot.Z)));
+            }
+
+            return geometry.ClampIntoRoom(from, spot);
+        }
+
+        /// <summary>
+        /// Every stack, in authored order: one that was knocked comes down
+        /// when its beat is up, and a fallen one by a doorway keeps its heap.
+        /// Nothing happens to a stack still standing: only a bump moves it.
+        /// </summary>
+        public void Advance()
         {
             for (int t = 0; t < traps.Length; t++)
             {
                 switch (phase[t])
                 {
-                    case TrapPhase.Standing:
-                        if (armed)
-                        {
-                            Watch(t, cause);
-                        }
-
-                        break;
                     case TrapPhase.Falling:
                         if (context.Tick >= fallTick[t])
                         {
@@ -418,99 +323,34 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// The first frightened person running through the room the trap
-        /// watches springs it: on their feet, scared, and moving at
-        /// <see cref="TrapSettings.TriggerSpeedMillimetresPerTick"/> or
-        /// more. Whichever way they are running: the owner's rule is that
-        /// people running is what brings it down. Lowest index wins, so a
-        /// replay names the same person; the fall lands their own reaction
-        /// lag later, because nothing happens on the tick a thing is caused.
-        /// </summary>
-        private void Watch(int trap, ulong cause)
-        {
-            int room = triggerRoom[trap];
-            int pace = settings.TriggerSpeedMillimetresPerTick;
-            Agent runner = null;
-            if (doorOf[trap] >= 0)
-            {
-                // By a doorway (2026-09-30): somebody running past it, close.
-                runner = NearestRunnerPast(trap, pace);
-                if (runner == null)
-                {
-                    return;
-                }
-
-                MarkTheRunner(trap, runner);
-                triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
-                    Landing(trap), 0, 0, cause, runner.Id).EventId;
-                Creak(trap);
-                return;
-            }
-
-            using (Crowd.Nearby near = crowd.Gather(geometry.RoomBounds(room)))
-            {
-                for (int c = 0; c < near.Count; c++)
-                {
-                    Agent agent = crowd.All[near[c]];
-                    if (!agent.IsParticipating || agent.Fear.State != AgentFearState.Scared ||
-                        agent.Body.State != AgentBodyState.Upright || agent.Body.Speed < pace ||
-                        geometry.RoomAt(agent.Body.Position) != room)
-                    {
-                        continue;
-                    }
-
-                    if (runner == null || agent.Index < runner.Index)
-                    {
-                        runner = agent;
-                    }
-                }
-            }
-
-            if (runner == null)
-            {
-                return;
-            }
-
-            // Sprung because the fire was lit: that event is its cause, so
-            // the story can trace the fallen boxes back to it.
-            triggerEventId[trap] = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.TrapTriggered,
-                Landing(trap), 0, 0, cause, runner.Id).EventId;
-            Creak(trap);
-        }
-
-        /// <summary>
-        /// The tower comes down: every box is let go of and shoved toward
-        /// its own slot across the gap, the crash is heard, and everybody
+        /// The stack comes down: every box is let go of and thrown toward
+        /// its own slot in the heap, the crash is heard, and everybody
         /// within earshot thinks again about where they were going. Whoever
         /// is in the boxes' way is hit by them as by any thrown thing.
         /// </summary>
         private void Fall(int trap)
         {
             int door = doorOf[trap];
-            LogicalPosition at = Landing(trap);
+            LogicalPosition at = heapSpot[trap];
             ulong fell = context.Events.Append(context.Tick, traps[trap].TrapId, CausalEventType.BoxTowerFell, at,
                 0, 0, triggerEventId[trap], door >= 0 ? doors.IdOf(door) : default).EventId;
             fellEventId[trap] = fell;
             phase[trap] = TrapPhase.Fallen;
             settledTicks[trap] = 0;
-            ToppleTheBoxes(trap, fell);
+            ToppleAhead(trap, fell);
             sound.Crash(traps[trap].TrapId, at, settings.CrashSoundRadiusMillimetres, fell);
             TellEverybodyNear(at);
         }
 
         /// <summary>
-        /// Each box is aimed at a slot in a row across the gap -- for a
-        /// doorway, just inside the wall line on its own side (the
-        /// corridor's, for the archway); for a lane, along the line the trap
-        /// names -- each slot beside the last; when the row is full the rest
-        /// aim at the same slots again and land on top, or wherever they
-        /// bounce to. On the doorway's own side rather than beyond it because
-        /// the fire that reaches them comes down the corridor, and flames
-        /// only heat what is in their room. All let go of before any is
-        /// shoved, or the upper boxes would still be held while the lower
-        /// ones left.
+        /// The boxes come down in a heap of rows across the bumper's way,
+        /// <see cref="TrapSettings.HeapWidthMillimetres"/> wide, the rows one
+        /// box deep and centred on the heap's spot, each slot kept on floor.
+        /// All let go of before any is thrown, or the upper boxes would
+        /// still be held while the lower ones left. Aimed, thrown by the
+        /// engine, and where they land is where they land.
         /// </summary>
-        private void ToppleTheBoxes(int trap, ulong fell)
+        private void ToppleAhead(int trap, ulong fell)
         {
             int[] boxes = boxesOf[trap];
             for (int b = 0; b < boxes.Length; b++)
@@ -518,51 +358,9 @@ namespace Paniq.Simulation
                 objects.Unpin(boxes[b]);
             }
 
-            if (FallsOnTheRunner(trap))
-            {
-                ToppleOntoTheRunner(trap, fell);
-                return;
-            }
-
-            int door = doorOf[trap];
-            int width = door >= 0 ? doors.WidthOf(door) : traps[trap].LandingWidthMillimetres;
-            int along = -width / 2;
-            int placedInRow = 0;
-            for (int b = 0; b < boxes.Length; b++)
-            {
-                int box = boxes[b];
-                int size = objects.SizeOf(box);
-                if (along + size > width / 2 && placedInRow > 0)
-                {
-                    along = -width / 2;
-                    placedInRow = 0;
-                }
-
-                LogicalPosition slot = door >= 0
-                    ? geometry.DoorPoint(door, along + size / 2, -settings.PileBeyondMillimetres)
-                    : traps[trap].LandingCentre + IntegerMath.Displacement(traps[trap].LandingHeadingDegrees, along + size / 2);
-                LogicalPosition from = objects.PositionOf(box);
-                int heading = IntegerMath.HeadingBetween(from, slot, 0);
-                objects.Topple(box, heading, SpeedToReach(box, IntegerMath.Distance(from, slot)), settings.ToppleLiftPercent,
-                    settings.ToppleTumbles, fell);
-                along += size;
-                placedInRow++;
-            }
-        }
-
-        /// <summary>
-        /// A tower by a doorway coming down on where the runner stood
-        /// (2026-09-30): a heap of rows across the way they were running,
-        /// <see cref="TrapSettings.HeapWidthMillimetres"/> wide, the rows one
-        /// box deep and centred on the spot, each slot kept on floor. Aimed,
-        /// thrown by the engine, and where they land is where they land.
-        /// </summary>
-        private void ToppleOntoTheRunner(int trap, ulong fell)
-        {
-            int[] boxes = boxesOf[trap];
-            LogicalPosition spot = runnerSpot[trap];
-            int across = IntegerMath.NormalizeDegrees(runnerHeading[trap] + 90);
-            int ahead = runnerHeading[trap];
+            LogicalPosition spot = heapSpot[trap];
+            int ahead = heapHeading[trap];
+            int across = IntegerMath.NormalizeDegrees(ahead + 90);
             int width = Math.Max(1, settings.HeapWidthMillimetres);
             int size = objects.SizeOf(boxes[0]);
             int perRow = Math.Max(1, width / Math.Max(1, size));
@@ -576,11 +374,11 @@ namespace Paniq.Simulation
                 int along = (2 * inRow - (countInRow - 1)) * size / 2;
                 int deep = (2 * row - (rows - 1)) * size / 2;
                 LogicalPosition slot = spot + IntegerMath.Displacement(across, along) + IntegerMath.Displacement(ahead, deep);
-                slot = geometry.ClampIntoRoom(spot, slot);
+                slot = OnTheStacksOwnFloor(spot, slot);
                 LogicalPosition from = objects.PositionOf(box);
-                int heading = IntegerMath.HeadingBetween(from, slot, 0);
-                objects.Topple(box, heading, SpeedToReach(box, IntegerMath.Distance(from, slot)), settings.ToppleLiftPercent,
-                    settings.ToppleTumbles, fell);
+                int heading = IntegerMath.HeadingBetween(from, slot, ahead);
+                objects.Topple(box, heading, SpeedToReach(box, IntegerMath.Distance(from, slot), throwPercent[trap]),
+                    settings.ToppleLiftPercent, settings.ToppleTumbles, fell);
             }
         }
 
@@ -591,9 +389,10 @@ namespace Paniq.Simulation
         /// engine's gravity g, the throw lands when h + L·d = g·d²/(2v²), so
         /// v = d·√(g / 2(h + L·d)). A box on top of the stack is sent more
         /// gently than the one on the floor, because it has further to fall.
+        /// Scaled by <paramref name="percent"/>: how hard the bump was.
         /// Whole numbers throughout, so the fall replays.
         /// </summary>
-        private int SpeedToReach(int box, long distance)
+        private int SpeedToReach(int box, long distance, int percent)
         {
             long gravity = 9810L * context.Scenario.PhysicsFeel.GravityPercent / 100L;
             long height = objects.BottomOf(box);
@@ -604,7 +403,7 @@ namespace Paniq.Simulation
             }
 
             long perSecond = distance * IntegerMath.Sqrt(gravity * 1_000_000L / denominator) / 1000L;
-            return (int)(perSecond / Run.TicksPerSecond * settings.ToppleSpeedPercent / 100L);
+            return (int)(perSecond / Run.TicksPerSecond * percent / 100L);
         }
 
         /// <summary>

@@ -47,6 +47,9 @@ namespace Paniq.Presentation
         /// </summary>
         private const float PerPersonRest = 1.4f;
 
+        /// <summary>Marks a sign as worn by a place rather than a person: a bit no person's or thing's number has.</summary>
+        private const ulong PlaceNewsKey = 1UL << 63;
+
         /// <summary>How high above the floor a sign floats.</summary>
         private const float SignHeight = 1.55f;
 
@@ -121,17 +124,29 @@ namespace Paniq.Presentation
             // Who the sign belongs to. Most of these happen *to* somebody, so
             // the target is the subject; where there is no target the source is.
             SimulationId subject = SubjectOf(record);
-            if (lastShown.TryGetValue(subject.Value, out float when) && time - when < PerPersonRest)
+
+            // What was done for the hand at a place ("opened!", "cleared!")
+            // is the place's news, not the person's (2026-10-02): it is
+            // rare, so it needs no rest, and it must not be swallowed by
+            // the rest after the same person's "heave!" a moment before,
+            // nor take that sign's place. It is kept under the press it
+            // answers, which no person's number can be.
+            bool placeNews = record.EventType == CausalEventType.InfluenceSpent;
+            ulong wearer = placeNews ? PlaceNewsKey | record.CausalParentEventId : subject.Value;
+            if (!placeNews)
             {
-                return;
+                if (lastShown.TryGetValue(wearer, out float when) && time - when < PerPersonRest)
+                {
+                    return;
+                }
+
+                lastShown[wearer] = time;
             }
 
-            lastShown[subject.Value] = time;
-
-            Sign sign = Oldest(subject.Value);
-            sign.Person = subject.Value;
+            Sign sign = Oldest(wearer);
+            sign.Person = wearer;
             sign.Born = time;
-            sign.Ink = record.EventType == CausalEventType.AgentActedForTheHand ? HandInk : good ? GoodInk : BadInk;
+            sign.Ink = IsTheHands(record.EventType) ? HandInk : good ? GoodInk : BadInk;
             sign.Anchor = ToUnityPosition(record.Position) + Vector3.up * SignHeight;
             sign.HasArrow = TryFindCause(record, out sign.PointAt);
             sign.Label.text = caption;
@@ -290,7 +305,6 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentHidFromTheHeat: return "too hot!";
                 case CausalEventType.AgentAnnoyed: return "leave me alone!";
                 case CausalEventType.BoxTowerFell: return "the boxes came down!";
-                case CausalEventType.TrapCreaked: return "it's going!";
                 case CausalEventType.AgentShookFree: return "get off!";
                 case CausalEventType.BoxHeapSettled: return "the way is blocked!";
                 case CausalEventType.AgentClearedDoorway: return "out of the way";
@@ -307,6 +321,12 @@ namespace Paniq.Presentation
                 case CausalEventType.KeycardDropped: return "the card!";
                 case CausalEventType.DoorUnlockedWithKeycard: return "swiped!";
                 case CausalEventType.AgentActedForTheHand: return "for you...";
+
+                // What somebody took up for the hand (2026-10-02): the words
+                // come from the ask the event carries; this only says the
+                // event earns a sign.
+                case CausalEventType.AgentTookUpTheHandsAsk: return "...";
+                case CausalEventType.AgentShovedObstruction: return "heave!";
                 case CausalEventType.AgentBeganATell: return "going stiff...";
                 case CausalEventType.AgentCaughtInTime: return "caught!";
                 default: return null;
@@ -332,11 +352,17 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentTookKeycard:
                 case CausalEventType.DoorUnlockedWithKeycard:
                 case CausalEventType.AgentCaughtInTime:
+                case CausalEventType.AgentShovedObstruction:
                     return true;
                 default:
                     return false;
             }
         }
+
+        /// <summary>Signs about the player's hand, written in its gold: what somebody took up for it, did against their nature for it, or finished for it.</summary>
+        private static bool IsTheHands(CausalEventType type) =>
+            type == CausalEventType.AgentActedForTheHand || type == CausalEventType.AgentTookUpTheHandsAsk ||
+            type == CausalEventType.InfluenceSpent;
 
         /// <summary>
         /// The words for one event, with the person's number on the front so
@@ -358,6 +384,8 @@ namespace Paniq.Presentation
             bool anotherBin = record.EventType == CausalEventType.DirectorStartedIncident && record.Strength > 1;
             caption = who + (anotherBin ? "another one!"
                 : record.EventType == CausalEventType.AgentBeganATell ? TellWords((AgentTell)record.Strength)
+                : record.EventType == CausalEventType.AgentTookUpTheHandsAsk ? HandAskWords.Doing((HandAsk)record.Strength)
+                : record.EventType == CausalEventType.InfluenceSpent ? HandAskWords.Done((HandAsk)record.Strength)
                 : WordsFor(record.EventType));
             good = IsGoodNews(record.EventType);
             return true;
@@ -375,7 +403,11 @@ namespace Paniq.Presentation
         /// hand, whose target is the door or the thing they act on.
         /// </summary>
         private static SimulationId SubjectOf(CausalEvent record) =>
-            record.HasTarget && record.EventType != CausalEventType.AgentActedForTheHand ? record.TargetId : record.SourceId;
+            record.HasTarget && record.EventType != CausalEventType.AgentActedForTheHand &&
+            record.EventType != CausalEventType.AgentTookUpTheHandsAsk &&
+            record.EventType != CausalEventType.AgentShovedObstruction
+                ? record.TargetId
+                : record.SourceId;
 
         private Sign Build(int index, PresentationMaterials materials, Transform parent)
         {

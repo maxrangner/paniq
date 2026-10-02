@@ -284,13 +284,75 @@ namespace Paniq.Tests.EditMode
                 simulation.Step();
 
                 CausalEvent? took = AdvanceUntil(simulation, CausalEventType.AgentTookKeycard, 60 * Run.TicksPerSecond);
-                Assert.That(took.HasValue, "Drawn to the card, somebody pockets it.");
+                string answering = "";
+                for (int i = 0; !took.HasValue && i < simulation.AgentCount; i++)
+                {
+                    AgentSnapshot person = simulation.GetAgent(i);
+                    if (person.HandAsk != HandAsk.None || person.ActingForTheHand)
+                    {
+                        answering += "\n" + simulation.DescribeForTests(i);
+                    }
+                }
+
+                Assert.That(took.HasValue, "Drawn to the card, somebody pockets it. The card: " +
+                                           Thing(simulation, TheBuilding.TheKeycard).Position + "; answering the hand:" + answering);
                 Assert.That(simulation.EventLog.Get(took.Value.CausalParentEventId).EventType, Is.EqualTo(CausalEventType.InfluenceSpent),
                     "Because the player asked, and the pull is spent.");
                 Assert.That(Thing(simulation, TheBuilding.TheKeycard).HeldBy, Is.EqualTo(took.Value.SourceId));
                 int holder = Array.FindIndex(data.Agents, a => a.AgentId == took.Value.SourceId);
                 Assert.That(simulation.KeycardBeliefForTests(holder).Held, Is.GreaterThanOrEqualTo(0), "In the pocket, not the arms.");
             }
+        }
+
+        /// <summary>
+        /// The card never starts beside the way out (2026-10-02, the owner:
+        /// "sounds boring that it can be with someone already close to the
+        /// exit"): a pocket card is drawn only among the staff who start in
+        /// the room the card is authored in, the open-plan office, so it
+        /// always has the corridor or the stockroom lane to travel. The coin
+        /// toss between a desk and a pocket stands. With the rule off,
+        /// anybody who works here may have it, the cubicle landscape's
+        /// fourteen included.
+        /// </summary>
+        [Test]
+        public void APocketCard_StartsOnlyWithTheStaffOfItsOwnRoom_AndTheCoinTossStands()
+        {
+            int desks = 0;
+            int pockets = 0;
+            bool outsideTheOfficeWithTheRuleOff = false;
+            for (ulong seed = 1UL; seed <= 30UL; seed++)
+            {
+                ScenarioData data = scenario.ToRuntimeData();
+                Assert.That(data.Keycard.PocketStaysInTheCardsRoom, Is.True, "The rule is on as the office is played.");
+                using (var simulation = new Run(data, seed))
+                {
+                    CausalEvent started = EventsOfType(simulation, CausalEventType.KeycardStarted)[0];
+                    if (started.SourceId == started.TargetId)
+                    {
+                        desks++;
+                    }
+                    else
+                    {
+                        pockets++;
+                        Assert.That(started.SourceId.Value, Is.InRange(1001UL, 1008UL),
+                            $"Seed {seed}: the card began in person {started.SourceId}'s pocket, who does not start in the office.");
+                    }
+                }
+
+                data = scenario.ToRuntimeData();
+                data.Keycard.PocketStaysInTheCardsRoom = false;
+                using (var simulation = new Run(data, seed))
+                {
+                    CausalEvent started = EventsOfType(simulation, CausalEventType.KeycardStarted)[0];
+                    outsideTheOfficeWithTheRuleOff |= started.SourceId != started.TargetId &&
+                                                      (started.SourceId.Value < 1001UL || started.SourceId.Value > 1008UL);
+                }
+            }
+
+            Assert.That(desks, Is.GreaterThan(5), "Over thirty seeds the card lies on a desk in a fair share of them.");
+            Assert.That(pockets, Is.GreaterThan(5), "And is in a pocket in a fair share.");
+            Assert.That(outsideTheOfficeWithTheRuleOff, Is.True,
+                "With the rule off, some seed puts it in the pocket of somebody who starts elsewhere: the rule is what keeps it in the office.");
         }
 
         // ---------------------------------------------------------------- the pull, once the panic has started (2026-09-28)

@@ -2,8 +2,9 @@ namespace Paniq.Simulation
 {
     /// <summary>
     /// Tells (2026-09-30, the owner: "the visible agent tells"): the building
-    /// has its creak -- the tower sways for three seconds before it falls, and
-    /// that window is where the play is. People had nothing like it: somebody
+    /// had its creak then -- the tower swayed for three seconds before it
+    /// fell, and that window was where the play was (gone since 2026-10-02:
+    /// a stack falls only to a body now). People had nothing like it: somebody
     /// who froze with fear, dashed through the heat or went back toward the
     /// flames decided and did it on the same tick. Now each of those gets a
     /// short, visible wind-up first, in which one click saves them:

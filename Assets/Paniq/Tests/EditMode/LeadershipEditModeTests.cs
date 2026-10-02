@@ -94,7 +94,8 @@ namespace Paniq.Tests.EditMode
                 leaders += agent.Traits.Leadership >= data.Leadership.LeaderMinimum ? 1 : 0;
             }
 
-            Assert.That(leaders, Is.EqualTo(2), "One natural leader in each big room.");
+            Assert.That(leaders, Is.EqualTo(4),
+                "The hero in the office, the host in the meeting, and the team lead and the show-off among the cubicles.");
         }
 
         /// <summary>

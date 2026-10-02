@@ -413,9 +413,12 @@ namespace Paniq.Simulation
         private int RestingHeight(int index)
         {
             PhysicsBody top = bodies[index];
-            if (geometry.TableAt(top.Position, 0) >= 0)
+            int table = geometry.TableAt(top.Position, 0);
+            if (table >= 0)
             {
-                return feel.TableHeightMillimetres;
+                // On whatever stands there, at its own height: a desk's
+                // top, or the top of a partition.
+                return geometry.TableHeightMillimetres(table);
             }
 
             int height = 0;
@@ -1165,6 +1168,20 @@ namespace Paniq.Simulation
             bodies[index].OccupiedBy < 0;
 
         /// <summary>
+        /// Whether this is loose clutter somebody could pick up and carry
+        /// off: on the floor, nobody's, not a seat, not bolted down, not a
+        /// box of a standing stack, and lighter than the things on the map.
+        /// What the hand on it asks for (<see cref="HandAsk.CarryItOff"/>).
+        /// </summary>
+        public bool IsLooseClutter(int index)
+        {
+            PhysicsBody thing = bodies[index];
+            return !thing.Dormant && thing.HeldBy < 0 && thing.OccupiedBy < 0 && !thing.Wrecked && !thing.OffTheFloor &&
+                   !IsOffLimits(index) && !IsFixedInPlace(index) && !IsPocketable(index) &&
+                   !kinds.Of(thing.Kind).CanBeSatOn && thing.MassGrams < context.Scenario.World.OnTheMapFromGrams;
+        }
+
+        /// <summary>
         /// The heave at the end of straining for the hand: as hard as somebody
         /// just strong enough to heave it at all, or harder if they are.
         /// </summary>
@@ -1458,7 +1475,9 @@ namespace Paniq.Simulation
         /// <summary>Puts a thing down on a table top at a spot (2026-09-27): the keycard on a desk.</summary>
         public void PlaceOnATable(int index, LogicalPosition spot)
         {
-            PlaceAt(index, spot, feel.TableHeightMillimetres, bodies[index].Heading, 0UL);
+            int table = geometry.TableAt(spot, 0);
+            PlaceAt(index, spot, table >= 0 ? geometry.TableHeightMillimetres(table) : feel.TableHeightMillimetres,
+                bodies[index].Heading, 0UL);
         }
 
         /// <summary>Takes an item into someone's arms. It stops moving and touches nothing while held.</summary>
@@ -1818,7 +1837,7 @@ namespace Paniq.Simulation
             {
                 LogicalBounds bounds = geometry.TableBounds(t);
                 LogicalPosition middle = bounds.Centre;
-                if (LogicalPosition.DistanceSquared(middle, centre) > reach * reach)
+                if (geometry.IsPartition(t) || LogicalPosition.DistanceSquared(middle, centre) > reach * reach)
                 {
                     continue;
                 }
@@ -1863,6 +1882,12 @@ namespace Paniq.Simulation
         /// </summary>
         public void HeaveTable(Agent agent, int table, int heading, ulong causeEventId)
         {
+            if (geometry.IsPartition(table))
+            {
+                // A partition is fixed: nothing is heaved and nothing written.
+                return;
+            }
+
             LogicalBounds bounds = geometry.TableBounds(table);
             PanicSettings panic = context.Scenario.Panic;
             long strength = (long)panic.TableHeaveSpeedMillimetresPerTick * feel.ThrowStrengthPercent / 100L;

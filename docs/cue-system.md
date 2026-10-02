@@ -274,6 +274,14 @@ of it is started; each is a stone of its own.
    room it started in is the real fire: the Director adds nothing more, and
    the tower of boxes is armed by that rather than by the fire being lit.
    The round's stall clock waits while a rung is still to come.
+   *Dialled back, 2026-10-02:* the ladder is the bin and its relight, and
+   nothing more. Put out for good, the bells fall silent and that is the end
+   of it: no socket follows a put-out or a fall, and no fuse box. The
+   stacks of boxes are no longer the Director's at all: `TrapSystem` reads
+   the physics engine's contacts and a stack comes down only when a body
+   runs into it. A socket or the fuse box goes only as the cap's push,
+   below. The owner's words for both are in
+   [the decisions](technical-decisions.md#prototype-3-the-building-dialled-back-and-the-office-re-dressed-2026-10-02).
    *Its second form, 2026-09-28 (prototype 3, the cap):* on a level that
    switches it on (`DirectorSettings.CapsTheRound`, on for the office) the
    Director also caps the round. Before the curtain it draws how many the
@@ -282,10 +290,13 @@ of it is started; each is a stone of its own.
    has set out and could walk to the way out, whether the way out stands
    open or the card is in a frightened pocket that can reach it); once the
    way out is open and more are on course than allowed it pushes, one trick
-   at a time with half a minute's rest between: a trap still standing with
-   somebody on course in its room, the socket in the room with the most of
-   them, the fuse box once a socket has gone, another bin; and once the
-   round is a massacre it adds nothing more. It reads the crowd and the
+   at a time with half a minute's rest between: the socket in the room with
+   the most of them (since 2026-10-02 there is one on the wall of the arm
+   that leads to the way out, where the queue stands), the fuse box once a
+   socket has gone, another bin; and once the
+   round is a massacre it adds nothing more. Until 2026-10-02 a standing
+   trap was its first push; and a card door pounded down under the hand was
+   read as shut, so it never pushed on a crowd that had broken out. It reads the crowd and the
    card, never the player's clicks. Still to come: the crowd's tricks (the
    holder freezing, a cruel person taking the card, the alarm rushed early),
    and incidents for dangers other than fire.

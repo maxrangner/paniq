@@ -90,6 +90,18 @@ namespace Paniq.Simulation
         public static readonly SimulationId Stockroom = new SimulationId(5014UL);
 
         /// <summary>
+        /// The cubicle landscape (2026-10-02, the owner: "a new big room, on
+        /// the other side of the T corridor, next to the exit. A large
+        /// cubicle landscape"): 12 m by 20 m of open-plan desks behind low
+        /// partitions, east of the crossbar. Three doors in its west wall --
+        /// one beside the way out, one opposite the stockroom's door at the
+        /// T's south end, one into the stockroom -- make it the second way
+        /// round when the junction is blocked, and fourteen people work in
+        /// it.
+        /// </summary>
+        public static readonly SimulationId CubicleLandscape = new SimulationId(5015UL);
+
+        /// <summary>
         /// The building. Every edge is a multiple of 250 mm, the size of a
         /// navigation square, so no square is ever half in one room and half
         /// in another.
@@ -125,8 +137,13 @@ namespace Paniq.Simulation
                 new RoomDefinition(StallTwo, new LogicalBounds(9500, 11500, -500, 1000), RoomUse.Stall),
                 new RoomDefinition(StallThree, new LogicalBounds(11500, 13000, -500, 1000), RoomUse.Stall),
 
-                // The stockroom, last so every room above keeps its index.
-                new RoomDefinition(Stockroom, new LogicalBounds(6000, 16000, -6000, -500))
+                // The stockroom, after every older room so each keeps its index.
+                new RoomDefinition(Stockroom, new LogicalBounds(6000, 16000, -6000, -500)),
+
+                // The cubicle landscape (2026-10-02), east of the crossbar
+                // and of the stockroom's north end, its west wall on their
+                // east walls. Last, for the same reason.
+                new RoomDefinition(CubicleLandscape, new LogicalBounds(16000, 28000, -3000, 17000))
             };
         }
 
@@ -235,9 +252,6 @@ namespace Paniq.Simulation
         /// </summary>
         public static ExitSignDefinition[] DefaultExitSigns()
         {
-            const int North = 0;
-            const int East = 90;
-            const int South = 180;
             return new[]
             {
                 new ExitSignDefinition(new LogicalPosition(-3000, 8600), East),
@@ -250,12 +264,42 @@ namespace Paniq.Simulation
                 new ExitSignDefinition(new LogicalPosition(10700, -2200), South),
                 new ExitSignDefinition(new LogicalPosition(10700, -5000), East),
                 new ExitSignDefinition(new LogicalPosition(14500, -3000), North),
-                new ExitSignDefinition(new LogicalPosition(14500, -1200), North)
+                new ExitSignDefinition(new LogicalPosition(14500, -1200), North),
+
+                // The cubicle landscape (2026-10-02): two up the north half
+                // of its west aisle toward the door beside the way out,
+                // three sending the inner aisles west, one at each of its
+                // two doors onto the crossbar pointing through it, and one
+                // in the crossbar for whoever comes out by the north door,
+                // pointing at the way out. A sign teaches the walk the
+                // route planner would take from where it hangs, and from
+                // the south half of the aisle that walk is out by the south
+                // door: a sign there pointing north would teach nothing.
+                new ExitSignDefinition(new LogicalPosition(17000, 9000), North),
+                new ExitSignDefinition(new LogicalPosition(17000, 13000), North),
+                new ExitSignDefinition(new LogicalPosition(16600, 500), West),
+                new ExitSignDefinition(new LogicalPosition(23200, 4700), West),
+                new ExitSignDefinition(new LogicalPosition(23200, 11300), West),
+                new ExitSignDefinition(new LogicalPosition(27100, 11300), West),
+                new ExitSignDefinition(new LogicalPosition(16600, 15500), West),
+                new ExitSignDefinition(new LogicalPosition(15500, 15800), North)
             };
         }
 
         /// <summary>The floor's main fuse box, on the maintenance room wall.</summary>
         public static readonly SimulationId FuseBox = new SimulationId(3281UL);
+
+        /// <summary>
+        /// The socket in the arm that leads to the way out (2026-10-02, the
+        /// owner: the building may strike in the last stretch, "with a way
+        /// round"). It is on the arm's west wall, five and a half metres
+        /// short of the door, so the Director's counter-move can reach the
+        /// queue it is aimed at. The way round is the cubicle landscape: in
+        /// by its south door, out by the door beside the way out; and the
+        /// landscape's extinguisher stands along its north wall, seven
+        /// metres from that door, for a hand to send somebody to.
+        /// </summary>
+        public static readonly SimulationId ExitArmSocket = new SimulationId(3276UL);
 
         /// <summary>The meeting room's three waste bins: the Director's first fire starts in one of them.</summary>
         public static SimulationId[] MeetingRoomBins() => new[]
@@ -293,13 +337,40 @@ namespace Paniq.Simulation
                     new LogicalPosition(5800, -5800),
                     new LogicalPosition(5800, 4000)),
 
-                // And on to the cafeteria, up the corridor and along its north
-                // wall to the bank of microwaves.
+                // And on to the cafeteria: along the corridor, up the
+                // cafeteria's east wall and along its north wall to the
+                // socket there (2026-10-02: it used to stop half way up the
+                // east wall, where the socket then was).
                 new PowerLineDefinition(new SimulationId(3272UL), new SimulationId(3273UL),
                     new LogicalPosition(5800, 4000),
                     new LogicalPosition(5800, 6200),
                     new LogicalPosition(12800, 6200),
-                    new LogicalPosition(12800, 10000))
+                    new LogicalPosition(12800, 16800),
+                    new LogicalPosition(10500, 16800)),
+
+                // Through the wall into the arm that leads to the way out,
+                // and down its west wall to the socket there (2026-10-02).
+                new PowerLineDefinition(new SimulationId(3273UL), ExitArmSocket,
+                    new LogicalPosition(10500, 16800),
+                    new LogicalPosition(13200, 16800),
+                    new LogicalPosition(13200, 11500)),
+
+                // And on (2026-10-02) across the crossbar into the cubicle
+                // landscape, down the back of its first row of screens to
+                // the socket there, then across to the socket on the far
+                // row. The Director's counter-move pops the socket where
+                // the crowd is, and only a cabled socket can be chosen.
+                new PowerLineDefinition(ExitArmSocket, new SimulationId(3274UL),
+                    new LogicalPosition(13200, 11500),
+                    new LogicalPosition(13200, 10000),
+                    new LogicalPosition(20200, 10000),
+                    new LogicalPosition(20200, 1700),
+                    new LogicalPosition(20400, 1700)),
+                new PowerLineDefinition(new SimulationId(3274UL), new SimulationId(3275UL),
+                    new LogicalPosition(20400, 1700),
+                    new LogicalPosition(20400, 4700),
+                    new LogicalPosition(26100, 4700),
+                    new LogicalPosition(26100, 8300))
             };
         }
 
@@ -331,11 +402,12 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// The Director's traps (prototype 3, 2026-09-25): the tower of boxes
-        /// in the junction's south-west corner, just past the bathroom door
-        /// and to the right, which comes down across the archway (2016)
-        /// between the corridor and the crossbar. Its boxes are authored in
-        /// <see cref="DefaultPhysicsObjects"/>.
+        /// The building's stacks (prototype 3, 2026-09-25): the tower of
+        /// boxes against the corridor's north wall just short of the archway
+        /// (2016) between the corridor and the crossbar, on the inside of
+        /// the turn toward the way out, and the stack of crates in the
+        /// stockroom. Each comes down only when somebody runs into it. Their
+        /// boxes are authored in <see cref="DefaultPhysicsObjects"/>.
         /// </summary>
         public static TrapDefinition[] DefaultTraps()
         {
@@ -347,14 +419,14 @@ namespace Paniq.Simulation
                     new SimulationId(3705UL), new SimulationId(3706UL), new SimulationId(3707UL), new SimulationId(3708UL)
                 }),
 
-                // The stockroom's stack (2026-09-27): four crates against
-                // the north wall at the lane's first bend, which fall south
-                // across the gap between the wall and wall A -- the whole 2.6
-                // m of it, wall to wall -- once somebody frightened runs
-                // through the room.
+                // The stockroom's stack (2026-09-27): four crates standing
+                // free at the north end of the first crate wall, the corner
+                // the lane turns round. Since 2026-10-02 it comes down only
+                // when somebody runs into it, and falls the way they were
+                // going; it used to fall south across the lane the moment
+                // anybody frightened ran through the room.
                 new TrapDefinition(new SimulationId(7002UL),
-                    new[] { new SimulationId(3581UL), new SimulationId(3582UL), new SimulationId(3583UL), new SimulationId(3584UL) },
-                    Stockroom, new LogicalPosition(9500, -1825), 180, 2600)
+                    new[] { new SimulationId(3581UL), new SimulationId(3582UL), new SimulationId(3583UL), new SimulationId(3584UL) })
             };
         }
 
@@ -421,7 +493,17 @@ namespace Paniq.Simulation
                 // The building's one way out, at the end of the north arm, as
                 // far from the maintenance room as the floor goes. A card door
                 // (2026-09-27): only the keycard opens it.
-                new DoorDefinition(new SimulationId(2008UL), Crossbar, WallSide.North, 14500, 1000, needsKeycard: true)
+                new DoorDefinition(new SimulationId(2008UL), Crossbar, WallSide.North, 14500, 1000, needsKeycard: true),
+
+                // The cubicle landscape's three doors (2026-10-02), all in
+                // its west wall: onto the crossbar a metre and a half short
+                // of the way out; onto the crossbar's south end, opposite
+                // the stockroom's door; and into the stockroom's east lane.
+                // With the junction blocked the office goes stockroom,
+                // cubicles, and out by the first of these.
+                new DoorDefinition(new SimulationId(2020UL), CubicleLandscape, WallSide.West, 15500, 1000, false),
+                new DoorDefinition(new SimulationId(2021UL), CubicleLandscape, WallSide.West, 500, 1000, false),
+                new DoorDefinition(new SimulationId(2022UL), CubicleLandscape, WallSide.West, -1750, 1000, false)
             };
         }
 
@@ -479,7 +561,34 @@ namespace Paniq.Simulation
 
                 // The bathroom, furthest from everything.
                 Agent(1019UL, 9000, 4500, CardinalDirection.South, 5, 5, 5, 6, 3, 5, 5), // ordinary
-                Agent(1020UL, 11500, 4500, CardinalDirection.South, 6, 7, 6, 4, 5, 4, 6) // ordinary
+                Agent(1020UL, 11500, 4500, CardinalDirection.South, 6, 7, 6, 4, 5, 4, 6), // ordinary
+
+                // The cubicle landscape (2026-10-02, the owner: "enough
+                // people for it to seem like it's a working office space"):
+                // twelve at their desks, three desks empty, and two standing
+                // talking at the coffee point. All work here and know the
+                // building. Column A (facing east), rows south to north.
+                Seated(1021UL, 19025, 200, East, 6, 5, 6, 6, 2, 3, 5, 3111UL).WithHome(new SimulationId(3111UL)), // the steady one
+                Seated(1022UL, 19025, 2600, East, 4, 6, 4, 6, 3, 6, 3, 3112UL).WithHome(new SimulationId(3112UL)), // the gossip
+                Seated(1023UL, 19025, 6800, East, 4, 9, 4, 5, 3, 5, 3, 3113UL).WithHome(new SimulationId(3113UL)), // the second sprinter
+                Seated(1024UL, 19025, 9200, East, 5, 5, 7, 7, 2, 3, 8, 3114UL).WithHome(new SimulationId(3114UL)), // the team lead
+                Seated(1025UL, 19025, 13400, East, 3, 7, 3, 6, 1, 7, 1, 3115UL).WithHome(new SimulationId(3115UL)), // the intern
+
+                // Column B, back to back with A (facing west).
+                Seated(1026UL, 21375, 200, West, 6, 5, 4, 2, 7, 5, 4, 3116UL).WithHome(new SimulationId(3116UL)), // the grumbler
+                Seated(1027UL, 21375, 2600, West, 4, 5, 6, 9, 1, 5, 5, 3117UL).WithHome(new SimulationId(3117UL)), // the carer
+                Seated(1028UL, 21375, 6800, West, 9, 4, 5, 5, 4, 2, 3, 3118UL).WithHome(new SimulationId(3118UL)), // the ox
+                Seated(1029UL, 21375, 9200, West, 5, 4, 5, 5, 2, 4, 2, 3119UL).WithHome(new SimulationId(3119UL)), // the daydreamer
+                Seated(1030UL, 21375, 13400, West, 7, 7, 7, 3, 6, 2, 7, 3120UL).WithHome(new SimulationId(3120UL)), // the show-off
+
+                // Column C, across the middle aisle (facing east): two of
+                // its five desks taken.
+                Seated(1031UL, 25125, 200, East, 5, 5, 5, 5, 3, 5, 4, 3121UL).WithHome(new SimulationId(3121UL)), // ordinary
+                Seated(1032UL, 25125, 2600, East, 3, 6, 3, 6, 2, 8, 2, 3122UL).WithHome(new SimulationId(3122UL)), // the jumpy one
+
+                // The coffee point in the north-east corner.
+                Agent(1033UL, 26900, 15300, CardinalDirection.North, 6, 6, 6, 2, 8, 3, 6), // the schemer
+                Agent(1034UL, 26900, 16300, CardinalDirection.South, 5, 4, 8, 7, 1, 2, 6) // the old hand
             };
         }
 
@@ -488,6 +597,65 @@ namespace Paniq.Simulation
         /// two cafeteria tables.
         /// </summary>
         public static TableDefinition[] DefaultTables()
+        {
+            var tables = new System.Collections.Generic.List<TableDefinition>(OfficeTables());
+            AddTheCubicleTables(tables);
+            return tables.ToArray();
+        }
+
+        /// <summary>Where each row of cubicles is centred, south to north: two rows, a cross aisle, two rows, a cross aisle, one row.</summary>
+        private static readonly int[] CubicleRows = { 200, 2600, 6800, 9200, 13400 };
+
+        /// <summary>The lines the screens between cubicles stand on, either side of each row.</summary>
+        private static readonly int[] CubicleScreenLines = { -1000, 1400, 3800, 5600, 8000, 10400, 12200, 14600 };
+
+        /// <summary>
+        /// The cubicle landscape's furniture (2026-10-02). Three columns of
+        /// five cubicles: A and B back to back on one spine at x 20200 (A
+        /// opens west onto the wide west aisle, B east onto the middle
+        /// aisle), and C on a spine at x 26300 (opens west onto the middle
+        /// aisle), with an aisle behind it along the east wall. Each spine
+        /// is a row of partitions; a partition between neighbours stands on
+        /// each line of <see cref="CubicleScreenLines"/>; a desk stands
+        /// against the spine in each cubicle. Partitions 4101-4122, desks
+        /// 4201-4215, the coffee point's table 4216.
+        /// </summary>
+        private static void AddTheCubicleTables(System.Collections.Generic.List<TableDefinition> tables)
+        {
+            ulong id = 4101UL;
+            foreach (int spine in new[] { 20200, 26300 })
+            {
+                tables.Add(Partition(id++, spine, 1400, 200, 4800));
+                tables.Add(Partition(id++, spine, 8000, 200, 4800));
+                tables.Add(Partition(id++, spine, 13400, 200, 2400));
+            }
+
+            foreach (int line in CubicleScreenLines)
+            {
+                tables.Add(Partition(id++, 20200, line, 4400, 200));
+            }
+
+            foreach (int line in CubicleScreenLines)
+            {
+                tables.Add(Partition(id++, 25200, line, 2400, 200));
+            }
+
+            id = 4201UL;
+            foreach (int desk in new[] { 19650, 20750, 25750 })
+            {
+                foreach (int row in CubicleRows)
+                {
+                    tables.Add(new TableDefinition(new SimulationId(id++), new LogicalPosition(desk, row), 700, 1200));
+                }
+            }
+
+            tables.Add(new TableDefinition(new SimulationId(4216UL), new LogicalPosition(25800, 15800), 1200, 1200));
+        }
+
+        private static TableDefinition Partition(ulong id, int x, int z, int width, int depth) =>
+            new TableDefinition(new SimulationId(id), new LogicalPosition(x, z), width, depth, isPartition: true);
+
+        private static TableDefinition[] OfficeTables()
         {
             return new[]
             {
@@ -522,6 +690,71 @@ namespace Paniq.Simulation
         /// the electrical things, which go off when the flames reach them.
         /// </summary>
         public static PhysicsObjectDefinition[] DefaultPhysicsObjects()
+        {
+            // The cubicle landscape's things come after every older thing,
+            // so each of those keeps its place in the run.
+            var things = new System.Collections.Generic.List<PhysicsObjectDefinition>(OfficeThings());
+            AddTheCubicleThings(things);
+
+            // The socket in the arm that leads to the way out, last of all
+            // (see ExitArmSocket). On the west wall, so its bang reaches
+            // through into the cafeteria's empty east edge and not into the
+            // cubicle landscape's aisle.
+            things.Add(WallSocket(ExitArmSocket.Value, 13200, 11500, West));
+            return things.ToArray();
+        }
+
+        /// <summary>
+        /// What stands in the cubicle landscape (2026-10-02): a chair on
+        /// castors and a laptop at each of the fifteen desks (chairs
+        /// 3111-3125, laptops 3341-3355, column A then B then C, south to
+        /// north); two wall sockets on the screens, cabled on from the
+        /// cafeteria's; a bell on the east wall; an extinguisher by the door
+        /// beside the way out; a microwave, bins and plants round the
+        /// coffee point and in the corners; a few light boxes against the
+        /// east wall.
+        /// </summary>
+        private static void AddTheCubicleThings(System.Collections.Generic.List<PhysicsObjectDefinition> things)
+        {
+            ulong chair = 3111UL;
+            ulong laptop = 3341UL;
+            (int Desk, int Chair, int Facing)[] columns =
+            {
+                (19650, 19025, East), (20750, 21375, West), (25750, 25125, East)
+            };
+            foreach ((int Desk, int Chair, int Facing) column in columns)
+            {
+                foreach (int row in CubicleRows)
+                {
+                    things.Add(OfficeChair(chair++, column.Chair, row, column.Facing));
+                    things.Add(Laptop(laptop++, column.Desk, row));
+                }
+            }
+
+            things.Add(WallSocket(3274UL, 20400, 1700, West));
+            things.Add(WallSocket(3275UL, 26100, 8300, East));
+            things.Add(Sounder(3608UL, 27850, 7000, East));
+
+            // The landscape's extinguisher, half way along its north wall
+            // (first authored at 18500, three metres from the door beside
+            // the way out, inside the nine metres the brave go for a bottle
+            // unasked from the exit arm). Measured over thirty seeds left
+            // alone, Trigger pressed at ten seconds: with this bottle and
+            // the cafeteria's both in the brave's reach 20.4 of 34 lived,
+            // with both moved 16.1. Here it is seven metres from that door,
+            // for a hand to send somebody to.
+            things.Add(Extinguisher(3303UL, 23000, 16700));
+            things.Add(Microwave(3263UL, 27600, 15600, East));
+            things.Add(Bin(3208UL, 24800, 16500));
+            things.Add(Bin(3209UL, 23200, -2600));
+            things.Add(Plant(3215UL, 27500, -2600));
+            things.Add(Plant(3216UL, 27500, 16500));
+            things.Add(Box(3561UL, 27500, 12800, 350));
+            things.Add(Box(3562UL, 27500, 12800, 250, restsOnTheOneBelow: true));
+            things.Add(Box(3563UL, 27500, 1400, 400));
+        }
+
+        private static PhysicsObjectDefinition[] OfficeThings()
         {
             return new[]
             {
@@ -615,18 +848,39 @@ namespace Paniq.Simulation
                 // The meeting room had one beside its door for a day
                 // (2026-09-26); the owner took it away (2026-09-27), so the
                 // bin that catches in there is put out only by somebody who
-                // fetches a bottle from another room, if at all.
+                // fetches a bottle from another room, if at all. The
+                // office's stays against its far south wall: tried beside
+                // the corridor door, four metres from the meeting room
+                // (2026-10-02), it made the bin too easy to put out (over
+                // ten seeds a scripted player who only ever held a hand on
+                // a bottle saved 24 of 34).
+                //
+                // The cafeteria's stands out on its floor at the east end
+                // (2026-10-02), nine metres from the meeting room's door. It
+                // stood two metres from that door, inside the nine metres
+                // the brave go for a bottle unasked, and over thirty seeds
+                // left alone five rounds ended with the fire out and nobody
+                // hurt. A hand on a bottle still sends somebody for it, so
+                // the bin is more the player's to save than the crowd's. It
+                // stands 1.8 m clear of the wall it shares with the arm to
+                // the way out: a bottle that bursts floors whoever is within
+                // 1.6 m, wall or no wall.
                 Extinguisher(3301UL, -1000, -5700),
-                Extinguisher(3302UL, 4000, 16300),
+                Extinguisher(3302UL, 11200, 13000),
 
                 // Electrical things, which go off when the flames reach them.
                 // The microwaves are a bank of them along the cafeteria's far
-                // wall, which is what a cafeteria has.
-                Microwave(3261UL, 12600, 9600, East),
-                Microwave(3262UL, 12600, 10400, East),
+                // wall, which is what a cafeteria has: the north wall, an
+                // outside one (2026-10-02). They and the cafeteria's socket
+                // used to be on its east wall, which is the west wall of the
+                // arm that leads to the way out, and a bang reaches through
+                // a wall: people queueing for the door were knocked down by
+                // something they could not see.
+                Microwave(3261UL, 6500, 16600, North),
+                Microwave(3262UL, 7300, 16600, North),
                 WallSocket(3271UL, -5800, -4000, West),
                 WallSocket(3272UL, 5800, 4000, East),
-                WallSocket(3273UL, 12800, 10000, East),
+                WallSocket(3273UL, 10500, 16800, North),
 
                 // The floor's main fuse box, on the maintenance room wall, as
                 // far from the way out as the building goes.
@@ -646,8 +900,7 @@ namespace Paniq.Simulation
                 // wall at its back (they all used to face north, so the ones
                 // on the east and west walls stood side-on to them).
 
-                // A vending machine against the cafeteria's east wall, past
-                // the microwaves.
+                // A vending machine against the cafeteria's east wall.
                 VendingMachine(3401UL, 12600, 15500, East),
 
                 // Filing cabinets against the office walls, and one in the
@@ -747,10 +1000,12 @@ namespace Paniq.Simulation
                 Box(3526UL, 12000, -3750, 700, restsOnTheOneBelow: true, pinned: true),
                 Box(3527UL, 12000, -3750, 700, restsOnTheOneBelow: true, pinned: true),
 
-                // A column against the east wall, clear of the crossbar door.
+                // A column against the east wall, clear of the crossbar door
+                // and (2026-10-02, moved south from -3000 and -2000) of the
+                // cubicle landscape's door at z -1750.
                 Box(3530UL, 15600, -4000, 600),
-                Box(3531UL, 15600, -3000, 700),
-                Box(3532UL, 15600, -2000, 500),
+                Box(3531UL, 15600, -4800, 700),
+                Box(3532UL, 15600, -5500, 500),
 
                 // Light boxes loose in the lanes, and a few stacked against
                 // the south wall where the lane does not run.
@@ -766,16 +1021,20 @@ namespace Paniq.Simulation
                 Box(3554UL, 14000, -5650, 350, restsOnTheOneBelow: true),
                 Box(3555UL, 15000, -5650, 400),
 
-                // The Director's second trap (2026-09-27): a stack of four
-                // crates against the north wall at the first bend, pinned
-                // while it stands (the TrapSystem holds it), which comes down
-                // across the gap between the wall and wall A once somebody
-                // frightened runs through the stockroom. Four, because three
-                // leave a gap a person squeezes through.
-                Box(3581UL, 9500, -950, 700),
-                Box(3582UL, 9500, -950, 700, restsOnTheOneBelow: true),
-                Box(3583UL, 9500, -950, 700, restsOnTheOneBelow: true),
-                Box(3584UL, 9500, -950, 700, restsOnTheOneBelow: true),
+                // The stockroom's stack (2026-09-27): four crates, pinned
+                // while they stand (the TrapSystem holds them), which come
+                // down when somebody runs into them. It stands free at the
+                // north end of wall A (2026-10-02), a finger's width off the
+                // wall's last crate: the corner everybody coming from the
+                // office cuts, with the single-file middle lane just beyond
+                // it for the crates to land in. Against the north wall,
+                // where it stood until then, it was on the outside of the
+                // bend and nobody ever touched it (0 rounds of 10). Four,
+                // because three leave a gap a person squeezes through.
+                Box(3581UL, 9500, -2740, 700),
+                Box(3582UL, 9500, -2740, 700, restsOnTheOneBelow: true),
+                Box(3583UL, 9500, -2740, 700, restsOnTheOneBelow: true),
+                Box(3584UL, 9500, -2740, 700, restsOnTheOneBelow: true),
 
                 // The fire alarm bells (2026-09-25), one high on a wall of
                 // every room people use, including the stockroom and the
@@ -790,24 +1049,26 @@ namespace Paniq.Simulation
                 Sounder(3607UL, 15850, 8000, East),
 
                 // The tower of boxes (prototype 3, 2026-09-25): two stacks of
-                // four, 1.8 m tall, in the junction's south-west corner --
-                // out of the bathroom door and to the right, where the
-                // corridor meets the crossbar. It stands half a metre off the
+                // four, 1.8 m tall, against the corridor's north wall just
+                // short of the archway into the crossbar (2026-10-02). That
+                // is the inside of the turn everybody running for the way
+                // out makes, so it is the corner a crowd cuts, and a runner
+                // going east throws the boxes on into the archway. It stood
+                // in the junction's south-west corner until then, on the
+                // outside of the turn and past the archway: it fell every
+                // round and landed beside the gap. It stands 0.4 m off the
                 // archway's wall line so it is not "wedged in" the archway
-                // while it stands, and clear of the crossbar's south arm.
-                // Pinned while it stands (the Director's TrapSystem holds
-                // it), it comes down across the archway once the fire is
-                // lit and somebody comes near. Each box is a plain 600 mm
-                // box of 13 kg: the strong can throw one clear and most
-                // people can carry one.
-                Box(3701UL, 13600, 6350, 600),
-                Box(3702UL, 13600, 6350, 600, restsOnTheOneBelow: true),
-                Box(3703UL, 13600, 6350, 600, restsOnTheOneBelow: true),
-                Box(3704UL, 13600, 6350, 600, restsOnTheOneBelow: true),
-                Box(3705UL, 14200, 6350, 600),
-                Box(3706UL, 14200, 6350, 600, restsOnTheOneBelow: true),
-                Box(3707UL, 14200, 6350, 600, restsOnTheOneBelow: true),
-                Box(3708UL, 14200, 6350, 600, restsOnTheOneBelow: true)
+                // while it stands, and across the corridor from the
+                // bathroom door. Pinned while it stands (the TrapSystem
+                // holds it), it comes down when somebody runs into it.
+                Box(3701UL, 11700, 8550, 600),
+                Box(3702UL, 11700, 8550, 600, restsOnTheOneBelow: true),
+                Box(3703UL, 11700, 8550, 600, restsOnTheOneBelow: true),
+                Box(3704UL, 11700, 8550, 600, restsOnTheOneBelow: true),
+                Box(3705UL, 12300, 8550, 600),
+                Box(3706UL, 12300, 8550, 600, restsOnTheOneBelow: true),
+                Box(3707UL, 12300, 8550, 600, restsOnTheOneBelow: true),
+                Box(3708UL, 12300, 8550, 600, restsOnTheOneBelow: true)
             };
         }
 

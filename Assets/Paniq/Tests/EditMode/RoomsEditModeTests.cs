@@ -93,9 +93,9 @@ namespace Paniq.Tests.EditMode
         public void DefaultScenario_HasAStorageClosetBehindTheEastDoor()
         {
             ScenarioData data = scenario.ToRuntimeData();
-            Assert.That(data.Rooms, Has.Length.EqualTo(12),
+            Assert.That(data.Rooms, Has.Length.EqualTo(13),
                 "Office, closet, corridor, cafeteria, meeting room, bathroom, maintenance,\n"
-                + "the crossbar of the T, three bathroom stalls, and the stockroom.");
+                + "the crossbar of the T, three bathroom stalls, the stockroom, and the cubicle landscape.");
             LogicalBounds b = data.Rooms[1].Bounds;
             Assert.That((b.MaxX - b.MinX) * (long)(b.MaxZ - b.MinZ), Is.EqualTo(13000000L), "2 × 6.5 m: a storeroom, not a cupboard.");
 

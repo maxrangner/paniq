@@ -11,20 +11,18 @@ namespace Paniq.Tests.EditMode
     /// 2026-09-26; reordered 2026-09-27). The round opens with an ordinary
     /// day; a waste bin in the meeting room catches fire after half a minute
     /// to a minute and a half (or at once, on the trigger). Doused before
-    /// the carpet under it caught, another bin catches a beat later. The
-    /// tower of boxes is armed from the bin: the first frightened person to
-    /// run along the corridor brings it down. A fire put out is followed a
-    /// while later -- after the boxes fell, if they fell -- by a socket
-    /// crackling and popping in the busiest calm room; put that out and the
-    /// fuse box goes, taking every socket with it. A fire that gets out of
-    /// the room it started in is the real fire: the ladder stops.
+    /// the carpet under it caught, another bin catches a beat later. Since
+    /// 2026-10-02 that is the whole ladder (the owner: the socket "should
+    /// only pop late in a run", and asked what late means, "only as the
+    /// building's counter-move"): a fire put out is followed by nothing --
+    /// no socket, no fuse box -- and the tower of boxes is not the
+    /// Director's at all. A fire that gets out of the room it started in
+    /// is the real fire: the ladder stops. The socket and the fuse box as
+    /// the cap's push are in <see cref="DirectorCapEditModeTests"/>.
     /// </summary>
     public sealed class DirectorLadderEditModeTests
     {
         private static readonly SimulationId BinByTheDoor = new SimulationId(3205UL);
-        private static readonly SimulationId OfficeWestSocket = new SimulationId(3271UL);
-        private static readonly SimulationId OfficeEastSocket = new SimulationId(3272UL);
-        private static readonly SimulationId CafeteriaSocket = new SimulationId(3273UL);
 
         private ScenarioAsset scenario;
 
@@ -97,12 +95,12 @@ namespace Paniq.Tests.EditMode
             data.Timetable = Array.Empty<ScheduledCue>();
         }
 
-        /// <summary>One person standing at the corridor's east end, near the tower, who runs when told to.</summary>
-        private static void OnePersonInTheCorridor(ScenarioData data)
+        /// <summary>One person standing in the crossbar two hand's breadths north of the tower's west stack, facing it, to be shoved into it when told to.</summary>
+        private static void OnePersonBesideTheTower(ScenarioData data)
         {
             data.Agents = new[]
             {
-                new AgentDefinition(new SimulationId(1UL), new LogicalPosition(12500, 6800), CardinalDirection.East,
+                new AgentDefinition(new SimulationId(1UL), new LogicalPosition(10950, 8550), CardinalDirection.East,
                     AgentTraitValues.AllOrdinary)
             };
             data.Calm.DecisionMinimumTicks = 100000;
@@ -205,106 +203,41 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// The owner (2026-10-02): the socket popping after the boxes fell
+        /// was "an instant game over. That should only pop late in a run",
+        /// and asked what late should mean: "only as the building's
+        /// counter-move". So a bin put out is the end of the ladder: no
+        /// socket follows it, no fuse box, and the round may end.
+        /// </summary>
         [Test]
-        public void WhenTheBinIsPutOut_ASocketCrackles_FiveToTenSecondsLater_InTheBusiestRoom_ThenPops()
+        public void WhenTheBinIsPutOut_TheLadderAddsNothingMore_NoSocket_NoFuseBox()
         {
             ScenarioData data = TheLadder();
             OnePersonFarOff(data);
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), 5);
-                AdvanceUntil(simulation, CausalEventType.DirectorStartedIncident, 20);
-                Advance(simulation, 50);
+                CausalEvent? floor = AdvanceUntil(simulation, CausalEventType.FireSpread, 1000);
+                Assert.That(floor.HasValue, "The carpet caught: a real fire, not a bin to relight.");
                 simulation.PutEverythingOutForTests();
                 CausalEvent? putOut = AdvanceUntil(simulation, CausalEventType.IncidentPutOut, 5);
                 Assert.That(putOut.HasValue, "Nothing burning, and it never left the meeting room: put out.");
+                Assert.That(simulation.DirectorForTests.HasSomethingComing, Is.False,
+                    "Nothing is on its way, so the round is free to end.");
 
-                CausalEvent? crackle = AdvanceUntil(simulation, CausalEventType.SocketCrackling, 2100);
-                Assert.That(crackle.HasValue, "The next rung came.");
-                Assert.That(crackle.Value.Tick - putOut.Value.Tick, Is.InRange(250, 501), "Five to ten seconds after the put-out (the owner, 2026-09-27).");
-                Assert.That(new[] { OfficeWestSocket, OfficeEastSocket, CafeteriaSocket }, Does.Contain(crackle.Value.SourceId));
-
-                // The room it chose had the most people in it, calm or not, of
-                // any room with a socket, the meeting room aside (it has none):
-                // here the office, where the one person is.
-                int chosen = RoomOf(simulation, crackle.Value.Position);
-                int[] people = PeoplePerRoom(simulation);
-                foreach (SimulationId socket in new[] { OfficeWestSocket, OfficeEastSocket, CafeteriaSocket })
-                {
-                    int room = RoomOf(simulation, PositionOf(simulation, socket));
-                    Assert.That(people[chosen], Is.GreaterThanOrEqualTo(people[room]),
-                        "No socket's room had more people in it than the chosen one.");
-                }
-
-                CausalEvent? bang = AdvanceUntil(simulation, CausalEventType.ObjectExploded, 300);
-                Assert.That(bang.HasValue);
-                Assert.That(bang.Value.SourceId, Is.EqualTo(crackle.Value.SourceId), "The crackling socket is what went.");
-                Assert.That(bang.Value.Tick - crackle.Value.Tick, Is.InRange(248, 252), "Five seconds of crackle first.");
-
-                Advance(simulation, 5);
-                Assert.That(EventsOfType(simulation, CausalEventType.PowerSparkStarted), Is.Empty,
-                    "A socket going off lights no cable: nothing climbs up to the fuse box.");
-            }
-        }
-
-        [Test]
-        public void WhenTheSocketFireIsPutOutToo_TheFuseBoxGoes_AndEverySocketAfterIt()
-        {
-            using (var simulation = new Run(TheLadder(), 42UL))
-            {
-                simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), 5);
-                AdvanceUntil(simulation, CausalEventType.DirectorStartedIncident, 20);
-                Advance(simulation, 50);
-                simulation.PutEverythingOutForTests();
-                AdvanceUntil(simulation, CausalEventType.ObjectExploded, 2400);
-
-                // At once, rather than waiting for it to burn itself out.
-                simulation.PutEverythingOutForTests();
-
-                int putOuts = 0;
-                for (int t = 0; t < 2500 && putOuts < 2; t++)
-                {
-                    simulation.Step();
-                    putOuts = EventsOfType(simulation, CausalEventType.IncidentPutOut).Count;
-                }
-
-                Assert.That(putOuts, Is.EqualTo(2), "The socket's fire went out too.");
-                CausalEvent? crackle = null;
-                for (int t = 0; t < 2100 && crackle == null; t++)
-                {
-                    simulation.Step();
-                    List<CausalEvent> crackles = EventsOfType(simulation, CausalEventType.SocketCrackling);
-                    crackle = crackles.Count >= 2 ? crackles[1] : (CausalEvent?)null;
-                }
-
-                Assert.That(crackle.HasValue, "The last rung came.");
-                Assert.That(crackle.Value.SourceId, Is.EqualTo(PrototypeBuilding.FuseBox), "The fuse box crackles.");
-
-                // Crackle, go, and the spark down the cable to the last socket:
-                // fires in half the building at once, all of them the fuse
-                // box's own doing and none of them a fire that got loose.
-                Advance(simulation, 250 + 4 * Run.TicksPerSecond);
-                Assert.That(EventsOfType(simulation, CausalEventType.FireEscapedItsRoom), Is.Empty,
-                    "The fuse box's own cascade is the incident, not a fire getting out of its room.");
-
-                Advance(simulation, Run.TicksPerSecond);
-                var gone = new HashSet<SimulationId>();
-                foreach (CausalEvent bang in EventsOfType(simulation, CausalEventType.ObjectExploded))
-                {
-                    gone.Add(bang.SourceId);
-                }
-
-                Assert.That(gone, Does.Contain(PrototypeBuilding.FuseBox));
-                Assert.That(gone, Is.SupersetOf(new[] { OfficeWestSocket, OfficeEastSocket, CafeteriaSocket }),
-                    "The spark ran down the cable and took every socket with it, including the one already wrecked on the way.");
+                // A minute on: longer than any wait the ladder ever had.
+                Advance(simulation, 60 * Run.TicksPerSecond);
+                Assert.That(EventsOfType(simulation, CausalEventType.SocketCrackling), Is.Empty, "No socket crackles.");
+                Assert.That(EventsOfType(simulation, CausalEventType.ObjectExploded), Is.Empty, "Nothing pops.");
+                Assert.That(EventsOfType(simulation, CausalEventType.DirectorStartedIncident), Has.Count.EqualTo(1),
+                    "And no second bin: the carpet had caught.");
             }
         }
 
         [Test]
         public void AFireThatGetsOutOfItsRoom_EndsTheLadder()
         {
-            // One person far off, so nobody runs along the corridor: the
-            // tower falling would bring the socket whatever the fire did.
             ScenarioData data = TheLadder();
             OnePersonFarOff(data);
             using (var simulation = new Run(data, 42UL))
@@ -318,7 +251,7 @@ namespace Paniq.Tests.EditMode
 
                 simulation.PutEverythingOutForTests();
 
-                // Longer than the longest wait for a next rung (forty seconds).
+                // Longer than any wait the ladder ever had (forty seconds).
                 Advance(simulation, 2100);
                 Assert.That(EventsOfType(simulation, CausalEventType.IncidentPutOut), Is.Empty,
                     "Once it has got loose it is the real fire, not an incident to be put out.");
@@ -328,34 +261,43 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The owner's rule (2026-09-27): the boxes come down "once people
-        /// start running down the corridor", whatever the fire is doing. A
-        /// calm person beside the tower all day, bin or no bin, brings
-        /// nothing down.
+        /// The tower is not the Director's (2026-10-02, the owner: "No
+        /// director trigger"). The bin burning does not arm it, and
+        /// somebody beside it all the while brings nothing down; a body
+        /// that runs into it does, and that knock, not the bin, is the
+        /// cause.
         /// </summary>
         [Test]
-        public void TheTower_ComesDown_WhenTheFirstFrightenedPersonRunsAlongTheCorridor_WhateverTheFireIsDoing()
+        public void TheTower_IsNotArmedByTheBin_ItFallsWhenSomebodyRunsIntoIt()
         {
             ScenarioData data = TheLadder();
-            OnePersonInTheCorridor(data);
+            OnePersonBesideTheTower(data);
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), 5);
                 Advance(simulation, 600);
+                Assert.That(EventsOfType(simulation, CausalEventType.DirectorStartedIncident), Has.Count.EqualTo(1), "The bin is alight.");
                 Assert.That(EventsOfType(simulation, CausalEventType.TrapTriggered), Is.Empty,
-                    "Somebody calm standing beside the tower all day brings nothing down, bin or no bin.");
+                    "Somebody standing beside the tower through the bin's fire brings nothing down.");
 
-                simulation.FrightenForTests(0);
-                CausalEvent? trap = AdvanceUntil(simulation, CausalEventType.TrapTriggered, 100);
-                Assert.That(trap.HasValue, "Frightened, they run for the archway, and the tower comes down.");
-                Assert.That(trap.Value.TargetId, Is.EqualTo(new SimulationId(1UL)), "Sprung by the runner.");
+                simulation.ShoveAgentForTests(0, 90, 100);
+                CausalEvent? trap = AdvanceUntil(simulation, CausalEventType.TrapTriggered, 60);
+                Assert.That(trap.HasValue, "Shoved into it at a run, they knock it.");
+                Assert.That(trap.Value.TargetId, Is.EqualTo(new SimulationId(1UL)));
                 CausalEvent started = EventsOfType(simulation, CausalEventType.DirectorStartedIncident)[0];
-                Assert.That(trap.Value.CausalParentEventId, Is.EqualTo(started.EventId), "The bin the Director lit is why the tower was armed.");
-                Assert.That(EventsOfType(simulation, CausalEventType.FireEscapedItsRoom), Is.Empty,
-                    "The fire never left the meeting room: that is no longer what arms the tower.");
-                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
+                Assert.That(trap.Value.CausalParentEventId, Is.Not.EqualTo(started.EventId),
+                    "The bin is not why it fell: the knock is.");
+                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 60);
                 Assert.That(fell.HasValue);
-                Assert.That(fell.Value.Tick - trap.Value.Tick, Is.InRange(data.Traps.CreakTicks * 4 / 5, data.Traps.CreakTicks * 6 / 5), "It creaks for about three seconds first (2026-09-29).");
+                Assert.That(fell.Value.Tick - trap.Value.Tick,
+                    Is.InRange(data.Perception.ReactionLagMinimumTicks, data.Perception.ReactionLagMaximumTicks),
+                    "A beat after the knock.");
+
+                // And the fall brings no socket with it, as it used to five
+                // seconds on.
+                Advance(simulation, 10 * Run.TicksPerSecond);
+                Assert.That(EventsOfType(simulation, CausalEventType.SocketCrackling), Is.Empty,
+                    "No socket crackles because the boxes fell.");
             }
         }
 
@@ -363,7 +305,7 @@ namespace Paniq.Tests.EditMode
         /// "If fire in meeting room is put out too quickly, light another
         /// trashcan straight away" (the owner, 2026-09-27). Too quickly is:
         /// the carpet under the bin never caught. The meeting room has three
-        /// bins, so it can happen twice; then the ladder goes on as usual.
+        /// bins, so it can happen twice; then the ladder has nothing more.
         /// </summary>
         [Test]
         public void ABinDousedBeforeTheCarpetCaught_LightsAnotherBinABeatLater_UntilAllThreeAreUsed()
@@ -385,8 +327,10 @@ namespace Paniq.Tests.EditMode
                     Assert.That(putOut.HasValue, $"Bin {bin} doused, with the carpet never alight.");
                 }
 
-                CausalEvent? crackle = AdvanceUntil(simulation, CausalEventType.SocketCrackling, 2100);
-                Assert.That(crackle.HasValue, "With every bin used, the ladder goes on: the socket.");
+                Advance(simulation, 2100);
+                Assert.That(EventsOfType(simulation, CausalEventType.SocketCrackling), Is.Empty,
+                    "With every bin used the ladder is over: no socket follows a put-out (2026-10-02).");
+                Assert.That(simulation.DirectorForTests.HasSomethingComing, Is.False, "Nothing is on its way: the round may end.");
 
                 List<CausalEvent> bins = EventsOfType(simulation, CausalEventType.DirectorStartedIncident);
                 List<CausalEvent> putOuts = EventsOfType(simulation, CausalEventType.IncidentPutOut);
@@ -401,13 +345,11 @@ namespace Paniq.Tests.EditMode
                         "Straight away, but never on the tick it was put out.");
                     Assert.That(bins[bin].CausalParentEventId, Is.EqualTo(putOuts[bin - 1].EventId), "Lit because the last was doused too soon.");
                 }
-
-                Assert.That(crackle.Value.Tick - putOuts[2].Tick, Is.InRange(250, 501), "The socket's usual wait after the last put-out.");
             }
         }
 
         [Test]
-        public void ABinWhoseCarpetCaught_WasAFire_AndTheSocketFollowsItsPutOut()
+        public void ABinWhoseCarpetCaught_WasAFire_AndIsNotRelit()
         {
             ScenarioData data = TheLadder();
             data.Director.FirstIncidentThings = PrototypeBuilding.MeetingRoomBins();
@@ -420,89 +362,10 @@ namespace Paniq.Tests.EditMode
                 simulation.PutEverythingOutForTests();
                 CausalEvent? putOut = AdvanceUntil(simulation, CausalEventType.IncidentPutOut, 5);
                 Assert.That(putOut.HasValue);
-                CausalEvent? crackle = AdvanceUntil(simulation, CausalEventType.SocketCrackling, 2100);
-                Assert.That(crackle.HasValue, "The socket, not another bin.");
+                Advance(simulation, 2100);
                 Assert.That(EventsOfType(simulation, CausalEventType.DirectorStartedIncident), Has.Count.EqualTo(1),
                     "Two bins were left unused: a fire that burnt the carpet is not relit.");
             }
-        }
-
-        /// <summary>
-        /// The owner's order (2026-09-27): bin, boxes, outlet. Five seconds
-        /// after the tower falls the socket crackles, whatever the bin fire
-        /// is doing; and once the socket's fire is put out, the fuse box
-        /// comes five to ten seconds later.
-        /// </summary>
-        [Test]
-        public void TheSocket_ComesFiveSecondsAfterTheBoxesFell_WhateverTheBinIsDoing_AndTheFuseBoxFollowsItsPutOut()
-        {
-            ScenarioData data = TheLadder();
-            OnePersonInTheCorridor(data);
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), 5);
-                AdvanceUntil(simulation, CausalEventType.DirectorStartedIncident, 20);
-                simulation.FrightenForTests(0);
-                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
-                Assert.That(fell.HasValue, "The runner brought the tower down while the bin was still smouldering.");
-
-                CausalEvent? crackle = AdvanceUntil(simulation, CausalEventType.SocketCrackling, 400);
-                Assert.That(crackle.HasValue, "The socket crackles with the bin still burning.");
-                Assert.That(EventsOfType(simulation, CausalEventType.IncidentPutOut), Is.Empty, "Nothing was put out first.");
-                Assert.That(crackle.Value.Tick - fell.Value.Tick, Is.InRange(200, 300), "About five seconds after the boxes fell.");
-
-                CausalEvent? bang = AdvanceUntil(simulation, CausalEventType.ObjectExploded, 300);
-                Assert.That(bang.HasValue, "And pops.");
-                Advance(simulation, 10);
-                simulation.PutEverythingOutForTests();
-                CausalEvent? putOut = AdvanceUntil(simulation, CausalEventType.IncidentPutOut, 5);
-                Assert.That(putOut.HasValue, "Bin and socket fire out together: one put-out.");
-                Assert.That(EventsOfType(simulation, CausalEventType.FireEscapedItsRoom), Is.Empty,
-                    "The socket's fire joined the bin's incident rather than counting as fire that got loose.");
-
-                CausalEvent? fuseBox = null;
-                for (int t = 0; t < 700 && fuseBox == null; t++)
-                {
-                    simulation.Step();
-                    List<CausalEvent> crackles = EventsOfType(simulation, CausalEventType.SocketCrackling);
-                    fuseBox = crackles.Count >= 2 ? crackles[1] : (CausalEvent?)null;
-                }
-
-                Assert.That(fuseBox.HasValue, "The fuse box crackles next.");
-                Assert.That(fuseBox.Value.SourceId, Is.EqualTo(PrototypeBuilding.FuseBox));
-                Assert.That(fuseBox.Value.Tick - putOut.Value.Tick, Is.InRange(250, 501), "Five to ten seconds after the put-out.");
-            }
-        }
-
-        private static int RoomOf(Run simulation, LogicalPosition where) => simulation.GeometryForTests.RoomAtPoint(where);
-
-        private static LogicalPosition PositionOf(Run simulation, SimulationId thing)
-        {
-            for (int i = 0; i < simulation.PhysicsObjectCount; i++)
-            {
-                if (simulation.GetPhysicsObject(i).ObjectId == thing)
-                {
-                    return simulation.GetPhysicsObject(i).Position;
-                }
-            }
-
-            throw new KeyNotFoundException(thing.ToString());
-        }
-
-        private static int[] PeoplePerRoom(Run simulation)
-        {
-            var people = new int[simulation.GeometryForTests.RoomCount];
-            for (int i = 0; i < simulation.AgentCount; i++)
-            {
-                AgentSnapshot agent = simulation.GetAgent(i);
-                int room = simulation.GeometryForTests.RoomAtPoint(agent.Position);
-                if (agent.Participation == AgentParticipation.Participating && room >= 0)
-                {
-                    people[room]++;
-                }
-            }
-
-            return people;
         }
     }
 }

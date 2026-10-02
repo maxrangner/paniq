@@ -282,7 +282,7 @@ namespace Paniq.Tests.EditMode
                             PhysicsObjectSnapshot thing = simulation.GetPhysicsObject(i);
                             if (thing.ObjectId.Value < 3701UL || thing.ObjectId.Value > 3708UL) continue;
                             if (Math.Abs(thing.Position.X - 13000) <= 700 && thing.Position.Z > 6000 && thing.Position.Z < 9000) inStrip++;
-                            if (IntegerMath.Distance(thing.Position, new LogicalPosition(13900, 6350)) > 800) fallen++;
+                            if (IntegerMath.Distance(thing.Position, TheBuilding.TheTower) > 800) fallen++;
                         }
 
                         RunSnapshot snap = simulation.NewSnapshotBuffer();

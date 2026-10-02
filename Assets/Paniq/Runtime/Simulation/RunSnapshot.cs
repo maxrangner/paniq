@@ -68,8 +68,12 @@ namespace Paniq.Simulation
             AgentTell tell = AgentTell.None,
             int tellProgress = 0,
             int tellHeading = 0,
-            bool committedToTheHand = false)
+            bool committedToTheHand = false,
+            HandAsk handAsk = HandAsk.None,
+            bool straining = false)
         {
+            HandAsk = handAsk;
+            Straining = straining;
             ActingForTheHand = actingForTheHand;
             ActingAgainstTheirNature = actingAgainstTheirNature;
             CommittedToTheHand = committedToTheHand;
@@ -131,6 +135,12 @@ namespace Paniq.Simulation
 
         /// <summary>Keeping a goal the hand has come off (2026-09-30): the gold hand over them, still rather than bobbing.</summary>
         public bool CommittedToTheHand { get; }
+
+        /// <summary>What their own goal for the hand asks of them, or nothing (2026-10-02): the words the panel gives them.</summary>
+        public HandAsk HandAsk { get; }
+
+        /// <summary>Shoulder to a crate for the hand, straining at it before it gives (2026-10-02): they are drawn leaning into it.</summary>
+        public bool Straining { get; }
 
         /// <summary>
         /// Winding up to something dangerous (2026-09-30): going stiff,
@@ -433,8 +443,10 @@ namespace Paniq.Simulation
     public readonly struct InfluencePlaceSnapshot
     {
         public InfluencePlaceSnapshot(SimulationId target, bool isDoor, LogicalPosition at, int level, int maximumLevel,
-            bool repels = false, bool isBeacon = false)
+            bool repels = false, bool isBeacon = false, HandAsk ask = HandAsk.None, bool spent = false)
         {
+            Ask = ask;
+            Spent = spent;
             Target = target;
             IsDoor = isDoor;
             At = at;
@@ -443,6 +455,12 @@ namespace Paniq.Simulation
             Repels = repels;
             IsBeacon = isBeacon;
         }
+
+        /// <summary>What the hand asks of people here, as the run reads it (2026-10-02): the label at the ring.</summary>
+        public HandAsk Ask { get; }
+
+        /// <summary>Somebody has done what it asked: it only gathers now.</summary>
+        public bool Spent { get; }
 
         /// <summary>The right button's hand: it pushes people away (2026-09-30).</summary>
         public bool Repels { get; }

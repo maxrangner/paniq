@@ -224,6 +224,9 @@ namespace Paniq.Simulation
         /// <summary>A ragged gap blasted through a wall: there is no leaf to swing, pull at or shoulder.</summary>
         public bool IsHole(int door) => doors[door].IsHole;
 
+        /// <summary>A pair of swing doors: always open as far as the rules go, and nothing to shut.</summary>
+        public bool Swings(int door) => doors[door].Swings;
+
         /// <summary>
         /// Doors in ascending ID order. The ones leading out of the building
         /// start locked (they are the player's to unlock); inside doors start

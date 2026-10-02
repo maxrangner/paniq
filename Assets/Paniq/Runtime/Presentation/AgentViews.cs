@@ -460,6 +460,17 @@ namespace Paniq.Presentation
                         roll += Mathf.Sin(time * 37f + view.ShakePhase) * 2f;
                     }
 
+                    // Shoulder to a crate for the hand (2026-10-02): leaning
+                    // into it and rocking against it until it gives, so the
+                    // effort is seen and not only the crate sliding away.
+                    if (agent.Straining)
+                    {
+                        float heave = Mathf.Sin(time * 5f + view.ShakePhase);
+                        lean = Mathf.Max(lean, 16f + 6f * heave);
+                        bounce = Mathf.Max(bounce, Mathf.Abs(heave) * 0.03f);
+                        shake += Quaternion.Euler(0f, yaw, 0f) * Vector3.forward * (heave * 0.04f);
+                    }
+
                     // A shoulder thrown at a stuck door.
                     Vector3 lunge = Vector3.zero;
                     float lungeAge = (time - view.LungeStart) / 0.3f;

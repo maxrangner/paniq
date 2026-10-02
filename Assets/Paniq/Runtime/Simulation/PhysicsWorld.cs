@@ -407,10 +407,11 @@ namespace Paniq.Simulation
         /// same whether it stands still or not. Its origin is the middle of its
         /// underside.
         /// </summary>
-        public int AddTable(LogicalBounds bounds, int massGrams, int frictionPercent)
+        public int AddTable(LogicalBounds bounds, int massGrams, int frictionPercent, int heightMillimetres = 0,
+            bool pinned = false)
         {
             int index = tables.Count;
-            float height = MetresFromMillimetres(feel.TableHeightMillimetres);
+            float height = MetresFromMillimetres(heightMillimetres > 0 ? heightMillimetres : feel.TableHeightMillimetres);
             var size = new Vector3(
                 MetresFromMillimetres(bounds.MaxX - bounds.MinX), height,
                 MetresFromMillimetres(bounds.MaxZ - bounds.MinZ));
@@ -428,6 +429,10 @@ namespace Paniq.Simulation
             staticByCollider[box.GetInstanceID()] = (StaticKind.Table, index);
             var rigidbody = table.AddComponent<Rigidbody>();
             Configure(rigidbody, massGrams);
+
+            // A partition (2026-10-02) is held where it stands: the engine
+            // never moves it, so it never wakes and nothing shoves it.
+            rigidbody.isKinematic = pinned;
             tables.Add(table);
             tableBodies.Add(rigidbody);
             tableSizes.Add(size);

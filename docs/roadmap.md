@@ -42,8 +42,13 @@ it is built to keep), a second dial in the Tab panel for how far the hand
 reaches, and a faster test suite; its twelfth (2026-10-02) is the first two
 sketches kept: three test levels and a Crowd button for watching one thing
 at a time, a hand felt through a doorway only where it can be seen, lines
-only to who feels it now, and the keycard worn on the hip. All are under
-"Prototype 3" further down.
+only to who feels it now, and the keycard worn on the hip; its thirteenth
+(2026-10-02) is the next two sketches kept together: the building dialled
+back (stacks of boxes that fall only when somebody runs into them, a socket
+that pops only as the building's counter-move), a hand that says in words
+what it asks, a cubicle landscape with fourteen more people beside the way
+out, and the whole office re-dressed and then played by machine to see what
+it does. All are under "Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -859,6 +864,121 @@ are valid buildings that run.
 - Whether the lines, now honest, are enough to say who is answering, or
   whether the gold hand alone is too quiet.
 - Whether the card on the hip is seen at the usual zoom.
+
+## Prototype 3: the building dialled back, and the office re-dressed (2026-10-02)
+
+Two sketches, played and kept together as one commit on
+`feat/prototype-3-gameplay`. The first answered the owner's notes on the fire
+level: the socket popping five seconds after the boxes fell was "an instant
+game over", the tower's fall "looks scripted", "I don't really feel that the
+interactions are clear", and a wish for "a new big room, on the other side of
+the T corridor, next to the exit. A large cubicle landscape". The second
+answered "use all the tools and lessons available to make a good test level
+play fun ... free to move items and props, starting positions, and events":
+the walls stayed, the contents moved, and the level was then played by
+machine, thirty seeds at a time, to see what the moves did. The details are
+in the
+[decisions](technical-decisions.md#prototype-3-the-building-dialled-back-and-the-office-re-dressed-2026-10-02).
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| Stacks fall when run into | Behaviour | The tower of boxes and the stockroom's stack stand all day while people walk past. Somebody at a run who hits one brings it down a beat later, and the boxes tumble on the way the runner was going. No creak, no warning sign, and the Director never touches them |
+| The socket is the building's counter-move only | Behaviour | Put the bin out and nothing more comes: the bells fall silent and that is the end of it. A socket or the fuse box goes only once the way out is open and more people are getting out than the building allows that day, under the banner THE BUILDING TURNS ON THE CROWD |
+| The hand says what it asks | Presentation | Two or three words at the hand's ring ("open the door", "clear the boxes", "get the card"), the same words over whoever takes it up ("clearing the boxes..."), a lean while somebody strains at a crate, and a word at the place when it is done ("opened!", "cleared!") |
+| The cubicle landscape | Level | A 12 by 20 m room of fifteen cubicles east of the T, with three doors in its west wall: beside the way out, opposite the stockroom's door, and into the stockroom. Fourteen people work in it; the building holds thirty-four |
+| The tower on the inside of the turn | Level | The tower stands against the corridor's north wall just before the archway, where the crowd cuts the corner. A runner going east throws the boxes on into the archway, and it is shut for five seconds or more in about one round in three |
+| The stack at the corner of the lane | Level | The stockroom's four crates stand free at the end of the first crate wall. They fell in 20 rounds of 30 left alone; against the north wall they had fallen in none of 10 |
+| The building strikes in the last stretch | Level | A socket on the wall of the arm that leads to the way out. When the door opens with the queue packed in that arm, that is the socket that crackles for five seconds and goes. The way round is the cubicle landscape, in by its south door and out beside the way out |
+| The card stays with the office | Behaviour | The keycard starts on an office desk or in the pocket of one of the eight people who work in the open-plan office, never with somebody sitting beside the way out |
+| Bottles out of the brave's reach | Level | The cafeteria's extinguisher stands at its east end, nine metres from the meeting room's door, and the cubicle landscape's half way along its north wall. The brave no longer fetch one unasked for the first bin or for the building's strike; a hand on a bottle still sends somebody |
+| No bang through the wall of the arm | Level | The cafeteria's microwaves and socket are on its north wall. On its east wall they knocked down people queueing for the way out, through the wall |
+| The way out pounded open is open | Fix | The building now turns on a crowd that broke the card door down under the player's hand. It used to read that door as shut for ever, and a player who only ever held the way out saved two thirds of the office |
+| Home time reaches people at their desks | Fix | Somebody on their way back to their desk when home time was called used to sit there while the building emptied; sitting down now ends that errand at once |
+| The card is taken from where the ring stands | Fix | A hand on the keycard gathered seven people round the desk, standing where the one fetching it needed to stand, and on one seed nobody took it in a minute. It is taken from 0.9 m now, not 0.7 |
+
+**What the machine found** (thirty seeds, 40 to 69, Trigger pressed at ten
+seconds; people saved of thirty-four). Scripted players are rough stand-ins,
+not people.
+
+| Layout | Player | Saved | More than half lived on |
+| --- | --- | --- | --- |
+| No socket in the arm, bottles within the brave's reach | nobody | 24.0 | 22 of 30 |
+| Socket in the arm, bottles within the brave's reach | nobody | 20.4 | 18 of 30 |
+| The floor as kept | nobody | 16.1 | 17 of 30 |
+| The floor as kept | nobody, the Director's own timing | 15.2 | 13 of 30 |
+| The floor as kept | holds the way out only | 14.0 | 15 of 30 |
+| The floor as kept | holds an extinguisher only | 19.3 | 19 of 30 |
+| The floor as kept | the card, a bottle, the heap, a push at the crackle | 15.3 | 11 of 30 |
+| **As committed** (the two fixes found while hardening: the card taken from 0.9 m, the sit that ends an errand) | nobody | **17.5** | 18 of 30 |
+| **As committed** | nobody, the Director's own timing, fifty seeds (40 to 89) | **18.3** | 27 of 50 |
+
+Seen in the thirty rounds left alone, as committed: the tower fell in 28,
+the archway was shut five seconds or more in 10, the stack fell in 20, the
+alarm was pulled in 29, the way out opened in 27, the building struck in
+27, and somebody wound up for something dangerous in every one.
+
+**Profiling checkpoint** (the working agreements ask for one when a stone
+raises the number of people; standalone release build, 2026-10-02, the
+stress building, not the office). A tick with everybody busy and no fire:
+1.5 ms at 100 people, 3.8 ms at 200, 9.7 ms at 500, of which physics 1.0,
+1.6 and 3.5 ms. With the fire lit and everybody frightened from the first
+tick: 5.0, 7.1 and 12.1 ms, physics 1.0, 1.7 and 3.8 ms, slowest tick 16.7
+ms at 500. Particles in the worst-case storm: 1.05 ms a frame. Against the
+budgets: physics at 500 people misses 3 ms by half a millisecond, as
+before; the whole tick at 200 people meets 5 ms calm and misses it
+panicking; particles are within 2 ms. Nothing here is new to this stone:
+the office's thirty-four people ran at a little over a millisecond a tick
+in the editor through the measurements above. No scale tooling is adopted
+on these numbers; the audit's first stone ("the building at scale") is
+where they are to be brought down.
+
+**Not reached, and open.**
+
+- **Left alone is about half, not a quarter** (51% over thirty seeds with
+  Trigger pressed at ten seconds, 54% over fifty at the Director's own
+  timing), and more than half live on more than half the seeds. Moving
+  props took it from 24 of 34 to 16 and no further, and making the card
+  easier to take put a little back. Rounds are all or nothing: the way out opens and most of the
+  queue gets through, or the strike kills twenty in the arm, or the card
+  never comes and everybody dies. Nothing was tuned to compensate (the
+  owner's standing rule). The fifty-seed check stays red on purpose.
+- **A fire put out is peace.** Since the ladder lost its socket and fuse-box
+  rungs, nothing follows a put-out. Two to seven rounds in thirty end with
+  the fire out and everybody calm inside, and those rounds never finish:
+  the game counts everybody saved and the stall clock is held open by
+  people still settling. The owner's call: should the building answer a
+  fire that is fully put out?
+- **No scripted hand beat nobody.** The careful one saved 15.3 against 16.1;
+  the lazy ones are within the noise of it. Whether a real hand can beat the
+  strike is for a playtest.
+- **Ten seeds are noise on this floor.** The first ten-seed round said 9.6
+  saved left alone; thirty said 16 to 20. One prop moved reshuffles every
+  round, and the same change swung a ten-seed average by eight people either
+  way. Measure with thirty.
+- **A packed queue at a locked way out stands still.** With thirty-four
+  people the arm packs solid, and the ones in the middle cannot move for ten
+  seconds and more. The stand-and-stare check now lets a crush be a crush;
+  whether people in one should do something else is open.
+- **The replay of seed 42 with the boxes kicked flips**, one run in two, on
+  the floor as it is now: the physics engine's thread flip (see above).
+  That replay is recorded on seed 43 instead; the flip itself is still the
+  owner's choice between replays that always agree and speed.
+
+**What this deliberately left out.** A second way out (asked and declined
+for now); a socket in the main corridor; the meeting ending earlier;
+ordinary doors on the cafeteria; what a frightened person makes of a held
+open door that reads "shut the door"; a longer crackle before the strike;
+tests of how a label is drawn.
+
+**Things to watch at the next playtest.**
+
+- Whether five seconds of crackle is long enough to push people off the
+  socket in the arm, or whether the strike reads as "instant game over"
+  again.
+- Whether the cubicle landscape reads as the way round, or as a maze.
+- Whether the words at the hand say enough, or get in the way.
+- Whether the tower in the corridor reads as a roadblock and the heap as a
+  job, and whether anybody takes the stockroom lane because of it.
 
 ## Foundations reviewed (2026-09-23)
 

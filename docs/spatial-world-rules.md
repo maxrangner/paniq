@@ -136,6 +136,12 @@ the rectangle grown by the person's radius: the physics step keeps bodies out
 of it, and the navigation squares under it are not walkable. `WorldGeometry`
 is the only code that knows where tables are.
 
+Since 2026-10-02 a table may be a **partition** (`TableDefinition.isPartition`):
+a low fixed screen, as the cubicle landscape's are. It is on the navigation
+grid exactly as a desk is, but the physics engine builds it fixed, 1.3 m
+tall, and nobody shoves or heaves it, so its footprint never changes during
+a run. It hides nothing: sight, sound and fire do not consult tables.
+
 Since 2026-09-27 the same is true of **heavy things**: a loose thing too
 heavy for anybody to carry (`WorldSettings.OnTheMapFromGrams`), or a pinned
 one, is on the navigation grid like a table, by the square footprint of its

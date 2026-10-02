@@ -89,8 +89,30 @@ namespace Paniq.Presentation
 
         private SimulationId? hoveredDoor;
         private SimulationId? hoveredAlarm;
+        /// <summary>
+        /// The Tab panel's state for one session of play. Reset and "play
+        /// again" reload the scene, which builds a new one of these, so the
+        /// panel is kept outside the scene: its switches and the hand's two
+        /// dials last through both, as the panel says they do (found in
+        /// review, 2026-10-02: they were kept on the scene's own object and
+        /// went back to the level's values at every Reset). Forgotten at
+        /// every press of Play, so each session starts from the same
+        /// picture, with or without a domain reload.
+        /// </summary>
+        private static DebugView sessionView;
+
+        /// <summary>Whether this session's panel has learnt the level's own dial values yet: the first round seen teaches it.</summary>
+        private static bool sessionDialsLearnt;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ForgetTheSession()
+        {
+            sessionView = null;
+            sessionDialsLearnt = false;
+        }
+
         /// <summary>The Tab panel and what it switches on and off (2026-09-30).</summary>
-        private readonly DebugView view = new DebugView();
+        private readonly DebugView view = sessionView ??= new DebugView();
 
         /// <summary>The Tab panel's switches, so a test can flip them without clicking.</summary>
         internal DebugView ViewForTests => view;
@@ -265,7 +287,7 @@ namespace Paniq.Presentation
             spray.Update(frameSnapshot);
             pops.Update(time);
             UpdateCrackles(time);
-            influence.Update(frameSnapshot, time, Time.deltaTime);
+            influence.Update(frameSnapshot, time, Time.deltaTime, prototypeCamera.transform.rotation);
 
             // The player's own camera, with a bang's shake added on top of
             // wherever they have put it.
@@ -379,9 +401,11 @@ namespace Paniq.Presentation
         /// The Tab panel's hand dials reach the run (2026-09-30): each sent
         /// as a command when its slider moves, and again to a fresh round
         /// after Reset, so they last the session. A round at the level's own
-        /// values is sent nothing. The first round seen tells the panel what
-        /// the level's own values are, so "Level's own" has something to go
-        /// back to and the end card can say when a dial was off them.
+        /// values is sent nothing. The first round of the session tells the
+        /// panel what the level's own values are, so "Level's own" has
+        /// something to go back to and the end card can say when a dial was
+        /// off them; a later round, after Reset has rebuilt the scene, finds
+        /// the dials where the player left them and is sent them.
         /// </summary>
         private void SendTheHandDials()
         {
@@ -396,10 +420,11 @@ namespace Paniq.Presentation
                 // A fresh round's settings are still the level's own: nothing
                 // has been sent to it yet.
                 InfluenceSettings own = run.Scenario.Influence;
-                if (dialsSentTo == null)
+                if (!sessionDialsLearnt)
                 {
                     view.HandStrengthPercent = own.StrengthPercent;
                     view.HandReachMillimetres = own.ReachMillimetres;
+                    sessionDialsLearnt = true;
                 }
 
                 view.LevelStrengthPercent = own.StrengthPercent;
@@ -532,12 +557,17 @@ namespace Paniq.Presentation
                         ripples.Start(record.Position, scenario.Traps.CrashSoundRadiusMillimetres, SoundRipples.ThudColor, time);
                         effects.Knock(ToUnityPosition(record.Position) + Vector3.up * 0.4f, 1f, record.EventId);
                         break;
-                    case CausalEventType.TrapCreaked:
-                        // The building plays in the open (2026-09-29): the
-                        // stack sways for the seconds before it comes down,
-                        // and the creak is heard around it.
-                        boxes.Creak(TrapBoxes(scenario, record.SourceId), time + record.Strength / (float)Run.TicksPerSecond);
-                        ripples.Start(record.Position, scenario.Traps.CreakHearingMillimetres, SoundRipples.ThudColor, time);
+                    case CausalEventType.TrapTriggered:
+                        // Somebody ran into the stack (2026-10-02): the knock
+                        // that brings it down, where it landed.
+                        ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        effects.Knock(ToUnityPosition(record.Position) + Vector3.up * 0.5f, 0.5f, record.EventId);
+                        break;
+                    case CausalEventType.AgentShovedObstruction:
+                        // A heave (2026-10-02): the heaver throws their
+                        // weight at it, and it is heard.
+                        agents.Lunge(record.SourceId, time);
+                        ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
                         break;
                     case CausalEventType.AgentShookFree:
                         // Tore free of the player's hand: the "!" of somebody
@@ -662,24 +692,6 @@ namespace Paniq.Presentation
             }
 
             eventsSeen = snapshot.Events.Count;
-        }
-
-        /// <summary>The boxes a trap is built of, from the level, so the creak knows what to sway.</summary>
-        private static SimulationId[] TrapBoxes(ScenarioData scenario, SimulationId trapId)
-        {
-            TrapDefinition[] traps = scenario.TrapDefinitions;
-            if (traps != null)
-            {
-                for (int t = 0; t < traps.Length; t++)
-                {
-                    if (traps[t].TrapId == trapId)
-                    {
-                        return traps[t].BoxIds;
-                    }
-                }
-            }
-
-            return System.Array.Empty<SimulationId>();
         }
 
         /// <summary>

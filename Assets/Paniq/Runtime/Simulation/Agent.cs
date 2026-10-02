@@ -167,7 +167,7 @@ namespace Paniq.Simulation
         }
 
         public AgentSnapshot ToSnapshot(int tick, bool actingForTheHand = false, bool actingAgainstTheirNature = false,
-            bool committedToTheHand = false)
+            bool committedToTheHand = false, HandAsk handAsk = HandAsk.None)
         {
             return new AgentSnapshot(
                 Id,
@@ -199,7 +199,9 @@ namespace Paniq.Simulation
                 Intent.Tell,
                 TellSystem.ProgressOf(this, tick),
                 Intent.TellHeading,
-                committedToTheHand);
+                committedToTheHand,
+                handAsk,
+                Intent.Activity == AgentActivityState.HeavingForTheHand && Intent.HeavingUntilTick > 0);
         }
     }
 
@@ -784,6 +786,9 @@ namespace Paniq.Simulation
 
         /// <summary>The press "drawn by" was written for, so it is written once a press.</summary>
         public ulong AnsweredPress;
+
+        /// <summary>The ask they last said they took up for that press, so each is said once (2026-10-02).</summary>
+        public HandAsk SaidAsk;
 
         /// <summary>A push they have already walked away from, so one push sends them off once.</summary>
         public ulong PushedByPress;

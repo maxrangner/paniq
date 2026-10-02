@@ -129,8 +129,10 @@ namespace Paniq.Simulation
             int heading = agent.Body.Heading;
             LogicalPosition ahead = position + IntegerMath.Displacement(heading, bodyRadius + ArmsReachMillimetres);
             int table = geometry.TableAt(ahead, bodyRadius);
-            if (table < 0)
+            if (table < 0 || geometry.IsPartition(table))
             {
+                // Nothing there, or a partition, which nobody shifts: they
+                // stay blocked and give this way up like any other.
                 return false;
             }
 

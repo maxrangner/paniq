@@ -118,15 +118,22 @@ namespace Paniq.Presentation
                 // Since 2026-09-30 the left button on a door draws people to
                 // use it and the right pushes them away from it.
                 DoorSnapshot door = hoveredDoor.Value;
+
+                // What a hand here asks, by the run's own rule for doors
+                // (2026-10-02), so the line says what people will do.
+                bool open = door.State == DoorState.Open;
+                HandAsk asks = HandAsks.ForDoor(open, open, door.IsPiled, door.Swings || door.IsHole, door.NeedsKeycard,
+                    door.State == DoorState.Locked, door.State == DoorState.Broken);
                 string pull = IsTheHandOn(snapshot, door.DoorId, true)
-                    ? "your hand is on it"
-                    : "hold to draw people to it (they open it if shut, shut it if open), right button to push them away; click for three seconds";
+                    ? $"your hand is on it - \"{HandAskWords.Label(HeldAsk(snapshot)) ?? "come here"}\""
+                    : $"hold - \"{HandAskWords.Label(asks)}\"; right button pushes people away; a click leaves it three seconds";
                 string action = door.Swings ? $"Swing doors: people push straight through. {Capital(pull)}"
-                    : door.IsPiled ? "THE BOXES ARE LYING ACROSS IT - nobody gets through until enough of them are gone; hold it and they clear the boxes"
+                    : door.IsPiled ? $"THE BOXES ARE LYING ACROSS IT - nobody gets through until enough of them are gone. {Capital(pull)}"
+                    : door.IsHole ? $"An open way through. {Capital(pull)}"
                     : door.State == DoorState.Broken ? $"Broken down. {Capital(pull)}"
                     : door.IsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted"
-                    : door.NeedsKeycard ? $"NEEDS THE KEYCARD - {WhereTheKeycardIs(snapshot)}. Hold it and they pound on it until it gives, and somebody who knows where the card is goes for it. {Capital(pull)}"
-                    : door.State == DoorState.Locked ? $"Locked. Hold it and they throw themselves at it, weak or strong. {Capital(pull)}"
+                    : door.NeedsKeycard ? $"NEEDS THE KEYCARD - {WhereTheKeycardIs(snapshot)}. They pound on it until it gives, and somebody who knows where the card is goes for it. {Capital(pull)}"
+                    : door.State == DoorState.Locked ? $"Locked: they throw themselves at it, weak or strong. {Capital(pull)}"
                     : Capital(pull);
                 GUI.color = door.IsJammed || door.IsPiled ? new Color(1f, 0.7f, 0.6f)
                     : door.NeedsKeycard ? new Color(1f, 0.9f, 0.5f) : Color.white;
@@ -163,7 +170,7 @@ namespace Paniq.Presentation
             else if (input.HoveredThing.HasValue)
             {
                 GUI.Label(HintLine, IsTheHandOn(snapshot, input.HoveredThing.Value, false)
-                    ? "Your hand is on it"
+                    ? $"Your hand is on it - \"{HandAskWords.Label(HeldAsk(snapshot)) ?? "come here"}\""
                     : "Hold to draw people to it: a chair is sat on, a box carried off, fallen boxes cleared, the bottle taken and used, the card pocketed. Right button pushes them away; drag to move the hand");
             }
             else if (input.HoveredFloor.HasValue)
@@ -171,7 +178,7 @@ namespace Paniq.Presentation
                 GUI.Label(HintLine, snapshot.InfluencePlaces.Count > 0
                     ? snapshot.InfluencePlaces[0].Repels
                         ? "Your hand is pushing people away from here: drag it to herd them. Let go and they are on their own"
-                        : "Your hand is on the floor here: people nearby come to it, and the sure keep at it after you let go. Drag it to lead them"
+                        : $"Your hand is on the floor here - \"{HandAskWords.Label(HeldAsk(snapshot)) ?? "come here"}\". The sure keep at it after you let go; drag it to lead them"
                     : snapshot.HandResting
                         ? "Your hand is resting: the bar has to fill a little before it takes another press"
                         : "Hold to draw people here (drag to lead them), right button to push them away; a click leaves it for three seconds");
@@ -232,8 +239,9 @@ namespace Paniq.Presentation
 
                 string strength = agent.Traits.Strength >= 9 ? " (too strong to hold for long)"
                     : agent.Traits.Strength >= 6 ? " (strong: they will tear free in a while)" : "";
-                string doing = agent.CommittedToTheHand ? " Keeping at what your hand asked."
-                    : agent.ActingForTheHand ? " Doing what your hand asks." : "";
+                string task = agent.HandAsk != HandAsk.None ? $" ({HandAskWords.Doing(agent.HandAsk)})" : "";
+                string doing = agent.CommittedToTheHand ? $" Keeping at what your hand asked{task}."
+                    : agent.ActingForTheHand ? $" Doing what your hand asks{task}." : "";
                 return agent.IsAnnoyed
                     ? $"{who}: annoyed with you - a poke does nothing for a while; hold to hold them here{strength}; right button pushes the people round them away.{doing}"
                     : $"{who}: click to poke them away from the click; hold to hold them here{strength}; right button pushes the people round them away.{doing}";
@@ -241,6 +249,10 @@ namespace Paniq.Presentation
 
             return who;
         }
+
+        /// <summary>What the hand asks where it is right now, as the run reads it (2026-10-02), or nothing with no hand on.</summary>
+        private static HandAsk HeldAsk(RunSnapshot snapshot) =>
+            snapshot.InfluencePlaces.Count > 0 ? snapshot.InfluencePlaces[0].Ask : HandAsk.None;
 
         /// <summary>Whether the player's hand is on this door or thing right now, for the hover line.</summary>
         private static bool IsTheHandOn(RunSnapshot snapshot, SimulationId target, bool isDoor)
@@ -493,6 +505,15 @@ namespace Paniq.Presentation
             if (agent.BodyState != AgentBodyState.Upright)
             {
                 return agent.BodyState == AgentBodyState.Staggering ? "staggering" : "down";
+            }
+
+            // What they are doing for the hand comes first (2026-10-02): a
+            // calm person heaving a crate or opening a door for you used to
+            // read "calm".
+            if ((agent.ActingForTheHand || agent.CommittedToTheHand) && agent.HandAsk != HandAsk.None)
+            {
+                return "for you: " + HandAskWords.Doing(agent.HandAsk) +
+                       (agent.Straining ? " (straining)" : agent.CommittedToTheHand ? " (keeping at it)" : "");
             }
 
             if (agent.FearState == AgentFearState.Calm)

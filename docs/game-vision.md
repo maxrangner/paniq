@@ -206,12 +206,15 @@ a wave at the player). Too calm, and something else goes wrong in a far wing.
 A massacre, and the pressure lets up.
 
 The Director is **reactive**: it responds to how the run is actually going.
-Its first form (prototype 3, 2026-09-26) is a **ladder of small incidents**: a
+Its first form (prototype 3, 2026-09-26) was a **ladder of small incidents**: a
 waste bin catches; put it out and, a while later, a socket crackles and pops in
 the busiest calm room; put that out and the fuse box goes and takes every
-socket with it. A fire that gets out of the room it started in is the real
-fire, and the Director stops adding to it. If everybody simply runs out, that
-is fine too.
+socket with it. Since 2026-10-02 the ladder is the bin alone (doused too
+soon, another bin), and the socket and the fuse box are the building's
+counter-move only: they go when the way out is open and more are getting out
+than the building allows. A fire that gets out of the room it started in is
+the real fire, and the Director stops adding to it. If everybody simply runs
+out, that is fine too.
 
 The accepted consequence is that two attempts at the same level are **not
 directly comparable**, because the player's own competence changed what the

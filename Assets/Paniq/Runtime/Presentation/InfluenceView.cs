@@ -48,7 +48,7 @@ namespace Paniq.Presentation
             this.effects = effects;
         }
 
-        public void Update(RunSnapshot snapshot, float time, float deltaTime)
+        public void Update(RunSnapshot snapshot, float time, float deltaTime, Quaternion cameraRotation)
         {
             int places = snapshot == null ? 0 : snapshot.InfluencePlaces.Count;
             for (int i = 0; i < places; i++)
@@ -56,6 +56,12 @@ namespace Paniq.Presentation
                 InfluencePlaceSnapshot place = snapshot.InfluencePlaces[i];
                 float strength = place.MaximumLevel > 0 ? place.Level / (float)place.MaximumLevel : 0f;
                 DrawAura(i, place, strength, time, deltaTime);
+                DrawLabel(i, place, cameraRotation);
+            }
+
+            for (int i = places; i < labels.Count; i++)
+            {
+                labels[i].Root.gameObject.SetActive(false);
             }
 
             // The hand on a person (2026-09-29): the same gold ring, at their
@@ -227,6 +233,85 @@ namespace Paniq.Presentation
             float width = acting ? Mathf.Lerp(0.03f, 0.08f, felt) : Mathf.Lerp(0.01f, 0.05f, felt);
             line.widthMultiplier = width * (0.9f + 0.1f * Mathf.Sin(time * 17f + index));
             line.enabled = true;
+        }
+
+        /// <summary>The words over the hand's place: a small dark card with the ask on it.</summary>
+        private sealed class AskLabel
+        {
+            public Transform Root;
+            public TextMesh Words;
+        }
+
+        private readonly List<AskLabel> labels = new List<AskLabel>();
+
+        /// <summary>How high over the place the words float: above people's heads and their signs.</summary>
+        private const float LabelHeight = 2.15f;
+
+        private static readonly Color LabelCard = new Color(0.12f, 0.1f, 0.07f);
+
+        /// <summary>
+        /// What the hand asks here, in two or three words over its ring
+        /// (2026-10-02): "clear the boxes", "open the door", "come here".
+        /// The run says which; this only writes it, facing the camera.
+        /// </summary>
+        private void DrawLabel(int index, InfluencePlaceSnapshot place, Quaternion cameraRotation)
+        {
+            while (labels.Count <= index)
+            {
+                labels.Add(NewLabel());
+            }
+
+            AskLabel label = labels[index];
+            string words = HandAskWords.Label(place.Ask);
+            if (words == null)
+            {
+                label.Root.gameObject.SetActive(false);
+                return;
+            }
+
+            label.Words.text = words;
+            label.Words.color = place.Repels ? PushGlow : Glow;
+            label.Root.SetPositionAndRotation(ToUnityPosition(place.At) + Vector3.up * LabelHeight, cameraRotation);
+            label.Root.gameObject.SetActive(true);
+        }
+
+        private AskLabel NewLabel()
+        {
+            var label = new AskLabel { Root = new GameObject("Hand ask (presentation)").transform };
+            label.Root.SetParent(parent, false);
+
+            GameObject backing = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            backing.name = "Card";
+            Object.Destroy(backing.GetComponent<Collider>());
+            backing.transform.SetParent(label.Root, false);
+            backing.transform.localScale = new Vector3(1.2f, 0.32f, 1f);
+            backing.transform.localPosition = new Vector3(0f, 0f, 0.01f);
+            MeshRenderer card = backing.GetComponent<MeshRenderer>();
+            card.sharedMaterial = material;
+            card.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            card.receiveShadows = false;
+            var block = new MaterialPropertyBlock();
+            block.SetColor("_Color", LabelCard);
+            card.SetPropertyBlock(block);
+
+            var wordsObject = new GameObject("Words");
+            wordsObject.transform.SetParent(label.Root, false);
+            wordsObject.transform.localPosition = new Vector3(0f, 0f, -0.01f);
+            label.Words = wordsObject.AddComponent<TextMesh>();
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font != null)
+            {
+                label.Words.font = font;
+                wordsObject.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+            }
+
+            label.Words.anchor = TextAnchor.MiddleCenter;
+            label.Words.alignment = TextAlignment.Center;
+            label.Words.fontStyle = FontStyle.Bold;
+            label.Words.characterSize = 0.065f;
+            label.Words.fontSize = 64;
+            label.Root.gameObject.SetActive(false);
+            return label;
         }
 
         private LineRenderer NewLine(string name, int points, bool loop)

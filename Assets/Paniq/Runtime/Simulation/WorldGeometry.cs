@@ -80,6 +80,26 @@ namespace Paniq.Simulation
         /// <summary>The one field used to work the door walks out, kept so working one out allocates nothing.</summary>
         private FlowField doorWalkScratch;
 
+        /// <summary>Which tables are partitions (2026-10-02): fixed screens that nothing moves.</summary>
+        private readonly bool[] tableIsPartition;
+
+        /// <summary>Whether this table is a partition between desks: fixed where it stands, never shoved, heaved or tipped.</summary>
+        public bool IsPartition(int table) => tableIsPartition[table];
+
+        /// <summary>
+        /// Whether this table is a desk or a table proper: something with a
+        /// top to work at and put things on. Every rule about a table as
+        /// furniture asks this; every rule about a table as a thing in the
+        /// way (<see cref="TableAt"/>, the map, bodies sliding along it)
+        /// counts partitions too.
+        /// </summary>
+        public bool IsDesk(int table) => !tableIsPartition[table];
+
+        /// <summary>How tall this table stands, to its top: a desk's height, or a partition's.</summary>
+        public int TableHeightMillimetres(int table) => tableIsPartition[table]
+            ? context.Scenario.PhysicsFeel.PartitionHeightMillimetres
+            : context.Scenario.PhysicsFeel.TableHeightMillimetres;
+
         public WorldGeometry(SimulationContext context, DoorRuntime[] doors)
         {
             this.context = context;
@@ -93,11 +113,13 @@ namespace Paniq.Simulation
             tableIds = new SimulationId[definitions.Length];
             tablePoses = new BodyPose[definitions.Length];
             tablesAsBaked = new LogicalBounds[definitions.Length];
+            tableIsPartition = new bool[definitions.Length];
             for (int i = 0; i < tables.Length; i++)
             {
                 tables[i] = definitions[i].Bounds;
                 tablesAsBaked[i] = definitions[i].Bounds;
                 tableIds[i] = definitions[i].TableId;
+                tableIsPartition[i] = definitions[i].IsPartition;
             }
 
             // Rooms keep their authored order: the first one is where the fire starts.
@@ -1565,7 +1587,9 @@ namespace Paniq.Simulation
         /// The lowest-index table a body of <paramref name="bodyRadius"/> at
         /// <paramref name="position"/> would overlap, or -1. A table is
         /// treated as its rectangle grown by the radius on every side, so
-        /// standing exactly at that edge is allowed.
+        /// standing exactly at that edge is allowed. Partitions count: this
+        /// asks what is in the way, not what is a desk
+        /// (<see cref="IsDesk"/>).
         /// </summary>
         public int TableAt(LogicalPosition position, int bodyRadius)
         {

@@ -29,26 +29,38 @@ high in two walls that make a winding lane through it (since the second round
 of playtest fixes, 2026-09-27: in at the west door, up the west lane, round
 the end of the first wall, down the middle lane, round the end of the second,
 up the east lane to the north door -- fifteen metres where it was nine), which
-also has a door into the office's east wall. So from the office there are
-two ways to the way out: along the corridor, or through the stockroom. The **storage closet** hangs off the office's east wall, and the
+also has a door into the office's east wall. East of the T, since
+2026-10-02, is the **cubicle landscape**: a 12 × 20 m room of fifteen
+cubicles behind low grey-blue screens you can see over, with three doors in
+its west wall -- one beside the way out, one at the T's south end opposite
+the stockroom's door, and one into the stockroom's east lane. So from the
+office there are three ways to the way out: along the corridor, through the
+stockroom and up the T's south arm, or through the stockroom and the
+cubicle landscape to the door beside the way out. The **storage closet** hangs off the office's east wall, and the
 **maintenance room**, with the fuse box, is at the far west end, past
 everything. Every room but the bathroom has two ways out (the owner's rule,
 2026-09-25).
 
-Twenty people (capsules) work there or are visiting: eight in the office, six
-in a meeting, four in the cafeteria and two in the bathroom. The office holds
+Thirty-four people (capsules) work there or are visiting: eight in the
+office, six in a meeting, four in the cafeteria, two in the bathroom and
+fourteen in the cubicle landscape. The office holds
 three wooden desks with a chair and a laptop each, cardboard boxes against the
 walls with some stacked in pairs, waste bins, potted plants, a microwave, wall
 sockets and a fire extinguisher. Since prototype 3 a **tower of boxes**, two
-stacks four high, stands in the corner where the corridor meets the T, and
-since the second round of playtest fixes a **stack of four crates** stands
-against the north wall at the stockroom lane's first bend; see the
-[roadmap](roadmap.md) for the traps they are part of. The building has **one
+stacks four high, stands against the corridor's north wall just before the
+archway into the T (since 2026-10-02: the inside of the turn everybody
+running for the way out makes), and a **stack of four crates** stands free
+at the end of the stockroom's first crate wall, the corner its lane turns
+round. Each comes down when somebody runs into it, and for no other reason.
+A **wall socket** is on the wall of the arm that leads to the way out, and
+the cafeteria's microwaves and socket are on its north wall, away from that
+arm. The building has **one
 fire-alarm pull station**, at the far west end of the corridor, and alarm bells
 high on the walls. Since 2026-09-27 there is a **keycard**, a small bright
-yellow card: the seed decides whether it starts in a member of staff's
-pocket or lying on one of the office's three desks, and it is the only thing
-that opens the way out (see *The round* below).
+yellow card: the seed decides whether it starts lying on one of the
+office's three desks or in the pocket of one of the eight people who work in
+the open-plan office (never, since 2026-10-02, with somebody sitting beside
+the way out), and it is what opens the way out (see *The round* below).
 
 The meeting is a client visit already under way: six people sit round one long
 table, five of them visitors who came up in the lift and do not know the way
@@ -92,10 +104,25 @@ draw them), in `PrototypeBuilding.DefaultAgents`:
 | 18 | cafeteria | the coward | 3 | 4 | 2 | 4 | 3 | 8 | 2 |
 | 19 | bathroom | ordinary | 5 | 5 | 5 | 6 | 3 | 5 | 5 |
 | 20 | bathroom | ordinary | 6 | 7 | 6 | 4 | 5 | 4 | 6 |
+| 21 | cubicles, seated | the steady one | 6 | 5 | 6 | 6 | 2 | 3 | 5 |
+| 22 | cubicles, seated | the gossip | 4 | 6 | 4 | 6 | 3 | 6 | 3 |
+| 23 | cubicles, seated | the second sprinter | 4 | 9 | 4 | 5 | 3 | 5 | 3 |
+| 24 | cubicles, seated | the team lead | 5 | 5 | 7 | 7 | 2 | 3 | 8 |
+| 25 | cubicles, seated | the intern | 3 | 7 | 3 | 6 | 1 | 7 | 1 |
+| 26 | cubicles, seated | the grumbler | 6 | 5 | 4 | 2 | 7 | 5 | 4 |
+| 27 | cubicles, seated | the carer | 4 | 5 | 6 | 9 | 1 | 5 | 5 |
+| 28 | cubicles, seated | the ox | 9 | 4 | 5 | 5 | 4 | 2 | 3 |
+| 29 | cubicles, seated | the daydreamer | 5 | 4 | 5 | 5 | 2 | 4 | 2 |
+| 30 | cubicles, seated | the show-off | 7 | 7 | 7 | 3 | 6 | 2 | 7 |
+| 31 | cubicles, seated | ordinary | 5 | 5 | 5 | 5 | 3 | 5 | 4 |
+| 32 | cubicles, seated | the jumpy one | 3 | 6 | 3 | 6 | 2 | 8 | 2 |
+| 33 | cubicles, coffee point | the schemer | 6 | 6 | 6 | 2 | 8 | 3 | 6 |
+| 34 | cubicles, coffee point | the old hand | 5 | 4 | 8 | 7 | 1 | 2 | 6 |
 
-The eight in the office each have a desk chair that is theirs, and the two
-seated in the cafeteria have theirs; over the day people drift back to them.
-The visitors and their host have no home on this floor.
+The eight in the office each have a desk chair that is theirs, the two
+seated in the cafeteria have theirs, and the twelve at the cubicle desks
+have theirs; over the day people drift back to them. The visitors and their
+host have no home on this floor.
 
 What the traits do:
 - **Speed** sets walking pace (1.0–1.6 m/s) and sprinting pace (3–5.5 m/s).
@@ -182,9 +209,9 @@ Collisions and trips make a thud that calm people within 3 m turn toward. The
 counter at the top left shows calm, scared (and frozen), down and lost people.
 
 **Tells: you can see it coming** (2026-09-30, the owner: "the visible agent
-tells"). The tower of boxes creaks for three seconds before it falls, and that
-window is where the play is. People now have the same: before three dangerous
-things they wind up for about a second, a red ring at their feet shrinking to
+tells"). Before three dangerous things people wind up for about a second
+(the tower of boxes had a creak like it until 2026-10-02, when it stopped
+being set off by anything but a body): a red ring at their feet shrinking to
 nothing as the time runs out, and one click in that window saves them.
 - **Going stiff.** Somebody who is about to freeze shivers harder and harder
   first, and a sign says "going stiff...". **One** poke, a tug, or your hand
@@ -418,7 +445,7 @@ sliding one, enough for a chair to knock someone off balance.
 **Boxes.** Cardboard boxes, 0.3–0.7 m wide and, by their size, 3–55 kg
 (since 2026-09-27: 300 mm and under 3 kg, 400 mm 6, 500 mm 10, 600 mm 40,
 700 mm 55), stand against the office walls, wall the stockroom and make up
-the tower at the T and the stack in the stockroom. The tower's boxes are the
+the tower by the archway and the stack in the stockroom. The tower's boxes are the
 exception to everything below until it falls: nobody kicks, lifts, carries or
 hurls a box from the standing tower, however strong, and the same goes for
 the stockroom's crate walls and its stack. Once the tower has fallen its
@@ -524,11 +551,13 @@ floor only in its own room, or in a room open to it through a doorway.
 **The cable runs one way** (the owner's rule, 2026-09-26: "only if the fusebox
 goes, it should quickly cascade down to all outlets, but not the other way
 around"). A socket going off, in the flames or because the Director chose it,
-is a bang and nothing more. When the **fuse box** goes -- the flames reach it,
-the Director sets it off, or the card -- a spark races out along the cable at
+is a bang and nothing more. When the **fuse box** goes -- the flames reach it
+or the Director sets it off -- a spark races out along the cable at
 twenty metres a second and every socket down the line pops in turn: the
-office's three are all gone within about two and a half seconds. A socket
-already wrecked does not stop the spark; it carries on past to the next.
+building's six -- two in the office, the cafeteria's, the one in the arm to
+the way out and two in the cubicle landscape -- are all gone within about
+five seconds. A socket already wrecked does not stop the spark; it carries
+on past to the next.
 
 **Wedged doorways.** Anything as big as a box or a chair left resting in a
 doorway jams that door, from either side, and both ways: it cannot be opened
@@ -563,7 +592,7 @@ has stopped being a way out.
 ## The round
 
 **It builds up** (prototype 3, second batch, 2026-09-26). A card covers the
-screen before anything moves: the level's name, how many of the twenty have to
+screen before anything moves: the level's name, how many of the thirty-four have to
 live to clear it, your best ever, and a box holding the seed with a **Random**
 button beside it -- and, since 2026-10-01, a row of levels to pick from: this
 office, or one of the three test levels (the square room, the maze and the
@@ -576,50 +605,47 @@ counts *saved*, *lost* and *still inside* against the target, and under it sits
 or the moment you press the button, **a waste bin in the meeting room catches
 fire** -- by the door one seed, in the far corner or under the north wall the
 next. It smoulders for about ten seconds before the carpet under it catches,
-and while the fire is young it spreads slowly, so somebody brave has a real
-chance to fetch a bottle and put it out -- from the office or the cafeteria,
-since 2026-09-27: the meeting room's own is gone. Pressing the button twice
+and while the fire is young it spreads slowly, so somebody has a real
+chance to fetch a bottle and put it out. The meeting room has had none of
+its own since 2026-09-27, and since 2026-10-02 the nearest stand further
+off than the brave go for one unasked -- at the cafeteria's east end and on
+the office's far wall -- so the first bin is yours to save: a hand on a
+bottle sends somebody for it, the coward too. Pressing the button twice
 does not light two fires. **A bin doused before the carpet ever caught was no
 fire** (the owner's rule, 2026-09-27): another of the room's three bins
 catches a beat later, and a third after that.
 
-**The moment the first frightened person runs past the tower of boxes, it
-comes down** (the owner's order, 2026-09-27: bin, boxes, outlet), whatever
-the fire is doing -- **after about three seconds of creaking** (2026-09-29:
-the building plays in the open). Since 2026-09-30 "past" means close: within
-three and a half metres of it, in the crossbar where it stands, in sight of
-it. It used to be anybody running anywhere along the corridor. Sprung, the
-tower sways, the creak is heard across its room so calm people look up at
-it, and a sign says "it's going!"; a player who is watching has those
-seconds to get people clear, with a hand on the floor or a push. Nothing can
-be done to the tower itself. **It falls where the runner was when it began to
-creak** (the owner, 2026-09-30: "box tower should fall next to the first
-person running past, not in the corridor"; asked how close, "where they
-were"): the boxes are thrown by physics into a heap on that spot, three to a
-row across the way the runner was going. The runner, who kept running, is
-usually clear; whoever was following them runs into it. Where they land is
-where they land. If three or more happen to lie still in the archway between
-the corridor and the crossbar, it is shut for people and fire, as before.
-The Director springing it with no runner brings it down on the nearest
-frightened person in the crossbar, or across the archway if there is nobody.
-The stockroom's stack creaks the same way and still falls across its lane.
+**The tower of boxes comes down when somebody runs into it, and for no
+other reason** (the owner, 2026-10-02: "the boxes falling looks scripted.
+Keep it, but make it purely dynamic so if an agent actually bumps into it,
+it falls. No director trigger"). It stands against the corridor's north wall
+just before the archway, on the inside of the turn toward the way out, where
+a crowd cuts the corner. People walking past it all day never topple it;
+anybody at a run who hits a box does -- frightened or calm, fire or no fire
+-- and it falls a beat later, with no creak and no warning. The boxes are
+thrown by physics into a heap a stride on, the way the runner was going,
+three to a row: a runner making for the archway throws them into it. Where
+they land is where they land. If three or more happen to lie still in the
+archway between the corridor and the crossbar, it is shut for people and
+fire: hold your hand on the heap and whoever answers clears it, or lead
+people the long way, through the stockroom. Measured over thirty rounds with
+nobody playing, it fell in twenty-eight and shut the archway for five
+seconds or more in ten. The stockroom's stack of crates falls the same
+way, into the single-file lane beyond it (twenty rounds of thirty).
+Until 2026-10-02 the first frightened runner to come near set the tower
+creaking for three seconds, and the Director could spring it.
 
 **If the bin is put out** -- nothing burning anywhere, and it never got out of
 the meeting room -- any bell that was pulled falls silent about ten seconds
 later (the all-clear; pulled again by somebody still frightened, it falls
-silent again), people calm down at their own pace, and **a wall socket
-crackles** five to ten seconds after the put-out, in the room with the most
-people, calm or frightened, never a room the incident already had. It spits
-sparks and smokes for five seconds (the curious may wander over to look),
-then goes off: a bang and a small fire. **If that is put out too, the fuse
-box crackles and goes** five to ten seconds later, and every socket after it.
-That is the last rung.
-
-**If the boxes fall, the socket does not wait for the put-out** (the owner's
-rule, 2026-09-27: "socket pop 5 sec after box topple"). Five seconds after
-the tower or the stockroom's stack comes down the socket crackles, whatever
-the bin is doing -- burning, out, or got loose -- because bin, boxes, outlet
-is the order. The fuse box still needs the socket's fire put out.
+silent again), people calm down at their own pace, **and that is the end of
+it** (the owner, 2026-10-02: the socket that followed was "an instant game
+over. That should only pop late in a run ... only as the building's
+counter-move"). Until then a socket crackled five to ten seconds after a
+put-out, or five seconds after the boxes fell, and the fuse box after that.
+A fire fully put out is now peace: everybody inside counts as saved, and
+the round is slow to end while people are still settling. Whether the
+building should answer it is open (see the [roadmap](roadmap.md)).
 
 **If a fire gets out of the room it started in, it is the real fire.** The
 ladder adds nothing more. If everybody simply runs out, that is fine too.
@@ -628,31 +654,41 @@ something still to come.
 
 **The Director also caps the round** (2026-09-28, the owner's rule: left
 alone, about a quarter should live and never more than half). Before the
-round it decides how many the building will let out today, two to eight of
-the twenty, differently every seed. Every half second it reads how many are
+round it decides how many the building will let out today, three to fourteen
+of the thirty-four (a tenth to two fifths), differently every seed. Every half second it reads how many are
 *on course* to get out: everybody out already, plus everybody frightened
 and on their feet who could walk to the way out, counted only while the way
 out stands open or the card is in the pocket of somebody frightened who can
 reach it. Once the way out is open and more are on course than it allows,
-the building turns on the crowd: a trap still standing with somebody on
-course in its room comes down without waiting for a runner; otherwise the
-socket in the room with the most of them crackles and pops; once a socket
-has gone, the fuse box; with nothing burning at all, another bin. One trick
+the building turns on the crowd: the socket in the room with the most of
+them crackles for five seconds and pops; once a socket has gone, the fuse
+box; with nothing burning at all, another bin. Since 2026-10-02 this is the
+only way the Director sets off a socket or the fuse box, it never touches
+the stacks of boxes, and there is a socket where the queue is: on the wall
+of the arm that leads to the way out, five and a half metres short of the
+door. When the door opens with that arm packed, that is the one that goes.
+The answers are yours: push people off it while it crackles (the right
+button), send somebody for the bottle half way along the cubicle
+landscape's north wall, or lead the stream through the cubicle landscape,
+in by its south door and out beside the way out. A card door pounded down
+under your hand counts as the way out open, as a swiped one does. One trick
 at a time, a beat after it is decided, and half a minute to a minute
 between. Since 2026-09-29 the push is announced: **THE BUILDING TURNS ON THE
 CROWD** across the top of the screen for four seconds, in the band the alarm
 uses, so a socket crackling right after the door opens reads as the
 building's move and not as bad luck. And when the round is already a massacre -- only the allowance's
-worth, or fewer, still alive or out -- nothing more is added: no socket
-after the boxes fall, no fuse box after a put-out, no second bin, and a
-standing trap stays unarmed. The Director reads the crowd and the card only,
+worth, or fewer, still alive or out -- nothing more is added: no socket, no
+fuse box and no second bin. The Director reads the crowd and the card only,
 never your clicks, so the "left alone" line on the end card stays honest.
 
 **The way out needs the keycard** (2026-09-27, the owner's idea). Nobody
 batters the way out any more and your key does not fit it; the fire does
 not burn through it. One keycard is in the building, and where it starts is
-the seed's choice, half and half: in a member of staff's pocket (never a
-visitor's), or lying on one of the office's three desks. Everybody who works
+the seed's choice, half and half: lying on one of the office's three desks,
+or in the pocket of one of the eight people who work in the open-plan
+office (since 2026-10-02; it used to be any member of staff, and with
+fourteen of them sitting beside the way out the card began a few steps
+from the door in about one round in four). Everybody who works
 here knows where it began; the visitors do not; anybody who sees it, or sees
 who has it, learns where it is a beat later. Somebody frightened who has the
 card makes straight for the way out and swipes it open from a couple of
@@ -672,20 +708,23 @@ person with the card wears it on their right hip, drawn larger than it is
 (2026-10-02; it used to be held up, then a mark over the head), and the line
 under the score says **HAS THE KEYCARD** when you point at them.
 
-Left alone, the office now saves about three of twenty over fifty seeds
-(15%, measured 2026-09-29 with the creak; it was four and a half, 23%, the
-day before, and the owner asked for about a quarter), four seeds in fifty
-clearing the bar and six in fifty saving more than half, which the owner's
-rule says none should. The creak is what moved it (see the
-[roadmap](roadmap.md)); nothing was tuned to compensate. Most rounds end with everybody dead: a card
-on a desk is fetched only by the hero, and the holder of a pocket card
-reaches the door in about one round in three, because the fallen tower now
-really holds (its boxes used to slide apart by themselves) and the fire has
-usually grown past them by the time they get there. Where the holder does
-get out, the Director's cap trims the stream behind them in some rounds and
-cannot in others; the crowd's own tricks, still to come, are where the rule
-becomes a rule. Yesterday it saved about six, and before the card sixteen,
-because the strong battered the door down.
+Left alone, the office now saves about seventeen and a half of thirty-four
+over thirty seeds (51%, measured 2026-10-02 with Trigger pressed at ten
+seconds; eighteen, 54%, over fifty seeds at the Director's own timing), and
+more than half live on more than half the seeds, which the owner's rule
+says none should. It was about three of twenty
+(15%) on 2026-09-29. What moved it up: a fire that is put out is now the
+end of it, where a socket and then the fuse box used to follow; and the
+cubicle landscape put fourteen people beside the way out. What was done
+about it without touching a rule of the crowd: the card kept in the office,
+a socket in the arm to the way out, and the bottles moved out of the
+brave's own reach took it from twenty-four of thirty-four to sixteen, and
+no further; the card being easier to take then put a little back. Rounds
+are all or nothing: the way out opens and most of the
+queue gets through, or the building's strike kills twenty in the arm, or
+the card never comes and everybody dies. Nothing was tuned to compensate;
+the crowd's own tricks, still to come, and an answer to a fire that is put
+out are where the rule becomes a rule (see the [roadmap](roadmap.md)).
 
 **Pause looks, it does not act.** **Space** stops everything: people mid-stride,
 flames mid-flicker, smoke mid-drift. The camera still answers you so you can go
@@ -983,7 +1022,9 @@ ring and the lines are a cool blue, the lines running away from the place.
   - the hand on a shut or locked door: the frightened throw themselves at
     it whatever their strength, come back to it if they had given it up,
     and keep at it while the hand stays; the weak do a little each blow, so
-    a few of them together break an ordinary door. The card door never gives;
+    a few of them together break an ordinary door. The card door gives to a
+    long pounding (since 2026-09-30: three people about forty seconds), and
+    broken that way it is a way out standing open, to the building too;
   - the hand on a crate too heavy for anybody to carry (a box off the fallen
     tower), on the floor beside some, or on the archway they are heaped
     across: it **clears** them (2026-09-30, the owner: "when influenced they
@@ -994,13 +1035,26 @@ ring and the lines are a cool blue, the lines running away from the place.
     visible straining if they are weak, half the time with two at one crate;
     several helpers spread over the heap. It used to be one crate a press,
     pushed from wherever the helper stood, sometimes deeper into the heap.
-    Drag the hand along a heap and they clear a path behind it. The tower
+    Drag the hand along a heap and they clear a path behind it. A stack
     still standing and the
     stockroom's walls of crates are off limits, as ever;
   - the hand on the pull station: whoever comes pulls it, whatever their
     nerve;
   - the hand on the card, or on the card door: somebody goes back for the
-    card, whatever their nerve.
+    card, whatever their nerve. The card is taken from 0.9 m, the distance
+    the hand's own ring of people stands at (2026-10-02: at 0.7 the people
+    gathered round the desk stood where the one fetching it needed to).
+- **It says what it asks** (2026-10-02, the owner: "I don't really feel that
+  the interactions are clear ... Maybe they are doing it, but I'm not
+  sure"). Two or three words at the hand's ring name the ask: "come here",
+  "away from here", "open the door", "shut the door", "pound the door",
+  "clear the boxes", "carry it off", "take the bottle", "sit here", "pull
+  the alarm", "get the card". Whoever takes it up has the same words over
+  their head as they set off ("clearing the boxes...", "going for the
+  card..."), somebody straining at a crate leans into it, and when the job
+  is done the place says so: "opened!", "shut!", "cleared!", "taken!",
+  "pulled!". A hand on an archway, swing doors or a door already broken asks
+  nobody to work a door that cannot be worked; it gathers.
 - **You can see it work.** A sparkling aura on the place under your hand, and
   a sparkling line from everybody feeling the pull to it, faint for a gentle
   pull and bright for a strong one; the line is thick and bright for anybody
@@ -1737,7 +1791,8 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   (20) or more while moving under `PressedStepMillimetres` (5), and at
   `BlockedGiveUpTicks` (12) somebody pressed against a held or pinned thing
   they cannot heave gives the doorway up and chooses again.
-- **The creak** (`TrapSystem.Creak`): springing a trap, by a runner or the
+- **The creak** (gone since 2026-10-02, see the last section of these
+  rules; kept here as the record of what it was) (`TrapSystem.Creak`): springing a trap, by a runner or the
   Director's push, sets its fall `Jittered(CreakTicks)` (150) ahead, writes
   `TrapCreaked` (strength: the ticks until the fall) and plays a `Crash`
   sound of `CreakHearingMillimetres` (6000) so calm people look toward it.
@@ -1769,7 +1824,8 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   wall (`HeaveHeading`). `ChooseExitDoor` and `ChooseRefugeDoor` skip a door
   whose approach `Routes.CanGetFromHereToThere` cannot reach unless the
   person could heave (`IsCutOff`).
-- **The stockroom's stack.** `TrapDefinition` lane form (trigger room,
+- **The stockroom's stack** (the lane form is gone since 2026-10-02: a stack
+  is its boxes and falls the way its bumper was going). `TrapDefinition` lane form (trigger room,
   landing centre, heading, width; `IsDoorTrap` false; validation keeps the
   landing inside its room and the width at least the widest box).
   `TrapSystem`: `doorOf` −1, watched in the trigger room, slots along the
@@ -1782,7 +1838,8 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   locked, held or jammed one `AgentTriedDoor` and avoided; `Forget` clears
   it and `BlockedTicks`. `ExtinguisherBehaviour` and `AlarmBehaviour` walk
   through it; `NearestFreeExtinguisher` skips unreachable rooms.
-- **The Director.** `socketFallDue` = `TrapSystem.LatestFallTick` +
+- **The Director** (the socket after a fall and the rungs after a put-out
+  are gone since 2026-10-02). `socketFallDue` = `TrapSystem.LatestFallTick` +
   `SocketAfterFallTicks` (250) jittered, set once any trap has fallen; due
   and not yet crackling, the socket crackles whatever the phase.
   `NextRungDue` after a put-out draws `AfterPutOutMinimumTicks`–
@@ -1836,6 +1893,64 @@ anybody strong holds it straight. The jet is a 3 m, 30° cone: it
   second run of the same data and seed with no commands and reads its saved
   count.
 
+### Prototype 3, the building dialled back and the office re-dressed (2026-10-02)
+
+- **A stack falls to a body.** `TrapSystem.FeelTheBumps` (from `Run.Step`,
+  after `collisions.Resolve`) reads the engine's new contacts: a
+  participating person against a box of a standing stack, closing at
+  `TrapSettings.BumpSpeedMillimetresPerTick` (40) or more, knocks it.
+  `TrapTriggered` (source the stack, target the person, strength the closing
+  speed, no parent unless they were frightened) and `phase = Falling`,
+  `fallTick = context.ReactionTick()`. At the fall the boxes are unpinned
+  and thrown toward slots in a heap `HeapAheadMillimetres` (1200) ahead of
+  the knocked stack in the bumper's heading, `HeapWidthMillimetres` (1800)
+  across, the throw scaled by the bump (5 points per 10 mm a tick over the
+  bump speed, 2 per point of strength over five, between 50 and 150);
+  knocked toward the wall it stands against, the heap is aimed back toward
+  the bumper. `BoxTowerFell` has the doorway as its target for a doorway
+  stack and none for a stack in a room. The heap rules (three boxes still
+  in the strip for `HeapSettleTicks`) are unchanged. `traps.Advance()` runs
+  from `Run`, in phase 1½; the Director holds no reference to the traps.
+- **The ladder.** `DirectorSystem`: `Waiting`, `Burning`, `Relighting`,
+  `Out`, `Crackling`, `Over`. A put-out draws the all-clear and, when the
+  carpet never caught and a listed bin is unused, a relight; nothing else.
+  `Crackling` is entered only from `Push`. `BangSettlesTicks` 350.
+- **The reading.** A door to the street counts as a way out standing open
+  when it is not locked and either no longer needs the card or is broken.
+- **The ask.** `InfluenceSystem.AskAt(place)` → `HandAsk`: a thing by its
+  use (extinguisher, chair, keycard, loose clutter under the carry limit,
+  heavy loose things within `InfluenceSettings.ClearReachMillimetres` of the hand), a pull station within
+  its radius, a door by `HandAsks.ForDoor` (heaped: clear; locked or a card
+  door: pound; an archway, swing doors or a broken door: come here; else
+  the opposite of how it stood at the press), floor: come here; a push:
+  away from here. `Place.Ask` is refreshed once a tick in `Advance`.
+  `AgentTookUpTheHandsAsk` (strength the ask, target what the hand is on)
+  is written once per person per ask. `SpendAt` writes `InfluenceSpent`
+  with the ask as its strength. `WatchTheHeap` writes the heap cleared once
+  no crate is in reach and the doorway is unpiled for `HeapSettleTicks`.
+- **Partitions.** `TableDefinition.IsPartition`: a kinematic box
+  `PartitionHeightMillimetres` (1300) tall, on the navigation grid as any
+  table, never awake (`Run.FollowTheTables` skips it), refused by
+  `PanicBehaviour.TryHeaveTable` and the shove and heave of tables, skipped
+  by the keycard's desk pick. Perception, sound and fire do not consult
+  tables at all.
+- **The card's start.** `KeycardSystem.PlaceAtTheStart`: `OnADeskPercent`
+  from the card's own stream; otherwise `DrawAMemberOfStaff`, which with
+  `KeycardSettings.PocketStaysInTheCardsRoom` counts only staff whose room
+  is the room the card is authored in. `PickUpDistanceMillimetres` 900.
+- **The sit that ends an errand.** `ErrandBehaviour.SettleIntoTheSeat`,
+  every tick for somebody sitting: an active errand in `SittingDown` with
+  the person on the seat is advanced (which ends it, a sit being the last
+  step of every script that has one, and hands on any cue queued behind
+  it), and `ChairBehaviour.ResumeSitting` keeps them sitting as long as
+  they meant to.
+- **The floor.** `PrototypeBuilding`: room 5015 and doors 2020-2022; the
+  tower at (11700 / 12300, 8550); the stack at (9500, -2740); sockets 3271,
+  3272, 3273 (10500, 16800), `ExitArmSocket` 3276 (13200, 11500), 3274,
+  3275, cabled in that order from the fuse box; microwaves at (6500 / 7300,
+  16600); extinguishers at (-1000, -5700), (11200, 13000) and (23000,
+  16700).
+
 ## Causal events and presentation
 
 The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
@@ -1849,7 +1964,11 @@ The simulation keeps `FireActivated`, `FireSpread`, `AgentAlerted`,
 `AgentGrabbed`, `AgentDropped`, `AgentRescued`, `AgentShoved`, `AlarmPulled`,
 `AlarmRang`, `ObjectBroke`, `ObjectExploded`, `DoorBlocked`, `DoorUnblocked`,
 `AgentBarricadedDoor`, `AgentShovedObstruction`, `PowerBeefcake`,
-`PowerSpawnedFire`, `PowerSpawnedExtinguisher` and `PowerBlastedWall` events.
+`PowerSpawnedFire`, `PowerSpawnedExtinguisher` and `PowerBlastedWall` events,
+and the ones each later stone appended (the newest, 2026-10-02:
+`AgentTookUpTheHandsAsk`, somebody taking up what the hand asks, its
+strength the ask). The full list is `CausalEventType` in
+`SimulationPrimitives.cs`.
 Event types are only ever appended, never inserted, because a type's number is
 part of the replay fingerprint. Events that affect someone or
 something name it as their target: `AgentsCollided` the person run into,

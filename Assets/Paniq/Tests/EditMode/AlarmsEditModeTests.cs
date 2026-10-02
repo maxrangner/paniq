@@ -425,7 +425,7 @@ namespace Paniq.Tests.EditMode
             LogicalPosition station = data.Alarms[0].Position;
             Assert.That(station.X, Is.LessThan(-5000), "At the corridor's west end.");
             Assert.That(station.Z, Is.InRange(6000, 9000), "In the corridor.");
-            Assert.That(simulation.BellCount, Is.EqualTo(7), "A bell in every room people use, the bathroom included.");
+            Assert.That(simulation.BellCount, Is.EqualTo(8), "A bell in every room people use, the bathroom and the cubicle landscape included.");
         }
     }
 }

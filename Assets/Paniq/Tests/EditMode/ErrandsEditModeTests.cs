@@ -348,19 +348,32 @@ namespace Paniq.Tests.EditMode
                     "The one hailed walks over too; they meet in the middle rather than one being summoned.");
 
                 // A few seconds of talk: close, facing, and saying things. One
-                // of them may be glancing at a noise on the tick we look, which
-                // is a glance mid-chat, not the end of it: the chat itself holds.
-                Advance(simulation, 6 * Run.TicksPerSecond);
+                // of them may be glancing at a noise on any tick we look, which
+                // is a glance mid-chat, not the end of it: the chat itself
+                // holds, and they face each other for most of it. (It used to
+                // look on one tick only, and with a bigger office making more
+                // noise that tick caught a glance.)
+                int talkTicks = 6 * Run.TicksPerSecond;
+                int facingEachOther = 0;
+                for (int t = 0; t < talkTicks; t++)
+                {
+                    simulation.Step();
+                    AgentSnapshot first = simulation.GetAgent(a);
+                    AgentSnapshot second = simulation.GetAgent(b);
+                    int firstToSecond = IntegerMath.HeadingBetween(first.Position, second.Position, first.HeadingDegrees);
+                    int secondToFirst = IntegerMath.HeadingBetween(second.Position, first.Position, second.HeadingDegrees);
+                    facingEachOther += System.Math.Abs(IntegerMath.SignedAngleDifference(first.HeadingDegrees, firstToSecond)) < 35 &&
+                                       System.Math.Abs(IntegerMath.SignedAngleDifference(second.HeadingDegrees, secondToFirst)) < 35 ? 1 : 0;
+                }
+
                 AgentSnapshot one = simulation.GetAgent(a);
                 AgentSnapshot other = simulation.GetAgent(b);
                 Assert.That(simulation.ErrandForTests(a).Phase, Is.EqualTo(ErrandPhase.Talking), simulation.DescribeForTests(a));
                 Assert.That(simulation.ErrandForTests(b).Phase, Is.EqualTo(ErrandPhase.Talking), simulation.DescribeForTests(b));
                 Assert.That(IntegerMath.Distance(one.Position, other.Position),
                     Is.LessThanOrEqualTo(data.Calm.SocialStopDistanceMillimetres + 400), "Within arm's reach of each other.");
-                int oneToOther = IntegerMath.HeadingBetween(one.Position, other.Position, one.HeadingDegrees);
-                int otherToOne = IntegerMath.HeadingBetween(other.Position, one.Position, other.HeadingDegrees);
-                Assert.That(System.Math.Abs(IntegerMath.SignedAngleDifference(one.HeadingDegrees, oneToOther)), Is.LessThan(35), "Facing each other.");
-                Assert.That(System.Math.Abs(IntegerMath.SignedAngleDifference(other.HeadingDegrees, otherToOne)), Is.LessThan(35), "Facing each other.");
+                Assert.That(facingEachOther, Is.GreaterThan(talkTicks / 2),
+                    $"Facing each other for most of the talk: {facingEachOther} of {talkTicks} ticks.");
 
                 var remarks = new HashSet<ulong>();
                 int glances = 0;
@@ -431,7 +444,16 @@ namespace Paniq.Tests.EditMode
                     }
                 }
 
-                Assert.That(escaped, Is.EqualTo(simulation.AgentCount), "Everybody, visitors included, is out of the building.");
+                string stillInside = "";
+                for (int i = 0; i < simulation.AgentCount; i++)
+                {
+                    if (simulation.GetAgent(i).Outcome != AgentTerminalOutcome.Escaped)
+                    {
+                        stillInside += simulation.DescribeForTests(i) + "\n";
+                    }
+                }
+
+                Assert.That(escaped, Is.EqualTo(simulation.AgentCount), "Everybody, visitors included, is out of the building.\n" + stillInside);
                 Assert.That(new HashSet<int>(setOff.Values).Count, Is.GreaterThanOrEqualTo(5),
                     "People set off each in their own time, never the whole building at once.");
                 Assert.That(simulation.Phase, Is.EqualTo(RoundPhase.BeforeEvent), "Nothing has gone wrong, so no round has begun, let alone ended.");

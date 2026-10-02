@@ -343,7 +343,7 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentHidFromTheHeat: return $"{who} would not go through the heat and looked for somewhere to hide";
                 case CausalEventType.AgentCarriedThroughDoorway: return $"{who}, down in the doorway, was carried through it by the crush";
                 case CausalEventType.AgentBarricadedDoor: return $"{who} wedged something against {whom}";
-                case CausalEventType.AgentShovedObstruction: return $"{who} heaved {whom} out of a doorway";
+                case CausalEventType.AgentShovedObstruction: return $"{who} heaved {whom} aside";
                 case CausalEventType.AgentClearedDoorway: return $"{who} lifted {whom} out of a doorway";
 
                 case CausalEventType.AgentTookExtinguisher: return $"{who} picked up {whom}";
@@ -402,11 +402,11 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentNudged: return $"{who} looked round for whoever nudged them";
                 case CausalEventType.AgentAnnoyed: return $"{who} got annoyed at being nudged";
                 case CausalEventType.TrapTriggered:
-                    return record.HasTarget ? $"{whom} ran past the tower of boxes" : "the boxes gave way";
+                    return record.HasTarget ? $"{whom} ran into a stack of boxes" : "the boxes gave way";
                 case CausalEventType.DirectorPushed:
                     return $"the building turned on the crowd: {record.Strength} were on course to get out, {record.DurationTicks} allowed";
                 case CausalEventType.BoxTowerFell:
-                    return record.HasTarget ? $"the tower of boxes came down toward {whom}" : "the crates came down across the lane";
+                    return record.HasTarget ? $"the tower of boxes came down by {whom}" : "the stack of crates came down";
                 case CausalEventType.BoxHeapSettled: return $"the fallen boxes blocked {whom}";
                 case CausalEventType.BoxPileCleared: return $"the way through the boxes at {whom} was clear";
                 case CausalEventType.PowerStickTogether: return $"you told {whom} to stick together";
@@ -423,11 +423,12 @@ namespace Paniq.Presentation
                     return record.HasTarget ? $"you took your hand off {whom}" : "you took your hand off the floor";
                 case CausalEventType.PowerHandSpent: return "your hand gave out";
                 case CausalEventType.AgentDrawnByInfluence: return $"{who} went where your hand was";
+                case CausalEventType.AgentTookUpTheHandsAsk:
+                    return $"{who} took up what your hand asked: {HandAskWords.Label((HandAsk)record.Strength) ?? "come here"}";
                 case CausalEventType.InfluenceSpent: return $"{who} did what your hand asked";
                 case CausalEventType.PowerTugged: return $"you took {whom} by the shirt";
                 case CausalEventType.PowerReleasedTug: return $"you let go of {whom}";
                 case CausalEventType.AgentShookFree: return $"{who} tore free of your hand";
-                case CausalEventType.TrapCreaked: return $"{who} creaked and swayed";
                 case CausalEventType.PowerRepelled:
                     return record.HasTarget ? $"you pushed people away from {whom}" : "you pushed people away from a spot on the floor";
                 case CausalEventType.AgentPushedAwayByInfluence: return $"{who} moved away from your hand";

@@ -872,9 +872,12 @@ namespace Paniq.Simulation
         // people nudged. Appended only.
 
         /// <summary>
-        /// The Director's trap is sprung: with the fire lit, somebody came
-        /// near the tower of boxes. Source: the trap. Target: the person who
-        /// set it off. The fall itself comes a few ticks later.
+        /// Somebody ran into a stack of boxes and knocked it (2026-10-02;
+        /// it used to be sprung by somebody coming near with the fire lit).
+        /// Source: the stack. Target: the person. Position: where they met.
+        /// Strength: how fast they were closing on it, in millimetres a
+        /// tick. Cause: their fright, or none for somebody calm. The fall
+        /// itself comes a few ticks later.
         /// </summary>
         TrapTriggered,
 
@@ -1072,10 +1075,10 @@ namespace Paniq.Simulation
         AgentShookFree,
 
         /// <summary>
-        /// A sprung trap creaks before it falls: the stack sways and is heard
-        /// in its room for a few seconds, so whoever is looking can get
-        /// people clear. Source: the trap. Strength: ticks until it falls.
-        /// Cause: the trigger.
+        /// Retired (2026-10-02): no longer written. A stack used to creak
+        /// for a few seconds between being sprung and falling; now it falls
+        /// a beat after somebody runs into it. The name stays because the
+        /// log's numbers are appended only.
         /// </summary>
         TrapCreaked,
 
@@ -1151,7 +1154,94 @@ namespace Paniq.Simulation
         /// frightened settles, one at a time, and the ordinary rules take
         /// over again. A root event. No target.
         /// </summary>
-        PowerCalmedCrowd
+        PowerCalmedCrowd,
+
+        // What the hand asks, said out loud (2026-10-02). Appended only.
+
+        /// <summary>
+        /// Somebody set about what the hand asks at a place, and which ask
+        /// it is: the sign over their head says it in the hand's own words
+        /// ("clearing the boxes...", "opening the door..."). Once a press
+        /// for each ask a person takes up. Source: the person. Target: the
+        /// door or thing under the hand, or none for floor. Strength: the
+        /// <see cref="HandAsk"/>. Cause: the press.
+        /// </summary>
+        AgentTookUpTheHandsAsk
+    }
+
+    /// <summary>
+    /// What the player's hand asks of people at the place it is on
+    /// (2026-10-02, the owner: "I don't really feel that the interactions
+    /// are clear. Clicking a pile of boxes should make the agents try to
+    /// clear it. Clicking a door - make them open it, etc. Maybe they are
+    /// doing it, but I'm not sure"). One reading, made by the run
+    /// (<see cref="InfluenceSystem.AskAt"/>) from the same tests the
+    /// behaviours use, so the ring, the signs and the panel all say what
+    /// people will actually do. An event stores the number, so the order is
+    /// appended only.
+    /// </summary>
+    public enum HandAsk
+    {
+        /// <summary>No hand, or nothing asked.</summary>
+        None,
+
+        /// <summary>Gather here: floor, a thing with no use, a place whose use is spent, an archway.</summary>
+        ComeHere,
+
+        /// <summary>The right button: move away from here.</summary>
+        AwayFromHere,
+
+        OpenTheDoor,
+        ShutTheDoor,
+
+        /// <summary>A locked door or the card door: throw yourselves at it.</summary>
+        PoundTheDoor,
+
+        /// <summary>Fallen crates on the hand or beside it: heave them aside.</summary>
+        ClearTheBoxes,
+
+        CarryItOff,
+        TakeTheBottle,
+        SitHere,
+        PullTheAlarm,
+        GetTheCard
+    }
+
+    /// <summary>The door half of <see cref="HandAsk"/>, as a rule anybody can apply to what they know of a door: the run to a press, the display to a door under the pointer.</summary>
+    public static class HandAsks
+    {
+        /// <summary>
+        /// What a hand on a door asks. Boxes heaped across it: clear them.
+        /// An archway, a hole, swing doors or a door off its hinges has
+        /// nothing to open or shut: come here. A locked door or a card door:
+        /// pound on it. Otherwise the opposite of how it stood at the press
+        /// -- and once it stands that way, only: come here.
+        /// </summary>
+        public static HandAsk ForDoor(bool wasOpenAtThePress, bool isOpenNow, bool heaped, bool neverShuts,
+            bool needsKeycard, bool locked, bool broken)
+        {
+            if (heaped)
+            {
+                return HandAsk.ClearTheBoxes;
+            }
+
+            if (neverShuts || broken)
+            {
+                return HandAsk.ComeHere;
+            }
+
+            if (needsKeycard || locked)
+            {
+                return HandAsk.PoundTheDoor;
+            }
+
+            if (wasOpenAtThePress)
+            {
+                return isOpenNow ? HandAsk.ShutTheDoor : HandAsk.ComeHere;
+            }
+
+            return isOpenNow ? HandAsk.ComeHere : HandAsk.OpenTheDoor;
+        }
     }
 
     /// <summary>A person's tell: the wind-up before something dangerous (2026-09-30). See <see cref="TellSystem"/>.</summary>

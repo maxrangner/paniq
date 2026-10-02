@@ -107,8 +107,15 @@ namespace Paniq.Tests.EditMode
         public void DefaultBuilding_HasTablesAndChairsInBothRooms()
         {
             ScenarioData data = DefaultData();
-            Assert.That(data.Tables, Has.Length.EqualTo(6),
-                "Three desks in the office, the meeting room's long table, and two in the cafeteria.");
+            int partitions = 0;
+            foreach (TableDefinition table in data.Tables)
+            {
+                partitions += table.IsPartition ? 1 : 0;
+            }
+
+            Assert.That(data.Tables.Length - partitions, Is.EqualTo(22),
+                "Three desks in the office, the meeting room's long table, two in the cafeteria, and (2026-10-02) the cubicle landscape's fifteen desks and its coffee table.");
+            Assert.That(partitions, Is.EqualTo(22), "The cubicle landscape's screens: two spines of three, and eight between neighbours on each.");
             int chairs = 0;
             int officeChairs = 0;
             foreach (PhysicsObjectDefinition item in data.PhysicsObjects)
@@ -118,8 +125,8 @@ namespace Paniq.Tests.EditMode
             }
 
             Assert.That(chairs, Is.EqualTo(8), "Wooden chairs around the office tables.");
-            Assert.That(officeChairs, Is.EqualTo(8),
-                "Office chairs on castors: six round the meeting table and two in the cafeteria.");
+            Assert.That(officeChairs, Is.EqualTo(23),
+                "Office chairs on castors: six round the meeting table, two in the cafeteria and fifteen at the cubicles' desks.");
             Assert.That(data.Tables[0].Bounds.MaxX - data.Tables[0].Bounds.MinX, Is.EqualTo(1200));
         }
 

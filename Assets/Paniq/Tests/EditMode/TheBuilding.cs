@@ -106,19 +106,32 @@ namespace Paniq.Tests.EditMode
         public static readonly SimulationId StockroomToCrossbar = new SimulationId(2019UL);
 
         /// <summary>
-        /// The tower of boxes (prototype 3): the middle of its footprint, in
-        /// the junction's south-west corner just past the archway.
+        /// The tower of boxes (prototype 3): the middle of its footprint,
+        /// against the corridor's north wall just short of the archway
+        /// (since 2026-10-02; it stood in the junction's south-west corner).
         /// </summary>
-        public static readonly LogicalPosition TheTower = new LogicalPosition(13900, 6350);
+        public static readonly LogicalPosition TheTower = new LogicalPosition(12000, 8550);
 
-        /// <summary>The Director's trap that brings the tower down.</summary>
+        /// <summary>The tower of boxes, as a stack that comes down when somebody runs into it.</summary>
         public static readonly SimulationId TheTrap = new SimulationId(7001UL);
 
-        /// <summary>The Director's second trap (2026-09-27): the stack of crates at the stockroom lane's first bend.</summary>
+        /// <summary>The second stack (2026-09-27): four crates standing free at the north end of the stockroom's first crate wall.</summary>
         public static readonly SimulationId TheStockroomTrap = new SimulationId(7002UL);
 
-        /// <summary>The middle of the gap at the stockroom lane's first bend, where the stack's crates land.</summary>
-        public static readonly LogicalPosition StockroomBend = new LogicalPosition(9500, -2200);
+        /// <summary>The middle of the gap at the stockroom lane's first bend, between the stack and the north wall.</summary>
+        public static readonly LogicalPosition StockroomBend = new LogicalPosition(9500, -1450);
+
+        /// <summary>The cubicle landscape east of the crossbar (2026-10-02): the middle of its wide west aisle.</summary>
+        public static readonly LogicalPosition CubicleWestAisle = new LogicalPosition(17000, 7000);
+
+        /// <summary>The cubicle landscape's door onto the crossbar beside the way out.</summary>
+        public static readonly SimulationId CubicleDoorByTheWayOut = new SimulationId(2020UL);
+
+        /// <summary>The cubicle landscape's door onto the crossbar's south end, opposite the stockroom's.</summary>
+        public static readonly SimulationId CubicleSouthDoor = new SimulationId(2021UL);
+
+        /// <summary>The cubicle landscape's door into the stockroom's east lane.</summary>
+        public static readonly SimulationId CubicleToStockroom = new SimulationId(2022UL);
 
         /// <summary>The corridor's east end, just short of the archway into the crossbar.</summary>
         public static readonly LogicalPosition CorridorEastEnd = new LogicalPosition(12000, 7500);

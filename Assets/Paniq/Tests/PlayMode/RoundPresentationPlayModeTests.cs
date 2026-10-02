@@ -219,6 +219,50 @@ namespace Paniq.Tests.PlayMode
             Assert.That(NumbersDrawn(), Is.GreaterThan(0), "The numbers should be back.");
         }
 
+        /// <summary>
+        /// Reset and "play again" reload the scene. The Tab panel's dials
+        /// and switches are kept outside it, so they last through both
+        /// (found in review, 2026-10-02: they went back to the level's own
+        /// at every Reset, though the panel said they were kept).
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheTabPanel_KeepsItsDialsAndSwitches_WhenTheSceneIsReloaded()
+        {
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
+            yield return null;
+            yield return null;
+
+            var presentation = Object.FindFirstObjectByType<RunPresentation>();
+            Assert.That(presentation, Is.Not.Null);
+            DebugView view = presentation.ViewForTests;
+            int levelsOwn = view.LevelReachMillimetres;
+            int chosen = levelsOwn == 7500 ? 8000 : 7500;
+            view.HandReachMillimetres = chosen;
+            view.Stats = true;
+
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
+            yield return null;
+            yield return null;
+
+            var rebuilt = Object.FindFirstObjectByType<RunPresentation>();
+            Assert.That(rebuilt, Is.Not.Null);
+            Assert.That(rebuilt, Is.Not.SameAs(presentation), "The scene was rebuilt.");
+            DebugView kept = rebuilt.ViewForTests;
+            try
+            {
+                Assert.That(kept.HandReachMillimetres, Is.EqualTo(chosen), "The reach dial is where the player left it.");
+                Assert.That(kept.Stats, Is.True, "And so are the switches.");
+                Assert.That(kept.LevelReachMillimetres, Is.EqualTo(levelsOwn), "The level's own value is still known, for the button that puts the dials back.");
+            }
+            finally
+            {
+                // The panel outlives the scene, so it outlives this test:
+                // leave it as the next one expects to find it.
+                kept.HandReachMillimetres = kept.LevelReachMillimetres;
+                kept.Stats = false;
+            }
+        }
+
         private static int ConesDrawn()
         {
             int drawn = 0;

@@ -87,7 +87,7 @@ namespace Paniq.Tests.EditMode
                         wasAt[i] = person.Position;
                         bool frightenedAndIdle = person.Participation == AgentParticipation.Participating &&
                                                  person.FearState != AgentFearState.Calm && !person.IsDown &&
-                                                 !StillOnPurpose(person.ActivityState);
+                                                 !StillOnPurpose(person.ActivityState) && !PinnedInACrush(simulation, i);
                         stillSeconds[i] = frightenedAndIdle && !moved ? stillSeconds[i] + 1 : 0;
                         if (stillSeconds[i] == StillSeconds)
                         {
@@ -102,6 +102,47 @@ namespace Paniq.Tests.EditMode
                 Assert.That(report.Length, Is.Zero,
                     $"Seed {seed}, trigger at {triggerTick}, way out {(wayOutOpened ? "opened" : "locked")}: somebody frightened stood doing nothing:\n{report}");
             }
+        }
+
+        /// <summary>How near somebody has to be to count as pressed against this person, in millimetres: two bodies and a hand's breadth.</summary>
+        private const int ShoulderToShoulderMillimetres = 700;
+
+        /// <summary>
+        /// Trying to get somewhere, and held where they stand by the bodies
+        /// round them: still pushing forward, with two or more people
+        /// shoulder to shoulder with them (in a corner the walls are the
+        /// rest of it). With thirty-four people in the
+        /// building (2026-10-02) the arm in front of a locked way out packs
+        /// solid, and the ones in the middle of the pack cannot move a
+        /// hand's breadth in ten seconds however hard they try. That is a
+        /// crush, which the player can see for what it is; this test is
+        /// for the person who stands doing nothing with room to move.
+        /// </summary>
+        private static bool PinnedInACrush(Run simulation, int index)
+        {
+            AgentSnapshot person = simulation.GetAgent(index);
+            if (person.SpeedMillimetresPerTick <= 0)
+            {
+                return false;
+            }
+
+            int pressing = 0;
+            for (int i = 0; i < simulation.AgentCount; i++)
+            {
+                if (i == index)
+                {
+                    continue;
+                }
+
+                AgentSnapshot other = simulation.GetAgent(i);
+                if (other.Participation == AgentParticipation.Participating &&
+                    IntegerMath.Distance(person.Position, other.Position) <= ShoulderToShoulderMillimetres)
+                {
+                    pressing++;
+                }
+            }
+
+            return pressing >= 2;
         }
 
         /// <summary>The things that keep a frightened person still on purpose.</summary>

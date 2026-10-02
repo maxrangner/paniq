@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Paniq.Runtime::Paniq.Gameplay.ScenarioAsset
   scenario:
     ScenarioId: prototype-fire-1-fl-small
-    ContentRevision: 93
+    ContentRevision: 94
     DefaultSeed: 42
-    SimulationCompatibilityVersion: 81
+    SimulationCompatibilityVersion: 82
     World:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
@@ -267,6 +267,7 @@ MonoBehaviour:
       MaximumSpeedMillimetresPerTick: 400
       WallHeightMillimetres: 3000
       TableHeightMillimetres: 740
+      PartitionHeightMillimetres: 1300
       PersonPushMillimetresPerTickPerTick: 3
       PersonFloorGripPercent: 60
       CrushPressure: 700
@@ -930,7 +931,6 @@ MonoBehaviour:
       CruelSitOnMinimumTicks: 500
       CruelSitOnMaximumTicks: 1500
     Traps:
-      TriggerSpeedMillimetresPerTick: 40
       PileHoldsAtBoxes: 3
       ToppleSpeedPercent: 100
       ToppleLiftPercent: 40
@@ -938,11 +938,11 @@ MonoBehaviour:
       ToppleTumbles: 1
       HeapSettleTicks: 25
       CrashSoundRadiusMillimetres: 12000
-      PileBeyondMillimetres: 350
-      CreakTicks: 150
-      CreakHearingMillimetres: 6000
-      TriggerReachMillimetres: 3500
       HeapWidthMillimetres: 1800
+      BumpSpeedMillimetresPerTick: 40
+      HeapAheadMillimetres: 1200
+      BumpThrowPercentPerTenMillimetresPerTick: 5
+      BumpThrowPercentPerStrength: 2
     Nudge:
       LurchMillimetres: 300
       AnnoyedWindowTicks: 500
@@ -968,13 +968,10 @@ MonoBehaviour:
       - value: 3207
       FirstIncidentMinimumTicks: 1500
       FirstIncidentMaximumTicks: 4500
-      AfterPutOutMinimumTicks: 250
-      AfterPutOutMaximumTicks: 500
-      SocketAfterFallTicks: 250
       CrackleTicks: 250
       CrackleHearingMillimetres: 5000
       AllClearAfterTicks: 500
-      BangSettlesTicks: 250
+      BangSettlesTicks: 350
       CapsTheRound: 0
       AllowanceMinimumPercent: 10
       AllowanceMaximumPercent: 40
@@ -1026,10 +1023,11 @@ MonoBehaviour:
     Keycard:
       Enabled: 1
       OnADeskPercent: 50
+      PocketStaysInTheCardsRoom: 1
       FetchBraveryMinimum: 8
       GrabOnTheWayRangeMillimetres: 3000
       FetchRangeMillimetres: 30000
-      PickUpDistanceMillimetres: 700
+      PickUpDistanceMillimetres: 900
       PocketTicks: 25
       SwipeReachMillimetres: 2000
       FetchTimeoutTicks: 1500
@@ -1566,6 +1564,370 @@ MonoBehaviour:
       homeSpot:
         x: 0
         z: 0
+    - agentId:
+        value: 1021
+      initialPosition:
+        x: 19025
+        z: 200
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 6
+        speed: 5
+        bravery: 6
+        compassion: 6
+        evil: 2
+        nervousness: 3
+        leadership: 5
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3111
+      familiarity: 0
+      homeObjectId:
+        value: 3111
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1022
+      initialPosition:
+        x: 19025
+        z: 2600
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 4
+        speed: 6
+        bravery: 4
+        compassion: 6
+        evil: 3
+        nervousness: 6
+        leadership: 3
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3112
+      familiarity: 0
+      homeObjectId:
+        value: 3112
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1023
+      initialPosition:
+        x: 19025
+        z: 6800
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 4
+        speed: 9
+        bravery: 4
+        compassion: 5
+        evil: 3
+        nervousness: 5
+        leadership: 3
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3113
+      familiarity: 0
+      homeObjectId:
+        value: 3113
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1024
+      initialPosition:
+        x: 19025
+        z: 9200
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 5
+        bravery: 7
+        compassion: 7
+        evil: 2
+        nervousness: 3
+        leadership: 8
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3114
+      familiarity: 0
+      homeObjectId:
+        value: 3114
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1025
+      initialPosition:
+        x: 19025
+        z: 13400
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 3
+        speed: 7
+        bravery: 3
+        compassion: 6
+        evil: 1
+        nervousness: 7
+        leadership: 1
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3115
+      familiarity: 0
+      homeObjectId:
+        value: 3115
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1026
+      initialPosition:
+        x: 21375
+        z: 200
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 6
+        speed: 5
+        bravery: 4
+        compassion: 2
+        evil: 7
+        nervousness: 5
+        leadership: 4
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3116
+      familiarity: 0
+      homeObjectId:
+        value: 3116
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1027
+      initialPosition:
+        x: 21375
+        z: 2600
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 4
+        speed: 5
+        bravery: 6
+        compassion: 9
+        evil: 1
+        nervousness: 5
+        leadership: 5
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3117
+      familiarity: 0
+      homeObjectId:
+        value: 3117
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1028
+      initialPosition:
+        x: 21375
+        z: 6800
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 9
+        speed: 4
+        bravery: 5
+        compassion: 5
+        evil: 4
+        nervousness: 2
+        leadership: 3
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3118
+      familiarity: 0
+      homeObjectId:
+        value: 3118
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1029
+      initialPosition:
+        x: 21375
+        z: 9200
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 4
+        bravery: 5
+        compassion: 5
+        evil: 2
+        nervousness: 4
+        leadership: 2
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3119
+      familiarity: 0
+      homeObjectId:
+        value: 3119
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1030
+      initialPosition:
+        x: 21375
+        z: 13400
+      initialFacingDirection: 3
+      hasAuthoredTraits: 1
+      traits:
+        strength: 7
+        speed: 7
+        bravery: 7
+        compassion: 3
+        evil: 6
+        nervousness: 2
+        leadership: 7
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3120
+      familiarity: 0
+      homeObjectId:
+        value: 3120
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1031
+      initialPosition:
+        x: 25125
+        z: 200
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 5
+        bravery: 5
+        compassion: 5
+        evil: 3
+        nervousness: 5
+        leadership: 4
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3121
+      familiarity: 0
+      homeObjectId:
+        value: 3121
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1032
+      initialPosition:
+        x: 25125
+        z: 2600
+      initialFacingDirection: 1
+      hasAuthoredTraits: 1
+      traits:
+        strength: 3
+        speed: 6
+        bravery: 3
+        compassion: 6
+        evil: 2
+        nervousness: 8
+        leadership: 2
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 3122
+      familiarity: 0
+      homeObjectId:
+        value: 3122
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1033
+      initialPosition:
+        x: 26900
+        z: 15300
+      initialFacingDirection: 0
+      hasAuthoredTraits: 1
+      traits:
+        strength: 6
+        speed: 6
+        bravery: 6
+        compassion: 2
+        evil: 8
+        nervousness: 3
+        leadership: 6
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+      familiarity: 0
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
+    - agentId:
+        value: 1034
+      initialPosition:
+        x: 26900
+        z: 16300
+      initialFacingDirection: 2
+      hasAuthoredTraits: 1
+      traits:
+        strength: 5
+        speed: 4
+        bravery: 8
+        compassion: 7
+        evil: 1
+        nervousness: 2
+        leadership: 6
+      carriedObjectId:
+        value: 0
+      seatedOnObjectId:
+        value: 0
+      familiarity: 0
+      homeObjectId:
+        value: 0
+      hasHomeSpot: 0
+      homeSpot:
+        x: 0
+        z: 0
     Doors:
     - doorId:
         value: 2002
@@ -1721,6 +2083,39 @@ MonoBehaviour:
       isOpening: 0
       swings: 0
       needsKeycard: 1
+    - doorId:
+        value: 2020
+      roomId:
+        value: 5015
+      side: 3
+      centreAlongWallMillimetres: 15500
+      widthMillimetres: 1000
+      startsLocked: 0
+      isOpening: 0
+      swings: 0
+      needsKeycard: 0
+    - doorId:
+        value: 2021
+      roomId:
+        value: 5015
+      side: 3
+      centreAlongWallMillimetres: 500
+      widthMillimetres: 1000
+      startsLocked: 0
+      isOpening: 0
+      swings: 0
+      needsKeycard: 0
+    - doorId:
+        value: 2022
+      roomId:
+        value: 5015
+      side: 3
+      centreAlongWallMillimetres: -1750
+      widthMillimetres: 1000
+      startsLocked: 0
+      isOpening: 0
+      swings: 0
+      needsKeycard: 0
     PhysicsObjects:
     - objectId:
         value: 3001
@@ -2454,8 +2849,8 @@ MonoBehaviour:
         value: 3302
       kind: 7
       initialPosition:
-        x: 4000
-        z: 16300
+        x: 11200
+        z: 13000
       sizeMillimetres: 250
       massGrams: 7000
       startsDormant: 0
@@ -2468,12 +2863,12 @@ MonoBehaviour:
         value: 3261
       kind: 9
       initialPosition:
-        x: 12600
-        z: 9600
+        x: 6500
+        z: 16600
       sizeMillimetres: 450
       massGrams: 14000
       startsDormant: 0
-      initialFacingDegrees: 90
+      initialFacingDegrees: 0
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2482,12 +2877,12 @@ MonoBehaviour:
         value: 3262
       kind: 9
       initialPosition:
-        x: 12600
-        z: 10400
+        x: 7300
+        z: 16600
       sizeMillimetres: 450
       massGrams: 14000
       startsDormant: 0
-      initialFacingDegrees: 90
+      initialFacingDegrees: 0
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -2524,12 +2919,12 @@ MonoBehaviour:
         value: 3273
       kind: 10
       initialPosition:
-        x: 12800
-        z: 10000
+        x: 10500
+        z: 16800
       sizeMillimetres: 160
       massGrams: 60000
       startsDormant: 0
-      initialFacingDegrees: 90
+      initialFacingDegrees: 0
       startsResting: 0
       partOfObjectId:
         value: 0
@@ -3253,7 +3648,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 15600
-        z: -3000
+        z: -4800
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3267,7 +3662,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 15600
-        z: -2000
+        z: -5500
       sizeMillimetres: 500
       massGrams: 10000
       startsDormant: 0
@@ -3435,7 +3830,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -950
+        z: -2740
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3449,7 +3844,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -950
+        z: -2740
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3463,7 +3858,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -950
+        z: -2740
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3477,7 +3872,7 @@ MonoBehaviour:
       kind: 0
       initialPosition:
         x: 9500
-        z: -950
+        z: -2740
       sizeMillimetres: 700
       massGrams: 55000
       startsDormant: 0
@@ -3588,8 +3983,8 @@ MonoBehaviour:
         value: 3701
       kind: 0
       initialPosition:
-        x: 13600
-        z: 6350
+        x: 11700
+        z: 8550
       sizeMillimetres: 600
       massGrams: 40000
       startsDormant: 0
@@ -3602,8 +3997,8 @@ MonoBehaviour:
         value: 3702
       kind: 0
       initialPosition:
-        x: 13600
-        z: 6350
+        x: 11700
+        z: 8550
       sizeMillimetres: 600
       massGrams: 40000
       startsDormant: 0
@@ -3616,8 +4011,8 @@ MonoBehaviour:
         value: 3703
       kind: 0
       initialPosition:
-        x: 13600
-        z: 6350
+        x: 11700
+        z: 8550
       sizeMillimetres: 600
       massGrams: 40000
       startsDormant: 0
@@ -3630,8 +4025,8 @@ MonoBehaviour:
         value: 3704
       kind: 0
       initialPosition:
-        x: 13600
-        z: 6350
+        x: 11700
+        z: 8550
       sizeMillimetres: 600
       massGrams: 40000
       startsDormant: 0
@@ -3644,8 +4039,8 @@ MonoBehaviour:
         value: 3705
       kind: 0
       initialPosition:
-        x: 14200
-        z: 6350
+        x: 12300
+        z: 8550
       sizeMillimetres: 600
       massGrams: 40000
       startsDormant: 0
@@ -3658,8 +4053,8 @@ MonoBehaviour:
         value: 3706
       kind: 0
       initialPosition:
-        x: 14200
-        z: 6350
+        x: 12300
+        z: 8550
       sizeMillimetres: 600
       massGrams: 40000
       startsDormant: 0
@@ -3672,8 +4067,8 @@ MonoBehaviour:
         value: 3707
       kind: 0
       initialPosition:
-        x: 14200
-        z: 6350
+        x: 12300
+        z: 8550
       sizeMillimetres: 600
       massGrams: 40000
       startsDormant: 0
@@ -3686,13 +4081,615 @@ MonoBehaviour:
         value: 3708
       kind: 0
       initialPosition:
-        x: 14200
-        z: 6350
+        x: 12300
+        z: 8550
       sizeMillimetres: 600
       massGrams: 40000
       startsDormant: 0
       initialFacingDegrees: 0
       startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3111
+      kind: 2
+      initialPosition:
+        x: 19025
+        z: 200
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3341
+      kind: 6
+      initialPosition:
+        x: 19650
+        z: 200
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3112
+      kind: 2
+      initialPosition:
+        x: 19025
+        z: 2600
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3342
+      kind: 6
+      initialPosition:
+        x: 19650
+        z: 2600
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3113
+      kind: 2
+      initialPosition:
+        x: 19025
+        z: 6800
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3343
+      kind: 6
+      initialPosition:
+        x: 19650
+        z: 6800
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3114
+      kind: 2
+      initialPosition:
+        x: 19025
+        z: 9200
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3344
+      kind: 6
+      initialPosition:
+        x: 19650
+        z: 9200
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3115
+      kind: 2
+      initialPosition:
+        x: 19025
+        z: 13400
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3345
+      kind: 6
+      initialPosition:
+        x: 19650
+        z: 13400
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3116
+      kind: 2
+      initialPosition:
+        x: 21375
+        z: 200
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 270
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3346
+      kind: 6
+      initialPosition:
+        x: 20750
+        z: 200
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3117
+      kind: 2
+      initialPosition:
+        x: 21375
+        z: 2600
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 270
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3347
+      kind: 6
+      initialPosition:
+        x: 20750
+        z: 2600
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3118
+      kind: 2
+      initialPosition:
+        x: 21375
+        z: 6800
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 270
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3348
+      kind: 6
+      initialPosition:
+        x: 20750
+        z: 6800
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3119
+      kind: 2
+      initialPosition:
+        x: 21375
+        z: 9200
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 270
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3349
+      kind: 6
+      initialPosition:
+        x: 20750
+        z: 9200
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3120
+      kind: 2
+      initialPosition:
+        x: 21375
+        z: 13400
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 270
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3350
+      kind: 6
+      initialPosition:
+        x: 20750
+        z: 13400
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3121
+      kind: 2
+      initialPosition:
+        x: 25125
+        z: 200
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3351
+      kind: 6
+      initialPosition:
+        x: 25750
+        z: 200
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3122
+      kind: 2
+      initialPosition:
+        x: 25125
+        z: 2600
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3352
+      kind: 6
+      initialPosition:
+        x: 25750
+        z: 2600
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3123
+      kind: 2
+      initialPosition:
+        x: 25125
+        z: 6800
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3353
+      kind: 6
+      initialPosition:
+        x: 25750
+        z: 6800
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3124
+      kind: 2
+      initialPosition:
+        x: 25125
+        z: 9200
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3354
+      kind: 6
+      initialPosition:
+        x: 25750
+        z: 9200
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3125
+      kind: 2
+      initialPosition:
+        x: 25125
+        z: 13400
+      sizeMillimetres: 500
+      massGrams: 9000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3355
+      kind: 6
+      initialPosition:
+        x: 25750
+        z: 13400
+      sizeMillimetres: 300
+      massGrams: 1500
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3274
+      kind: 10
+      initialPosition:
+        x: 20400
+        z: 1700
+      sizeMillimetres: 160
+      massGrams: 60000
+      startsDormant: 0
+      initialFacingDegrees: 270
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3275
+      kind: 10
+      initialPosition:
+        x: 26100
+        z: 8300
+      sizeMillimetres: 160
+      massGrams: 60000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3608
+      kind: 21
+      initialPosition:
+        x: 27850
+        z: 7000
+      sizeMillimetres: 200
+      massGrams: 60000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3303
+      kind: 7
+      initialPosition:
+        x: 23000
+        z: 16700
+      sizeMillimetres: 250
+      massGrams: 7000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3263
+      kind: 9
+      initialPosition:
+        x: 27600
+        z: 15600
+      sizeMillimetres: 450
+      massGrams: 14000
+      startsDormant: 0
+      initialFacingDegrees: 90
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3208
+      kind: 3
+      initialPosition:
+        x: 24800
+        z: 16500
+      sizeMillimetres: 300
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3209
+      kind: 3
+      initialPosition:
+        x: 23200
+        z: -2600
+      sizeMillimetres: 300
+      massGrams: 2000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3215
+      kind: 4
+      initialPosition:
+        x: 27500
+        z: -2600
+      sizeMillimetres: 450
+      massGrams: 25000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3216
+      kind: 4
+      initialPosition:
+        x: 27500
+        z: 16500
+      sizeMillimetres: 450
+      massGrams: 25000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3561
+      kind: 0
+      initialPosition:
+        x: 27500
+        z: 12800
+      sizeMillimetres: 350
+      massGrams: 6000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3562
+      kind: 0
+      initialPosition:
+        x: 27500
+        z: 12800
+      sizeMillimetres: 250
+      massGrams: 3000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 1
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3563
+      kind: 0
+      initialPosition:
+        x: 27500
+        z: 1400
+      sizeMillimetres: 400
+      massGrams: 6000
+      startsDormant: 0
+      initialFacingDegrees: 0
+      startsResting: 0
+      partOfObjectId:
+        value: 0
+      startsPinned: 0
+    - objectId:
+        value: 3276
+      kind: 10
+      initialPosition:
+        x: 13200
+        z: 11500
+      sizeMillimetres: 160
+      massGrams: 60000
+      startsDormant: 0
+      initialFacingDegrees: 270
+      startsResting: 0
       partOfObjectId:
         value: 0
       startsPinned: 0
@@ -3704,6 +4701,7 @@ MonoBehaviour:
         z: -1500
       widthMillimetres: 1200
       depthMillimetres: 700
+      isPartition: 0
     - tableId:
         value: 4002
       centre:
@@ -3711,6 +4709,7 @@ MonoBehaviour:
         z: 2800
       widthMillimetres: 1200
       depthMillimetres: 700
+      isPartition: 0
     - tableId:
         value: 4003
       centre:
@@ -3718,6 +4717,7 @@ MonoBehaviour:
         z: 2000
       widthMillimetres: 1200
       depthMillimetres: 700
+      isPartition: 0
     - tableId:
         value: 4004
       centre:
@@ -3725,6 +4725,7 @@ MonoBehaviour:
         z: 13000
       widthMillimetres: 5400
       depthMillimetres: 1000
+      isPartition: 0
     - tableId:
         value: 4005
       centre:
@@ -3732,6 +4733,7 @@ MonoBehaviour:
         z: 12000
       widthMillimetres: 1200
       depthMillimetres: 1200
+      isPartition: 0
     - tableId:
         value: 4006
       centre:
@@ -3739,6 +4741,311 @@ MonoBehaviour:
         z: 12000
       widthMillimetres: 1200
       depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4101
+      centre:
+        x: 20200
+        z: 1400
+      widthMillimetres: 200
+      depthMillimetres: 4800
+      isPartition: 1
+    - tableId:
+        value: 4102
+      centre:
+        x: 20200
+        z: 8000
+      widthMillimetres: 200
+      depthMillimetres: 4800
+      isPartition: 1
+    - tableId:
+        value: 4103
+      centre:
+        x: 20200
+        z: 13400
+      widthMillimetres: 200
+      depthMillimetres: 2400
+      isPartition: 1
+    - tableId:
+        value: 4104
+      centre:
+        x: 26300
+        z: 1400
+      widthMillimetres: 200
+      depthMillimetres: 4800
+      isPartition: 1
+    - tableId:
+        value: 4105
+      centre:
+        x: 26300
+        z: 8000
+      widthMillimetres: 200
+      depthMillimetres: 4800
+      isPartition: 1
+    - tableId:
+        value: 4106
+      centre:
+        x: 26300
+        z: 13400
+      widthMillimetres: 200
+      depthMillimetres: 2400
+      isPartition: 1
+    - tableId:
+        value: 4107
+      centre:
+        x: 20200
+        z: -1000
+      widthMillimetres: 4400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4108
+      centre:
+        x: 20200
+        z: 1400
+      widthMillimetres: 4400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4109
+      centre:
+        x: 20200
+        z: 3800
+      widthMillimetres: 4400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4110
+      centre:
+        x: 20200
+        z: 5600
+      widthMillimetres: 4400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4111
+      centre:
+        x: 20200
+        z: 8000
+      widthMillimetres: 4400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4112
+      centre:
+        x: 20200
+        z: 10400
+      widthMillimetres: 4400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4113
+      centre:
+        x: 20200
+        z: 12200
+      widthMillimetres: 4400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4114
+      centre:
+        x: 20200
+        z: 14600
+      widthMillimetres: 4400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4115
+      centre:
+        x: 25200
+        z: -1000
+      widthMillimetres: 2400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4116
+      centre:
+        x: 25200
+        z: 1400
+      widthMillimetres: 2400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4117
+      centre:
+        x: 25200
+        z: 3800
+      widthMillimetres: 2400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4118
+      centre:
+        x: 25200
+        z: 5600
+      widthMillimetres: 2400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4119
+      centre:
+        x: 25200
+        z: 8000
+      widthMillimetres: 2400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4120
+      centre:
+        x: 25200
+        z: 10400
+      widthMillimetres: 2400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4121
+      centre:
+        x: 25200
+        z: 12200
+      widthMillimetres: 2400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4122
+      centre:
+        x: 25200
+        z: 14600
+      widthMillimetres: 2400
+      depthMillimetres: 200
+      isPartition: 1
+    - tableId:
+        value: 4201
+      centre:
+        x: 19650
+        z: 200
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4202
+      centre:
+        x: 19650
+        z: 2600
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4203
+      centre:
+        x: 19650
+        z: 6800
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4204
+      centre:
+        x: 19650
+        z: 9200
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4205
+      centre:
+        x: 19650
+        z: 13400
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4206
+      centre:
+        x: 20750
+        z: 200
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4207
+      centre:
+        x: 20750
+        z: 2600
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4208
+      centre:
+        x: 20750
+        z: 6800
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4209
+      centre:
+        x: 20750
+        z: 9200
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4210
+      centre:
+        x: 20750
+        z: 13400
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4211
+      centre:
+        x: 25750
+        z: 200
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4212
+      centre:
+        x: 25750
+        z: 2600
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4213
+      centre:
+        x: 25750
+        z: 6800
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4214
+      centre:
+        x: 25750
+        z: 9200
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4215
+      centre:
+        x: 25750
+        z: 13400
+      widthMillimetres: 700
+      depthMillimetres: 1200
+      isPartition: 0
+    - tableId:
+        value: 4216
+      centre:
+        x: 25800
+        z: 15800
+      widthMillimetres: 1200
+      depthMillimetres: 1200
+      isPartition: 0
     Rooms:
     - roomId:
         value: 5001
@@ -3836,6 +5143,14 @@ MonoBehaviour:
         minZ: -6000
         maxZ: -500
       use: 0
+    - roomId:
+        value: 5015
+      bounds:
+        minX: 16000
+        maxX: 28000
+        minZ: -3000
+        maxZ: 17000
+      use: 0
     Alarms:
     - alarmId:
         value: 6001
@@ -3884,7 +5199,48 @@ MonoBehaviour:
       - x: 12800
         z: 6200
       - x: 12800
+        z: 16800
+      - x: 10500
+        z: 16800
+    - fromObjectId:
+        value: 3273
+      toObjectId:
+        value: 3276
+      corners:
+      - x: 10500
+        z: 16800
+      - x: 13200
+        z: 16800
+      - x: 13200
+        z: 11500
+    - fromObjectId:
+        value: 3276
+      toObjectId:
+        value: 3274
+      corners:
+      - x: 13200
+        z: 11500
+      - x: 13200
         z: 10000
+      - x: 20200
+        z: 10000
+      - x: 20200
+        z: 1700
+      - x: 20400
+        z: 1700
+    - fromObjectId:
+        value: 3274
+      toObjectId:
+        value: 3275
+      corners:
+      - x: 20400
+        z: 1700
+      - x: 20400
+        z: 4700
+      - x: 26100
+        z: 4700
+      - x: 26100
+        z: 8300
     ExitSigns:
     - at:
         x: -3000
@@ -3929,6 +5285,38 @@ MonoBehaviour:
     - at:
         x: 14500
         z: -1200
+      pointingDegrees: 0
+    - at:
+        x: 17000
+        z: 9000
+      pointingDegrees: 0
+    - at:
+        x: 17000
+        z: 13000
+      pointingDegrees: 0
+    - at:
+        x: 16600
+        z: 500
+      pointingDegrees: 270
+    - at:
+        x: 23200
+        z: 4700
+      pointingDegrees: 270
+    - at:
+        x: 23200
+        z: 11300
+      pointingDegrees: 270
+    - at:
+        x: 27100
+        z: 11300
+      pointingDegrees: 270
+    - at:
+        x: 16600
+        z: 15500
+      pointingDegrees: 270
+    - at:
+        x: 15500
+        z: 15800
       pointingDegrees: 0
     Timetable:
     - kind: 0
@@ -4073,13 +5461,6 @@ MonoBehaviour:
       - value: 3706
       - value: 3707
       - value: 3708
-      triggerRoomId:
-        value: 0
-      landingCentre:
-        x: 0
-        z: 0
-      landingHeadingDegrees: 0
-      landingWidthMillimetres: 0
     - trapId:
         value: 7002
       doorId:
@@ -4089,10 +5470,3 @@ MonoBehaviour:
       - value: 3582
       - value: 3583
       - value: 3584
-      triggerRoomId:
-        value: 5014
-      landingCentre:
-        x: 9500
-        z: -1825
-      landingHeadingDegrees: 180
-      landingWidthMillimetres: 2600

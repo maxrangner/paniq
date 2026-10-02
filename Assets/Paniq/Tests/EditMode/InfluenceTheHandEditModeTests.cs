@@ -481,6 +481,16 @@ namespace Paniq.Tests.EditMode
 
                 Assert.That(cleared, Is.True, "Every crate is heaved out of the hand's reach.");
                 Assert.That(EventsOfType(simulation, CausalEventType.PowerInfluenced), Has.Count.EqualTo(1), "With one press.");
+
+                // The hand says so (2026-10-02), a beat after the last crate
+                // has left its reach, and is not used up by it: dragged on
+                // to another heap, it would clear that too.
+                CausalEvent? said = AdvanceUntil(simulation, e => e.EventType == CausalEventType.InfluenceSpent, 3 * Run.TicksPerSecond);
+                Assert.That(said.HasValue, "Cleared, and said so.");
+                Assert.That(said.Value.Strength, Is.EqualTo((int)HandAsk.ClearTheBoxes));
+                Assert.That(simulation.InfluenceForTests[0].Spent, Is.False, "The place is not used up by a heap cleared.");
+                Assert.That(simulation.InfluenceForTests.AskAt(simulation.InfluenceForTests[0]), Is.EqualTo(HandAsk.ComeHere),
+                    "With nothing left to clear, it only gathers.");
                 Assert.That(EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence).FindAll(e => e.SourceId == Somebody),
                     Has.Count.EqualTo(1), "Answered once: every crate after the first is the same answer.");
             }

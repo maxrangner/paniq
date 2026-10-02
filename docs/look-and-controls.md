@@ -231,6 +231,17 @@ What prototype 3's second batch added to the picture (2026-09-26):
   feel it (the owner: the lines showed far more than the reach). Somebody
   who took the hand in and is keeping at it from out of its reach has the
   gold hand over their head but no line.
+- **The hand's words** (2026-10-02, the owner: "I don't really feel that the
+  interactions are clear"). A small label over the ring says what the hand
+  asks there in two or three words ("open the door", "clear the boxes",
+  "get the card"), the same words in the doing over whoever takes it up
+  ("clearing the boxes..."), and a word at the place when it is done
+  ("opened!", "cleared!"). Somebody straining at a crate leans into it. One
+  table holds every word (`HandAskWords`), so the ring, the sign and the
+  line under the pointer never disagree; the simulation decides what is
+  asked and the display only names it.
+- **Screens.** The cubicle landscape's partitions are grey-blue slabs lower
+  than a person, so everybody behind them stays in view.
 - **The annoyed shake.** Somebody nudged three times quickly shakes fast from
   side to side on the spot, bigger than the tremble of the frozen, for a
   couple of seconds (the owner's rule, 2026-09-27: "a faster shaking that

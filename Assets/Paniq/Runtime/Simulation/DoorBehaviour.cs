@@ -1189,8 +1189,9 @@ namespace Paniq.Simulation
                     // card door (2026-09-27): no shoulder marks it, so nobody
                     // tries.
                     // The player's hand on it (2026-09-30): they throw
-                    // themselves at it whoever they are, the card door too --
-                    // it never gives (the owner: "they batter it, it holds").
+                    // themselves at it whoever they are, the card door too,
+                    // which gives to a long pounding (DoorSystem.SettlePounding;
+                    // it first held: "they batter it, it holds").
                     bool forTheHand = HandIsOn(agent, door);
                     if (forTheHand ||
                         (!agent.Doors.ShutByThem[door] && !doors.NeedsKeycard(door) &&

@@ -201,6 +201,7 @@ namespace Paniq.Simulation
                 case AgentActivityState.GoingToSit:
                 case AgentActivityState.Sitting:
                 case AgentActivityState.StandingUp:
+                    errands.SettleIntoTheSeat(agent);
                     if (chairs.UpdateSitting(agent, out goalHeading, out goalSpeed))
                     {
                         steer = goalSpeed > 0;
@@ -538,7 +539,9 @@ namespace Paniq.Simulation
             // crates on it or beside it) is never used up while a crate is
             // left (2026-09-30).
             bool clearing = !carrying && handHeave != null && handHeave.IsClearing(drawnBy);
-            bool doorJob = drawnBy.Door >= 0 && !agent.Errand.Has;
+            // A door that never shuts (an archway, swing doors, one off its
+            // hinges) is a place to come to, not a door to work (2026-10-02).
+            bool doorJob = influence.WantsTheDoorWorked(drawnBy) && !agent.Errand.Has;
             bool usable = !carrying && (clearing ||
                                         (!drawnBy.Spent && (doorJob || (drawnBy.Thing >= 0 && CanUse(agent, drawnBy)))));
             LogicalPosition target = WhereToStandFor(agent, drawnBy);
@@ -591,7 +594,8 @@ namespace Paniq.Simulation
 
             if (drawnBy.Door >= 0)
             {
-                if (!cues.FollowTheInfluence(agent, drawnBy.Door, drawnBy.EventId))
+                if (!influence.WantsTheDoorWorked(drawnBy) ||
+                    !cues.FollowTheInfluence(agent, drawnBy.Door, drawnBy.EventId))
                 {
                     return false;
                 }

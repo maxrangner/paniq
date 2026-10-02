@@ -293,6 +293,29 @@ namespace Paniq.Simulation
             }
         }
 
+        /// <summary>
+        /// The sit that ends an errand is the errand done, the moment they
+        /// are on the seat; they go on sitting for as long as they meant to.
+        /// Until 2026-10-02 the errand stayed "sitting down" for the whole
+        /// of the sit, minutes of it, unless a noise happened to turn them
+        /// in the chair -- so a cue queued behind it waited that long too:
+        /// home time called while somebody was on their way back to their
+        /// desk left them sitting at it while the building emptied. Called
+        /// every tick for somebody sitting.
+        /// </summary>
+        public void SettleIntoTheSeat(Agent agent)
+        {
+            AgentErrand errand = agent.Errand;
+            if (!errand.Active || errand.Phase != ErrandPhase.SittingDown || !agent.Sitting.OnIt ||
+                agent.Intent.Activity != AgentActivityState.Sitting)
+            {
+                return;
+            }
+
+            Advance(agent);
+            chairs.ResumeSitting(agent);
+        }
+
         /// <summary>Takes up a pending errand: out of the chair first if they are in one, else straight to the first step.</summary>
         private bool Begin(Agent agent)
         {
@@ -1144,6 +1167,7 @@ namespace Paniq.Simulation
                     // Opened for its own sake, because the player pointed
                     // at it: not going through, and the pull on it is spent.
                     influence?.Spend(agent, errand.Door, -1);
+                    InfluenceSystem.Done(agent);
                     return Advance(agent);
                 }
 
@@ -1304,6 +1328,7 @@ namespace Paniq.Simulation
             if (open == errand.HandWantsItOpen)
             {
                 influence?.Spend(agent, door, -1);
+                InfluenceSystem.Done(agent);
                 return Finish(agent, "the door was already as the hand wanted");
             }
 
@@ -1321,6 +1346,7 @@ namespace Paniq.Simulation
                 }
 
                 influence?.Spend(agent, door, -1);
+                InfluenceSystem.Done(agent);
                 return Advance(agent);
             }
 
@@ -1434,6 +1460,7 @@ namespace Paniq.Simulation
                     agent.Carry.ItemIndex = -1;
                     agent.Carry.Holding = false;
                     influence?.Spend(agent, door, -1);
+                    InfluenceSystem.Done(agent);
                     errand.Thing = -1;
                     errand.Stage = 0;
                     return Advance(agent);

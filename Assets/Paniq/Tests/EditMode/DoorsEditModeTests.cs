@@ -87,8 +87,8 @@ namespace Paniq.Tests.EditMode
             // Four rooms onto the corridor, the closet, the meeting room's
             // door into the cafeteria, the maintenance room, three stalls,
             // the archway where the corridor Ts, the stockroom's two doors,
-            // and the one way out.
-            Assert.That(simulation.DoorCount, Is.EqualTo(14));
+            // the one way out, and the cubicle landscape's three (2026-10-02).
+            Assert.That(simulation.DoorCount, Is.EqualTo(17));
             var sides = new HashSet<WallSide>();
             int locked = 0;
             for (int i = 0; i < simulation.DoorCount; i++)

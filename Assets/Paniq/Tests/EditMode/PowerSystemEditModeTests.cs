@@ -73,12 +73,88 @@ namespace Paniq.Tests.EditMode
         public void TheDefaultBuilding_HasCableJoiningItsSocketsToTheFuseBox()
         {
             ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
-            Assert.That(data.PowerLines, Has.Length.EqualTo(3),
-                "Three runs of cable: the fuse box to the first socket, and on down the chain.");
+            Assert.That(data.PowerLines, Has.Length.EqualTo(6),
+                "Six runs of cable: the fuse box to the first socket, and on down the chain -- the office's two, the cafeteria's, the one in the arm to the way out and the cubicles' two (2026-10-02).");
             foreach (PowerLineDefinition line in data.PowerLines)
             {
                 Assert.That(line.LengthMillimetres, Is.GreaterThan(0), "A run of cable has to go somewhere.");
                 Assert.That(line.Corners, Has.Length.GreaterThanOrEqualTo(2));
+            }
+        }
+
+        /// <summary>
+        /// The socket in the arm that leads to the way out (2026-10-02)
+        /// stands on that arm's wall, north of the junction and well short
+        /// of the door, with cable to it and on from it; and nothing that
+        /// goes off with a bang stands in the cafeteria within reach of the
+        /// wall it shares with that arm, because a bang knocks people down
+        /// through a wall and the queue at the way out could not see it
+        /// coming.
+        /// </summary>
+        [Test]
+        public void TheSocketInTheArmToTheWayOut_IsOnTheCable_AndNoBangReachesThatArmThroughTheCafeteriasWall()
+        {
+            ScenarioData data = scenario.ToRuntimeData();
+            PhysicsObjectDefinition arm = System.Array.Find(data.PhysicsObjects, thing => thing.ObjectId == PrototypeBuilding.ExitArmSocket);
+            Assert.That(arm.Kind, Is.EqualTo(PhysicsObjectKind.WallSocket));
+            Assert.That(arm.InitialPosition.X, Is.InRange(13000, 16000), "In the crossbar.");
+            Assert.That(arm.InitialPosition.Z, Is.InRange(9500, 13000), "North of the junction, and four metres and more short of the way out.");
+            Assert.That(System.Array.Exists(data.PowerLines, line => line.ToObjectId == PrototypeBuilding.ExitArmSocket), Is.True, "Cable runs to it.");
+            Assert.That(System.Array.Exists(data.PowerLines, line => line.FromObjectId == PrototypeBuilding.ExitArmSocket), Is.True, "And on from it.");
+
+            foreach (PhysicsObjectDefinition thing in data.PhysicsObjects)
+            {
+                bool inTheCafeteria = thing.InitialPosition.X > 2000 && thing.InitialPosition.X < 13000 &&
+                                      thing.InitialPosition.Z > 9000 && thing.InitialPosition.Z < 17000;
+                if (inTheCafeteria && (thing.Kind == PhysicsObjectKind.Microwave || thing.Kind == PhysicsObjectKind.WallSocket))
+                {
+                    Assert.That(13000 - thing.InitialPosition.X, Is.GreaterThan(2200),
+                        $"{thing.Kind} {thing.ObjectId} stands further from the arm's wall than the biggest bang of the two reaches.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// No extinguisher stands where the brave fetch it unasked from the
+        /// two places a fire is the player's to answer (2026-10-02): the
+        /// meeting room, where the first bin catches, and the socket in the
+        /// arm to the way out. Measured over thirty seeds with nobody
+        /// playing, a bottle two metres from the meeting room's door and
+        /// one three metres from the arm had 20.4 of 34 living; moved out
+        /// of that reach, 16.1. A hand on a bottle still sends somebody.
+        /// </summary>
+        [Test]
+        public void NoExtinguisher_StandsWithinTheBravesOwnReach_OfTheMeetingRoomOrTheArmToTheWayOut()
+        {
+            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
+            var arm = new LogicalPosition(13500, 11500);
+            using (var simulation = new Run(data))
+            {
+                WorldGeometry geometry = simulation.GeometryForTests;
+                foreach (PhysicsObjectDefinition thing in data.PhysicsObjects)
+                {
+                    if (thing.Kind != PhysicsObjectKind.Extinguisher || thing.StartsDormant)
+                    {
+                        continue;
+                    }
+
+                    // The fields on the map are built a few a tick, so each
+                    // question is asked over a few ticks and the last answer
+                    // is the one.
+                    long fromTheMeeting = 0;
+                    long fromTheArm = 0;
+                    for (int t = 0; t < 10; t++)
+                    {
+                        simulation.Step();
+                        fromTheMeeting = geometry.Routes.WalkingDistance(TheBuilding.MeetingRoom, thing.InitialPosition, 250);
+                        fromTheArm = geometry.Routes.WalkingDistance(arm, thing.InitialPosition, 250);
+                    }
+
+                    Assert.That(fromTheMeeting, Is.GreaterThan(data.Extinguishers.FetchRangeMillimetres),
+                        $"Bottle {thing.ObjectId} is a {fromTheMeeting} mm walk from the middle of the meeting room.");
+                    Assert.That(fromTheArm, Is.GreaterThan(data.Extinguishers.FetchRangeMillimetres),
+                        $"Bottle {thing.ObjectId} is a {fromTheArm} mm walk from the socket in the arm to the way out.");
+                }
             }
         }
 

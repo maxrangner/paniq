@@ -248,7 +248,7 @@ namespace Paniq.Tests.EditMode
             for (int sign = 0; sign < floor.Signs.Count; sign++)
             {
                 int[] teaches = floor.Wayfinding.WhatSignTeaches(sign);
-                Assert.That(teaches, Is.Not.Empty, $"Sign {sign} points at the way out.");
+                Assert.That(teaches, Is.Not.Empty, $"Sign {sign} at {floor.Signs.At(sign)} points at the way out.");
                 Assert.That(teaches[teaches.Length - 1], Is.EqualTo(wayOut), $"Sign {sign} ends at the way out.");
                 if (floor.Room(floor.Signs.At(sign)) == corridor)
                 {

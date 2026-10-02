@@ -7,10 +7,11 @@ using Paniq.Simulation;
 namespace Paniq.Tests.EditMode
 {
     /// <summary>
-    /// The stockroom's stack (2026-09-27): the Director's second trap. Three
-    /// crates against the north wall at the winding lane's first bend come
-    /// down across the gap once somebody frightened runs through the
-    /// stockroom, and, too heavy to carry, lie where they land and cut the
+    /// The stockroom's stack (2026-09-27). Four crates against the north
+    /// wall at the winding lane's first bend come down when somebody runs
+    /// into them (2026-10-02: it used to be sprung by anybody frightened
+    /// running through the room), and, too heavy to carry, lie where they
+    /// land and, across the gap, cut the
     /// lane on the map people steer by: the office's way out through the
     /// stockroom stops being one.
     /// </summary>
@@ -79,7 +80,7 @@ namespace Paniq.Tests.EditMode
             throw new KeyNotFoundException(room.ToString());
         }
 
-        /// <summary>The shipped building with one person standing in the stockroom's middle lane, the fire due in the meeting room.</summary>
+        /// <summary>The shipped building with one person standing in the stockroom where the test puts them, the fire due in the meeting room.</summary>
         private ScenarioData OnePersonInTheStockroom(LogicalPosition where)
         {
             ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
@@ -98,9 +99,12 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void TheStack_ComesDown_ABeatAfterSomebodyFrightenedRunsThroughTheStockroom()
+        public void TheStack_StandsBesideSomebodyCalm_AndComesDownABeatAfterSomebodyRunsIntoIt()
         {
-            ScenarioData data = OnePersonInTheStockroom(TheBuilding.Stockroom);
+            // In the west lane, two hand's breadths west of the stack's
+            // face, where somebody coming from the office door cuts the
+            // corner round the end of the crate wall.
+            ScenarioData data = OnePersonInTheStockroom(new LogicalPosition(8650, -2740));
             using (var simulation = new Run(data, 42UL))
             {
                 for (int t = 0; t < 60; t++)
@@ -108,19 +112,22 @@ namespace Paniq.Tests.EditMode
                     simulation.Step();
                 }
 
-                Assert.That(EventsOfType(simulation, CausalEventType.TrapTriggered), Is.Empty, "Somebody calm in the stockroom brings nothing down.");
-                simulation.FrightenForTests(0);
-                CausalEvent? trap = AdvanceUntil(simulation, CausalEventType.TrapTriggered, 100);
-                Assert.That(trap.HasValue, "Frightened, they run, and the stack is sprung.");
+                Assert.That(EventsOfType(simulation, CausalEventType.TrapTriggered), Is.Empty,
+                    "Somebody standing beside it, with the fire lit across the building, brings nothing down.");
+                simulation.ShoveAgentForTests(0, 90, 100);
+                CausalEvent? trap = AdvanceUntil(simulation, CausalEventType.TrapTriggered, 60);
+                Assert.That(trap.HasValue, "Shoved into it at a run, they knock it.");
                 Assert.That(trap.Value.SourceId, Is.EqualTo(TheBuilding.TheStockroomTrap), "The stockroom's stack, not the tower.");
                 Assert.That(trap.Value.TargetId, Is.EqualTo(Somebody));
-                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 300);
+                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 60);
                 Assert.That(fell.HasValue);
-                Assert.That(fell.Value.Tick - trap.Value.Tick, Is.InRange(data.Traps.CreakTicks * 4 / 5, data.Traps.CreakTicks * 6 / 5), "It creaks for about three seconds first (2026-09-29).");
-                Assert.That(fell.Value.HasTarget, Is.False, "No doorway: it fell across a lane.");
+                Assert.That(fell.Value.Tick - trap.Value.Tick,
+                    Is.InRange(data.Perception.ReactionLagMinimumTicks, data.Perception.ReactionLagMaximumTicks),
+                    "A beat after the knock, with no creak.");
+                Assert.That(fell.Value.HasTarget, Is.False, "No doorway: a stack in a room.");
 
                 var story = new Paniq.Presentation.EventStory(simulation.GetSnapshot());
-                Assert.That(story.Describe(fell.Value), Is.EqualTo("the crates came down across the lane"));
+                Assert.That(story.Describe(fell.Value), Is.EqualTo("the stack of crates came down"));
 
                 PhysicsObjectSystem objects = simulation.ObjectsForTests;
                 for (int t = 0; t < 3 * Run.TicksPerSecond; t++)
@@ -128,17 +135,23 @@ namespace Paniq.Tests.EditMode
                     simulation.Step();
                 }
 
+                // Since 2026-10-02 the stack stands free at the end of the
+                // first crate wall, so it goes the way the bumper was going:
+                // east, into the single-file middle lane.
+                Assert.That(fell.Value.Position.X, Is.GreaterThan(9500 + 600), "The heap is aimed on into the middle lane, the way the bumper was going.");
                 int moved = 0;
                 for (ulong id = 3581UL; id <= 3584UL; id++)
                 {
                     int crate = objects.IndexOf(new SimulationId(id));
-                    if (IntegerMath.Distance(new LogicalPosition(9500, -950), objects.PositionOf(crate)) > 300)
+                    LogicalPosition where = objects.PositionOf(crate);
+                    Assert.That(where.Z, Is.LessThan(-500), $"Crate {id} stayed in the stockroom.");
+                    if (IntegerMath.Distance(new LogicalPosition(9500, -2740), where) > 300)
                     {
                         moved++;
                     }
                 }
 
-                Assert.That(moved, Is.GreaterThanOrEqualTo(3), "The crates tumbled south across the gap.");
+                Assert.That(moved, Is.GreaterThanOrEqualTo(3), "The crates tumbled into the lane.");
             }
         }
 
@@ -152,7 +165,7 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void AFallenStack_CutsTheLaneOnTheMap_SoTheOfficeGoesRoundByTheCorridor()
         {
-            ScenarioData data = OnePersonInTheStockroom(TheBuilding.Stockroom);
+            ScenarioData data = OnePersonInTheStockroom(new LogicalPosition(10750, -3000));
             using (var simulation = new Run(data, 42UL))
             {
                 var westLane = new LogicalPosition(7000, -4000);
@@ -205,17 +218,5 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        [Test]
-        public void ALaneTrap_LandingOutsideTheRoomItWatches_IsRefused()
-        {
-            ScenarioData data = scenario.ToRuntimeData();
-            data.TrapDefinitions = new[]
-            {
-                data.TrapDefinitions[0],
-                new TrapDefinition(TheBuilding.TheStockroomTrap, data.TrapDefinitions[1].BoxIds, PrototypeBuilding.Stockroom,
-                    TheBuilding.Corridor, 90, 2100)
-            };
-            Assert.Throws<InvalidOperationException>(() => data.Validate());
-        }
     }
 }

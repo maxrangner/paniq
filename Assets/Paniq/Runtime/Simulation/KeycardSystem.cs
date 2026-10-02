@@ -156,13 +156,20 @@ namespace Paniq.Simulation
             TellTheStaff(agents);
         }
 
-        /// <summary>A member of staff (anybody who knows the building), drawn uniformly; -1 when there is none.</summary>
+        /// <summary>
+        /// A member of staff (anybody who knows the building), drawn
+        /// uniformly; -1 when there is none. With
+        /// <see cref="KeycardSettings.PocketStaysInTheCardsRoom"/> only the
+        /// staff who start in the room the card is authored in are drawn
+        /// from, so the card never begins beside the way out.
+        /// </summary>
         private int DrawAMemberOfStaff(Agent[] agents)
         {
+            int room = settings.PocketStaysInTheCardsRoom ? geometry.RoomAtPoint(objects.PositionOf(card)) : -1;
             int count = 0;
             for (int i = 0; i < agents.Length; i++)
             {
-                if (agents[i].Knowledge.KnowsEverything)
+                if (MayStartWithTheCard(agents[i], room))
                 {
                     count++;
                 }
@@ -176,7 +183,7 @@ namespace Paniq.Simulation
             int pick = placement.NextIntInclusive(0, count - 1);
             for (int i = 0; i < agents.Length; i++)
             {
-                if (agents[i].Knowledge.KnowsEverything && pick-- == 0)
+                if (MayStartWithTheCard(agents[i], room) && pick-- == 0)
                 {
                     return i;
                 }
@@ -184,6 +191,10 @@ namespace Paniq.Simulation
 
             return -1;
         }
+
+        /// <summary>Staff, and in the card's own room when one is named (<paramref name="room"/> of -1 is anywhere).</summary>
+        private bool MayStartWithTheCard(Agent agent, int room) =>
+            agent.Knowledge.KnowsEverything && (room < 0 || geometry.RoomOf(agent) == room);
 
         /// <summary>
         /// On one of the desks in the room the card was authored in, drawn
@@ -196,7 +207,8 @@ namespace Paniq.Simulation
             int count = 0;
             for (int t = 0; t < geometry.TableCount; t++)
             {
-                if (geometry.RoomAtPoint(geometry.TableBounds(t).Centre) == room)
+                // Desks only: a partition has no top to leave a card on.
+                if (geometry.IsDesk(t) && geometry.RoomAtPoint(geometry.TableBounds(t).Centre) == room)
                 {
                     count++;
                 }
@@ -211,7 +223,7 @@ namespace Paniq.Simulation
             for (int t = 0; t < geometry.TableCount; t++)
             {
                 LogicalBounds desk = geometry.TableBounds(t);
-                if (geometry.RoomAtPoint(desk.Centre) != room || pick-- != 0)
+                if (!geometry.IsDesk(t) || geometry.RoomAtPoint(desk.Centre) != room || pick-- != 0)
                 {
                     continue;
                 }

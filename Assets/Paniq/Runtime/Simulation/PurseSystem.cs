@@ -337,6 +337,7 @@ namespace Paniq.Simulation
                 // Influence: the player's own doing, and somebody following it.
                 case CausalEventType.PowerInfluenced:
                 case CausalEventType.AgentDrawnByInfluence:
+                case CausalEventType.AgentTookUpTheHandsAsk:
                 case CausalEventType.InfluenceSpent:
 
                 // The hand (2026-09-29): the player's own doing, somebody

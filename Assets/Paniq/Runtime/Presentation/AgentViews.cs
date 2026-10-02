@@ -221,23 +221,16 @@ namespace Paniq.Presentation
             }
         }
 
-        /// <summary>Who has the keycard this frame, for the card drawn over their head (2026-09-30).</summary>
-        private SimulationId? keycardHolder;
+        /// <summary>A person's drawn body, as placed by the last <see cref="Update"/>: what something worn on them follows.</summary>
+        public bool TryGetBody(SimulationId agentId, out Transform body)
+        {
+            body = agents.TryGetValue(agentId, out AgentView view) ? view.Transform : null;
+            return body != null;
+        }
 
         public void Update(RunSnapshot snapshot, RunSnapshot previousSnapshot, float blend, float time,
             Transform cameraTransform, DebugView show)
         {
-            // Who has the keycard this frame, once, for the card over their head (2026-09-30).
-            keycardHolder = null;
-            for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
-            {
-                PhysicsObjectSnapshot thing = snapshot.PhysicsObjects[i];
-                if (thing.Kind == PhysicsObjectKind.Keycard && thing.IsHeld && !thing.Dormant)
-                {
-                    keycardHolder = thing.HeldBy;
-                }
-            }
-
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
                 AgentSnapshot agent = snapshot.Agents[i];
@@ -646,7 +639,10 @@ namespace Paniq.Presentation
                     show.Marks,
                     show.Numbers,
                     agent.CommittedToTheHand,
-                    keycardHolder.HasValue && keycardHolder.Value == agent.AgentId);
+                    // The keycard is worn on its holder's hip (2026-10-02,
+                    // BoxViews): a mark over the head as well read as a
+                    // second card, so none is drawn.
+                    false);
             }
 
             UpdateVisionCone(agent, view.Vision, planar, yaw, show.VisionCones);

@@ -683,6 +683,22 @@ namespace Paniq.Simulation
         /// </summary>
         public int TuggedAgentIndex { get; internal set; } = -1;
 
+        /// <summary>
+        /// Whether the crowd switch stands at "panicked" (2026-10-01): the
+        /// whole crowd is being kept frightened, so the button reads
+        /// "Crowd: panicked" and flicks the other way.
+        /// </summary>
+        public bool CrowdHeldPanicked { get; internal set; }
+
+        /// <summary>
+        /// Whether the hazard has been asked to start, by the trigger button
+        /// or its own clock, whether or not it is alight yet. Since the crowd
+        /// switch (2026-10-01) a round can be running with no hazard asked
+        /// for, so this is what the Trigger event button reads, not
+        /// <see cref="EventTriggered"/>.
+        /// </summary>
+        public bool HazardRequested { get; internal set; }
+
         // The buffers the run writes into. Internal: the display only reads.
         internal AgentSnapshot[] AgentBuffer => agents;
         internal PhysicsObjectSnapshot[] PhysicsObjectBuffer => physicsObjects;

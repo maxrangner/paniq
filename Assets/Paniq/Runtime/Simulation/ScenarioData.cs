@@ -841,7 +841,7 @@ namespace Paniq.Simulation
     public sealed class ScenarioData
     {
         public string ScenarioId = "prototype-fire-1-fl-small";
-        public string ContentRevision = "92";
+        public string ContentRevision = "93";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -1074,7 +1074,11 @@ namespace Paniq.Simulation
         // nerve) or heads back toward the flames (turning back), caught by a
         // poke, a tug or the hand -- and then they run, give the door up, or
         // stay out of it for a while.
-        public int SimulationCompatibilityVersion = 80;
+        // 81: test levels and honest reach (2026-10-02): the crowd switch
+        // (two commands that panic or calm the whole crowd, each on their
+        // own tick, and begin the round); the hand through a doorway is felt
+        // only where it can be seen, fading over the doorway's soft edge.
+        public int SimulationCompatibilityVersion = 81;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();

@@ -565,7 +565,11 @@ has stopped being a way out.
 **It builds up** (prototype 3, second batch, 2026-09-26). A card covers the
 screen before anything moves: the level's name, how many of the twenty have to
 live to clear it, your best ever, and a box holding the seed with a **Random**
-button beside it. Press **Play** and the office comes to life — people walking
+button beside it -- and, since 2026-10-01, a row of levels to pick from: this
+office, or one of the three test levels (the square room, the maze and the
+interaction room; see [the development workflow](development-workflow.md#the-test-levels)),
+which have a **Crowd** button beside Trigger event that panics or calms the
+whole crowd at a press. Press **Play** and the office comes to life — people walking
 about, the meeting under way — with nothing wrong at all. A strip along the top
 counts *saved*, *lost* and *still inside* against the target, and under it sits
 **Trigger event**. Half a minute to a minute and a half in (the seed decides),
@@ -664,8 +668,9 @@ pocket. Put your hand on the card (hold the button on it) and somebody calm
 nearby pockets it for you -- and, since 2026-09-28, somebody frightened
 too: hold it for a couple of seconds and whoever feels the pull strongest
 goes and pockets it, brave or not, never into the flames, one at a time. The
-person with the card is drawn holding it up, and the line under the score
-says **HAS THE KEYCARD** when you point at them.
+person with the card wears it on their right hip, drawn larger than it is
+(2026-10-02; it used to be held up, then a mark over the head), and the line
+under the score says **HAS THE KEYCARD** when you point at them.
 
 Left alone, the office now saves about three of twenty over fifty seeds
 (15%, measured 2026-09-29 with the creak; it was four and a half, 23%, the
@@ -861,7 +866,17 @@ the slider lasts through Reset and is back to the level's own at every Play.
 they tune most by hand: "influence strength and influence area"). The hand is
 felt up to a certain walk away from it -- across the room, or through one
 open doorway into the next, never through a wall -- in full over the nearer
-half of that walk and fading to nothing at its end. The Tab panel's **Hand
+half of that walk and fading to nothing at its end. **Through a doorway it
+is felt only where it can be seen** (2026-10-02, the owner: "influence
+should travel mostly through line of sight ... if a wall is in between it
+should cut off. Maybe keep a slight gradient"): in full where the straight
+line from the person to the hand passes through the open gap, fading to
+nothing as that line misses the door frame by up to three quarters of a
+metre (`InfluenceSettings.DoorwaySightSoftEdgeMillimetres`, 750; 0 would be
+a hard cut at the frame). So a hand round the corner from an open door,
+against the wall beside it, is hidden by that wall as by any wall; it used
+to leak round the frame because the walk through the doorway was short.
+The Tab panel's **Hand
 reach** slider sets that walk, from two metres (a huddle round the hand) to
 twenty-four (the length of the building, walls allowing), and prints the
 metres and how many people feel the hand at all right now. Turned down, the
@@ -1160,7 +1175,10 @@ The other four are aimed at the building:
   and turn toward where it came from; they can promote to a visual alert when
   the fire enters their cone. Somebody with bravery 7 or more who sees a
   person bolt turns to look instead of taking fright. The `AgentScared`
-  event's parent is the agent's own alert.
+  event's parent is the agent's own alert. On a test level the Crowd button
+  startles everybody the same way (`AgentAlertSource.CrowdSwitch`, 2026-10-01),
+  each with a lag and a finishing tick of their own, and holds them
+  frightened until it is pressed again.
 - **Sound.** A sound is data: a position, a hearing reach, an optional alarm
   reach, and the event that made it. It is delivered at once to every other
   calm participating agent in ascending ID order. Inside the alarm reach the

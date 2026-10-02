@@ -650,7 +650,17 @@ namespace Paniq.Simulation
         }
 
         /// <summary>Whether the straight line from one point to the other crosses this door's wall inside the door's gap.</summary>
-        private bool SightCrossesDoorway(int door, LogicalPosition a, LogicalPosition b)
+        private bool SightCrossesDoorway(int door, LogicalPosition a, LogicalPosition b) =>
+            DoorwayMissMillimetres(door, a, b) <= 0L;
+
+        /// <summary>
+        /// How far beside this door's gap the straight line from one point to
+        /// the other crosses the door's wall: 0 through the gap itself, the
+        /// distance past the frame otherwise, and <see cref="long.MaxValue"/>
+        /// when the line does not cross that wall at all. Whether the door is
+        /// open is the caller's question.
+        /// </summary>
+        public long DoorwayMissMillimetres(int door, LogicalPosition a, LogicalPosition b)
         {
             DoorRuntime d = doors[door];
             LogicalPosition centre = DoorCentre(door);
@@ -665,12 +675,12 @@ namespace Paniq.Simulation
             if ((fromA > 0L && fromB > 0L) || (fromA < 0L && fromB < 0L) || (fromA == 0L && fromB == 0L))
             {
                 // Both on one side of the wall, or both on the wall line.
-                return false;
+                return long.MaxValue;
             }
 
             long crossingAlong = aAlong + (bAlong - aAlong) * (wall - aAcross) / (bAcross - aAcross);
             long gapCentre = wallRunsAlongX ? centre.X : centre.Z;
-            return Math.Abs(crossingAlong - gapCentre) <= d.Width / 2;
+            return Math.Max(0L, Math.Abs(crossingAlong - gapCentre) - d.Width / 2);
         }
 
         /// <summary>

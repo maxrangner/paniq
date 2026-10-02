@@ -257,7 +257,7 @@ namespace Paniq.Presentation
             agents.Update(frameSnapshot, previous, blend, time, prototypeCamera.transform, view);
             room.Update(frameSnapshot, hoveredDoor, time, Time.deltaTime);
             room.UpdateHoles(frameSnapshot);
-            boxes.Update(frameSnapshot, previous, blend, time);
+            boxes.Update(frameSnapshot, previous, blend, time, agents);
             ripples.Update(time);
             signs.Update(time, prototypeCamera.transform.rotation);
             cable.Update(frameSnapshot, time);

@@ -39,7 +39,11 @@ thick as they look, and the scene renamed `prototype_fire_1_fl_small`; its
 eleventh (2026-10-01) is about how fast the prototype can be iterated rather
 than about the game: the sketch-and-keep agreement (an idea is played before
 it is built to keep), a second dial in the Tab panel for how far the hand
-reaches, and a faster test suite. All are under "Prototype 3" further down.
+reaches, and a faster test suite; its twelfth (2026-10-02) is the first two
+sketches kept: three test levels and a Crowd button for watching one thing
+at a time, a hand felt through a doorway only where it can be seen, lines
+only to who feels it now, and the keycard worn on the hip. All are under
+"Prototype 3" further down.
 
 ## Foundation (complete)
 
@@ -820,6 +824,41 @@ it. Now every wall is 20 cm thick to the eye, to the physics and to the map
 people steer by, and a thing against a wall touches its face. One commit of its
 own; the decision is in
 [technical decisions](technical-decisions.md#prototype-3-walls-as-thick-to-the-feet-as-to-the-eye-2026-09-30).
+
+## Prototype 3: test levels and honest reach (2026-10-02)
+
+The first two sketches under the sketch-and-keep agreement, played by the
+owner and kept ("I can navigate the maze fine, so that is kind of fun"),
+hardened as one commit on `feat/prototype-3-gameplay`. The first (2026-10-01)
+answered the owner's ask for "blank levels to test panicked crowds ... large
+square room with walls, maze to test following, interaction test level";
+the second (2026-10-02) answered three playtest notes: the lines showed far
+more than the hand's reach, the hand leaked round door frames in the office
+(fine in the open test levels), and the keycard was hard to see. The
+details are in the
+[decisions](technical-decisions.md#prototype-3-test-levels-and-honest-reach-2026-10-02).
+
+| Stone | Kind | What the player sees |
+| --- | --- | --- |
+| Three test levels | Tooling | A row on the start card: the office, the square room (one 24 m room, a door in every wall, forty people the seed invents), the maze (4 m cells, archways, one way out, one member of staff and ten visitors) and the interaction room (one of everything to bump, carry, sit on, open or set alight). Each borrows the office's tuning and swaps the building. Reset and "play again" keep the level |
+| The Crowd button | Tooling | On a test level, beside Trigger event: *Crowd: panicked* startles everybody, each on a tick of their own, and holds them frightened; *Crowd: calm* settles them one by one and silences the bells. It begins the round, so an emptied level ends with a score, and Trigger event still lights a fire in a round the switch began. No "left alone" line on these levels: the switch is never copied into the background round |
+| Hand by sight | Behaviour | Through an open doorway the hand is felt only where it can be seen: in full straight through the gap, fading to nothing as the line misses the frame by three quarters of a metre. A hand against the wall beside an open door is hidden by that wall, as by any wall. Somebody who took the hand in and walked out of view keeps at it, as before |
+| Honest lines | Presentation | A gold line runs only to somebody who feels the hand right now, and the thick line of somebody doing what it asked is as bright as they feel it. Somebody keeping at an earlier ask from out of reach has the gold hand over their head and no line |
+| The keycard on the hip | Presentation | The card is worn on its holder's right hip, drawn 1.7 times its size, and rides on the body through a lean, a seat and a fall. The small mark over the head is gone: it read as a second card |
+
+**What this deliberately left out.** People who took up the call keeping at
+it after leaving view (kept on purpose; the owner may yet call that "through
+walls" too); a Crowd button on the office; a "left alone" line on a level
+with the switch; any test of how the test levels are drawn, beyond that they
+are valid buildings that run.
+
+**Things to watch at the next playtest.**
+
+- Whether three quarters of a metre of soft edge reads as a gradient or as a
+  leak; 0 is a hard cut.
+- Whether the lines, now honest, are enough to say who is answering, or
+  whether the gold hand alone is too quiet.
+- Whether the card on the hip is seen at the usual zoom.
 
 ## Foundations reviewed (2026-09-23)
 

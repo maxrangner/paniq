@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Paniq.Gameplay
@@ -32,6 +33,45 @@ namespace Paniq.Gameplay
 
         /// <summary>The seed the run now on screen was built with, for the display and for playing it again.</summary>
         public static ulong CurrentSeed { get; private set; }
+
+        /// <summary>
+        /// The level the next run is built in, by its id, or null for the
+        /// one the scene's runner is wired to (2026-10-01: the level row on
+        /// the start card). Kept across "play again" and "reset", which
+        /// clear the seed but not the level: whoever picked the maze wants
+        /// the maze again.
+        /// </summary>
+        public static string RequestedLevelId { get; private set; }
+
+        /// <summary>Chooses the level for the next run; null or empty goes back to the scene's own.</summary>
+        public static void RequestLevel(string levelId)
+        {
+            RequestedLevelId = string.IsNullOrEmpty(levelId) ? null : levelId;
+        }
+
+        /// <summary>
+        /// The level a run should be built in: the one asked for, if the
+        /// runner's catalogue has it, else the one the runner is wired to.
+        /// An id nobody has -- a level asset renamed, say -- falls back
+        /// rather than failing, so the scene always plays.
+        /// </summary>
+        public static LevelDefinition Choose(LevelDefinition wired, IReadOnlyList<LevelDefinition> catalogue)
+        {
+            if (RequestedLevelId == null || catalogue == null)
+            {
+                return wired;
+            }
+
+            for (int i = 0; i < catalogue.Count; i++)
+            {
+                if (catalogue[i] != null && catalogue[i].LevelId == RequestedLevelId)
+                {
+                    return catalogue[i];
+                }
+            }
+
+            return wired;
+        }
 
         /// <summary>Chooses the seed for the next run. Zero is refused: a scenario seed is never zero.</summary>
         public static void RequestSeed(ulong seed, bool startImmediately = false)

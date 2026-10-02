@@ -8,8 +8,10 @@ namespace Paniq.Gameplay
     /// and what it takes to clear it. The scenario says what the building is
     /// and how everything in it behaves; this says how it is played.
     /// <para>
-    /// There is one of these today and no way to choose between them, but a
-    /// second level is a duplicate of this asset with a different scenario
+    /// The office is one of these, and since 2026-10-01 so are the three
+    /// test levels (<c>Assets/Paniq/Content/Levels</c>): the start card
+    /// offers every level the runner's catalogue lists. A new level is a
+    /// new asset -- a different scenario, or a building drawn by code --
     /// rather than new code, which is the point of keeping it separate.
     /// </para>
     /// </summary>
@@ -47,10 +49,39 @@ namespace Paniq.Gameplay
         [Tooltip("On: the player can pull a fire alarm by clicking it. Off (the office since prototype 3's second batch): only the people in the building pull alarms.")]
         [SerializeField] private bool playerPullsAlarms = true;
 
+        [Tooltip("A building drawn by code instead of the scenario's own (2026-10-01): the square room, the maze or the interaction room. " +
+                 "The scenario's tuning numbers still apply; only the building, the people and the things in it are replaced. None plays the scenario's own building.")]
+        [SerializeField] private BuiltInBuilding builtInBuilding = BuiltInBuilding.None;
+
+        [Tooltip("On (the test levels): a Crowd button on screen sets the whole crowd panicking or calms it down again. Off (the office): the crowd is only ever frightened by what happens to it.")]
+        [SerializeField] private bool offersCrowdSwitch;
+
+        [Tooltip("On (the office): the red Trigger event button starts the level's hazard. Off (the square room and the maze, which have none): the button is not shown, and the round is not judged against the same seed left alone.")]
+        [SerializeField] private bool triggerStartsAHazard = true;
+
         public string LevelId => string.IsNullOrEmpty(levelId) ? name : levelId;
         public string DisplayName => string.IsNullOrEmpty(displayName) ? name : displayName;
         public PhysicsFeelPreset PhysicsFeel => physicsFeel;
         public int TargetSavedPercent => targetSavedPercent;
+
+        /// <summary>Which building the level plays: the scenario's own, or one drawn by code (2026-10-01).</summary>
+        public BuiltInBuilding BuiltInBuilding => builtInBuilding;
+
+        /// <summary>
+        /// Whether the Crowd switch is on screen on this level (2026-10-01).
+        /// A level with the switch plays no hands-off copy of the round for
+        /// the end card either: the switch is never copied into it, so a
+        /// crowd the player panicked would be judged against a calm one.
+        /// </summary>
+        public bool OffersCrowdSwitch => offersCrowdSwitch;
+
+        /// <summary>
+        /// Whether the red Trigger event button does anything here. Off, the
+        /// button is not drawn and no hands-off copy of the round is played
+        /// for the end card: with nothing to set off, "left alone" is the
+        /// same round (2026-10-01).
+        /// </summary>
+        public bool TriggerStartsAHazard => triggerStartsAHazard;
 
         /// <summary>The seed this level runs on when the player has not chosen one.</summary>
         public ulong DefaultSeed => ToRuntimeData().DefaultSeed;
@@ -66,6 +97,10 @@ namespace Paniq.Gameplay
             ScenarioData data = scenario != null
                 ? scenario.ToRuntimeData()
                 : new ScenarioData();
+
+            // A building drawn by code replaces the scenario's building
+            // and keeps its tuning (2026-10-01); None leaves it as it is.
+            data = TestBuildings.Apply(builtInBuilding, data);
             data.Round.HazardWaitsForTrigger = hazardWaitsForTrigger;
             data.Round.TargetSavedPercent = targetSavedPercent;
             data.Purse.Enabled = purseEnabled;

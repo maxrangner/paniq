@@ -1222,6 +1222,8 @@ namespace Paniq.Simulation
             into.PlayerMayPullAlarms = context.Scenario.Alarm.PlayerMayPull;
             into.DirectorPushTick = director.LastPushTick;
             into.TuggedAgentIndex = tugs.HeldIndex;
+            into.CrowdHeldPanicked = fear.HoldsPanicked;
+            into.HazardRequested = threats.StartRequested;
 
             into.Fill(
                 context.Tick,

@@ -219,12 +219,12 @@ namespace Paniq.Presentation
             }
 
             Color start = pushes ? PushGlow : Glow;
-            start.a = acting ? 1f : Mathf.Lerp(0.08f, 0.8f, felt);
+            start.a = acting ? Mathf.Lerp(0.3f, 1f, felt) : Mathf.Lerp(0.08f, 0.8f, felt);
             Color end = start;
             end.a = start.a * (acting ? 0.7f : 0.35f);
             line.startColor = start;
             line.endColor = end;
-            float width = acting ? 0.08f : Mathf.Lerp(0.01f, 0.05f, felt);
+            float width = acting ? Mathf.Lerp(0.03f, 0.08f, felt) : Mathf.Lerp(0.01f, 0.05f, felt);
             line.widthMultiplier = width * (0.9f + 0.1f * Mathf.Sin(time * 17f + index));
             line.enabled = true;
         }

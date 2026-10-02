@@ -119,6 +119,29 @@ text is in `AGENTS.md`). The owner names the speed:
 - **Neither named, or unclear**: ask, in one line with a recommendation,
   before doing anything. There is no default.
 
+### The test levels
+
+Three levels drawn by code (2026-10-01, the owner: "blank levels to test
+panicked crowds ... large square room with walls, maze to test following,
+interaction test level"), picked from the row on the start card. Each takes
+the office scenario's tuning and swaps the building, the people and the
+clutter (`TestBuildings`); each has the **Crowd** button, which panics the
+whole crowd at a press and calms it at the next, so a behaviour can be
+watched without waiting for a fire.
+
+| Level | What it is for |
+| --- | --- |
+| The square room (`Square.asset`) | One 24 m room, a shut door in the middle of each wall, forty people whose personalities the seed deals. Watch a crowd: the rush, the doorway crushes, who leads and who follows. No fire. |
+| The maze (`Maze.asset`) | Thirty-odd 4 m cells joined by archways, one way out, a staff member who knows it and ten visitors who do not. Watch following and finding the way. No fire. |
+| The interaction room (`Interaction.asset`) | One of everything to bump, carry, sit on, open, pound or set alight, a lobby, a side room through swing doors, a closet, a locked second exit, eight people with one dial each turned up. Trigger event lights a fire in the middle. |
+
+To add one: append a name to `BuiltInBuilding`, write its method in
+`TestBuildings` (ids in the 40001+ ranges, so a test may mix it with office
+ids), make a level asset under `Assets/Paniq/Content/Levels` naming it, and
+add the asset to the scene's `levels` list on the runner. A level with the
+Crowd button plays no hands-off copy for the end card: the switch is never
+copied into the copy, so the comparison would be meaningless.
+
 ### Two gears
 
 The full suite is about 690 edit-mode tests and 19 play-mode ones: six and a
@@ -171,7 +194,10 @@ word is the feature's name. These are the ones that are not:
 | `UniformGridIndex` (who is near here) | `SpatialIndex` |
 | `IThreat`, `Threats` (what a danger is) | `ThreatSeam,ReplayFingerprint` |
 | `CollisionSystem`, `BodySystem`, `PhysicsWorld` | `HardKnocks,Shoving,PhysicsFoundation,PhysicsObjects` |
-| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors,HeavyThings` |
+| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors,HeavyThings,Influence` |
+| `TestBuildings` (the square room, the maze, the interaction room) | `TestBuildings` |
+| `LevelDefinition`, `LevelSession`, `LevelLoader`, `RunDriver` (the level row, the seed, the best) | `LevelSession,TestBuildings` |
+| `FearSystem.PanicEveryone`, `CalmEveryone` (the Crowd button) | `CrowdSwitch,CalmingDown,ReplayFingerprint` |
 | `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting,HeavyThings` |
 | `TraitEffects` | `Traits,TraitCards` |
 | `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered,HeldDoors,BoxTower` |

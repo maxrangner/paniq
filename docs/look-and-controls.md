@@ -55,6 +55,8 @@ every zoom level.
 | **Reset** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
 | **Pause** (the button under Reset) | stop and start the world, as Space does |
 | **Trigger event** (the red button bottom centre) | start the fire. It goes the moment it is pressed |
+| **Crowd: calm / Crowd: panicked** (the button beside Trigger event, on a test level only, 2026-10-01) | flick the whole crowd: *panicked* startles everybody, each on a tick of their own, and holds them frightened until the button is pressed again; *calm* settles them one by one and silences the bells. It begins the round, so an emptied level ends with a score; Trigger event still lights the fire in a round the switch began. The office has no such button |
+| **The level row** (on the start card, 2026-10-01) | pick the level before pressing Play: the office, or one of the three test levels (the square room, the maze, the interaction room). Reset and "play again" keep the level and only change the seed |
 
 Chosen on the owner's behalf:
 
@@ -94,9 +96,13 @@ Chosen on the owner's behalf:
   counts, "Need 15 of 20" and "Left alone" left it; the last two are in the
   Tab panel's stats footer and on the end card. What a press under the
   pointer would do is written at the bottom left, above the bar.
-- **Whoever has the keycard wears a small yellow card** over their head
-  (a mark like the others, hidden with them), and the way out's hover line says who has it or that it
-  lies free (2026-09-30: the player had no way to know).
+- **Whoever has the keycard wears it on their right hip** (2026-10-02): the
+  card is drawn 1.7 times its real size so it reads at the usual zoom, and
+  it rides on the holder's body through a lean, a seat and a fall. From
+  2026-09-30 to 2026-10-02 it was a small mark over the head; the owner
+  found the card itself hard to see and the mark read as a second card, so
+  the mark is gone. The way out's hover line still says who has it or that
+  it lies free.
 - **A press that outlasts the window is a hold** (prototype 3,
   2026-09-25). The same third of a second decides both: a button up again
   inside it is a click, a button still down when it closes is a hold, and
@@ -219,7 +225,12 @@ What prototype 3's second batch added to the picture (2026-09-26):
   and agent, faint first, more intense the more influence". Gold rather than
   the orange of fire or the blue of a held door, so none of the three is
   mistaken for another. The lines are the answer to "is my influence doing
-  anything?": without them, "more likely to go there" is invisible.
+  anything?": without them, "more likely to go there" is invisible. Since
+  2026-10-02 a line is drawn only to somebody who feels the hand *right now*,
+  and the thick line of somebody doing what it asked is as bright as they
+  feel it (the owner: the lines showed far more than the reach). Somebody
+  who took the hand in and is keeping at it from out of its reach has the
+  gold hand over their head but no line.
 - **The annoyed shake.** Somebody nudged three times quickly shakes fast from
   side to side on the spot, bigger than the tremble of the frozen, for a
   couple of seconds (the owner's rule, 2026-09-27: "a faster shaking that

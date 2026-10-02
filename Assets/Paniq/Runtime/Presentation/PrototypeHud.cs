@@ -370,7 +370,8 @@ namespace Paniq.Presentation
                 ("G", "the floor people can walk on"),
                 ("Space", "start and stop the world (or the Pause button, top right)"),
                 ("Reset", "the button top right: back to the start card, keeping the seed"),
-                ("Trigger event", "the red button bottom centre starts the fire, once, and goes")
+                ("Trigger event", "the red button bottom centre starts the fire, once, and goes"),
+                ("Crowd", "on a test level, the button beside it: sets the whole crowd panicking, or calms it down again")
             };
 
             int rows = Math.Max(marks.Length, keys.Length);

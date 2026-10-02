@@ -318,6 +318,13 @@ namespace Paniq.Simulation
         /// <summary>Whether they saw the danger this time, rather than only heard about it: seeing it rattles them for longer.</summary>
         public bool SawTheThreat;
 
+        /// <summary>
+        /// The crowd switch told them to calm down (2026-10-01): they settle
+        /// on <see cref="CalmsAtTick"/> whatever the calming rules say, as
+        /// soon as they are free to. Cleared once they have.
+        /// </summary>
+        public bool CalmOrdered;
+
         public bool IsRattledAt(int tick) => tick < RattledUntilTick;
     }
 

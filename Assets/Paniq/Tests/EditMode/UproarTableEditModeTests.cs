@@ -28,6 +28,8 @@ namespace Paniq.Tests.EditMode
         [TestCase(CausalEventType.FireSpread, UproarTier.Nothing)]
         [TestCase(CausalEventType.AgentLost, UproarTier.Nothing)]
         [TestCase(CausalEventType.PowerBeefcake, UproarTier.Nothing)]
+        [TestCase(CausalEventType.PowerPanickedCrowd, UproarTier.Nothing)]
+        [TestCase(CausalEventType.PowerCalmedCrowd, UproarTier.Nothing)]
         public void TheTiers_AreAsTheDecisionLogSays(CausalEventType type, UproarTier expected)
         {
             Assert.That(PurseSystem.UproarTierOf(type), Is.EqualTo(expected));

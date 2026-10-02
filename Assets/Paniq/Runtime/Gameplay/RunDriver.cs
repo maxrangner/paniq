@@ -1,4 +1,5 @@
-﻿using Paniq.Simulation;
+﻿using System.Collections.Generic;
+using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Gameplay
@@ -21,6 +22,12 @@ namespace Paniq.Gameplay
 
         [Tooltip("Ignored when a level is assigned above. The building on its own, for a scene that has no level yet.")]
         [SerializeField] private ScenarioAsset scenario;
+
+        [Tooltip("Every level the start card offers (2026-10-01). The level above is always offered first, whether or not it is listed here.")]
+        [SerializeField] private LevelDefinition[] levels;
+
+        /// <summary>The level this run was built in: the one asked for on the start card, or the one wired above.</summary>
+        private LevelDefinition chosen;
 
         [Tooltip("Play with this physics feel instead of the scenario's own. Leave empty for the scenario's values.")]
         [SerializeField] private PhysicsFeelPreset physicsFeel;
@@ -52,7 +59,8 @@ namespace Paniq.Gameplay
                 {
                     // The seed is settled here, before tick zero, and recorded
                     // so the player can ask for the same one again.
-                    simulation = new Run(BuildScenarioData(), LevelSession.TakeSeedFor(level));
+                    chosen = LevelSession.Choose(level, levels);
+                    simulation = new Run(BuildScenarioData(), LevelSession.TakeSeedFor(chosen));
                     Seed = LevelSession.CurrentSeed;
 
                     // "Play again" means the player has already chosen; only a
@@ -75,9 +83,9 @@ namespace Paniq.Gameplay
         private ScenarioData BuildScenarioData()
         {
             ScenarioData data;
-            if (level != null)
+            if (Level != null)
             {
-                data = level.ToRuntimeData();
+                data = Level.ToRuntimeData();
             }
             else
             {
@@ -165,7 +173,45 @@ namespace Paniq.Gameplay
         public string PhysicsFeelName => EffectiveFeel() != null ? EffectiveFeel().name : null;
 
         /// <summary>The level being played. Never null once the run exists.</summary>
-        public LevelDefinition Level => level;
+        public LevelDefinition Level => chosen != null ? chosen : level;
+
+        /// <summary>
+        /// Every level the start card offers, the wired one first and no
+        /// level twice; an empty slot in the list is skipped. Gathered once:
+        /// the start card asks every frame.
+        /// </summary>
+        public IReadOnlyList<LevelDefinition> Levels
+        {
+            get
+            {
+                if (offeredLevels != null)
+                {
+                    return offeredLevels;
+                }
+
+                var offered = new List<LevelDefinition>();
+                if (level != null)
+                {
+                    offered.Add(level);
+                }
+
+                if (levels != null)
+                {
+                    foreach (LevelDefinition candidate in levels)
+                    {
+                        if (candidate != null && !offered.Contains(candidate))
+                        {
+                            offered.Add(candidate);
+                        }
+                    }
+                }
+
+                offeredLevels = offered;
+                return offered;
+            }
+        }
+
+        private List<LevelDefinition> offeredLevels;
 
         /// <summary>The seed this run was built from.</summary>
         public ulong Seed { get; private set; }
@@ -223,9 +269,9 @@ namespace Paniq.Gameplay
         /// <summary>The level's physics feel, or the one set directly on this component.</summary>
         private PhysicsFeelPreset EffectiveFeel()
         {
-            if (level != null && level.PhysicsFeel != null)
+            if (Level != null && Level.PhysicsFeel != null)
             {
-                return level.PhysicsFeel;
+                return Level.PhysicsFeel;
             }
 
             return physicsFeel;
@@ -237,7 +283,13 @@ namespace Paniq.Gameplay
 
             // The hands-off copy is built now, with the scene: a whole second
             // run, which would be a hitch on the first frame of play.
-            if (!(Application.isEditor && livePhysicsTuning))
+            // Not on a level whose trigger sets nothing off (2026-10-01):
+            // with no disaster to leave alone, the comparison is empty. Nor
+            // on a level with the crowd switch (2026-10-02): the switch is
+            // not mirrored into the copy, so a crowd the player panicked
+            // would be judged against one left calm.
+            if (!(Application.isEditor && livePhysicsTuning) &&
+                (Level == null || (Level.TriggerStartsAHazard && !Level.OffersCrowdSwitch)))
             {
                 leftAlone = new LeftAloneRunner(BuildScenarioData(), Seed);
             }
@@ -452,6 +504,22 @@ namespace Paniq.Gameplay
             }
 
             Simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), Simulation.Tick + 1);
+        }
+
+        /// <summary>
+        /// The crowd switch flicked to "panicked" (2026-10-01), queued for the
+        /// next tick that has not started. Not mirrored into the hands-off
+        /// round: a level with the switch has no hands-off round.
+        /// </summary>
+        public void QueueCrowdPanicked()
+        {
+            Simulation.QueueCommand(PlayerCommandType.SetCrowdPanicked, default(SimulationId), Simulation.Tick + 1);
+        }
+
+        /// <summary>The crowd switch flicked to "calm" (2026-10-01), queued for the next tick that has not started.</summary>
+        public void QueueCrowdCalm()
+        {
+            Simulation.QueueCommand(PlayerCommandType.SetCrowdCalm, default(SimulationId), Simulation.Tick + 1);
         }
 
         public void StepForTests()

@@ -80,6 +80,9 @@ and not everyday English, add it.
 | **Creak** | The few seconds a sprung trap sways and is heard before it falls, so a player who is looking can get people clear. The building plays in the open. (`TrapSystem`.) |
 | **Par**, or **left alone** | What the same seed comes to with nobody at the controls, played in the background during the round. Shown on the strip once it is known and on the end card as the margin: the round is judged as you against the building. (`LeftAloneRunner`.) |
 | **Trigger event** | The red button that starts the disaster, so the round opens calm and the player looks around first. |
+| **Test level** | A level drawn by code rather than laid out by hand, for watching one thing (2026-10-01): the square room (a crowd), the maze (following), the interaction room (one of everything). Picked from the row on the start card; each has the Crowd button. (`TestBuildings`.) |
+| **Crowd switch** | The Crowd button on a test level: one press panics the whole crowd, each person on a tick of their own, and holds them so; the next calms them one by one and silences the bells. It begins the round. (`FearSystem.PanicEveryone`, `CalmEveryone`.) |
+| **Line of sight (of the hand)** | Through an open doorway the hand is felt only where it can be seen (2026-10-02): in full straight through the gap, fading over three quarters of a metre past the frame, nothing beyond. The wall beside an open door hides the hand as any wall does. (`InfluenceSettings.DoorwaySightSoftEdgeMillimetres`.) |
 | **The way out** | The one door in an outside wall. Walking out through it is escaping. |
 
 ## Checking work

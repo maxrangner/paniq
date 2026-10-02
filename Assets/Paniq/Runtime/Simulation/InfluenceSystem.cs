@@ -446,19 +446,28 @@ namespace Paniq.Simulation
                 return 0;
             }
 
-            long reach = settings.ReachMillimetres;
-            long distance = WalkTo(room, agent.Body.Position, place);
-            if (distance >= reach)
+            long felt = ReachingFrom(room, agent.Body.Position, place);
+            if (felt <= 0L)
             {
                 return 0;
             }
 
-            long full = reach * settings.FullWithinPercent / 100L;
-            long felt = distance <= full ? 1000L : 1000L * (reach - distance) / Math.Max(1L, reach - full);
-
             // Everybody's reading of the hand, scaled by the one dial
             // (2026-09-30, the Tab panel's hand strength).
             return (int)(felt * Susceptibility(agent) / 100L * settings.StrengthPercent / 100L);
+        }
+
+        /// <summary>A walk's worth of the hand, per mille: full within <see cref="InfluenceSettings.FullWithinPercent"/> of the reach, then fading to nothing at it.</summary>
+        private long FadeOver(long distance)
+        {
+            long reach = settings.ReachMillimetres;
+            if (distance >= reach)
+            {
+                return 0L;
+            }
+
+            long full = reach * settings.FullWithinPercent / 100L;
+            return distance <= full ? 1000L : 1000L * (reach - distance) / Math.Max(1L, reach - full);
         }
 
         /// <summary>
@@ -916,19 +925,28 @@ namespace Paniq.Simulation
         internal const int PushClearanceMillimetres = 1500;
 
         /// <summary>
-        /// How far it is to the place from here: straight, in one of the
-        /// place's rooms; else through the nearest open doorway that joins
-        /// this room to one of them, doorway to place added on; else out of
-        /// reach. One doorway deep, which is "about a room's length".
+        /// How much of the place reaches here, per mille, before who they are
+        /// is counted: by the straight distance, in one of the place's rooms;
+        /// else through an open doorway that joins this room to one of them,
+        /// doorway to place added on -- and only as far as the place is in
+        /// view through that doorway (2026-10-02, the owner: "influence
+        /// should travel mostly through line of sight ... if a wall is in
+        /// between it should cut off. Maybe keep a slight gradient"): whole
+        /// where the straight line passes through the gap, fading to nothing
+        /// as it misses the frame by
+        /// <see cref="InfluenceSettings.DoorwaySightSoftEdgeMillimetres"/>
+        /// (none at all when that is 0). The best doorway counts. One doorway
+        /// deep, which is "about a room's length".
         /// </summary>
-        private long WalkTo(int room, LogicalPosition from, in Place place)
+        private long ReachingFrom(int room, LogicalPosition from, in Place place)
         {
             if (room == place.RoomA || room == place.RoomB)
             {
-                return IntegerMath.Distance(from, place.At);
+                return FadeOver(IntegerMath.Distance(from, place.At));
             }
 
-            long best = long.MaxValue;
+            int softEdge = settings.DoorwaySightSoftEdgeMillimetres;
+            long best = 0L;
             for (int d = 0; d < geometry.DoorCount; d++)
             {
                 if (!geometry.IsDoorOpen(d))
@@ -945,11 +963,23 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                long miss = geometry.DoorwayMissMillimetres(d, from, place.At);
+                if (miss > 0 && miss >= softEdge)
+                {
+                    continue;
+                }
+
                 LogicalPosition through = geometry.DoorCentre(d);
                 long via = IntegerMath.Distance(from, through) + IntegerMath.Distance(through, place.At);
-                if (via < best)
+                long felt = FadeOver(via);
+                if (miss > 0)
                 {
-                    best = via;
+                    felt = felt * (softEdge - miss) / softEdge;
+                }
+
+                if (felt > best)
+                {
+                    best = felt;
                 }
             }
 
@@ -1031,22 +1061,21 @@ namespace Paniq.Simulation
             for (int a = 0; a < agents.Length; a++)
             {
                 Agent agent = agents[a];
-                if (!agent.IsParticipating)
+                // Only who the hand reaches right now (2026-10-02, the
+                // owner's note that the lines showed far more than the
+                // reach): a line to somebody keeping at it from out of reach
+                // said more than the hand does. They keep the gold hand over
+                // them.
+                if (places.Count == 0 || !agent.IsParticipating || agent.Body.State == AgentBodyState.Unconscious ||
+                    agent.Burning.IsBurning || agent.Tug.Held)
                 {
                     continue;
                 }
 
-                if (TryGetPull(agent, out _, out int drive) && drive > 0)
+                int felt = FeltBy(agent, 0);
+                if (felt > 0)
                 {
-                    intoPulls.Add(new InfluencePullSnapshot(agent.Id, a, 0, drive, IsActingFor(agent), IsCommitted(agent)));
-                }
-                else if (places.Count > 0)
-                {
-                    int felt = FeltBy(agent, 0);
-                    if (felt > 0)
-                    {
-                        intoPulls.Add(new InfluencePullSnapshot(agent.Id, a, 0, felt, IsActingFor(agent)));
-                    }
+                    intoPulls.Add(new InfluencePullSnapshot(agent.Id, a, 0, felt, IsActingFor(agent), IsCommitted(agent)));
                 }
             }
         }

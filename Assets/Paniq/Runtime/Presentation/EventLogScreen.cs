@@ -192,6 +192,8 @@ namespace Paniq.Presentation
                 case CausalEventType.RoundEventTriggered:
                 case CausalEventType.DoorUnlocked:
                 case CausalEventType.CardDealt:
+                case CausalEventType.PowerPanickedCrowd:
+                case CausalEventType.PowerCalmedCrowd:
                     return Player;
 
                 case CausalEventType.AgentLost:

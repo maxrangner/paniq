@@ -3330,6 +3330,18 @@ namespace Paniq.Simulation
         /// </summary>
         public int ClearReachMillimetres = 1500;
 
+        /// <summary>
+        /// Through an open doorway the hand is felt only where it can be
+        /// seen (2026-10-02, the owner: "influence should travel mostly
+        /// through line of sight ... if a wall is in between it should cut
+        /// off. Maybe keep a slight gradient"): in full where the straight
+        /// line from the person to the hand passes through the gap, and
+        /// fading to nothing as it misses the door frame by this much. 0 is
+        /// a hard cut at the frame. Three quarters of a metre: a shoulder's
+        /// width past the frame still catches the eye, a stride does not.
+        /// </summary>
+        public int DoorwaySightSoftEdgeMillimetres = 750;
+
         public InfluenceSettings Clone() => (InfluenceSettings)MemberwiseClone();
 
         internal void Validate()
@@ -3348,6 +3360,8 @@ namespace Paniq.Simulation
                 "the hand, third pass");
             Settings.Require(ReachMillimetres >= MinimumReachMillimetres && ReachMillimetres <= MaximumReachMillimetres,
                 "the hand's reach");
+            Settings.Require(DoorwaySightSoftEdgeMillimetres >= 0 && DoorwaySightSoftEdgeMillimetres <= ReachMillimetres,
+                "the hand's view through a doorway");
         }
 
         /// <summary>The most <see cref="StrengthPercent"/> may be: ten times the level's own.</summary>

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
@@ -159,42 +160,128 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The owner's rule (2026-09-29): "through open doors, but limit range
-        /// to be around a room's length". Through a wall, nothing; through a
-        /// shut door, nothing; through an open one, the walk round by the
-        /// doorway, which is further than the straight line.
+        /// The owner's rules: "through open doors, but limit range to be
+        /// around a room's length" (2026-09-29), and "influence should travel
+        /// mostly through line of sight ... if a wall is in between it should
+        /// cut off. Maybe keep a slight gradient" (2026-10-02). Through a
+        /// wall, nothing; through a shut door, nothing; through an open one,
+        /// only where the hand can be seen through the gap: in full straight
+        /// through it, fading as the line misses the frame, nothing a stride
+        /// past it.
         /// </summary>
         [Test]
-        public void ThePull_ReachesThroughAnOpenDoor_ButNeverThroughAWallOrAShutOne()
+        public void ThePull_ReachesThroughAnOpenDoor_OnlyWhereItCanBeSeen_AndNeverThroughAWallOrAShutOne()
         {
             // In the corridor, a metre and a half north of the office's north
-            // wall, three metres east of the office door: through the wall the
-            // spot is close; through the doorway it is a short walk.
-            ScenarioData data = Office(Person(Somebody, 3000, 7500, AgentTraitValues.AllOrdinary));
+            // wall, straight out from the office door at (0, 6000).
+            ScenarioData data = Office(Person(Somebody, 0, 7500, AgentTraitValues.AllOrdinary));
             using (var simulation = new Run(data, 42UL))
             {
-                var justInsideTheOffice = new LogicalPosition(3000, 5000);
-                HoldTheFloor(simulation, justInsideTheOffice);
+                var straightInsideTheDoor = new LogicalPosition(0, 5000);
+                HoldTheFloor(simulation, straightInsideTheDoor);
                 InfluenceSystem influence = simulation.InfluenceForTests;
-                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.Zero,
-                    "The office door is shut: two and a half metres away through the wall, they feel nothing.");
+                Agent somebody = simulation.AgentForTests(0);
+                Assert.That(influence.FeltBy(somebody, 0), Is.Zero,
+                    "The office door is shut: two and a half metres away through it, they feel nothing.");
 
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.OfficeDoor, simulation.Tick + 1);
                 simulation.Step();
                 Assert.That(simulation.GetDoor(DoorIndex(TheBuilding.OfficeDoor)).State, Is.EqualTo(DoorState.Open), "The player walked the office door open.");
-                HoldTheFloor(simulation, justInsideTheOffice);
-                int throughTheDoor = influence.FeltBy(simulation.AgentForTests(0), 0);
-                Assert.That(throughTheDoor, Is.GreaterThan(0), "The door open, the pull reaches them round through the doorway.");
+                HoldTheFloor(simulation, straightInsideTheDoor);
+                int inLine = influence.FeltBy(somebody, 0);
+                Assert.That(inLine, Is.GreaterThan(0), "The door open and the hand in line with the gap: the pull reaches them through the doorway.");
 
-                HoldTheFloor(simulation, new LogicalPosition(3000, 7000));
-                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.GreaterThan(throughTheDoor),
-                    "A spot in their own room, half a metre off, pulls harder than one a walk away through the door.");
+                // The line from them to a spot 1.5 m east of the door's line
+                // crosses the wall 0.9 m from the door's centre: 0.4 m past
+                // the half-metre frame, inside the soft edge.
+                HoldTheFloor(simulation, new LogicalPosition(1500, 5000));
+                int atTheEdge = influence.FeltBy(somebody, 0);
+                Assert.That(atTheEdge, Is.GreaterThan(0), "A hand just past the frame still shows faintly.");
+                Assert.That(atTheEdge, Is.LessThan(inLine), "But fainter than one straight through the gap.");
 
-                // Twelve metres of walking is the end of it: the far corner of
-                // the office from the corridor's east end.
+                // 2.5 m east: the line crosses the wall 1.5 m from the door's
+                // centre, a metre past the frame -- beyond the soft edge.
+                HoldTheFloor(simulation, new LogicalPosition(2500, 5000));
+                Assert.That(influence.FeltBy(somebody, 0), Is.Zero,
+                    "A hand a stride past the frame is hidden by the wall beside the open door, as by any wall.");
+
+                HoldTheFloor(simulation, new LogicalPosition(0, 7000));
+                Assert.That(influence.FeltBy(somebody, 0), Is.GreaterThanOrEqualTo(inLine),
+                    "A spot in their own room, half a metre off, pulls at least as hard as one a short walk away through the door (both inside the full-pull half).");
+
                 HoldTheFloor(simulation, TheBuilding.OfficeFarCorner);
-                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.Zero,
-                    "Sixteen metres round by the door: out of reach.");
+                Assert.That(influence.FeltBy(somebody, 0), Is.Zero, "The far corner of the office: out of sight and out of reach.");
+            }
+        }
+
+        [Test]
+        public void WithNoSoftEdge_ADoorwayCutsLikeAWall()
+        {
+            ScenarioData data = Office(Person(Somebody, 0, 7500, AgentTraitValues.AllOrdinary));
+            data.Influence.DoorwaySightSoftEdgeMillimetres = 0;
+            using (var simulation = new Run(data, 42UL))
+            {
+                simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.OfficeDoor, simulation.Tick + 1);
+                simulation.Step();
+                InfluenceSystem influence = simulation.InfluenceForTests;
+                HoldTheFloor(simulation, new LogicalPosition(0, 5000));
+                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.GreaterThan(0), "Straight through the gap: felt.");
+                HoldTheFloor(simulation, new LogicalPosition(1500, 5000));
+                Assert.That(influence.FeltBy(simulation.AgentForTests(0), 0), Is.Zero, "A hand's breadth past the frame with no soft edge: nothing.");
+            }
+        }
+
+        [Test]
+        public void TheDoorwayMiss_IsZeroThroughTheGap_TheOvershootBeside_AndNothingWhenTheWallIsNotCrossed()
+        {
+            ScenarioData data = Office(Person(Somebody, 0, 7500, AgentTraitValues.AllOrdinary));
+            using (var simulation = new Run(data, 42UL))
+            {
+                WorldGeometry geometry = simulation.GeometryForTests;
+                int door = DoorIndex(TheBuilding.OfficeDoor);
+                var inTheCorridor = new LogicalPosition(0, 7500);
+                Assert.That(geometry.DoorwayMissMillimetres(door, inTheCorridor, new LogicalPosition(0, 5000)), Is.Zero,
+                    "Straight through the metre-wide gap.");
+                Assert.That(geometry.DoorwayMissMillimetres(door, inTheCorridor, new LogicalPosition(1500, 5000)), Is.EqualTo(400),
+                    "Crossing the wall 900 mm from the door's centre is 400 mm past its half-metre frame.");
+                Assert.That(geometry.DoorwayMissMillimetres(door, inTheCorridor, new LogicalPosition(3000, 7000)), Is.EqualTo(long.MaxValue),
+                    "Two spots in the corridor: the line never crosses the office's wall at all.");
+            }
+        }
+
+        /// <summary>
+        /// The lines drawn to people are for who feels the hand right now
+        /// (2026-10-02, the owner's note that the lines showed far more than
+        /// the reach). Somebody keeping at an earlier ask from out of reach
+        /// still has their gold hand, but no line.
+        /// </summary>
+        [Test]
+        public void TheSnapshot_ListsOnlyWhoFeelsTheHandNow()
+        {
+            ScenarioData data = Office(
+                Person(Somebody, -4000, -4000, AgentTraitValues.AllOrdinary),
+                Person(SomebodyElse, 2000, 7500, AgentTraitValues.AllOrdinary));
+            using (var simulation = new Run(data, 42UL))
+            {
+                InfluenceSystem influence = simulation.InfluenceForTests;
+                HoldTheFloor(simulation, new LogicalPosition(-3000, -4000));
+                Advance(simulation, 3 * Run.TicksPerSecond);
+                Agent somebody = simulation.AgentForTests(0);
+                Assert.That(somebody.Hand.Conviction, Is.GreaterThanOrEqualTo(data.Influence.CommitFromPerMille),
+                    "Three seconds beside the hand: they have taken it in past the commit line.");
+
+                // The hand moves out into the corridor, behind the shut office
+                // door and out of their reach; the other person is beside it
+                // now, and the first keeps at what they were asked.
+                HoldTheFloor(simulation, new LogicalPosition(3500, 7500));
+                Advance(simulation, 2);
+                Assert.That(influence.IsCommitted(somebody), Is.True, "Out of the new hand's reach, they keep the old ask.");
+                RunSnapshot snapshot = simulation.GetSnapshot();
+                Assert.That(snapshot.InfluencePulls.All(p => p.FeltPerMille > 0), "Every line is to somebody feeling the hand.");
+                Assert.That(snapshot.InfluencePulls.Any(p => p.AgentId == SomebodyElse), "The person beside the hand has a line.");
+                Assert.That(influence.FeltBy(somebody, 0), Is.Zero, "The first person is out of its reach now.");
+                Assert.That(snapshot.InfluencePulls.Any(p => p.AgentId == Somebody), Is.False,
+                    "No line to somebody out of reach, whatever they are still keeping at.");
             }
         }
 

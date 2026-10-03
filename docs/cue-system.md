@@ -297,7 +297,7 @@ of it is started; each is a stone of its own.
    the physics engine's contacts and a stack comes down only when a body
    runs into it. A socket or the fuse box goes only as the cap's push,
    below. The owner's words for both are in
-   [the decisions](technical-decisions.md#prototype-3-the-building-dialled-back-and-the-office-re-dressed-2026-10-02).
+   [the decisions](history/decisions-prototype-3.md#prototype-3-the-building-dialled-back-and-the-office-re-dressed-2026-10-02).
    *Its second form, 2026-09-28 (prototype 3, the cap):* on a level that
    switches it on (`DirectorSettings.CapsTheRound`, on for the office) the
    Director also caps the round. Before the curtain it draws how many the

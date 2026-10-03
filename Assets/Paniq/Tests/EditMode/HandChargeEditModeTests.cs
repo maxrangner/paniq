@@ -77,7 +77,6 @@ namespace Paniq.Tests.EditMode
             data.TrapDefinitions = Array.Empty<TrapDefinition>();
             data.Calm.DecisionMinimumTicks = 100000;
             data.Calm.DecisionMaximumTicks = 100000;
-            data.Day.ToiletEveryTicks = 0;
             data.Calming.Enabled = false;
             return data;
         }

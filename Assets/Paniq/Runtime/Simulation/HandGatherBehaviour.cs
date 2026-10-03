@@ -31,7 +31,7 @@ namespace Paniq.Simulation
     /// one brings that choice forward. Draws nothing of its own.
     /// </para>
     /// </summary>
-    internal sealed class HandGatherBehaviour : IPanicOption, IBindable
+    internal sealed class HandGatherBehaviour : ITaskOption, IBindable
     {
         /// <summary>Within this of their spot they stand; beyond it they walk.</summary>
         private const int AtTheSpotMillimetres = 450;
@@ -72,18 +72,30 @@ namespace Paniq.Simulation
 
         public static bool IsAnswering(Agent agent) => agent.Intent.Activity == AgentActivityState.AnsweringTheHand;
 
-        /// <summary>
-        /// Considered in the panic decision after the keycard and the heave,
-        /// and before the leaders: the hand is asked before a leader's call,
-        /// or nobody following one would ever answer it.
-        /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
-        {
-            if (IsAnswering(agent))
-            {
-                return Update(agent, inDanger);
-            }
+        public bool IsDoing(Agent agent) => IsAnswering(agent);
 
+        public MotorIntent? Continue(Agent agent, in Situation situation) => Update(agent, situation.InDanger);
+
+        /// <summary>A goal for the hand, or a push on now; out of the flames, on their feet, hands and care free.</summary>
+        public bool Wants(Agent agent, in Situation situation) =>
+            !situation.InDanger && influence != null && agent.Body.State == AgentBodyState.Upright &&
+            agent.Carry.ItemIndex < 0 && agent.Help.TargetIndex < 0 && !agent.Burning.IsBurning &&
+            (agent.Hand.Press != 0UL || (influence.Count > 0 && influence[0].Repels));
+
+        /// <summary>
+        /// They come to the hand and stand there, or are sent off by a push --
+        /// or, for a goal on a door, think again about which door, a beat
+        /// later. Nothing for a goal that is not theirs to answer here.
+        /// </summary>
+        public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
+        {
+            first = Begin(agent, situation);
+            return first.HasValue;
+        }
+
+        private MotorIntent? Begin(Agent agent, in Situation situation)
+        {
+            bool inDanger = situation.InDanger;
             if (inDanger || influence == null || agent.Body.State != AgentBodyState.Upright ||
                 agent.Carry.ItemIndex >= 0 || agent.Help.TargetIndex >= 0 || agent.Burning.IsBurning)
             {

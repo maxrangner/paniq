@@ -618,9 +618,7 @@
             // Somebody only startled, not yet frightened, has done nothing
             // yet and can be stood down where they are (the crowd switch is
             // the one thing that asks, 2026-10-01).
-            bool free = activity == AgentActivityState.Fleeing || activity == AgentActivityState.Hesitating ||
-                        activity == AgentActivityState.Frozen || activity == AgentActivityState.Standing ||
-                        agent.Fear.State == AgentFearState.Alert;
+            bool free = Tasks.IsFreeToCalm(activity) || agent.Fear.State == AgentFearState.Alert;
             if (!free || agent.Body.State != AgentBodyState.Upright || agent.Help.TargetIndex >= 0 ||
                 agent.Sitting.Phase == SitPhase.LeapingUp || TellSystem.IsTelling(agent))
             {

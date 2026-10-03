@@ -49,7 +49,6 @@ namespace Paniq.Tests.EditMode
             Assert.That(data.Fire.ActivationTick, Is.EqualTo(int.MaxValue), "Nothing burns until the player asks.");
             Assert.That(data.Timetable, Is.Empty, "The office's day does not happen here.");
             Assert.That(data.TrapDefinitions, Is.Empty, "No tower, no stack.");
-            Assert.That(data.Purse.Starting, Is.EqualTo(data.Purse.Maximum), "The purse opens full: the doors are the owner's to work.");
         }
 
         [TestCase(BuiltInBuilding.SquareRoom)]
@@ -91,7 +90,6 @@ namespace Paniq.Tests.EditMode
 
             ScenarioData data = level.ToRuntimeData();
             Assert.That(data.Agents, Has.Length.EqualTo(people));
-            Assert.That(data.Purse.Enabled, Is.True, "The test levels keep the purse, so the doors cost what they cost.");
             Assert.That(() => data.Validate(), Throws.Nothing);
         }
 

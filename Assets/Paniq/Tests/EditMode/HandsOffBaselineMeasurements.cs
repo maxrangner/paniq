@@ -160,7 +160,7 @@ namespace Paniq.Tests.EditMode
                 AgentSnapshot agent = simulation.GetAgent(i);
                 AgentKeycard belief = simulation.KeycardBeliefForTests(i);
                 died += agent.Outcome == AgentTerminalOutcome.Lost ? 1 : 0;
-                if (belief.MayFetchFromTick < 0)
+                if (!belief.Knows)
                 {
                     continue;
                 }

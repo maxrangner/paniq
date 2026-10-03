@@ -116,7 +116,7 @@ namespace Paniq.Tests.EditMode
             floor.Signs = new ExitSignBehaviour(floor.Context, floor.Geometry);
             floor.Wayfinding = new WayfindingSystem(floor.Context, floor.Geometry, floor.Signs);
             floor.DoorChoice = new DoorBehaviour(floor.Context, crowd, floor.Geometry, floor.Doors, threats, sound,
-                floor.Signs, floor.Wayfinding, new GroupSystem(floor.Context, crowd, floor.Wayfinding));
+                floor.Signs, floor.Wayfinding);
             return floor;
         }
 

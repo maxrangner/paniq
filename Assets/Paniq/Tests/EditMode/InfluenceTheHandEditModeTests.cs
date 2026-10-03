@@ -98,7 +98,6 @@ namespace Paniq.Tests.EditMode
             data.TrapDefinitions = Array.Empty<TrapDefinition>();
             data.Calm.DecisionMinimumTicks = 100000;
             data.Calm.DecisionMaximumTicks = 100000;
-            data.Day.ToiletEveryTicks = 0;
             data.Calming.Enabled = false;
             data.Temperament.FreezeThenRunPercent = 0;
             data.Temperament.FreezeForeverPercent = 0;
@@ -550,7 +549,9 @@ namespace Paniq.Tests.EditMode
                     Assert.That(IntegerMath.Distance(at, hand), Is.LessThan(3000), $"Person {i + 1} came to the hand.");
                     for (int j = i + 1; j < people.Length; j++)
                     {
-                        Assert.That(IntegerMath.Distance(at, simulation.GetAgent(j).Position), Is.GreaterThan(500),
+                        // Two bodies side by side, give or take the jostle
+                        // (a spot of their own is 900 mm from the next).
+                        Assert.That(IntegerMath.Distance(at, simulation.GetAgent(j).Position), Is.GreaterThan(450),
                             $"Persons {i + 1} and {j + 1} stand apart.");
                     }
                 }
@@ -712,6 +713,10 @@ namespace Paniq.Tests.EditMode
                 Person(Somebody, new LogicalPosition(2000, 1000), leader),
                 Person(SomebodyElse, new LogicalPosition(2500, 0), nervous).WithFamiliarity(AgentFamiliarity.Visitor));
             var hand = new LogicalPosition(-2500, -2500);
+            // The commitment kept after the hand comes off is what this is
+            // about: the frightened ran on when let go everywhere from
+            // 2026-10-03, so the old rule is asked for here.
+            data.Influence.FrightenedGoOnWhenLetGo = false;
             using (var simulation = new Run(data, 42UL))
             {
                 Advance(simulation, 10);
@@ -763,6 +768,10 @@ namespace Paniq.Tests.EditMode
             data.Fire.SpreadMinimumTicks = 100000;
             data.Fire.SpreadMaximumTicks = 100000;
             TheBuilding.FireAt(data, hand);
+            // The commitment kept after the hand comes off is what this is
+            // about: the frightened ran on when let go everywhere from
+            // 2026-10-03, so the old rule is asked for here.
+            data.Influence.FrightenedGoOnWhenLetGo = false;
             using (var simulation = new Run(data, 42UL))
             {
                 Advance(simulation, 10);
@@ -784,6 +793,10 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(2000, 1000), AgentTraitValues.AllOrdinary));
             var hand = new LogicalPosition(-2500, -2500);
+            // The commitment kept after the hand comes off is what this is
+            // about: the frightened ran on when let go everywhere from
+            // 2026-10-03, so the old rule is asked for here.
+            data.Influence.FrightenedGoOnWhenLetGo = false;
             using (var simulation = new Run(data, 42UL))
             {
                 Advance(simulation, 10);
@@ -811,6 +824,10 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = OfficeWithoutTheCard(Person(Somebody, new LogicalPosition(2000, 1000), AgentTraitValues.AllOrdinary));
             var first = new LogicalPosition(-2500, -2500);
             var second = new LogicalPosition(2500, -2500);
+            // The commitment kept after the hand comes off is what this is
+            // about: the frightened ran on when let go everywhere from
+            // 2026-10-03, so the old rule is asked for here.
+            data.Influence.FrightenedGoOnWhenLetGo = false;
             using (var simulation = new Run(data, 42UL))
             {
                 Advance(simulation, 10);
@@ -883,57 +900,6 @@ namespace Paniq.Tests.EditMode
                 CausalEvent? gave = AdvanceUntil(simulation, e => e.EventType == CausalEventType.DoorBrokenDown &&
                                                                  e.TargetId == TheBuilding.TheWayOut, 40 * Run.TicksPerSecond);
                 Assert.That(gave.HasValue, "By a minute of pounding it has given.");
-            }
-        }
-
-        /// <summary>
-        /// The owner (2026-09-30): the hand on the card door "also sends
-        /// someone who knows where the card is to fetch it". The card on a
-        /// desk in the office, three people at the way out: one of them goes
-        /// for it, or has it already.
-        /// </summary>
-        [Test]
-        public void TheCardDoor_UnderTheHand_SendsSomebodyForTheCard()
-        {
-            ScenarioData data = scenario.ToRuntimeData();
-            data = TheBuilding.WithThePlayerAbleToAct(data);
-            data.Keycard.Enabled = true;
-            data.Agents = new[]
-            {
-                Person(Somebody, new LogicalPosition(13800, 14800), AgentTraitValues.AllOrdinary),
-                Person(SomebodyElse, new LogicalPosition(15200, 14800), AgentTraitValues.AllOrdinary),
-                Person(new SimulationId(3UL), new LogicalPosition(14500, 14200), AgentTraitValues.AllOrdinary)
-            };
-            data.Fire.ActivationTick = 1;
-            TheBuilding.FireAt(data, TheBuilding.MeetingRoom);
-            data.Fire.SpreadMinimumTicks = 100000;
-            data.Fire.SpreadMaximumTicks = 100000;
-            data.TrapDefinitions = Array.Empty<TrapDefinition>();
-            data.Timetable = Array.Empty<ScheduledCue>();
-            data.Calming.Enabled = false;
-            data.Temperament.FreezeThenRunPercent = 0;
-            data.Temperament.FreezeForeverPercent = 0;
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.PutKeycardOnATableForTests(0);
-                Press(simulation, PlayerCommandType.InfluenceDoor, TheBuilding.TheWayOut);
-                for (int i = 0; i < 3; i++)
-                {
-                    simulation.FrightenForTests(i);
-                }
-
-                bool someoneWent = false;
-                for (int t = 0; t < 15 * Run.TicksPerSecond && !someoneWent; t++)
-                {
-                    simulation.Step();
-                    for (int i = 0; i < 3; i++)
-                    {
-                        someoneWent |= simulation.GetAgent(i).ActivityState == AgentActivityState.FetchingKeycard ||
-                                       simulation.KeycardBeliefForTests(i).Held >= 0;
-                    }
-                }
-
-                Assert.That(someoneWent, Is.True, "Somebody who knows where the card lies goes for it.");
             }
         }
 

@@ -84,8 +84,10 @@ namespace Paniq.Simulation
             Gone
         }
 
-        public PeopleBodies(SimulationContext context, Crowd crowd, PhysicsWorld world, Threats threats, int firstHandle)
+        public PeopleBodies(SimulationContext context, Crowd crowd, PhysicsWorld world, Threats threats, int firstHandle,
+            WorldGeometry geometry = null)
         {
+            this.geometry = geometry;
             this.context = context;
             this.crowd = crowd;
             this.world = world;
@@ -511,20 +513,29 @@ namespace Paniq.Simulation
             velocityZ[agent.Index] = 0L;
         }
 
+        /// <summary>How fast a dragged body swings round into line behind whoever drags it, in degrees a tick.</summary>
+        private const int SwingDegreesPerTick = 12;
+
         /// <summary>How far round somebody getting up looks for room to stand, and in what steps, in millimetres.</summary>
         private const int StandSearchStepMillimetres = 100;
         private const int StandSearchReachMillimetres = 800;
 
         /// <summary>
         /// The nearest spot to this one where somebody could stand without
-        /// being inside anything: here first, then further and further out, in
-        /// eight directions starting from the way they face. If nowhere within
-        /// reach is clear they stand where they are and are eased out of
-        /// whatever they overlap.
+        /// being inside anything, on the floor of a room: here first, then
+        /// further and further out, in eight directions starting from the way
+        /// they face. If nowhere within reach is clear they stand where they
+        /// are and are eased out of whatever they overlap.
+        /// <para>
+        /// On the floor (2026-10-03): somebody dragged into a wall lay inside
+        /// it, so no building stood between where they lay and the far side
+        /// of it, and they got up out of the building (found by the
+        /// whole-run movement check on the office).
+        /// </para>
         /// </summary>
         private LogicalPosition ClearSpotNear(LogicalPosition from, int heading, int handle)
         {
-            if (world.IsClearToStand(from, radius, HeightMillimetres, handle))
+            if (world.IsClearToStand(from, radius, HeightMillimetres, handle) && OnTheFloor(from))
             {
                 return from;
             }
@@ -535,7 +546,8 @@ namespace Paniq.Simulation
                 for (int turn = 0; turn < 360; turn += 45)
                 {
                     LogicalPosition spot = from + IntegerMath.Displacement(heading + turn, distance);
-                    if (world.IsClearToStand(spot, radius, HeightMillimetres, handle) && !world.IsBuildingBetween(from, spot))
+                    if (world.IsClearToStand(spot, radius, HeightMillimetres, handle) && !world.IsBuildingBetween(from, spot) &&
+                        OnTheFloor(spot))
                     {
                         return spot;
                     }
@@ -544,6 +556,33 @@ namespace Paniq.Simulation
 
             return from;
         }
+
+        /// <summary>
+        /// Their whole body on the floor of a room, or in a doorway: not half
+        /// inside a wall, and not out in the street.
+        /// </summary>
+        private bool OnTheFloor(LogicalPosition spot)
+        {
+            if (geometry == null || geometry.RoomAt(spot) >= 0)
+            {
+                return true;
+            }
+
+            for (int door = 0; door < geometry.DoorCount; door++)
+            {
+                geometry.DescribeDoorway(door, out LogicalPosition centre, out _, out int width);
+                long reach = width / 2L;
+                if (LogicalPosition.DistanceSquared(spot, centre) <= reach * reach)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>The building, for whether a spot to get up on is floor at all.</summary>
+        private readonly WorldGeometry geometry;
 
         /// <summary>Somebody being dragged is hauled toward the spot behind their helper.</summary>
         private void Pull(Agent agent, int handle)
@@ -563,12 +602,9 @@ namespace Paniq.Simulation
 
             // Hauled by the arms, the body trails in line behind the one
             // pulling it, and so goes through a doorway rather than across it:
-            // swung round into line, where there is room to swing it.
+            // swung round into line, turned rather than set (2026-10-03).
             int inLine = IntegerMath.HeadingOf(dx, dz, agent.Body.Heading);
-            if (world.IsClearToLie(from, inLine, radius, HeightMillimetres, handle))
-            {
-                world.LayAlong(handle, inLine);
-            }
+            world.SwingToward(handle, inLine, SwingDegreesPerTick);
             long wantX = 0L;
             long wantZ = 0L;
             if (distance > 0L)
@@ -576,6 +612,17 @@ namespace Paniq.Simulation
                 long go = Math.Min(distance, speed);
                 wantX = dx * go * PhysicsWorld.SubMillimetre / distance;
                 wantZ = dz * go * PhysicsWorld.SubMillimetre / distance;
+
+                // Never hauled into a wall (2026-10-03): a body dragged with
+                // its middle inside one was pushed out of the building by the
+                // engine when they got up.
+                LogicalPosition next = new LogicalPosition(
+                    from.X + (int)(wantX / PhysicsWorld.SubMillimetre), from.Z + (int)(wantZ / PhysicsWorld.SubMillimetre));
+                if (!OnTheFloor(next))
+                {
+                    wantX = 0L;
+                    wantZ = 0L;
+                }
             }
 
             world.SetVelocity(handle, wantX, 0L, wantZ);

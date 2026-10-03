@@ -114,13 +114,17 @@ replaced *Sketch and keep*, and the binding text is in `AGENTS.md`):
 - **Every change**: change the game code; `CompileAgainstUnity.ps1`; then
   `RunUnityTests.ps1 -Filter Smoke` (`SmokeEditModeTests`: every level on the
   start card played once, failing only on an error or a fire round that never
-  ends; about twenty seconds); a local save point, `wip(level): ...`, never
-  pushed; a three-line report.
+  ends; about twenty seconds); a local save point, `wip(level): ...`; a
+  three-line report.
+- **End of each working session**: the session's save points are folded
+  into one ordinary commit that says what the session changed (the owner,
+  2026-10-03: the level will take weeks and many commits). Nothing is pushed
+  unless the owner asks.
 - **Not done**: fingerprints, versions, documents, measurements, the full
   run, switches that keep other levels as they were.
 - **When the owner says the level is done**: one hardening pass -- tests,
-  fingerprints, versions, documents, the full run -- and the save points
-  squashed before anything is pushed.
+  fingerprints, versions, documents, the full run. What it has to cover is
+  listed on the roadmap under *Left open*.
 
 Why: the old way spent hours per change proving numbers about a level that
 changed again the next day (machine-played rounds before the owner played,
@@ -194,7 +198,8 @@ word is the feature's name. These are the ones that are not:
 
 | Code changed | Filter words |
 | --- | --- |
-| `PurseSystem`, `DeckSystem`, `PlayerCommandSystem` (the player's purse, cards and clicks) | `Powers,Economy,UproarTable,TraitCards` |
+| `PlayerCommandSystem`, `RunDriver.Queue` (the player's clicks, and what is mirrored into the left-alone round) | `Alarms,Nudge,Tug,Influence,LevelSession,HandTally` |
+| `Tasks`, `TaskChooser` (the one table of what each activity is; the one chooser; how a task ends) | `Smoke,Influence,Helping,Alarms,Leadership,Barricade,Extinguisher,Tells,Cues,Errands,Sitting` |
 | `InfluenceSystem`, `HandHeaveBehaviour`, `HandGatherBehaviour`, `AgentHand` (the hand on a place, the push, the drag, the goal and its conviction, what people do for it) | `Influence,Keycard,Alarms,Extinguisher,Errands,Doors,ReplayFingerprint` |
 | `HandChargeSystem` (the hand's bar) | `HandCharge,ReplayFingerprint` |
 | `HandOnTheWayOutMeasurements` (the seed 41-43 diagnostics and the walls sweep, run on purpose) | `-Filter HandOnTheWayOut -ShowPassed` |
@@ -210,17 +215,16 @@ word is the feature's name. These are the ones that are not:
 | `LevelDefinition`, `LevelSession`, `LevelLoader`, `RunDriver` (the level row, the seed, the best) | `LevelSession,TestBuildings` |
 | `FearSystem.PanicEveryone`, `CalmEveryone` (the Crowd button) | `CrowdSwitch,CalmingDown,ReplayFingerprint` |
 | `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting,HeavyThings` |
-| `TraitEffects` | `Traits,TraitCards` |
-| `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered,HeldDoors,BoxTower` |
+| `TraitEffects` | `Traits` |
+| `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered,BoxTower` |
 | `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
-| `GroupSystem` (sticking together) | `Groups,TraitCards` |
 | `PlayerInput`, `DoorClicks`, `PlaceHold`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking,Nudge,Tug` |
 | `DoorSystem.SettlePounding` (the card door giving under the hand) | `Influence,Doors` |
 | `CameraRig` (Q, E and the wheel) | `CameraRig` |
 | `EventStory`, `RoundScreens` (the read-back and the end card) | `EventLogScreen,EventSigns` |
 | `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |
 | `TrapSystem`, `DirectorSystem` (the tower of boxes, the stockroom's stack, the Director's ladder and its cap) | `BoxTower,StockroomTrap,DirectorLadder,DirectorCap,Cues,Doors,Stockroom,CubicleLandscape` |
-| `KeycardSystem` (the card, where it starts, its fetchers, the player's pull on it) | `Keycard,DirectorCap,Influence` |
+| `KeycardSystem` (the card, where it starts, who has it, the swipe) | `Keycard,DirectorCap,Influence` |
 | `ErrandBehaviour`, `CueSystem`, `CalmBehaviour` (the calm day: errands, home time, chats) | `Errands,Cues,Sitting,MeetingRoom,Simulation,ReplayFingerprint` |
 | `FrightenedWalk`, `ExtinguisherBehaviour` (the frightened walk through doors) | `FrightenedWalks,Extinguisher,Alarms,CrossRoom` |
 | `NudgeSystem` (nudging people) | `Nudge` |

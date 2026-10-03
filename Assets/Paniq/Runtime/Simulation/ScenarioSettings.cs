@@ -40,9 +40,9 @@ namespace Paniq.Simulation
         /// person's own decisions, and the fire's spreading, come off streams
         /// of their own, seeded from the round's seed and the person's number,
         /// so a poke changes the person poked and whoever they bump into, and
-        /// "left alone" is the same round without you.
+        /// "left alone" is the same round without you. On everywhere since 2026-10-03 (level mode: it was the loop level's own rule, and rules about how people behave are no level's own).
         /// </summary>
-        public bool EachPersonHasTheirOwnDice;
+        public bool EachPersonHasTheirOwnDice = true;
 
         /// <summary>
         /// A loose thing at least this heavy is on the map people steer by,
@@ -600,7 +600,12 @@ namespace Paniq.Simulation
     public sealed class TemperamentSettings
     {
         public int FreezeThenRunPercent = 30;
-        public int FreezeForeverPercent = 15;
+        /// <summary>
+        /// Who freezes for good, in percent of the crowd: six since 2026-10-03
+        /// (it was fifteen; the loop level's six is everybody's now, so a room
+        /// is seldom lost to people who never move).
+        /// </summary>
+        public int FreezeForeverPercent = 6;
         public int FreezeMinimumTicks = 100;
         public int FreezeMaximumTicks = 300;
 
@@ -900,19 +905,6 @@ namespace Paniq.Simulation
         public int EvilLockMinimum = 9;
 
         /// <summary>
-        /// Whether the cruellest turn the key in a door to the street as
-        /// they do in any other (2026-10-02). On, as it always was: the
-        /// first of them out locks the building behind them. Off, they
-        /// still slam it, and whoever comes next opens it again. A level
-        /// with one way out switches it off: measured on the office with
-        /// its way out unlocked, the bully got out first on one seed in
-        /// twenty and locked thirty people in, which made that round a
-        /// total loss by one person's whim. Inside doors are not touched:
-        /// a door locked in a corridor is a problem for the few behind it.
-        /// </summary>
-        public bool PeopleLockTheWayOut = true;
-
-        /// <summary>
         /// Whether a choice made about the heat sticks (2026-10-03). Off, as
         /// it always was. On: a doorway somebody backed away from as too hot
         /// is remembered as too hot on its own -- not wiped when somebody
@@ -923,17 +915,19 @@ namespace Paniq.Simulation
         /// hide is judged without the throw of a die. Measured without it:
         /// the same people wrote "dashed through the heat" and "hid from the
         /// heat" over and over for a minute, and ended in a dead end.
+        /// On everywhere since 2026-10-03 (level mode: it was the loop level's own rule, and rules about how people behave are no level's own).
         /// </summary>
-        public bool HeatChoicesStick;
+        public bool HeatChoicesStick = true;
 
         /// <summary>
         /// How near the far side of a doorway the flames must be for it to
         /// count as "through the heat", at least the person's own danger
         /// distance (2026-10-03). 0, as it always was: any flame anywhere in
         /// the room beyond makes its door too hot, so a fire at the far end of
-        /// a nineteen-metre corridor closed every door onto it.
+        /// a nineteen-metre corridor closed every door onto it. Three metres
+        /// everywhere since 2026-10-03.
         /// </summary>
-        public int HeatNearADoorMillimetres;
+        public int HeatNearADoorMillimetres = 3000;
 
         /// <summary>
         /// How much further somebody who knows the building will walk to go
@@ -945,8 +939,8 @@ namespace Paniq.Simulation
         /// five), and somebody whose own room is alight takes the short way
         /// whatever it costs.
         /// </summary>
-        public int HeatDetourMillimetres;
-        public int HeatDetourPercentPerBravery;
+        public int HeatDetourMillimetres = 12000;
+        public int HeatDetourPercentPerBravery = 15;
 
         /// <summary>Having chosen to go round, how long the hot doorway stays out of their plans (jittered): ten seconds.</summary>
         public int HeatCommitTicks = 500;
@@ -956,8 +950,9 @@ namespace Paniq.Simulation
         /// door opens onto is alight (2026-10-03): a dead end with the fire at
         /// its mouth. 0, as it always was: the maintenance room at the end of
         /// a burning corridor was the best place in the building to hide.
+        /// Twelve metres everywhere since 2026-10-03.
         /// </summary>
-        public int RefugeDeadEndPenaltyMillimetres;
+        public int RefugeDeadEndPenaltyMillimetres = 12000;
 
         /// <summary>
         /// This callous or worse: with the flames already at the door, they
@@ -1329,68 +1324,6 @@ namespace Paniq.Simulation
         }
     }
 
-    /// <summary>
-    /// Sticking together (the "Stick together" card, 2026-09-25): how hard
-    /// the people a throw catches keep to each other once frightened, and
-    /// how much the door their most leaderly member picks sways the rest.
-    /// </summary>
-    [Serializable]
-    public sealed class GroupSettings
-    {
-        /// <summary>Members further apart than this have lost each other, and the pull is off.</summary>
-        public int ReachMillimetres = 8000;
-
-        /// <summary>Members this near the middle of the group are together already: no pull, no hanging back.</summary>
-        public int CloseEnoughMillimetres = 1000;
-
-        /// <summary>
-        /// The pull comes on gradually over this distance beyond close enough,
-        /// rather than at full strength the moment they part: a full-strength
-        /// pull at running speed steered members straight into each other,
-        /// and a hard collision puts both on the floor.
-        /// </summary>
-        public int PullRampMillimetres = 2000;
-
-        /// <summary>No pull at all while another member is within arm's reach: they are together, whatever the middle of the group says.</summary>
-        public int ElbowRoomMillimetres = 800;
-
-        /// <summary>
-        /// The pull toward the rest of the group, as a percentage of a full
-        /// step: this, plus per point of nervousness, less per point of
-        /// bravery, less again per point of evil. Nought to a hundred.
-        /// </summary>
-        public int CohesionBasePercent = 60;
-        public int CohesionPercentPerNervousness = 3;
-        public int CohesionPercentPerBravery = 2;
-        public int CohesionPercentPerEvil = 6;
-
-        /// <summary>Evil this high walks off: they ignore the group as they ignore a leader.</summary>
-        public int IgnoreMinimumEvil = 7;
-
-        /// <summary>
-        /// How much somebody with the rest of the group behind them slows to
-        /// let them catch up, as a percentage of their pull: at full pull a
-        /// sprinter drops to this much less than their pace. Steering only
-        /// turns a person; waiting is a matter of pace.
-        /// </summary>
-        public int HangBackPercent = 70;
-
-        /// <summary>How much the door the group's anchor runs for is worth to the others, in walk-millimetres of scoring.</summary>
-        public int ChoiceBonusMillimetres = 3000;
-
-        /// <summary>How often, give or take, members compare notes on the way out.</summary>
-        public int ShareEveryTicks = 100;
-
-        public GroupSettings Clone() => (GroupSettings)MemberwiseClone();
-
-        internal void Validate()
-        {
-            Settings.Require(ReachMillimetres >= 0 && CloseEnoughMillimetres >= 0 && ChoiceBonusMillimetres >= 0 &&
-                             ShareEveryTicks >= 1 && IgnoreMinimumEvil >= 0 && PullRampMillimetres >= 1 &&
-                             ElbowRoomMillimetres >= 0 && HangBackPercent >= 0 && HangBackPercent <= 100, "sticking together");
-        }
-    }
-
     /// <summary>Taking charge: who leads, who follows, and what leaders tell people to do.</summary>
     [Serializable]
     public sealed class LeadershipSettings
@@ -1413,18 +1346,6 @@ namespace Paniq.Simulation
         /// <summary>A follower keeps about this far behind before running their own way.</summary>
         public int FollowGapMillimetres = 1500;
 
-        /// <summary>Bravery needed before a leader sends someone at the fire with a bottle.</summary>
-        public int OrderedFightMinimumBravery = 5;
-
-        /// <summary>
-        /// Whether leaders leave a small fire alone and rally the people round
-        /// them instead (2026-10-03). Off, as it always was: a leader's first
-        /// plan with a young fire and a bottle anywhere is to send somebody at
-        /// it, so the meeting's host spent the first seconds giving orders
-        /// while his visitors stood in a room the fire was cutting off.
-        /// </summary>
-        public bool LeadersLeaveTheFireAlone;
-
         /// <summary>Evil this high never does as it is told.</summary>
         public int DefiantMinimumEvil = 7;
 
@@ -1437,7 +1358,7 @@ namespace Paniq.Simulation
 
         internal void Validate()
         {
-            Settings.Require(LeaderMinimum >= 0 && DefiantMinimumEvil >= 0 && OrderedFightMinimumBravery >= 0, "who leads");
+            Settings.Require(LeaderMinimum >= 0 && DefiantMinimumEvil >= 0, "who leads");
             Settings.Require(Settings.Range(PlanMinimumTicks, PlanMaximumTicks, 1), "leader planning");
             Settings.Require(RallyRangeMillimetres >= 0 && OrderRangeMillimetres >= 0 && FollowGapMillimetres > 0,
                 "leader distances");
@@ -1460,17 +1381,6 @@ namespace Paniq.Simulation
         /// <summary>Bravery needed to take on the flames, and compassion needed to hose down a burning person.</summary>
         public int FightMinimumBravery = 7;
         public int SaveMinimumCompassion = 7;
-
-        /// <summary>
-        /// Somebody stood an extinguisher down in front of them. For the next
-        /// stretch of ticks they need this much less nerve to pick it up: a
-        /// bottle at your feet is a far easier thing to reach for than one
-        /// across the room. How long they keep it in mind, and how far away
-        /// they notice one being put down, are below.
-        /// </summary>
-        public int OfferedBraveryBonus = 3;
-        public int OfferedTicks = 400;
-        public int OfferedNoticeRangeMillimetres = 6000;
 
         /// <summary>Nobody takes on a fire bigger than this many burning squares (saving someone is always worth it).</summary>
         public int FightMaximumFireCells = 24;
@@ -1541,8 +1451,6 @@ namespace Paniq.Simulation
         {
             Settings.Require(FuelTicks > 0 && FightMaximumFireCells >= 0, "extinguisher fuel");
             Settings.Require(FightMinimumBravery >= 0 && SaveMinimumCompassion >= 0, "who fights a fire");
-            Settings.Require(OfferedBraveryBonus >= 0 && OfferedTicks > 0 && OfferedNoticeRangeMillimetres >= 0,
-                "noticing an extinguisher somebody put down");
             Settings.Require(FetchRangeMillimetres >= 0 && PickUpDistanceMillimetres > 0 && SaveRangeMillimetres >= 0,
                 "extinguisher distances");
             Settings.Require(FetchTimeoutTicks > 0 && FightTimeoutTicks > 0 && BlockedGiveUpTicks > 0, "extinguisher timeouts");
@@ -2036,9 +1944,10 @@ namespace Paniq.Simulation
         /// heats only what stands in its own room or in one joined to it by
         /// an open door, as the flames on the floor already do: a fire that
         /// comes through a wall cannot be read by somebody watching, and
-        /// cannot be held back by shutting a door.
+        /// cannot be held back by shutting a door. Off everywhere since
+        /// 2026-10-03.
         /// </summary>
-        public bool BurningThingsHeatThroughWalls = true;
+        public bool BurningThingsHeatThroughWalls;
 
         /// <summary>How each kind of loose object slides and burns; one entry per kind.</summary>
         public ObjectKindSettings[] Kinds = ObjectKindSettings.Defaults();
@@ -2314,9 +2223,6 @@ namespace Paniq.Simulation
         /// <summary>This nervous, and somebody sheltering wedges the door of the room they are in.</summary>
         public int BarricadeNervousMinimum = 7;
 
-        /// <summary>This cruel, and they wedge it to keep other people out.</summary>
-        public int BarricadeEvilMinimum = 7;
-
         /// <summary>How far they will cross a room for something to wedge the door with.</summary>
         public int BarricadeFetchRangeMillimetres = 5000;
 
@@ -2344,7 +2250,7 @@ namespace Paniq.Simulation
                 "how long the strong keep at a heap");
             Settings.Require(ShoveMinimumStrength >= 0 && ShoveTicks >= 1 && ShoveSpeedBase >= 0 &&
                              ShoveSpeedPerStrength >= 0, "heaving an obstruction clear");
-            Settings.Require(BarricadeNervousMinimum >= 0 && BarricadeEvilMinimum >= 0 &&
+            Settings.Require(BarricadeNervousMinimum >= 0 &&
                              BarricadeFetchRangeMillimetres >= 0 && BarricadeTimeoutTicks >= 1 &&
                              BarricadeSetDownTicks >= 1 && BarricadeBlockedGiveUpTicks >= 1, "barricading");
         }
@@ -2428,157 +2334,6 @@ namespace Paniq.Simulation
         }
     }
 
-    /// <summary>
-    /// The player's purse, and what each card costs. The purse starts at
-    /// <see cref="Starting"/>, every card spends some, and every person who gets
-    /// out alive pays some back. Nothing else refills it, so a run where nobody
-    /// is saved runs the player dry.
-    /// </summary>
-    [Serializable]
-    public sealed class PurseSettings
-    {
-        /// <summary>
-        /// Whether there is a purse at all. Off (the office level since
-        /// prototype 3, 2026-09-25, the owner's call: "remove influence
-        /// points for now, keep the system intact"), every door, alarm and
-        /// card is free, nothing is paid in, and the display shows no purse.
-        /// The rules below still stand, and a level that wants them turns
-        /// this back on. The code default stays on so the tests of the purse
-        /// still test it; the level asset turns it off (see
-        /// <c>LevelDefinition</c>).
-        /// </summary>
-        public bool Enabled = true;
-
-        /// <summary>
-        /// What the player starts the run with: thirty, which is one card or
-        /// one pull of a fire alarm (the owner's call, 2026-09-24: "start with
-        /// one random card, and 30 activity points"). It was nothing, so that
-        /// the building had to get into trouble before there was anything to
-        /// spend; thirty is one move before it does -- enough to raise the
-        /// alarm on a fire nobody else has seen, and nowhere near the way out
-        /// (100) before anybody is in trouble.
-        /// </summary>
-        public int Starting = 30;
-
-        /// <summary>Earned for each person who gets out alive, rescued or under their own steam.</summary>
-        public int PerPersonSaved = 15;
-
-        /// <summary>
-        /// The most the purse can hold: a hundred (the owner's
-        /// call, 2026-09-25), which is exactly what the way out costs to
-        /// unlock, so a full purse is the one thing that opens it.
-        /// </summary>
-        public int Maximum = 100;
-
-        /// <summary>
-        /// Cards the player is holding before anybody has died. Empty in the
-        /// office, where the whole point is that the round opens with nothing.
-        /// A later level that wants to hand the player something to start with
-        /// -- or a test that needs a particular card in hand -- sets it here.
-        /// </summary>
-        public PlayerCommandType[] StartingHand = new PlayerCommandType[0];
-
-        /// <summary>
-        /// Whether the dead deal cards, and the round opens with a draw.
-        /// Off (2026-09-30, the owner: "remove cards"): the office has no
-        /// cards at all, nothing is dealt and nothing is drawn on screen.
-        /// <see cref="StartingHand"/> is still honoured, for tests and for a
-        /// level that hands cards out itself.
-        /// </summary>
-        public bool CardsFromTheDead;
-
-        /// <summary>
-        /// How many cards are drawn from the deck at the start, on top of
-        /// <see cref="StartingHand"/>: one, from the deck's own random stream,
-        /// so the same seed opens with the same card. The owner's call
-        /// (2026-09-24). A test that counts cards in hand sets it to nought.
-        /// </summary>
-        public int OpeningDrawCount = 1;
-
-        /// <summary>
-        /// What the player pays to pull a fire alarm: the price of a card, and
-        /// exactly the opening purse, so raising the building is the one move
-        /// always on offer from the first tick. Free (and pointless) once the
-        /// bells are ringing.
-        /// </summary>
-        public int PullAlarmCost = 30;
-
-        /// <summary>
-        /// How wide a patch a card thrown at the floor catches. About a
-        /// doorway and a half across: wide enough that a scrum wedged in a door
-        /// is one throw, narrow enough that a calm room is not.
-        /// <para>
-        /// Cards are aimed at a place rather than at a chosen person, so this
-        /// is the whole of the player's accuracy. A throw that catches nobody
-        /// is a miss and costs nothing; a throw that catches the wrong person
-        /// is spent.
-        /// </para>
-        /// </summary>
-        public int CardPatchRadiusMillimetres = 1500;
-
-        /// <summary>
-        /// Every card costs the same. Which card you get is not something you
-        /// choose -- the dead deal them -- so pricing them against each other
-        /// would be pricing a choice nobody makes. What the player chooses is
-        /// whether this moment is worth thirty.
-        /// </summary>
-        public int CardCost = 30;
-
-        /// <summary>
-        /// What the uproar pays. Every notable thing that happens in the
-        /// building feeds the meter, sorted into three sizes: somebody
-        /// shouting or tripping is small, somebody going down or a door coming
-        /// off its hinges is middling, and somebody catching fire or an
-        /// appliance going off is big.
-        /// <para>
-        /// Deaths are deliberately not in here. A death deals a card instead,
-        /// so it pays once rather than twice and the two currencies keep one
-        /// source each.
-        /// </para>
-        /// </summary>
-        public int UproarSmall = 1;
-        public int UproarMiddling = 3;
-        public int UproarBig = 6;
-
-        /// <summary>
-        /// What working a door costs. Reaching into the building and working
-        /// a door is the player's commonest move, and it used to be free, so
-        /// there was never a reason not to fling every door in the place open.
-        /// Each click pays for what that click does. Ten for anything done to
-        /// an inside door -- opening, shutting, locking, unlocking (the owner's
-        /// call, 2026-09-25) -- and the whole purse to unlock the building's
-        /// way out, which is the round's one big decision.
-        /// </summary>
-        public int UnlockDoorCost = 10;
-        public int OpenDoorCost = 10;
-        public int CloseDoorCost = 10;
-        public int LockDoorCost = 10;
-        public int UnlockExitCost = 100;
-
-        public PurseSettings Clone()
-        {
-            var copy = (PurseSettings)MemberwiseClone();
-
-            // The shallow copy would hand both scenarios the same array, so a
-            // level that dealt itself an opening card would deal it to every
-            // other copy too.
-            copy.StartingHand = StartingHand == null
-                ? new PlayerCommandType[0]
-                : (PlayerCommandType[])StartingHand.Clone();
-            return copy;
-        }
-
-        internal void Validate()
-        {
-            Settings.Require(Starting >= 0 && PerPersonSaved >= 0 && Maximum >= Starting, "purse");
-            Settings.Require(LockDoorCost >= 0 && UnlockExitCost >= 0, "the key");
-            Settings.Require(CardCost >= 0 && PullAlarmCost >= 0 && OpeningDrawCount >= 0, "card costs");
-            Settings.Require(CardPatchRadiusMillimetres > 0, "how wide a card's patch is");
-            Settings.Require(UproarSmall >= 0 && UproarMiddling >= 0 && UproarBig >= 0, "what the uproar pays");
-            Settings.Require(UnlockDoorCost >= 0 && OpenDoorCost >= 0 && CloseDoorCost >= 0, "door costs");
-        }
-    }
-
     /// <summary>People helping each other: shaking the frozen awake and dragging the knocked-out to safety.</summary>
     [Serializable]
     public sealed class HelpSettings
@@ -2651,19 +2406,6 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class DaySettings
     {
-        /// <summary>
-        /// How often one person needs the toilet: about this many ticks
-        /// between trips, each person's next drawn from the seed, and their
-        /// first anywhere inside the first stretch so the whole office does
-        /// not go at once. Six minutes: in a twenty-person office that is a
-        /// trip every twenty seconds or so somewhere on the floor, one or two
-        /// people in the bathroom at a time. A chance per decision was tried
-        /// first and sent people every few seconds, because a calm person
-        /// decides something every few seconds. Nought means nobody ever goes,
-        /// which a test about two people in one room wants.
-        /// </summary>
-        public int ToiletEveryTicks = 18000;
-
         /// <summary>
         /// How often a calm person who has a desk and is not at it decides
         /// to go back to it. This is what keeps an office reading as an
@@ -2784,7 +2526,7 @@ namespace Paniq.Simulation
 
         internal void Validate()
         {
-            Settings.Require(ToiletEveryTicks >= 0 && Settings.Percent(GoHomeChancePercent), "day chances");
+            Settings.Require(Settings.Percent(GoHomeChancePercent), "day chances");
             Settings.Require(Settings.Range(RemarkEveryMinimumTicks, RemarkEveryMaximumTicks, 1), "remarks");
             Settings.Require(RemarkHearingRadiusMillimetres >= 0 && AtHomeMillimetres >= 0, "remark reach and home");
             Settings.Require(ErrandTimeoutTicks >= 1 && BlockedGiveUpTicks >= 1 && WaitAtLockedDoorTicks >= 0 &&
@@ -3195,9 +2937,10 @@ namespace Paniq.Simulation
         /// <summary>
         /// How many quick pokes wake somebody frozen with fear (2026-10-03).
         /// 0, as it always was, means the same as <see cref="AnnoyedAfterNudges"/>:
-        /// three. A level that wants one click to do it says 1.
+        /// three. One everywhere since 2026-10-03: one click wakes anybody
+        /// frozen.
         /// </summary>
-        public int PokesToWakeTheFrozen;
+        public int PokesToWakeTheFrozen = 1;
 
         /// <summary>
         /// How long they stay annoyed: twenty seconds, a little different each
@@ -3524,12 +3267,12 @@ namespace Paniq.Simulation
         /// loath to turn back through it (<see cref="TurnBackPenaltyMillimetres"/>
         /// on its score), and then they are on their own. Nobody is drawn
         /// through a door whose far side is in the flames; a locked door, a
-        /// heap and a way to the street keep their own answers.
+        /// heap and a way to the street keep their own answers. On everywhere since 2026-10-03 (level mode: it was the loop level's own rule, and rules about how people behave are no level's own).
         /// </summary>
-        public bool FrightenedGoThroughAHeldDoor;
+        public bool FrightenedGoThroughAHeldDoor = true;
         public int ThroughTheDoorMillimetres = 1500;
         public int GoOnFromTheHandTicks = 500;
-        public int TurnBackPenaltyMillimetres;
+        public int TurnBackPenaltyMillimetres = 15000;
 
         /// <summary>
         /// Whether somebody frightened standing at a hand on the floor runs on
@@ -3537,9 +3280,9 @@ namespace Paniq.Simulation
         /// they stood on the spot for as long as their conviction lasted --
         /// up to fifty seconds -- which stranded a group the player had just
         /// led round the fire. On: let go, or moved elsewhere, and whoever has
-        /// reached their spot is done, and flees on from there.
+        /// reached their spot is done, and flees on from there. On everywhere since 2026-10-03 (level mode: it was the loop level's own rule, and rules about how people behave are no level's own).
         /// </summary>
-        public bool FrightenedGoOnWhenLetGo;
+        public bool FrightenedGoOnWhenLetGo = true;
 
         public InfluenceSettings Clone() => (InfluenceSettings)MemberwiseClone();
 

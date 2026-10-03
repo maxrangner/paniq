@@ -88,8 +88,7 @@ namespace Paniq.Simulation
             ScenarioData data = template.Clone();
             data.ScenarioId = ScenarioId;
 
-            // The way out: the same door in the same wall, shut and unlocked,
-            // and nobody locks it behind them.
+            // The way out: the same door in the same wall, shut and unlocked.
             for (int i = 0; i < data.Doors.Length; i++)
             {
                 DoorDefinition door = data.Doors[i];
@@ -99,8 +98,6 @@ namespace Paniq.Simulation
                         door.CentreAlongWallMillimetres, door.WidthMillimetres, startsLocked: false);
                 }
             }
-
-            data.Exits.PeopleLockTheWayOut = false;
 
             // The fire: the Director's script, in the middle of the floor,
             // at half the office's pace, and through doors only. The bells
@@ -117,39 +114,17 @@ namespace Paniq.Simulation
             data.Fire.SpreadMinimumTicks = 80;
             data.Fire.SpreadMaximumTicks = 240;
             data.Fire.YoungFireSquares = 0;
-            data.Flammables.BurningThingsHeatThroughWalls = false;
 
-            // Each person and the fire throw dice of their own, so one poke
-            // changes the person poked rather than the whole round.
-            data.World.EachPersonHasTheirOwnDice = true;
+            // How people behave -- their own dice, choices about the heat that
+            // stick, dead ends weighed, fewer frozen for good, one click to
+            // wake them, a held door walked through, no fire through walls --
+            // became everybody's rules on 2026-10-03 (ScenarioSettings).
 
-            // How the frightened decide about the heat.
-            data.Exits.HeatChoicesStick = true;
-            data.Exits.HeatNearADoorMillimetres = 3000;
-            data.Exits.HeatDetourMillimetres = 12000;
-            data.Exits.HeatDetourPercentPerBravery = 15;
-            data.Exits.RefugeDeadEndPenaltyMillimetres = 12000;
-            data.Leadership.LeadersLeaveTheFireAlone = true;
-
-            // Fewer frozen for good, and one click wakes anybody frozen.
-            data.Temperament.FreezeForeverPercent = 6;
-            data.Nudge.PokesToWakeTheFrozen = 1;
-
-            // The hand leads: a held door is walked through, and a hand let
-            // go of strands nobody.
-            data.Influence.FrightenedGoThroughAHeldDoor = true;
-            data.Influence.TurnBackPenaltyMillimetres = 15000;
-            data.Influence.FrightenedGoOnWhenLetGo = true;
-
-            // Paused here: the keycard, toilet trips, the brave fighting the
-            // fire unasked (a hand on a bottle still sends somebody), and the
-            // cruel wedging doors shut. The cap, the bin ladder and the purse
-            // are switched off by the level asset.
+            // No keycard on this level. The cap and the bin ladder are
+            // switched off by the level asset. (Toilet trips, the brave
+            // fighting the fire unasked and the cruel wedging doors shut were
+            // set aside everywhere on 2026-10-03.)
             data.Keycard.Enabled = false;
-            data.Day.ToiletEveryTicks = 0;
-            data.Extinguishers.FightMinimumBravery = 11;
-            data.Leadership.OrderedFightMinimumBravery = 11;
-            data.Blockades.BarricadeEvilMinimum = 11;
 
             // A second pull station, by the archway.
             var alarms = new List<AlarmDefinition>(data.Alarms)

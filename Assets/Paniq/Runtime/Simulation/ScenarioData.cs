@@ -676,7 +676,7 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private int sizeMillimetres;
         [UnityEngine.SerializeField] private int massGrams;
 
-        /// <summary>A spare kept out of the world until the player puts it down.</summary>
+        /// <summary>Kept out of the world from the start: nothing can touch it, reach it, burn it or see it.</summary>
         [UnityEngine.SerializeField] private bool startsDormant;
 
         /// <summary>Which way it faces at the start, in whole degrees. Chairs use this to face their table.</summary>
@@ -736,8 +736,7 @@ namespace Paniq.Simulation
         public int RadiusMillimetres => sizeMillimetres / 2;
 
         /// <summary>
-        /// True for one of the spares the run keeps aside for the player's
-        /// cards. It is nowhere until a card puts it somewhere, so where it is
+        /// True for a thing kept out of the world from the start: where it is
         /// authored does not matter.
         /// </summary>
         public bool StartsDormant => startsDormant;
@@ -1101,10 +1100,8 @@ namespace Paniq.Simulation
         public FlammableSettings Flammables = new FlammableSettings();
         public ExtinguisherSettings Extinguishers = new ExtinguisherSettings();
         public LeadershipSettings Leadership = new LeadershipSettings();
-        public GroupSettings Groups = new GroupSettings();
         public ItemSettings Items = new ItemSettings();
         public HelpSettings Help = new HelpSettings();
-        public PurseSettings Purse = new PurseSettings();
         public AlarmSettings Alarm = new AlarmSettings();
         public BlockadeSettings Blockades = new BlockadeSettings();
         public BlastSettings Blast = new BlastSettings();
@@ -1220,10 +1217,8 @@ namespace Paniq.Simulation
             copy.Flammables = Flammables?.Clone();
             copy.Extinguishers = Extinguishers?.Clone();
             copy.Leadership = Leadership?.Clone();
-            copy.Groups = Groups?.Clone();
             copy.Items = Items?.Clone();
             copy.Help = Help?.Clone();
-            copy.Purse = Purse?.Clone();
             copy.Alarm = Alarm?.Clone();
             copy.Blockades = Blockades?.Clone();
             copy.Blast = Blast?.Clone();
@@ -1267,8 +1262,8 @@ namespace Paniq.Simulation
             if (World == null || Perception == null || Fire == null || Round == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
                 ObjectPhysics == null || PhysicsFeel == null || Traits == null || Flammables == null || Items == null || Help == null ||
-                Purse == null || Alarm == null || Blockades == null || Blast == null ||
-                Extinguishers == null || Leadership == null || Groups == null || Day == null ||
+                Alarm == null || Blockades == null || Blast == null || Power == null || HandCharge == null || Tells == null ||
+                Extinguishers == null || Leadership == null || Day == null ||
                 Traps == null || Nudge == null || Tug == null || Director == null || Calming == null || Influence == null ||
                 Keycard == null)
             {
@@ -1292,10 +1287,8 @@ namespace Paniq.Simulation
             Flammables.Validate();
             Extinguishers.Validate();
             Leadership.Validate();
-            Groups.Validate();
             Items.Validate();
             Help.Validate();
-            Purse.Validate();
             Alarm.Validate();
             Blockades.Validate();
             Blast.Validate();

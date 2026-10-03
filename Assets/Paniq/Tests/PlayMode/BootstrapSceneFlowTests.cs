@@ -12,6 +12,17 @@ namespace Paniq.Tests.PlayMode
     {
         private const float SceneLoadTimeoutSeconds = 5f;
 
+        /// <summary>
+        /// These check the office's wiring (its doors, its bin, its start
+        /// card), and since 2026-10-03 the loop level opens first: so the
+        /// office is asked for by name, and the request is cleared after.
+        /// </summary>
+        [SetUp]
+        public void AskForTheOffice() => Paniq.Gameplay.LevelSession.RequestLevel("prototype_fire_1_fl_small");
+
+        [TearDown]
+        public void ForgetTheLevel() => Paniq.Gameplay.LevelSession.RequestLevel(null);
+
         [UnityTest]
         public IEnumerator BootstrapScene_LoadsThePrototypeScene()
         {
@@ -140,13 +151,6 @@ namespace Paniq.Tests.PlayMode
             Assert.That(leaf.GetComponent<Collider>(), Is.Not.Null, "The door leaf needs a collider to be clicked.");
             Assert.That(Object.FindObjectsByType<Transform>(FindObjectsSortMode.None),
                 Has.Some.Property("name").EqualTo("Box 3001 (presentation)"));
-
-            // A round opens with an empty purse and working a door costs, so
-            // without this the clicks are refused and the door never moves.
-            // This test is about the scene being wired up -- a leaf that is
-            // there, can be clicked, and swings -- not about what the player
-            // can afford.
-            runner.Simulation.GivePurseForTests(1000);
 
             // The way out is a card door (2026-09-27): the player's click is
             // refused, and only the keycard opens it.

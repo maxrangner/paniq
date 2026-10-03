@@ -42,9 +42,8 @@ namespace Paniq.Simulation
     /// things, bells, signs, cable, timetable and traps of the office go;
     /// the cue definitions stay (a scenario needs one of each kind); the
     /// keycard is switched off (there is no card to fetch); the fire never
-    /// starts on its own clock, so nothing burns until the player asks; and
-    /// the purse opens full, so the doors and the alarm are the owner's to
-    /// work. Every number they use lives in a range nothing else in the
+    /// starts on its own clock, so nothing burns until the player asks.
+    /// Every number they use lives in a range nothing else in the
     /// game uses (rooms 40001+, doors 41001+, people 42001+, things 43001+,
     /// tables 44001+, pull stations 45001+, bells 45101+), so a test that
     /// mixes a test building with office IDs never collides.
@@ -457,7 +456,6 @@ namespace Paniq.Simulation
             data.TrapDefinitions = Array.Empty<TrapDefinition>();
             data.Keycard.Enabled = false;
             data.Fire.ActivationTick = int.MaxValue;
-            data.Purse.Starting = data.Purse.Maximum;
             return data;
         }
 

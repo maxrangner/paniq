@@ -177,13 +177,6 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         public static ScenarioData WithThePlayerAbleToAct(ScenarioData data)
         {
-            data.Purse.Starting = 100000;
-            data.Purse.Maximum = 100000;
-            data.Purse.StartingHand = EveryCard();
-            data.Purse.OpeningDrawCount = 0;
-            data.Purse.UproarSmall = 0;
-            data.Purse.UproarMiddling = 0;
-            data.Purse.UproarBig = 0;
 
             // The hand's charge is off (2026-09-30): a test holds the hand as
             // long as it likes. HandChargeEditModeTests has the bar.
@@ -209,37 +202,6 @@ namespace Paniq.Tests.EditMode
 
         /// <summary>The keycard, authored on the first office desk.</summary>
         public static readonly SimulationId TheKeycard = new SimulationId(3950UL);
-
-        /// <summary>
-        /// A deep hand: a dozen of every card there is. Playing one takes it
-        /// out of the hand, so a test that plays the same card five times over
-        /// -- running TNT out of charges, say -- needs more than one of it.
-        /// </summary>
-        public static PlayerCommandType[] EveryCard()
-        {
-            var kinds = new[]
-            {
-                PlayerCommandType.PlayBeefcake,
-                PlayerCommandType.PlayCourage,
-                PlayerCommandType.PlayTerror,
-                PlayerCommandType.PlayBastard,
-                PlayerCommandType.PlayColdHeart,
-                PlayerCommandType.SpawnFire,
-                PlayerCommandType.SpawnExtinguisher,
-                PlayerCommandType.BlastWall,
-                PlayerCommandType.PopFuseBox,
-                PlayerCommandType.StickTogether
-            };
-
-            const int spare = 12;
-            var hand = new PlayerCommandType[kinds.Length * spare];
-            for (int i = 0; i < hand.Length; i++)
-            {
-                hand[i] = kinds[i % kinds.Length];
-            }
-
-            return hand;
-        }
 
         /// <summary>A fire in one square, at a named place, that never spreads on its own.</summary>
         public static void FireAt(ScenarioData data, LogicalPosition where)

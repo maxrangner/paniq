@@ -50,19 +50,6 @@ namespace Paniq.Simulation
         public AgentParticipation Participation;
         public AgentTerminalOutcome Outcome;
 
-        /// <summary>
-        /// Whether this person's death has already dealt the player their card.
-        /// Kept per person rather than as a running total, so the deal happens
-        /// exactly once however the death was resolved.
-        /// </summary>
-        public bool DeathDealt;
-
-        /// <summary>
-        /// The log entry for this person's death, so the card it deals the
-        /// player can point back at it.
-        /// </summary>
-        public ulong DeathEventId;
-
         public AgentTraitValues Traits;
 
         public readonly AgentBody Body = new AgentBody();
@@ -79,7 +66,6 @@ namespace Paniq.Simulation
         public readonly AgentSitting Sitting = new AgentSitting();
         public readonly AgentLeading Leading = new AgentLeading();
         public readonly AgentAlarm Alarm = new AgentAlarm();
-        public readonly AgentGroup Group = new AgentGroup();
         public readonly AgentBarricade Barricade = new AgentBarricade();
         public readonly AgentHome Home = new AgentHome();
         public readonly AgentErrand Errand = new AgentErrand();
@@ -138,33 +124,7 @@ namespace Paniq.Simulation
         }
 
         /// <summary>On their way to something in particular, rather than standing about or milling around.</summary>
-        public bool IsOnAnErrand
-        {
-            get
-            {
-                switch (Intent.Activity)
-                {
-                    case AgentActivityState.FetchingExtinguisher:
-                    case AgentActivityState.Spraying:
-                    case AgentActivityState.GoingToSit:
-                    case AgentActivityState.FetchingItem:
-                    case AgentActivityState.CarryingItem:
-                    case AgentActivityState.ShakingAwake:
-                    case AgentActivityState.Grabbing:
-                    case AgentActivityState.Dragging:
-                    case AgentActivityState.GoingToAlarm:
-                    case AgentActivityState.FetchingBarricade:
-                    case AgentActivityState.CarryingBarricade:
-                    case AgentActivityState.Following:
-                    case AgentActivityState.RunningAnErrand:
-                    case AgentActivityState.FetchingKeycard:
-                    case AgentActivityState.HeavingForTheHand:
-                        return true;
-                    default:
-                        return false;
-                }
-            }
-        }
+        public bool IsOnAnErrand => Tasks.IsOnTheWay(Intent.Activity);
 
         public AgentSnapshot ToSnapshot(int tick, bool actingForTheHand = false, bool actingAgainstTheirNature = false,
             bool committedToTheHand = false, HandAsk handAsk = HandAsk.None)
@@ -189,7 +149,6 @@ namespace Paniq.Simulation
                 Leading.LedCount > 0,
                 Body.Pose,
                 Sitting.SeatedPercent,
-                Group.GroupId,
                 tick < Nudge.AnnoyedUntilTick,
                 Fear.IsRattledAt(tick),
                 Tug.Held,
@@ -344,6 +303,14 @@ namespace Paniq.Simulation
         public int SwerveEndTick;
         public int NextPanicDecisionTick;
 
+        /// <summary>
+        /// When they next weigh what else they might take up (2026-10-03, the
+        /// one task model): the chooser asks every option only then, and
+        /// whatever is under way carries on every tick in between. Brought
+        /// forward by anything that gives them a reason to think again.
+        /// </summary>
+        public int NextChoiceTick;
+
         /// <summary>When they may next heave a table out of their way; heaving one costs a moment.</summary>
         public int NextTableHeaveTick;
 
@@ -438,6 +405,16 @@ namespace Paniq.Simulation
         public int LastLookedTick;
 
         public void ClearPending() => PendingCount = 0;
+
+        /// <summary>
+        /// A noise heard and not yet turned to (2026-10-03, the owner's rule,
+        /// the audit's E2): what it interrupts, and the look itself, wait for
+        /// <see cref="LookFromTick"/>, their own reaction tick, and happen in
+        /// their own turn. Before, a noise changed what somebody was doing on
+        /// the tick it was made; only the head turned late.
+        /// </summary>
+        public bool LookPending;
+        public int LookFromTick;
     }
 
     /// <summary>One noise waiting to be looked at.</summary>
@@ -684,6 +661,15 @@ namespace Paniq.Simulation
         /// <summary>The shout that set them on, so what follows can name its cause.</summary>
         public ulong OrderEventId;
 
+        /// <summary>
+        /// A door a leader has just sent them at, or -1, taken up in their own
+        /// turn from <see cref="OfferedFromTick"/> (2026-10-03): an order is
+        /// an offer, never a hold, and nobody reacts on the tick it is shouted.
+        /// </summary>
+        public int OfferedDoor = -1;
+        public int OfferedFromTick;
+        public ulong OfferEventId;
+
         /// <summary>How many people are following this person at the moment (presentation only).</summary>
         public int LedCount;
     }
@@ -701,22 +687,6 @@ namespace Paniq.Simulation
     {
         /// <summary>The fire alarm they are walking over to hit, or -1.</summary>
         public int AlarmIndex = -1;
-    }
-
-    /// <summary>Bound by a "Stick together" throw (see <see cref="GroupSystem"/>).</summary>
-    internal sealed class AgentGroup
-    {
-        /// <summary>The group they belong to, or -1.</summary>
-        public int GroupId = -1;
-
-        /// <summary>The throw that bound them, so what they learn from the others names it.</summary>
-        public ulong CauseEventId;
-
-        /// <summary>When the pull toward the others begins: a few ticks after the throw, like every reaction.</summary>
-        public int FromTick;
-
-        /// <summary>When they next compare notes on the way out with the others.</summary>
-        public int NextShareTick;
     }
 
     /// <summary>
@@ -923,13 +893,6 @@ namespace Paniq.Simulation
         public bool Exists => Chair >= 0 || HasSpot;
 
         /// <summary>
-        /// When they next need the toilet, or 0 before their first is drawn.
-        /// Kept here with the rest of what is theirs about the building's
-        /// day, rather than on the errand, which is cleared.
-        /// </summary>
-        public int NextToiletTick;
-
-        /// <summary>
         /// When they may next take up home time, after giving up on it (a
         /// locked way out, no route): home time stands until they are out.
         /// </summary>
@@ -956,9 +919,6 @@ namespace Paniq.Simulation
 
         /// <summary>Lifting or heaving whatever is wedged in the door out of its way (2026-09-27); <see cref="AgentErrand.Stage"/> says which part.</summary>
         ClearingTheDoor,
-
-        /// <summary>Somebody cruel wedging the influenced door shut with the nearest thing (2026-09-27); <see cref="AgentErrand.Stage"/> says which part.</summary>
-        WedgingTheDoor,
 
         /// <summary>Stood still for a while.</summary>
         Standing,
@@ -1208,22 +1168,6 @@ namespace Paniq.Simulation
         public LogicalPosition PendingPlace;
         public int PendingUntilTick;
 
-        /// <summary>
-        /// From this tick they may go for the card: set a beat after they
-        /// found the card door shut. -1 until then: somebody who has never
-        /// tried the way out has no reason to want it.
-        /// </summary>
-        public int MayFetchFromTick = -1;
-
-        /// <summary>Stood over the card, pocketing it; done at this tick. 0 while still walking to it.</summary>
-        public int PocketingUntilTick;
-
-        /// <summary>
-        /// Going for it because the player's pull on the card asked
-        /// (2026-09-28): the click that drew them, so the pull can be spent
-        /// on pocketing it and named as the cause. 0 for a fetch of their own.
-        /// </summary>
-        public ulong PulledEventId;
     }
 
     internal sealed class AgentCarry
@@ -1263,14 +1207,6 @@ namespace Paniq.Simulation
         /// goes to <see cref="AgentKeycard.Held"/> and the arms stay free.
         /// </summary>
         public bool Pocket;
-
-        /// <summary>
-        /// Until this tick, they have an extinguisher in mind: somebody put one
-        /// down in front of them and they have seen it. While it lasts they
-        /// need less nerve than usual to go and take it, which is what makes
-        /// the player's card feel like an offer rather than scenery.
-        /// </summary>
-        public int SawAnExtinguisherUntilTick;
 
         /// <summary>
         /// A random phase, drawn once when spraying starts, so the jet's sweep

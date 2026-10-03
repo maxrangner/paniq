@@ -37,9 +37,6 @@ namespace Paniq.Gameplay
         [Tooltip("The share of the crowd that has to be saved to clear the level. Twenty people at 75 means fifteen.")]
         [SerializeField] private int targetSavedPercent = 75;
 
-        [Tooltip("On: the player has a purse of points that doors, alarms and cards cost. Off (the office since prototype 3): everything is free and no purse is shown.")]
-        [SerializeField] private bool purseEnabled = true;
-
         [Tooltip("On (the office since prototype 3's second batch): the Director climbs a ladder of small incidents -- a bin catches fire after a while of ordinary day; doused before the carpet under it caught, another bin catches; put out for good, that is the end of it (since 2026-10-02 a socket or the fuse box goes only as the cap's push). Off: the fire starts where and when the scenario says, all at once.")]
         [SerializeField] private bool directorClimbsTheLadder;
 
@@ -122,7 +119,6 @@ namespace Paniq.Gameplay
             data = TestBuildings.Apply(builtInBuilding, data);
             data.Round.HazardWaitsForTrigger = hazardWaitsForTrigger;
             data.Round.TargetSavedPercent = targetSavedPercent;
-            data.Purse.Enabled = purseEnabled;
             data.Director.ClimbsTheLadder = directorClimbsTheLadder;
             data.Director.CapsTheRound = directorCapsTheRound;
             data.Alarm.PlayerMayPull = playerPullsAlarms;

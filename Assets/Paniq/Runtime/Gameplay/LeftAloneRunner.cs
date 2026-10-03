@@ -68,17 +68,21 @@ namespace Paniq.Gameplay
         public int Tick => run?.Tick ?? capTicks;
 
         /// <summary>
-        /// The player pressed Trigger event for this tick: the hands-off round
-        /// starts its disaster on the same one. Ignored if this round has
-        /// already passed that tick, or is done.
+        /// The player did something that changes the day rather than helps in
+        /// it (see <c>RunDriver.ChangesTheDay</c>), such as pressing Trigger
+        /// event, for this tick: the hands-off round does it on the same one.
+        /// Ignored if this round has already passed that tick, or is done.
         /// </summary>
-        public void MirrorTrigger(int tick)
+        public void Mirror(PlayerCommandType type, int tick)
         {
             if (run != null && tick > run.Tick)
             {
-                run.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), tick);
+                run.QueueCommand(type, default(SimulationId), tick);
             }
         }
+
+        /// <summary>The player pressed Trigger event for this tick (see <see cref="Mirror"/>).</summary>
+        public void MirrorTrigger(int tick) => Mirror(PlayerCommandType.TriggerEvent, tick);
 
         /// <summary>Plays up to <paramref name="ticks"/> more ticks. Returns true once the answer is in.</summary>
         public bool Advance(int ticks) => Advance(ticks, int.MaxValue, 0L);

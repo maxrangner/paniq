@@ -98,8 +98,11 @@ once, when the level is finished.
      never ends; about twenty seconds). Where a change has a claim worth
      checking and tests already cover it, those tests too, by name.
   3. A **save point**: a local commit on the current branch, subject
-     `wip(level): ...`, staged by path. Never pushed. Any change can be undone
-     in one step.
+     `wip(level): ...`, staged by path. Any change can be undone in one step.
+     At the end of each working session the session's save points are folded
+     into one ordinary commit under the rules below (the owner, 2026-10-03:
+     the level takes weeks, and its history should read as sessions, not as
+     one commit at the end). Nothing is pushed unless the owner asks.
   4. A three-line report: what is different, how to try it, what is
      unproven. Old tests that went red are named in a line.
 - **Not done in level mode:** fingerprint re-recording, version bumps,
@@ -112,9 +115,8 @@ once, when the level is finished.
 - **Level mode ends** when the owner says the level is done ("lock it").
   Then one **hardening pass**: decide which rules stay and delete switches
   and code nobody uses; tests for what matters; fingerprints recorded once;
-  versions bumped; documents brought up to date; the full run; and the save
-  points squashed into one commit (or a few, each defensible under the rules
-  below) before anything is pushed.
+  versions bumped; documents brought up to date; the full run; one commit.
+  The roadmap's *Left open* list says what the pass has to cover.
 - **Invisible repairs** (a refactor that changes how code is built but not
   what the player sees) are never mixed into a gameplay change. Outside level
   mode they are proven by fingerprints recorded before and compared after.
@@ -175,7 +177,8 @@ separate commit.
 Never split by layer for its own sake, never by file, never one commit per
 note, and never into a trail of `wip`-style commits; if such a trail has grown
 while iterating, squash it before pushing. Level mode's save points are such
-a trail on purpose: they stay local and are squashed in the hardening pass. Fewer, larger, well-described
+a trail on purpose: they are folded into one commit at the end of each
+working session, before anything else happens to them. Fewer, larger, well-described
 commits beat many small ones every time.
 
 Use the stone's name as the scope, for example `feat(prototype-2)`. Add a

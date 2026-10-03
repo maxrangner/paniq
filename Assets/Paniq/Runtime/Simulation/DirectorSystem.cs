@@ -884,11 +884,12 @@ namespace Paniq.Simulation
             int tick = context.Tick;
             crackleNode = node;
             LogicalPosition at = power.NodePosition(node);
+            int crackle = context.Jittered(settings.CrackleTicks);
             crackleEventId = context.Events.Append(tick, power.NodeId(node), CausalEventType.SocketCrackling,
-                at, settings.CrackleTicks, 0, crackleCauseEventId).EventId;
+                at, crackle, 0, crackleCauseEventId).EventId;
             sound.Crash(power.NodeId(node), at, settings.CrackleHearingMillimetres, crackleEventId);
             phase = LadderPhase.Crackling;
-            dueTick = checked(tick + settings.CrackleTicks);
+            dueTick = checked(tick + crackle);
         }
 
         /// <summary>It goes: the next incident begins where it went off.</summary>

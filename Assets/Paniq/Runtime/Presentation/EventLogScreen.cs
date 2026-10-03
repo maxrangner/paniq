@@ -184,20 +184,10 @@ namespace Paniq.Presentation
         {
             switch (type)
             {
-                case CausalEventType.PowerBeefcake:
-                case CausalEventType.PowerCourage:
-                case CausalEventType.PowerTerror:
-                case CausalEventType.PowerBastard:
-                case CausalEventType.PowerColdHeart:
-                case CausalEventType.PowerSpawnedFire:
-                case CausalEventType.PowerSpawnedExtinguisher:
                 case CausalEventType.PowerBlastedWall:
-                case CausalEventType.PowerPoppedFuseBox:
                 case CausalEventType.PowerPulledAlarm:
-                case CausalEventType.PowerStickTogether:
                 case CausalEventType.RoundEventTriggered:
                 case CausalEventType.DoorUnlocked:
-                case CausalEventType.CardDealt:
                 case CausalEventType.PowerPanickedCrowd:
                 case CausalEventType.PowerCalmedCrowd:
                     return Player;

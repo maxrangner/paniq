@@ -7,12 +7,11 @@ namespace Paniq.Simulation
     /// of the room they are in before running. Everyone else leaves it to
     /// somebody else.
     /// <para>
-    /// Built like <see cref="ExtinguisherBehaviour"/>: one step in the panic
-    /// decision that returns what the body should do, or nothing at all when
-    /// this person is not raising any alarm.
+    /// One of the frightened's options (<see cref="ITaskOption"/>): taken up
+    /// at a decision moment, carried on every tick after.
     /// </para>
     /// </summary>
-    internal sealed class AlarmBehaviour : IPanicOption, IBindable
+    internal sealed class AlarmBehaviour : ITaskOption, IBindable
     {
         private readonly SimulationContext context;
 
@@ -75,21 +74,25 @@ namespace Paniq.Simulation
                    agent.Traits.Bravery >= bravery;
         }
 
-        /// <summary>
-        /// Considered in the panic decision. Returns no intent when this person
-        /// is not going for an alarm.
-        /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
-        {
-            if (IsRaisingTheAlarm(agent))
-            {
-                return Update(agent, inDanger);
-            }
+        public bool IsDoing(Agent agent) => IsRaisingTheAlarm(agent);
 
-            if (inDanger || alarms.Ringing || !alarms.Enabled)
-            {
-                return null;
-            }
+        public MotorIntent? Continue(Agent agent, in Situation situation) => Update(agent, situation.InDanger);
+
+        /// <summary>Bells silent, nothing in their hands, nobody in their care, on their feet, and out of the flames.</summary>
+        public bool Wants(Agent agent, in Situation situation) =>
+            !situation.InDanger && alarms.Enabled && !alarms.Ringing && agent.Carry.ItemIndex < 0 &&
+            agent.Help.TargetIndex < 0 && agent.Body.State == AgentBodyState.Upright;
+
+        /// <summary>Who thinks of it, which station, and off they go -- or nothing.</summary>
+        public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
+        {
+            first = Begin(agent, situation);
+            return first.HasValue;
+        }
+
+        private MotorIntent? Begin(Agent agent, in Situation situation)
+        {
+            bool inDanger = situation.InDanger;
 
             // The player's hand on a pull station, felt from here (2026-09-29):
             // it is worth going for from as far as the pull reaches, not only
@@ -169,15 +172,25 @@ namespace Paniq.Simulation
         {
             int alarm = agent.Alarm.AlarmIndex;
 
-            // Somebody else got there first, the fire arrived, or it is taking
-            // too long: forget it and run.
+            // The fire arrived, or they are off their feet: cut short.
+            // Somebody else got there first: done, by them. Taking too long,
+            // or hemmed in: it came to nothing.
             bool onTheWay = agent.Intent.Activity == AgentActivityState.GoingToAlarm;
-            if (alarm < 0 || inDanger || !agent.Body.IsOnTheirFeet ||
-                (onTheWay && alarms.Ringing) ||
-                (onTheWay && context.Tick >= agent.Intent.ActivityEndTick) ||
-                (onTheWay && agent.Body.BlockedTicks >= panic.BlockedGiveUpTicks))
+            if (alarm < 0 || inDanger || !agent.Body.IsOnTheirFeet)
             {
-                GiveUp(agent);
+                End(agent, TaskEnd.Interrupted);
+                return null;
+            }
+
+            if (onTheWay && alarms.Ringing)
+            {
+                End(agent, TaskEnd.Done);
+                return null;
+            }
+
+            if (onTheWay && (context.Tick >= agent.Intent.ActivityEndTick || agent.Body.BlockedTicks >= panic.BlockedGiveUpTicks))
+            {
+                End(agent, TaskEnd.GaveUp);
                 return null;
             }
 
@@ -191,7 +204,7 @@ namespace Paniq.Simulation
                 }
 
                 alarms.Pull(alarm, agent, agent.Fear.ScaredEventId);
-                GiveUp(agent);
+                End(agent, TaskEnd.Done);
                 return null;
             }
 
@@ -209,7 +222,7 @@ namespace Paniq.Simulation
             // stop them dead.
             if (!walk.TryStep(agent, spot, TraitEffects.FleeSpeed(agent), agent.Fear.ScaredEventId, out MotorIntent step))
             {
-                GiveUp(agent);
+                End(agent, TaskEnd.GaveUp);
                 return null;
             }
 
@@ -222,19 +235,17 @@ namespace Paniq.Simulation
             return PanicIntent.StandAndFace(agent, heading, panic);
         }
 
-        /// <summary>
-        /// Done with the alarm, one way or the other. They pick a way out on the
-        /// very next tick rather than standing at the wall they were just facing.
-        /// </summary>
-        private void GiveUp(Agent agent)
+        /// <summary>Done with the alarm, one way or the other (<see cref="Tasks.End"/>): they pick a way out a beat later.</summary>
+        private void End(Agent agent, TaskEnd how)
         {
             agent.Alarm.AlarmIndex = -1;
-            walk.Forget(agent);
-            InfluenceSystem.Done(agent);
             if (IsRaisingTheAlarm(agent))
             {
-                agent.Intent.Activity = AgentActivityState.Fleeing;
-                context.ThinkAgainSoon(agent.Intent);
+                Tasks.End(agent, how, context, influence, walk);
+            }
+            else
+            {
+                walk.Forget(agent);
             }
         }
     }

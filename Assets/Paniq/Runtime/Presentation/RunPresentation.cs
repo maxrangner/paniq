@@ -586,22 +586,6 @@ namespace Paniq.Presentation
                         // the snapshot carries.
                         agents.Notice(record.SourceId, time);
                         break;
-                    case CausalEventType.PowerBeefcake:
-                    case CausalEventType.PowerCourage:
-                    case CausalEventType.PowerTerror:
-                    case CausalEventType.PowerBastard:
-                    case CausalEventType.PowerColdHeart:
-                    case CausalEventType.PowerStickTogether:
-                        // One of these per person the throw caught, so
-                        // everybody it landed on flashes and the player can see
-                        // what they actually got.
-                        agents.Notice(record.TargetId, time);
-                        break;
-                    case CausalEventType.CardDealt:
-                        // A death has just put a card on the bar. A ring where
-                        // they fell, so the player looks at what bought it.
-                        ripples.Start(record.Position, 1800, SoundRipples.YellColor, time);
-                        break;
                     case CausalEventType.PowerBlastedWall:
                         // A very big ring: the bang carries across the building.
                         // Under it, the biggest burst there is.
@@ -620,11 +604,6 @@ namespace Paniq.Presentation
                             Seed = record.EventId
                         });
                         ripples.Start(record.Position, scenario.Director.CrackleHearingMillimetres, SoundRipples.ThudColor, time);
-                        break;
-                    case CausalEventType.PowerPoppedFuseBox:
-                        // The player reached in and did it themselves; the bang
-                        // itself arrives as an ObjectExploded a moment later.
-                        ripples.Start(record.Position, 2000, SoundRipples.ThudColor, time);
                         break;
                     case CausalEventType.ObjectExploded:
                         // A flash, sparks and smoke sized to the blast, and a big

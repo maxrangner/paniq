@@ -149,11 +149,13 @@ namespace Paniq.Simulation
 
                 bool annoyed = nudge.CountInARow >= settings.AnnoyedAfterNudges;
                 int wakeAfter = settings.PokesToWakeTheFrozen > 0 ? settings.PokesToWakeTheFrozen : settings.AnnoyedAfterNudges;
+                // Still going stiff (the tell before the freeze): the poke is
+                // the tell's to catch, and says "caught in time".
                 if (nudge.CountInARow >= wakeAfter && agent.Fear.State == AgentFearState.Scared &&
-                    agent.Intent.Activity == AgentActivityState.Frozen)
+                    agent.Intent.Activity == AgentActivityState.Frozen && !TellSystem.IsTelling(agent))
                 {
-                    // Poked awake (the owner's rule, 2026-09-27): three quick
-                    // pokes and somebody frozen with fear -- for a while or
+                    // Poked awake (the owner's rule, 2026-09-27; one poke since
+                    // 2026-10-03, three before): somebody frozen with fear -- for a while or
                     // for good -- snaps out of it and runs. At their reaction
                     // tick, as everything is; no annoyance, they have other
                     // things to think about.
@@ -183,7 +185,7 @@ namespace Paniq.Simulation
                 }
 
                 if (agent.Sitting.OnIt || agent.Sitting.ChairIndex >= 0 || agent.Errand.Has ||
-                    !IsLoitering(agent.Intent.Activity))
+                    !Tasks.IsLoitering(agent.Intent.Activity))
                 {
                     // Sitting, on an errand or in the middle of something
                     // with steps to it: the look is enough.
@@ -197,21 +199,6 @@ namespace Paniq.Simulation
                 agent.Intent.SocialPartnerIndex = -1;
                 agent.Doors.StrollDoorIndex = -1;
                 calm.LookRound(agent, annoyed ? 1 : 2);
-            }
-        }
-
-        private static bool IsLoitering(AgentActivityState activity)
-        {
-            switch (activity)
-            {
-                case AgentActivityState.Standing:
-                case AgentActivityState.LookingAround:
-                case AgentActivityState.Strolling:
-                case AgentActivityState.Socialising:
-                case AgentActivityState.Investigating:
-                    return true;
-                default:
-                    return false;
             }
         }
     }

@@ -78,7 +78,6 @@ namespace Paniq.Tests.EditMode
             // off to the toilet, which would walk the one strong person out of
             // the room before the leader has anybody to send.
             data.Calm.StrollNextDoorPercent = 0;
-            data.Day.ToiletEveryTicks = 0;
             data.Temperament.FreezeForeverPercent = 0;
             return data;
         }
@@ -239,6 +238,7 @@ namespace Paniq.Tests.EditMode
             Assert.That(followed, Is.True, "Nobody fell in behind the leader.");
         }
 
+        [Ignore("Set aside 2026-10-03 (level mode): leaders no longer send anybody at the fire.")]
         [Test]
         public void ALeader_SendsSomeoneForAnExtinguisher()
         {

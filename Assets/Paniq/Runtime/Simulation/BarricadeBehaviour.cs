@@ -13,7 +13,7 @@ namespace Paniq.Simulation
     /// barricading anything.
     /// </para>
     /// </summary>
-    internal sealed class BarricadeBehaviour : IPanicOption
+    internal sealed class BarricadeBehaviour : ITaskOption
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
@@ -69,19 +69,25 @@ namespace Paniq.Simulation
                    activity == AgentActivityState.Barricading;
         }
 
-        /// <summary>
-        /// Considered in the panic decision. Returns no intent when this person
-        /// is not wedging a door.
-        /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
-        {
-            if (IsBarricading(agent))
-            {
-                // Already under way: they finish it even if a clear exit
-                // opens up in the meantime.
-                return Update(agent, inDanger);
-            }
+        public bool IsDoing(Agent agent) => IsBarricading(agent);
 
+        /// <summary>Already under way: they finish it even if a clear exit opens up in the meantime.</summary>
+        public MotorIntent? Continue(Agent agent, in Situation situation) => Update(agent, situation.InDanger);
+
+        /// <summary>Nervous enough to dig in, and something burning.</summary>
+        public bool Wants(Agent agent, in Situation situation) => WouldBarricade(agent) && threats.AnyActive;
+
+        /// <summary>A door of the room they shelter in to wedge, and something to wedge it with -- or nothing.</summary>
+        public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
+        {
+            first = Begin(agent, situation);
+            return first.HasValue;
+        }
+
+        private MotorIntent? Begin(Agent agent, in Situation situation)
+        {
+            bool inDanger = situation.InDanger;
+            bool eager = situation.Eager;
             if (eager || !threats.AnyActive)
             {
                 // A way out stands open in front of them: nobody starts
@@ -136,8 +142,7 @@ namespace Paniq.Simulation
         /// <summary>The frightened do it to keep the fire out; the cruel to keep people out.</summary>
         private bool WouldBarricade(Agent agent)
         {
-            return agent.Traits.Nervousness >= settings.BarricadeNervousMinimum ||
-                   agent.Traits.Evil >= settings.BarricadeEvilMinimum;
+            return agent.Traits.Nervousness >= settings.BarricadeNervousMinimum;
         }
 
         /// <summary>
@@ -422,15 +427,13 @@ namespace Paniq.Simulation
             return objects.FindBlocking(position, ahead, radius, agent.Carry.ItemIndex, pinnedOnly: true) >= 0;
         }
 
-        /// <summary>Done, or given up. Whatever they were holding stays in their arms for the usual rules to deal with.</summary>
+        /// <summary>Done, or given up (<see cref="Tasks.End"/>). Whatever they were holding stays in their arms for the usual rules to deal with.</summary>
         private void GiveUp(Agent agent)
         {
             agent.Barricade.DoorIndex = -1;
             if (IsBarricading(agent))
             {
-                agent.Intent.Activity = AgentActivityState.Fleeing;
-                context.ThinkAgainSoon(agent.Intent);
-                agent.Body.BlockedTicks = 0;
+                Tasks.End(agent, TaskEnd.Done, context, null, null);
             }
         }
     }

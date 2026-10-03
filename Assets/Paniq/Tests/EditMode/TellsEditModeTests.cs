@@ -91,7 +91,6 @@ namespace Paniq.Tests.EditMode
             data.Timetable = Array.Empty<ScheduledCue>();
             data.TrapDefinitions = Array.Empty<TrapDefinition>();
             data.Keycard.Enabled = false;
-            data.Day.ToiletEveryTicks = 0;
             data.Calming.Enabled = false;
             data.Temperament.FreezeForeverPercent = 0;
             data.Temperament.FreezeThenRunPercent = 100;
@@ -170,7 +169,6 @@ namespace Paniq.Tests.EditMode
             data.Alarms = new AlarmDefinition[0];
             data.Timetable = new ScheduledCue[0];
             data.Keycard.Enabled = false;
-            data.Day.ToiletEveryTicks = 0;
             data.Fire.ActivationTick = 3;
             data.Fire.SpreadMinimumTicks = 100000;
             data.Fire.SpreadMaximumTicks = 100000;

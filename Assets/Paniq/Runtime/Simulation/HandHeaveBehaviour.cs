@@ -30,7 +30,7 @@ namespace Paniq.Simulation
     /// the jitter on how long the straining takes, drawn once a heave.
     /// </para>
     /// </summary>
-    internal sealed class HandHeaveBehaviour : IPanicOption, IBindable
+    internal sealed class HandHeaveBehaviour : ITaskOption, IBindable
     {
         /// <summary>How far around the crate to look for floor to stand on beside it.</summary>
         private const int StandingRoomMillimetres = 2000;
@@ -193,19 +193,25 @@ namespace Paniq.Simulation
             return thing >= 0 && Start(agent, pull, thing, drive);
         }
 
-        /// <summary>
-        /// Considered in the panic decision, first after the keycard: a
-        /// clearing hand, felt strongly enough, and hands free. The flames
-        /// inside their danger distance put it out of their head -- but a
-        /// crate they are already at is finished.
-        /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
-        {
-            if (IsHeaving(agent))
-            {
-                return Update(agent, inDanger, frightened: true);
-            }
+        public bool IsDoing(Agent agent) => IsHeaving(agent);
 
+        public MotorIntent? Continue(Agent agent, in Situation situation) => Update(agent, situation.InDanger, frightened: true);
+
+        /// <summary>A goal for the hand; out of the flames, on their feet, hands and care free.</summary>
+        public bool Wants(Agent agent, in Situation situation) =>
+            !situation.InDanger && influence != null && agent.Body.State == AgentBodyState.Upright &&
+            agent.Carry.ItemIndex < 0 && agent.Help.TargetIndex < 0 && agent.Hand.Press != 0UL;
+
+        /// <summary>A crate of the heap the hand is clearing, driven hard enough to set about it -- or nothing.</summary>
+        public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
+        {
+            first = Begin(agent, situation);
+            return first.HasValue;
+        }
+
+        private MotorIntent? Begin(Agent agent, in Situation situation)
+        {
+            bool inDanger = situation.InDanger;
             if (inDanger || influence == null || agent.Body.State != AgentBodyState.Upright ||
                 agent.Carry.ItemIndex >= 0 || agent.Help.TargetIndex >= 0)
             {

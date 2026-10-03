@@ -201,7 +201,7 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            shover.Intent.NextShoveTick = checked(context.Tick + settings.ShoveIntervalTicks);
+            shover.Intent.NextShoveTick = checked(context.Tick + context.Jittered(settings.ShoveIntervalTicks));
             int away = IntegerMath.HeadingBetween(shover.Body.Position, victim.Body.Position, shover.Body.Heading);
             CausalEvent shoved = context.Events.Append(
                 context.Tick,

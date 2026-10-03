@@ -21,6 +21,7 @@ MonoBehaviour:
       OccupancyRadiusMillimetres: 250
       MaximumStepDistanceMillimetres: 120
       TimingJitterPercent: 20
+      EachPersonHasTheirOwnDice: 1
       OnTheMapFromGrams: 32000
       OnTheMapAfterTicks: 25
       WallThicknessMillimetres: 200
@@ -142,7 +143,7 @@ MonoBehaviour:
       TableHeaveRestTicks: 40
     Temperament:
       FreezeThenRunPercent: 30
-      FreezeForeverPercent: 15
+      FreezeForeverPercent: 6
       FreezeMinimumTicks: 100
       FreezeMaximumTicks: 300
     Hearing:
@@ -233,6 +234,12 @@ MonoBehaviour:
       FireAtDoorRadiusMillimetres: 2000
       EvilCloseMinimum: 8
       EvilLockMinimum: 9
+      HeatChoicesStick: 1
+      HeatNearADoorMillimetres: 3000
+      HeatDetourMillimetres: 12000
+      HeatDetourPercentPerBravery: 15
+      HeatCommitTicks: 500
+      RefugeDeadEndPenaltyMillimetres: 12000
       CallousCompassionMaximum: 3
       DashMinimumBravery: 5
       DashTicks: 150
@@ -296,6 +303,7 @@ MonoBehaviour:
       DoorDamagePerPoint: 1
     Flammables:
       HeatDistanceMillimetres: 500
+      BurningThingsHeatThroughWalls: 0
       Kinds:
       - Kind: 0
         FrictionPercent: 100
@@ -751,9 +759,6 @@ MonoBehaviour:
       FuelTicks: 300
       FightMinimumBravery: 7
       SaveMinimumCompassion: 7
-      OfferedBraveryBonus: 3
-      OfferedTicks: 400
-      OfferedNoticeRangeMillimetres: 6000
       FightMaximumFireCells: 24
       FetchRangeMillimetres: 9000
       PickUpDistanceMillimetres: 400
@@ -782,24 +787,10 @@ MonoBehaviour:
       OrderLastsTicks: 750
       FollowLastsTicks: 400
       FollowGapMillimetres: 1500
-      OrderedFightMinimumBravery: 5
       DefiantMinimumEvil: 7
       ObeyBasePercent: 55
       ObeyPercentPerNervousness: 4
       ObeyPercentPerBravery: 3
-    Groups:
-      ReachMillimetres: 8000
-      CloseEnoughMillimetres: 1000
-      PullRampMillimetres: 2000
-      ElbowRoomMillimetres: 800
-      CohesionBasePercent: 60
-      CohesionPercentPerNervousness: 3
-      CohesionPercentPerBravery: 2
-      CohesionPercentPerEvil: 6
-      IgnoreMinimumEvil: 7
-      HangBackPercent: 70
-      ChoiceBonusMillimetres: 3000
-      ShareEveryTicks: 100
     Items:
       CarryBaseGrams: 5000
       CarryGramsPerStrength: 2500
@@ -851,25 +842,6 @@ MonoBehaviour:
       DragGiveUpBlockedTicks: 40
       ReachMillimetres: 150
       ReachTimeoutTicks: 250
-    Purse:
-      Enabled: 1
-      Starting: 30
-      PerPersonSaved: 15
-      Maximum: 100
-      StartingHand: 
-      CardsFromTheDead: 0
-      OpeningDrawCount: 1
-      PullAlarmCost: 30
-      CardPatchRadiusMillimetres: 1500
-      CardCost: 30
-      UproarSmall: 1
-      UproarMiddling: 3
-      UproarBig: 6
-      UnlockDoorCost: 10
-      OpenDoorCost: 10
-      CloseDoorCost: 10
-      LockDoorCost: 10
-      UnlockExitCost: 100
     Alarm:
       Enabled: 1
       PlayerMayPull: 1
@@ -895,7 +867,6 @@ MonoBehaviour:
       StrongGiveUpOnAHeapTicks: 400
       StrongTryTheHeapWithinMillimetres: 3000
       BarricadeNervousMinimum: 7
-      BarricadeEvilMinimum: 7
       BarricadeFetchRangeMillimetres: 5000
       BarricadeTimeoutTicks: 500
       BarricadeSetDownTicks: 25
@@ -911,7 +882,6 @@ MonoBehaviour:
       BangHearingRadiusMillimetres: 20000
       BangAlarmRadiusMillimetres: 12000
     Day:
-      ToiletEveryTicks: 18000
       GoHomeChancePercent: 10
       AtHomeMillimetres: 1500
       RemarkEveryMinimumTicks: 150
@@ -947,6 +917,7 @@ MonoBehaviour:
       LurchMillimetres: 300
       AnnoyedWindowTicks: 500
       AnnoyedAfterNudges: 3
+      PokesToWakeTheFrozen: 1
       AnnoyedForTicks: 1000
       KnockOffChairMillimetres: 500
     Tug:
@@ -978,6 +949,17 @@ MonoBehaviour:
       ReadEveryTicks: 25
       PushMinimumTicks: 1500
       PushMaximumTicks: 3000
+      StartsARealFire: 0
+      FireSpots: []
+      FireBurstRadiusMillimetres: 800
+      FireBurstSquares: 9
+      Relights: 2
+      RelightAfterTicks: 400
+      BellsRingAtSquares: 0
+      MoveSockets: []
+      MoveMinimumTicksAfterFire: 500
+      MoveMaximumTicksAfterFire: 1250
+      PeaceEndsTheRoundTicks: 250
     Calming:
       Enabled: 1
       QuietTicks: 250
@@ -1020,6 +1002,11 @@ MonoBehaviour:
       RetryAfterTicks: 150
       ClearReachMillimetres: 1500
       DoorwaySightSoftEdgeMillimetres: 750
+      FrightenedGoThroughAHeldDoor: 1
+      ThroughTheDoorMillimetres: 1500
+      GoOnFromTheHandTicks: 500
+      TurnBackPenaltyMillimetres: 15000
+      FrightenedGoOnWhenLetGo: 1
     Keycard:
       Enabled: 1
       OnADeskPercent: 50
@@ -2939,62 +2926,6 @@ MonoBehaviour:
       massGrams: 90000
       startsDormant: 0
       initialFacingDegrees: 180
-      startsResting: 0
-      partOfObjectId:
-        value: 0
-      startsPinned: 0
-    - objectId:
-        value: 3391
-      kind: 7
-      initialPosition:
-        x: 0
-        z: 0
-      sizeMillimetres: 220
-      massGrams: 9000
-      startsDormant: 1
-      initialFacingDegrees: 0
-      startsResting: 0
-      partOfObjectId:
-        value: 0
-      startsPinned: 0
-    - objectId:
-        value: 3392
-      kind: 7
-      initialPosition:
-        x: 0
-        z: 0
-      sizeMillimetres: 220
-      massGrams: 9000
-      startsDormant: 1
-      initialFacingDegrees: 0
-      startsResting: 0
-      partOfObjectId:
-        value: 0
-      startsPinned: 0
-    - objectId:
-        value: 3393
-      kind: 7
-      initialPosition:
-        x: 0
-        z: 0
-      sizeMillimetres: 220
-      massGrams: 9000
-      startsDormant: 1
-      initialFacingDegrees: 0
-      startsResting: 0
-      partOfObjectId:
-        value: 0
-      startsPinned: 0
-    - objectId:
-        value: 3394
-      kind: 7
-      initialPosition:
-        x: 0
-        z: 0
-      sizeMillimetres: 220
-      massGrams: 9000
-      startsDormant: 1
-      initialFacingDegrees: 0
       startsResting: 0
       partOfObjectId:
         value: 0

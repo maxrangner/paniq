@@ -40,7 +40,6 @@ namespace Paniq.Tests.EditMode
             data.Tables = new TableDefinition[0];
             data.Alarms = new AlarmDefinition[0];
             data.Timetable = new ScheduledCue[0];
-            data.Day.ToiletEveryTicks = 0;
             data.Fire.ActivationTick = 3;
             data.Fire.SpreadMinimumTicks = 100000;
             data.Fire.SpreadMaximumTicks = 100000;
@@ -193,7 +192,6 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = SomebodyLeavingByTheCorridorDoor();
             using (var simulation = new Run(data, 7UL))
             {
-                int purse = simulation.Purse;
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, SwingDoors, 1);
                 for (int t = 0; t < 3; t++)
                 {
@@ -201,7 +199,6 @@ namespace Paniq.Tests.EditMode
                 }
 
                 Assert.That(DoorOf(simulation, SwingDoors).State, Is.EqualTo(DoorState.Open));
-                Assert.That(simulation.Purse, Is.EqualTo(purse), "Nothing happened, so nothing is charged.");
                 Assert.That(EventsAbout(simulation, CausalEventType.DoorClosed, SwingDoors), Is.Empty);
             }
         }

@@ -1,5 +1,21 @@
 # Look and controls
 
+> **Changed on 2026-10-03 (level mode), not yet rewritten below.** Deleted:
+> the cards, the purse, the deck and "stick together". Set aside everywhere:
+> going back for the keycard in a fright, the cruel wedging doors and locking
+> the way out, toilet trips of their own accord, the brave fighting the fire
+> unasked, and leaders sending anybody at it. Everybody's rules now (they were
+> the loop level's): choices about the heat stick, dead ends count against a
+> hiding place, a held door is walked through, the hand let go strands nobody,
+> 6 % freeze for good, one click wakes the frozen, no fire through walls, each
+> person throws their own dice. How people choose is one chooser for calm and
+> frightened alike. Where this page says otherwise, the decisions page
+> ([technical-decisions.md](technical-decisions.md), *Level mode*) is right;
+> the page is rewritten in the hardening pass.
+>
+> On this page: there is no purse and nothing costs anything; the door hold
+> (`HoldDoor`) is gone, the hand replaced it.
+
 **Status:** the controls below are **built** as of prototype 2, and reworked
 on 2026-09-29 for the hand: the camera moves, steps an eighth of a turn on Q
 and E, and zooms with a coupled tilt, exactly as this note describes. The

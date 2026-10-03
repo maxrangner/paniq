@@ -31,8 +31,6 @@ namespace Paniq.Simulation
         public PowerSystem Power;
         public DoorSystem Doors;
         public PlayerCommandSystem PlayerCommands;
-        public InfluenceSystem Influence;
-        public DeckSystem Deck;
         public RoundSystem Round;
         public SoundSystem Sound;
         public FearSystem Fear;
@@ -55,19 +53,29 @@ namespace Paniq.Simulation
         public ExtinguisherBehaviour Extinguishers;
         public LeaderBehaviour Leaders;
         public AlarmSystem Alarms;
-        public GroupSystem Groups;
         public AlarmBehaviour AlarmBehaviour;
         public BarricadeBehaviour Barricades;
         public CueSystem Cues;
         public DirectorSystem Director;
         public ErrandBehaviour Errands;
+        public NudgeSystem Nudges;
+        public TugSystem Tugs;
+        public HandChargeSystem HandCharge;
+        public InfluenceSystem Influence;
+        public TrapSystem Traps;
+        public KeycardSystem Keycards;
+        public HandHeaveBehaviour HandHeave;
+        public HandGatherBehaviour HandGather;
+        public TellSystem Tells;
 
         /// <summary>Hands every system that asked for it the finished set, in a fixed order.</summary>
         public void BindAll()
         {
             IBindable[] bindable =
             {
-                Doors, Body, Objects, People, DoorBehaviour, Help, Panic, Round, PlayerCommands
+                Doors, Body, Objects, People, DoorBehaviour, Help, Panic, Round, PlayerCommands, Director, Fear, Calm,
+                Errands, Items, Chairs, Alarms, AlarmBehaviour, Keycards, Extinguishers, HandHeave, HandGather, Tells,
+                Influence
             };
 
             for (int i = 0; i < bindable.Length; i++)

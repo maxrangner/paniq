@@ -13,7 +13,7 @@ namespace Paniq.Simulation
     /// barricading anything.
     /// </para>
     /// </summary>
-    internal sealed class BarricadeBehaviour : IPanicOption
+    internal sealed class BarricadeBehaviour : ITaskOption
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
@@ -69,19 +69,25 @@ namespace Paniq.Simulation
                    activity == AgentActivityState.Barricading;
         }
 
-        /// <summary>
-        /// Considered in the panic decision. Returns no intent when this person
-        /// is not wedging a door.
-        /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
-        {
-            if (IsBarricading(agent))
-            {
-                // Already under way: they finish it even if a clear exit
-                // opens up in the meantime.
-                return Update(agent, inDanger);
-            }
+        public bool IsDoing(Agent agent) => IsBarricading(agent);
 
+        /// <summary>Already under way: they finish it even if a clear exit opens up in the meantime.</summary>
+        public MotorIntent? Continue(Agent agent, in Situation situation) => Update(agent, situation.InDanger);
+
+        /// <summary>Nervous enough to dig in, and something burning.</summary>
+        public bool Wants(Agent agent, in Situation situation) => WouldBarricade(agent) && threats.AnyActive;
+
+        /// <summary>A door of the room they shelter in to wedge, and something to wedge it with -- or nothing.</summary>
+        public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
+        {
+            first = Begin(agent, situation);
+            return first.HasValue;
+        }
+
+        private MotorIntent? Begin(Agent agent, in Situation situation)
+        {
+            bool inDanger = situation.InDanger;
+            bool eager = situation.Eager;
             if (eager || !threats.AnyActive)
             {
                 // A way out stands open in front of them: nobody starts
@@ -136,8 +142,7 @@ namespace Paniq.Simulation
         /// <summary>The frightened do it to keep the fire out; the cruel to keep people out.</summary>
         private bool WouldBarricade(Agent agent)
         {
-            return agent.Traits.Nervousness >= settings.BarricadeNervousMinimum ||
-                   agent.Traits.Evil >= settings.BarricadeEvilMinimum;
+            return agent.Traits.Nervousness >= settings.BarricadeNervousMinimum;
         }
 
         /// <summary>
@@ -242,7 +247,7 @@ namespace Paniq.Simulation
         }
 
         /// <summary>The nearest thing in their room they can lift and nobody else is using.</summary>
-        private int ChooseItem(Agent agent, int room)
+        internal int ChooseItem(Agent agent, int room)
         {
             int best = -1;
             long bestDistance = (long)settings.BarricadeFetchRangeMillimetres * settings.BarricadeFetchRangeMillimetres;
@@ -279,6 +284,7 @@ namespace Paniq.Simulation
             if (door < 0 || item < 0 || inDanger || !agent.Body.IsOnTheirFeet ||
                 agent.Burning.IsBurning || context.Tick >= agent.Barricade.GiveUpTick ||
                 agent.Body.BlockedTicks >= settings.BarricadeBlockedGiveUpTicks ||
+                PressedAgainstAHeldThing(agent) ||
                 geometry.IsDoorOpen(door) || doors.IsObstructed(door) ||
                 room < 0 || threats.IsInRoom(room))
             {
@@ -365,7 +371,7 @@ namespace Paniq.Simulation
             return System.Math.Max(reachIn, objects.RadiusOf(item) + 25);
         }
 
-        private LogicalPosition WedgeSpot(int door, int room, int item)
+        internal LogicalPosition WedgeSpot(int door, int room, int item)
         {
             return geometry.DoorPointFrom(door, room, 0, -WedgeDepth(item));
         }
@@ -374,7 +380,7 @@ namespace Paniq.Simulation
         /// Where they stand to do it: back from the gap by their own width plus
         /// the thing's, so setting it down never leaves it on top of them.
         /// </summary>
-        private LogicalPosition StandingSpot(int door, int room, int item)
+        internal LogicalPosition StandingSpot(int door, int room, int item)
         {
             int clear = context.Scenario.World.OccupancyRadiusMillimetres + objects.RadiusOf(item) + 40;
             return geometry.DoorPointFrom(door, room, 0, -(WedgeDepth(item) + clear));
@@ -399,15 +405,35 @@ namespace Paniq.Simulation
             return PanicIntent.MoveAt(agent, heading, speed, panic);
         }
 
-        /// <summary>Done, or given up. Whatever they were holding stays in their arms for the usual rules to deal with.</summary>
+        /// <summary>
+        /// Stuck for a moment against a thing held still where it lies
+        /// (2026-09-28): a crate off the fallen stack across the lane. The
+        /// blocked count alone never reached the give-up against one -- a
+        /// body sliding along a held crate moves a little every tick -- and
+        /// the coward stood in the stockroom with a chair in his arms for the
+        /// whole barricade timeout, ten seconds, nose to the crate.
+        /// </summary>
+        private bool PressedAgainstAHeldThing(Agent agent)
+        {
+            if (agent.Body.BlockedTicks < context.Scenario.Panic.BlockedGiveUpTicks)
+            {
+                return false;
+            }
+
+            int radius = context.Scenario.World.OccupancyRadiusMillimetres;
+            LogicalPosition position = agent.Body.Position;
+            LogicalPosition ahead = position + IntegerMath.Displacement(agent.Body.Heading,
+                radius + context.Scenario.Exits.ClearTheWayReachMillimetres);
+            return objects.FindBlocking(position, ahead, radius, agent.Carry.ItemIndex, pinnedOnly: true) >= 0;
+        }
+
+        /// <summary>Done, or given up (<see cref="Tasks.End"/>). Whatever they were holding stays in their arms for the usual rules to deal with.</summary>
         private void GiveUp(Agent agent)
         {
             agent.Barricade.DoorIndex = -1;
             if (IsBarricading(agent))
             {
-                agent.Intent.Activity = AgentActivityState.Fleeing;
-                context.ThinkAgainSoon(agent.Intent);
-                agent.Body.BlockedTicks = 0;
+                Tasks.End(agent, TaskEnd.Done, context, null, null);
             }
         }
     }

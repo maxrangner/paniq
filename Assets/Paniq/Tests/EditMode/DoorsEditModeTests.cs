@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Paniq.Gameplay;
@@ -87,8 +87,8 @@ namespace Paniq.Tests.EditMode
             // Four rooms onto the corridor, the closet, the meeting room's
             // door into the cafeteria, the maintenance room, three stalls,
             // the archway where the corridor Ts, the stockroom's two doors,
-            // and the one way out.
-            Assert.That(simulation.DoorCount, Is.EqualTo(14));
+            // the one way out, and the cubicle landscape's three (2026-10-02).
+            Assert.That(simulation.DoorCount, Is.EqualTo(17));
             var sides = new HashSet<WallSide>();
             int locked = 0;
             for (int i = 0; i < simulation.DoorCount; i++)
@@ -134,8 +134,6 @@ namespace Paniq.Tests.EditMode
             // Working one door four times over costs more than a round's purse
             // holds, and this test is about what the clicks do rather than what
             // they cost: PowersEditModeTests owns the prices.
-            data.Influence.Starting = 1000;
-            data.Influence.Maximum = 1000;
             var simulation = new Run(data);
             Click(simulation, OfficeWayOut);
             simulation.Step();
@@ -211,10 +209,13 @@ namespace Paniq.Tests.EditMode
                     for (int i = 0; i < simulation.AgentCount; i++)
                     {
                         AgentSnapshot agent = simulation.GetAgent(i);
-                        if (agent.Participation == AgentParticipation.Participating)
+                        // A plain test, not Assert.That, in a loop that runs
+                        // a hundred thousand times a seed: the constraint
+                        // objects were most of this test's ten seconds.
+                        if (agent.Participation == AgentParticipation.Participating &&
+                            !IsInRoomOrDoorway(simulation, data, agent.Position))
                         {
-                            Assert.That(IsInRoomOrDoorway(simulation, data, agent.Position), Is.True,
-                                $"Seed {seed}: agent {agent.AgentId} got out of the building at tick {simulation.Tick}.");
+                            Assert.Fail($"Seed {seed}: agent {agent.AgentId} got out of the building at tick {simulation.Tick}.");
                         }
                     }
                 }
@@ -272,8 +273,6 @@ namespace Paniq.Tests.EditMode
                 // never touched. This test is about what open doors do, not
                 // about what they cost -- PowersEditModeTests owns
                 // the prices.
-                data.Influence.Starting = 2000;
-                data.Influence.Maximum = 2000;
                 var simulation = new Run(data, seed);
                 OpenEveryDoor(simulation);
                 // Bodies give a little: in a packed, shoving crowd two people on
@@ -310,15 +309,21 @@ namespace Paniq.Tests.EditMode
                         // between one tick and the next. Doorways are gaps in
                         // the walls, so going through one is fine, and once out
                         // in the street people may wander where they like.
-                        Assert.That(CrossesAWall(walls, from, agent.Position), Is.False,
-                            $"Seed {seed}: agent {agent.AgentId} walked through a wall at tick {simulation.Tick}.");
+                        // Plain tests, not Assert.That, in loops that run a
+                        // million times a seed: the constraint objects were
+                        // most of this test's seventeen seconds.
+                        if (CrossesAWall(walls, from, agent.Position))
+                        {
+                            Assert.Fail($"Seed {seed}: agent {agent.AgentId} walked through a wall at tick {simulation.Tick}.");
+                        }
+
                         for (int j = 0; j < i; j++)
                         {
                             AgentSnapshot other = simulation.GetAgent(j);
-                            if (other.Participation == AgentParticipation.Participating && !agent.IsDown && !other.IsDown)
+                            if (other.Participation == AgentParticipation.Participating && !agent.IsDown && !other.IsDown &&
+                                LogicalPosition.DistanceSquared(agent.Position, other.Position) < touching * touching)
                             {
-                                Assert.That(LogicalPosition.DistanceSquared(agent.Position, other.Position),
-                                    Is.GreaterThanOrEqualTo(touching * touching));
+                                Assert.Fail($"Seed {seed}: agents {agent.AgentId} and {other.AgentId} overlapped at tick {simulation.Tick}.");
                             }
                         }
                     }
@@ -949,6 +954,23 @@ namespace Paniq.Tests.EditMode
                         break;
                     case CausalEventType.TableHeaved:
                         Assert.That(record.HasTarget, Is.True, "A heave names the table.");
+                        break;
+                    case CausalEventType.TrapTriggered:
+                        Assert.That(agents, Does.Contain(record.TargetId), "A sprung trap names who sprang it.");
+                        break;
+                    case CausalEventType.BoxTowerFell:
+                        // The tower names the archway it fell across; the
+                        // stockroom's stack (2026-09-27) fell across a lane,
+                        // and names no doorway.
+                        Assert.That(!record.HasTarget || doorCentres.ContainsKey(record.TargetId), Is.True,
+                            "A fallen tower names the doorway it fell across, or nothing.");
+                        break;
+                    case CausalEventType.BoxHeapSettled:
+                    case CausalEventType.BoxPileCleared:
+                        Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, $"{record.EventType} names the doorway.");
+                        break;
+                    case CausalEventType.PowerNudged:
+                        Assert.That(agents, Does.Contain(record.TargetId), "A nudge names the person nudged.");
                         break;
                     case CausalEventType.CueCalled:
                         // A cue names the room it was called in or the person

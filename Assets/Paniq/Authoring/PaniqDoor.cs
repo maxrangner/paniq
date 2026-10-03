@@ -23,9 +23,14 @@ namespace Paniq.Authoring
         [Tooltip("Locked to start with: the player has to click it before anybody can open it.")]
         public bool StartsLocked = true;
 
+        [Tooltip("A card door: only the keycard opens it, nobody batters it and the player has no key to it. " +
+                 "Only a locked door to the street can be one.")]
+        public bool NeedsKeycard;
+
         private void OnDrawGizmos()
         {
-            Gizmos.color = StartsLocked ? new Color(1f, 0.35f, 0.3f) : new Color(0.4f, 1f, 0.5f);
+            Gizmos.color = NeedsKeycard ? new Color(1f, 0.85f, 0.1f)
+                : StartsLocked ? new Color(1f, 0.35f, 0.3f) : new Color(0.4f, 1f, 0.5f);
             float half = WidthMillimetres / 2f / PaniqAuthoring.MillimetresPerMetre;
             Vector3 at = transform.position;
             Gizmos.DrawLine(at + new Vector3(-half, 0.05f, 0f), at + new Vector3(half, 0.05f, 0f));

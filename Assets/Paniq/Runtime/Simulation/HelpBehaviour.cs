@@ -11,7 +11,7 @@ namespace Paniq.Simulation
     /// they are dragging. The cruel never help. Helping stops when the helper
     /// is in danger, loses their footing, catches fire or gives up.
     /// </summary>
-    internal sealed class HelpBehaviour : IPanicOption, IBindable
+    internal sealed class HelpBehaviour : ITaskOption, IBindable
     {
         private readonly SimulationContext context;
         private readonly Crowd crowd;
@@ -78,25 +78,13 @@ namespace Paniq.Simulation
 
         // ---------------------------------------------------------------- deciding
 
-        /// <summary>
-        /// This tick's helping, for a panicking person: carry on helping, or
-        /// maybe start. Returns no intent when they are not helping, and the
-        /// panic behaviour decides instead.
-        /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
-        {
-            if (!IsHelping(agent))
-            {
-                if (inDanger || agent.Intent.Activity != AgentActivityState.Fleeing || agent.Carry.Holding ||
-                    !TryStart(agent))
-                {
-                    return null;
-                }
-            }
+        public bool IsDoing(Agent agent) => IsHelping(agent);
 
-            if (inDanger)
+        /// <summary>Carrying on helping; too close to the flames to stay, they let go and run.</summary>
+        public MotorIntent? Continue(Agent agent, in Situation situation)
+        {
+            if (situation.InDanger)
             {
-                // Too close to the flames to stay: let go and run.
                 StopHelping(agent, true);
                 return null;
             }
@@ -104,8 +92,32 @@ namespace Paniq.Simulation
             return agent.Intent.Activity == AgentActivityState.Dragging ? Drag(agent) : GoToOrWorkOn(agent);
         }
 
-        private bool TryStart(Agent agent)
+        /// <summary>Running, empty-handed, out of the flames, kind enough and not cruel.</summary>
+        public bool Wants(Agent agent, in Situation situation) =>
+            !situation.InDanger && agent.Intent.Activity == AgentActivityState.Fleeing && !agent.Carry.Holding &&
+            agent.Traits.Evil <= settings.HelpMaximumEvil && agent.Traits.Compassion >= settings.ShakeMinimumCompassion;
+
+        /// <summary>Somebody frozen or out cold within reach: they set about them, or wind up to it first.</summary>
+        public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
         {
+            first = Begin(agent, situation);
+            return first.HasValue;
+        }
+
+        private MotorIntent? Begin(Agent agent, in Situation situation)
+        {
+            if (!TryStart(agent, out bool windingUp))
+            {
+                // Winding up to go back toward the flames for them (2026-09-30).
+                return windingUp ? tells.StandIntent(agent) : (MotorIntent?)null;
+            }
+
+            return agent.Intent.Activity == AgentActivityState.Dragging ? Drag(agent) : GoToOrWorkOn(agent);
+        }
+
+        private bool TryStart(Agent agent, out bool windingUp)
+        {
+            windingUp = false;
             AgentTraitValues traits = agent.Traits;
             if (traits.Evil > settings.HelpMaximumEvil || traits.Compassion < settings.ShakeMinimumCompassion)
             {
@@ -156,6 +168,19 @@ namespace Paniq.Simulation
             if (best < 0)
             {
                 return false;
+            }
+
+            // Turning back (2026-09-30): going to somebody down past the flames
+            // is wound up to first.
+            if (tells != null)
+            {
+                TellSystem.GoingBack going = tells.BeforeGoingBack(agent, crowd.All[best].Body.Position,
+                    TellSystem.PersonTarget(best), agent.Fear.ScaredEventId, false);
+                if (going != TellSystem.GoingBack.Go)
+                {
+                    windingUp = going == TellSystem.GoingBack.Wait;
+                    return false;
+                }
             }
 
             agent.Help.TargetIndex = best;
@@ -266,7 +291,14 @@ namespace Paniq.Simulation
         }
 
         /// <summary>The doors are built after this behaviour, so they are handed over once everything exists.</summary>
-        public void Bind(Systems systems) => doors = systems.Doors;
+        public void Bind(Systems systems)
+        {
+            doors = systems.Doors;
+            tells = systems.Tells;
+        }
+
+        /// <summary>The wind-up before going back toward the flames (2026-09-30).</summary>
+        private TellSystem tells;
 
         // ---------------------------------------------------------------- dragging
 
@@ -383,11 +415,9 @@ namespace Paniq.Simulation
             agent.Help.StuckTicks = 0;
             if (IsHelping(agent))
             {
-                agent.Intent.Activity = AgentActivityState.Fleeing;
-                context.ThinkAgainSoon(agent.Intent);
-
-                // Whatever had them stuck, they start counting again from here.
-                agent.Body.BlockedTicks = 0;
+                // Back to running, thinking again a beat later, the count of
+                // what had them stuck started afresh (Tasks.End).
+                Tasks.End(agent, logDrop ? TaskEnd.GaveUp : TaskEnd.Done, context, null, null);
             }
         }
 

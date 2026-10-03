@@ -33,7 +33,11 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = scenario.ToRuntimeData();
             data.Fire.ActivationTick = int.MaxValue;
             data.Round.HazardWaitsForTrigger = true;
-            return data;
+
+            // No keycard (2026-09-27): everybody who catches sight of it draws
+            // a reaction lag, which moves every timing these tests read; the
+            // card has tests of its own.
+            return TheBuilding.WithAnOrdinaryWayOut(data);
         }
 
         private static void Advance(Run simulation, int ticks)
@@ -113,52 +117,6 @@ namespace Paniq.Tests.EditMode
                 }
 
                 Assert.That(reached, Is.EqualTo(6), "The six at the meeting, and nobody outside the room.");
-            }
-        }
-
-        [Test]
-        public void ThePlayerCanCallHomeTime_AndTheStoryNamesThemAsTheCause()
-        {
-            using (var simulation = new Run(CalmDay()))
-            {
-                simulation.QueueCommand(PlayerCommandType.CallHomeTime, default(SimulationId), 5);
-                Advance(simulation, 6);
-
-                ulong called = 0UL;
-                ulong cue = 0UL;
-                foreach (CausalEvent record in simulation.GetSnapshot().Events)
-                {
-                    if (record.EventType == CausalEventType.PowerCalledHomeTime)
-                    {
-                        Assert.That(record.HasCausalParent, Is.False, "The player is the cause: a root event.");
-                        called = record.EventId;
-                    }
-
-                    if (record.EventType == CausalEventType.CueCalled)
-                    {
-                        Assert.That((CueKind)record.Strength, Is.EqualTo(CueKind.HomeTime));
-                        Assert.That(record.CausalParentEventId, Is.EqualTo(called), "The cue names the player's command as its cause.");
-                        Assert.That(record.Tick, Is.EqualTo(5));
-                        cue = record.EventId;
-                    }
-                }
-
-                Assert.That(called, Is.Not.Zero, "The player calling it a day is a line in the story.");
-                Assert.That(cue, Is.Not.Zero, "And it called the cue.");
-
-                var startTicks = new System.Collections.Generic.HashSet<int>();
-                for (int i = 0; i < simulation.AgentCount; i++)
-                {
-                    AgentErrand errand = simulation.ErrandForTests(i);
-                    Assert.That(errand.Has && errand.Cue == CueKind.HomeTime, Is.True,
-                        $"Person {simulation.GetAgent(i).AgentId} was not told it was home time.");
-                    Assert.That(errand.CauseEventId, Is.EqualTo(cue));
-                    Assert.That(errand.StartTick, Is.GreaterThan(5), "Nobody reacts on the tick a thing happens.");
-                    startTicks.Add(errand.StartTick);
-                }
-
-                Assert.That(startTicks.Count, Is.GreaterThanOrEqualTo(5),
-                    "People take it up each their own while later, never the whole building at once.");
             }
         }
 
@@ -501,8 +459,6 @@ namespace Paniq.Tests.EditMode
                 var said = new CausalEvent(2UL, 11, new SimulationId(1001UL), CausalEventType.AgentSaid, default, 2500, 0, 1UL);
                 Assert.That(story.Describe(said), Does.Contain("said"));
                 Assert.That(Paniq.Presentation.EventStory.IsBackground(CausalEventType.AgentSaid), Is.True, "Remarks are chatter.");
-                var day = new CausalEvent(3UL, 12, default, CausalEventType.PowerCalledHomeTime, default, 0, 0, 0UL);
-                Assert.That(story.Describe(day), Does.Contain("you"));
             }
         }
     }

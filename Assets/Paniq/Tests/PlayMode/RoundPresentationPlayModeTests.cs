@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using NUnit.Framework;
 using Paniq.App;
+using Paniq.Presentation;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
@@ -10,7 +11,9 @@ namespace Paniq.Tests.PlayMode
     /// <summary>
     /// Smoke checks for what the round put on screen: the camera the player
     /// drives actually frames the building, and the building's outside is
-    /// built below the floor rather than in front of it.
+    /// built below the floor rather than in front of it; everybody has eyes on
+    /// the side they face, and the Tab panel's switches really hide and show
+    /// what they name.
     /// <para>
     /// These do not judge whether it looks good -- nothing can -- but they do
     /// catch a camera pointing at nothing or a shell drawn over the rooms,
@@ -23,7 +26,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator TheCamera_FramesTheBuildingFromAboveAndCornerOn()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
 
             Camera camera = Camera.main;
@@ -53,7 +56,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator TheBuildingsOutside_IsBuiltBelowTheFloor()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
 
             GameObject shell = GameObject.Find("Building shell");
@@ -95,7 +98,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator TheOpeningView_ActuallyDrawsSomething()
         {
-            yield return SceneManager.LoadSceneAsync(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             yield return null;
             yield return new WaitForEndOfFrame();
 
@@ -142,6 +145,167 @@ namespace Paniq.Tests.PlayMode
                 target.Release();
                 Object.DestroyImmediate(target);
             }
+        }
+
+        [UnityTest]
+        public IEnumerator PeopleHaveEyes_OnTheSideTheyFace()
+        {
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
+            yield return null;
+
+            int people = 0;
+            foreach (Transform body in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None))
+            {
+                // The body itself, "Agent 1013 (presentation)", not its
+                // vision cone or its icons, which are named after it.
+                if (!System.Text.RegularExpressions.Regex.IsMatch(body.name, @"^Agent \d+ \(presentation\)$"))
+                {
+                    continue;
+                }
+
+                people++;
+                int eyes = 0;
+                foreach (Transform part in body)
+                {
+                    if (part.name != "Eye")
+                    {
+                        continue;
+                    }
+
+                    eyes++;
+                    Vector3 fromMiddle = part.position - body.position;
+                    Assert.That(Vector3.Dot(fromMiddle, body.forward), Is.GreaterThan(0.05f),
+                        $"{body.name}'s eye is not on the side they face.");
+                    Assert.That(Vector3.Dot(fromMiddle, body.up), Is.GreaterThan(0.2f),
+                        $"{body.name}'s eye is not up on the head.");
+                    Assert.That(part.Find("Pupil"), Is.Not.Null, $"{body.name}'s eye has no pupil.");
+                }
+
+                Assert.That(eyes, Is.EqualTo(2), $"{body.name} should have two eyes.");
+            }
+
+            Assert.That(people, Is.GreaterThan(0), "Expected the people to have been built.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheTabPanel_HidesAndShowsConesNumbersAndMarks()
+        {
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
+            yield return null;
+
+            var presentation = Object.FindFirstObjectByType<RunPresentation>();
+            Assert.That(presentation, Is.Not.Null);
+            DebugView view = presentation.ViewForTests;
+            Assert.That(view.VisionCones && view.Numbers && view.Marks, Is.True,
+                "The owner's choice: cones, numbers and marks are all showing when Play is pressed.");
+            Assert.That(ConesDrawn(), Is.GreaterThan(0), "Expected vision cones at the start.");
+            Assert.That(NumbersDrawn(), Is.GreaterThan(0), "Expected numbers over heads at the start.");
+
+            view.VisionCones = false;
+            view.Numbers = false;
+            view.Marks = false;
+            yield return null;
+
+            Assert.That(ConesDrawn(), Is.Zero, "The cones should be hidden.");
+            Assert.That(NumbersDrawn(), Is.Zero, "The numbers should be hidden.");
+            Assert.That(MarksDrawn(), Is.Zero, "The marks should be hidden.");
+
+            view.VisionCones = true;
+            view.Numbers = true;
+            view.Marks = true;
+            yield return null;
+
+            Assert.That(ConesDrawn(), Is.GreaterThan(0), "The cones should be back.");
+            Assert.That(NumbersDrawn(), Is.GreaterThan(0), "The numbers should be back.");
+        }
+
+        /// <summary>
+        /// Reset and "play again" reload the scene. The Tab panel's dials
+        /// and switches are kept outside it, so they last through both
+        /// (found in review, 2026-10-02: they went back to the level's own
+        /// at every Reset, though the panel said they were kept).
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheTabPanel_KeepsItsDialsAndSwitches_WhenTheSceneIsReloaded()
+        {
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
+            yield return null;
+            yield return null;
+
+            var presentation = Object.FindFirstObjectByType<RunPresentation>();
+            Assert.That(presentation, Is.Not.Null);
+            DebugView view = presentation.ViewForTests;
+            int levelsOwn = view.LevelReachMillimetres;
+            int chosen = levelsOwn == 7500 ? 8000 : 7500;
+            view.HandReachMillimetres = chosen;
+            view.Stats = true;
+
+            yield return SceneManager.LoadSceneAsync(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
+            yield return null;
+            yield return null;
+
+            var rebuilt = Object.FindFirstObjectByType<RunPresentation>();
+            Assert.That(rebuilt, Is.Not.Null);
+            Assert.That(rebuilt, Is.Not.SameAs(presentation), "The scene was rebuilt.");
+            DebugView kept = rebuilt.ViewForTests;
+            try
+            {
+                Assert.That(kept.HandReachMillimetres, Is.EqualTo(chosen), "The reach dial is where the player left it.");
+                Assert.That(kept.Stats, Is.True, "And so are the switches.");
+                Assert.That(kept.LevelReachMillimetres, Is.EqualTo(levelsOwn), "The level's own value is still known, for the button that puts the dials back.");
+            }
+            finally
+            {
+                // The panel outlives the scene, so it outlives this test:
+                // leave it as the next one expects to find it.
+                kept.HandReachMillimetres = kept.LevelReachMillimetres;
+                kept.Stats = false;
+            }
+        }
+
+        private static int ConesDrawn()
+        {
+            int drawn = 0;
+            foreach (LineRenderer line in Object.FindObjectsByType<LineRenderer>(FindObjectsSortMode.None))
+            {
+                if (line.name.Contains("vision cone") && line.enabled)
+                {
+                    drawn++;
+                }
+            }
+
+            return drawn;
+        }
+
+        /// <summary>Active number labels. Inactive objects are not found, so this counts only what is on screen.</summary>
+        private static int NumbersDrawn()
+        {
+            int drawn = 0;
+            foreach (TextMesh label in Object.FindObjectsByType<TextMesh>(FindObjectsSortMode.None))
+            {
+                if (label.name == "Number")
+                {
+                    drawn++;
+                }
+            }
+
+            return drawn;
+        }
+
+        /// <summary>Active marks over any head: everything under a person's icons except the number.</summary>
+        private static int MarksDrawn()
+        {
+            int drawn = 0;
+            foreach (Transform transform in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None))
+            {
+                if (transform.parent != null && transform.parent.name.EndsWith(" icons (presentation)") &&
+                    transform.name != "Number")
+                {
+                    drawn++;
+                }
+            }
+
+            return drawn;
         }
 
         private static System.Collections.Generic.List<GameObject> FloorsInTheScene()

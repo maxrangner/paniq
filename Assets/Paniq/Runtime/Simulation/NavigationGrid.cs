@@ -250,8 +250,12 @@ namespace Paniq.Simulation
                     {
                         LogicalPosition at = doorway.PointAt(along, across);
                         int cell = CellAt(at);
-                        if (cell < 0 || cellRoom[cell] != Outside)
+                        if (cell < 0 || cellRoom[cell] != Outside || IsUnder(CentreOfCell(cell), tables))
                         {
+                            // Outside the rooms, but not under a table or a
+                            // crate beside the doorway (2026-09-27): the tower
+                            // standing half a metre from the archway is not
+                            // floor because the archway reaches that far.
                             continue;
                         }
 
@@ -260,6 +264,20 @@ namespace Paniq.Simulation
                     }
                 }
             }
+        }
+
+        private static bool IsUnder(LogicalPosition point, IReadOnlyList<LogicalBounds> tables)
+        {
+            for (int t = 0; t < tables.Count; t++)
+            {
+                LogicalBounds b = tables[t];
+                if (point.X > b.MinX && point.X < b.MaxX && point.Z > b.MinZ && point.Z < b.MaxZ)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static long NearestEdge(List<Wall> edges, LogicalPosition point)
@@ -511,17 +529,34 @@ namespace Paniq.Simulation
         /// </summary>
         internal readonly struct Wall
         {
-            public Wall(LogicalPosition from, LogicalPosition to)
+            /// <param name="thicknessMillimetres">
+            /// How thick the solid is, standing on the line with half on each
+            /// side (2026-09-30): a wall's <see cref="WorldSettings.WallThicknessMillimetres"/>,
+            /// nothing for a table's edge, which is its face. Clearance is
+            /// measured to the face, not the line, so a person keeps off a
+            /// wall as far as the physics engine's slab really reaches.
+            /// </param>
+            public Wall(LogicalPosition from, LogicalPosition to, int thicknessMillimetres = 0)
             {
                 From = from;
                 To = to;
+                HalfThickness = thicknessMillimetres / 2;
             }
 
             public LogicalPosition From { get; }
 
             public LogicalPosition To { get; }
 
-            /// <summary>Millimetres from a point to the nearest place on this edge.</summary>
+            /// <summary>Half the solid's thickness: how far its face stands off the line.</summary>
+            public int HalfThickness { get; }
+
+            /// <summary>
+            /// Millimetres from a point to the nearest place on this solid:
+            /// the slab that stands on the line, half the thickness to each
+            /// side and ending square at the line's ends (its jambs at a
+            /// doorway). Nothing inside it. With no thickness, the distance
+            /// to the line itself.
+            /// </summary>
             public long DistanceFrom(LogicalPosition point)
             {
                 long abx = (long)To.X - From.X;
@@ -531,25 +566,19 @@ namespace Paniq.Simulation
                 long lengthSquared = abx * abx + abz * abz;
                 if (lengthSquared == 0L)
                 {
-                    return IntegerMath.Sqrt(apx * apx + apz * apz);
+                    return Math.Max(0L, IntegerMath.Sqrt(apx * apx + apz * apz) - HalfThickness);
                 }
 
+                // How far past either end the point lies along the line, and
+                // how far off the line it is, each kept exact by squaring
+                // before dividing; the face is half a thickness off the line.
                 long dot = apx * abx + apz * abz;
-                if (dot <= 0L)
-                {
-                    return IntegerMath.Sqrt(apx * apx + apz * apz);
-                }
-
-                if (dot >= lengthSquared)
-                {
-                    long bpx = (long)point.X - To.X;
-                    long bpz = (long)point.Z - To.Z;
-                    return IntegerMath.Sqrt(bpx * bpx + bpz * bpz);
-                }
-
-                // Perpendicular distance, kept exact by squaring before dividing.
                 long cross = abx * apz - abz * apx;
-                return IntegerMath.Sqrt(cross * cross / lengthSquared);
+                long past = dot < 0L ? IntegerMath.Sqrt(dot * dot / lengthSquared)
+                    : dot > lengthSquared ? IntegerMath.Sqrt((dot - lengthSquared) * (dot - lengthSquared) / lengthSquared)
+                    : 0L;
+                long off = Math.Max(0L, IntegerMath.Sqrt(cross * cross / lengthSquared) - HalfThickness);
+                return past == 0L ? off : off == 0L ? past : IntegerMath.Sqrt(past * past + off * off);
             }
         }
     }

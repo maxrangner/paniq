@@ -13,9 +13,15 @@ namespace Paniq.Simulation
     /// to the toilet, home at the end of the day (see <see cref="ErrandBehaviour"/>
     /// and <see cref="CueSystem"/>).
     /// </summary>
-    internal sealed class CalmBehaviour
+    internal sealed class CalmBehaviour : IBindable
     {
         private readonly SimulationContext context;
+
+        /// <summary>Built after this: the places the player is drawing people toward (2026-09-26).</summary>
+        private InfluenceSystem influence;
+
+        /// <summary>Built after this: heaving a crate for the hand (2026-09-30).</summary>
+        private HandHeaveBehaviour handHeave;
 
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
         private readonly int bodyRadius;
@@ -51,11 +57,23 @@ namespace Paniq.Simulation
             this.cues = cues;
             this.sound = sound;
             settings = context.Scenario.Calm;
+            ideas = BuildIdeas();
+        }
+
+        public void Bind(Systems systems)
+        {
+            influence = systems.Influence;
+            handHeave = systems.HandHeave;
         }
 
         public MotorIntent Decide(Agent agent)
         {
             int tick = context.Tick;
+
+            // A noise heard a beat ago is turned to now, in their own turn.
+            sound.TakeUpTheLook(agent);
+            MaybeLeaveForTheInfluence(agent, tick);
+            FollowTheMovingHand(agent);
             AgentIntent intent = agent.Intent;
             int goalHeading = agent.Body.Heading;
             int goalSpeed = 0;
@@ -63,8 +81,16 @@ namespace Paniq.Simulation
             bool steer = false;
 
             // An errand whose time has come cuts short whatever loitering
-            // they were doing; what it leaves them doing is decided below.
-            errands.StartIfDue(agent);
+            // they were doing; what it leaves them doing is decided below --
+            // unless they are answering the player's hand (2026-09-30): the
+            // meeting waits until the hand comes off, rather than taking them
+            // off it halfway. The errand the hand itself gave them starts.
+            bool answering = influence != null && influence.IsActingFor(agent) &&
+                             agent.Errand.Cue != CueKind.FollowTheInfluence;
+            if (!answering)
+            {
+                errands.StartIfDue(agent);
+            }
 
             switch (intent.Activity)
             {
@@ -150,8 +176,11 @@ namespace Paniq.Simulation
                     }
 
                     // Wander less as the destination gets close, so arrival
-                    // looks deliberate.
-                    int wander = distance < 1200 ? intent.WanderOffset / 2 : intent.WanderOffset;
+                    // looks deliberate; not at all on the way to the player's
+                    // hand (2026-09-30), so a line of people answering it
+                    // reads as answering it rather than drifting.
+                    int wander = influence != null && influence.IsActingFor(agent) ? 0
+                        : distance < 1200 ? intent.WanderOffset / 2 : intent.WanderOffset;
                     goalHeading = geometry.Routes.HeadingToward(
                         agent.Body.Position, intent.Target, bodyRadius, agent.Body.Heading) + wander;
                     int calmSpeed = agent.Personality.CalmSpeed;
@@ -176,6 +205,7 @@ namespace Paniq.Simulation
                 case AgentActivityState.GoingToSit:
                 case AgentActivityState.Sitting:
                 case AgentActivityState.StandingUp:
+                    errands.SettleIntoTheSeat(agent);
                     if (chairs.UpdateSitting(agent, out goalHeading, out goalSpeed))
                     {
                         steer = goalSpeed > 0;
@@ -190,6 +220,16 @@ namespace Paniq.Simulation
                 case AgentActivityState.CarryingItem:
                 case AgentActivityState.SettingDown:
                     if (items.UpdateTidying(agent, out goalHeading, out goalSpeed))
+                    {
+                        steer = goalSpeed > 0;
+                        break;
+                    }
+
+                    ChooseNext(agent, true);
+                    break;
+
+                case AgentActivityState.HeavingForTheHand:
+                    if (handHeave != null && handHeave.UpdateCalm(agent, out goalHeading, out goalSpeed))
                     {
                         steer = goalSpeed > 0;
                         break;
@@ -276,125 +316,122 @@ namespace Paniq.Simulation
         private void ChooseActivity(Agent agent, bool justMoved)
         {
             agent.Body.BlockedTicks = 0;
+            if (!justMoved)
+            {
+                agent.Intent.SocialPartnerIndex = -1;
+            }
+
+            // The one chooser (2026-10-03): their own ideas, in order, the
+            // first that takes itself up wins; one roll of the dice for the
+            // ideas that take a band of it. A stroll if nothing else did.
             int roll = context.Random.NextIntInclusive(0, 99);
-            if (justMoved)
-            {
-                // After walking somewhere, people usually stop for a moment.
-                if (roll < 55)
-                {
-                    StartStanding(agent);
-                }
-                else
-                {
-                    StartLookingAround(agent);
-                }
-
-                return;
-            }
-
-            agent.Intent.SocialPartnerIndex = -1;
-
-            // One roll decides everything, in bands: tidying takes the lowest,
-            // sitting the one above it, then a toilet trip, then going back
-            // to their own desk. Each band falls through to the next when
-            // there is nothing to do it with -- no chair free, no stall free.
-            int band = context.Scenario.Items.TidyChancePercent;
-            if (roll < band && items.TryStartTidying(agent))
-            {
-                return;
-            }
-
-            band += context.Scenario.Items.SitChancePercent;
-            if (roll < band && chairs.TryStartSitting(agent))
-            {
-                return;
-            }
-
-            // Somebody with a cue waiting on them -- home time in a moment --
-            // has no ideas of their own until it is done: what the building
-            // asks beats what they thought of.
-            // Home time stands until they are out: somebody who was busy when
-            // it was called, or gave up on a locked way out, takes it up
-            // again, after a pause of their own; and until then nobody has
-            // ideas of their own (the toilet, a chat, their desk) either.
-            if (!agent.Errand.Has && cues.IsHomeTime && context.Tick >= agent.Home.NextHomeTryTick && cues.RemindOfHomeTime(agent))
-            {
-                StartStanding(agent);
-                return;
-            }
-
-            bool free = !agent.Errand.Has && !cues.IsHomeTime;
-
-            // Not a band of the roll: a person needs the toilet when their own
-            // clock says, however often they happen to be deciding things.
-            if (free && TryStartToiletTrip(agent))
-            {
-                return;
-            }
-
-            band += context.Scenario.Day.GoHomeChancePercent;
-            if (roll < band && free && TryGoHome(agent))
-            {
-                return;
-            }
-
-            if (roll < 50)
-            {
-                StartStroll(agent);
-            }
-            else if (roll < 75)
-            {
-                if (!free || !TryStartChat(agent))
-                {
-                    StartStroll(agent);
-                }
-            }
-            else if (agent.Intent.Activity != AgentActivityState.LookingAround)
-            {
-                StartLookingAround(agent);
-            }
-            else
+            ideaRoll = roll;
+            if (!ideas.Choose(agent, new Situation(true, false, false, roll, justMoved)))
             {
                 StartStroll(agent);
             }
         }
 
         /// <summary>
-        /// Their own idea: to the toilet, when their own clock says and given
-        /// a free stall to go to. The first time is drawn anywhere inside the
-        /// first stretch, so the office does not all go at once; a trip that
-        /// cannot happen yet (every stall taken, hands full) waits a little
-        /// and is tried again.
+        /// A calm person's own ideas, as options of the one chooser
+        /// (2026-10-03, the one task model), in the order they are weighed:
+        /// their goal for the hand first -- a push away from it, or the pull
+        /// toward it -- which is theirs until it is done or fades; after a
+        /// walk, a moment's stop; then one roll of the dice in bands --
+        /// tidying the lowest, sitting the one above it, home time waiting on
+        /// them, going back to their own desk, a chat in the middle -- and a
+        /// look round or a stroll. Each band falls through to the next when
+        /// there is nothing to do it with: no chair free, nobody to talk to.
+        /// The calm day steps each activity itself (<see cref="Decide"/>), so
+        /// these are only ever taken up, never carried on.
         /// </summary>
-        private bool TryStartToiletTrip(Agent agent)
+        private TaskChooser BuildIdeas()
         {
-            int every = errands.ToiletEveryTicks;
-            if (every <= 0)
+            int tidy = context.Scenario.Items.TidyChancePercent;
+            int sit = tidy + context.Scenario.Items.SitChancePercent;
+            int desk = sit + context.Scenario.Day.GoHomeChancePercent;
+            return new TaskChooser(
+                new Idea((agent, s) => true, TryMoveAwayFromThePush),
+                new Idea((agent, s) => true, TryWanderToTheInfluence),
+                new Idea((agent, s) => s.JustMoved, agent =>
+                {
+                    // After walking somewhere, people usually stop for a moment.
+                    if (ideaRoll < 55)
+                    {
+                        StartStanding(agent);
+                    }
+                    else
+                    {
+                        StartLookingAround(agent);
+                    }
+
+                    return true;
+                }),
+                new Idea((agent, s) => s.Roll < tidy, items.TryStartTidying),
+                new Idea((agent, s) => s.Roll < sit, chairs.TryStartSitting),
+
+                // Somebody with a cue waiting on them -- home time in a
+                // moment -- has no ideas of their own until it is done: what
+                // the building asks beats what they thought of. Home time
+                // stands until they are out: somebody who was busy when it was
+                // called, or gave up on a locked way out, takes it up again,
+                // after a pause of their own.
+                new Idea((agent, s) => !agent.Errand.Has && cues.IsHomeTime && context.Tick >= agent.Home.NextHomeTryTick,
+                    agent =>
+                    {
+                        if (!cues.RemindOfHomeTime(agent))
+                        {
+                            return false;
+                        }
+
+                        StartStanding(agent);
+                        return true;
+                    }),
+                new Idea((agent, s) => s.Roll < desk && IsFree(agent), TryGoHome),
+                new Idea((agent, s) => s.Roll >= 50 && s.Roll < 75 && IsFree(agent), TryStartChat),
+                new Idea((agent, s) => s.Roll >= 75 && agent.Intent.Activity != AgentActivityState.LookingAround, agent =>
+                {
+                    StartLookingAround(agent);
+                    return true;
+                }));
+        }
+
+        /// <summary>No cue waiting on them and not home time: their own ideas are theirs to have.</summary>
+        private bool IsFree(Agent agent) => !agent.Errand.Has && !cues.IsHomeTime;
+
+        /// <summary>The roll of the decision being made, for the ideas that read it while taking themselves up.</summary>
+        private int ideaRoll;
+
+        /// <summary>The calm's own ideas, in the order they are weighed (see <see cref="BuildIdeas"/>).</summary>
+        private readonly TaskChooser ideas;
+
+        /// <summary>
+        /// One of the calm's own ideas as an option of the one chooser: whether
+        /// it is worth weighing, and taking it up. Never carried on here: the
+        /// calm day steps each activity itself.
+        /// </summary>
+        private sealed class Idea : ITaskOption
+        {
+            private readonly System.Func<Agent, Situation, bool> wants;
+            private readonly System.Func<Agent, bool> begin;
+
+            public Idea(System.Func<Agent, Situation, bool> wants, System.Func<Agent, bool> begin)
             {
-                return false;
+                this.wants = wants;
+                this.begin = begin;
             }
 
-            int tick = context.Tick;
-            if (agent.Home.NextToiletTick == 0)
-            {
-                agent.Home.NextToiletTick = checked(tick + 1 + context.Random.NextIntInclusive(0, every));
-                return false;
-            }
+            public bool IsDoing(Agent agent) => false;
 
-            if (tick < agent.Home.NextToiletTick)
-            {
-                return false;
-            }
+            public MotorIntent? Continue(Agent agent, in Situation situation) => null;
 
-            if (agent.Carry.ItemIndex >= 0 || errands.FindFreeStall(agent, out _) < 0 || !cues.StartToiletTrip(agent))
-            {
-                // In a little while, then.
-                agent.Home.NextToiletTick = checked(tick + context.Jittered(context.Scenario.Calm.StrollTimeoutTicks));
-                return false;
-            }
+            public bool Wants(Agent agent, in Situation situation) => wants(agent, situation);
 
-            agent.Home.NextToiletTick = checked(tick + context.Jittered(every));
-            return errands.StartIfDue(agent);
+            public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
+            {
+                first = null;
+                return begin(agent);
+            }
         }
 
         /// <summary>
@@ -445,6 +482,347 @@ namespace Paniq.Simulation
             return cues.SendHome(agent) && errands.StartIfDue(agent);
         }
 
+        // ---------------------------------------------------------------- influence (2026-09-26)
+
+        /// <summary>
+        /// Somebody with nothing in particular to do weighs the strongest pull
+        /// they feel: the stronger it is, and the more easily led they are,
+        /// the likelier they go to it. Somebody who got up for it goes
+        /// without weighing it again. Draws a number only when they feel a
+        /// pull at all, so an influence nobody is near changes no run.
+        /// <para>
+        /// What "going to it" is depends on what was pointed at (the owner's
+        /// rule, 2026-09-27: an influenced thing is something to interact
+        /// with, not walk over): a door is used -- opened if shut, shut if
+        /// open, an errand of its own; a free chair is sat on; a bottle on
+        /// its wall is taken and held; anything they could carry is carried
+        /// off; and a patch of floor, or a thing with no use, is stood about
+        /// on, as before.
+        /// </para>
+        /// </summary>
+        private bool TryWanderToTheInfluence(Agent agent)
+        {
+            agent.Hand.GotUpForIt = false;
+
+            // An errand still to come (a meeting later) does not keep them
+            // from the hand (2026-09-30: it used to, so somebody got up for
+            // the hand and then never went); one under way does. Somebody
+            // holding their own bag comes too, bag and all, but has no hand
+            // free to do anything with.
+            bool carrying = agent.Carry.ItemIndex >= 0;
+            if (influence == null || agent.Errand.Active || (carrying && !agent.Carry.OwnsIt))
+            {
+                return false;
+            }
+
+            // Their goal, driving them past the answer line, and not inside
+            // the beat after a give-up (2026-09-30; a roll on what they felt
+            // used to decide it, so a hand at the edge of its reach was a
+            // one-in-ten chance five times a second).
+            if (!influence.TryGetPull(agent, out InfluenceSystem.Place drawnBy, out int drive) || drive <= 0 ||
+                !influence.MayAnswer(agent))
+            {
+                return false;
+            }
+
+            // A place already used for the player (the door opened, the
+            // chair taken) goes on gathering people but is not used again
+            // until pressed afresh (2026-09-29). A clearing hand (fallen
+            // crates on it or beside it) is never used up while a crate is
+            // left (2026-09-30).
+            bool clearing = !carrying && handHeave != null && handHeave.IsClearing(drawnBy);
+            // A door that never shuts (an archway, swing doors, one off its
+            // hinges) is a place to come to, not a door to work (2026-10-02).
+            bool doorJob = influence.WantsTheDoorWorked(drawnBy) && !agent.Errand.Has;
+            bool usable = !carrying && (clearing ||
+                                        (!drawnBy.Spent && (doorJob || (drawnBy.Thing >= 0 && CanUse(agent, drawnBy)))));
+            LogicalPosition target = WhereToStandFor(agent, drawnBy);
+            long there = context.Scenario.Calm.StrollArrivalDistanceMillimetres * 2L;
+            if (!usable && LogicalPosition.DistanceSquared(agent.Body.Position, target) <= there * there)
+            {
+                // Already there and still held by it: they linger rather than
+                // wander off, which is how a pull gathers people, until it
+                // fades.
+                StartStanding(agent);
+                influence.Answer(agent, drawnBy, drive);
+                return true;
+            }
+
+            if (!usable || !TryUse(agent, drawnBy, drive))
+            {
+                StartStrollTo(agent, target);
+            }
+
+            // Their goal (2026-09-30): they do what it asks whatever their
+            // nature says, until it is done, fades, or something bigger
+            // takes them. "Drawn" is written once a press.
+            influence.Answer(agent, drawnBy, drive);
+            return true;
+        }
+
+        /// <summary>
+        /// A thing with a use of its own: a free chair, anything this person
+        /// could pick up (a bottle on its wall included), or a crate too heavy
+        /// for anybody that the hand wants heaved aside (2026-09-30).
+        /// </summary>
+        private bool CanUse(Agent agent, in InfluenceSystem.Place pull) =>
+            chairs.CanSitOn(pull.Thing) || items.CanFetchForTheInfluence(agent, pull.Thing) ||
+            (handHeave != null && handHeave.CanHeave(pull, pull.Thing));
+
+        /// <summary>
+        /// Sets about using what was pointed at. A door is an errand, taken
+        /// up a beat later like any idea; a chair is sat on; a thing is
+        /// fetched. False when it cannot be used after all (a chair taken
+        /// this moment), and they stroll to it instead.
+        /// </summary>
+        private bool TryUse(Agent agent, in InfluenceSystem.Place drawnBy, int drive)
+        {
+            // Fallen crates on the hand or beside it (2026-09-30): the crate
+            // of the heap that suits them best, one after another.
+            if (handHeave != null && handHeave.IsClearing(drawnBy))
+            {
+                return handHeave.StartNearest(agent, drawnBy, drive);
+            }
+
+            if (drawnBy.Door >= 0)
+            {
+                if (!influence.WantsTheDoorWorked(drawnBy) ||
+                    !cues.FollowTheInfluence(agent, drawnBy.Door, drawnBy.EventId))
+                {
+                    return false;
+                }
+
+                // What the hand asks was decided at the press: the opposite of
+                // how the door stood then.
+                agent.Errand.HandWantsItOpen = !drawnBy.DoorWasOpen;
+                agent.Intent.Activity = AgentActivityState.Standing;
+                agent.Intent.ActivityEndTick = checked(context.Tick + context.ReactionLag());
+                return true;
+            }
+
+            if (chairs.CanSitOn(drawnBy.Thing))
+            {
+                return chairs.TryStartSittingOn(agent, drawnBy.Thing, false);
+            }
+
+            if (items.FetchForTheInfluence(agent, drawnBy.Thing))
+            {
+                return true;
+            }
+
+            return handHeave != null && handHeave.Start(agent, drawnBy, drawnBy.Thing, drive);
+        }
+
+        /// <summary>
+        /// A spot of one's own in front of a door, inside <paramref name="room"/>:
+        /// one to one and four fifths of a metre back, a little to one side
+        /// or the other by the person's number, so a crowd drawn to a door
+        /// stands about in front of it rather than on one spot, shoving the
+        /// loose things between them into the gap (2026-09-27).
+        /// </summary>
+        internal static LogicalPosition StandSpotInFrontOf(WorldGeometry geometry, int door, int room, int index)
+        {
+            int along = (index % 3 - 1) * 300;
+            int outward = -(1000 + index / 3 % 3 * 400);
+            return geometry.DoorPointFrom(door, room, along, outward);
+        }
+
+        /// <summary>
+        /// Anybody calm who does not refuse the hand -- sitting in a chair,
+        /// out on an errand, or standing, glancing or strolling about -- may
+        /// leave it for a hand they feel (2026-09-30; before, only the
+        /// nervous and visitors, and only from a chair or an errand: the
+        /// owner held beside a group and "barely made them come closer").
+        /// Checked every half second, each on their own beat; the likelier
+        /// the stronger they feel it, so the nervous go first and the steady
+        /// last. A pull draws them to it; a push sends them away from it.
+        /// Nobody leaves a stall, a door they are waiting at, or a
+        /// conversation, and nobody is asked twice by the same press.
+        /// </summary>
+        private void MaybeLeaveForTheInfluence(Agent agent, int tick)
+        {
+            InfluenceSettings rules = context.Scenario.Influence;
+            if (influence == null || (tick + agent.Index) % rules.LeaveTaskCheckTicks != 0)
+            {
+                return;
+            }
+
+            // A push felt now, or a goal they may set about (2026-09-30: no
+            // roll any more; conviction decides, and it grows by what they
+            // feel, so the nervous beside the hand go first and the steady at
+            // the edge of it last).
+            bool pushes = influence.TryGetLivePush(agent, out InfluenceSystem.Place push, out _);
+            if (pushes ? agent.Hand.PushedByPress == push.EventId : influence.IsActingFor(agent))
+            {
+                // Already on their way to it, or away from it.
+                return;
+            }
+
+            if (!pushes && !(influence.TryGetPull(agent, out _, out int drive) && drive > 0 && influence.MayAnswer(agent)))
+            {
+                return;
+            }
+
+            // Only between the moving parts of a task: settled in the chair,
+            // or walking or standing about on an errand of their own, or
+            // idling. Never halfway into or out of a seat, and never in the
+            // middle of a conversation or a meeting-up somebody else is
+            // waiting on.
+            AgentActivityState activity = agent.Intent.Activity;
+            bool seated = agent.Sitting.OnIt && agent.Sitting.Phase == SitPhase.None &&
+                          activity == AgentActivityState.Sitting;
+            bool onAnErrand = agent.Errand.Active && activity == AgentActivityState.RunningAnErrand &&
+                              (agent.Errand.Phase == ErrandPhase.Walking || agent.Errand.Phase == ErrandPhase.Standing) &&
+                              agent.Errand.PartnerIndex < 0 && !ErrandBehaviour.IsStayingPut(agent);
+            bool idle = !agent.Sitting.OnIt && (agent.Carry.ItemIndex < 0 || agent.Carry.OwnsIt) &&
+                        (activity == AgentActivityState.Standing || activity == AgentActivityState.LookingAround ||
+                         activity == AgentActivityState.Strolling);
+            if (!seated && !onAnErrand && !idle)
+            {
+                return;
+            }
+
+            agent.Hand.GotUpForIt = !pushes;
+            if (seated)
+            {
+                // Up out of the chair; choosing what next leads them to it,
+                // or away from it. An errand that sat them there ends now
+                // (2026-09-30): resumed, it sat them straight back down.
+                errands.LeaveForTheHand(agent);
+                chairs.StartStandingUp(agent);
+                return;
+            }
+
+            if (onAnErrand)
+            {
+                errands.LeaveForTheHand(agent);
+            }
+
+            // A beat, then they choose again, and the hand is what they choose.
+            agent.Doors.StrollDoorIndex = -1;
+            agent.Intent.Activity = AgentActivityState.Standing;
+            agent.Intent.ActivityEndTick = checked(tick + context.ReactionLag());
+        }
+
+        /// <summary>
+        /// The right button's hand (2026-09-30): somebody calm who feels a
+        /// push walks off to floor of their own away from it -- out of its
+        /// full strength, in the room they are in -- and the log says so.
+        /// Somebody still inside it when they get there moves on again.
+        /// Draws nothing but the stroll's own wander.
+        /// </summary>
+        private bool TryMoveAwayFromThePush(Agent agent)
+        {
+            if (influence == null || agent.Errand.Active ||
+                (agent.Carry.ItemIndex >= 0 && !agent.Carry.OwnsIt))
+            {
+                return false;
+            }
+
+            if (!influence.TryGetLivePush(agent, out InfluenceSystem.Place push, out int felt))
+            {
+                return false;
+            }
+
+            LogicalPosition from = agent.Body.Position;
+            LogicalPosition target = influence.AwayFromThePush(agent, push);
+            bool first = agent.Hand.PushedByPress != push.EventId;
+            if (!first && IntegerMath.Distance(from, target) < InfluenceSystem.PushClearanceMillimetres)
+            {
+                // Already as far off as the room lets them: they stand their
+                // ground at the wall rather than pace on the spot.
+                StartStanding(agent);
+                return true;
+            }
+
+            StartStrollTo(agent, target);
+            agent.Hand.PushedByPress = push.EventId;
+            if (first)
+            {
+                // Written once a push: moving on again is the same push.
+                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentPushedAwayByInfluence, from,
+                    felt, 0, push.EventId, push.Target);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Where to walk to for a place: the spot itself, or for a door, a
+        /// spot of their own inside this room in front of it -- one to one
+        /// and four fifths of a metre back, a little to one side or the
+        /// other by their number, so a crowd drawn to a door stands about in
+        /// front of it rather than on one spot, shoving the loose things
+        /// between them into the gap (2026-09-27).
+        /// </summary>
+        private LogicalPosition WhereToStandFor(Agent agent, in InfluenceSystem.Place pull)
+        {
+            // The floor or a thing: a spot of their own in the ring round it
+            // (2026-09-30; everybody used to walk to its very spot).
+            if (pull.Door < 0)
+            {
+                return influence.GatherSpotFor(agent, pull);
+            }
+
+            // A door: in front of it, on their own side -- or, from a room
+            // that is neither of its two, the ring round its middle, which
+            // used to put them on its far side.
+            int room = geometry.RoomOf(agent);
+            return room < 0 || (room != pull.RoomA && room != pull.RoomB)
+                ? influence.GatherSpotFor(agent, pull)
+                : StandSpotInFrontOf(geometry, pull.Door, room, agent.Index);
+        }
+
+        /// <summary>
+        /// A hand dragged along (2026-09-30): somebody calm answering it who is
+        /// walking to it walks to where their spot is now, and somebody
+        /// standing at it who has been left more than a metre behind sets off
+        /// again. Nothing for a door, which does not move, or for a hand that
+        /// is clearing crates, which hands out its own work.
+        /// </summary>
+        private void FollowTheMovingHand(Agent agent)
+        {
+            if (influence == null || !influence.IsActingFor(agent) ||
+                !influence.TryGetPull(agent, out InfluenceSystem.Place pull, out _))
+            {
+                return;
+            }
+
+            AgentActivityState activity = agent.Intent.Activity;
+            if (pull.Door >= 0 || pull.Repels ||
+                (activity != AgentActivityState.Strolling && activity != AgentActivityState.Standing) ||
+                (handHeave != null && handHeave.IsClearing(pull)))
+            {
+                return;
+            }
+
+            LogicalPosition spot = influence.GatherSpotFor(agent, pull);
+            if (activity == AgentActivityState.Strolling)
+            {
+                agent.Intent.Target = spot;
+            }
+            else if (LogicalPosition.DistanceSquared(agent.Body.Position, spot) > LeftBehindMillimetres * LeftBehindMillimetres)
+            {
+                StartStrollTo(agent, spot);
+            }
+        }
+
+        /// <summary>How far a dragged hand's spot may move from somebody standing at it before they follow.</summary>
+        private const long LeftBehindMillimetres = 1000;
+
+        /// <summary>A stroll to one place, rather than to somewhere drawn at random.</summary>
+        private void StartStrollTo(Agent agent, LogicalPosition target)
+        {
+            int tick = context.Tick;
+            AgentIntent intent = agent.Intent;
+            intent.Activity = AgentActivityState.Strolling;
+            intent.ActivityEndTick = checked(tick + context.Jittered(settings.StrollTimeoutTicks));
+            intent.WanderOffset = 0;
+            intent.NextWanderTick = checked(tick + context.Random.NextIntInclusive(25, 60));
+            intent.Target = target;
+            agent.Doors.StrollDoorIndex = -1;
+        }
+
         private void StartStanding(Agent agent)
         {
             agent.Intent.Activity = AgentActivityState.Standing;
@@ -455,8 +833,19 @@ namespace Paniq.Simulation
 
         private void StartLookingAround(Agent agent)
         {
+            LookRound(agent, context.Random.NextIntInclusive(1, 3));
+        }
+
+        /// <summary>
+        /// A look round: this many glances to one side or the other, each a
+        /// moment long, then on with the day. A calm person's own idle, and
+        /// somebody nudged looking for whoever did it (<see cref="NudgeSystem"/>),
+        /// so the two always look alike.
+        /// </summary>
+        internal void LookRound(Agent agent, int glances)
+        {
             agent.Intent.Activity = AgentActivityState.LookingAround;
-            agent.Intent.LooksRemaining = context.Random.NextIntInclusive(1, 3);
+            agent.Intent.LooksRemaining = glances;
             NextGlance(agent);
         }
 

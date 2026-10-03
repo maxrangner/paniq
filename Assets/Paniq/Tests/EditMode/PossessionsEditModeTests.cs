@@ -77,6 +77,7 @@ namespace Paniq.Tests.EditMode
             {
                 new PhysicsObjectDefinition(TheBag, PhysicsObjectKind.Bag, new LogicalPosition(0, 0), 350, 4000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Tables = new TableDefinition[0];
 
             data.Fire.ActivationTick = 3;
@@ -169,7 +170,10 @@ namespace Paniq.Tests.EditMode
             int held = 0;
             for (int i = 0; i < simulation.PhysicsObjectCount; i++)
             {
-                held += simulation.GetPhysicsObject(i).IsHeld ? 1 : 0;
+                // The keycard may start in somebody's pocket (2026-09-27);
+                // it is not in anybody's arms.
+                PhysicsObjectSnapshot thing = simulation.GetPhysicsObject(i);
+                held += thing.IsHeld && thing.Kind != PhysicsObjectKind.Keycard ? 1 : 0;
             }
 
             Assert.That(held, Is.EqualTo(4), "Two briefcases and two bags should start in people's hands.");

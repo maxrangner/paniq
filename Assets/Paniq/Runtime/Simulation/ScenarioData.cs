@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -139,6 +139,19 @@ namespace Paniq.Simulation
             return copy;
         }
 
+        /// <summary>
+        /// The same person, starting somewhere else and on their feet
+        /// (2026-10-03): a level laid over another moves its cast with this.
+        /// The chair that is theirs stays theirs.
+        /// </summary>
+        public AgentDefinition MovedTo(LogicalPosition at)
+        {
+            AgentDefinition copy = this;
+            copy.initialPosition = at;
+            copy.seatedOnObjectId = default;
+            return copy;
+        }
+
         /// <summary>The chair that is theirs, if any: where they go back to when a cue sends them home.</summary>
         public SimulationId HomeObjectId => homeObjectId;
 
@@ -192,6 +205,88 @@ namespace Paniq.Simulation
     }
 
     /// <summary>
+    /// A stack of boxes that comes down when somebody runs into it
+    /// (prototype 3, 2026-09-25; since 2026-10-02 nothing else brings it
+    /// down, see <see cref="TrapSystem"/>): the boxes, and for a stack
+    /// standing beside an archway, the archway. The boxes tumble the way
+    /// the bumper was going; while enough of them lie in the archway, it is
+    /// shut for people and fire. The boxes are ordinary boxes authored
+    /// stacked at the stack's spot.
+    /// </summary>
+    [Serializable]
+    public struct TrapDefinition
+    {
+        [UnityEngine.SerializeField] private SimulationId trapId;
+        [UnityEngine.SerializeField] private SimulationId doorId;
+        [UnityEngine.SerializeField] private SimulationId[] boxIds;
+
+        /// <summary>
+        /// A tower beside a doorway: knocked down, its boxes shut the
+        /// doorway while enough of them happen to lie in it.
+        /// </summary>
+        public TrapDefinition(SimulationId trapId, SimulationId doorId, SimulationId[] boxIds)
+        {
+            this.trapId = trapId;
+            this.doorId = doorId;
+            this.boxIds = boxIds;
+        }
+
+        /// <summary>
+        /// A stack standing in a room, by no doorway (2026-09-27): knocked
+        /// down, its crates block whatever they land across by their weight
+        /// alone. Until 2026-10-02 it also named a room to watch for a
+        /// runner and a line to fall along; a stack now falls where it is
+        /// knocked, the way it is knocked.
+        /// </summary>
+        public TrapDefinition(SimulationId trapId, SimulationId[] boxIds)
+        {
+            this.trapId = trapId;
+            doorId = default;
+            this.boxIds = boxIds;
+        }
+
+        public SimulationId TrapId => trapId;
+
+        /// <summary>The doorway the stack stands by, or a zero ID for a stack that stands by none.</summary>
+        public SimulationId DoorId => doorId;
+
+        /// <summary>Whether this stack stands by a doorway its boxes can shut.</summary>
+        public bool IsDoorTrap => doorId.Value != 0UL;
+
+        /// <summary>The boxes that make the stack, lowest first.</summary>
+        public SimulationId[] BoxIds => boxIds ?? Array.Empty<SimulationId>();
+
+        // The boxes are an array: compared box by box, so an asset written
+        // from the code compares equal to the code (see CueDefinition).
+        public override bool Equals(object obj)
+        {
+            if (!(obj is TrapDefinition other) || trapId != other.trapId || doorId != other.doorId)
+            {
+                return false;
+            }
+
+            SimulationId[] mine = BoxIds;
+            SimulationId[] theirs = other.BoxIds;
+            if (mine.Length != theirs.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < mine.Length; i++)
+            {
+                if (mine[i] != theirs[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public override int GetHashCode() => trapId.GetHashCode() ^ doorId.GetHashCode();
+    }
+
+    /// <summary>
     /// A door in one of the room's walls. Its position is the centre of the
     /// gap, measured along the wall (X for north and south walls, Z for east
     /// and west walls). Every door starts locked.
@@ -207,6 +302,7 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private bool startsLocked;
         [UnityEngine.SerializeField] private bool isOpening;
         [UnityEngine.SerializeField] private bool swings;
+        [UnityEngine.SerializeField] private bool needsKeycard;
 
         public DoorDefinition(
             SimulationId doorId,
@@ -216,7 +312,8 @@ namespace Paniq.Simulation
             int widthMillimetres,
             bool startsLocked = true,
             bool isOpening = false,
-            bool swings = false)
+            bool swings = false,
+            bool needsKeycard = false)
         {
             this.doorId = doorId;
             this.roomId = roomId;
@@ -226,6 +323,7 @@ namespace Paniq.Simulation
             this.startsLocked = startsLocked;
             this.isOpening = isOpening;
             this.swings = swings;
+            this.needsKeycard = needsKeycard;
         }
 
         public SimulationId DoorId => doorId;
@@ -259,6 +357,15 @@ namespace Paniq.Simulation
         /// door is never an archway and never starts locked.
         /// </summary>
         public bool Swings => swings;
+
+        /// <summary>
+        /// A card door (2026-09-27): the way out that only the keycard opens.
+        /// Nobody batters it, the fire does not burn through it, and the
+        /// player's key does not fit it; whoever has the card swipes it, and
+        /// from then on it is an ordinary door. Only a locked door to the
+        /// street can be one. See <see cref="KeycardSettings"/>.
+        /// </summary>
+        public bool NeedsKeycard => needsKeycard && StartsLocked;
     }
 
     /// <summary>
@@ -569,7 +676,7 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private int sizeMillimetres;
         [UnityEngine.SerializeField] private int massGrams;
 
-        /// <summary>A spare kept out of the world until the player puts it down.</summary>
+        /// <summary>Kept out of the world from the start: nothing can touch it, reach it, burn it or see it.</summary>
         [UnityEngine.SerializeField] private bool startsDormant;
 
         /// <summary>Which way it faces at the start, in whole degrees. Chairs use this to face their table.</summary>
@@ -588,6 +695,15 @@ namespace Paniq.Simulation
         /// </summary>
         [UnityEngine.SerializeField] private SimulationId partOfObjectId;
 
+        /// <summary>
+        /// Fixed where it stands for the whole run (2026-09-27): a crate in
+        /// one of the stockroom's walls of crates. Nobody lifts, kicks or
+        /// heaves it, it stands on the map people steer by like a table, and
+        /// it still burns. A stacked crate on top of a pinned one is pinned
+        /// too.
+        /// </summary>
+        [UnityEngine.SerializeField] private bool startsPinned;
+
         public PhysicsObjectDefinition(
             SimulationId objectId,
             PhysicsObjectKind kind,
@@ -597,7 +713,8 @@ namespace Paniq.Simulation
             bool startsDormant = false,
             int initialFacingDegrees = 0,
             bool startsResting = false,
-            SimulationId partOfObjectId = default)
+            SimulationId partOfObjectId = default,
+            bool startsPinned = false)
         {
             this.objectId = objectId;
             this.kind = kind;
@@ -608,6 +725,7 @@ namespace Paniq.Simulation
             this.initialFacingDegrees = initialFacingDegrees;
             this.startsResting = startsResting;
             this.partOfObjectId = partOfObjectId;
+            this.startsPinned = startsPinned;
         }
 
         public SimulationId ObjectId => objectId;
@@ -618,8 +736,7 @@ namespace Paniq.Simulation
         public int RadiusMillimetres => sizeMillimetres / 2;
 
         /// <summary>
-        /// True for one of the spares the run keeps aside for the player's
-        /// cards. It is nowhere until a card puts it somewhere, so where it is
+        /// True for a thing kept out of the world from the start: where it is
         /// authored does not matter.
         /// </summary>
         public bool StartsDormant => startsDormant;
@@ -636,6 +753,9 @@ namespace Paniq.Simulation
 
         /// <summary>The thing this is a part of (a shade's lamp), or a zero ID when it stands on its own.</summary>
         public SimulationId PartOfObjectId => partOfObjectId;
+
+        /// <summary>True when it is fixed where it stands for the whole run: a crate wall.</summary>
+        public bool StartsPinned => startsPinned;
 
         /// <summary>True for a part of another thing, which starts attached to it and comes loose when it goes over.</summary>
         public bool IsPartOfSomething => partOfObjectId.Value != 0UL;
@@ -672,6 +792,14 @@ namespace Paniq.Simulation
     /// A table: a fixed rectangle on the floor that people walk around and
     /// loose objects bounce off. <see cref="WidthMillimetres"/> runs along X,
     /// <see cref="DepthMillimetres"/> along Z.
+    /// <para>
+    /// A <em>partition</em> (2026-10-02) is the same rectangle stood up as a
+    /// low screen between desks: fixed where it stands, so nothing shoves,
+    /// heaves or tips it; on the map people steer by and solid to their
+    /// bodies, as a table is; taller than a table and shorter than a
+    /// person, so -- like a table -- it hides nothing, muffles nothing and
+    /// stops no fire. It burns as a table does.
+    /// </para>
     /// </summary>
     [Serializable]
     public struct TableDefinition
@@ -680,14 +808,20 @@ namespace Paniq.Simulation
         [UnityEngine.SerializeField] private LogicalPosition centre;
         [UnityEngine.SerializeField] private int widthMillimetres;
         [UnityEngine.SerializeField] private int depthMillimetres;
+        [UnityEngine.SerializeField] private bool isPartition;
 
-        public TableDefinition(SimulationId tableId, LogicalPosition centre, int widthMillimetres, int depthMillimetres)
+        public TableDefinition(SimulationId tableId, LogicalPosition centre, int widthMillimetres, int depthMillimetres,
+            bool isPartition = false)
         {
             this.tableId = tableId;
             this.centre = centre;
             this.widthMillimetres = widthMillimetres;
             this.depthMillimetres = depthMillimetres;
+            this.isPartition = isPartition;
         }
+
+        /// <summary>A low fixed screen between desks rather than a table (2026-10-02).</summary>
+        public bool IsPartition => isPartition;
 
         public SimulationId TableId => tableId;
         public LogicalPosition Centre => centre;
@@ -708,8 +842,8 @@ namespace Paniq.Simulation
     [Serializable]
     public sealed class ScenarioData
     {
-        public string ScenarioId = "fire-reaction-prototype";
-        public string ContentRevision = "79";
+        public string ScenarioId = "prototype-fire-1-fl-small";
+        public string ContentRevision = "94";
         public ulong DefaultSeed = 42UL;
 
         // 59: a door strolled through is forgotten. Somebody on an errand may
@@ -783,7 +917,7 @@ namespace Paniq.Simulation
         // 40: the tick schedule gained a phase. The cable between the sockets
         // and the fuse box advances its sparks beside the fire, in phase 2, so
         // a run recorded before this one cannot be replayed against it.
-        // 39: doors cost influence to work, a shut door standing in the flames
+        // 39: doors cost purse points to work, a shut door standing in the flames
         // burns through instead of holding them off for ever, the round runs
         // until everybody is out or dead rather than until they are merely out
         // of reach, nobody shuts a door they are about to run through, chairs
@@ -809,7 +943,7 @@ namespace Paniq.Simulation
         // 63: somebody down inside an open doorway with the crowd pressing on
         // them is carried on through it by the press instead of plugging it.
         // 64: the deck is three cards (Beefcake, TNT, fire extinguisher), a
-        // round opens with 30 influence and one card drawn from it, and the
+        // round opens with 30 in the purse and one card drawn from it, and the
         // player can pull a fire alarm for 30.
         // 65: the third playtest round (2026-09-25): a stockroom behind the
         // bathroom with a door into the office and one into the crossbar's
@@ -824,7 +958,129 @@ namespace Paniq.Simulation
         // 66: the cafeteria's door onto the crossbar's north arm (2009) is
         // gone, at the owner's request: nobody has a private door beside
         // the way out.
-        public int SimulationCompatibilityVersion = 66;
+        // 67: prototype 3 (2026-09-25). The Director's first trap: a tower
+        // of boxes at the junction that comes down across the archway once
+        // the fire is lit and somebody comes near, wedging it shut for
+        // people and fire until enough boxes are gone (TrapSystem,
+        // TrapTriggered, BoxTowerFell, BoxPileCleared); the fire always
+        // starts in the meeting room; one pull station, at the corridor's
+        // west end, and an alarm reach of eight metres; a purse that can be
+        // switched off (free when it is); doors the player holds shut
+        // (HoldDoor, ReleaseDoor: nobody opens one, the strong burst it in
+        // one push); people the player nudges (NudgePerson, AgentNudged,
+        // AgentAnnoyed). Fingerprints re-recorded: the fire moved.
+        // 68: the code review of prototype 3's first batch (2026-09-26).
+        // Nobody may take a box from the standing tower (a strong runner used
+        // to fling one aside and a tidy person carry one off); a box in the
+        // heap may be taken, and shoved. A locked door takes no hand, a door
+        // that breaks lets go of the hand on it, and the strong burst a held
+        // door whoever shut it last. A quick second nudge folds into the look
+        // round already due; the look round is the calm one (NudgeSettings
+        // loses HuffTicks). Fingerprints re-recorded: in ten of the thirteen
+        // recorded runs somebody used to take or knock a box off the tower.
+        // 69: prototype 3's second batch (2026-09-26). People sense danger,
+        // never "floor on fire": things and people on fire frighten whoever
+        // sees them (BurningThingsThreat, BurningPeopleThreat), and the
+        // extinguisher goes for a burning thing. Frightened people calm down
+        // at their own pace and stay rattled (FearSystem.Settle, Calming);
+        // bells and bangs keep them frightened, and they stop shouting once
+        // it has gone quiet. The cable runs one way, fast, from the fuse box
+        // down; a bang lights floor only in its own room. Three waste bins
+        // and an extinguisher in the meeting room; a bin smoulders before the
+        // carpet catches. The Director's ladder (off in the code defaults, on
+        // for the office level): a bin, then a crackling socket in the
+        // busiest calm room, then the fuse box, and the tower armed only by a
+        // fire that has got out of its room; the all-clear. Influence
+        // (InfluenceDoor, InfluenceThing, InfluenceSpot) and a nudge from a
+        // point (NudgePersonFrom) that the annoyed ignore. Anybody who can see
+        // the fallen heap and cannot shift it goes round; a body pinned or let
+        // go of is snapped to the grid first, so a thrown heap box replays the
+        // same every run. New events from
+        // DirectorStartedIncident to AgentDrawnByInfluence. Fingerprints
+        // re-recorded: nearly everything above moves a run.
+        // 70: prototype 3's playtest fixes (2026-09-27). The Director's
+        // ladder is bin, boxes, socket, fuse box: the tower falls for the
+        // first frightened person running along the corridor (armed by the
+        // bin, not by a fire getting loose), the socket's wait is counted from
+        // the fall, and a bin doused before the carpet caught lights another
+        // bin a beat later. The fall is the physics engine's (Topple), each
+        // box aimed at its slot; the heap is whatever boxes lie still in the
+        // archway's own strip, and nothing is pinned after the fall. The
+        // meeting room's extinguisher is gone. Small things never jam a
+        // door, tidied things are never set down in a doorway, a crowd drawn
+        // to a door spreads out in front of it, and calm people on an errand
+        // lift or heave a jam clear while the panicked give it up. Influence
+        // is something to use: a door opened or shut (the cruel wedge it), a
+        // chair sat on, a thing carried off, a bottle taken; using it spends
+        // the pull. Annoyed people are still shoved; three quick pokes wake
+        // the frozen and knock a sitter off the chair. New events from
+        // BoxHeapSettled to AgentKnockedOffChair. Fingerprints re-recorded:
+        // nearly everything above moves a run.
+        // 71: the second round of playtest fixes (2026-09-27). Boxes weigh by
+        // their size (a 600 mm box 40 kg, a 700 mm crate 55 kg), and a thing
+        // too heavy to carry, or pinned, is on the map people steer by like a
+        // table; once it has lain still for half a second it is held where
+        // it lies against people, and only somebody strong heaves it aside
+        // (a struck crate takes the shove on), a blast flings it, and a door
+        // the map says they cannot reach is no way out to anybody else. The
+        // stockroom is a winding lane between crate walls with a stack at
+        // its first bend that the Director drops across the lane (a second
+        // trap, with no doorway). Somebody frightened going for a bottle,
+        // the flames or a pull station opens the shut doors on the way and
+        // gives up a locked one. The socket pops five seconds after the
+        // boxes fall whatever the bin is doing, or five to ten seconds after
+        // a put-out with no fall, in the room with the most people; the fuse
+        // box five to ten seconds after the socket's fire is put out. A sign
+        // pointing down a lane teaches the nearest way out. Fingerprints
+        // re-recorded: nearly everything above moves a run.
+        //
+        // 72: the keycard (2026-09-27, the owner's idea). The way out is a
+        // card door: nobody batters it, the fire does not burn through it,
+        // the player's key does not fit it. A keycard (a new kind of thing,
+        // carried in a pocket, never burnt, never tidied) starts each round
+        // in a member of staff's pocket or on an office desk, drawn from its
+        // own random stream; staff know where, anybody who sees it learns
+        // where; somebody frightened who found the way out locked and is
+        // brave enough goes and gets it; whoever is out cold or dead drops it; whoever
+        // has it swipes the door open for good. Fingerprints re-recorded: the
+        // way out is now opened by a person or not at all.
+        // 73: the Director caps the round (on for the office): an allowance
+        // drawn from its own stream, a push (a trap sprung, a socket, the fuse
+        // box, another bin) whenever more than that are on course to get out,
+        // nothing added once the round is a massacre; the player's pull on the
+        // card fetches frightened people too; a box held where it lies is
+        // shoved on only by a heaved thing, not by any box that slides into it.
+        // 74: the hand (2026-09-29): influence is a hold, one place at a time,
+        // reaching through an open doorway; the tug; every trap creaks for
+        // three seconds before it falls; two flight rules (an escape spot
+        // they can reach, creeping counted as blocked).
+        // 75: the hand, second pass (2026-09-30): everybody but the strongest
+        // wills answers the hand, full within six metres; the calm leave what
+        // they are doing for it, the startled turn to it, the frightened weigh
+        // it at twenty metres; a click is a three-second beacon; the right
+        // button pushes people away; people do for the hand what they would
+        // not (the coward fights with the bottle, the weak batter a door and
+        // heave a crate, anybody pulls the alarm or fetches the card, the hand
+        // on the card door sends for the card); the tug brakes four times as
+        // hard; the tower by the archway falls on where its runner stood.
+        // 76: the hand, third pass (2026-09-30): the frightened come to the
+        // hand and stand in a ring round it (and walk off from a push); a
+        // held hand moves with the pointer; a hand on fallen crates clears
+        // them all, heaved away from it; one dial for how strongly the hand
+        // is felt; the calm stand in the ring, take the hand in a beat late,
+        // come with a bag or an errand still to come, and finish a door or a
+        // crate they have begun; a door does what was asked at the press; a
+        // noise drops what a calm person was on the way to fetch.
+        // 77: tells (2026-09-30): a second or so of visible wind-up before
+        // somebody freezes (going stiff), dashes through the heat (gathering
+        // nerve) or heads back toward the flames (turning back), caught by a
+        // poke, a tug or the hand -- and then they run, give the door up, or
+        // stay out of it for a while.
+        // 81: test levels and honest reach (2026-10-02): the crowd switch
+        // (two commands that panic or calm the whole crowd, each on their
+        // own tick, and begin the round); the hand through a doorway is felt
+        // only where it can be seen, fading over the doorway's soft edge.
+        public int SimulationCompatibilityVersion = 82;
 
         public WorldSettings World = new WorldSettings();
         public PerceptionSettings Perception = new PerceptionSettings();
@@ -844,14 +1100,27 @@ namespace Paniq.Simulation
         public FlammableSettings Flammables = new FlammableSettings();
         public ExtinguisherSettings Extinguishers = new ExtinguisherSettings();
         public LeadershipSettings Leadership = new LeadershipSettings();
-        public GroupSettings Groups = new GroupSettings();
         public ItemSettings Items = new ItemSettings();
         public HelpSettings Help = new HelpSettings();
-        public InfluenceSettings Influence = new InfluenceSettings();
         public AlarmSettings Alarm = new AlarmSettings();
         public BlockadeSettings Blockades = new BlockadeSettings();
         public BlastSettings Blast = new BlastSettings();
         public DaySettings Day = new DaySettings();
+        public TrapSettings Traps = new TrapSettings();
+        public NudgeSettings Nudge = new NudgeSettings();
+
+        /// <summary>The player's hand on a person (2026-09-29): the tug, and who tears free of it.</summary>
+        public TugSettings Tug = new TugSettings();
+
+        /// <summary>The hand's charge (2026-09-30): the bar that drains while the hand is on something and refills by itself.</summary>
+        public HandChargeSettings HandCharge = new HandChargeSettings();
+        public DirectorSettings Director = new DirectorSettings();
+        public CalmingSettings Calming = new CalmingSettings();
+        public InfluenceSettings Influence = new InfluenceSettings();
+        public KeycardSettings Keycard = new KeycardSettings();
+
+        /// <summary>The wind-up before somebody freezes, dashes or goes back toward the flames (2026-09-30).</summary>
+        public TellSettings Tells = new TellSettings();
 
         public AgentDefinition[] Agents = PrototypeBuilding.DefaultAgents();
         public DoorDefinition[] Doors = PrototypeBuilding.DefaultDoors();
@@ -889,6 +1158,13 @@ namespace Paniq.Simulation
         /// timetable and people's own ideas call these by kind.
         /// </summary>
         public CueDefinition[] Cues = PrototypeBuilding.DefaultCues();
+
+        /// <summary>
+        /// The Director's traps (<see cref="TrapDefinition"/>): a tower of
+        /// boxes that comes down across a doorway. Empty is a building with
+        /// nothing waiting to fall.
+        /// </summary>
+        public TrapDefinition[] TrapDefinitions = PrototypeBuilding.DefaultTraps();
 
         /// <summary>The definition of this kind of cue. Validation guarantees there is one of each.</summary>
         public CueDefinition CueOf(CueKind kind)
@@ -941,14 +1217,21 @@ namespace Paniq.Simulation
             copy.Flammables = Flammables?.Clone();
             copy.Extinguishers = Extinguishers?.Clone();
             copy.Leadership = Leadership?.Clone();
-            copy.Groups = Groups?.Clone();
             copy.Items = Items?.Clone();
             copy.Help = Help?.Clone();
-            copy.Influence = Influence?.Clone();
             copy.Alarm = Alarm?.Clone();
             copy.Blockades = Blockades?.Clone();
             copy.Blast = Blast?.Clone();
             copy.Day = Day?.Clone();
+            copy.Traps = Traps?.Clone();
+            copy.Nudge = Nudge?.Clone();
+            copy.Tug = Tug?.Clone();
+            copy.HandCharge = HandCharge?.Clone();
+            copy.Director = Director?.Clone();
+            copy.Calming = Calming?.Clone();
+            copy.Influence = Influence?.Clone();
+            copy.Keycard = Keycard?.Clone();
+            copy.Tells = Tells?.Clone();
             copy.Agents = (AgentDefinition[])Agents?.Clone();
             copy.Doors = (DoorDefinition[])Doors?.Clone();
             copy.PhysicsObjects = (PhysicsObjectDefinition[])PhysicsObjects?.Clone();
@@ -960,6 +1243,7 @@ namespace Paniq.Simulation
             copy.ExitSigns = (ExitSignDefinition[])ExitSigns?.Clone();
             copy.Timetable = (ScheduledCue[])Timetable?.Clone();
             copy.Cues = (CueDefinition[])Cues?.Clone();
+            copy.TrapDefinitions = (TrapDefinition[])TrapDefinitions?.Clone();
             return copy;
         }
 
@@ -978,8 +1262,10 @@ namespace Paniq.Simulation
             if (World == null || Perception == null || Fire == null || Round == null || Steering == null || Calm == null ||
                 Panic == null || Temperament == null || Hearing == null || Falls == null || Exits == null ||
                 ObjectPhysics == null || PhysicsFeel == null || Traits == null || Flammables == null || Items == null || Help == null ||
-                Influence == null || Alarm == null || Blockades == null || Blast == null ||
-                Extinguishers == null || Leadership == null || Groups == null || Day == null)
+                Alarm == null || Blockades == null || Blast == null || Power == null || HandCharge == null || Tells == null ||
+                Extinguishers == null || Leadership == null || Day == null ||
+                Traps == null || Nudge == null || Tug == null || Director == null || Calming == null || Influence == null ||
+                Keycard == null)
             {
                 throw new InvalidOperationException("A fire-reaction scenario is missing a settings group.");
             }
@@ -1001,15 +1287,22 @@ namespace Paniq.Simulation
             Flammables.Validate();
             Extinguishers.Validate();
             Leadership.Validate();
-            Groups.Validate();
             Items.Validate();
             Help.Validate();
-            Influence.Validate();
             Alarm.Validate();
             Blockades.Validate();
             Blast.Validate();
             Power.Validate();
             Day.Validate();
+            Traps.Validate();
+            Nudge.Validate();
+            Tug.Validate();
+            HandCharge.Validate();
+            Director.Validate();
+            Calming.Validate();
+            Influence.Validate();
+            Keycard.Validate();
+            Tells.Validate();
             Settings.Require(Calm.SpeedMaximum + Traits.CalmSpeedJitter <= World.MaximumStepDistanceMillimetres &&
                              Panic.SpeedMaximum + Traits.PanicSpeedJitter <= World.MaximumStepDistanceMillimetres,
                 "speeds within the maximum step");
@@ -1085,11 +1378,62 @@ namespace Paniq.Simulation
             ValidateTables(ids);
             ValidatePhysicsObjects(ids);
             ValidateStartingPossessions();
+            ValidateTheKeycard();
             ValidateAlarms(ids);
             ValidateBlastHoles(ids);
             ValidatePowerLines();
             ValidateCues();
             ValidateTimetable(roomIds);
+            ValidateTraps(ids);
+        }
+
+        /// <summary>
+        /// A trap names a doorway that is an archway (something with no leaf
+        /// for the boxes to lie across) and boxes. A doorway or a box that
+        /// is not in the building at all is allowed and leaves the trap
+        /// inert: dozens of tests empty the building of loose things or
+        /// build a floor of their own, and have emptied the tower with it.
+        /// A doorway that is there but is a real door, or a thing that is
+        /// there but is not a box, is a mistake.
+        /// </summary>
+        private void ValidateTraps(HashSet<SimulationId> ids)
+        {
+            TrapDefinitions ??= Array.Empty<TrapDefinition>();
+
+            // Unique among traps, not among everything: the shipped trap
+            // stays on a test's building of its own, whose rooms and people
+            // may use any number.
+            var trapIds = new HashSet<SimulationId>();
+            for (int i = 0; i < TrapDefinitions.Length; i++)
+            {
+                TrapDefinition trap = TrapDefinitions[i];
+                if (trap.TrapId.Value == 0UL || !trapIds.Add(trap.TrapId))
+                {
+                    throw new InvalidOperationException("Trap IDs must be unique and non-zero.");
+                }
+
+                int door = Array.FindIndex(Doors, d => d.DoorId == trap.DoorId);
+                if (door >= 0 && !Doors[door].IsOpening)
+                {
+                    throw new InvalidOperationException(
+                        $"Trap {trap.TrapId} names doorway {trap.DoorId}, which is a door rather than an archway.");
+                }
+
+                if (trap.BoxIds.Length == 0)
+                {
+                    throw new InvalidOperationException($"Trap {trap.TrapId} has no boxes to fall.");
+                }
+
+                for (int b = 0; b < trap.BoxIds.Length; b++)
+                {
+                    int box = Array.FindIndex(PhysicsObjects, o => o.ObjectId == trap.BoxIds[b]);
+                    if (box >= 0 && PhysicsObjects[box].Kind != PhysicsObjectKind.Box)
+                    {
+                        throw new InvalidOperationException(
+                            $"Trap {trap.TrapId} names {trap.BoxIds[b]} as a box, and it is a {PhysicsObjects[box].Kind}.");
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -1256,6 +1600,41 @@ namespace Paniq.Simulation
         /// Everything somebody walks in holding must be a thing this scenario
         /// has, light enough for them to hold, and held by only one person.
         /// </summary>
+        /// <summary>
+        /// One keycard at most (the run only knows one: a second would lie
+        /// there for ever, nobody able to take it), and one there at all
+        /// whenever a door needs it -- or that door is a way out nobody can
+        /// ever open, and every round on the level ends with everybody inside.
+        /// </summary>
+        private void ValidateTheKeycard()
+        {
+            int cards = 0;
+            for (int i = 0; i < PhysicsObjects.Length; i++)
+            {
+                cards += PhysicsObjects[i].Kind == PhysicsObjectKind.Keycard ? 1 : 0;
+            }
+
+            if (cards > 1)
+            {
+                throw new InvalidOperationException($"The building has {cards} keycards; it may have one at most.");
+            }
+
+            if (!Keycard.Enabled || cards == 1)
+            {
+                return;
+            }
+
+            for (int i = 0; i < Doors.Length; i++)
+            {
+                if (Doors[i].NeedsKeycard)
+                {
+                    throw new InvalidOperationException(
+                        $"Door {Doors[i].DoorId} needs the keycard, but the building has none: nobody could ever open it. " +
+                        "Put a keycard in the building, or switch the keycard off (Keycard.Enabled).");
+                }
+            }
+        }
+
         private void ValidateStartingPossessions()
         {
             var taken = new HashSet<SimulationId>();
@@ -1450,7 +1829,11 @@ namespace Paniq.Simulation
                     throw new InvalidOperationException($"Door {door.DoorId} swings: it can be neither an archway nor locked.");
                 }
 
-                ValidateDoorNeighbour(door, roomIndex, half);
+                bool leadsOutside = ValidateDoorNeighbour(door, roomIndex, half);
+                if (door.NeedsKeycard && !leadsOutside)
+                {
+                    throw new InvalidOperationException($"Door {door.DoorId} needs the keycard: only a door to the street can.");
+                }
 
                 for (int previous = 0; previous < i; previous++)
                 {
@@ -1469,9 +1852,10 @@ namespace Paniq.Simulation
         /// What lies beyond a door: either nothing (it leads outside) or one
         /// room flush against the far side of that wall, whose wall covers
         /// the whole gap. A room that only half covers the gap would leave a
-        /// doorway opening into a wall, so it is rejected.
+        /// doorway opening into a wall, so it is rejected. Returns whether the
+        /// door leads outside (no room lies beyond it).
         /// </summary>
-        private void ValidateDoorNeighbour(DoorDefinition door, int roomIndex, int half)
+        private bool ValidateDoorNeighbour(DoorDefinition door, int roomIndex, int half)
         {
             LogicalBounds room = Rooms[roomIndex].Bounds;
             bool alongX = door.Side == WallSide.North || door.Side == WallSide.South;
@@ -1515,8 +1899,10 @@ namespace Paniq.Simulation
                         $"Door {door.DoorId} opens partly into room {Rooms[r].RoomId} and partly into a wall.");
                 }
 
-                return;
+                return false;
             }
+
+            return true;
         }
 
         private void ValidatePhysicsObjects(HashSet<SimulationId> ids)
@@ -1580,6 +1966,11 @@ namespace Paniq.Simulation
                 {
                     throw new InvalidOperationException(
                         $"Object {body.ObjectId} starts resting on nothing: put it on a table or on another object.");
+                }
+
+                if (body.StartsPinned && (body.StartsDormant || body.IsPartOfSomething || IsCarriedAtTheStart(body.ObjectId)))
+                {
+                    throw new InvalidOperationException($"Object {body.ObjectId} is pinned but is not standing on the floor.");
                 }
 
                 for (int t = 0; t < Tables.Length && !offTheFloor; t++)

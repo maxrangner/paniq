@@ -1,6 +1,6 @@
 # Causal event log and debugging view
 
-**Status:** decided foundation. This note defines how a run retains, queries,
+**Status:** decided foundation, checked against the code on 2026-09-26. This note defines how a run retains, queries,
 and presents the causal events required by the simulation contract. It does not
 define event types, event mechanics, storage optimization, or player-facing UI.
 
@@ -82,9 +82,20 @@ A future developer-facing debugging view may present:
 
 The view may select events, filter results, and format labels for people to
 read. Those actions are presentation-only: they cannot create events, mutate
-run state, consume simulation randomness, or infer a missing cause. The exact
-screen layout, visual treatment, controls, and player-facing explanation remain
-undecided.
+run state, consume simulation randomness, or infer a missing cause.
+
+## Where it stands (2026-09-26)
+
+- The log is `CausalEventLog` (`Assets/Paniq/Runtime/Simulation/CausalEventLog.cs`),
+  one per `Run`. Event types are the `CausalEventType` list.
+- The player already reads it: **What happened** on the round's end card opens
+  `EventLogScreen`, which tells the round as a story (the fire taking hold,
+  every shout, every door forced or shut, everybody who caught fire or got
+  out) and folds the background chatter into one line apiece. It observes the
+  log and never changes it.
+- Still to come, from the [game vision](game-vision.md): the plain-language
+  *retelling* (what it meant, not only what happened) and clicking a person on
+  the end screen for their story.
 
 ## Replay relevance and deferred work
 

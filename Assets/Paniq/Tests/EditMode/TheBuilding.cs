@@ -1,4 +1,4 @@
-﻿using Paniq.Simulation;
+using Paniq.Simulation;
 
 namespace Paniq.Tests.EditMode
 {
@@ -106,13 +106,47 @@ namespace Paniq.Tests.EditMode
         public static readonly SimulationId StockroomToCrossbar = new SimulationId(2019UL);
 
         /// <summary>
+        /// The tower of boxes (prototype 3): the middle of its footprint,
+        /// against the corridor's north wall just short of the archway
+        /// (since 2026-10-02; it stood in the junction's south-west corner).
+        /// </summary>
+        public static readonly LogicalPosition TheTower = new LogicalPosition(12000, 8550);
+
+        /// <summary>The tower of boxes, as a stack that comes down when somebody runs into it.</summary>
+        public static readonly SimulationId TheTrap = new SimulationId(7001UL);
+
+        /// <summary>The second stack (2026-09-27): four crates standing free at the north end of the stockroom's first crate wall.</summary>
+        public static readonly SimulationId TheStockroomTrap = new SimulationId(7002UL);
+
+        /// <summary>The middle of the gap at the stockroom lane's first bend, between the stack and the north wall.</summary>
+        public static readonly LogicalPosition StockroomBend = new LogicalPosition(9500, -1450);
+
+        /// <summary>The cubicle landscape east of the crossbar (2026-10-02): the middle of its wide west aisle.</summary>
+        public static readonly LogicalPosition CubicleWestAisle = new LogicalPosition(17000, 7000);
+
+        /// <summary>The cubicle landscape's door onto the crossbar beside the way out.</summary>
+        public static readonly SimulationId CubicleDoorByTheWayOut = new SimulationId(2020UL);
+
+        /// <summary>The cubicle landscape's door onto the crossbar's south end, opposite the stockroom's.</summary>
+        public static readonly SimulationId CubicleSouthDoor = new SimulationId(2021UL);
+
+        /// <summary>The cubicle landscape's door into the stockroom's east lane.</summary>
+        public static readonly SimulationId CubicleToStockroom = new SimulationId(2022UL);
+
+        /// <summary>The corridor's east end, just short of the archway into the crossbar.</summary>
+        public static readonly LogicalPosition CorridorEastEnd = new LogicalPosition(12000, 7500);
+
+        /// <summary>The building's one pull station, at the corridor's west end beside the maintenance room (prototype 3).</summary>
+        public static readonly SimulationId TheAlarm = new SimulationId(6001UL);
+
+        /// <summary>
         /// The shipped building, with the fire pinned to the open office.
         /// <para>
-        /// A played round draws the fire from one of four preset areas, so
-        /// three runs in four start it somewhere other than the office. That is
-        /// the point of it, and it is covered by its own tests -- but a test
-        /// about what a frightened crowd does needs the fire where the crowd
-        /// is, every time, or it is really a test of which room came up.
+        /// A played round starts the fire in the meeting room (prototype 3;
+        /// it used to be one of four rooms), which is covered by its own
+        /// tests -- but a test about what a frightened crowd does needs the
+        /// fire where the crowd is, every time, or it is really a test of
+        /// which square came up.
         /// </para>
         /// </summary>
         public static ScenarioData WithTheFireInTheOffice(ScenarioData data)
@@ -125,7 +159,7 @@ namespace Paniq.Tests.EditMode
         /// The building with the economy taken out of the way: a deep purse, a
         /// deep hand, and an uproar that pays nothing.
         /// <para>
-        /// A played round opens with nothing -- no influence and no cards --
+        /// A played round opens with nothing -- no purse and no cards --
         /// and fills the purse from the uproar while the dead deal the cards.
         /// That is the game, and it has its own tests. But a test about what a
         /// crowd does once a door is open is not a test of the economy: it
@@ -143,46 +177,31 @@ namespace Paniq.Tests.EditMode
         /// </summary>
         public static ScenarioData WithThePlayerAbleToAct(ScenarioData data)
         {
-            data.Influence.Starting = 100000;
-            data.Influence.Maximum = 100000;
-            data.Influence.StartingHand = EveryCard();
-            data.Influence.OpeningDrawCount = 0;
-            data.Influence.UproarSmall = 0;
-            data.Influence.UproarMiddling = 0;
-            data.Influence.UproarBig = 0;
-            return data;
+
+            // The hand's charge is off (2026-09-30): a test holds the hand as
+            // long as it likes. HandChargeEditModeTests has the bar.
+            data.HandCharge.Enabled = false;
+
+            // A player who can act can open the way out, as they could before
+            // the keycard (2026-09-27): the tests here are about doors,
+            // cards and the crowd, not about the card. KeycardEditModeTests
+            // has the card.
+            return WithAnOrdinaryWayOut(data);
         }
 
         /// <summary>
-        /// A deep hand: a dozen of every card there is. Playing one takes it
-        /// out of the hand, so a test that plays the same card five times over
-        /// -- running TNT out of charges, say -- needs more than one of it.
+        /// The way out as a plain locked door (2026-09-27): the keycard put
+        /// away before the round starts, so the player's key opens it and
+        /// the strong batter it, as before the card existed.
         /// </summary>
-        public static PlayerCommandType[] EveryCard()
+        public static ScenarioData WithAnOrdinaryWayOut(ScenarioData data)
         {
-            var kinds = new[]
-            {
-                PlayerCommandType.PlayBeefcake,
-                PlayerCommandType.PlayCourage,
-                PlayerCommandType.PlayTerror,
-                PlayerCommandType.PlayBastard,
-                PlayerCommandType.PlayColdHeart,
-                PlayerCommandType.SpawnFire,
-                PlayerCommandType.SpawnExtinguisher,
-                PlayerCommandType.BlastWall,
-                PlayerCommandType.PopFuseBox,
-                PlayerCommandType.StickTogether
-            };
-
-            const int spare = 12;
-            var hand = new PlayerCommandType[kinds.Length * spare];
-            for (int i = 0; i < hand.Length; i++)
-            {
-                hand[i] = kinds[i % kinds.Length];
-            }
-
-            return hand;
+            data.Keycard.Enabled = false;
+            return data;
         }
+
+        /// <summary>The keycard, authored on the first office desk.</summary>
+        public static readonly SimulationId TheKeycard = new SimulationId(3950UL);
 
         /// <summary>A fire in one square, at a named place, that never spreads on its own.</summary>
         public static void FireAt(ScenarioData data, LogicalPosition where)

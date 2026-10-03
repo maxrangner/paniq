@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using Paniq.Gameplay;
 using Paniq.Simulation;
@@ -85,7 +87,11 @@ namespace Paniq.Tests.EditMode
         [Test]
         public void Temperaments_GoToTheMostFearfulFirst()
         {
-            var simulation = new Run(DefaultData());
+            // Fifteen percent, as the office had until 2026-10-03 (six is
+            // everybody's now): the dealing is what is tested here.
+            ScenarioData data = DefaultData();
+            data.Temperament.FreezeForeverPercent = 15;
+            var simulation = new Run(data);
             int lowestFreezer = int.MaxValue;
             int highestRunner = int.MinValue;
             int freezeForever = 0;
@@ -105,12 +111,13 @@ namespace Paniq.Tests.EditMode
                 if (agent.Temperament == AgentPanicTemperament.FreezeForever)
                 {
                     freezeForever++;
-                    Assert.That(agent.AgentId.Value, Is.EqualTo(1006UL).Or.EqualTo(1012UL).Or.EqualTo(1018UL),
-                        "The nervous wreck, the timid carer and the coward are the most fearful.");
+                    Assert.That(agent.AgentId.Value,
+                        Is.EqualTo(1006UL).Or.EqualTo(1012UL).Or.EqualTo(1018UL).Or.EqualTo(1032UL).Or.EqualTo(1025UL).Or.EqualTo(1011UL),
+                        "The nervous wreck, the timid carer, the coward and the jumpy one are the most fearful, and the intern and the worrier tie for the last place.");
                 }
             }
 
-            Assert.That(freezeForever, Is.EqualTo(3), "15% of twenty people.");
+            Assert.That(freezeForever, Is.EqualTo(5), "15% of thirty-four people.");
             Assert.That(lowestFreezer, Is.GreaterThanOrEqualTo(highestRunner));
         }
 
@@ -190,36 +197,42 @@ namespace Paniq.Tests.EditMode
                 Person(2UL, 2000, -4000, new AgentTraitValues(5, 5, 5, 5, 5, 0))
             };
             data.PhysicsObjects = Array.Empty<PhysicsObjectDefinition>();
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Temperament.FreezeForeverPercent = 0;
             data.Temperament.FreezeThenRunPercent = 0;
             data.Fire.ActivationTick = 10;
             data.Fire.SpawnBounds = new LogicalBounds(0, 0, -3000, -3000);
             var simulation = new Run(data);
-            int nervousYells = 0;
-            int steadyYells = 0;
             for (int tick = 0; tick < 1500; tick++)
             {
                 simulation.Step();
             }
 
+            // How often each shouts while they shout at all: the mean gap
+            // between one shout and their next (2026-10-03; counting shouts
+            // over a fixed time also counted how long each happened to stay
+            // frightened and in the building).
+            var last = new Dictionary<ulong, int>();
+            var gaps = new Dictionary<ulong, List<int>> { { 1UL, new List<int>() }, { 2UL, new List<int>() } };
             foreach (CausalEvent record in simulation.EventLog.Events)
             {
-                if (record.EventType != CausalEventType.AgentYelled)
+                if (record.EventType != CausalEventType.AgentYelled || !gaps.ContainsKey(record.SourceId.Value))
                 {
                     continue;
                 }
 
-                if (record.SourceId.Value == 1UL)
+                ulong who = record.SourceId.Value;
+                if (last.TryGetValue(who, out int previous))
                 {
-                    nervousYells++;
+                    gaps[who].Add(record.Tick - previous);
                 }
-                else
-                {
-                    steadyYells++;
-                }
+
+                last[who] = record.Tick;
             }
 
-            Assert.That(nervousYells, Is.GreaterThan(steadyYells));
+            Assert.That(gaps[1UL], Is.Not.Empty, "The nervous one shouted more than once.");
+            Assert.That(gaps[2UL], Is.Not.Empty, "The steady one shouted more than once.");
+            Assert.That(gaps[1UL].Average(), Is.LessThan(gaps[2UL].Average()), "The nervous shout more often.");
         }
     }
 }

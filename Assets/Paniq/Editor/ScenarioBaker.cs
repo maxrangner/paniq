@@ -186,7 +186,8 @@ namespace Paniq.EditorTools
                     side,
                     centre,
                     door.WidthMillimetres,
-                    door.StartsLocked));
+                    door.StartsLocked,
+                    needsKeycard: door.NeedsKeycard));
             }
 
             return baked.ToArray();

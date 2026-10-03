@@ -1,0 +1,222 @@
+using System;
+using System.Collections.Generic;
+using NUnit.Framework;
+using Paniq.Gameplay;
+using Paniq.Simulation;
+
+namespace Paniq.Tests.EditMode
+{
+    /// <summary>
+    /// The stockroom's stack (2026-09-27). Four crates against the north
+    /// wall at the winding lane's first bend come down when somebody runs
+    /// into them (2026-10-02: it used to be sprung by anybody frightened
+    /// running through the room), and, too heavy to carry, lie where they
+    /// land and, across the gap, cut the
+    /// lane on the map people steer by: the office's way out through the
+    /// stockroom stops being one.
+    /// </summary>
+    public sealed class StockroomTrapEditModeTests
+    {
+        private static readonly SimulationId Somebody = new SimulationId(1UL);
+
+        private ScenarioAsset scenario;
+
+        [SetUp]
+        public void SetUp()
+        {
+            scenario = ScenarioAsset.CreateDefault();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            UnityEngine.Object.DestroyImmediate(scenario);
+        }
+
+        private static List<CausalEvent> EventsOfType(Run simulation, CausalEventType type)
+        {
+            var found = new List<CausalEvent>();
+            foreach (CausalEvent record in simulation.EventLog.Events)
+            {
+                if (record.EventType == type)
+                {
+                    found.Add(record);
+                }
+            }
+
+            return found;
+        }
+
+        private static bool IsAStackCrate(SimulationId id) => id.Value >= 3581UL && id.Value <= 3584UL;
+
+        private static CausalEvent? AdvanceUntil(Run simulation, CausalEventType type, int limit)
+        {
+            for (int t = 0; t < limit; t++)
+            {
+                List<CausalEvent> found = EventsOfType(simulation, type);
+                if (found.Count > 0)
+                {
+                    return found[0];
+                }
+
+                simulation.Step();
+            }
+
+            List<CausalEvent> last = EventsOfType(simulation, type);
+            return last.Count > 0 ? last[0] : (CausalEvent?)null;
+        }
+
+        private static int RoomIndex(Run simulation, SimulationId room)
+        {
+            WorldGeometry geometry = simulation.GeometryForTests;
+            for (int r = 0; r < geometry.RoomCount; r++)
+            {
+                if (geometry.RoomId(r) == room)
+                {
+                    return r;
+                }
+            }
+
+            throw new KeyNotFoundException(room.ToString());
+        }
+
+        /// <summary>The shipped building with one person standing in the stockroom where the test puts them, the fire due in the meeting room.</summary>
+        private ScenarioData OnePersonInTheStockroom(LogicalPosition where)
+        {
+            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
+            data.Agents = new[] { new AgentDefinition(Somebody, where, CardinalDirection.North, AgentTraitValues.AllOrdinary) };
+            data.Timetable = Array.Empty<ScheduledCue>();
+            data.Fire.ActivationTick = 10;
+            TheBuilding.FireAt(data, TheBuilding.MeetingRoom);
+            data.Fire.SpreadMinimumTicks = 100000;
+            data.Fire.SpreadMaximumTicks = 100000;
+            data.Perception.MaximumReactionDelayTicks = 0;
+            data.Temperament.FreezeForeverPercent = 0;
+            data.Temperament.FreezeThenRunPercent = 0;
+            data.Calm.DecisionMinimumTicks = 100000;
+            data.Calm.DecisionMaximumTicks = 100000;
+            return data;
+        }
+
+        [Test]
+        public void TheStack_StandsBesideSomebodyCalm_AndComesDownABeatAfterSomebodyRunsIntoIt()
+        {
+            // In the west lane, two hand's breadths west of the stack's
+            // face, where somebody coming from the office door cuts the
+            // corner round the end of the crate wall.
+            ScenarioData data = OnePersonInTheStockroom(new LogicalPosition(8650, -2740));
+            using (var simulation = new Run(data, 42UL))
+            {
+                for (int t = 0; t < 60; t++)
+                {
+                    simulation.Step();
+                }
+
+                Assert.That(EventsOfType(simulation, CausalEventType.TrapTriggered), Is.Empty,
+                    "Somebody standing beside it, with the fire lit across the building, brings nothing down.");
+                simulation.ShoveAgentForTests(0, 90, 100);
+                CausalEvent? trap = AdvanceUntil(simulation, CausalEventType.TrapTriggered, 60);
+                Assert.That(trap.HasValue, "Shoved into it at a run, they knock it.");
+                Assert.That(trap.Value.SourceId, Is.EqualTo(TheBuilding.TheStockroomTrap), "The stockroom's stack, not the tower.");
+                Assert.That(trap.Value.TargetId, Is.EqualTo(Somebody));
+                CausalEvent? fell = AdvanceUntil(simulation, CausalEventType.BoxTowerFell, 60);
+                Assert.That(fell.HasValue);
+                Assert.That(fell.Value.Tick - trap.Value.Tick,
+                    Is.InRange(data.Perception.ReactionLagMinimumTicks, data.Perception.ReactionLagMaximumTicks),
+                    "A beat after the knock, with no creak.");
+                Assert.That(fell.Value.HasTarget, Is.False, "No doorway: a stack in a room.");
+
+                var story = new Paniq.Presentation.EventStory(simulation.GetSnapshot());
+                Assert.That(story.Describe(fell.Value), Is.EqualTo("the stack of crates came down"));
+
+                PhysicsObjectSystem objects = simulation.ObjectsForTests;
+                for (int t = 0; t < 3 * Run.TicksPerSecond; t++)
+                {
+                    simulation.Step();
+                }
+
+                // Since 2026-10-02 the stack stands free at the end of the
+                // first crate wall, so it goes the way the bumper was going:
+                // east, into the single-file middle lane.
+                Assert.That(fell.Value.Position.X, Is.GreaterThan(9500 + 600), "The heap is aimed on into the middle lane, the way the bumper was going.");
+                int moved = 0;
+                for (ulong id = 3581UL; id <= 3584UL; id++)
+                {
+                    int crate = objects.IndexOf(new SimulationId(id));
+                    LogicalPosition where = objects.PositionOf(crate);
+                    Assert.That(where.Z, Is.LessThan(-500), $"Crate {id} stayed in the stockroom.");
+                    if (IntegerMath.Distance(new LogicalPosition(9500, -2740), where) > 300)
+                    {
+                        moved++;
+                    }
+                }
+
+                Assert.That(moved, Is.GreaterThanOrEqualTo(3), "The crates tumbled into the lane.");
+            }
+        }
+
+        /// <summary>
+        /// Laid across the gap at the bend and left to settle, the crates cut
+        /// the lane on the map: the walk from the west lane to the east lane
+        /// is no longer the lane itself but the long way round by the office,
+        /// the corridor and the crossbar, so the office's own route to the
+        /// crossbar goes by the corridor rather than through the stockroom.
+        /// </summary>
+        [Test]
+        public void AFallenStack_CutsTheLaneOnTheMap_SoTheOfficeGoesRoundByTheCorridor()
+        {
+            ScenarioData data = OnePersonInTheStockroom(new LogicalPosition(10750, -3000));
+            using (var simulation = new Run(data, 42UL))
+            {
+                var westLane = new LogicalPosition(7000, -4000);
+                var eastLane = new LogicalPosition(14500, -1000);
+                WorldGeometry geometry = simulation.GeometryForTests;
+                int office = RoomIndex(simulation, PrototypeBuilding.Office);
+                int crossbar = RoomIndex(simulation, PrototypeBuilding.Crossbar);
+
+                // The fields on the map are built a few a tick, so each
+                // question is asked over a few ticks and the last answer is
+                // the one.
+                long before = long.MaxValue;
+                for (int t = 0; t < 10; t++)
+                {
+                    simulation.Step();
+                    before = geometry.Routes.WalkingDistance(westLane, eastLane, 250);
+                }
+
+                Assert.That(before, Is.LessThan(20000), $"Along the winding lane the east lane is a {before} mm walk from the west lane.");
+                Agent walker = simulation.AgentForTests(0);
+                Assert.That(geometry.TryFindRoute(office, TheBuilding.OfficeSouthEastCorner, crossbar, walker, out int first, out _, out _), Is.True);
+                Assert.That(simulation.GetDoor(first).DoorId, Is.EqualTo(TheBuilding.StockroomDoor), "From the office's south-east corner the short way to the crossbar is through the stockroom.");
+
+                // Four crates do not fit flat in a row across the 2.6 m gap
+                // (they tumble and scatter when they really fall), so three
+                // lie in a row from the north wall, a hand's width apart, and
+                // the fourth lies just east of the row's end, closing the
+                // last half-metre to wall A.
+                PhysicsObjectSystem objects = simulation.ObjectsForTests;
+                simulation.PlaceObjectForTests(objects.IndexOf(new SimulationId(3581UL)), new LogicalPosition(9500, -860), 0, 0);
+                simulation.PlaceObjectForTests(objects.IndexOf(new SimulationId(3582UL)), new LogicalPosition(9500, -1580), 0, 0);
+                simulation.PlaceObjectForTests(objects.IndexOf(new SimulationId(3583UL)), new LogicalPosition(9500, -2300), 0, 0);
+                simulation.PlaceObjectForTests(objects.IndexOf(new SimulationId(3584UL)), new LogicalPosition(10210, -2900), 0, 0);
+                long after = long.MaxValue;
+                for (int t = 0; t < 80; t++)
+                {
+                    simulation.Step();
+                    after = geometry.Routes.WalkingDistance(westLane, eastLane, 250);
+                }
+
+                for (ulong id = 3581UL; id <= 3584UL; id++)
+                {
+                    Assert.That(objects.IsPinned(objects.IndexOf(new SimulationId(id))), Is.True, $"Crate {id} lies still and is held there.");
+                }
+
+                Assert.That(after, Is.GreaterThan(before + 10000),
+                    $"With the crates across the bend the walk is the long way round, {after} mm against {before} mm along the lane.");
+                Assert.That(geometry.TryFindRoute(office, TheBuilding.OfficeSouthEastCorner, crossbar, walker, out first, out _, out _), Is.True);
+                Assert.That(simulation.GetDoor(first).DoorId, Is.EqualTo(TheBuilding.OfficeDoor), "So the office goes round by the corridor.");
+            }
+        }
+
+    }
+}

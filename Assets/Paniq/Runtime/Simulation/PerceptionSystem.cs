@@ -53,7 +53,10 @@ namespace Paniq.Simulation
                 }
                 else if (SeesSomeoneBolting(agent, out Agent runner))
                 {
-                    if (agent.Traits.Bravery >= settings.BraveLookFirstMinimum)
+                    // Rattled, it takes more nerve to look before running.
+                    int nerve = settings.BraveLookFirstMinimum +
+                                (agent.Fear.IsRattledAt(context.Tick) ? context.Scenario.Calming.RattledBraveryPenalty : 0);
+                    if (agent.Traits.Bravery >= nerve)
                     {
                         // The brave look up first. What they see next -- the
                         // flames, or the shout -- decides whether they run.
@@ -155,7 +158,7 @@ namespace Paniq.Simulation
         }
 
         /// <summary>A 45-degree half-angle either side of the way they face: |sideways| is at most forward.</summary>
-        private static bool InVisionCone(LogicalPosition eye, LogicalPosition direction, LogicalPosition point)
+        internal static bool InVisionCone(LogicalPosition eye, LogicalPosition direction, LogicalPosition point)
         {
             long offsetX = (long)point.X - eye.X;
             long offsetZ = (long)point.Z - eye.Z;

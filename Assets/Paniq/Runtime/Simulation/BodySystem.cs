@@ -335,7 +335,7 @@ namespace Paniq.Simulation
             agent.Participation = AgentParticipation.NoLongerParticipating;
             agent.Outcome = AgentTerminalOutcome.Lost;
             agent.Body.Speed = 0;
-            CausalEvent death = context.Events.Append(
+            context.Events.Append(
                 context.Tick,
                 agent.Id,
                 CausalEventType.AgentLost,
@@ -343,10 +343,6 @@ namespace Paniq.Simulation
                 threats.Count,
                 0,
                 causeEventId);
-
-            // Kept so the card this death deals the player can name it as its
-            // cause, the way every other event in the log names one.
-            agent.DeathEventId = death.EventId;
         }
     }
 }

@@ -35,8 +35,7 @@ namespace Paniq.Simulation
             Threats threats,
             SoundSystem sound,
             ExitSignBehaviour exitSigns,
-            WayfindingSystem wayfinding,
-            GroupSystem groups)
+            WayfindingSystem wayfinding)
         {
             this.context = context;
             this.crowd = crowd;
@@ -46,12 +45,8 @@ namespace Paniq.Simulation
             this.sound = sound;
             this.exitSigns = exitSigns;
             this.wayfinding = wayfinding;
-            this.groups = groups;
             settings = context.Scenario.Exits;
         }
-
-        /// <summary>Who is sticking together with whom, for the door the group's anchor picks.</summary>
-        private readonly GroupSystem groups;
 
         /// <summary>
         /// Whether this person is on their way to a way out they can see
@@ -155,17 +150,28 @@ namespace Paniq.Simulation
             int room = geometry.RoomAt(position);
             if (room < 0)
             {
-                // Halfway through a doorway: keep going.
-                return agent.Doors.ExitDoorIndex;
+                // Halfway through a doorway: keep going -- unless they have
+                // just given that doorway up (2026-09-28), in which case they
+                // choose from the room they came into it from.
+                if (agent.Doors.ExitDoorIndex >= 0 || agent.Doors.ApproachRoom < 0)
+                {
+                    return agent.Doors.ExitDoorIndex;
+                }
+
+                room = agent.Doors.ApproachRoom;
             }
 
             agent.Doors.ApproachRoom = room;
             agent.Knowledge.HasSearchSpot = false;
-            int groupDoor = groups.AnchorExitDoor(agent);
             int best = -1;
             int bestWayOut = -1;
             bool bestIsThroughTheHeat = false;
             long bestScore = long.MinValue;
+
+            // The same choice with the player's influence left out, so that a
+            // choice it changed can be written down as its doing.
+            int bestWithoutInfluence = -1;
+            long bestScoreWithoutInfluence = long.MinValue;
             for (int d = 0; d < doors.Count; d++)
             {
                 if (!geometry.DoorLeadsOutside(d) || !agent.Knowledge.Knows(d) ||
@@ -178,7 +184,44 @@ namespace Paniq.Simulation
                 // this room, otherwise the first door along the way.
                 int next = first < 0 ? d : first;
                 bool open = geometry.IsDoorOpen(next);
-                if (context.Tick < agent.Doors.AvoidUntilTick[next])
+                if (!open && SeesAHeapTheyCannotShift(agent, room, position, next))
+                {
+                    // A doorway walled up with fallen boxes, right there in
+                    // their own room: nobody needs to walk up and try it to
+                    // know it is shut. The first batch's rule -- the strong
+                    // heave, everybody else goes round -- used to depend on
+                    // reaching the heap, and in a crush at it the people at the
+                    // back never did, and pushed at it for ever (2026-09-26).
+                    agent.Doors.FoundShut[next] = true;
+                    continue;
+                }
+                if (IsCutOff(agent, position, MustReachToUse(next, room, open)) ||
+                    (open && !MayHeaveNow(agent) && DoorwayIsWalled(next, room)))
+                {
+                    // No way across this room to that door on the map they
+                    // steer by (2026-09-27): the fallen crates lie across
+                    // it -- or the open doorway itself is walled up with
+                    // them (2026-09-28). Somebody strong still goes for it
+                    // and heaves a crate out of their way, unless the flames
+                    // are too close for that; everybody else picks another
+                    // door, or a spot to keep clear of the flames, rather
+                    // than push at the crates for ever.
+                    continue;
+                }
+
+                // The player's hand pushing people off this door, felt
+                // strongly (2026-09-30): it is not a way out to them while it
+                // does -- the owner's push is meant to be seen to work.
+                if (HandPushesFrom(agent, next))
+                {
+                    continue;
+                }
+
+                // The player's hand on this door, felt strongly (2026-09-30):
+                // a door they gave up on, or found shut, is worth another go.
+                bool handOnIt = HandIsOn(agent, next);
+                if ((context.Tick < agent.Doors.AvoidUntilTick[next] ||
+                     (settings.HeatChoicesStick && context.Tick < agent.Doors.HotUntilTick[next])) && !handOnIt)
                 {
                     // They have given up on this way for the moment. That
                     // happens for two reasons -- the door would not open, or
@@ -198,7 +241,7 @@ namespace Paniq.Simulation
                 // along that they walked at and could not shift, or shut
                 // themselves, still blocks the route as surely as it ever did.
                 bool wayOutIsOpen = geometry.IsDoorOpen(d);
-                if (!open && (agent.Doors.FoundShut[next] || (agent.Doors.FoundShut[d] && !wayOutIsOpen)))
+                if (!open && !handOnIt && (agent.Doors.FoundShut[next] || (agent.Doors.FoundShut[d] && !wayOutIsOpen)))
                 {
                     // A door they have already found shut is no longer a way
                     // out to them: either the door they would walk at now (a
@@ -227,21 +270,17 @@ namespace Paniq.Simulation
                     score += settings.CurrentChoiceBonusMillimetres;
                 }
 
-                if (groupDoor >= 0 && next == groupDoor)
-                {
-                    // The door the rest of the group is going for: worth a
-                    // walk to keep together, though not a walk through fire.
-                    score += context.Scenario.Groups.ChoiceBonusMillimetres;
-                }
-
                 score -= RoutePenalties(agent, position, next);
+                if (influence != null)
+                {
+                    score -= influence.TurnBackCost(agent, next);
+                }
 
                 // Through the heat: the flames are at the door they would
                 // walk at now, or in the room beyond it.
                 LogicalPosition nextApproach = first < 0 ? approach : ApproachPoint(next, room);
                 int into = geometry.RoomBeyond(next, room);
-                bool throughTheHeat = threats.AnyCloserThan(nextApproach, TraitEffects.DangerDistance(agent, context.Scenario)) ||
-                                      (into >= 0 && threats.IsInRoom(into));
+                bool throughTheHeat = IsThroughTheHeat(agent, next, into, nextApproach);
                 if (throughTheHeat)
                 {
                     score -= settings.InFirePenaltyMillimetres;
@@ -254,12 +293,57 @@ namespace Paniq.Simulation
                     score -= settings.InFirePenaltyMillimetres;
                 }
 
+                if (score > bestScoreWithoutInfluence)
+                {
+                    bestScoreWithoutInfluence = score;
+                    bestWithoutInfluence = next;
+                }
+
+                // The player's influence, never through the heat.
+                if (!throughTheHeat)
+                {
+                    score += InfluencePull(agent, next, into, nextApproach);
+                }
+
                 if (score > bestScore)
                 {
                     bestScore = score;
                     best = next;
                     bestWayOut = d;
                     bestIsThroughTheHeat = throughTheHeat;
+                }
+            }
+
+            if (influence != null)
+            {
+                ConsiderTheInfluencedDoors(agent, room, position, ref best, ref bestWayOut, ref bestScore,
+                    ref bestIsThroughTheHeat);
+                if (best >= 0 && best != bestWithoutInfluence && best != agent.Doors.ExitDoorIndex)
+                {
+                    // Drawn to it by their goal, or turned to it by a push off
+                    // the other (2026-09-30: a push used to be written as
+                    // "drawn", naming no cause).
+                    if (influence.TryGetPull(agent, out InfluenceSystem.Place goal, out int drive))
+                    {
+                        influence.Answer(agent, goal, drive);
+                    }
+                    else if (influence.TryGetLivePush(agent, out InfluenceSystem.Place push, out _))
+                    {
+                        context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentPushedAwayByInfluence, position,
+                            0, 0, push.EventId, doors.IdOf(best));
+                    }
+                }
+            }
+
+            if (best >= 0 && settings.HeatDetourMillimetres > 0 && !threats.IsInRoom(room))
+            {
+                // The short way is through the heat -- at the next door, or
+                // further along it: is there a way round worth the walk, for
+                // somebody of their nerve (2026-10-03)?
+                int hotDoor = bestIsThroughTheHeat ? best : HotDoorAlongTheWay(agent, room, position, bestWayOut);
+                if (hotDoor >= 0)
+                {
+                    TryTheWayRound(agent, room, position, hotDoor, ref best, ref bestWayOut, ref bestIsThroughTheHeat);
                 }
             }
 
@@ -270,8 +354,15 @@ namespace Paniq.Simulation
                 // left -- somewhere they have not looked, or somewhere to
                 // hide. A shut door in a dead end buys the time the player
                 // may still turn into a rescue.
-                agent.Doors.AvoidUntilTick[best] = checked(context.Tick + context.Random.NextIntInclusive(
-                    settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
+                int hotFor = context.Random.NextIntInclusive(settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks);
+                if (settings.HeatChoicesStick)
+                {
+                    agent.Doors.HotUntilTick[best] = checked(context.Tick + hotFor);
+                }
+                else
+                {
+                    agent.Doors.AvoidUntilTick[best] = checked(context.Tick + hotFor);
+                }
                 if (agent.Doors.HidFromHeatAtDoor != best)
                 {
                     agent.Doors.HidFromHeatAtDoor = best;
@@ -289,6 +380,7 @@ namespace Paniq.Simulation
                 if (!bestIsThroughTheHeat)
                 {
                     agent.Doors.HidFromHeatAtDoor = -1;
+                    agent.Doors.DashDoor = -1;
                 }
 
                 return best;
@@ -338,6 +430,15 @@ namespace Paniq.Simulation
                 return true;
             }
 
+            if (settings.HeatChoicesStick && agent.Doors.DashDoor == door && FloorIsClear(position, ApproachPoint(door, room)))
+            {
+                // Still running for the same doorway and the floor ahead is
+                // still walkable (2026-10-03): the dash runs on, with no
+                // second wind-up and no second thoughts.
+                agent.Doors.DashingUntilTick = checked(tick + context.Jittered(settings.DashTicks));
+                return true;
+            }
+
             if (!FloorIsClear(position, ApproachPoint(door, room)))
             {
                 // Across burning floor: nobody, however brave or desperate.
@@ -352,11 +453,43 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            agent.Doors.DashingUntilTick = checked(tick + context.Jittered(settings.DashTicks));
-            agent.Doors.HidFromHeatAtDoor = -1;
-            context.Events.Append(tick, agent.Id, CausalEventType.AgentDashedThroughHeat, position, 0, 0,
-                agent.Fear.ScaredEventId, doors.IdOf(door));
+            // Gathering nerve (2026-09-30, the owner: "the visible agent
+            // tells"): a second or so on their toes, facing the door, before
+            // they go -- and a poke, a tug or the hand in it calls the dash off.
+            // The door stays their choice meanwhile; the moment the wind-up
+            // runs out, the dash begins (DashNow).
+            if (tells != null && tells.Enabled && !TellSystem.TryPass(agent, AgentTell.GatheringNerve, door))
+            {
+                if (!TellSystem.IsTelling(agent))
+                {
+                    tells.Start(agent, AgentTell.GatheringNerve,
+                        IntegerMath.HeadingBetween(position, ApproachPoint(door, room), agent.Body.Heading), door,
+                        agent.Fear.ScaredEventId);
+                }
+
+                return true;
+            }
+
+            DashNow(agent, door);
             return true;
+        }
+
+        /// <summary>
+        /// Running for a door through the heat, from now: a few seconds,
+        /// jittered, in which the flames at their danger distance neither turn
+        /// them back nor make them shut the door. Straight after a wind-up that
+        /// ran out uncaught (2026-09-30): waiting for the next choice of door
+        /// left a tick in which they shut the door against the fire instead.
+        /// </summary>
+        public void DashNow(Agent agent, int door)
+        {
+            TellSystem.TryPass(agent, AgentTell.GatheringNerve, door);
+            agent.Doors.ExitDoorIndex = door;
+            agent.Doors.DashingUntilTick = checked(context.Tick + context.Jittered(settings.DashTicks));
+            agent.Doors.DashDoor = door;
+            agent.Doors.HidFromHeatAtDoor = -1;
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDashedThroughHeat, agent.Body.Position, 0, 0,
+                agent.Fear.ScaredEventId, doors.IdOf(door));
         }
 
         /// <summary>Whether a straight walk from here to there keeps off burning floor: no burning square within the dash clearance of the line, or of the spot itself.</summary>
@@ -377,7 +510,7 @@ namespace Paniq.Simulation
         /// </summary>
         private bool CoolRefugeIsReachable(Agent agent, int room, LogicalPosition position)
         {
-            int refuge = ChooseRefugeDoor(agent, room, position);
+            int refuge = ChooseRefugeDoor(agent, room, position, noisy: !settings.HeatChoicesStick);
             if (refuge < 0)
             {
                 return !threats.IsInRoom(room);
@@ -445,6 +578,11 @@ namespace Paniq.Simulation
                     score += exitSigns.ScoreToward(position, spot, pointing);
                 }
 
+                if (influence != null && !threats.AnyCloserThan(spot, danger))
+                {
+                    score += influence.SpotBonus(agent, spot);
+                }
+
                 if (knowledge.Searching && agent.Doors.ExitDoorIndex < 0 && agent.Intent.Target.Equals(spot))
                 {
                     score += settings.CurrentChoiceBonusMillimetres;
@@ -493,6 +631,11 @@ namespace Paniq.Simulation
                 if (readASign)
                 {
                     score += exitSigns.ScoreToward(position, doorway, pointing);
+                }
+
+                if (!threats.IsInRoom(r))
+                {
+                    score += InfluencePull(agent, first, into, doorway);
                 }
 
                 if (first == agent.Doors.ExitDoorIndex)
@@ -558,7 +701,7 @@ namespace Paniq.Simulation
         /// the fire that they can still reach. Returns the first door on the
         /// way, or -1 when the room they are in is already the best of them.
         /// </summary>
-        private int ChooseRefugeDoor(Agent agent, int room, LogicalPosition position)
+        private int ChooseRefugeDoor(Agent agent, int room, LogicalPosition position, bool noisy = true)
         {
             int best = -1;
             long bestScore = RefugeScore(room, 0L) + settings.CurrentRoomBonusMillimetres;
@@ -573,16 +716,21 @@ namespace Paniq.Simulation
 
                 routeCost += IntegerMath.Distance(geometry.DoorCentre(last), geometry.RoomBounds(r).Centre);
 
-                if ((!geometry.IsDoorOpen(first) && context.Tick < agent.Doors.AvoidUntilTick[first]) || IsRoomFull(r, agent))
+                bool firstOpen = geometry.IsDoorOpen(first);
+                if ((!firstOpen && context.Tick < agent.Doors.AvoidUntilTick[first]) || IsRoomFull(r, agent) ||
+                    IsCutOff(agent, position, MustReachToUse(first, room, firstOpen)) ||
+                    (firstOpen && !MayHeaveNow(agent) && DoorwayIsWalled(first, room)))
                 {
                     continue;
                 }
 
                 int into = geometry.RoomBeyond(first, room);
-                long score = RefugeScore(r, routeCost) +
-                             context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) -
+                long score = RefugeScore(r, routeCost) - DeadEndAtTheFire(r) +
+                             (noisy ? context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) : settings.ChoiceNoiseMillimetres / 2) -
                              RoutePenalties(agent, position, first) -
-                             (into >= 0 && threats.IsInRoom(into) ? settings.InFirePenaltyMillimetres : 0L);
+                             (influence != null ? influence.TurnBackCost(agent, first) : 0L) -
+                             (into >= 0 && threats.IsInRoom(into) ? settings.InFirePenaltyMillimetres : 0L) +
+                             InfluencePull(agent, first, into, geometry.DoorCentre(first));
                 if (score > bestScore)
                 {
                     bestScore = score;
@@ -658,7 +806,7 @@ namespace Paniq.Simulation
                 penalty += context.Scenario.Panic.EscapeRoutePenaltyMillimetres;
             }
 
-            if (geometry.RouteCrossesTable(position, centre))
+            if (geometry.RouteCrossesObstacle(position, centre))
             {
                 penalty += context.Scenario.Panic.TableRoutePenaltyMillimetres;
             }
@@ -670,6 +818,102 @@ namespace Paniq.Simulation
         private LogicalPosition ApproachPoint(int door, int fromRoom)
         {
             return geometry.DoorPointFrom(door, fromRoom, 0, -settings.ApproachInsetMillimetres);
+        }
+
+        /// <summary>
+        /// The spot the map must reach for this door to be any use from
+        /// <paramref name="room"/>: its approach on this side for a shut
+        /// door, which is walked up to and tried; but for an open one the
+        /// approach on the far side, because an open doorway walled up by
+        /// crates held still in the gap has a perfectly reachable approach
+        /// and no way through (2026-09-28: the strong pressed at the fallen
+        /// tower's boxes nose first, on the approach, until the fire came).
+        /// </summary>
+        private LogicalPosition MustReachToUse(int door, int room, bool open)
+        {
+            int beyond = open ? geometry.RoomBeyond(door, room) : -1;
+            return beyond >= 0 ? ApproachPoint(door, beyond) : ApproachPoint(door, room);
+        }
+
+        /// <summary>
+        /// Whether this person is cut off from that spot: the map people
+        /// steer by has no way there for a body -- round the tables, and
+        /// (2026-09-27) round the crates lying still on the floor -- and they
+        /// are not strong enough to heave a crate aside
+        /// (<see cref="BlockadeSettings.ShoveMinimumStrength"/>). Never when
+        /// the map has no opinion this tick.
+        /// </summary>
+        private bool IsCutOff(Agent agent, LogicalPosition from, LogicalPosition to)
+        {
+            // The strong are not cut off, because they heave a crate out of
+            // their way -- unless the flames are inside their danger
+            // distance, when they are too panicked to stop and heave (the
+            // owner's rule, 2026-09-27) and would otherwise press against
+            // the crate nose first until the fire reached them (found by the
+            // wall-starer test, 2026-09-28, once the fallen boxes stopped
+            // sliding apart by themselves). Then they go round like anybody.
+            return !MayHeaveNow(agent) &&
+                   !geometry.Routes.CanGetFromHereToThere(from, to, context.Scenario.World.OccupancyRadiusMillimetres);
+        }
+
+        /// <summary>Strong enough to heave a crate aside, hands free to do it, and not too panicked to stop and do it.</summary>
+        private bool MayHeaveNow(Agent agent) =>
+            agent.Traits.Strength >= context.Scenario.Blockades.ShoveMinimumStrength && agent.Carry.ItemIndex < 0 && !FlamesNear(agent);
+
+        /// <summary>
+        /// Whether an open doorway is walled up for a body by things held
+        /// still where they lie (2026-09-28): no lane across its width, from
+        /// the approach on this side to the approach beyond, is clear of
+        /// them on the map people steer by. The heap rule counts boxes lying
+        /// in the strip; this asks what a body meets, because boxes that
+        /// bounced through and settled just beyond the line leave the strip
+        /// "clear" and the way shut. The map's own reachability cannot ask
+        /// this: the far side is reachable the long way round, through the
+        /// stockroom, so the map said yes and the route still said "through
+        /// the archway", and the strong pressed at the boxes until the fire
+        /// came.
+        /// </summary>
+        private bool DoorwayIsWalled(int door, int room)
+        {
+            int beyond = geometry.RoomBeyond(door, room);
+            if (beyond < 0)
+            {
+                return false;
+            }
+
+            // A lane is a body's width plus a square of the map's slack:
+            // the map people steer by will not thread a body through a gap
+            // it fits by a hair, so neither should this say it can.
+            int radius = context.Scenario.World.OccupancyRadiusMillimetres;
+            int half = doors.WidthOf(door) / 2 - radius - NavigationGrid.CellSizeMillimetres;
+            if (half < 0)
+            {
+                return false;
+            }
+
+            int inset = settings.ApproachInsetMillimetres;
+            for (int along = -half; along <= half; along += radius)
+            {
+                bool clear = true;
+                for (int outward = -inset; outward <= inset && clear; outward += radius)
+                {
+                    clear = !geometry.ObstacleAt(geometry.DoorPointFrom(door, room, along, outward), radius);
+                }
+
+                if (clear)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>Whether the nearest danger is inside this person's own danger distance: the panic decision's "in danger".</summary>
+        private bool FlamesNear(Agent agent)
+        {
+            long danger = TraitEffects.DangerDistance(agent, context.Scenario);
+            return threats.NearestDistanceSquared(agent.Body.Position, out _, out _) < danger * danger;
         }
 
         /// <summary>
@@ -754,8 +998,13 @@ namespace Paniq.Simulation
                 return false;
             }
 
+            // The reach is to the door's face, which stands half the wall's
+            // thickness off the wall line the door's centre sits on
+            // (2026-09-30), so a shut door a body is pressed against counts
+            // as reached whatever stands between them and the line.
             long arrival = settings.ArrivalDistanceMillimetres;
-            long reach = settings.ApproachInsetMillimetres + settings.ArrivalDistanceMillimetres / 2;
+            long reach = settings.ApproachInsetMillimetres + settings.ArrivalDistanceMillimetres / 2 +
+                         context.Scenario.World.WallThicknessMillimetres / 2;
             return LogicalPosition.DistanceSquared(agent.Body.Position, ApproachPoint(door, agent.Doors.ApproachRoom)) <
                    arrival * arrival ||
                    LogicalPosition.DistanceSquared(agent.Body.Position, geometry.DoorCentre(door)) < reach * reach;
@@ -784,7 +1033,14 @@ namespace Paniq.Simulation
                 0,
                 agent.Fear.ScaredEventId,
                 doors.IdOf(door)).EventId;
-            if (doors.StateOf(door) == DoorState.Unlocked && !doors.IsObstructed(door))
+            if (doors.NeedsKeycard(door) && agent.Keycard.Held >= 0)
+            {
+                // The card door, and they have the card (2026-09-27): a swipe,
+                // and it is an unlocked door they open like any other.
+                doors.SwipeKeycard(door, agent, agent.Doors.AttemptEventId);
+            }
+
+            if (doors.CanBePushedOpen(door))
             {
                 agent.Intent.Activity = AgentActivityState.OpeningDoor;
                 agent.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(settings.DoorOpenTicks));
@@ -810,7 +1066,7 @@ namespace Paniq.Simulation
         /// is still busy at the door this tick, in which case they keep facing
         /// it; otherwise the running behaviour decides how they move.
         /// </summary>
-        public bool UpdateAttempt(Agent agent, bool inDanger)
+        public bool UpdateAttempt(Agent agent, bool inDanger, bool flamesNear)
         {
             int tick = context.Tick;
             int door = agent.Doors.ExitDoorIndex;
@@ -834,10 +1090,9 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            if (state == DoorState.Unlocked && !doors.IsObstructed(door) &&
-                agent.Intent.Activity != AgentActivityState.OpeningDoor)
+            if (doors.CanBePushedOpen(door) && agent.Intent.Activity != AgentActivityState.OpeningDoor)
             {
-                // Unlocked while they were rattling it: it opens at once.
+                // Unlocked, or let go of, while they were rattling it: it opens at once.
                 doors.Open(door, agent.Doors.AttemptEventId, geometry.SideOf(door, agent.Body.Position));
                 agent.Intent.Activity = AgentActivityState.Fleeing;
                 return false;
@@ -846,9 +1101,9 @@ namespace Paniq.Simulation
             switch (agent.Intent.Activity)
             {
                 case AgentActivityState.OpeningDoor:
-                    if (doors.IsObstructed(door))
+                    if (!doors.CanBePushedOpen(door))
                     {
-                        // Wedged while they were pulling at it: it will not come.
+                        // Wedged, or taken hold of, while they were pulling at it: it will not come.
                         agent.Intent.Activity = AgentActivityState.TryingDoor;
                         agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.DoorTryTicks));
                         return true;
@@ -869,7 +1124,7 @@ namespace Paniq.Simulation
                         return true;
                     }
 
-                    HeaveObstructionClear(agent, door);
+                    doors.HeaveObstructionClear(agent, door, agent.Doors.AttemptEventId);
                     agent.Intent.Activity = AgentActivityState.TryingDoor;
                     agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.DoorTryTicks));
                     return true;
@@ -887,8 +1142,18 @@ namespace Paniq.Simulation
                         // told to save their own life. Too heavy for them:
                         // somebody strong heaves it along the wall instead, and
                         // anybody else gives up as they would on a locked door.
+                        // Somebody with the flames inside their danger
+                        // distance, or alight, is too panicked to stop and
+                        // work at it (the owner's rule, 2026-09-27): they give
+                        // it up and look elsewhere.
+                        if (flamesNear || agent.Burning.IsBurning)
+                        {
+                            GiveUp(agent, false);
+                            return true;
+                        }
+
                         int thing = doors.ObstructionIn(door);
-                        if (thing >= 0 && CanReachToThrowClear(agent, thing))
+                        if (thing >= 0 && IsWithinReach(agent, thing) && objects.CanThrowClear(agent, thing))
                         {
                             objects.ThrowClear(agent, thing, ClearAwayHeading(agent, doorCentre), agent.Doors.AttemptEventId);
                             agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.DoorTryTicks));
@@ -910,14 +1175,26 @@ namespace Paniq.Simulation
 
                     // A door they shut themselves they never batter, however long
                     // ago it was and however badly it has trapped them: they
-                    // give up on it as on any door that will not open.
-                    if (!agent.Doors.ShutByThem[door] &&
-                        context.Random.NextPercent(TraitEffects.DoorForceChancePercent(agent, context.Scenario)))
+                    // give up on it as on any door that will not open. Nor a
+                    // card door (2026-09-27): no shoulder marks it, so nobody
+                    // tries.
+                    // The player's hand on it (2026-09-30): they throw
+                    // themselves at it whoever they are, the card door too,
+                    // which gives to a long pounding (DoorSystem.SettlePounding;
+                    // it first held: "they batter it, it holds").
+                    bool forTheHand = HandIsOn(agent, door);
+                    if (forTheHand ||
+                        (!agent.Doors.ShutByThem[door] && !doors.NeedsKeycard(door) &&
+                         context.Random.NextPercent(TraitEffects.DoorForceChancePercent(agent, context.Scenario))))
                     {
                         agent.Intent.Activity = AgentActivityState.ForcingDoor;
                         agent.Intent.ActivityEndTick = checked(tick + context.Random.NextIntInclusive(
                             settings.DoorForceMinimumTicks, settings.DoorForceMaximumTicks));
                         agent.Doors.NextShoveTick = tick + 1;
+                        if (forTheHand)
+                        {
+                            ForceForTheHand(agent, door);
+                        }
                     }
                     else
                     {
@@ -927,6 +1204,14 @@ namespace Paniq.Simulation
                     return true;
 
                 default:
+                    if (doors.NeedsKeycard(door) && HandIsOn(agent, door))
+                    {
+                        // The card door under the hand (2026-09-30, the
+                        // owner's decision): every tick at it counts, and
+                        // enough of them together burst it.
+                        doors.PoundForTheHand(door, agent, agent.Doors.AttemptEventId);
+                    }
+
                     if (tick >= agent.Doors.NextShoveTick)
                     {
                         // A shoulder into the door: a thud, and usually nothing gives.
@@ -940,10 +1225,19 @@ namespace Paniq.Simulation
                             agent.Doors.AttemptEventId,
                             doors.IdOf(door));
                         sound.Thud(agent.Id, doorCentre, shove.EventId);
-                        if (doors.Batter(door, agent, TraitEffects.DoorShoveDamage(agent, context.Scenario), shove.EventId))
+                        int damage = TraitEffects.DoorShoveDamage(agent, context.Scenario);
+                        if (HandIsOn(agent, door))
+                        {
+                            // For the hand, the weak do a little too: a few of
+                            // them together break an ordinary door in time.
+                            damage = System.Math.Max(damage, context.Scenario.Influence.WeakBlowDamage);
+                        }
+
+                        if (doors.Batter(door, agent, damage, shove.EventId))
                         {
                             // Battered enough: the door bursts off its hinges.
                             agent.Intent.Activity = AgentActivityState.Fleeing;
+                            InfluenceSystem.Done(agent);
                             return false;
                         }
 
@@ -952,13 +1246,36 @@ namespace Paniq.Simulation
                     }
 
                     if (tick >= agent.Intent.ActivityEndTick &&
-                        !LeaderBehaviour.IsUnderOrdersAtThisDoor(agent, door, tick))
+                        !LeaderBehaviour.IsUnderOrdersAtThisDoor(agent, door, tick) && !HandIsOn(agent, door))
                     {
-                        // Sent at this door by somebody: they keep at it.
+                        // Sent at this door by somebody, or the player's hand
+                        // still on it: they keep at it.
                         GiveUp(agent);
                     }
 
                     return true;
+            }
+        }
+
+        /// <summary>
+        /// Somebody starts pounding a door because the player's hand is on it
+        /// (2026-09-30): they answer the press; and somebody too weak to break
+        /// a door of their own accord is doing what they never would, which the
+        /// log says, once, for the sign and the story.
+        /// </summary>
+        private void ForceForTheHand(Agent agent, int door)
+        {
+            if (!influence.TryGetPull(agent, out InfluenceSystem.Place goal, out int drive))
+            {
+                return;
+            }
+
+            bool wasActing = agent.Hand.Acting;
+            influence.Answer(agent, goal, drive);
+            if (!wasActing && TraitEffects.DoorShoveDamage(agent, context.Scenario) <= 0)
+            {
+                influence.ActedAgainstNature(agent, AgainstTheirNature.BatteredTheDoor, goal.EventId, doors.IdOf(door),
+                    geometry.DoorCentre(door));
             }
         }
 
@@ -977,6 +1294,16 @@ namespace Paniq.Simulation
         {
             int tick = context.Tick;
             int door = agent.Doors.ExitDoorIndex;
+            if (influence != null && influence.TryGetPull(agent, out InfluenceSystem.Place goal, out _) && goal.Door == door)
+            {
+                // Their goal's own door would not give: a cost and a beat.
+                influence.GiveUp(agent);
+            }
+            else
+            {
+                InfluenceSystem.Interrupted(agent);
+            }
+
             context.Events.Append(tick, agent.Id, CausalEventType.AgentGaveUpOnDoor, geometry.DoorCentre(door),
                 0, 0, agent.Doors.AttemptEventId, doors.IdOf(door));
             agent.Doors.AvoidUntilTick[door] = checked(tick + context.Random.NextIntInclusive(
@@ -1085,11 +1412,15 @@ namespace Paniq.Simulation
         /// clear, if they can lift it. Self-preservation, so anybody does it,
         /// not only the strong and not only when told. True when they did.
         /// </summary>
-        public bool TryClearTheWay(Agent agent)
+        public bool TryClearTheWay(Agent agent, bool flamesNear)
         {
             LogicalPosition position = agent.Body.Position;
             LogicalPosition target = agent.Intent.Target;
-            if (objects == null || agent.Body.State != AgentBodyState.Upright || agent.Carry.ItemIndex >= 0 ||
+
+            // Somebody with the flames inside their danger distance is too
+            // panicked to stop and grab at what is in the way (the owner's
+            // rule, 2026-09-27); they push past it or go round.
+            if (objects == null || flamesNear || agent.Body.State != AgentBodyState.Upright || agent.Carry.ItemIndex >= 0 ||
                 position.Equals(target))
             {
                 return false;
@@ -1099,28 +1430,179 @@ namespace Paniq.Simulation
             int heading = IntegerMath.HeadingBetween(position, target, agent.Body.Heading);
             LogicalPosition ahead = position + IntegerMath.Displacement(heading, radius + settings.ClearTheWayReachMillimetres);
             int thing = objects.FindBlocking(position, ahead, radius);
-            if (thing < 0 || !CanReachToThrowClear(agent, thing))
+            if (thing < 0 || !IsWithinReach(agent, thing))
             {
                 return false;
             }
 
-            objects.ThrowClear(agent, thing, ClearAwayHeading(agent, target), agent.Fear.ScaredEventId);
+            if (objects.CanThrowClear(agent, thing))
+            {
+                objects.ThrowClear(agent, thing, ClearAwayHeading(agent, target), agent.Fear.ScaredEventId);
+                agent.Body.BlockedTicks = 0;
+                return true;
+            }
+
+            // Too heavy to throw -- a crate off the fallen tower, held still
+            // where it lies (2026-09-27): somebody strong heaves it out of
+            // the way, sideways, to the side it already leans to. Everybody
+            // else gets nowhere here, and their next choice of door leaves
+            // out any door the map says they cannot get to.
+            if (objects.CanHeaveAside(agent, thing))
+            {
+                objects.HeaveAside(agent, thing, HeaveHeading(agent, target, thing), agent.Fear.ScaredEventId);
+                agent.Body.BlockedTicks = 0;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// A crate held where it lies, right in their way, at a decision
+        /// (2026-09-28): somebody strong heaves it aside there and then.
+        /// Sliding along a held crate never counts as blocked -- the body
+        /// moves a little every tick -- so <see cref="TryClearTheWay"/>, which
+        /// waits for the blocked count, was never reached, and the strong
+        /// stood pressed against the fallen tower's boxes nose first for
+        /// the rest of the round (found by the wall-starer test once the
+        /// boxes stopped sliding apart by themselves). Only a held thing:
+        /// light clutter in the way is still kicked, and thrown clear only
+        /// once they are stuck.
+        /// </summary>
+        public bool TryHeaveHeldThingInTheWay(Agent agent, bool flamesNear)
+        {
+            if (flamesNear || agent.Carry.ItemIndex >= 0)
+            {
+                return false;
+            }
+
+            int thing = HeldThingInTheWay(agent);
+            if (thing < 0 || !objects.CanHeaveAside(agent, thing))
+            {
+                return false;
+            }
+
+            objects.HeaveAside(agent, thing, HeaveHeading(agent, agent.Intent.Target, thing), agent.Fear.ScaredEventId);
             agent.Body.BlockedTicks = 0;
             return true;
         }
 
-        /// <summary>Whether this thing is within arm's reach and light enough for them to throw clear.</summary>
-        private bool CanReachToThrowClear(Agent agent, int thing)
+        /// <summary>Whether a thing held still where it lies is right in this person's way, within reach: see <see cref="HeldThingInTheWay"/>.</summary>
+        public bool IsBlockedByAHeldThing(Agent agent) => HeldThingInTheWay(agent) >= 0;
+
+        /// <summary>
+        /// Blocked by a thing held still in their way that they could not
+        /// shift (2026-09-28): the doorway they were making for is no use to
+        /// them for a while, and they choose again -- from the room they came
+        /// from, if they are standing in the doorway's own strip, where every
+        /// choice is otherwise "keep going" and there is nowhere to go (the
+        /// chancer stood in the archway against a held box for five seconds
+        /// on seed 8). The rest is the crowded door's, drawn the same way.
+        /// </summary>
+        public void GiveUpTheDoorwayForAWhile(Agent agent)
         {
-            if (!objects.CanThrowClear(agent, thing))
+            int door = agent.Doors.ExitDoorIndex;
+            if (door < 0)
             {
-                return false;
+                return;
             }
 
+            agent.Doors.AvoidUntilTick[door] = checked(context.Tick + context.Random.NextIntInclusive(
+                settings.DoorCrowdedAvoidMinimumTicks, settings.DoorCrowdedAvoidMaximumTicks));
+            agent.Doors.ExitDoorIndex = -1;
+        }
+
+        /// <summary>
+        /// The thing pinned in place -- held still where it lies, or a wall of
+        /// crates -- that is on the way from here
+        /// toward the target, within reach, or -1. The held thing, not merely
+        /// the first thing on the way: a laptop kicked into the archway must
+        /// not hide the crate behind it. Whatever they carry: somebody with a
+        /// bottle in their arms is as stuck as anybody, and on seed 41 that
+        /// was who stood pressed against the boxes -- every heave refused
+        /// for their full hands, and nothing else taking over.
+        /// </summary>
+        private int HeldThingInTheWay(Agent agent)
+        {
+            LogicalPosition position = agent.Body.Position;
+            LogicalPosition target = agent.Intent.Target;
+            if (objects == null || agent.Body.State != AgentBodyState.Upright || position.Equals(target))
+            {
+                return -1;
+            }
+
+            int radius = context.Scenario.World.OccupancyRadiusMillimetres;
+            int heading = IntegerMath.HeadingBetween(position, target, agent.Body.Heading);
+            LogicalPosition ahead = position + IntegerMath.Displacement(heading, radius + settings.ClearTheWayReachMillimetres);
+            int thing = objects.FindBlocking(position, ahead, radius, pinnedOnly: true);
+            return thing >= 0 && IsWithinReach(agent, thing) ? thing : -1;
+        }
+
+        /// <summary>
+        /// Which way to heave a thing out of the way: square across the way
+        /// from here to <paramref name="wayOut"/>, to whichever side has
+        /// more floor before the room's wall, so a crate against one wall is
+        /// heaved towards the other and not into the wall it lies by. With
+        /// as much room either way, to the side it already leans to.
+        /// </summary>
+        private int HeaveHeading(Agent agent, LogicalPosition wayOut, int thing)
+        {
+            LogicalPosition position = agent.Body.Position;
+            LogicalPosition at = objects.PositionOf(thing);
+            int ahead = IntegerMath.HeadingBetween(position, wayOut, agent.Body.Heading);
+            int right = IntegerMath.NormalizeDegrees(ahead + 90);
+            int left = IntegerMath.NormalizeDegrees(ahead - 90);
+            int room = geometry.RoomAt(position);
+            if (room >= 0)
+            {
+                long roomRight = FloorBefore(geometry.RoomBounds(room), at, right);
+                long roomLeft = FloorBefore(geometry.RoomBounds(room), at, left);
+                if (roomRight != roomLeft)
+                {
+                    return roomRight > roomLeft ? right : left;
+                }
+            }
+
+            long wayX = wayOut.X - position.X;
+            long wayZ = wayOut.Z - position.Z;
+            long cross = wayX * (at.Z - position.Z) - wayZ * (at.X - position.X);
+            return cross < 0L ? left : right;
+        }
+
+        /// <summary>How far a point could go towards <paramref name="heading"/> before leaving these bounds.</summary>
+        private static long FloorBefore(LogicalBounds bounds, LogicalPosition from, int heading)
+        {
+            LogicalPosition direction = IntegerMath.Direction(heading);
+            long along = long.MaxValue;
+            if (direction.X > 0)
+            {
+                along = System.Math.Min(along, (long)(bounds.MaxX - from.X) * IntegerMath.TrigScale / direction.X);
+            }
+            else if (direction.X < 0)
+            {
+                along = System.Math.Min(along, (long)(from.X - bounds.MinX) * IntegerMath.TrigScale / -direction.X);
+            }
+
+            if (direction.Z > 0)
+            {
+                along = System.Math.Min(along, (long)(bounds.MaxZ - from.Z) * IntegerMath.TrigScale / direction.Z);
+            }
+            else if (direction.Z < 0)
+            {
+                along = System.Math.Min(along, (long)(from.Z - bounds.MinZ) * IntegerMath.TrigScale / -direction.Z);
+            }
+
+            return along;
+        }
+
+        /// <summary>Whether this thing is within arm's reach.</summary>
+        private bool IsWithinReach(Agent agent, int thing)
+        {
             long reach = (long)context.Scenario.World.OccupancyRadiusMillimetres + objects.RadiusOf(thing) +
                          settings.ClearTheWayReachMillimetres;
             return LogicalPosition.DistanceSquared(agent.Body.Position, objects.PositionOf(thing)) <= reach * reach;
         }
+
 
         /// <summary>
         /// Which way to throw a thing clear of the way out: back past themselves,
@@ -1141,20 +1623,50 @@ namespace Paniq.Simulation
         /// the heaver is standing, because nothing ever goes through a doorway.
         /// The stronger they are, the further it goes.
         /// </summary>
-        private void HeaveObstructionClear(Agent agent, int door)
+        /// <summary>
+        /// A doorway with a heap of fallen boxes across it, on a wall of the
+        /// room they are standing in and within sight, that they are not going
+        /// to shift: they are not strong enough to heave it, or they are and
+        /// have had their go (<see cref="BlockadeSettings.StrongGiveUpOnAHeapTicks"/>).
+        /// Draws a number only the first time somebody strong sees a heap.
+        /// </summary>
+        private bool SeesAHeapTheyCannotShift(Agent agent, int room, LogicalPosition position, int door)
         {
-            int thing = doors.ObstructionIn(door);
-            if (thing < 0)
+            if (!doors.IsPiled(door))
             {
-                return;
+                return false;
+            }
+
+            int side = geometry.DoorRoom(door);
+            long sight = context.Scenario.Perception.VisionRangeMillimetres;
+            if ((room != side && room != geometry.RoomBeyond(door, side)) ||
+                LogicalPosition.DistanceSquared(position, geometry.DoorCentre(door)) > sight * sight)
+            {
+                return false;
             }
 
             BlockadeSettings blockades = context.Scenario.Blockades;
-            long offset = geometry.AlongOffset(door, agent.Body.Position);
-            int side = offset < 0L ? -1 : 1;
-            int along = geometry.AlongWallHeading(door, side);
-            int speed = blockades.ShoveSpeedBase + blockades.ShoveSpeedPerStrength * agent.Traits.Strength;
-            objects.ShoveAside(thing, agent, along, speed, agent.Doors.AttemptEventId);
+            if (agent.Traits.Strength < blockades.ShoveMinimumStrength)
+            {
+                return true;
+            }
+
+            // Their patience runs only while they are at it. Further off, the
+            // heap is still a way out to them, and another heap seen on the
+            // way does not reset the clock of the one they are working at.
+            long reach = blockades.StrongTryTheHeapWithinMillimetres;
+            if (LogicalPosition.DistanceSquared(position, geometry.DoorCentre(door)) > reach * reach)
+            {
+                return agent.Doors.HeapDoor == door && context.Tick >= agent.Doors.GiveUpOnTheHeapTick;
+            }
+
+            if (agent.Doors.HeapDoor != door)
+            {
+                agent.Doors.HeapDoor = door;
+                agent.Doors.GiveUpOnTheHeapTick = checked(context.Tick + context.Jittered(blockades.StrongGiveUpOnAHeapTicks));
+            }
+
+            return context.Tick >= agent.Doors.GiveUpOnTheHeapTick;
         }
 
         /// <summary>Stuck in the crowd on the way to a door: try another for a little while.</summary>
@@ -1233,6 +1745,304 @@ namespace Paniq.Simulation
         {
             objects = systems.Objects;
             people = systems.People;
+            influence = systems.Influence;
+            tells = systems.Tells;
+        }
+
+        /// <summary>The wind-up before a dash through the heat (2026-09-30).</summary>
+        private TellSystem tells;
+
+        /// <summary>
+        /// A dash through the heat caught in its wind-up (2026-09-30): the door
+        /// is given up for a while, as by somebody who chose to hide.
+        /// </summary>
+        public void GiveUpTheHotDoorForAWhile(Agent agent, int door)
+        {
+            int hotFor = context.Random.NextIntInclusive(settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks);
+            if (settings.HeatChoicesStick)
+            {
+                agent.Doors.HotUntilTick[door] = checked(context.Tick + hotFor);
+                return;
+            }
+
+            agent.Doors.AvoidUntilTick[door] = checked(context.Tick + hotFor);
+        }
+
+        /// <summary>
+        /// Whether the next door on a walk is "through the heat": its near
+        /// approach inside their danger distance, or the room beyond alight.
+        /// On a level that judges the heat along the way (2026-10-03,
+        /// <see cref="ExitSettings.HeatNearADoorMillimetres"/>), the room
+        /// beyond counts only where the flames are near the door's far side.
+        /// </summary>
+        private bool IsThroughTheHeat(Agent agent, int next, int into, LogicalPosition nextApproach)
+        {
+            int danger = TraitEffects.DangerDistance(agent, context.Scenario);
+            if (threats.AnyCloserThan(nextApproach, danger))
+            {
+                return true;
+            }
+
+            if (into < 0)
+            {
+                return false;
+            }
+
+            if (settings.HeatNearADoorMillimetres <= 0)
+            {
+                return threats.IsInRoom(into);
+            }
+
+            return threats.AnyCloserThan(ApproachPoint(next, into), System.Math.Max(danger, settings.HeatNearADoorMillimetres));
+        }
+
+        /// <summary>
+        /// The short way out is through the heat (2026-10-03): the walk that
+        /// avoids that doorway, by doors they know, if there is one whose own
+        /// next door is not hot and whose extra length is within what their
+        /// nerve makes it worth -- the timid walk further round, the brave
+        /// less. Chosen, the hot doorway stays out of their plans for a while,
+        /// so the choice is not argued again on every decision.
+        /// </summary>
+        private void TryTheWayRound(Agent agent, int room, LogicalPosition position, int hot, ref int best, ref int bestWayOut,
+            ref bool bestIsThroughTheHeat)
+        {
+            int exitRoom = geometry.DoorRoom(bestWayOut);
+            LogicalPosition exitApproach = ApproachPoint(bestWayOut, exitRoom);
+            if (!geometry.TryFindKnownRoute(room, position, exitRoom, agent, out int shortFirst, out int shortLast, out long shortCost) ||
+                shortFirst < 0 ||
+                !geometry.TryFindKnownRouteAvoiding(room, position, exitRoom, agent, hot, out int roundFirst, out int roundLast, out long roundCost) ||
+                roundFirst < 0)
+            {
+                return;
+            }
+
+            int into = geometry.RoomBeyond(roundFirst, room);
+            if (IsThroughTheHeat(agent, roundFirst, into, ApproachPoint(roundFirst, room)) || !FloorIsClear(position, ApproachPoint(roundFirst, room)))
+            {
+                return;
+            }
+
+            long shortWalk = shortCost + IntegerMath.Distance(geometry.DoorCentre(shortLast), exitApproach);
+            long roundWalk = roundCost + IntegerMath.Distance(geometry.DoorCentre(roundLast), exitApproach);
+            long worth = (long)settings.HeatDetourMillimetres *
+                         System.Math.Max(0, 100 + (5 - agent.Traits.Bravery) * settings.HeatDetourPercentPerBravery) / 100;
+            if (roundWalk - shortWalk > worth)
+            {
+                return;
+            }
+
+            best = roundFirst;
+            bestIsThroughTheHeat = false;
+            if (settings.HeatChoicesStick)
+            {
+                agent.Doors.HotUntilTick[hot] = checked(context.Tick + context.Jittered(settings.HeatCommitTicks));
+            }
+        }
+
+        private readonly System.Collections.Generic.List<int> routeScratch = new System.Collections.Generic.List<int>();
+
+        /// <summary>
+        /// The first door on their walk to this way out, by doors they know,
+        /// with the flames within <see cref="ExitSettings.HeatNearADoorMillimetres"/>
+        /// (or their danger distance) of it; -1 when the walk is clear. The
+        /// next door is judged by the door choice itself; this looks further
+        /// along (2026-10-03): from the office, the corridor door was cool and
+        /// the archway at its far end alight, and people ran into the corridor
+        /// to find that out.
+        /// </summary>
+        private int HotDoorAlongTheWay(Agent agent, int room, LogicalPosition position, int wayOut)
+        {
+            routeScratch.Clear();
+            if (wayOut < 0 || !geometry.RouteDoors(room, position, geometry.DoorRoom(wayOut), agent, routeScratch, knownOnly: true))
+            {
+                return -1;
+            }
+
+            routeScratch.Add(wayOut);
+            int near = System.Math.Max(TraitEffects.DangerDistance(agent, context.Scenario), settings.HeatNearADoorMillimetres);
+            for (int i = 0; i < routeScratch.Count; i++)
+            {
+                if (threats.AnyCloserThan(geometry.DoorCentre(routeScratch[i]), near))
+                {
+                    return routeScratch[i];
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// What a dead end is worth less as a hiding place while the fire is
+        /// in the room its one door opens onto (2026-10-03,
+        /// <see cref="ExitSettings.RefugeDeadEndPenaltyMillimetres"/>).
+        /// </summary>
+        private long DeadEndAtTheFire(int candidate)
+        {
+            if (settings.RefugeDeadEndPenaltyMillimetres <= 0)
+            {
+                return 0L;
+            }
+
+            int[] doorsOfIt = geometry.RoomDoors(candidate);
+            if (doorsOfIt.Length != 1 || geometry.DoorLeadsOutside(doorsOfIt[0]))
+            {
+                return 0L;
+            }
+
+            int beyond = geometry.RoomBeyond(doorsOfIt[0], candidate);
+            return beyond >= 0 && threats.IsInRoom(beyond) ? settings.RefugeDeadEndPenaltyMillimetres : 0L;
+        }
+
+        /// <summary>The places the player is drawing people toward (2026-09-26).</summary>
+        private InfluenceSystem influence;
+
+        /// <summary>
+        /// The ways out through a door the player is drawing people to, on a
+        /// wall of this room -- a door no way out's shortest walk begins with,
+        /// which otherwise never gets a look in: with one way out of the
+        /// building, the office's door into the stockroom could never beat the
+        /// corridor. Scored exactly like any other way out, with the noise
+        /// fixed at half its range rather than drawn, so considering them draws
+        /// no random numbers. Never through a door into a room alight, a door
+        /// that is shut and given up on, or back the way they came.
+        /// </summary>
+        private void ConsiderTheInfluencedDoors(Agent agent, int room, LogicalPosition position, ref int best,
+            ref int bestWayOut, ref long bestScore, ref bool bestIsThroughTheHeat)
+        {
+            // Their goal's door, if it is one (2026-09-30: the person's own,
+            // kept after the hand came off, not only the hand on now). One
+            // goal a person, so the loop runs once; its shape is kept for the
+            // day a person can hold more than one.
+            int goals = influence.TryGetPull(agent, out InfluenceSystem.Place goal, out _) ? 1 : 0;
+            for (int i = 0; i < goals; i++)
+            {
+                int k = goal.Door;
+                if (k < 0 || k == best || !agent.Knowledge.Knows(k))
+                {
+                    continue;
+                }
+
+                int side = geometry.DoorRoom(k);
+                int into = side == room ? geometry.RoomBeyond(k, room) : geometry.RoomBeyond(k, side) == room ? side : -1;
+                if (into < 0 || into == agent.Doors.PreviousRoom || threats.IsInRoom(into) ||
+                    (!geometry.IsDoorOpen(k) && !HandIsOn(agent, k) &&
+                     (agent.Doors.FoundShut[k] || context.Tick < agent.Doors.AvoidUntilTick[k])))
+                {
+                    continue;
+                }
+
+                LogicalPosition atTheDoor = ApproachPoint(k, room);
+                long pull = InfluencePull(agent, k, into, atTheDoor);
+                if (pull <= 0L ||
+                    threats.AnyCloserThan(atTheDoor, TraitEffects.DangerDistance(agent, context.Scenario)))
+                {
+                    continue;
+                }
+
+                // Everything about the door itself is worked out once; only
+                // the way on from beyond it differs between ways out, and a
+                // route is searched only to a way out worth reaching.
+                LogicalPosition beyond = geometry.DoorPointFrom(k, into, 0, -settings.ApproachInsetMillimetres);
+                long doorScore = settings.ChoiceNoiseMillimetres / 2 - IntegerMath.Distance(position, atTheDoor) -
+                                 RoutePenalties(agent, position, k) + pull;
+                if (k == agent.Doors.ExitDoorIndex)
+                {
+                    doorScore += settings.CurrentChoiceBonusMillimetres;
+                }
+
+                for (int d = 0; d < doors.Count; d++)
+                {
+                    int wayOutRoom = geometry.DoorRoom(d);
+                    if (!geometry.DoorLeadsOutside(d) || !agent.Knowledge.Knows(d) ||
+                        (agent.Doors.FoundShut[d] && !geometry.IsDoorOpen(d)) || threats.IsInRoom(wayOutRoom) ||
+                        !geometry.TryFindKnownRoute(into, beyond, wayOutRoom, agent, out int first, out int last, out long routeCost))
+                    {
+                        continue;
+                    }
+
+                    LogicalPosition approach = ApproachPoint(d, wayOutRoom);
+                    long score = doorScore - (first < 0
+                        ? IntegerMath.Distance(beyond, approach)
+                        : routeCost + IntegerMath.Distance(geometry.DoorCentre(last), approach));
+                    if (geometry.IsDoorOpen(d))
+                    {
+                        score += settings.OpenBonusMillimetres;
+                    }
+
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        best = k;
+                        bestWayOut = d;
+                        bestIsThroughTheHeat = false;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether the player's hand is pulling this person to this door
+        /// strongly enough for them to do what they otherwise would not
+        /// (2026-09-30): come back to a door they gave up on, and throw
+        /// themselves at it whatever their strength. Draws nothing.
+        /// </summary>
+        private bool HandIsOn(Agent agent, int door)
+        {
+            if (influence == null || door < 0 || !influence.TryGetPull(agent, out InfluenceSystem.Place goal, out int drive))
+            {
+                return false;
+            }
+
+            return goal.Pulls && goal.Door == door && drive >= context.Scenario.Influence.ActsAgainstNatureFromPerMille;
+        }
+
+        /// <summary>Whether the player's hand is pushing this person off this door strongly enough to rule it out (2026-09-30). Draws nothing.</summary>
+        private bool HandPushesFrom(Agent agent, int door)
+        {
+            if (influence == null || door < 0 || !influence.TryGetLivePush(agent, out InfluenceSystem.Place push, out int felt))
+            {
+                return false;
+            }
+
+            return push.Door == door && felt >= context.Scenario.Influence.ActsAgainstNatureFromPerMille;
+        }
+
+
+        /// <summary>
+        /// What the player's influence makes a door worth to somebody, in
+        /// millimetres of walk, for a choice to add: the pull of the door
+        /// itself if it is influenced, and of every influenced spot its way.
+        /// Nothing into a room that is alight, and nothing straight back into
+        /// the room they have just come out of -- or somebody who stepped
+        /// through an influenced door, still close to it, would be pulled
+        /// straight back through. Draws no random numbers.
+        /// </summary>
+        private long InfluencePull(Agent agent, int door, int into, LogicalPosition toward)
+        {
+            if (influence == null || (into >= 0 && (threats.IsInRoom(into) || into == agent.Doors.PreviousRoom)))
+            {
+                return 0L;
+            }
+
+            if (into >= 0 && context.Scenario.Influence.FrightenedGoThroughAHeldDoor && TowardTheFlames(door, into))
+            {
+                // A held door pulls the frightened through it only away from
+                // the fire (2026-10-03): the people on its far side, nearer the
+                // flames, are not drawn back toward them.
+                return 0L;
+            }
+
+            return influence.DoorBonus(agent, door) + influence.SpotBonus(agent, toward, door);
+        }
+
+        /// <summary>Whether going through this door into <paramref name="into"/> goes nearer the flames than staying this side of it.</summary>
+        private bool TowardTheFlames(int door, int into)
+        {
+            const int Step = 1500;
+            long ahead = threats.NearestDistanceSquared(geometry.DoorPointFrom(door, into, 0, -Step), out _, out _);
+            long behind = threats.NearestDistanceSquared(geometry.DoorPointFrom(door, into, 0, Step), out _, out _);
+            return ahead < behind;
         }
 
         /// <summary>Everybody's physical body, for hauling somebody down in a doorway through it. Bound after construction like the objects.</summary>
@@ -1379,7 +2189,10 @@ namespace Paniq.Simulation
                 return;
             }
 
-            if (traits.Evil >= settings.EvilLockMinimum)
+            // Nobody locks the building's way out behind them (set aside on
+            // 2026-10-03 with the rest of the cruel wedging: one bully's whim
+            // made a whole round a total loss).
+            if (traits.Evil >= settings.EvilLockMinimum && !geometry.DoorLeadsOutside(door))
             {
                 doors.Lock(door, agent, closed);
             }
@@ -1585,6 +2398,16 @@ namespace Paniq.Simulation
                 {
                     int previous = agent.Doors.CurrentRoom;
                     agent.Doors.CurrentRoom = room;
+                    agent.Doors.PreviousRoom = previous;
+                    if (influence != null && context.Scenario.Influence.FrightenedGoThroughAHeldDoor &&
+                        agent.Fear.State == AgentFearState.Scared && agent.Hand.Goal.Door >= 0 && previous >= 0 &&
+                        agent.Hand.Goal.EventId != 0UL &&
+                        ((agent.Hand.Goal.RoomA == previous && agent.Hand.Goal.RoomB == room) ||
+                         (agent.Hand.Goal.RoomB == previous && agent.Hand.Goal.RoomA == room)))
+                    {
+                        // Through the door the hand is on (2026-10-03): done.
+                        influence.WentThrough(agent, agent.Hand.Goal.Door);
+                    }
                     if (previous >= 0 && !agent.Burning.IsBurning)
                     {
                         ConsiderSlammingTheDoorBehind(agent, room, previous);

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -14,7 +14,8 @@ namespace Paniq.Presentation
     /// flail with little flames licking up them when on fire, lunge at doors
     /// they shove, shake whoever they are shaking awake, lean back when
     /// dragging someone, and shrink away when they escape. Each has
-    /// a vision-cone outline and floating icons.
+    /// button eyes on the side they face, a vision-cone outline and floating
+    /// icons; the Tab panel can hide the cones, the numbers and the marks.
     /// </summary>
     internal sealed class AgentViews
     {
@@ -50,16 +51,7 @@ namespace Paniq.Presentation
             public float EscapedSince = -1f;
             public Vector3 EscapePosition;
             public FlameEmitter Flames;
-
-            /// <summary>A band round the ankles, coloured by the group a "Stick together" throw bound them to (2026-09-25).</summary>
-            public Renderer Band;
         }
-
-        /// <summary>One colour per group, by its number; a fifth group starts over.</summary>
-        private static readonly Color[] GroupColours =
-        {
-            new Color(0.85f, 0.6f, 1f), new Color(1f, 0.8f, 0.3f), new Color(0.4f, 0.9f, 0.9f), new Color(1f, 0.55f, 0.75f)
-        };
 
         private readonly ScenarioData scenario;
         private readonly PresentationMaterials materials;
@@ -83,19 +75,10 @@ namespace Paniq.Presentation
                 agentRenderer.sharedMaterial = materials.Agent;
                 ShowThroughWalls(agentObject, materials);
 
-                // The group band: a thin ring round the ankles, a child of the
-                // capsule so it runs and falls with it. In capsule space the
-                // body runs from -1 to 1 along Y.
-                GameObject band = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                band.name = "Group band";
-                RemoveCollider(band);
-                band.transform.SetParent(agentObject.transform, false);
-                band.transform.localPosition = new Vector3(0f, -0.82f, 0f);
-                band.transform.localScale = new Vector3(1.2f, 0.03f, 1.2f);
-                Renderer bandRenderer = band.GetComponent<Renderer>();
-                bandRenderer.sharedMaterial = materials.Box;
-                ShowThroughWalls(band, materials);
-                band.SetActive(false);
+
+                // After the see-through outline is added, so the ghost behind
+                // a wall stays a plain outline with no eyes on it.
+                CreateEyes(agentObject.transform, materials);
 
                 var visionObject = new GameObject($"Agent {definition.AgentId.Value} vision cone (presentation)");
                 visionObject.transform.SetParent(parent, false);
@@ -116,11 +99,64 @@ namespace Paniq.Presentation
                     Icons = new AgentIconViews($"Agent {definition.AgentId.Value}", number.ToString(), materials.Icon,
                         definition.AgentId.Value % 60UL, parent),
                     Vision = vision,
-                    ShakePhase = definition.AgentId.Value % 97UL,
-                    Band = bandRenderer
+                    ShakePhase = definition.AgentId.Value % 97UL
                 });
             }
         }
+
+        /// <summary>
+        /// Two button eyes, white with a black pupil, on the front of the head
+        /// (2026-09-30, the owner: "Put eyes on agents so we can see the
+        /// direction they are facing"). Children of the capsule, so they lean,
+        /// waddle, fall and shrink away with it and cost nothing per frame.
+        /// They sit high on the rounded top, about 20 degrees up from its
+        /// widest point, so the camera looking down still finds them on
+        /// somebody turned side-on; from behind they are hidden, which says
+        /// "facing away" just as plainly.
+        /// </summary>
+        private static void CreateEyes(Transform body, PresentationMaterials materials)
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                // Capsule space: the rounded top is centred 0.5 up with a
+                // radius of 0.5, and the person faces +Z.
+                GameObject eye = CreateEyePart("Eye", body, materials.EyeWhite);
+                eye.transform.localPosition = new Vector3(side * EyeSpacing, 0.66f, 0.4f);
+                eye.transform.localScale = Vector3.one * EyeSize;
+
+                // In the eye's own space, poking out of the front and tipped a
+                // little up toward a camera that looks down on everybody.
+                GameObject pupil = CreateEyePart("Pupil", eye.transform, materials.Pupil);
+                pupil.transform.localPosition = new Vector3(0f, 0.06f, 0.33f);
+                pupil.transform.localScale = Vector3.one * PupilSize;
+            }
+        }
+
+        private static GameObject CreateEyePart(string name, Transform parent, Material material)
+        {
+            GameObject part = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            part.name = name;
+            RemoveCollider(part);
+            part.transform.SetParent(parent, false);
+            Renderer renderer = part.GetComponent<Renderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            return part;
+        }
+
+        /// <summary>How far each eye sits from the middle of the face, in capsule space (the body is 1 across).</summary>
+        private const float EyeSpacing = 0.19f;
+
+        /// <summary>
+        /// An eye's width in capsule space: about 17 cm on a half-metre-wide
+        /// person, cartoon big, so the way somebody faces still shows with the
+        /// whole building in view. A first try at 11 cm was lost even close up.
+        /// </summary>
+        private const float EyeSize = 0.34f;
+
+        /// <summary>A pupil's width as a share of its eye.</summary>
+        private const float PupilSize = 0.5f;
 
         /// <summary>A red "!" for noticing something.</summary>
         public void Notice(SimulationId agentId, float time)
@@ -140,6 +176,19 @@ namespace Paniq.Presentation
             }
         }
 
+        /// <summary>A red scribble for being annoyed at the player's nudging.</summary>
+        /// <summary>How long the annoyed shake lasts, and how fast it is: about nine shakes a second for two seconds.</summary>
+        private const float AnnoyedShakeSeconds = 2f;
+        private const float AnnoyedShakeRate = 56f;
+
+        public void Annoyed(SimulationId agentId, float time)
+        {
+            if (agents.TryGetValue(agentId, out AgentView view))
+            {
+                view.Icons.Annoyed(time);
+            }
+        }
+
         /// <summary>A shoulder thrown at a stuck door.</summary>
         public void Lunge(SimulationId agentId, float time)
         {
@@ -149,8 +198,15 @@ namespace Paniq.Presentation
             }
         }
 
+        /// <summary>A person's drawn body, as placed by the last <see cref="Update"/>: what something worn on them follows.</summary>
+        public bool TryGetBody(SimulationId agentId, out Transform body)
+        {
+            body = agents.TryGetValue(agentId, out AgentView view) ? view.Transform : null;
+            return body != null;
+        }
+
         public void Update(RunSnapshot snapshot, RunSnapshot previousSnapshot, float blend, float time,
-            Transform cameraTransform)
+            Transform cameraTransform, DebugView show)
         {
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
@@ -278,6 +334,84 @@ namespace Paniq.Presentation
                         twist = 0f;
                         lean += Mathf.Sin(time * 15f + view.ShakePhase * 0.7f) * 8f;
                     }
+                    else if (agent.IsShakingFree)
+                    {
+                        // Tearing free of the player's hand (2026-09-29): the
+                        // same fast shake as the annoyed, with a twist of the
+                        // shoulders, for the couple of seconds the run says.
+                        Vector3 side = Quaternion.Euler(0f, yaw + 90f, 0f) * Vector3.forward;
+                        shake = side * (Mathf.Sin(time * AnnoyedShakeRate + view.ShakePhase) * 0.06f);
+                        roll = Mathf.Sin(time * AnnoyedShakeRate + view.ShakePhase) * 9f;
+                        twist = Mathf.Sin(time * AnnoyedShakeRate * 0.5f + view.ShakePhase) * 20f;
+                    }
+                    else if (agent.IsTugged)
+                    {
+                        // Held by the shirt (2026-09-29): leaning into the
+                        // hand that has them, straining the way they meant to
+                        // go -- and since 2026-09-30 visibly trying to shake it
+                        // off, each their own way (the owner: "they visibly try
+                        // to shake away depending on personality"). The
+                        // frightened fight it hardest and the calm barely; the
+                        // nervous flail, fast and small; the strong heave, slow
+                        // and big.
+                        float fright = agent.FearState == AgentFearState.Scared ? 1f
+                            : agent.FearState == AgentFearState.Alert ? 0.7f : 0.3f;
+                        float nerves = agent.Traits.Nervousness / 10f;
+                        float might = agent.Traits.Strength / 10f;
+                        float rate = Mathf.Lerp(7f, 24f, nerves);
+                        float wave = Mathf.Sin(time * rate + view.ShakePhase);
+                        Vector3 side = Quaternion.Euler(0f, yaw + 90f, 0f) * Vector3.forward;
+                        shake = side * (wave * (0.015f + 0.05f * nerves) * fright);
+                        roll = wave * (3f + 12f * might) * fright;
+                        twist = Mathf.Sin(time * rate * 0.5f + view.ShakePhase) * (5f + 20f * might) * fright;
+                        lean = Mathf.Max(lean, 10f + 10f * might * fright);
+                    }
+                    else if (agent.IsAnnoyed && view.Icons.AnnoyedAge(time) < AnnoyedShakeSeconds)
+                    {
+                        // Shaking with annoyance at being nudged (2026-09-26):
+                        // a fast side-to-side shake that passes in a couple of
+                        // seconds (the owner's rule, 2026-09-27: "a faster
+                        // shaking that passes after a few seconds"), though
+                        // the annoyance itself lasts longer. Timed from the
+                        // moment they said so, which the icons already keep.
+                        Vector3 side = Quaternion.Euler(0f, yaw + 90f, 0f) * Vector3.forward;
+                        shake = side * (Mathf.Sin(time * AnnoyedShakeRate + view.ShakePhase) * 0.05f);
+                        roll = Mathf.Sin(time * AnnoyedShakeRate + view.ShakePhase) * 7f;
+                    }
+                    else if (agent.Tell != AgentTell.None && agent.FearState == AgentFearState.Scared)
+                    {
+                        // Winding up to something dangerous (2026-09-30, the
+                        // owner: "the visible agent tells"), the ring at their
+                        // feet closing: going stiff shivers harder and harder;
+                        // gathering nerve bounces on the toes; turning back
+                        // looks back over the shoulder, again and again.
+                        float wound = agent.TellProgress / 1000f;
+                        if (agent.Tell == AgentTell.GoingStiff)
+                        {
+                            float rate = Mathf.Lerp(30f, 60f, wound);
+                            float size = Mathf.Lerp(0.01f, 0.045f, wound);
+                            shake = new Vector3(
+                                Mathf.Sin(time * rate + view.ShakePhase) * size,
+                                0f,
+                                Mathf.Sin(time * rate * 1.13f + view.ShakePhase * 1.7f) * size);
+                            roll = Mathf.Sin(time * rate * 0.9f + view.ShakePhase) * Mathf.Lerp(1f, 5f, wound);
+                            twist = 0f;
+                            bounce = 0f;
+                        }
+                        else if (agent.Tell == AgentTell.GatheringNerve)
+                        {
+                            bounce = Mathf.Abs(Mathf.Sin(time * 13f + view.ShakePhase)) * 0.08f;
+                            lean = 10f;
+                            roll = 0f;
+                            twist = 0f;
+                        }
+                        else
+                        {
+                            twist = Mathf.Sin(time * 6f + view.ShakePhase) * 40f;
+                            roll = 0f;
+                            bounce = 0f;
+                        }
+                    }
                     else if (frozen)
                     {
                         // Trembling on the spot.
@@ -288,6 +422,30 @@ namespace Paniq.Presentation
                         roll = Mathf.Sin(time * 41f + view.ShakePhase) * 2.5f;
                         twist = 0f;
                         bounce = 0f;
+                    }
+
+                    // Doing for the player's hand what they have no nerve or
+                    // no strength for (2026-09-30): a coward at the fire, a
+                    // weakling at a crate. They tremble as they do it, on top
+                    // of whatever else they are doing.
+                    if (agent.ActingAgainstTheirNature)
+                    {
+                        shake += new Vector3(
+                            Mathf.Sin(time * 43f + view.ShakePhase) * 0.02f,
+                            0f,
+                            Mathf.Sin(time * 49f + view.ShakePhase * 1.3f) * 0.02f);
+                        roll += Mathf.Sin(time * 37f + view.ShakePhase) * 2f;
+                    }
+
+                    // Shoulder to a crate for the hand (2026-10-02): leaning
+                    // into it and rocking against it until it gives, so the
+                    // effort is seen and not only the crate sliding away.
+                    if (agent.Straining)
+                    {
+                        float heave = Mathf.Sin(time * 5f + view.ShakePhase);
+                        lean = Mathf.Max(lean, 16f + 6f * heave);
+                        bounce = Mathf.Max(bounce, Mathf.Abs(heave) * 0.03f);
+                        shake += Quaternion.Euler(0f, yaw, 0f) * Vector3.forward * (heave * 0.04f);
                     }
 
                     // A shoulder thrown at a stuck door.
@@ -324,7 +482,7 @@ namespace Paniq.Presentation
                 }
 
                 bool down = lost || view.Transform.up.y < 0.7f;
-                UpdateAppearance(agent, view, planar, yaw, down, alertJump, headHeight, time, cameraTransform);
+                UpdateAppearance(agent, view, planar, yaw, down, alertJump, headHeight, time, cameraTransform, show);
             }
         }
 
@@ -415,10 +573,12 @@ namespace Paniq.Presentation
             float alertJump,
             float headHeight,
             float time,
-            Transform cameraTransform)
+            Transform cameraTransform,
+            DebugView show)
         {
             bool participating = agent.Participation == AgentParticipation.Participating;
-            bool frozen = agent.ActivityState == AgentActivityState.Frozen;
+            // Going stiff is not frozen yet (2026-09-30): no snowflake, no ice, until the ring closes.
+            bool frozen = agent.ActivityState == AgentActivityState.Frozen && agent.Tell != AgentTell.GoingStiff;
             bool burning = agent.IsBurning && participating;
             Color bodyColor = agent.Outcome == AgentTerminalOutcome.Lost
                 ? LostColor
@@ -426,18 +586,6 @@ namespace Paniq.Presentation
                 : agent.FearState == AgentFearState.Calm ? CalmColor
                 : frozen ? FrozenColor : ScaredColor;
             materials.SetColor(view.Renderer, bodyColor);
-
-            // The band, for as long as they are somebody's group.
-            bool grouped = participating && agent.GroupId >= 0;
-            if (view.Band.gameObject.activeSelf != grouped)
-            {
-                view.Band.gameObject.SetActive(grouped);
-            }
-
-            if (grouped)
-            {
-                materials.SetColor(view.Band, GroupColours[agent.GroupId % GroupColours.Length]);
-            }
 
             // Capsule space: the body runs from -1 to 1 along Y, radius 0.5.
             view.Flames.Update(burning, new Vector3(0f, -0.7f, 0f), new Vector3(0.45f, 2f, 0.45f), 0.42f);
@@ -462,10 +610,18 @@ namespace Paniq.Presentation
                     calm && (agent.ActivityState == AgentActivityState.Standing ||
                              agent.ActivityState == AgentActivityState.LookingAround),
                     agent.IsLeading,
-                    time);
+                    time,
+                    agent.ActingForTheHand,
+                    show.Marks,
+                    show.Numbers,
+                    agent.CommittedToTheHand,
+                    // The keycard is worn on its holder's hip (2026-10-02,
+                    // BoxViews): a mark over the head as well read as a
+                    // second card, so none is drawn.
+                    false);
             }
 
-            UpdateVisionCone(agent, view.Vision, planar, yaw);
+            UpdateVisionCone(agent, view.Vision, planar, yaw, show.VisionCones);
         }
 
         private static readonly Color FlameRed = PresentationMaterials.FlameRed;
@@ -526,9 +682,9 @@ namespace Paniq.Presentation
         /// </summary>
         private const float RunningWaddle = 1.45f;
 
-        private void UpdateVisionCone(AgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw)
+        private void UpdateVisionCone(AgentSnapshot agent, LineRenderer vision, Vector3 planar, float yaw, bool shown)
         {
-            vision.enabled = agent.Participation == AgentParticipation.Participating;
+            vision.enabled = shown && agent.Participation == AgentParticipation.Participating;
             if (!vision.enabled)
             {
                 return;

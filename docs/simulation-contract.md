@@ -42,19 +42,27 @@ procedure with the scenario seed as `initstate` and a fixed `initseq` of `54`.
 
 - Simulation systems obtain all random values only from that generator.
 - Derived streams must name their derivation algorithm, state ownership, and
-  compatibility effect before they are introduced. One exists:
+  compatibility effect before they are introduced. These exist:
 
   | Stream | `initseq` | Owner | Why it is separate |
   | --- | --- | --- | --- |
   | The run | `54` | `SimulationContext.Random`, shared | Everything the world and the crowd decide |
-  | The deck | `55` | `DeckSystem`, owned outright | Which card a death deals the player |
+  | (the deck) | `55` | -- | Retired with the cards on 2026-10-03; the number is not reused |
+  | The keycard | `56` | `KeycardSystem`, owned outright | Where the keycard starts a round: whose pocket, or which desk (2026-09-27) |
+  | The Director's cap | `57` | `DirectorSystem`, owned outright | How many the building lets out this round, and the beat the Director reads on (2026-09-28); a level without the cap replays exactly as before |
+  | The Director's script | `58` | `DirectorSystem`, owned outright | Where a real fire starts, its relights and the building's move, drawn before the round (2026-10-03), so the player's clicks cannot move them and "left alone" is the same day |
+  | The fire's dice | `59` | `Run`, swapped in while the threats advance | The fire's spreading (2026-10-03, `WorldSettings.EachPersonHasTheirOwnDice`) |
+  | Each person's dice | `100000` + their id | `Run`, swapped in for that person's turn | Everything one person decides (2026-10-03): a poke changes the person poked, not the whole round |
 
-  Both derive from the same scenario seed as `initstate`, so a replay of a seed
-  reproduces both. The deck is separate because dealing a card must not shift
-  everybody else's randomness: while it shared the run's generator, one death
-  drew a number and from that tick on every person in the building panicked,
-  tripped and froze differently than they had before the deck existed. A third
-  stream deserves a derivation scheme rather than a third constant.
+  All derive from the same scenario seed as `initstate`, so a replay of a seed
+  reproduces them all. The keycard's is separate so a level without a card
+  replays exactly as it did before cards existed, and so the card's start
+  never shifts the run's own start-up draws. The deck was separate because
+  dealing a card must not shift everybody else's randomness: while it shared
+  the run's generator, one death drew a number and from that tick on every
+  person in the building panicked, tripped and froze differently. The same
+  lesson, taken all the way, is why since 2026-10-03 each person and the fire
+  throw dice of their own.
 - Simulation code must not use Unity's global `UnityEngine.Random`, wall-clock
   time, rendering-frame count, or presentation state to choose an outcome.
 - Nobody reacts on the tick a thing happens, and nothing happens to a whole

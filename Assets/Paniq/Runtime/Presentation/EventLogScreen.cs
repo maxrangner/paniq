@@ -110,6 +110,12 @@ namespace Paniq.Presentation
         /// per opening rather than once per frame.
         /// </summary>
         private void Rebuild(RunSnapshot snapshot)
+            => RebuildFrom(snapshot);
+
+        /// <summary>The scenario the round is played on, for naming rooms (2026-10-03); null names none.</summary>
+        public ScenarioData Scenario { get; set; }
+
+        private void RebuildFrom(RunSnapshot snapshot)
         {
             if (builtFromCount == snapshot.Events.Count && builtShowingEverything == showEverything)
             {
@@ -120,7 +126,7 @@ namespace Paniq.Presentation
             builtShowingEverything = showEverything;
             lines.Clear();
 
-            var story = new EventStory(snapshot);
+            var story = new EventStory(snapshot, null, Scenario);
             int runLength = 0;
             CausalEventType runType = default;
             int runStartTick = 0;
@@ -178,20 +184,12 @@ namespace Paniq.Presentation
         {
             switch (type)
             {
-                case CausalEventType.PowerBeefcake:
-                case CausalEventType.PowerCourage:
-                case CausalEventType.PowerTerror:
-                case CausalEventType.PowerBastard:
-                case CausalEventType.PowerColdHeart:
-                case CausalEventType.PowerSpawnedFire:
-                case CausalEventType.PowerSpawnedExtinguisher:
                 case CausalEventType.PowerBlastedWall:
-                case CausalEventType.PowerPoppedFuseBox:
                 case CausalEventType.PowerPulledAlarm:
-                case CausalEventType.PowerStickTogether:
                 case CausalEventType.RoundEventTriggered:
                 case CausalEventType.DoorUnlocked:
-                case CausalEventType.CardDealt:
+                case CausalEventType.PowerPanickedCrowd:
+                case CausalEventType.PowerCalmedCrowd:
                     return Player;
 
                 case CausalEventType.AgentLost:
@@ -209,6 +207,7 @@ namespace Paniq.Presentation
                 case CausalEventType.AgentDoused:
                 case CausalEventType.AgentFoundTheWayOut:
                 case CausalEventType.RoundEnded:
+                case CausalEventType.DoorUnlockedWithKeycard:
                     return Good;
 
                 default:

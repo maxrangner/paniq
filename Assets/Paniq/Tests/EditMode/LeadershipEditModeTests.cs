@@ -65,6 +65,7 @@ namespace Paniq.Tests.EditMode
             };
             data.Tables = new TableDefinition[0];
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = 1;
             data.Fire.SpawnBounds = new LogicalBounds(0, 0, -2000, -2000);
             data.Fire.SpreadMinimumTicks = 400;
@@ -77,7 +78,6 @@ namespace Paniq.Tests.EditMode
             // off to the toilet, which would walk the one strong person out of
             // the room before the leader has anybody to send.
             data.Calm.StrollNextDoorPercent = 0;
-            data.Day.ToiletEveryTicks = 0;
             data.Temperament.FreezeForeverPercent = 0;
             return data;
         }
@@ -93,7 +93,8 @@ namespace Paniq.Tests.EditMode
                 leaders += agent.Traits.Leadership >= data.Leadership.LeaderMinimum ? 1 : 0;
             }
 
-            Assert.That(leaders, Is.EqualTo(2), "One natural leader in each big room.");
+            Assert.That(leaders, Is.EqualTo(4),
+                "The hero in the office, the host in the meeting, and the team lead and the show-off among the cubicles.");
         }
 
         /// <summary>
@@ -121,6 +122,7 @@ namespace Paniq.Tests.EditMode
                 new PhysicsObjectDefinition(new SimulationId(3001UL), PhysicsObjectKind.Box,
                     new LogicalPosition(-2500, -5800), 400, 20000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
 
             // Whether the order comes before the strong one simply clears the
             // box themselves on the way past is partly the luck of the run, as
@@ -236,6 +238,7 @@ namespace Paniq.Tests.EditMode
             Assert.That(followed, Is.True, "Nobody fell in behind the leader.");
         }
 
+        [Ignore("Set aside 2026-10-03 (level mode): leaders no longer send anybody at the fire.")]
         [Test]
         public void ALeader_SendsSomeoneForAnExtinguisher()
         {
@@ -247,6 +250,7 @@ namespace Paniq.Tests.EditMode
                 new PhysicsObjectDefinition(new SimulationId(3001UL), PhysicsObjectKind.Extinguisher,
                     new LogicalPosition(-3500, 3000), 250, 7000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             var simulation = new Run(data);
             for (int t = 0; t < 40 * Run.TicksPerSecond &&
                             EventsOfType(simulation, CausalEventType.LeaderOrderedFireFought).Count == 0; t++)

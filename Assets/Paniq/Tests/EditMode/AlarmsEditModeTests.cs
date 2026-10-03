@@ -48,24 +48,30 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// One person in the office who sees a fire at once, and one in the
-        /// meeting room two rooms away who cannot see it and is too far off to
-        /// hear anybody shout. Only a bell can tell the second one anything.
+        /// One person at the corridor's west end who sees a fire at once, a
+        /// few metres from the building's one pull station (prototype 3,
+        /// 2026-09-25: it is beside the maintenance room, and the office's
+        /// own station is gone), and one in the meeting room behind a shut
+        /// door who cannot see it and is too far off to hear anybody shout.
+        /// Only a bell can tell the second one anything.
         /// </summary>
         private ScenarioData OfficeAndMeetingRoom(AgentTraitValues raiser, AgentTraitValues faraway)
         {
             ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
             data.Agents = new[]
             {
-                new AgentDefinition(Raiser, new LogicalPosition(-4500, 2000), CardinalDirection.South, raiser),
-                new AgentDefinition(FarAway, TheBuilding.MeetingRoom, CardinalDirection.North, faraway)
+                new AgentDefinition(Raiser, new LogicalPosition(-3000, 7000), CardinalDirection.East, raiser),
+                // Near the meeting room's corridor door, behind it. This scene
+                // has no bells on the walls, so the one pull station rings, and
+                // through a shut door its ring reaches half as far.
+                new AgentDefinition(FarAway, new LogicalPosition(-4000, 12000), CardinalDirection.North, faraway)
             };
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
             data.Tables = new TableDefinition[0];
 
-            // A fire right in front of the person in the office.
+            // A fire right in front of the person in the corridor.
             data.Fire.ActivationTick = 3;
-            data.Fire.SpawnBounds = new LogicalBounds(-4500, -4500, 800, 800);
+            data.Fire.SpawnBounds = new LogicalBounds(-1800, -1800, 7000, 7000);
             data.Fire.SpreadMinimumTicks = 100000;
             data.Fire.SpreadMaximumTicks = 100000;
             data.Perception.MaximumReactionDelayTicks = 0;
@@ -101,15 +107,14 @@ namespace Paniq.Tests.EditMode
         // ---------------------------------------------------------- the player's pull
 
         /// <summary>
-        /// The player pulls a fire alarm for thirty (the owner's call,
-        /// 2026-09-24): every bell in the building rings, the story names the
-        /// player as the root cause, and the purse is thirty lighter.
+        /// The player pulls a fire alarm (the owner's call, 2026-09-24):
+        /// every bell in the building rings, the story names the
+        /// player as the root cause.
         /// </summary>
         [Test]
         public void ThePlayer_CanPullAnAlarm_AndEveryBellRings()
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
-            data.Influence.Starting = 30;
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
@@ -126,39 +131,21 @@ namespace Paniq.Tests.EditMode
                     Assert.That(bell.CausalParentEventId, Is.EqualTo(pulled[0].EventId));
                 }
 
-                Assert.That(simulation.Influence, Is.EqualTo(0), "Thirty of the thirty.");
                 Assert.That(simulation.GetAgent(1).FearState, Is.Not.EqualTo(AgentFearState.Calm),
                     "Somebody two rooms away heard the bell.");
             }
         }
 
         [Test]
-        public void ThePlayer_TooPoorToPull_RingsNothingAndPaysNothing()
+        public void PullingAnAlarmThatIsAlreadyRinging_DoesNothing()
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
-            data.Influence.Starting = 29;
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
-                Advance(simulation, 1);
-                Assert.That(EventsOfType(simulation, CausalEventType.PowerPulledAlarm), Is.Empty);
-                Assert.That(EventsOfType(simulation, CausalEventType.AlarmRang), Is.Empty);
-                Assert.That(simulation.Influence, Is.EqualTo(29));
-            }
-        }
-
-        [Test]
-        public void PullingAnAlarmThatIsAlreadyRinging_CostsNothing()
-        {
-            ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
-            data.Influence.Starting = 60;
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
                 simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 20);
                 Advance(simulation, 1);
                 Assert.That(EventsOfType(simulation, CausalEventType.PowerPulledAlarm), Has.Count.EqualTo(1));
-                Assert.That(simulation.Influence, Is.EqualTo(30), "The second pull did nothing and cost nothing.");
             }
         }
 
@@ -174,7 +161,7 @@ namespace Paniq.Tests.EditMode
             List<CausalEvent> pulled = EventsOfType(simulation, CausalEventType.AlarmPulled);
             Assert.That(pulled, Is.Not.Empty, "Nobody raised the alarm.");
             Assert.That(pulled[0].SourceId, Is.EqualTo(Raiser));
-            Assert.That(pulled[0].TargetId, Is.EqualTo(OfficeAlarm), "They should use the alarm in their own room.");
+            Assert.That(pulled[0].TargetId, Is.EqualTo(OfficeAlarm), "The one station the building has.");
             Assert.That(simulation.AlarmsRinging, Is.True);
         }
 
@@ -307,7 +294,6 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
             data.Round.HazardWaitsForTrigger = true;
-            data.Influence.Starting = 30;
             var simulation = new Run(data, 42UL);
             LogicalPosition farAwayStart = simulation.GetAgent(FarAway).Position;
             simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
@@ -345,7 +331,10 @@ namespace Paniq.Tests.EditMode
         public void TheBells_RingAgain_EachOnItsOwnBeat()
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
-            data.Influence.Starting = 30;
+
+            // The bells on the walls, so there is more than one thing to ring.
+            data.PhysicsObjects = System.Array.FindAll(scenario.ToRuntimeData().PhysicsObjects,
+                thing => thing.Kind == PhysicsObjectKind.AlarmSounder);
             var simulation = new Run(data, 42UL);
             simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
             Advance(simulation, 16);
@@ -375,7 +364,6 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
             data.PhysicsObjects = System.Array.FindAll(scenario.ToRuntimeData().PhysicsObjects,
                 thing => thing.Kind == PhysicsObjectKind.AlarmSounder);
-            data.Influence.Starting = 30;
             var officeBell = new SimulationId(3601UL);
 
             // A fire in the office's south-west corner, right under its bell.
@@ -400,15 +388,22 @@ namespace Paniq.Tests.EditMode
             Assert.That(simulation.AlarmsRinging, Is.True, "The building has still been told.");
         }
 
+        /// <summary>
+        /// Prototype 3 (2026-09-25, the owner's rule): one pull station in the
+        /// whole building, at the corridor's west end beside the fuse box
+        /// room, out of the way so that only the brave use it. The bells on
+        /// the walls are untouched.
+        /// </summary>
         [Test]
-        public void TheDefaultBuilding_HasAnAlarmInEachRoomPeopleUse()
+        public void TheDefaultBuilding_HasOnePullStation_AtTheCorridorsWestEnd_AndABellInEachRoom()
         {
-            var simulation = new Run(TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData()));
-            Assert.That(simulation.AlarmCount, Is.EqualTo(5),
-                "The office, the corridor, the cafeteria, the meeting room and the stockroom. The\n"
-                + "closet, the stalls and the maintenance room have none: they are cupboards; and the\n"
-                + "crossbar's, beside the way out, was taken out at the owner's request (2026-09-25).");
-            Assert.That(simulation.BellCount, Is.EqualTo(7), "A bell in every room people use, the bathroom included.");
+            ScenarioData data = TheBuilding.WithThePlayerAbleToAct(scenario.ToRuntimeData());
+            var simulation = new Run(data);
+            Assert.That(simulation.AlarmCount, Is.EqualTo(1), "One station in the whole building.");
+            LogicalPosition station = data.Alarms[0].Position;
+            Assert.That(station.X, Is.LessThan(-5000), "At the corridor's west end.");
+            Assert.That(station.Z, Is.InRange(6000, 9000), "In the corridor.");
+            Assert.That(simulation.BellCount, Is.EqualTo(8), "A bell in every room people use, the bathroom and the cubicle landscape included.");
         }
     }
 }

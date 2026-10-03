@@ -1,8 +1,26 @@
 # Look and controls
 
-**Status:** the controls below are **built** as of prototype 2. The camera
-moves, swings freely under a right-button drag, snaps a quarter turn on Q and
-E, and zooms with a coupled tilt, exactly as this note describes. The look is partly built: the building now reads as one
+> **Changed on 2026-10-03 (level mode), not yet rewritten below.** Deleted:
+> the cards, the purse, the deck and "stick together". Set aside everywhere:
+> going back for the keycard in a fright, the cruel wedging doors and locking
+> the way out, toilet trips of their own accord, the brave fighting the fire
+> unasked, and leaders sending anybody at it. Everybody's rules now (they were
+> the loop level's): choices about the heat stick, dead ends count against a
+> hiding place, a held door is walked through, the hand let go strands nobody,
+> 6 % freeze for good, one click wakes the frozen, no fire through walls, each
+> person throws their own dice. How people choose is one chooser for calm and
+> frightened alike. Where this page says otherwise, the decisions page
+> ([technical-decisions.md](technical-decisions.md), *Level mode*) is right;
+> the page is rewritten in the hardening pass.
+>
+> On this page: there is no purse and nothing costs anything; the door hold
+> (`HoldDoor`) is gone, the hand replaced it.
+
+**Status:** the controls below are **built** as of prototype 2, and reworked
+on 2026-09-29 for the hand: the camera moves, steps an eighth of a turn on Q
+and E, and zooms with a coupled tilt, exactly as this note describes. The
+right-button drag that swung the view to any angle is gone (the owner's
+call). Since 2026-09-30 the right button is the hand pushing people away. The look is partly built: the building now reads as one
 floor of an office tower, and the two *Future goals* at the bottom — a slight
 perspective with depth of field, and the cutaway walls — are still parked.
 
@@ -40,65 +58,135 @@ every zoom level.
 | Input | What it does |
 | --- | --- |
 | **W A S D** | move the camera forward, back, left and right across the building |
-| **Hold right mouse button and drag** | swing the view to any angle at all; it stays where you let go |
-| **Q / E** | snap a quarter turn to the next corner view, from wherever the view is now |
+| **Q / E** | step an eighth of a turn to the next tidy view, from wherever the view is now: corner, side, corner (2026-09-29; it was a quarter turn) |
 | **Mouse wheel** | zoom in and out, tilting the camera as described above |
-| **Left mouse button** | on a card along the bottom: pick it up (or put it down again); on the floor with a card in hand: throw it there; on a door: open or shut it; on a red pull station: pull the fire alarm (30) |
-| **Double click a door** | turn its key: lock a shut door, unlock a locked one, or shut and lock an open one. Ten on an inside door; the building's way out costs 100 to unlock |
-| **Right click** (without dragging) | put down the card in hand |
+| **Hold the left button on a door, a thing, a pull station or the floor** (nothing in hand) | the hand (2026-09-29): a full pull toward it the moment the button goes down, drawing people near it -- about a room's length away as a walk, through an open doorway but never a wall -- to go there or use it; gone the moment the button comes up. One hand, one place at a time. Everybody but the strongest wills answers it within a second or two (2026-09-30). What is pointed at is used (2026-09-27), whatever their nature (2026-09-30): a door is opened if shut or shut if open (the cruel wedge it instead) and a locked one pounded on, a chair sat on, a box carried off and a crate too heavy to carry heaved aside, the bottle taken and used on the fire, the pull station pulled, the card pocketed; using it spends its use, so the hand goes on gathering people there but the next press asks for the opposite. A sparkling aura shows it, a sparkling line runs to everybody feeling it, brighter the harder they are pulled, and a gold hand bobs over anybody doing what it asked |
+| **Let go** | since the fourth pass (2026-09-30) whoever has taken the hand in past its commit line -- about two seconds beside it -- keeps the task: clearing the heap, opening the door, pounding, standing where you pointed, and drifts off it only as their conviction fades on their own beat, leaders first, the nervous last (the owner: "after some influence points spent they should stick to that choice"). Everybody else is on their own at once, as before. A gold hand stands still over whoever is keeping at it |
+| **The bar** (bottom left) | the hand's charge (2026-09-30, the owner: "using influence depletes a bar that is automatically refilled continuously"): holding drains it, a click's beacon and a tug included, and it refills by itself all the time -- a full bar is about a minute of holding and refills in a minute. Run dry, the hand comes off by itself, "your hand gave out" goes in the story, and the bar shows *resting* for about three seconds before it takes another press; it does not come back on by itself while the button stays down |
+| **Hold and drag, either button** | the hand moves with the pointer (the owner, 2026-09-30: "so agents can be guided with this"): the people answering it follow it, the frightened included, and a right-button drag herds people ahead of it. On the floor it follows at once; pressed on a door or a thing it stays there until the pointer is about eight tenths of a metre off it. Dragged along a heap of fallen boxes, people clear a path behind it |
+| **Click the left button on a place** | the same, left there for three seconds and then off by itself (the owner, 2026-09-30: "a single click should place an influence beacon for 3 seconds"). The ring throbs while it lasts |
+| **Click a person** (nothing in hand) | poke them: they step away from where the click landed. Three pokes in ten seconds and they are annoyed -- a fast shake for a couple of seconds, and for about twenty seconds they are still shoved but stop looking round for it. Three quick pokes wake somebody frozen with fear, or knock somebody sitting down off their chair |
+| **Hold the left button on a person** | the tug (2026-09-29): a hand on their shirt. They are stopped within about a quarter of a second (2026-09-30) and stay there while you hold, struggling against it their own way, and are off again the moment you let go. The strong tear free, sooner the stronger, with a shake; nobody alight or down can be held. A gold ring at their feet shows who you have |
+| **Hold the right button on a door, a thing, a person or the floor** (nothing in hand) | push people away (the owner, 2026-09-30: "an anti-influence. Works same as the left mouse button, but in reverse"): the calm walk off out of it, the frightened steer away, and a door pushed from is no way out to anybody who feels it strongly. On a person it pushes the people round them. A click leaves it for three seconds. A cool blue ring, and blue lines running away from it |
 | **Reset** (the button top right) | back to the start card at once, keeping the seed, from anywhere in the round or from the end card |
 | **Pause** (the button under Reset) | stop and start the world, as Space does |
 | **Trigger event** (the red button bottom centre) | start the fire. It goes the moment it is pressed |
+| **Crowd: calm / Crowd: panicked** (the button beside Trigger event, on a test level only, 2026-10-01) | flick the whole crowd: *panicked* startles everybody, each on a tick of their own, and holds them frightened until the button is pressed again; *calm* settles them one by one and silences the bells. It begins the round, so an emptied level ends with a score; Trigger event still lights the fire in a round the switch began. The office has no such button |
+| **The level row** (on the start card, 2026-10-01) | pick the level before pressing Play: the office, or one of the three test levels (the square room, the maze, the interaction room). Reset and "play again" keep the level and only change the seed |
 
 Chosen on the owner's behalf:
 
 - **W always moves the camera up the screen**, whichever corner the view is
   currently from. Moving relative to the world instead would mean W changed
   direction every time the player pressed Q, which is disorienting.
-- Rotation is **free under a drag and snapped under Q and E**. It used to be
-  snapped only, which kept the look consistent but meant a thing hidden behind
-  a wall could not be leaned around — the nearest corner view was as close as
-  the player could get. Dragging does **not** spring back to a corner when it
-  is let go: springing back would undo the one thing the drag is for. The four
-  corners remain as somewhere tidy to land, and Q and E measure from wherever
-  the view is pointing, so a quarter turn always arrives on one however far a
-  drag has wandered.
-- **A right click puts a card down; a right drag turns the view.** The two are
-  told apart by how far the pointer travelled before the button came back up,
-  which is why the card is dropped on the button's *release* rather than on its
-  press — at the moment of pressing, nobody yet knows which one it is.
-- **A single click on a door waits a third of a second** before it is sent,
-  because until then nobody knows whether a second click is coming. Acting on
-  the first click at once would have opened the door, and charged for it,
-  before the double click that meant "lock it" was complete. A third of a
-  second is about fifteen ticks, less than the delay people already take to
-  react to anything, so the wait is never seen. A single click on a locked
-  door sends nothing: its key is the double click, and the line under the
-  score says so.
-- **A click on a card or a button never reaches the world.** Every card and
-  button claims its patch of screen as it is drawn, and the next frame's
-  click checks those patches first; until 2026-09-25 a click on "Trigger
-  event" with a door under it clicked the door too.
-- **The number keys are gone** (2026-09-25). Cards are clicked, and two of a
-  kind sit as one card with the count on it, so there is nothing for a
-  number to name.
+- **Rotation is snapped, in eighths** (the owner, 2026-09-29: "remove the
+  camera control. Only use the q, e, but add double the amount of steps it
+  snaps to"). From 2026-09-25 to 2026-09-29 the view also swung freely under
+  a right-button drag, so a thing hidden behind a wall could be leaned
+  around; the right button is the push now, and the four side views,
+  looking straight along the corridor, are what a lean bought. Q and E measure from wherever the view is heading, so
+  two quick taps turn two steps.
+- **Left draws, right pushes** (2026-09-30; from 2026-09-29 it was "left
+  is the crowd, right is the building", with the key and a hand holding a
+  door shut on the right button, both gone at the owner's choice, "pure
+  push-away"). The left button held on a place is the hand; held on a
+  person, the tug; a quick click on a person, a poke. The right button held
+  on a place pushes people away, and on a person pushes the people round
+  them; with a card in hand, a right click puts the card down. A click is
+  told from a hold by whether the button comes back up inside a third of a
+  second (`DoorClicks` for a person, `PlaceHold` for a place). The press on a
+  place is sent at once, because there is nothing to wait for: the hand goes
+  on when the button goes down, and when it comes up the hand comes off --
+  or, after a click, stays three seconds as a beacon.
+- **A click on a button or the bar never reaches the world.** Every button
+  claims its patch of screen as it is drawn, and the next frame's click
+  checks those patches first; until 2026-09-25 a click on "Trigger event"
+  with a door under it clicked the door too.
+- **The cards are gone** (2026-09-30, the owner: "remove cards"): no card
+  bar along the bottom, no aim circle, nothing picked up or thrown, and the
+  right button is only the push. The number keys went on 2026-09-25.
+- **The top of the screen is one strip** (2026-09-30, the owner: "remove all
+  but saved lost still inside and seed. Make it easier to read at a glance
+  without making them huge"): `Saved 3   Lost 2   Still inside 15      Seed
+  42`, in a bold 15-point style. The tick, the fire, the calm and scared
+  counts, "Need 15 of 20" and "Left alone" left it; the last two are in the
+  Tab panel's stats footer and on the end card. What a press under the
+  pointer would do is written at the bottom left, above the bar.
+- **Whoever has the keycard wears it on their right hip** (2026-10-02): the
+  card is drawn 1.7 times its real size so it reads at the usual zoom, and
+  it rides on the holder's body through a lean, a seat and a fall. From
+  2026-09-30 to 2026-10-02 it was a small mark over the head; the owner
+  found the card itself hard to see and the mark read as a second card, so
+  the mark is gone. The way out's hover line still says who has it or that
+  it lies free.
+- **A press that outlasts the window is a hold** (prototype 3,
+  2026-09-25). The same third of a second decides both: a button up again
+  inside it is a click, a button still down when it closes is a hold, and
+  the press that began the hold is never a click. The line under the score
+  says a door is held, or a person is in your hand, only once the run has
+  taken the hold, so a door that cannot be held and a person who cannot be
+  never claim to be. Pausing lets go of everything -- the place, the person
+  and the door -- because nothing pressed while the world is stopped reaches
+  the run. On this level nothing costs anything: the office has no purse
+  (the owner's call), so the prices the lines above used to quote are gone
+  from the screen.
+- **A poke is a click, never a hold**, and it goes to whoever is drawn
+  nearest the pointer on the screen, the way a card used to be aimed. A
+  door or a pull station under the pointer wins over a person behind it. It
+  comes from where the pointer meets their body at chest height, pulled back
+  a little toward the camera, so a click on someone's left side sends them
+  right and one in the middle sends them away from the camera. The tug goes
+  to the same person the press found.
+- **What a press lands on**, with nothing in hand: a pull station or a door
+  the ray hits first, then whichever of the nearest person and the nearest
+  thing is drawn nearer the pointer (2026-09-30; a person used to win
+  whenever one was within reach, so the keycard on a desk with somebody at
+  it could not be clicked), then the floor itself. A thing is measured to
+  where it is drawn -- up on the desk, for the card -- and a small one may be
+  a little further off (42 pixels rather than 30). The rule that a click near a
+  patch already influenced added to it is gone with the stacking: pressing
+  near a held spot simply moves the hand.
+- **A button coming back up over a button or the bar still lets go.** A press
+  over the HUD never reaches the world; a release always does, so a hand
+  that started on the floor and drifted over the bar comes off cleanly.
 - The angles, zoom limits and how far the tilt travels are presentation values,
   chosen when the camera was built and listed below.
 
-Keys the prototype already uses, which these live alongside: **Tab** shows
-the table of everyone's traits, **G** paints the floor people can walk on,
-and **Space** pauses.
+**Tells** (2026-09-30): somebody winding up to something dangerous -- going
+stiff before a freeze, gathering nerve before a dash through the heat, turning
+back toward the flames -- has a red-orange ring at their feet that shrinks from
+most of a metre to a hand's width as their second runs out, pulsing faster as
+it closes; going stiff is a shiver growing harder, gathering nerve a bounce on
+the toes, turning back a look over the shoulder, again and again. No snowflake
+until the freeze has set in. The ring is never hidden by the Tab panel. A poke,
+a tug or the hand before it closes, and "caught!" goes up in green.
+
+Keys the prototype already uses, which these live alongside: **Tab** opens a
+small panel of switches for what is drawn besides the building and the people
+(the vision cones, the numbers and marks over heads, the table of everyone's
+traits, and the walkable floor; 2026-09-30), and under them the hand's two
+dials (2026-09-30, the owner: "a slider in debug with a print out number so I
+can find the sweetspot and later hardcode it", and, asked which feelings they
+tune most by hand, "influence strength and influence area"): the **Hand
+strength** slider, 0 to 300 % in tens, with the percent and how many people
+are answering the hand right now printed above it; the **Hand reach** slider,
+2 to 24 m in half metres, with the metres and how many people feel the hand
+at all printed above it; and a **Level's own** button that puts both back to
+what the level says. **G** paints the floor people can
+walk on (the same switch as in the panel), and **Space** pauses. Everything the
+panel switches starts as it always looked -- cones, numbers and marks on, the
+dials at the level's own -- and stays as set until Play is pressed again. Each
+dial is sent to the run as a command, so a replay replays it, and the end card
+names a dial that was off the level's own.
 
 The values chosen when the camera was built, recorded in
-[technical decisions](technical-decisions.md): the view pans at 14 metres a
+[technical decisions](history/decisions-prototype-2.md#prototype-2-decision-building-the-round): the view pans at 14 metres a
 second and more slowly the closer it is zoomed, the wheel zooms in twelve
 notches from the whole building down to about a sixth of it, and the tilt
 travels from 35.264 degrees at full zoom-out to 18 degrees fully in — held flat
 for the first half of the wheel and eased the whole way down over the second.
-A drag swings the view a quarter of a degree per pixel, so a full turn is about
-a screen and a half of travel, and five pixels of travel is the line between a
-click and a drag. The view can be pushed about eight metres past the building's
-edge and no further.
+Q and E step 45 degrees (2026-09-29). The view can be pushed about eight
+metres past the building's edge and no further.
 
 ## The look
 
@@ -131,6 +219,79 @@ something you could pick up.
   the amount of each is set in code, so this rule stands; see the
   [model pipeline](model-pipeline.md).
 
+Standing rules from the owner, not to be undone by a later change:
+
+- **A seated person looks exactly like a standing one, only higher.** In the
+  owner's words (2026-09-24): "Seated person looks exactly the same as
+  standing. No leaning, no squashing, no deforming. They should be higher off
+  the ground than a standing person, representing them sitting on the flat part
+  of the chair." A seated head about half a metre above a standing one is
+  accepted.
+- **Signs stand upright**, as signs on a wall do (the owner's request; they
+  used to lie flat to face the camera).
+- **The play view stays clean** (the owner, 2026-09-19: "Let's try to keep
+  gameplay clean"). Over a head go the person's number and the marks that say
+  what they are doing (the `!`, the snowflake, the star); traits and state go
+  in the stats table, a switch in the panel **Tab** opens. No always-on trait
+  bars. The Tab panel can hide the numbers, the marks and the vision cones.
+- **People have eyes** (the owner, 2026-09-30: "so we can see the direction
+  they are facing"): two white button eyes with black pupils, high on the
+  front of the head, cartoon big so they still show with the whole building in
+  view. Somebody facing away shows none.
+
+What prototype 3's second batch added to the picture (2026-09-26):
+
+- **Influence glows.** Every influenced door, thing or patch of floor has a
+  pale gold ring that breathes and flickers and throws off little sparks --
+  faint at one click, wide and bright at twenty -- and everybody feeling a
+  pull has a thin gold line from their chest to it, shimmering toward the
+  place, faint for a gentle pull and bright for a strong one. The owner asked
+  for "a glowing sparkling aura" and "a glowing sparkling line between object
+  and agent, faint first, more intense the more influence". Gold rather than
+  the orange of fire or the blue of a held door, so none of the three is
+  mistaken for another. The lines are the answer to "is my influence doing
+  anything?": without them, "more likely to go there" is invisible. Since
+  2026-10-02 a line is drawn only to somebody who feels the hand *right now*,
+  and the thick line of somebody doing what it asked is as bright as they
+  feel it (the owner: the lines showed far more than the reach). Somebody
+  who took the hand in and is keeping at it from out of its reach has the
+  gold hand over their head but no line.
+- **The hand's words** (2026-10-02, the owner: "I don't really feel that the
+  interactions are clear"). A small label over the ring says what the hand
+  asks there in two or three words ("open the door", "clear the boxes",
+  "get the card"), the same words in the doing over whoever takes it up
+  ("clearing the boxes..."), and a word at the place when it is done
+  ("opened!", "cleared!"). Somebody straining at a crate leans into it. One
+  table holds every word (`HandAskWords`), so the ring, the sign and the
+  line under the pointer never disagree; the simulation decides what is
+  asked and the display only names it.
+- **Screens.** The cubicle landscape's partitions are grey-blue slabs lower
+  than a person, so everybody behind them stays in view.
+- **The annoyed shake.** Somebody nudged three times quickly shakes fast from
+  side to side on the spot, bigger than the tremble of the frozen, for a
+  couple of seconds (the owner's rule, 2026-09-27: "a faster shaking that
+  passes after a few seconds"); the annoyance itself lasts longer.
+- **A socket about to go crackles.** For the five seconds before the Director
+  pops a socket or the fuse box, it spits little showers of bright sparks,
+  faster as the moment nears, with a ring on the floor for the crackle.
+
+What the hand added to the picture (2026-09-29):
+
+- **The person in your hand** wears the same gold ring at their feet as a
+  held place, leans into the hand that has them, and, tearing free, shakes
+  fast with a twist of the shoulders for a couple of seconds under a red
+  "get off!" and the `!` of somebody just let go of.
+- **A creaking stack sways**, a few degrees about its base and more as the
+  fall nears, with a ring for the creak and a sign "it's going!" beside it.
+- **The building's turn on the crowd is a banner**, a dark purple band across
+  the top for four seconds in the alarm's place: THE BUILDING TURNS ON THE
+  CROWD. Everything else the Director does is signed where it happens, so
+  missing it is a real outcome, as the vision wants.
+- **The par on the strip and the margin on the end card**: "Left alone: 4
+  would live" beside the score once the background round has its answer,
+  and at the end the margin in green or red, three or four lines of why, and
+  the best margin remembered beside the best share.
+
 Concept art goes under `docs/reference/`, and the
 [model pipeline](model-pipeline.md), in use since 2026-09-26, turns a
 description or a picture into a mesh. Its first model is the wet-floor sign;
@@ -138,6 +299,13 @@ the game still draws capsules and blocks until a later stone puts models on
 screen.
 
 ## Walls and what they hide
+
+**Walls are drawn as thick as they are** (2026-09-30): 20 cm, the one number
+the physics engine, the walkable map and the drawing share
+(`WorldSettings.WallThicknessMillimetres`). Until then the picture of a wall was
+40 cm thick over a 4 cm slab, so a chair or a box shoved against a real wall was
+drawn sunk 18 cm into the drawn one (the owner: "objects like chairs often clip
+inside walls"). Now a thing against a wall touches its face.
 
 **Today:** people and loose objects behind a wall show through it as pale blue
 silhouettes, and the silhouette paints only where a wall or door actually hides

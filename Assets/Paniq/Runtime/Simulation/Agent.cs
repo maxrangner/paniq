@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// One person's runtime state, split by concern so it is clear which
@@ -50,19 +50,6 @@
         public AgentParticipation Participation;
         public AgentTerminalOutcome Outcome;
 
-        /// <summary>
-        /// Whether this person's death has already dealt the player their card.
-        /// Kept per person rather than as a running total, so the deal happens
-        /// exactly once however the death was resolved.
-        /// </summary>
-        public bool DeathDealt;
-
-        /// <summary>
-        /// The log entry for this person's death, so the card it deals the
-        /// player can point back at it.
-        /// </summary>
-        public ulong DeathEventId;
-
         public AgentTraitValues Traits;
 
         public readonly AgentBody Body = new AgentBody();
@@ -74,14 +61,19 @@
         public readonly AgentKnowledge Knowledge;
         public readonly AgentBurning Burning = new AgentBurning();
         public readonly AgentCarry Carry = new AgentCarry();
+        public readonly AgentKeycard Keycard = new AgentKeycard();
         public readonly AgentHelp Help = new AgentHelp();
         public readonly AgentSitting Sitting = new AgentSitting();
         public readonly AgentLeading Leading = new AgentLeading();
         public readonly AgentAlarm Alarm = new AgentAlarm();
-        public readonly AgentGroup Group = new AgentGroup();
         public readonly AgentBarricade Barricade = new AgentBarricade();
         public readonly AgentHome Home = new AgentHome();
         public readonly AgentErrand Errand = new AgentErrand();
+        public readonly AgentNudge Nudge = new AgentNudge();
+        public readonly AgentTug Tug = new AgentTug();
+
+        /// <summary>The player's hand as this person holds it (2026-09-30): their goal and their conviction.</summary>
+        public readonly AgentHand Hand = new AgentHand();
 
         public bool IsParticipating => Participation == AgentParticipation.Participating;
 
@@ -132,33 +124,10 @@
         }
 
         /// <summary>On their way to something in particular, rather than standing about or milling around.</summary>
-        public bool IsOnAnErrand
-        {
-            get
-            {
-                switch (Intent.Activity)
-                {
-                    case AgentActivityState.FetchingExtinguisher:
-                    case AgentActivityState.Spraying:
-                    case AgentActivityState.GoingToSit:
-                    case AgentActivityState.FetchingItem:
-                    case AgentActivityState.CarryingItem:
-                    case AgentActivityState.ShakingAwake:
-                    case AgentActivityState.Grabbing:
-                    case AgentActivityState.Dragging:
-                    case AgentActivityState.GoingToAlarm:
-                    case AgentActivityState.FetchingBarricade:
-                    case AgentActivityState.CarryingBarricade:
-                    case AgentActivityState.Following:
-                    case AgentActivityState.RunningAnErrand:
-                        return true;
-                    default:
-                        return false;
-                }
-            }
-        }
+        public bool IsOnAnErrand => Tasks.IsOnTheWay(Intent.Activity);
 
-        public AgentSnapshot ToSnapshot()
+        public AgentSnapshot ToSnapshot(int tick, bool actingForTheHand = false, bool actingAgainstTheirNature = false,
+            bool committedToTheHand = false, HandAsk handAsk = HandAsk.None)
         {
             return new AgentSnapshot(
                 Id,
@@ -180,7 +149,18 @@
                 Leading.LedCount > 0,
                 Body.Pose,
                 Sitting.SeatedPercent,
-                Group.GroupId);
+                tick < Nudge.AnnoyedUntilTick,
+                Fear.IsRattledAt(tick),
+                Tug.Held,
+                tick < Tug.ShookFreeShownUntilTick,
+                actingForTheHand,
+                actingAgainstTheirNature,
+                Intent.Tell,
+                TellSystem.ProgressOf(this, tick),
+                Intent.TellHeading,
+                committedToTheHand,
+                handAsk,
+                Intent.Activity == AgentActivityState.HeavingForTheHand && Intent.HeavingUntilTick > 0);
         }
     }
 
@@ -281,6 +261,32 @@
         public int FreezeEndTick;
         public ulong FrozeEventId;
         public int NextShoutTick;
+
+        // Calming down (prototype 3, 2026-09-26; see FearSystem.Settle).
+
+        /// <summary>The last tick anything frightening was going on around them: in sight, in earshot, in their room.</summary>
+        public int LastFrightTick;
+
+        /// <summary>How long nothing frightening has to go on before their fear starts to drain: their own, drawn when they took fright.</summary>
+        public int QuietTicks;
+
+        /// <summary>The tick they settle on, once their fear has drained below the line; 0 while it has not.</summary>
+        public int CalmsAtTick;
+
+        /// <summary>Until this tick they are rattled: calm, but a thud or a bang frightens them outright.</summary>
+        public int RattledUntilTick;
+
+        /// <summary>Whether they saw the danger this time, rather than only heard about it: seeing it rattles them for longer.</summary>
+        public bool SawTheThreat;
+
+        /// <summary>
+        /// The crowd switch told them to calm down (2026-10-01): they settle
+        /// on <see cref="CalmsAtTick"/> whatever the calming rules say, as
+        /// soon as they are free to. Cleared once they have.
+        /// </summary>
+        public bool CalmOrdered;
+
+        public bool IsRattledAt(int tick) => tick < RattledUntilTick;
     }
 
     internal sealed class AgentIntent
@@ -297,6 +303,14 @@
         public int SwerveEndTick;
         public int NextPanicDecisionTick;
 
+        /// <summary>
+        /// When they next weigh what else they might take up (2026-10-03, the
+        /// one task model): the chooser asks every option only then, and
+        /// whatever is under way carries on every tick in between. Brought
+        /// forward by anything that gives them a reason to think again.
+        /// </summary>
+        public int NextChoiceTick;
+
         /// <summary>When they may next heave a table out of their way; heaving one costs a moment.</summary>
         public int NextTableHeaveTick;
 
@@ -310,6 +324,44 @@
         /// the crowd, no starting to wedge themselves in.
         /// </summary>
         public bool SetOnAWayOut;
+
+        /// <summary>
+        /// Their tell, if they are winding up to something dangerous
+        /// (2026-09-30; <see cref="TellSystem"/>): what, from when to when,
+        /// which way they face, what it is about, and a catch by the player
+        /// taking hold at <see cref="TellCaughtAtTick"/> (0 for none).
+        /// </summary>
+        public AgentTell Tell;
+        public int TellStartTick;
+        public int TellEndTick;
+        public int TellHeading;
+        public int TellTarget = -1;
+        public int TellCaughtAtTick;
+        public ulong TellCauseEventId;
+
+        /// <summary>A tell that has just run its course uncaught, and what it was about: the commit that follows uses it up.</summary>
+        public AgentTell TellPassed;
+        public int TellPassedTarget = -1;
+
+        /// <summary>Caught turning back toward the flames: they will not head back until this tick.</summary>
+        public int TurnBackRefusedUntilTick;
+
+
+        /// <summary>
+        /// When they next strain at a held box for the hand, and when the
+        /// straining is done (2026-09-30): the weak take a while, visibly.
+        /// </summary>
+        public int HeavingUntilTick;
+        public int HeavingThing = -1;
+
+        /// <summary>
+        /// Ticks in a row they have been running at something and creeping
+        /// along it rather than moving (2026-09-29): pressed against a crate
+        /// wall, the body slides a few millimetres a tick, which the blocked
+        /// count never sees. Where they stood last tick, to tell.
+        /// </summary>
+        public int PressedTicks;
+        public LogicalPosition LastTickPosition;
     }
 
     /// <summary>
@@ -353,6 +405,16 @@
         public int LastLookedTick;
 
         public void ClearPending() => PendingCount = 0;
+
+        /// <summary>
+        /// A noise heard and not yet turned to (2026-10-03, the owner's rule,
+        /// the audit's E2): what it interrupts, and the look itself, wait for
+        /// <see cref="LookFromTick"/>, their own reaction tick, and happen in
+        /// their own turn. Before, a noise changed what somebody was doing on
+        /// the tick it was made; only the head turned late.
+        /// </summary>
+        public bool LookPending;
+        public int LookFromTick;
     }
 
     /// <summary>One noise waiting to be looked at.</summary>
@@ -371,12 +433,22 @@
         public AgentDoorMemory(int doorCount)
         {
             AvoidUntilTick = new int[doorCount];
+            HotUntilTick = new int[doorCount];
             FoundShut = new bool[doorCount];
             ShutByThem = new bool[doorCount];
         }
 
         /// <summary>The door being run for, or -1.</summary>
         public int ExitDoorIndex = -1;
+
+        /// <summary>
+        /// A frightened walk somewhere in particular (<see cref="FrightenedWalk"/>,
+        /// 2026-09-27): the door on the way being made for, or -1; the room
+        /// it was chosen from; and, with a hand on a shut door, when it opens.
+        /// </summary>
+        public int WalkDoor = -1;
+        public int WalkFromRoom = -1;
+        public int WalkUntilTick;
 
         /// <summary>
         /// The way out at the far end of the current route -- not necessarily
@@ -407,6 +479,30 @@
         /// <summary>The door they last gave up as too hot to reach, or -1: so the giving up is written down once, not every decision.</summary>
         public int HidFromHeatAtDoor = -1;
 
+        /// <summary>
+        /// The doorway they are dashing for, kept after the dash's own
+        /// seconds so the dash runs on while the floor ahead is walkable
+        /// (2026-10-03, <see cref="ExitSettings.HeatChoicesStick"/>), or -1.
+        /// </summary>
+        public int DashDoor = -1;
+
+        /// <summary>
+        /// The door the hand took them through, and until when they are loath
+        /// to turn back through it (2026-10-03,
+        /// <see cref="InfluenceSettings.FrightenedGoThroughAHeldDoor"/>); -1
+        /// for none.
+        /// </summary>
+        public int GoOnFromDoor = -1;
+        public int GoOnUntilTick;
+
+        /// <summary>
+        /// Per door: until when they count it as too hot to go through
+        /// (2026-10-03, <see cref="ExitSettings.HeatChoicesStick"/>). Kept
+        /// apart from <see cref="AvoidUntilTick"/>, which a door opening wipes
+        /// and a crush also writes.
+        /// </summary>
+        public readonly int[] HotUntilTick;
+
         /// <summary>The doorway the press is carrying them through while they are down, or -1: so it is written down once per fall.</summary>
         public int CarriedThroughDoor = -1;
 
@@ -415,6 +511,9 @@
 
         /// <summary>The room they were in last tick, or -1; a change is the moment to think about the door behind them.</summary>
         public int CurrentRoom = -1;
+
+        /// <summary>The room they were in before the one they are in now, or -1: influence never pulls them straight back through the door they came in by.</summary>
+        public int PreviousRoom = -1;
 
         /// <summary>
         /// A doorway this person may walk through that is not a way out they
@@ -446,6 +545,10 @@
 
         /// <summary>Until this tick they stand aside beside their open door, letting whoever is lined up with it through first.</summary>
         public int GiveWayUntilTick;
+
+        /// <summary>The heaped doorway somebody strong is having a go at, and the tick they give it up at.</summary>
+        public int HeapDoor = -1;
+        public int GiveUpOnTheHeapTick;
 
         public ulong AttemptEventId;
         public int NextShoveTick;
@@ -558,6 +661,15 @@
         /// <summary>The shout that set them on, so what follows can name its cause.</summary>
         public ulong OrderEventId;
 
+        /// <summary>
+        /// A door a leader has just sent them at, or -1, taken up in their own
+        /// turn from <see cref="OfferedFromTick"/> (2026-10-03): an order is
+        /// an offer, never a hold, and nobody reacts on the tick it is shouted.
+        /// </summary>
+        public int OfferedDoor = -1;
+        public int OfferedFromTick;
+        public ulong OfferEventId;
+
         /// <summary>How many people are following this person at the moment (presentation only).</summary>
         public int LedCount;
     }
@@ -575,22 +687,6 @@
     {
         /// <summary>The fire alarm they are walking over to hit, or -1.</summary>
         public int AlarmIndex = -1;
-    }
-
-    /// <summary>Bound by a "Stick together" throw (see <see cref="GroupSystem"/>).</summary>
-    internal sealed class AgentGroup
-    {
-        /// <summary>The group they belong to, or -1.</summary>
-        public int GroupId = -1;
-
-        /// <summary>The throw that bound them, so what they learn from the others names it.</summary>
-        public ulong CauseEventId;
-
-        /// <summary>When the pull toward the others begins: a few ticks after the throw, like every reaction.</summary>
-        public int FromTick;
-
-        /// <summary>When they next compare notes on the way out with the others.</summary>
-        public int NextShareTick;
     }
 
     /// <summary>
@@ -612,6 +708,116 @@
         /// where they sat, so nothing shoves them backwards out of it.
         /// </summary>
         LeapingUp
+    }
+
+    /// <summary>
+    /// Being nudged by the player (prototype 3, 2026-09-25; see
+    /// <see cref="NudgeSystem"/>): how many nudges in a row, when the last one
+    /// was, and when the reaction to it is due.
+    /// </summary>
+    internal sealed class AgentNudge
+    {
+        /// <summary>Nudges close enough together to count as one bout of it.</summary>
+        public int CountInARow;
+
+        /// <summary>The tick of the last nudge, so a nudge long after the last starts the count again.</summary>
+        public int LastNudgeTick = int.MinValue / 2;
+
+        /// <summary>When they look round for whoever did it, or 0 when nothing is due.</summary>
+        public int ReactAtTick;
+
+        /// <summary>The nudge the reaction names as its cause.</summary>
+        public ulong NudgeEventId;
+
+        /// <summary>
+        /// Until this tick they are annoyed: shaking with it, and further
+        /// nudges do nothing to them (the owner's rule, 2026-09-26).
+        /// </summary>
+        public int AnnoyedUntilTick;
+    }
+
+    /// <summary>
+    /// The player's hand on this person (2026-09-29; see <see cref="TugSystem"/>):
+    /// whether they are held, since when, when the strong tear free, and
+    /// how long the shake of tearing free is drawn.
+    /// </summary>
+    /// <summary>
+    /// The player's hand as this person holds it (2026-09-30, the fourth
+    /// pass; see <see cref="InfluenceSystem"/>): the press whose ask is their
+    /// goal, their own copy of the place, and the conviction that decides
+    /// whether they set about it, keep it once the hand comes off, and how
+    /// long. Where the scattered press ids on <see cref="AgentIntent"/> used
+    /// to live (answering, gave up on, noticed, rethought for), with the
+    /// never-again markers gone: a give-up is a cost and a beat, not a ban.
+    /// </summary>
+    internal sealed class AgentHand
+    {
+        /// <summary>The press whose ask is their goal, or 0 for none.</summary>
+        public ulong Press;
+
+        /// <summary>Their copy of the place: refreshed every tick they feel the live press, kept as it last was after that.</summary>
+        public InfluenceSystem.Place Goal;
+
+        /// <summary>The hand has come off, or gone elsewhere, and they keep the goal: it fades on their own beat.</summary>
+        public bool Committed;
+
+        /// <summary>
+        /// How much the hand holds them, per mille: grows every tick they feel
+        /// the live press by what they feel, is kept when it comes off past
+        /// <see cref="InfluenceSettings.CommitFromPerMille"/>, fades once
+        /// committed, and is cut by a give-up. The one number everything the
+        /// hand asks of them reads.
+        /// </summary>
+        public int Conviction;
+
+        /// <summary>They have set about the goal: the gold hand over them.</summary>
+        public bool Acting;
+
+        /// <summary>What they are doing for the hand is against their nature: the drawing trembles them.</summary>
+        public bool AgainstTheirNature;
+
+        /// <summary>They got up, or left an errand, for the hand: what they choose next is to go to it.</summary>
+        public bool GotUpForIt;
+
+        /// <summary>The press "drawn by" was written for, so it is written once a press.</summary>
+        public ulong AnsweredPress;
+
+        /// <summary>The ask they last said they took up for that press, so each is said once (2026-10-02).</summary>
+        public HandAsk SaidAsk;
+
+        /// <summary>A push they have already walked away from, so one push sends them off once.</summary>
+        public ulong PushedByPress;
+
+        /// <summary>A press on a door they have already thought again about, so it brings their next choice forward once.</summary>
+        public ulong RethoughtForPress;
+
+        /// <summary>The press whose ask they have done and gone on from (2026-10-03): it is not answered again.</summary>
+        public ulong DoneWithPress;
+
+        /// <summary>After a give-up: not asked again before this tick.</summary>
+        public int RetryFromTick;
+
+        /// <summary>The press they have taken in, and the tick they react to it on (nobody on the tick it lands, no two on the same tick).</summary>
+        public ulong NoticedPress;
+        public int NoticedAtTick;
+    }
+
+    internal sealed class AgentTug
+    {
+        /// <summary>The hand is on them: they are being braked to a stop and held there.</summary>
+        public bool Held;
+
+        /// <summary>The tick the hand went on.</summary>
+        public int HeldSinceTick;
+
+        /// <summary>The tick they tear free, or 0 for somebody who never will.</summary>
+        public int TearsFreeAtTick;
+
+        /// <summary>The tug, for what follows to name as its cause.</summary>
+        public ulong TugEventId;
+
+        /// <summary>Until this tick the shake of tearing free is shown (presentation only).</summary>
+        public int ShookFreeShownUntilTick;
     }
 
     internal sealed class AgentSitting
@@ -687,13 +893,6 @@
         public bool Exists => Chair >= 0 || HasSpot;
 
         /// <summary>
-        /// When they next need the toilet, or 0 before their first is drawn.
-        /// Kept here with the rest of what is theirs about the building's
-        /// day, rather than on the errand, which is cleared.
-        /// </summary>
-        public int NextToiletTick;
-
-        /// <summary>
         /// When they may next take up home time, after giving up on it (a
         /// locked way out, no route): home time stands until they are out.
         /// </summary>
@@ -717,6 +916,9 @@
 
         /// <summary>Stood at a door that will not open, waiting for it to.</summary>
         WaitingAtTheDoor,
+
+        /// <summary>Lifting or heaving whatever is wedged in the door out of its way (2026-09-27); <see cref="AgentErrand.Stage"/> says which part.</summary>
+        ClearingTheDoor,
 
         /// <summary>Stood still for a while.</summary>
         Standing,
@@ -803,6 +1005,23 @@
         /// <summary>A moment's wait after which the current step is begun again rather than the next one (a chair still sliding).</summary>
         public bool RetryStep;
 
+        /// <summary>The thing wedged in the door they are clearing, or -1.</summary>
+        public int Thing = -1;
+
+        /// <summary>Which part of clearing the door they are at: 1 walking to the thing, 2 picking it up, 3 setting it aside, 4 heaving it.</summary>
+        public int Stage;
+
+        /// <summary>Whether this errand has already had its one go at clearing a jammed door.</summary>
+        public bool ClearedADoor;
+
+        /// <summary>
+        /// For a door the player's hand sent them to (2026-09-30): whether the
+        /// hand wants it open (it was shut at the press) or shut (it was open).
+        /// Kept on the errand, so the job is finished even after a click's
+        /// beacon has come off.
+        /// </summary>
+        public bool HandWantsItOpen;
+
         /// <summary>How many times the current step has been begun again.</summary>
         public int Tries;
 
@@ -860,6 +1079,10 @@
             ArriveWithin = 0;
             RetryStep = false;
             Tries = 0;
+            Thing = -1;
+            Stage = 0;
+            ClearedADoor = false;
+            HandWantsItOpen = false;
             Origin = default;
             CauseEventId = 0UL;
             NextRemarkTick = 0;
@@ -878,6 +1101,8 @@
             Destination = default;
             ArriveWithin = 0;
             RetryStep = false;
+            Thing = -1;
+            Stage = 0;
             NextRemarkTick = 0;
             OpenedDoor = -1;
             OpenedFromSide = 0;
@@ -913,6 +1138,38 @@
         public int StuckTicks;
     }
 
+    /// <summary>
+    /// The keycard (2026-09-27): whether this person has it in their pocket,
+    /// and where they believe it is. Belief is what they last saw, a beat
+    /// after they saw it; staff begin the round knowing where it started,
+    /// visitors knowing nothing. See <see cref="KeycardSystem"/>.
+    /// </summary>
+    internal sealed class AgentKeycard
+    {
+        /// <summary>The card (physical-object index) in their pocket, or -1.</summary>
+        public int Held = -1;
+
+        /// <summary>Whether they believe they know where the card is.</summary>
+        public bool Knows;
+
+        /// <summary>What they believe: in somebody's pocket (<see cref="Holder"/>), or lying at <see cref="Place"/>.</summary>
+        public bool WithSomebody;
+        public int Holder = -1;
+        public LogicalPosition Place;
+
+        /// <summary>
+        /// A sighting not yet taken in: it becomes what they believe at
+        /// <see cref="PendingUntilTick"/>, a reaction lag after they saw it,
+        /// so nobody learns a thing on the tick it happens.
+        /// </summary>
+        public bool Pending;
+        public bool PendingWithSomebody;
+        public int PendingHolder = -1;
+        public LogicalPosition PendingPlace;
+        public int PendingUntilTick;
+
+    }
+
     internal sealed class AgentCarry
     {
         /// <summary>The item (physical-object index) being fetched or carried, or -1.</summary>
@@ -929,12 +1186,27 @@
         public bool OwnsIt;
 
         /// <summary>
-        /// Until this tick, they have an extinguisher in mind: somebody put one
-        /// down in front of them and they have seen it. While it lasts they
-        /// need less nerve than usual to go and take it, which is what makes
-        /// the player's card feel like an offer rather than scenery.
+        /// Fetching it to keep hold of, not to tidy away (2026-09-27): a
+        /// bottle taken off its wall because the player pointed at it. Once
+        /// it is in their hands it is theirs (<see cref="OwnsIt"/>).
         /// </summary>
-        public int SawAnExtinguisherUntilTick;
+        public bool KeepIt;
+
+        /// <summary>
+        /// The bottle was taken for the player's hand (2026-09-30): once the
+        /// fright comes they keep it and go at the flames with it whatever
+        /// their nerve, trembling if they have none (the owner: "a cowardly
+        /// agent should pick up the fire extinguisher"). Lasts while they hold
+        /// it, so the hand can move to the fire and they follow.
+        /// </summary>
+        public bool ForTheHand;
+
+        /// <summary>
+        /// Fetching it to pocket (2026-09-27): the keycard, because the
+        /// player pointed at it. It never reaches their arms; on pick-up it
+        /// goes to <see cref="AgentKeycard.Held"/> and the arms stay free.
+        /// </summary>
+        public bool Pocket;
 
         /// <summary>
         /// A random phase, drawn once when spraying starts, so the jet's sweep

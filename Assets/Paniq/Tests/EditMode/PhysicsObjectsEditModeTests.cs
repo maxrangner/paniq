@@ -40,6 +40,7 @@ namespace Paniq.Tests.EditMode
                 new AgentDefinition(new SimulationId(1UL), new LogicalPosition(0, 0), CardinalDirection.North)
             };
             data.PhysicsObjects = new[] { Box(3001UL, boxX, 0, size, massGrams) };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = int.MaxValue;
             return data;
         }
@@ -206,10 +207,12 @@ namespace Paniq.Tests.EditMode
                 highestX = Math.Max(highestX, simulation.GetPhysicsObject(0).Position.X);
             }
 
-            // Square on, its middle stops half its width from the wall; spun by
-            // an earlier bounce it can meet the wall corner first, as much as
-            // half its diagonal (283 mm) away.
-            Assert.That(highestX, Is.InRange(data.Rooms[0].Bounds.MaxX - 290, data.Rooms[0].Bounds.MaxX - 200),
+            // Square on, its middle stops half its width from the wall's face,
+            // which stands half the wall's thickness in from the wall line;
+            // spun by an earlier bounce it can meet the face corner first, as
+            // much as half its diagonal (283 mm) away.
+            int face = data.Rooms[0].Bounds.MaxX - data.World.WallThicknessMillimetres / 2;
+            Assert.That(highestX, Is.InRange(face - 290, face - 200),
                 "The box should have reached the east wall.");
 
             Assert.That(simulation.GetPhysicsObject(0).Position.X, Is.LessThan(highestX), "The box did not bounce off the wall.");
@@ -344,15 +347,64 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData overlapping = DefaultData();
             overlapping.PhysicsObjects = new[] { Box(9001UL, -2000, 2000, 400, 5000), Box(9002UL, -1800, 2000, 400, 5000) };
+            overlapping.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             Assert.Throws<InvalidOperationException>(() => overlapping.Validate());
 
             ScenarioData onAPerson = DefaultData();
             onAPerson.PhysicsObjects = new[] { Box(9001UL, 0, -5000, 400, 5000) };
+            onAPerson.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             Assert.Throws<InvalidOperationException>(() => onAPerson.Validate());
 
             ScenarioData outside = DefaultData();
             outside.PhysicsObjects = new[] { Box(9001UL, 5900, 0, 400, 5000) };
+            outside.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             Assert.Throws<InvalidOperationException>(() => outside.Validate());
+        }
+
+        /// <summary>
+        /// The walls are as thick to the physics as they are drawn
+        /// (2026-09-30; the owner: "objects like chairs often clip inside
+        /// walls"). Nothing authored against a wall starts inside it, and
+        /// nothing is shoved more than a finger's width into one over the
+        /// first five seconds of the office's day, on ten seeds.
+        /// </summary>
+        [Test]
+        public void NothingAuthored_StartsInsideAWall_OrIsShovedIntoOne_OnTenSeeds()
+        {
+            const int fingerMillimetres = 20;
+            var sunk = new List<string>();
+            for (ulong seed = 40UL; seed <= 49UL; seed++)
+            {
+                ScenarioData data = scenario.ToRuntimeData();
+                using (var simulation = new Run(data, seed))
+                {
+                    for (int tick = 0; tick < 250; tick++)
+                    {
+                        simulation.Step();
+                        if (tick % 5 != 0)
+                        {
+                            continue;
+                        }
+
+                        for (int i = 0; i < simulation.PhysicsObjectCount; i++)
+                        {
+                            PhysicsObjectSnapshot thing = simulation.GetPhysicsObject(i);
+                            if (thing.Dormant || thing.IsHeld)
+                            {
+                                continue;
+                            }
+
+                            int depth = simulation.WallPenetrationForTests(i);
+                            if (depth > fingerMillimetres)
+                            {
+                                sunk.Add($"seed {seed}, tick {tick}: {thing.Kind} {thing.ObjectId.Value} at {thing.Position} is {depth} mm into a wall");
+                            }
+                        }
+                    }
+                }
+            }
+
+            Assert.That(sunk, Is.Empty, string.Join("; ", sunk));
         }
     }
 }

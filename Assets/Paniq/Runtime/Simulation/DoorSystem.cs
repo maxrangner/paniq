@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -17,6 +17,17 @@ namespace Paniq.Simulation
 
         /// <summary>Shoving damage taken so far; the door breaks at the scenario's door strength.</summary>
         public int Damage;
+
+        /// <summary>
+        /// A card door only (2026-09-30): pounding time taken under the
+        /// player's hand, in person-ticks up to <see cref="ExitSettings.CardDoorPoundersCounted"/>
+        /// a tick, and how many are at it this tick. It gives at
+        /// <see cref="ExitSettings.CardDoorPoundTicks"/>.
+        /// </summary>
+        public int HandPound;
+        public int Pounders;
+        public int LastPounder = -1;
+        public ulong LastPoundEventId;
 
         /// <summary>
         /// Ticks this door has stood with flames against it. A shut door used
@@ -72,6 +83,21 @@ namespace Paniq.Simulation
         /// that a swing door is propped and the fire may come through.
         /// </summary>
         public bool Obstructed;
+
+        /// <summary>
+        /// An archway with the tower of boxes lying across it (see
+        /// <see cref="TrapSystem"/>): shut, though it has no leaf, for people
+        /// and fire alike, until enough of the boxes are gone.
+        /// </summary>
+        public bool Piled;
+
+        /// <summary>
+        /// A card door (2026-09-27): only the keycard opens it. Nobody
+        /// batters it, the fire does not burn through it and the player's key
+        /// does not fit; whoever has the card swipes it, and the flag comes
+        /// off for good. See <see cref="KeycardSystem"/>.
+        /// </summary>
+        public bool NeedsKeycard;
     }
 
     /// <summary>
@@ -190,6 +216,9 @@ namespace Paniq.Simulation
         /// <summary>A ragged gap blasted through a wall: there is no leaf to swing, pull at or shoulder.</summary>
         public bool IsHole(int door) => doors[door].IsHole;
 
+        /// <summary>A pair of swing doors: always open as far as the rules go, and nothing to shut.</summary>
+        public bool Swings(int door) => doors[door].Swings;
+
         /// <summary>
         /// Doors in ascending ID order. The ones leading out of the building
         /// start locked (they are the player's to unlock); inside doors start
@@ -224,7 +253,11 @@ namespace Paniq.Simulation
                     Swings = definitions[i].Swings,
                     State = definitions[i].IsOpening || definitions[i].Swings
                         ? definitions[i].IsOpening ? DoorState.Broken : DoorState.Open
-                        : definitions[i].StartsLocked ? DoorState.Locked : DoorState.Unlocked
+                        : definitions[i].StartsLocked ? DoorState.Locked : DoorState.Unlocked,
+
+                    // A card door (2026-09-27), unless the level has no
+                    // keycard, in which case it is the plain locked door it was.
+                    NeedsKeycard = scenario.Keycard.Enabled && definitions[i].NeedsKeycard
                 };
             }
 
@@ -318,6 +351,52 @@ namespace Paniq.Simulation
 
         public DoorState StateOf(int door) => doors[door].State;
 
+        /// <summary>Whether the tower of boxes is lying across this doorway.</summary>
+        public bool IsPiled(int door) => doors[door].Piled;
+
+        /// <summary>
+        /// Whether a person can simply push this door open: shut but not
+        /// locked, nothing wedged in it, no heap of boxes
+        /// across it. The one question every person at a door asks first.
+        /// </summary>
+        public bool CanBePushedOpen(int door)
+        {
+            DoorRuntime d = doors[door];
+            return d.State == DoorState.Unlocked && !IsObstructed(door) && !d.Piled;
+        }
+
+        /// <summary>
+        /// The tower of boxes has come down across this archway (see
+        /// <see cref="TrapSystem"/>): it is shut now, for people and fire,
+        /// though it still has no leaf. Its plug appears with the next
+        /// physics step, as for any door that shuts.
+        /// </summary>
+        public void PileInto(int door)
+        {
+            DoorRuntime d = doors[door];
+            d.Piled = true;
+            d.State = DoorState.Unlocked;
+            d.OpenSide = 0;
+        }
+
+        /// <summary>
+        /// Enough of the boxes are gone: the archway is an archway again,
+        /// open for good. The fire beside it is told, as beside any door
+        /// that has just opened.
+        /// </summary>
+        public void ClearPile(int door)
+        {
+            DoorRuntime d = doors[door];
+            if (!d.Piled)
+            {
+                return;
+            }
+
+            d.Piled = false;
+            d.State = DoorState.Broken;
+            RecordOpening(door);
+        }
+
         /// <summary>
         /// One number that changes whenever any door does: state, damage or
         /// scorch. The end of a round reads it to tell a building where
@@ -331,11 +410,39 @@ namespace Paniq.Simulation
                 for (int door = 0; door < Count; door++)
                 {
                     DoorRuntime d = doors[door];
-                    signature = signature * 31L + (int)d.State + d.Damage + d.Scorch;
+                    signature = signature * 31L + (int)d.State + d.Damage + d.Scorch + (d.Piled ? 11 : 0) +
+                                (d.NeedsKeycard ? 13 : 0);
                 }
 
                 return signature;
             }
+        }
+
+        /// <summary>
+        /// Somebody strong heaves whatever is wedged in this doorway out
+        /// along the wall, away from the end they stand nearer: a frightened
+        /// runner at a way out, or (2026-09-27) somebody calm on an errand
+        /// who cannot lift it. Nothing happens when nothing is wedged.
+        /// </summary>
+        public void HeaveObstructionClear(Agent agent, int door, ulong causeEventId, bool forTheHand = false)
+        {
+            int thing = ObstructionIn(door);
+            if (thing < 0)
+            {
+                return;
+            }
+
+            BlockadeSettings blockades = context.Scenario.Blockades;
+            long offset = geometry.AlongOffset(door, agent.Body.Position);
+            int side = offset < 0L ? -1 : 1;
+            int along = geometry.AlongWallHeading(door, side);
+            // For the player's hand (2026-09-30) anybody heaves it, after
+            // straining, as hard as somebody just strong enough would.
+            int strength = forTheHand
+                ? System.Math.Max(agent.Traits.Strength, blockades.ShoveMinimumStrength)
+                : agent.Traits.Strength;
+            int speed = blockades.ShoveSpeedBase + blockades.ShoveSpeedPerStrength * strength;
+            objects.ShoveAside(thing, agent, along, speed, causeEventId);
         }
 
         /// <summary>
@@ -348,6 +455,7 @@ namespace Paniq.Simulation
         public void ResolveBlockages()
         {
             int gap = context.Scenario.Blockades.BlockGapMillimetres;
+            int smallest = context.Scenario.Blockades.BlockMinimumRadiusMillimetres;
             for (int door = 0; door < Count; door++)
             {
                 int found = -1;
@@ -357,7 +465,8 @@ namespace Paniq.Simulation
                     for (int c = 0; c < candidates.Count; c++)
                     {
                         int i = candidates[c];
-                        if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0)
+                        if (objects.IsDormant(i) || objects.HolderOf(i) >= 0 || objects.OccupantOf(i) >= 0 ||
+                            objects.RadiusOf(i) < smallest)
                         {
                             continue;
                         }
@@ -415,8 +524,8 @@ namespace Paniq.Simulation
         /// <summary>
         /// The player's click, carried out by
         /// <see cref="PlayerCommandSystem"/> at the start of its tick. Returns
-        /// whether the door actually did anything, because a click now costs
-        /// influence and a door that will not budge must not be charged for.
+        /// whether the door actually did anything, because a click can cost
+        /// purse points and a door that will not budge must not be charged for.
         /// </summary>
         public bool ClickDoor(int door)
         {
@@ -424,6 +533,12 @@ namespace Paniq.Simulation
             switch (d.State)
             {
                 case DoorState.Locked:
+                    if (d.NeedsKeycard)
+                    {
+                        // A card door: the player has no key to it.
+                        return false;
+                    }
+
                     UnlockByPlayer(door);
                     return true;
                 case DoorState.Unlocked:
@@ -450,12 +565,19 @@ namespace Paniq.Simulation
             DoorRuntime d = doors[door];
             if (d.IsHole || d.Swings)
             {
+                // Nothing to turn a key in.
                 return false;
             }
 
             switch (d.State)
             {
                 case DoorState.Locked:
+                    if (d.NeedsKeycard)
+                    {
+                        // A card door: the player has no key to it.
+                        return false;
+                    }
+
                     UnlockByPlayer(door);
                     return true;
                 case DoorState.Unlocked:
@@ -483,6 +605,32 @@ namespace Paniq.Simulation
                 context.Tick, d.Id, CausalEventType.DoorUnlocked, geometry.DoorCentre(door)).EventId;
         }
 
+        /// <summary>Whether this door still wants the keycard: locked, and only the card opens it.</summary>
+        public bool NeedsKeycard(int door) => doors[door].NeedsKeycard;
+
+        /// <summary>
+        /// Somebody with the keycard reached a card door and swiped it
+        /// (2026-09-27): unlocked, and an ordinary door from now on -- the
+        /// owner's rule, "the door stays unlocked for good". The caller then
+        /// opens it as anybody opens an unlocked door, so the opening wakes
+        /// everybody who had given the way out up, as the player's unlock
+        /// does. Returns the event, or 0 when the door did not need a card.
+        /// </summary>
+        public ulong SwipeKeycard(int door, Agent holder, ulong causeEventId)
+        {
+            DoorRuntime d = doors[door];
+            if (!d.NeedsKeycard || d.State != DoorState.Locked)
+            {
+                return 0UL;
+            }
+
+            d.NeedsKeycard = false;
+            d.State = DoorState.Unlocked;
+            d.UnlockedEventId = context.Events.Append(context.Tick, holder.Id, CausalEventType.DoorUnlockedWithKeycard,
+                geometry.DoorCentre(door), 0, 0, causeEventId, d.Id).EventId;
+            return d.UnlockedEventId;
+        }
+
         /// <summary>The player locks a shut door: a root event, with the door as both its source and its target.</summary>
         private void LockByPlayer(int door)
         {
@@ -492,14 +640,21 @@ namespace Paniq.Simulation
                 0, 0, 0UL, d.Id);
         }
 
-        /// <summary>True when nobody (other than <paramref name="ignore"/>) is in the way of the door swinging shut.</summary>
+        /// <summary>True when nobody (other than <paramref name="ignore"/>) and nothing is in the way of the door swinging shut.</summary>
         public bool IsDoorwayClear(int door, Agent ignore = null)
         {
-            if (IsObstructed(door))
-            {
-                return false;
-            }
+            return !IsObstructed(door) && NobodyInTheDoorway(door, ignore, thingsToo: true);
+        }
 
+        /// <summary>
+        /// True when no person (other than <paramref name="ignore"/>) is in
+        /// the gap -- and, with <paramref name="thingsToo"/>, no part of any
+        /// loose thing either. Without it, whatever lies in the gap is not
+        /// asked about: what the fallen tower asks before its boxes count as
+        /// shutting the doorway, so nobody is left inside the plug.
+        /// </summary>
+        public bool NobodyInTheDoorway(int door, Agent ignore = null, bool thingsToo = false)
+        {
             using (Crowd.Nearby near = crowd.Gather(geometry.PersonDoorwaySearchArea(door)))
             {
                 for (int c = 0; c < near.Count; c++)
@@ -516,7 +671,7 @@ namespace Paniq.Simulation
             // lying across the threshold with only their legs in the gap stops
             // the door as surely as somebody standing in it.
             int ignoreHandle = ignore != null && people != null ? people.HandleOf(ignore) : -1;
-            return physics == null || !physics.IsAnyBodyInDoorway(door, ignoreHandle);
+            return physics == null || !physics.IsAnyBodyInDoorway(door, ignoreHandle, thingsToo);
         }
 
         private PhysicsWorld physics;
@@ -579,9 +734,10 @@ namespace Paniq.Simulation
         /// <returns>Whether it opened; something wedged in the doorway stops it.</returns>
         public bool Open(int door, ulong causalParentEventId, int pushedFrom = 0)
         {
-            if (IsObstructed(door))
+            if (IsObstructed(door) || doors[door].Piled)
             {
-                // Something is wedged against it: it will not budge.
+                // Something is wedged against it, or the boxes are lying
+                // across it: it will not budge.
                 return false;
             }
 
@@ -606,11 +762,65 @@ namespace Paniq.Simulation
         /// A strong person's shove weakens the door. Returns true when this
         /// shove broke it.
         /// </summary>
+        /// <summary>
+        /// Somebody shoulders a card door for the player's hand this tick
+        /// (2026-09-30, the owner's decision: "gives after a long pounding").
+        /// Counted at <see cref="SettlePounding"/>; a card door takes no
+        /// shoving damage, and nobody pounds one without the hand.
+        /// </summary>
+        public void PoundForTheHand(int door, Agent pounder, ulong causeEventId)
+        {
+            DoorRuntime d = doors[door];
+            if (!d.NeedsKeycard || d.State == DoorState.Open || d.State == DoorState.Broken)
+            {
+                return;
+            }
+
+            d.Pounders++;
+            d.LastPounder = pounder.Index;
+            d.LastPoundEventId = causeEventId;
+        }
+
+        /// <summary>
+        /// Once a tick, after the blockages: every card door pounded this
+        /// tick takes the pounding on, up to the few shoulders a doorway
+        /// fits, and bursts once it has taken enough. Time, not blows or
+        /// strength: blows come at random moments and strength would make
+        /// the outcome depend on who happens to be there, where the owner
+        /// asked for about forty seconds.
+        /// </summary>
+        public void SettlePounding()
+        {
+            ExitSettings exits = context.Scenario.Exits;
+            for (int door = 0; door < doors.Length; door++)
+            {
+                DoorRuntime d = doors[door];
+                if (d.Pounders == 0)
+                {
+                    continue;
+                }
+
+                d.HandPound += Math.Min(d.Pounders, exits.CardDoorPoundersCounted);
+                d.Pounders = 0;
+                if (d.HandPound < exits.CardDoorPoundTicks || d.State == DoorState.Broken || d.LastPounder < 0)
+                {
+                    continue;
+                }
+
+                Break(door, crowd.All[d.LastPounder], d.LastPoundEventId);
+            }
+        }
+
+        /// <summary>For the display: how far along a card door's pounding is, in percent.</summary>
+        private int PoundPercent(DoorRuntime d) =>
+            d.NeedsKeycard ? Math.Min(100, d.HandPound * 100 / Math.Max(1, context.Scenario.Exits.CardDoorPoundTicks)) : 0;
+
         public bool Batter(int door, Agent shover, int damage, ulong shoveEventId)
         {
             DoorRuntime d = doors[door];
-            if (damage <= 0 || d.State == DoorState.Open || d.State == DoorState.Broken)
+            if (damage <= 0 || d.State == DoorState.Open || d.State == DoorState.Broken || d.NeedsKeycard)
             {
+                // Nothing to batter, or a card door, which no shoulder marks.
                 return false;
             }
 
@@ -678,10 +888,11 @@ namespace Paniq.Simulation
             {
                 DoorRuntime d = doors[door];
                 if (d.IsHole || d.State == DoorState.Broken || (d.State == DoorState.Open && !d.Swings) ||
-                    (d.Swings && d.Obstructed))
+                    (d.Swings && d.Obstructed) || d.NeedsKeycard)
                 {
                     // Nothing standing in the way for the flames to eat: an
-                    // open door, a hole, or swing doors propped open.
+                    // open door, a hole, or swing doors propped open. A card
+                    // door is a fire door (2026-09-27): it does not burn.
                     continue;
                 }
 
@@ -731,10 +942,11 @@ namespace Paniq.Simulation
         public DoorSnapshot GetSnapshot(int door)
         {
             DoorRuntime d = doors[door];
-            int damagePercent = Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength);
+            int damagePercent = Math.Max(Math.Min(100, d.Damage * 100 / context.Scenario.Exits.DoorStrength), PoundPercent(d));
             return new DoorSnapshot(d.Id, d.Side, geometry.DoorCentre(door), d.Width, d.State, damagePercent,
                 ScorchPercent(d),
-                d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door), d.Swings);
+                d.IsHole, IsObstructed(door), geometry.DoorLeadsOutside(door), d.OpenSide, IsObstructed(door), d.Swings,
+                d.Piled, d.NeedsKeycard);
         }
 
         public DoorSnapshot[] GetSnapshots()

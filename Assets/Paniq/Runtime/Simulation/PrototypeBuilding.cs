@@ -1,4 +1,4 @@
-﻿namespace Paniq.Simulation
+namespace Paniq.Simulation
 {
     /// <summary>
     /// The prototype's building, cast and clutter, written out longhand.
@@ -90,6 +90,18 @@
         public static readonly SimulationId Stockroom = new SimulationId(5014UL);
 
         /// <summary>
+        /// The cubicle landscape (2026-10-02, the owner: "a new big room, on
+        /// the other side of the T corridor, next to the exit. A large
+        /// cubicle landscape"): 12 m by 20 m of open-plan desks behind low
+        /// partitions, east of the crossbar. Three doors in its west wall --
+        /// one beside the way out, one opposite the stockroom's door at the
+        /// T's south end, one into the stockroom -- make it the second way
+        /// round when the junction is blocked, and fourteen people work in
+        /// it.
+        /// </summary>
+        public static readonly SimulationId CubicleLandscape = new SimulationId(5015UL);
+
+        /// <summary>
         /// The building. Every edge is a multiple of 250 mm, the size of a
         /// navigation square, so no square is ever half in one room and half
         /// in another.
@@ -125,8 +137,13 @@
                 new RoomDefinition(StallTwo, new LogicalBounds(9500, 11500, -500, 1000), RoomUse.Stall),
                 new RoomDefinition(StallThree, new LogicalBounds(11500, 13000, -500, 1000), RoomUse.Stall),
 
-                // The stockroom, last so every room above keeps its index.
-                new RoomDefinition(Stockroom, new LogicalBounds(6000, 16000, -6000, -500))
+                // The stockroom, after every older room so each keeps its index.
+                new RoomDefinition(Stockroom, new LogicalBounds(6000, 16000, -6000, -500)),
+
+                // The cubicle landscape (2026-10-02), east of the crossbar
+                // and of the stockroom's north end, its west wall on their
+                // east walls. Last, for the same reason.
+                new RoomDefinition(CubicleLandscape, new LogicalBounds(16000, 28000, -3000, 17000))
             };
         }
 
@@ -211,6 +228,15 @@
                     {
                         new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.TheNoise),
                         new ErrandStep(ErrandStepKind.StandFor, ErrandTarget.None, 50, 150)
+                    }),
+
+                // Drawn to a door by the player (2026-09-27): over to it,
+                // and then it is used -- opened if shut, shut if open.
+                new CueDefinition(CueKind.FollowTheInfluence, CueAudience.Self, CueHostRule.Nobody, false,
+                    new[]
+                    {
+                        new ErrandStep(ErrandStepKind.GoTo, ErrandTarget.TheInfluence),
+                        new ErrandStep(ErrandStepKind.UseTheDoor, ErrandTarget.None)
                     })
             };
         }
@@ -218,15 +244,14 @@
         /// <summary>
         /// The signs pointing the way out: three down the corridor pointing
         /// east toward the T, one in each arm of the T pointing north at the
-        /// door, and two in the stockroom -- one at its west end pointing
-        /// east along the lane, one under its door into the crossbar pointing
+        /// door, and six in the stockroom (2026-09-27): one at its west end
+        /// and one at each bend of the winding lane, pointing the way round
+        /// the crate walls, and one under its door into the crossbar pointing
         /// north. The south arm keeps its sign: somebody who has come out of
         /// the stockroom needs telling which way the door is.
         /// </summary>
         public static ExitSignDefinition[] DefaultExitSigns()
         {
-            const int North = 0;
-            const int East = 90;
             return new[]
             {
                 new ExitSignDefinition(new LogicalPosition(-3000, 8600), East),
@@ -235,7 +260,29 @@
                 new ExitSignDefinition(new LogicalPosition(14500, 11000), North),
                 new ExitSignDefinition(new LogicalPosition(14500, 4000), North),
                 new ExitSignDefinition(new LogicalPosition(7500, -3200), East),
-                new ExitSignDefinition(new LogicalPosition(14500, -1200), North)
+                new ExitSignDefinition(new LogicalPosition(8500, -2200), East),
+                new ExitSignDefinition(new LogicalPosition(10700, -2200), South),
+                new ExitSignDefinition(new LogicalPosition(10700, -5000), East),
+                new ExitSignDefinition(new LogicalPosition(14500, -3000), North),
+                new ExitSignDefinition(new LogicalPosition(14500, -1200), North),
+
+                // The cubicle landscape (2026-10-02): two up the north half
+                // of its west aisle toward the door beside the way out,
+                // three sending the inner aisles west, one at each of its
+                // two doors onto the crossbar pointing through it, and one
+                // in the crossbar for whoever comes out by the north door,
+                // pointing at the way out. A sign teaches the walk the
+                // route planner would take from where it hangs, and from
+                // the south half of the aisle that walk is out by the south
+                // door: a sign there pointing north would teach nothing.
+                new ExitSignDefinition(new LogicalPosition(17000, 9000), North),
+                new ExitSignDefinition(new LogicalPosition(17000, 13000), North),
+                new ExitSignDefinition(new LogicalPosition(16600, 500), West),
+                new ExitSignDefinition(new LogicalPosition(23200, 4700), West),
+                new ExitSignDefinition(new LogicalPosition(23200, 11300), West),
+                new ExitSignDefinition(new LogicalPosition(27100, 11300), West),
+                new ExitSignDefinition(new LogicalPosition(16600, 15500), West),
+                new ExitSignDefinition(new LogicalPosition(15500, 15800), North)
             };
         }
 
@@ -243,14 +290,32 @@
         public static readonly SimulationId FuseBox = new SimulationId(3281UL);
 
         /// <summary>
+        /// The socket in the arm that leads to the way out (2026-10-02, the
+        /// owner: the building may strike in the last stretch, "with a way
+        /// round"). It is on the arm's west wall, five and a half metres
+        /// short of the door, so the Director's counter-move can reach the
+        /// queue it is aimed at. The way round is the cubicle landscape: in
+        /// by its south door, out by the door beside the way out; and the
+        /// landscape's extinguisher stands along its north wall, seven
+        /// metres from that door, for a hand to send somebody to.
+        /// </summary>
+        public static readonly SimulationId ExitArmSocket = new SimulationId(3276UL);
+
+        /// <summary>The meeting room's three waste bins: the Director's first fire starts in one of them.</summary>
+        public static SimulationId[] MeetingRoomBins() => new[]
+        {
+            new SimulationId(3205UL), new SimulationId(3206UL), new SimulationId(3207UL)
+        };
+
+        /// <summary>
         /// The cable, run as a chain: each socket back to the one before it,
         /// and the first of them back to the fuse box in the maintenance room.
         /// Every leg follows a wall, because that is where cable goes.
         /// <para>
-        /// A socket popping lights the cable at both its ends, so the spark
-        /// travels outward along the chain whichever link it starts on -- and
-        /// the card that pops the fuse box sends it the other way, out of the
-        /// maintenance room and along the line of sockets.
+        /// The cable runs one way (2026-09-26): when the fuse box goes, the
+        /// spark races out of the maintenance room and down the chain,
+        /// setting off each socket in turn. A socket popping by itself lights
+        /// nothing, so it never climbs back up to the fuse box.
         /// </para>
         /// </summary>
         public static PowerLineDefinition[] DefaultPowerLines()
@@ -272,13 +337,40 @@
                     new LogicalPosition(5800, -5800),
                     new LogicalPosition(5800, 4000)),
 
-                // And on to the cafeteria, up the corridor and along its north
-                // wall to the bank of microwaves.
+                // And on to the cafeteria: along the corridor, up the
+                // cafeteria's east wall and along its north wall to the
+                // socket there (2026-10-02: it used to stop half way up the
+                // east wall, where the socket then was).
                 new PowerLineDefinition(new SimulationId(3272UL), new SimulationId(3273UL),
                     new LogicalPosition(5800, 4000),
                     new LogicalPosition(5800, 6200),
                     new LogicalPosition(12800, 6200),
-                    new LogicalPosition(12800, 10000))
+                    new LogicalPosition(12800, 16800),
+                    new LogicalPosition(10500, 16800)),
+
+                // Through the wall into the arm that leads to the way out,
+                // and down its west wall to the socket there (2026-10-02).
+                new PowerLineDefinition(new SimulationId(3273UL), ExitArmSocket,
+                    new LogicalPosition(10500, 16800),
+                    new LogicalPosition(13200, 16800),
+                    new LogicalPosition(13200, 11500)),
+
+                // And on (2026-10-02) across the crossbar into the cubicle
+                // landscape, down the back of its first row of screens to
+                // the socket there, then across to the socket on the far
+                // row. The Director's counter-move pops the socket where
+                // the crowd is, and only a cabled socket can be chosen.
+                new PowerLineDefinition(ExitArmSocket, new SimulationId(3274UL),
+                    new LogicalPosition(13200, 11500),
+                    new LogicalPosition(13200, 10000),
+                    new LogicalPosition(20200, 10000),
+                    new LogicalPosition(20200, 1700),
+                    new LogicalPosition(20400, 1700)),
+                new PowerLineDefinition(new SimulationId(3274UL), new SimulationId(3275UL),
+                    new LogicalPosition(20400, 1700),
+                    new LogicalPosition(20400, 4700),
+                    new LogicalPosition(26100, 4700),
+                    new LogicalPosition(26100, 8300))
             };
         }
 
@@ -295,12 +387,46 @@
         /// </summary>
         public static LogicalBounds[] DefaultFireAreas()
         {
+            // Prototype 3 (2026-09-25, the owner's rule): the fire always
+            // starts in the meeting room, anywhere in it -- the whole room
+            // less half a metre of wall margin, so a seed can put it behind
+            // the door, under the table or in a far corner. The office, the
+            // cafeteria and the bathroom used to be on this list too; the
+            // level is built around the meeting room burning first, with the
+            // tower of boxes waiting at the junction for the crowd that runs
+            // from it.
             return new[]
             {
-                new LogicalBounds(-4500, 4500, -4500, 4500),   // the open office
-                new LogicalBounds(-4500, 500, 10500, 15500),   // the meeting room
-                new LogicalBounds(3500, 11500, 10500, 15500),  // the cafeteria
-                new LogicalBounds(9500, 11500, 2500, 4500)     // the bathroom
+                new LogicalBounds(-5500, 1500, 9500, 16500)    // the meeting room
+            };
+        }
+
+        /// <summary>
+        /// The building's stacks (prototype 3, 2026-09-25): the tower of
+        /// boxes against the corridor's north wall just short of the archway
+        /// (2016) between the corridor and the crossbar, on the inside of
+        /// the turn toward the way out, and the stack of crates in the
+        /// stockroom. Each comes down only when somebody runs into it. Their
+        /// boxes are authored in <see cref="DefaultPhysicsObjects"/>.
+        /// </summary>
+        public static TrapDefinition[] DefaultTraps()
+        {
+            return new[]
+            {
+                new TrapDefinition(new SimulationId(7001UL), new SimulationId(2016UL), new[]
+                {
+                    new SimulationId(3701UL), new SimulationId(3702UL), new SimulationId(3703UL), new SimulationId(3704UL),
+                    new SimulationId(3705UL), new SimulationId(3706UL), new SimulationId(3707UL), new SimulationId(3708UL)
+                }),
+
+                // The stockroom's stack (2026-09-27): four crates standing
+                // free at the north end of the first crate wall, the corner
+                // the lane turns round. Since 2026-10-02 it comes down only
+                // when somebody runs into it, and falls the way they were
+                // going; it used to fall south across the lane the moment
+                // anybody frightened ran through the room.
+                new TrapDefinition(new SimulationId(7002UL),
+                    new[] { new SimulationId(3581UL), new SimulationId(3582UL), new SimulationId(3583UL), new SimulationId(3584UL) })
             };
         }
 
@@ -365,8 +491,19 @@
                     startsLocked: false, isOpening: true),
 
                 // The building's one way out, at the end of the north arm, as
-                // far from the maintenance room as the floor goes.
-                new DoorDefinition(new SimulationId(2008UL), Crossbar, WallSide.North, 14500, 1000)
+                // far from the maintenance room as the floor goes. A card door
+                // (2026-09-27): only the keycard opens it.
+                new DoorDefinition(new SimulationId(2008UL), Crossbar, WallSide.North, 14500, 1000, needsKeycard: true),
+
+                // The cubicle landscape's three doors (2026-10-02), all in
+                // its west wall: onto the crossbar a metre and a half short
+                // of the way out; onto the crossbar's south end, opposite
+                // the stockroom's door; and into the stockroom's east lane.
+                // With the junction blocked the office goes stockroom,
+                // cubicles, and out by the first of these.
+                new DoorDefinition(new SimulationId(2020UL), CubicleLandscape, WallSide.West, 15500, 1000, false),
+                new DoorDefinition(new SimulationId(2021UL), CubicleLandscape, WallSide.West, 500, 1000, false),
+                new DoorDefinition(new SimulationId(2022UL), CubicleLandscape, WallSide.West, -1750, 1000, false)
             };
         }
 
@@ -424,7 +561,34 @@
 
                 // The bathroom, furthest from everything.
                 Agent(1019UL, 9000, 4500, CardinalDirection.South, 5, 5, 5, 6, 3, 5, 5), // ordinary
-                Agent(1020UL, 11500, 4500, CardinalDirection.South, 6, 7, 6, 4, 5, 4, 6) // ordinary
+                Agent(1020UL, 11500, 4500, CardinalDirection.South, 6, 7, 6, 4, 5, 4, 6), // ordinary
+
+                // The cubicle landscape (2026-10-02, the owner: "enough
+                // people for it to seem like it's a working office space"):
+                // twelve at their desks, three desks empty, and two standing
+                // talking at the coffee point. All work here and know the
+                // building. Column A (facing east), rows south to north.
+                Seated(1021UL, 19025, 200, East, 6, 5, 6, 6, 2, 3, 5, 3111UL).WithHome(new SimulationId(3111UL)), // the steady one
+                Seated(1022UL, 19025, 2600, East, 4, 6, 4, 6, 3, 6, 3, 3112UL).WithHome(new SimulationId(3112UL)), // the gossip
+                Seated(1023UL, 19025, 6800, East, 4, 9, 4, 5, 3, 5, 3, 3113UL).WithHome(new SimulationId(3113UL)), // the second sprinter
+                Seated(1024UL, 19025, 9200, East, 5, 5, 7, 7, 2, 3, 8, 3114UL).WithHome(new SimulationId(3114UL)), // the team lead
+                Seated(1025UL, 19025, 13400, East, 3, 7, 3, 6, 1, 7, 1, 3115UL).WithHome(new SimulationId(3115UL)), // the intern
+
+                // Column B, back to back with A (facing west).
+                Seated(1026UL, 21375, 200, West, 6, 5, 4, 2, 7, 5, 4, 3116UL).WithHome(new SimulationId(3116UL)), // the grumbler
+                Seated(1027UL, 21375, 2600, West, 4, 5, 6, 9, 1, 5, 5, 3117UL).WithHome(new SimulationId(3117UL)), // the carer
+                Seated(1028UL, 21375, 6800, West, 9, 4, 5, 5, 4, 2, 3, 3118UL).WithHome(new SimulationId(3118UL)), // the ox
+                Seated(1029UL, 21375, 9200, West, 5, 4, 5, 5, 2, 4, 2, 3119UL).WithHome(new SimulationId(3119UL)), // the daydreamer
+                Seated(1030UL, 21375, 13400, West, 7, 7, 7, 3, 6, 2, 7, 3120UL).WithHome(new SimulationId(3120UL)), // the show-off
+
+                // Column C, across the middle aisle (facing east): two of
+                // its five desks taken.
+                Seated(1031UL, 25125, 200, East, 5, 5, 5, 5, 3, 5, 4, 3121UL).WithHome(new SimulationId(3121UL)), // ordinary
+                Seated(1032UL, 25125, 2600, East, 3, 6, 3, 6, 2, 8, 2, 3122UL).WithHome(new SimulationId(3122UL)), // the jumpy one
+
+                // The coffee point in the north-east corner.
+                Agent(1033UL, 26900, 15300, CardinalDirection.North, 6, 6, 6, 2, 8, 3, 6), // the schemer
+                Agent(1034UL, 26900, 16300, CardinalDirection.South, 5, 4, 8, 7, 1, 2, 6) // the old hand
             };
         }
 
@@ -433,6 +597,65 @@
         /// two cafeteria tables.
         /// </summary>
         public static TableDefinition[] DefaultTables()
+        {
+            var tables = new System.Collections.Generic.List<TableDefinition>(OfficeTables());
+            AddTheCubicleTables(tables);
+            return tables.ToArray();
+        }
+
+        /// <summary>Where each row of cubicles is centred, south to north: two rows, a cross aisle, two rows, a cross aisle, one row.</summary>
+        private static readonly int[] CubicleRows = { 200, 2600, 6800, 9200, 13400 };
+
+        /// <summary>The lines the screens between cubicles stand on, either side of each row.</summary>
+        private static readonly int[] CubicleScreenLines = { -1000, 1400, 3800, 5600, 8000, 10400, 12200, 14600 };
+
+        /// <summary>
+        /// The cubicle landscape's furniture (2026-10-02). Three columns of
+        /// five cubicles: A and B back to back on one spine at x 20200 (A
+        /// opens west onto the wide west aisle, B east onto the middle
+        /// aisle), and C on a spine at x 26300 (opens west onto the middle
+        /// aisle), with an aisle behind it along the east wall. Each spine
+        /// is a row of partitions; a partition between neighbours stands on
+        /// each line of <see cref="CubicleScreenLines"/>; a desk stands
+        /// against the spine in each cubicle. Partitions 4101-4122, desks
+        /// 4201-4215, the coffee point's table 4216.
+        /// </summary>
+        private static void AddTheCubicleTables(System.Collections.Generic.List<TableDefinition> tables)
+        {
+            ulong id = 4101UL;
+            foreach (int spine in new[] { 20200, 26300 })
+            {
+                tables.Add(Partition(id++, spine, 1400, 200, 4800));
+                tables.Add(Partition(id++, spine, 8000, 200, 4800));
+                tables.Add(Partition(id++, spine, 13400, 200, 2400));
+            }
+
+            foreach (int line in CubicleScreenLines)
+            {
+                tables.Add(Partition(id++, 20200, line, 4400, 200));
+            }
+
+            foreach (int line in CubicleScreenLines)
+            {
+                tables.Add(Partition(id++, 25200, line, 2400, 200));
+            }
+
+            id = 4201UL;
+            foreach (int desk in new[] { 19650, 20750, 25750 })
+            {
+                foreach (int row in CubicleRows)
+                {
+                    tables.Add(new TableDefinition(new SimulationId(id++), new LogicalPosition(desk, row), 700, 1200));
+                }
+            }
+
+            tables.Add(new TableDefinition(new SimulationId(4216UL), new LogicalPosition(25800, 15800), 1200, 1200));
+        }
+
+        private static TableDefinition Partition(ulong id, int x, int z, int width, int depth) =>
+            new TableDefinition(new SimulationId(id), new LogicalPosition(x, z), width, depth, isPartition: true);
+
+        private static TableDefinition[] OfficeTables()
         {
             return new[]
             {
@@ -468,6 +691,71 @@
         /// </summary>
         public static PhysicsObjectDefinition[] DefaultPhysicsObjects()
         {
+            // The cubicle landscape's things come after every older thing,
+            // so each of those keeps its place in the run.
+            var things = new System.Collections.Generic.List<PhysicsObjectDefinition>(OfficeThings());
+            AddTheCubicleThings(things);
+
+            // The socket in the arm that leads to the way out, last of all
+            // (see ExitArmSocket). On the west wall, so its bang reaches
+            // through into the cafeteria's empty east edge and not into the
+            // cubicle landscape's aisle.
+            things.Add(WallSocket(ExitArmSocket.Value, 13200, 11500, West));
+            return things.ToArray();
+        }
+
+        /// <summary>
+        /// What stands in the cubicle landscape (2026-10-02): a chair on
+        /// castors and a laptop at each of the fifteen desks (chairs
+        /// 3111-3125, laptops 3341-3355, column A then B then C, south to
+        /// north); two wall sockets on the screens, cabled on from the
+        /// cafeteria's; a bell on the east wall; an extinguisher by the door
+        /// beside the way out; a microwave, bins and plants round the
+        /// coffee point and in the corners; a few light boxes against the
+        /// east wall.
+        /// </summary>
+        private static void AddTheCubicleThings(System.Collections.Generic.List<PhysicsObjectDefinition> things)
+        {
+            ulong chair = 3111UL;
+            ulong laptop = 3341UL;
+            (int Desk, int Chair, int Facing)[] columns =
+            {
+                (19650, 19025, East), (20750, 21375, West), (25750, 25125, East)
+            };
+            foreach ((int Desk, int Chair, int Facing) column in columns)
+            {
+                foreach (int row in CubicleRows)
+                {
+                    things.Add(OfficeChair(chair++, column.Chair, row, column.Facing));
+                    things.Add(Laptop(laptop++, column.Desk, row));
+                }
+            }
+
+            things.Add(WallSocket(3274UL, 20400, 1700, West));
+            things.Add(WallSocket(3275UL, 26100, 8300, East));
+            things.Add(Sounder(3608UL, 27850, 7000, East));
+
+            // The landscape's extinguisher, half way along its north wall
+            // (first authored at 18500, three metres from the door beside
+            // the way out, inside the nine metres the brave go for a bottle
+            // unasked from the exit arm). Measured over thirty seeds left
+            // alone, Trigger pressed at ten seconds: with this bottle and
+            // the cafeteria's both in the brave's reach 20.4 of 34 lived,
+            // with both moved 16.1. Here it is seven metres from that door,
+            // for a hand to send somebody to.
+            things.Add(Extinguisher(3303UL, 23000, 16700));
+            things.Add(Microwave(3263UL, 27600, 15600, East));
+            things.Add(Bin(3208UL, 24800, 16500));
+            things.Add(Bin(3209UL, 23200, -2600));
+            things.Add(Plant(3215UL, 27500, -2600));
+            things.Add(Plant(3216UL, 27500, 16500));
+            things.Add(Box(3561UL, 27500, 12800, 350));
+            things.Add(Box(3562UL, 27500, 12800, 250, restsOnTheOneBelow: true));
+            things.Add(Box(3563UL, 27500, 1400, 400));
+        }
+
+        private static PhysicsObjectDefinition[] OfficeThings()
+        {
             return new[]
             {
                 // Cardboard boxes: knee-high, out of the middle of the floor
@@ -476,14 +764,14 @@
                 // nobody's way until something knocks the stack over. Every
                 // stack stands well clear of a door, so a pile that is knocked
                 // over lands on open floor, not in somebody's way out.
-                Box(3001UL, -5500, 3500, 400, 6000),
-                Box(3002UL, -5500, 3500, 300, 3000, restsOnTheOneBelow: true),
-                Box(3003UL, 2000, 5500, 400, 6000),
-                Box(3004UL, 2000, 5500, 250, 2000, restsOnTheOneBelow: true),
-                Box(3005UL, -2500, -5500, 350, 4000),
-                Box(3006UL, -2500, -5500, 250, 2000, restsOnTheOneBelow: true),
-                Box(3007UL, 3500, -2000, 300, 3000),
-                Box(3008UL, -3800, 3500, 250, 2000),
+                Box(3001UL, -5500, 3500, 400),
+                Box(3002UL, -5500, 3500, 300, restsOnTheOneBelow: true),
+                Box(3003UL, 2000, 5500, 400),
+                Box(3004UL, 2000, 5500, 250, restsOnTheOneBelow: true),
+                Box(3005UL, -2500, -5500, 350),
+                Box(3006UL, -2500, -5500, 250, restsOnTheOneBelow: true),
+                Box(3007UL, 3500, -2000, 300),
+                Box(3008UL, -3800, 3500, 250),
 
                 // The office's wooden chairs, each pulled up to a desk and
                 // facing it.
@@ -501,6 +789,13 @@
                 Bin(3202UL, 5400, -3200),
                 Bin(3203UL, 11000, 15000),
                 Bin(3204UL, 8600, 2000),
+
+                // The meeting room's three bins (2026-09-26): one of them is
+                // where the Director's first fire starts, drawn per round --
+                // beside the door, in the far corner, or under the north wall.
+                Bin(3205UL, -600, 9400),
+                Bin(3206UL, -5400, 16400),
+                Bin(3207UL, 0, 16500),
                 Plant(3211UL, -5400, -3400),
                 Plant(3212UL, 5400, 5400),
                 Plant(3213UL, 2600, 16400),
@@ -516,6 +811,13 @@
                 Bag(3224UL, 10000, 14000),
                 Briefcase(3251UL, 0, -5000),
                 Briefcase(3252UL, -3600, 11400),
+
+                // The keycard (2026-09-27), authored on the first desk beside
+                // its laptop. Where it actually starts is drawn per round:
+                // on one of this room's desks, or in a member of staff's
+                // pocket (see KeycardSystem), so this spot is only the
+                // default and says which room's desks are candidates.
+                Keycard(3950UL, -2100, -1500),
 
                 // Laptops live on desks. One on each office desk, and six down
                 // the meeting table in front of the people sitting at it. They
@@ -543,28 +845,46 @@
                 OfficeChair(3248UL, 5000, 11000, North),
 
                 // One extinguisher in the office and one in the cafeteria.
+                // The meeting room had one beside its door for a day
+                // (2026-09-26); the owner took it away (2026-09-27), so the
+                // bin that catches in there is put out only by somebody who
+                // fetches a bottle from another room, if at all. The
+                // office's stays against its far south wall: tried beside
+                // the corridor door, four metres from the meeting room
+                // (2026-10-02), it made the bin too easy to put out (over
+                // ten seeds a scripted player who only ever held a hand on
+                // a bottle saved 24 of 34).
+                //
+                // The cafeteria's stands out on its floor at the east end
+                // (2026-10-02), nine metres from the meeting room's door. It
+                // stood two metres from that door, inside the nine metres
+                // the brave go for a bottle unasked, and over thirty seeds
+                // left alone five rounds ended with the fire out and nobody
+                // hurt. A hand on a bottle still sends somebody for it, so
+                // the bin is more the player's to save than the crowd's. It
+                // stands 1.8 m clear of the wall it shares with the arm to
+                // the way out: a bottle that bursts floors whoever is within
+                // 1.6 m, wall or no wall.
                 Extinguisher(3301UL, -1000, -5700),
-                Extinguisher(3302UL, 4000, 16300),
+                Extinguisher(3302UL, 11200, 13000),
 
                 // Electrical things, which go off when the flames reach them.
                 // The microwaves are a bank of them along the cafeteria's far
-                // wall, which is what a cafeteria has.
-                Microwave(3261UL, 12600, 9600, East),
-                Microwave(3262UL, 12600, 10400, East),
+                // wall, which is what a cafeteria has: the north wall, an
+                // outside one (2026-10-02). They and the cafeteria's socket
+                // used to be on its east wall, which is the west wall of the
+                // arm that leads to the way out, and a bang reaches through
+                // a wall: people queueing for the door were knocked down by
+                // something they could not see.
+                Microwave(3261UL, 6500, 16600, North),
+                Microwave(3262UL, 7300, 16600, North),
                 WallSocket(3271UL, -5800, -4000, West),
                 WallSocket(3272UL, 5800, 4000, East),
-                WallSocket(3273UL, 12800, 10000, East),
+                WallSocket(3273UL, 10500, 16800, North),
 
                 // The floor's main fuse box, on the maintenance room wall, as
                 // far from the way out as the building goes.
                 MainFuseBox(3281UL, -7500, 6500, South),
-
-                // Four spares the player can stand anywhere with a card. They
-                // are nowhere at all until then.
-                SpareExtinguisher(3391UL),
-                SpareExtinguisher(3392UL),
-                SpareExtinguisher(3393UL),
-                SpareExtinguisher(3394UL),
 
                 // The rest of the office (2026-09-24). Everything below is
                 // knocked about by the physics like the rest: the tall things
@@ -573,8 +893,7 @@
                 // wall at its back (they all used to face north, so the ones
                 // on the east and west walls stood side-on to them).
 
-                // A vending machine against the cafeteria's east wall, past
-                // the microwaves.
+                // A vending machine against the cafeteria's east wall.
                 VendingMachine(3401UL, 12600, 15500, East),
 
                 // Filing cabinets against the office walls, and one in the
@@ -626,55 +945,89 @@
                 RobotVacuum(3471UL, 0, -3000),
                 RobotVacuum(3472UL, 8000, 15500),
 
-                // The stockroom's stores (2026-09-25): boxes of every size,
-                // many stacked in pairs. Loose things are not on the map
-                // people steer by -- they only dodge them when they get there
-                // -- so the straight line from the office door (6000, -4000)
-                // to the crossbar door (14500, -500) is kept clear of all of
-                // them by a metre either side, and nothing stands within
-                // 1.5 m of either doorway, where a box at rest would jam the
-                // door.
+                // The stockroom's stores, laid out as a winding lane
+                // (2026-09-27, the owner: "more of a zig-zag setup, or
+                // labyrinth ... heavier boxes, stacked higher. Make that room
+                // a hazard"). Two walls of 700 mm crates, three high and
+                // pinned where they stand -- and, being pinned, on the map
+                // people steer by, like tables -- make an S from the office
+                // door (6000, -4000) to the crossbar door (14500, -500):
+                // about fifteen metres of walking against nine in a straight
+                // line, single file where the middle lane is 1.8 m wide. A
+                // few light boxes lie loose in the lanes to be kicked and
+                // tripped over, and nothing stands within 1.5 m of either
+                // doorway. Crate 3581's stack at the first bend is the
+                // Director's second trap (see DefaultTraps). Each wall's
+                // first stack stands against the wall's face, a tenth of a
+                // metre in from the wall line (2026-09-30: the walls are as
+                // thick to the crates as to the eye now).
                 //
-                // A row of stacks along the south wall.
-                Box(3501UL, 8000, -5650, 600, 13000),
-                Box(3502UL, 8000, -5650, 400, 6000, restsOnTheOneBelow: true),
-                Box(3503UL, 9000, -5550, 800, 24000),
-                Box(3504UL, 9000, -5550, 500, 9000, restsOnTheOneBelow: true),
-                Box(3505UL, 10000, -5700, 500, 9000),
-                Box(3506UL, 10000, -5700, 300, 3000, restsOnTheOneBelow: true),
-                Box(3507UL, 11000, -5600, 700, 18000),
-                Box(3508UL, 11000, -5600, 400, 6000, restsOnTheOneBelow: true),
-                Box(3509UL, 12000, -5650, 600, 13000),
-                Box(3510UL, 12000, -5650, 350, 4000, restsOnTheOneBelow: true),
-                Box(3511UL, 13000, -5550, 800, 24000),
-                Box(3512UL, 13000, -5550, 450, 7500, restsOnTheOneBelow: true),
-                Box(3513UL, 14000, -5700, 500, 9000),
-                Box(3514UL, 14000, -5700, 300, 3000, restsOnTheOneBelow: true),
-                Box(3515UL, 15000, -5600, 700, 18000),
-                Box(3516UL, 15000, -5600, 400, 6000, restsOnTheOneBelow: true),
+                // Wall A, from the south wall up to z -3100 at x 9500.
+                Box(3501UL, 9500, -5550, 700, pinned: true),
+                Box(3502UL, 9500, -5550, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3503UL, 9500, -5550, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3504UL, 9500, -4850, 700, pinned: true),
+                Box(3505UL, 9500, -4850, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3506UL, 9500, -4850, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3507UL, 9500, -4150, 700, pinned: true),
+                Box(3508UL, 9500, -4150, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3509UL, 9500, -4150, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3510UL, 9500, -3450, 700, pinned: true),
+                Box(3511UL, 9500, -3450, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3512UL, 9500, -3450, 700, restsOnTheOneBelow: true, pinned: true),
 
-                // Crates along the north wall, under the closet and the
-                // bathroom, stopping where the lane comes up to the wall.
-                Box(3517UL, 6700, -1000, 700, 18000),
-                Box(3518UL, 7600, -1000, 600, 13000),
-                Box(3519UL, 8500, -1000, 500, 9000),
-                Box(3520UL, 9300, -1000, 700, 18000),
-                Box(3521UL, 10200, -1000, 600, 13000),
-                Box(3522UL, 10200, -1000, 400, 6000, restsOnTheOneBelow: true),
-                Box(3523UL, 6600, -2000, 500, 9000),
+                // Wall B, from the north wall down to z -4100 at x 12000.
+                Box(3513UL, 12000, -950, 700, pinned: true),
+                Box(3514UL, 12000, -950, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3515UL, 12000, -950, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3516UL, 12000, -1650, 700, pinned: true),
+                Box(3517UL, 12000, -1650, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3518UL, 12000, -1650, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3519UL, 12000, -2350, 700, pinned: true),
+                Box(3520UL, 12000, -2350, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3521UL, 12000, -2350, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3522UL, 12000, -3050, 700, pinned: true),
+                Box(3523UL, 12000, -3050, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3524UL, 12000, -3050, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3525UL, 12000, -3750, 700, pinned: true),
+                Box(3526UL, 12000, -3750, 700, restsOnTheOneBelow: true, pinned: true),
+                Box(3527UL, 12000, -3750, 700, restsOnTheOneBelow: true, pinned: true),
 
-                // An island south of the lane.
-                Box(3524UL, 10000, -4100, 600, 13000),
-                Box(3525UL, 10000, -4100, 400, 6000, restsOnTheOneBelow: true),
-                Box(3526UL, 10800, -4200, 500, 9000),
-                Box(3527UL, 9300, -4300, 450, 7500),
-                Box(3528UL, 12500, -4600, 350, 4000),
-                Box(3529UL, 13500, -4500, 400, 6000),
+                // A column against the east wall, clear of the crossbar door
+                // and (2026-10-02, moved south from -3000 and -2000) of the
+                // cubicle landscape's door at z -1750.
+                Box(3530UL, 15600, -4000, 600),
+                Box(3531UL, 15600, -4800, 700),
+                Box(3532UL, 15600, -5500, 500),
 
-                // A column against the east wall, clear of the crossbar door.
-                Box(3530UL, 15600, -4000, 600, 13000),
-                Box(3531UL, 15600, -3000, 700, 18000),
-                Box(3532UL, 15600, -2000, 500, 9000),
+                // Light boxes loose in the lanes, and a few stacked against
+                // the south wall where the lane does not run.
+                Box(3541UL, 7800, -5200, 300),
+                Box(3542UL, 8400, -1300, 350),
+                Box(3543UL, 10800, -2600, 300),
+                Box(3544UL, 11000, -4400, 400),
+                Box(3545UL, 13300, -3000, 350),
+                Box(3546UL, 15000, -5200, 300),
+                Box(3551UL, 7000, -5650, 500),
+                Box(3552UL, 7000, -5650, 300, restsOnTheOneBelow: true),
+                Box(3553UL, 14000, -5650, 500),
+                Box(3554UL, 14000, -5650, 350, restsOnTheOneBelow: true),
+                Box(3555UL, 15000, -5650, 400),
+
+                // The stockroom's stack (2026-09-27): four crates, pinned
+                // while they stand (the TrapSystem holds them), which come
+                // down when somebody runs into them. It stands free at the
+                // north end of wall A (2026-10-02), a finger's width off the
+                // wall's last crate: the corner everybody coming from the
+                // office cuts, with the single-file middle lane just beyond
+                // it for the crates to land in. Against the north wall,
+                // where it stood until then, it was on the outside of the
+                // bend and nobody ever touched it (0 rounds of 10). Four,
+                // because three leave a gap a person squeezes through.
+                Box(3581UL, 9500, -2740, 700),
+                Box(3582UL, 9500, -2740, 700, restsOnTheOneBelow: true),
+                Box(3583UL, 9500, -2740, 700, restsOnTheOneBelow: true),
+                Box(3584UL, 9500, -2740, 700, restsOnTheOneBelow: true),
 
                 // The fire alarm bells (2026-09-25), one high on a wall of
                 // every room people use, including the stockroom and the
@@ -685,8 +1038,30 @@
                 Sounder(3603UL, 8000, 16850, North),
                 Sounder(3604UL, -5850, 11000, West),
                 Sounder(3605UL, 12850, 3000, East),
-                Sounder(3606UL, 12000, -650, North),
-                Sounder(3607UL, 15850, 8000, East)
+                Sounder(3606UL, 13200, -650, North),
+                Sounder(3607UL, 15850, 8000, East),
+
+                // The tower of boxes (prototype 3, 2026-09-25): two stacks of
+                // four, 1.8 m tall, against the corridor's north wall just
+                // short of the archway into the crossbar (2026-10-02). That
+                // is the inside of the turn everybody running for the way
+                // out makes, so it is the corner a crowd cuts, and a runner
+                // going east throws the boxes on into the archway. It stood
+                // in the junction's south-west corner until then, on the
+                // outside of the turn and past the archway: it fell every
+                // round and landed beside the gap. It stands 0.4 m off the
+                // archway's wall line so it is not "wedged in" the archway
+                // while it stands, and across the corridor from the
+                // bathroom door. Pinned while it stands (the TrapSystem
+                // holds it), it comes down when somebody runs into it.
+                Box(3701UL, 11700, 8550, 600),
+                Box(3702UL, 11700, 8550, 600, restsOnTheOneBelow: true),
+                Box(3703UL, 11700, 8550, 600, restsOnTheOneBelow: true),
+                Box(3704UL, 11700, 8550, 600, restsOnTheOneBelow: true),
+                Box(3705UL, 12300, 8550, 600),
+                Box(3706UL, 12300, 8550, 600, restsOnTheOneBelow: true),
+                Box(3707UL, 12300, 8550, 600, restsOnTheOneBelow: true),
+                Box(3708UL, 12300, 8550, 600, restsOnTheOneBelow: true)
             };
         }
 
@@ -702,13 +1077,17 @@
         /// </summary>
         public static AlarmDefinition[] DefaultAlarms()
         {
+            // Prototype 3 (2026-09-25, the owner's rule): one pull station
+            // in the whole building, at the far west end of the corridor on
+            // its north wall, beside the maintenance room (the fuse box
+            // room) and past the meeting room's door. Pulling it means
+            // walking toward the fire, so only the brave do. The stations in
+            // the office (6001's old spot), the corridor's middle (6002), the
+            // cafeteria (6003), the meeting room (6004) and the stockroom
+            // (6005) are gone; the bells on the walls are untouched.
             return new[]
             {
-                new AlarmDefinition(new SimulationId(6001UL), new LogicalPosition(-5700, 2000)),
-                new AlarmDefinition(new SimulationId(6002UL), new LogicalPosition(3000, 8700)),
-                new AlarmDefinition(new SimulationId(6003UL), new LogicalPosition(7000, 16700)),
-                new AlarmDefinition(new SimulationId(6004UL), new LogicalPosition(-5700, 16700)),
-                new AlarmDefinition(new SimulationId(6005UL), new LogicalPosition(6300, -2500))
+                new AlarmDefinition(new SimulationId(6001UL), new LogicalPosition(-5700, 8700))
             };
         }
 
@@ -754,6 +1133,17 @@
         {
             return new PhysicsObjectDefinition(
                 new SimulationId(id), PhysicsObjectKind.Bag, new LogicalPosition(x, z), 350, 4000);
+        }
+
+        /// <summary>
+        /// The keycard: a scrap of plastic the size of a hand, resting on a
+        /// desk until somebody pockets it. Fifty grams: anybody lifts it.
+        /// </summary>
+        private static PhysicsObjectDefinition Keycard(ulong id, int x, int z)
+        {
+            return new PhysicsObjectDefinition(
+                new SimulationId(id), PhysicsObjectKind.Keycard, new LogicalPosition(x, z), 150, 50,
+                startsResting: true);
         }
 
         /// <summary>A fire extinguisher: small, heavy for its size, and it never burns.</summary>
@@ -814,16 +1204,6 @@
             return new AgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
                 new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, leadership),
                 new SimulationId(carrying));
-        }
-
-        /// <summary>
-        /// One of the spare extinguishers the player's card puts down. It is not
-        /// in the world until then, so its position is never used.
-        /// </summary>
-        private static PhysicsObjectDefinition SpareExtinguisher(ulong id)
-        {
-            return new PhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.Extinguisher, new LogicalPosition(0, 0), 220, 9000, true);
         }
 
         /// <summary>A microwave on a counter: heavy, and it goes off with a bang.</summary>
@@ -934,16 +1314,38 @@
         }
 
         /// <summary>
-        /// A cardboard box. With <paramref name="restsOnTheOneBelow"/> it is the
-        /// upper box of a stacked pair, authored at the same spot as the one it
-        /// stands on.
+        /// A cardboard box, as heavy as its size says (<see cref="BoxMass"/>).
+        /// With <paramref name="restsOnTheOneBelow"/> it is an upper box of a
+        /// stack, authored at the same spot as the one it stands on; with
+        /// <paramref name="pinned"/> it is fixed where it stands, a crate wall
+        /// nobody moves (the stockroom's lanes, 2026-09-27).
         /// </summary>
-        private static PhysicsObjectDefinition Box(ulong id, int x, int z, int size, int massGrams,
-            bool restsOnTheOneBelow = false)
+        private static PhysicsObjectDefinition Box(ulong id, int x, int z, int size,
+            bool restsOnTheOneBelow = false, bool pinned = false)
         {
             return new PhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.Box, new LogicalPosition(x, z), size, massGrams,
-                startsResting: restsOnTheOneBelow);
+                new SimulationId(id), PhysicsObjectKind.Box, new LogicalPosition(x, z), size, BoxMass(size),
+                startsResting: restsOnTheOneBelow, startsPinned: pinned);
+        }
+
+        /// <summary>
+        /// What a box weighs, by its size: a gameplay scale, not a real one
+        /// (the owner, 2026-09-27: "just scale it heavier to suit the
+        /// gameplay, not realism"). Small boxes are the clutter people tidy
+        /// and kick; the big ones, 600 mm and up, are the crates of the
+        /// stockroom and the tower, too heavy for anybody to carry (the limit
+        /// is 30 kg) and, measured in the engine, too heavy for one walker to
+        /// shove aside and heavy enough that three runners together barely
+        /// move one. The strong still heave them at a door, and they burn.
+        /// </summary>
+        public static int BoxMass(int size)
+        {
+            if (size <= 300) return 3000;
+            if (size <= 400) return 6000;
+            if (size <= 500) return 10000;
+            if (size <= 600) return 40000;
+            if (size <= 700) return 55000;
+            return 70000;
         }
     }
 }

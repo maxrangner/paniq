@@ -129,7 +129,7 @@ namespace Paniq.Tests.PlayMode
         [UnityTest]
         public IEnumerator ThePrototypeSceneUsesTheParticleSettingsAsset()
         {
-            yield return SceneManager.LoadSceneAsync(Paniq.App.Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            yield return SceneManager.LoadSceneAsync(Paniq.App.Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
             var presentation = Object.FindFirstObjectByType<RunPresentation>();
             Assert.That(presentation, Is.Not.Null);
             var settings = (ParticleEffectSettings)typeof(RunPresentation)

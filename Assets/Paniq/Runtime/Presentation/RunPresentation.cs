@@ -1,4 +1,5 @@
-﻿using Paniq.Gameplay;
+﻿using System.Collections.Generic;
+using Paniq.Gameplay;
 using Paniq.Simulation;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -36,10 +37,11 @@ namespace Paniq.Presentation
         private SprayView spray;
         private NavigationGridView navigationGrid;
         private PopBursts pops;
-        private CardAimRing aimRing;
+
+        /// <summary>The player's influence: the sparkling auras and the lines to whoever feels them (2026-09-26).</summary>
+        private InfluenceView influence;
 
         /// <summary>How wide a thrown card's patch is, read once when the scene is built.</summary>
-        private int cardPatchRadiusMillimetres;
         private EventSigns signs;
         private PowerCableView cable;
 
@@ -48,6 +50,13 @@ namespace Paniq.Presentation
         /// nobody joins or leaves a run once it has started.
         /// </summary>
         private EventStory story;
+
+        /// <summary>The end card's lines, worked out once the round is over rather than every frame (2026-09-30).</summary>
+        private List<string> retold;
+
+        /// <summary>The end card's lines by room (2026-10-03), and whether they were worked out before the left-alone round had its answer.</summary>
+        private List<string> byRoom;
+        private bool byRoomWithoutLeftAlone;
         private ParticleEffects effects;
         private PlayerInput input;
         private CameraRig cameraRig;
@@ -63,12 +72,54 @@ namespace Paniq.Presentation
 
         private RunSnapshot frameSnapshot;
 
+        /// <summary>
+        /// A socket or the fuse box crackling before it goes (the Director's
+        /// warning, 2026-09-26): where, until when, when it next spits, and a
+        /// seed for its sparks.
+        /// </summary>
+        private struct Crackle
+        {
+            public Vector3 At;
+            public float Until;
+            public float NextSpit;
+            public ulong Seed;
+            public int Spits;
+        }
+
+        private readonly System.Collections.Generic.List<Crackle> crackles = new System.Collections.Generic.List<Crackle>();
+
         /// <summary>Why the display could not be built, or null when all is well.</summary>
         private string startupError;
 
         private SimulationId? hoveredDoor;
         private SimulationId? hoveredAlarm;
-        private bool showStats;
+        /// <summary>
+        /// The Tab panel's state for one session of play. Reset and "play
+        /// again" reload the scene, which builds a new one of these, so the
+        /// panel is kept outside the scene: its switches and the hand's two
+        /// dials last through both, as the panel says they do (found in
+        /// review, 2026-10-02: they were kept on the scene's own object and
+        /// went back to the level's values at every Reset). Forgotten at
+        /// every press of Play, so each session starts from the same
+        /// picture, with or without a domain reload.
+        /// </summary>
+        private static DebugView sessionView;
+
+        /// <summary>Whether this session's panel has learnt the level's own dial values yet: the first round seen teaches it.</summary>
+        private static bool sessionDialsLearnt;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ForgetTheSession()
+        {
+            sessionView = null;
+            sessionDialsLearnt = false;
+        }
+
+        /// <summary>The Tab panel and what it switches on and off (2026-09-30).</summary>
+        private readonly DebugView view = sessionView ??= new DebugView();
+
+        /// <summary>The Tab panel's switches, so a test can flip them without clicking.</summary>
+        internal DebugView ViewForTests => view;
         private int eventsSeen;
 
         private void Awake()
@@ -97,14 +148,13 @@ namespace Paniq.Presentation
                 ripples = new SoundRipples(materials.Icon, root);
                 spray = new SprayView(effects);
                 pops = new PopBursts(materials, effects, root);
-                aimRing = new CardAimRing(materials.Icon, root);
-                cardPatchRadiusMillimetres = scenario.Influence.CardPatchRadiusMillimetres;
+                influence = new InfluenceView(materials.Icon, root, effects);
                 signs = new EventSigns(materials, root);
                 cable = new PowerCableView(scenario, materials, root);
                 _ = new ExitSignView(scenario.ExitSigns, materials, root);
                 input = new PlayerInput(runner, room);
 
-                // Off until G is pressed: the floor painted square by square
+                // Off until G is pressed or its switch ticked in the Tab panel: the floor painted square by square
                 // wherever somebody could stand.
                 navigationGrid = new NavigationGridView(
                     runner.Simulation, root, scenario.World.OccupancyRadiusMillimetres);
@@ -187,14 +237,14 @@ namespace Paniq.Presentation
             // stopped, the pointer still hovers but no click reaches the run.
             // A pointer over a card or a button is the HUD's, not the world's
             // (the HUD's y runs from the top, the input system's from the
-            // bottom). The double-click window runs on the unscaled clock,
+            // bottom). The click-or-hold window runs on the unscaled clock,
             // which pausing does not stop.
             Mouse mouse = Mouse.current;
             Vector2 pointer = mouse != null ? mouse.position.ReadValue() : Vector2.zero;
             bool pointerOverHud = mouse != null && HudHitTest.Covers(new Vector2(pointer.x, Screen.height - pointer.y));
             input.Update(prototypeCamera, frameSnapshot,
                 runner.IsPaused || screens.CardIsUp || log.IsOpen,
-                cameraRig.IsTurningTheView, pointerOverHud, Time.unscaledTime);
+                pointerOverHud, Time.unscaledTime);
             hoveredDoor = input.HoveredDoor;
             hoveredAlarm = input.HoveredAlarm;
             Keyboard keyboard = Keyboard.current;
@@ -208,13 +258,18 @@ namespace Paniq.Presentation
 
             if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
             {
-                showStats = !showStats;
+                view.PanelOpen = !view.PanelOpen;
             }
 
+            // G is still the shortcut for the walkable floor, and the panel's
+            // switch shows the same thing, whichever flipped it.
             if (keyboard != null && keyboard.gKey.wasPressedThisFrame)
             {
-                navigationGrid?.Toggle();
+                view.WalkableFloor = !view.WalkableFloor;
             }
+
+            navigationGrid?.Show(view.WalkableFloor);
+            SendTheHandDials();
 
             // Space pauses, but only once the round is actually going: there
             // is nothing to pause behind the start card or after the end one.
@@ -225,29 +280,18 @@ namespace Paniq.Presentation
 
             effects.BeginFrame();
             PlayNewEvents(frameSnapshot, time);
-            agents.Update(frameSnapshot, previous, blend, time, prototypeCamera.transform);
+            agents.Update(frameSnapshot, previous, blend, time, prototypeCamera.transform, view);
             room.Update(frameSnapshot, hoveredDoor, time, Time.deltaTime);
             room.UpdateHoles(frameSnapshot);
-            boxes.Update(frameSnapshot, previous, blend, time);
+            boxes.Update(frameSnapshot, previous, blend, time, agents);
             ripples.Update(time);
             signs.Update(time, prototypeCamera.transform.rotation);
             cable.Update(frameSnapshot, time);
             fire.Update(frameSnapshot, time);
             spray.Update(frameSnapshot);
             pops.Update(time);
-
-            // The patch a card in hand would catch if it were thrown where the
-            // pointer is. Nothing is drawn with no card in hand, and nothing is
-            // drawn while the world is stopped, because nothing can be thrown
-            // then either.
-            if (input.SelectedCard.HasValue && input.HoveredSpot.HasValue)
-            {
-                aimRing.Show(input.HoveredSpot.Value, cardPatchRadiusMillimetres, frameSnapshot, time);
-            }
-            else
-            {
-                aimRing.Hide();
-            }
+            UpdateCrackles(time);
+            influence.Update(frameSnapshot, time, Time.deltaTime, prototypeCamera.transform.rotation);
 
             // The player's own camera, with a bang's shake added on top of
             // wherever they have put it.
@@ -294,24 +338,33 @@ namespace Paniq.Presentation
                 // Every card and button drawn below claims its place on the
                 // screen, so next frame's clicks on them stay off the world.
                 HudHitTest.BeginFrame();
-                PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, runner.Seed, FindDoor(frameSnapshot, hoveredDoor), hoveredAlarm);
+                PrototypeHud.Draw(frameSnapshot, runner.Simulation.Scenario, runner.Seed, FindDoor(frameSnapshot, hoveredDoor), hoveredAlarm, input);
                 screens.DrawStrip(frameSnapshot);
-                PrototypeHud.DrawCards(frameSnapshot, input.SelectedCard, input, aimRing.PeopleInside);
+                PrototypeHud.DrawHand(frameSnapshot);
                 if (runner.IsPaused)
                 {
                     PrototypeHud.DrawPauseHelp(frameSnapshot);
                 }
 
-                if (showStats)
+                // Below Reset and Pause, which sit in the top-right corner;
+                // the traits table goes under the panel rather than over it.
+                float belowPanel = view.Draw(108f, frameSnapshot);
+                if (view.Stats)
                 {
+                    // The bar to clear and the left-alone line live here
+                    // since the top strip was cut to four numbers (2026-09-30).
                     string feel = runner.PhysicsFeelName ?? "the scenario's own";
-                    string footer = $"Physics feel: {feel}.  Particles: {effects.LiveParticles} of {effects.Settings.LiveParticleBudget}.";
+                    string par = runner.LeftAloneSavedCount.HasValue
+                        ? $"  Left alone: {runner.LeftAloneSavedCount.Value} would live."
+                        : "";
+                    string footer = $"Need {frameSnapshot.TargetSavedCount} of {frameSnapshot.CrowdSize} to clear.{par}  " +
+                                    $"Physics feel: {feel}.  Particles: {effects.LiveParticles} of {effects.Settings.LiveParticleBudget}.";
                     if (runner.IsLiveTuned)
                     {
                         footer += "  Tuned live: this run cannot be replayed.";
                     }
 
-                    PrototypeHud.DrawStats(frameSnapshot, footer);
+                    PrototypeHud.DrawStats(frameSnapshot, footer, belowPanel);
                 }
 
                 // Last, so a card sits over everything else.
@@ -321,7 +374,17 @@ namespace Paniq.Presentation
                 }
                 else if (frameSnapshot.RoundIsOver)
                 {
-                    screens.DrawEndCard(frameSnapshot);
+                    story ??= new EventStory(frameSnapshot, runner.Simulation.Commands, runner.Simulation.Scenario);
+                    retold ??= story.Retell(frameSnapshot, runner.Simulation.Scenario.Influence.StrengthPercent,
+                        runner.Simulation.Scenario.Influence.ReachMillimetres, view.LevelReachMillimetres);
+                    if (byRoom == null || (byRoomWithoutLeftAlone && runner.LeftAloneOutcomes != null))
+                    {
+                        byRoom = RoomNames.ByRoom(runner.Simulation.Scenario, frameSnapshot, runner.LeftAloneOutcomes);
+                        byRoomWithoutLeftAlone = runner.LeftAloneOutcomes == null;
+                    }
+
+                    screens.DrawEndCard(frameSnapshot, runner.LeftAloneSavedCount, runner.LeftAloneStillWorking,
+                        retold, byRoom);
                 }
 
                 // The end card only asks; taking the request here is what
@@ -334,8 +397,70 @@ namespace Paniq.Presentation
                 }
 
                 // Very last, so the story covers the end card behind it.
+                log.Scenario = runner.Simulation.Scenario;
                 log.Draw(frameSnapshot);
                 HudHitTest.EndFrame();
+            }
+        }
+
+        /// <summary>The run the sliders' values were last sent to, and the values, so each is sent once a change and once a round.</summary>
+        private Run dialsSentTo;
+        private int strengthSent = -1;
+        private int reachSent = -1;
+
+        /// <summary>
+        /// The Tab panel's hand dials reach the run (2026-09-30): each sent
+        /// as a command when its slider moves, and again to a fresh round
+        /// after Reset, so they last the session. A round at the level's own
+        /// values is sent nothing. The first round of the session tells the
+        /// panel what the level's own values are, so "Level's own" has
+        /// something to go back to and the end card can say when a dial was
+        /// off them; a later round, after Reset has rebuilt the scene, finds
+        /// the dials where the player left them and is sent them.
+        /// </summary>
+        private void SendTheHandDials()
+        {
+            Run run = runner.Simulation;
+            if (run == null)
+            {
+                return;
+            }
+
+            if (run != dialsSentTo)
+            {
+                // A fresh round's settings are still the level's own: nothing
+                // has been sent to it yet.
+                InfluenceSettings own = run.Scenario.Influence;
+                if (!sessionDialsLearnt)
+                {
+                    view.HandStrengthPercent = own.StrengthPercent;
+                    view.HandReachMillimetres = own.ReachMillimetres;
+                    sessionDialsLearnt = true;
+                }
+
+                view.LevelStrengthPercent = own.StrengthPercent;
+                view.LevelReachMillimetres = own.ReachMillimetres;
+                dialsSentTo = run;
+                strengthSent = -1;
+                reachSent = -1;
+            }
+
+            if (view.HandStrengthPercent != strengthSent)
+            {
+                strengthSent = view.HandStrengthPercent;
+                if (run.Scenario.Influence.StrengthPercent != strengthSent)
+                {
+                    runner.QueueHandStrength(strengthSent);
+                }
+            }
+
+            if (view.HandReachMillimetres != reachSent)
+            {
+                reachSent = view.HandReachMillimetres;
+                if (run.Scenario.Influence.ReachMillimetres != reachSent)
+                {
+                    runner.QueueHandReach(reachSent);
+                }
             }
         }
 
@@ -358,12 +483,40 @@ namespace Paniq.Presentation
             return null;
         }
 
+        /// <summary>
+        /// Every crackling socket spits a little shower of sparks now and then
+        /// -- more often as it nears going off -- until its time is up.
+        /// </summary>
+        private void UpdateCrackles(float time)
+        {
+            for (int i = crackles.Count - 1; i >= 0; i--)
+            {
+                Crackle crackle = crackles[i];
+                if (time >= crackle.Until)
+                {
+                    crackles.RemoveAt(i);
+                    continue;
+                }
+
+                if (time < crackle.NextSpit)
+                {
+                    continue;
+                }
+
+                effects.Break(crackle.At, 0.15f, true, crackle.Seed + (ulong)crackle.Spits);
+                crackle.Spits++;
+                float left = crackle.Until - time;
+                crackle.NextSpit = time + Mathf.Lerp(0.12f, 0.45f, Mathf.Clamp01(left / 5f));
+                crackles[i] = crackle;
+            }
+        }
+
         /// <summary>Starts icons, ripples, hops and judders for every event since the last frame.</summary>
         private void PlayNewEvents(RunSnapshot snapshot, float time)
         {
             ScenarioData scenario = runner.Simulation.Scenario;
             int thudReach = scenario.Hearing.BumpSoundRadiusMillimetres;
-            story ??= new EventStory(snapshot);
+            story ??= new EventStory(snapshot, runner.Simulation.Commands, runner.Simulation.Scenario);
             for (int i = eventsSeen; i < snapshot.Events.Count; i++)
             {
                 CausalEvent record = snapshot.Events[i];
@@ -403,21 +556,35 @@ namespace Paniq.Presentation
                         // One big ring from every bell, so the noise is visible.
                         ripples.Start(record.Position, record.Strength, SoundRipples.YellColor, time);
                         break;
-                    case CausalEventType.PowerBeefcake:
-                    case CausalEventType.PowerCourage:
-                    case CausalEventType.PowerTerror:
-                    case CausalEventType.PowerBastard:
-                    case CausalEventType.PowerColdHeart:
-                    case CausalEventType.PowerStickTogether:
-                        // One of these per person the throw caught, so
-                        // everybody it landed on flashes and the player can see
-                        // what they actually got.
-                        agents.Notice(record.TargetId, time);
+                    case CausalEventType.AgentNudged:
+                        // Looking round for whoever did it.
+                        agents.Notice(record.SourceId, time);
                         break;
-                    case CausalEventType.CardDealt:
-                        // A death has just put a card on the bar. A ring where
-                        // they fell, so the player looks at what bought it.
-                        ripples.Start(record.Position, 1800, SoundRipples.YellColor, time);
+                    case CausalEventType.AgentAnnoyed:
+                        agents.Annoyed(record.SourceId, time);
+                        break;
+                    case CausalEventType.BoxTowerFell:
+                        // A crash heard down the corridor, and the dust of it.
+                        ripples.Start(record.Position, scenario.Traps.CrashSoundRadiusMillimetres, SoundRipples.ThudColor, time);
+                        effects.Knock(ToUnityPosition(record.Position) + Vector3.up * 0.4f, 1f, record.EventId);
+                        break;
+                    case CausalEventType.TrapTriggered:
+                        // Somebody ran into the stack (2026-10-02): the knock
+                        // that brings it down, where it landed.
+                        ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        effects.Knock(ToUnityPosition(record.Position) + Vector3.up * 0.5f, 0.5f, record.EventId);
+                        break;
+                    case CausalEventType.AgentShovedObstruction:
+                        // A heave (2026-10-02): the heaver throws their
+                        // weight at it, and it is heard.
+                        agents.Lunge(record.SourceId, time);
+                        ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        break;
+                    case CausalEventType.AgentShookFree:
+                        // Tore free of the player's hand: the "!" of somebody
+                        // who has just been let go of, on top of the shake
+                        // the snapshot carries.
+                        agents.Notice(record.SourceId, time);
                         break;
                     case CausalEventType.PowerBlastedWall:
                         // A very big ring: the bang carries across the building.
@@ -426,10 +593,17 @@ namespace Paniq.Presentation
                             SoundRipples.ThudColor, time);
                         pops.Start(record.Position, 0.8f, scenario.Blast.ThrowRadiusMillimetres, record.EventId, time);
                         break;
-                    case CausalEventType.PowerPoppedFuseBox:
-                        // The player reached in and did it themselves; the bang
-                        // itself arrives as an ObjectExploded a moment later.
-                        ripples.Start(record.Position, 2000, SoundRipples.ThudColor, time);
+                    case CausalEventType.SocketCrackling:
+                        // It spits sparks and smokes until it goes; the
+                        // crackle is heard around the room.
+                        crackles.Add(new Crackle
+                        {
+                            At = ToUnityPosition(record.Position) + Vector3.up * 0.35f,
+                            Until = time + record.Strength / (float)Run.TicksPerSecond,
+                            NextSpit = time,
+                            Seed = record.EventId
+                        });
+                        ripples.Start(record.Position, scenario.Director.CrackleHearingMillimetres, SoundRipples.ThudColor, time);
                         break;
                     case CausalEventType.ObjectExploded:
                         // A flash, sparks and smoke sized to the blast, and a big
@@ -477,6 +651,14 @@ namespace Paniq.Presentation
                     case CausalEventType.DoorBrokenDown:
                     case CausalEventType.DoorClosed:
                         ripples.Start(record.Position, thudReach, SoundRipples.ThudColor, time);
+                        break;
+                    case CausalEventType.DoorUnlockedWithKeycard:
+                        // The swipe: a small lunge at the reader and a beep's worth of ripple.
+                        agents.Lunge(record.SourceId, time);
+                        ripples.Start(record.Position, thudReach / 2, SoundRipples.ThudColor, time);
+                        break;
+                    case CausalEventType.AgentTookKeycard:
+                        agents.Notice(record.SourceId, time);
                         break;
                     case CausalEventType.AgentForcedDoor:
                         agents.Lunge(record.SourceId, time);

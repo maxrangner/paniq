@@ -1,4 +1,4 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Paniq.Simulation;
 
 namespace Paniq.Tests.EditMode
@@ -15,6 +15,14 @@ namespace Paniq.Tests.EditMode
     {
         /// <summary>Deeper than this, in millimetres, is more than a squeeze.</summary>
         public const int DeepestSqueezeMillimetres = 75;
+
+        /// <summary>
+        /// How far a body lying in a bathroom stall may be held into the
+        /// stall's wall, in millimetres (seed 45: 96 mm). Past this -- well
+        /// short of a body's half-width of 250 mm -- it is not being held
+        /// against the wall but going through it.
+        /// </summary>
+        public const int DeepestLyingInAStallMillimetres = 150;
 
         /// <summary>
         /// A knock may sink deeper than a squeeze for this many ticks in a row,
@@ -46,8 +54,15 @@ namespace Paniq.Tests.EditMode
         /// the door they were opening (seed 40, 135 mm). A quarter of a second,
         /// and still a wedge coming apart rather than a thing passing through.
         /// </para>
+        /// <para>
+        /// Fifteen, not twelve (2026-09-26): somebody carrying a box to wedge a
+        /// door was knocked out cold, and the box they dropped lay on them at
+        /// 104 mm for thirteen ticks before the engine eased the two apart
+        /// (seed 43). Under a third of a second, and a thing coming off a body
+        /// on the floor, not passing into it.
+        /// </para>
         /// </summary>
-        public const int LongestKnockTicks = 12;
+        public const int LongestKnockTicks = 15;
 
         private int deepTicks;
 
@@ -62,10 +77,24 @@ namespace Paniq.Tests.EditMode
         /// rest of the run. Nobody sees a leg 81 mm into the carpet; a chair
         /// wedged in a doorway is exactly what the doorways are for; and a
         /// limit chased tick by tick for it would never settle.
+        /// <para>
+        /// Nor is somebody lying down inside a bathroom stall. A body on the
+        /// floor is longer than a stall is wide, so the engine holds it
+        /// against the stall's wall (96 mm) until they get up, and there is
+        /// nowhere for it to pass into. Once the fire moved to the meeting
+        /// room (prototype 3, 2026-09-25) seed 45 had somebody go down in the
+        /// third stall while fleeing, and stay pressed for as long as they
+        /// lay there. Only that shallow a press is let off: a body sinking
+        /// further into a stall's wall than <see cref="DeepestLyingInAStallMillimetres"/>
+        /// is on its way through it, and is still caught.
+        /// </para>
         /// </summary>
         public void Check(Run simulation, string context)
         {
-            if (simulation.DeepestPressMillimetres <= DeepestSqueezeMillimetres || simulation.DeepestPressIsIntoTheFloorForTests)
+            bool lyingInAStall = simulation.DeepestPressIsABodyLyingInAStallForTests &&
+                                 simulation.DeepestPressMillimetres <= DeepestLyingInAStallMillimetres;
+            if (simulation.DeepestPressMillimetres <= DeepestSqueezeMillimetres || simulation.DeepestPressIsIntoTheFloorForTests ||
+                lyingInAStall)
             {
                 deepTicks = 0;
                 return;

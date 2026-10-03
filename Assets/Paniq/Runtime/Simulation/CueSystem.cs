@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -163,6 +163,31 @@ namespace Paniq.Simulation
 
         /// <summary>Somebody's own idea: to go and see what that noise was. Its cause is the noise they heard. False when a cue is already waiting on them.</summary>
         public bool GoAndLook(Agent person) => Call(CueKind.GoAndLook, person, -1, null, 0, person.Hearing.SoundEventId) != 0UL;
+
+        /// <summary>
+        /// Drawn to a door by the player (2026-09-27): over to it, and it is
+        /// used. Its cause is the click that drew them. False when a cue is
+        /// already waiting on them.
+        /// </summary>
+        public bool FollowTheInfluence(Agent person, int door, ulong causeEventId)
+        {
+            if (Call(CueKind.FollowTheInfluence, person, -1, null, 0, causeEventId) == 0UL)
+            {
+                return false;
+            }
+
+            person.Errand.Object = door;
+
+            // The press is what the errand is for (2026-09-30): the doors it
+            // opens and tries name it, where they used to name nothing,
+            // because the cue itself is not written down.
+            if (person.Errand.CauseEventId == 0UL)
+            {
+                person.Errand.CauseEventId = causeEventId;
+            }
+
+            return true;
+        }
 
         /// <summary>
         /// A person's own idea: they alone, now, because nobody waits for

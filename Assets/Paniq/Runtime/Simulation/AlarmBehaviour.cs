@@ -7,30 +7,44 @@ namespace Paniq.Simulation
     /// of the room they are in before running. Everyone else leaves it to
     /// somebody else.
     /// <para>
-    /// Built like <see cref="ExtinguisherBehaviour"/>: one step in the panic
-    /// decision that returns what the body should do, or nothing at all when
-    /// this person is not raising any alarm.
+    /// One of the frightened's options (<see cref="ITaskOption"/>): taken up
+    /// at a decision moment, carried on every tick after.
     /// </para>
     /// </summary>
-    internal sealed class AlarmBehaviour : IPanicOption
+    internal sealed class AlarmBehaviour : ITaskOption, IBindable
     {
         private readonly SimulationContext context;
+
+        /// <summary>The player's hand, built after this: a hand on a pull station makes the brave pull it sooner (2026-09-29).</summary>
+        private InfluenceSystem influence;
+
+        public void Bind(Systems systems)
+        {
+            influence = systems.Influence;
+            tells = systems.Tells;
+        }
+
+        /// <summary>The wind-up before going back toward the flames (2026-09-30).</summary>
+        private TellSystem tells;
 
         /// <summary>How wide a person is, for asking which way round something to go.</summary>
         private readonly int bodyRadius;
         private readonly WorldGeometry geometry;
         private readonly AlarmSystem alarms;
         private readonly Locomotion locomotion;
+        private readonly FrightenedWalk walk;
         private readonly AlarmSettings settings;
         private readonly PanicSettings panic;
 
-        public AlarmBehaviour(SimulationContext context, WorldGeometry geometry, AlarmSystem alarms, Locomotion locomotion)
+        public AlarmBehaviour(SimulationContext context, WorldGeometry geometry, AlarmSystem alarms, Locomotion locomotion,
+            FrightenedWalk walk)
         {
             this.context = context;
             bodyRadius = context.Scenario.World.OccupancyRadiusMillimetres;
             this.geometry = geometry;
             this.alarms = alarms;
             this.locomotion = locomotion;
+            this.walk = walk;
             settings = context.Scenario.Alarm;
             panic = context.Scenario.Panic;
         }
@@ -41,43 +55,110 @@ namespace Paniq.Simulation
             return activity == AgentActivityState.GoingToAlarm || activity == AgentActivityState.PullingAlarm;
         }
 
-        /// <summary>Who thinks of it: a leader, somebody who thinks of other people, or somebody brave (the owner asked for the brave, 2026-09-25).</summary>
-        private bool WouldRaiseIt(Agent agent)
+        /// <summary>
+        /// Who thinks of it: a leader, somebody who thinks of other people, or
+        /// somebody brave (the owner asked for the brave, 2026-09-25). With
+        /// the player's hand on the station and felt (2026-09-29), a little
+        /// less bravery does.
+        /// </summary>
+        private bool WouldRaiseIt(Agent agent, bool pulledToIt)
         {
             if (agent.Carry.ItemIndex >= 0 || agent.Help.TargetIndex >= 0 || agent.Body.State != AgentBodyState.Upright)
             {
                 return false;
             }
 
+            int bravery = settings.PullMinimumBravery - (pulledToIt ? settings.PulledBraveryBonus : 0);
             return agent.Traits.Leadership >= settings.PullMinimumLeadership ||
                    agent.Traits.Compassion >= settings.PullMinimumCompassion ||
-                   agent.Traits.Bravery >= settings.PullMinimumBravery;
+                   agent.Traits.Bravery >= bravery;
         }
 
-        /// <summary>
-        /// Considered in the panic decision. Returns no intent when this person
-        /// is not going for an alarm.
-        /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
-        {
-            if (IsRaisingTheAlarm(agent))
-            {
-                return Update(agent, inDanger);
-            }
+        public bool IsDoing(Agent agent) => IsRaisingTheAlarm(agent);
 
-            if (inDanger || alarms.Ringing || !alarms.Enabled || !WouldRaiseIt(agent))
+        public MotorIntent? Continue(Agent agent, in Situation situation) => Update(agent, situation.InDanger);
+
+        /// <summary>Bells silent, nothing in their hands, nobody in their care, on their feet, and out of the flames.</summary>
+        public bool Wants(Agent agent, in Situation situation) =>
+            !situation.InDanger && alarms.Enabled && !alarms.Ringing && agent.Carry.ItemIndex < 0 &&
+            agent.Help.TargetIndex < 0 && agent.Body.State == AgentBodyState.Upright;
+
+        /// <summary>Who thinks of it, which station, and off they go -- or nothing.</summary>
+        public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
+        {
+            first = Begin(agent, situation);
+            return first.HasValue;
+        }
+
+        private MotorIntent? Begin(Agent agent, in Situation situation)
+        {
+            bool inDanger = situation.InDanger;
+
+            // The player's hand on a pull station, felt from here (2026-09-29):
+            // it is worth going for from as far as the pull reaches, not only
+            // the usual short walk, and takes a little less nerve.
+            InfluenceSystem.Place pull = default;
+            int felt = 0;
+            int pulledStation = influence != null && influence.TryGetPull(agent, out pull, out felt)
+                ? alarms.StationAt(influence, pull)
+                : -1;
+            bool pulledToIt = pulledStation >= 0 && felt > 0;
+
+            // Driven hard (2026-09-30): they go whatever their nerve, and for
+            // the station their goal is on (the owner: "agents acted upon
+            // should be stuff they normally wouldn't").
+            bool forTheHand = pulledToIt && felt >= context.Scenario.Influence.ActsAgainstNatureFromPerMille &&
+                              influence.MayAnswer(agent);
+            bool wouldAnyway = WouldRaiseIt(agent, pulledToIt);
+            if (!wouldAnyway && !(forTheHand && agent.Carry.ItemIndex < 0 && agent.Help.TargetIndex < 0 &&
+                                  agent.Body.State == AgentBodyState.Upright))
             {
                 return null;
             }
 
-            int alarm = alarms.NearestUnpulledWithin(
-                agent.Body.Position,
-                geometry.RoomOf(agent),
-                geometry.Routes.ReachFrom(agent.Body.Position, bodyRadius),
-                geometry.Routes);
+            int alarm = forTheHand
+                ? pulledStation
+                : alarms.NearestUnpulledWithin(
+                    agent.Body.Position,
+                    geometry.RoomOf(agent),
+                    geometry.Routes.ReachFrom(agent.Body.Position, bodyRadius),
+                    geometry.Routes);
+            if (alarm < 0 && pulledToIt)
+            {
+                alarm = pulledStation;
+            }
+
             if (alarm < 0)
             {
                 return null;
+            }
+
+            // Turning back (2026-09-30): a walk to a station past the flames
+            // is wound up to first, unless the player's hand sent them.
+            if (tells != null)
+            {
+                TellSystem.GoingBack going = tells.BeforeGoingBack(agent, alarms.PositionOf(alarm),
+                    TellSystem.AlarmTarget(alarm), agent.Fear.ScaredEventId, forTheHand);
+                if (going == TellSystem.GoingBack.Wait)
+                {
+                    return tells.StandIntent(agent);
+                }
+
+                if (going == TellSystem.GoingBack.Refuse)
+                {
+                    return null;
+                }
+            }
+
+            if (forTheHand)
+            {
+                ulong press = pull.EventId;
+                influence.Answer(agent, pull, felt);
+                if (!WouldRaiseIt(agent, false))
+                {
+                    influence.ActedAgainstNature(agent, AgainstTheirNature.PulledTheAlarm, press, alarms.IdOf(alarm),
+                        agent.Body.Position);
+                }
             }
 
             agent.Alarm.AlarmIndex = alarm;
@@ -91,15 +172,25 @@ namespace Paniq.Simulation
         {
             int alarm = agent.Alarm.AlarmIndex;
 
-            // Somebody else got there first, the fire arrived, or it is taking
-            // too long: forget it and run.
+            // The fire arrived, or they are off their feet: cut short.
+            // Somebody else got there first: done, by them. Taking too long,
+            // or hemmed in: it came to nothing.
             bool onTheWay = agent.Intent.Activity == AgentActivityState.GoingToAlarm;
-            if (alarm < 0 || inDanger || !agent.Body.IsOnTheirFeet ||
-                (onTheWay && alarms.Ringing) ||
-                (onTheWay && context.Tick >= agent.Intent.ActivityEndTick) ||
-                (onTheWay && agent.Body.BlockedTicks >= panic.BlockedGiveUpTicks))
+            if (alarm < 0 || inDanger || !agent.Body.IsOnTheirFeet)
             {
-                GiveUp(agent);
+                End(agent, TaskEnd.Interrupted);
+                return null;
+            }
+
+            if (onTheWay && alarms.Ringing)
+            {
+                End(agent, TaskEnd.Done);
+                return null;
+            }
+
+            if (onTheWay && (context.Tick >= agent.Intent.ActivityEndTick || agent.Body.BlockedTicks >= panic.BlockedGiveUpTicks))
+            {
+                End(agent, TaskEnd.GaveUp);
                 return null;
             }
 
@@ -113,7 +204,7 @@ namespace Paniq.Simulation
                 }
 
                 alarms.Pull(alarm, agent, agent.Fear.ScaredEventId);
-                GiveUp(agent);
+                End(agent, TaskEnd.Done);
                 return null;
             }
 
@@ -125,15 +216,17 @@ namespace Paniq.Simulation
                 return FaceIt(agent, spot);
             }
 
-            agent.Intent.Target = spot;
+            // Round what is in the way, and through the doors on the way
+            // (2026-09-27): the alarm is chosen by how far it is to walk to
+            // it, which may be through a doorway, and a shut door used to
+            // stop them dead.
+            if (!walk.TryStep(agent, spot, TraitEffects.FleeSpeed(agent), agent.Fear.ScaredEventId, out MotorIntent step))
+            {
+                End(agent, TaskEnd.GaveUp);
+                return null;
+            }
 
-            // Round what is in the way. The alarm is chosen by how far it is to
-            // walk to it, which may be through a doorway, so walking straight
-            // at it would pick one it then cannot reach.
-            int heading = geometry.Routes.HeadingToward(agent.Body.Position, spot, bodyRadius, agent.Body.Heading);
-            heading = locomotion.Steer(agent, heading, TraitEffects.PanicPeopleAvoidPercent(agent, context.Scenario),
-                panic.WallAvoidPercent, panic.ObjectAvoidPercent, 0L, 0L);
-            return PanicIntent.WalkTowards(agent, heading, panic);
+            return step;
         }
 
         private MotorIntent FaceIt(Agent agent, LogicalPosition spot)
@@ -142,18 +235,17 @@ namespace Paniq.Simulation
             return PanicIntent.StandAndFace(agent, heading, panic);
         }
 
-        /// <summary>
-        /// Done with the alarm, one way or the other. They pick a way out on the
-        /// very next tick rather than standing at the wall they were just facing.
-        /// </summary>
-        private void GiveUp(Agent agent)
+        /// <summary>Done with the alarm, one way or the other (<see cref="Tasks.End"/>): they pick a way out a beat later.</summary>
+        private void End(Agent agent, TaskEnd how)
         {
             agent.Alarm.AlarmIndex = -1;
             if (IsRaisingTheAlarm(agent))
             {
-                agent.Intent.Activity = AgentActivityState.Fleeing;
-                context.ThinkAgainSoon(agent.Intent);
-                agent.Body.BlockedTicks = 0;
+                Tasks.End(agent, how, context, influence, walk);
+            }
+            else
+            {
+                walk.Forget(agent);
             }
         }
     }

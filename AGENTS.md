@@ -79,9 +79,52 @@ Acceptable:
 >
 > I only need your answer on the feel you want; I will pick the settings.
 
+## Level mode: one level first, the proving once
+
+(The owner's rule, 2026-10-03, replacing *Sketch and keep*: "I feel we need
+to get one level working and THEN work the fingerprints etc when the level is
+done ... if every change is several hours I can't progress.")
+
+While a level is being built, the level is the game: the owner plays, sends
+notes, and plays again minutes later. Proving things about a level that is
+still changing shape -- computer-played rounds, replay fingerprints, versions,
+documents -- is wasted on rules that change again tomorrow, so it is done
+once, when the level is finished.
+
+- **Every change, in level mode:**
+  1. Change the game code.
+  2. `tools/CompileAgainstUnity.ps1`, then `tools/RunUnityTests.ps1 -Filter
+     Smoke` (every level played once; fails only on an error or a round that
+     never ends; about twenty seconds). Where a change has a claim worth
+     checking and tests already cover it, those tests too, by name.
+  3. A **save point**: a local commit on the current branch, subject
+     `wip(level): ...`, staged by path. Any change can be undone in one step.
+     At the end of each working session the session's save points are folded
+     into one ordinary commit under the rules below (the owner, 2026-10-03:
+     the level takes weeks, and its history should read as sessions, not as
+     one commit at the end). Nothing is pushed unless the owner asks.
+  4. A three-line report: what is different, how to try it, what is
+     unproven. Old tests that went red are named in a line.
+- **Not done in level mode:** fingerprint re-recording, version bumps,
+  documents, computer-played measurements (unless the owner asks a question
+  only they can answer, such as "how hard is it left alone?"), the full test
+  run, and "old way" switches that keep other levels playing exactly as
+  before. Other levels may change.
+- **No speed question.** Every note in level mode is level-mode work; there
+  is nothing to ask before starting.
+- **Level mode ends** when the owner says the level is done ("lock it").
+  Then one **hardening pass**: decide which rules stay and delete switches
+  and code nobody uses; tests for what matters; fingerprints recorded once;
+  versions bumped; documents brought up to date; the full run; one commit.
+  The roadmap's *Left open* list says what the pass has to cover.
+- **Invisible repairs** (a refactor that changes how code is built but not
+  what the player sees) are never mixed into a gameplay change. Outside level
+  mode they are proven by fingerprints recorded before and compared after.
+
 ## Reporting finished work
 
-Every completed task ends with a report in this shape:
+A level-mode change's report is the three lines above, not this shape. Every
+other completed task ends with a report in this shape:
 
 - **What is different in the game now**, in plain language and player terms.
 - **How to see it for yourself** — exact, copyable, click-by-click steps for
@@ -112,6 +155,11 @@ Every completed task ends with a report in this shape:
   from a correctly named branch) before it's pushed.
 - **Merges**: always use `--no-ff`, so every integration leaves a visible
   merge commit in the log, even when the merge could fast-forward.
+- **The graph keeps its shape.** Rewriting history happens only when the
+  owner asks. When they do (condensing commits, for example), never flatten
+  it: every side branch still forks and merges at the same points, because the
+  owner reads the graph as much as the log. Tag the old tips first and push
+  with `--force-with-lease`.
 
 ### How much goes in one commit
 
@@ -128,7 +176,9 @@ separate commit.
 
 Never split by layer for its own sake, never by file, never one commit per
 note, and never into a trail of `wip`-style commits; if such a trail has grown
-while iterating, squash it before pushing. Fewer, larger, well-described
+while iterating, squash it before pushing. Level mode's save points are such
+a trail on purpose: they are folded into one commit at the end of each
+working session, before anything else happens to them. Fewer, larger, well-described
 commits beat many small ones every time.
 
 Use the stone's name as the scope, for example `feat(prototype-2)`. Add a
@@ -176,6 +226,29 @@ way; a third would need a reason just as clear.
 - Record every default chosen on the owner's behalf in
   [`docs/technical-decisions.md`](docs/technical-decisions.md), so a decision
   made silently is still a decision the owner can find and overturn.
+- **Live pages first, history on demand.** `docs/roadmap.md` and
+  `docs/technical-decisions.md` hold only the current stone, the standing
+  rules and what is still open. Finished stones' records live unchanged in
+  `docs/history/`: search them for a specific name or reason instead of
+  reading them whole. When a stone is finished, move its sections there and
+  carry anything it left open into the roadmap's *Left open* list; bumps of
+  the rules or building version go in `docs/history/version-history.md`.
+- **Read the page for the task, not every page.** Unfamiliar words are in
+  [`docs/glossary.md`](docs/glossary.md).
+
+  | Task | Read first |
+  | --- | --- |
+  | Any task: where things stand, what is open | `docs/roadmap.md` (top and *Left open*) |
+  | A playtest note, or how the level plays | `docs/the-office-level.md` |
+  | How people behave: fear, panic, helping, doors | `docs/the-office-level.md`, `docs/agent-state-model.md` |
+  | Randomness, ticks, order, replays | `docs/simulation-contract.md` |
+  | Rooms, walls, bodies, finding the way | `docs/spatial-world-rules.md` |
+  | The calm day: meetings, errands, the Director | `docs/cue-system.md` |
+  | Camera, controls, HUD, how things look | `docs/look-and-controls.md` |
+  | The game's direction, a new mechanic | `docs/game-vision.md`, `docs/goals.md` |
+  | Tests, tools, building a floor plan, pitfalls | `docs/development-workflow.md` |
+  | A default to choose or a technology to add | `docs/technical-decisions.md` |
+  | The reason behind older code | search `docs/history/` for its name |
 
 ## Simulation rules
 
@@ -201,8 +274,11 @@ way; a third would need a reason just as clear.
 
 ## Quality checks
 
+- **In level mode** (see *Level mode*) the checks are the compile check and
+  the smoke check, and the rest of this section waits for the hardening
+  pass. Outside level mode, and in that pass, everything below applies.
 - Add or update relevant edit-mode and play-mode tests with behavior changes.
-- **Checking work runs in two gears.** After every edit, run
+- **Checking work runs in two gears**. After every edit, run
   `tools/CompileAgainstUnity.ps1`: it needs no editor and answers in seconds.
   While iterating, once a step has a claim worth checking (a behaviour is in,
   not a file saved), run `tools/RunUnityTests.ps1 -Filter` with the names of
@@ -217,7 +293,7 @@ way; a third would need a reason just as clear.
   `tools/RunUnityTests.ps1 -All`. "Validation passed" means that run passed;
   a targeted run is reported as a targeted check, naming what ran. Do not run
   the full suite between the steps of one task: it re-proves what the step
-  could not have touched, at three minutes a time.
+  could not have touched, at six minutes a time.
 - **Tooling the game never runs is guarded by the checks that can see it,
   not by the full run.** A commit confined to the model pipeline
   (`tools/models`, `tools/BuildModel.ps1`, `ModelImportSettings`, the model

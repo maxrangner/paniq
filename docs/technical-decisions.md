@@ -11,6 +11,27 @@
 | Tests | Unity Test Framework | Supports edit-mode logic tests and play-mode scene-flow tests. |
 | Version control | Git | Text Unity assets are tracked; LFS waits for large source media. |
 
+## Level mode, and the order of the audit (2026-10-03)
+
+The owner: "if every change is several hours I can't progress ... get one
+level working and THEN work the fingerprints etc when the level is done."
+Measured: the hours went into proving numbers about a level still changing
+shape (machine-played rounds before the owner played, the office kept
+byte-identical behind switches, documents and versions per batch), not into
+the 6.5-minute suite. The owner's decisions when asked: rebuild how people
+decide (the audit's one task model) **before anything else**, and **set
+aside** the behaviours the loop level does not use.
+
+| Item | Decision | Why now | Revisit when |
+| --- | --- | --- | --- |
+| **Level mode** | Replaces *Sketch and keep* (binding text in `AGENTS.md`): compile check, smoke check, local save point, three-line report per change; proving once, in a hardening pass | **The owner's rule** | The level is done |
+| **The smoke check** | `SmokeEditModeTests`, category `Smoke`: the five levels, seed 41, once each; a fire round must end within three minutes (the old office excepted, known not to); about twenty seconds | The quickest test that a broken build never reaches the owner | It grows past a minute |
+| **Other levels may change** | No new "old way" switches; the office and the test levels take the new rules too | A switch per rule doubled the code for a level nobody plays now | The office is played again |
+| **Measurements on request** | `LoopMeasurements` / `LoopPlayers` stay, `[Explicit]`, run only when the owner asks a question they answer | Machine players are not people; their numbers gated every hand-over | Never as a gate |
+| **Cards and purse deleted** | Removed from the code, the levels and the screens; git history keeps them | The owner removed cards on 2026-09-30; the purse still ran every tick and three test levels quietly switched it back on | A level wants cards |
+| **Set aside** | Keycard fetching, the cruel wedging doors, toilet trips, the brave fighting fire unasked: not carried into the rebuilt decisions | **The owner's choice**; saves two to three days of the rebuild | A level needs one back (about a day each) |
+| **Test tools** | A comma filter from Bash runs every name; each half keeps its own results file; an inconclusive test fails; the compile check says "open the editor once" instead of hundreds of errors, compiles `Authoring` as the player does, and reads the version define from the installed editor | Audit G4-G7: each cost a test cycle | Never |
+
 ## Prototype 3: gameplay, first batch (2026-09-25)
 
 The owner's seven notes for prototype 3: the level as an obstacle. Every

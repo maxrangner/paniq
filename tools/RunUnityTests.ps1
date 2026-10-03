@@ -31,8 +31,8 @@
 
 .PARAMETER LastRun
     With -Slowest: read the previous run's results instead of running again.
-    Needs no editor. -All writes each half's results over the last, so this
-    shows the play-mode half after a full run.
+    Needs no editor. Each half keeps its own results file, so after -All this
+    lists both halves together.
 
 .PARAMETER PlayMode
     Run the play-mode tests instead of the edit-mode tests.
@@ -75,16 +75,26 @@ param(
     [switch] $Reset,
     [string] $Menu,
     [int] $Slowest = 0,
-    [switch] $LastRun
+    [switch] $LastRun,
+    # Set by -All on its own halves: a filter that matches nothing in one
+    # half is not a failure, as long as the other half ran something.
+    [Parameter(DontShow)] [switch] $EmptyIsFine
 )
 
 $ErrorActionPreference = 'Stop'
+
+# From Bash (powershell -File), "-Filter A,B" arrives as one string "A,B";
+# from PowerShell it arrives as two. Split either way, so both run both.
+$Filter = @($Filter | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
 $repository = Split-Path -Parent $PSScriptRoot
 $folder = Join-Path $repository 'Temp\PaniqTestBridge'
 $request = Join-Path $folder 'request.txt'
 $result = Join-Path $folder 'result.txt'
 $status = Join-Path $folder 'status.txt'
+# Each half keeps its own copy of its last results, so -All no longer
+# leaves only the play-mode half for -Slowest -LastRun to read.
+$halfResults = @((Join-Path $folder 'result-EditMode.txt'), (Join-Path $folder 'result-PlayMode.txt'))
 
 function Show-Slowest([string] $text, [int] $count) {
     $timed = foreach ($line in ($text -split "`n")) {
@@ -102,8 +112,9 @@ function Show-Slowest([string] $text, [int] $count) {
 
 if ($LastRun) {
     if ($Slowest -le 0) { throw '-LastRun only reads results; say how many with -Slowest.' }
-    if (-not (Test-Path $result)) { throw 'No previous run to read: nothing has run through the bridge yet.' }
-    Show-Slowest (Get-Content $result -Raw) $Slowest
+    $kept = @($halfResults | Where-Object { Test-Path $_ })
+    if (-not $kept) { throw 'No previous run to read: nothing has run through the bridge yet.' }
+    Show-Slowest (($kept | ForEach-Object { Get-Content $_ -Raw }) -join "`n") $Slowest
     exit 0
 }
 
@@ -113,10 +124,11 @@ if ($All) {
     if ($Reset)    { throw '-All runs the tests; it cannot be combined with -Reset.' }
 
     $worst = 0
+    $emptyHalves = 0
     foreach ($half in @($false, $true)) {
         Write-Host ''
         Write-Host "===== $(if ($half) { 'play' } else { 'edit' }) mode =====" -ForegroundColor Cyan
-        $arguments = @{ TimeoutSeconds = $TimeoutSeconds }
+        $arguments = @{ TimeoutSeconds = $TimeoutSeconds; EmptyIsFine = $true }
         if ($Filter)     { $arguments['Filter'] = $Filter }
         if ($Category)   { $arguments['Category'] = $Category }
         if ($ShowPassed) { $arguments['ShowPassed'] = $true }
@@ -124,7 +136,13 @@ if ($All) {
         if ($half)       { $arguments['PlayMode'] = $true }
 
         & $PSCommandPath @arguments
-        if ($LASTEXITCODE -ne 0) { $worst = $LASTEXITCODE }
+        if ($LASTEXITCODE -eq 3) { $emptyHalves++ }
+        elseif ($LASTEXITCODE -ne 0) { $worst = $LASTEXITCODE }
+    }
+
+    if ($emptyHalves -eq 2) {
+        Write-Host 'No tests ran in either half. Check the filter or category.' -ForegroundColor Yellow
+        $worst = 1
     }
 
     Write-Host ''
@@ -203,15 +221,26 @@ foreach ($line in ($text -split "`n")) {
     if ($line -match '^error=(.*)$') { Write-Host "  $($Matches[1])" -ForegroundColor Red; $exitCode = 1; continue }
     if ($line -match '^PASSED\t') { $passed++; if ($ShowPassed) { Write-Host $line -ForegroundColor Green }; continue }
     if ($line -match '^FAILED\t') { Write-Host $line -ForegroundColor Red; $exitCode = 1; continue }
-    if ($line -match '^(SKIPPED|INCONCLUSIVE)\t') { Write-Host $line -ForegroundColor Yellow; continue }
+    # An inconclusive test is one whose premise (an Assume.That) no longer
+    # holds: it has silently stopped proving anything, so it fails the run.
+    if ($line -match '^INCONCLUSIVE\t') { Write-Host $line -ForegroundColor Red; $exitCode = 1; continue }
+    if ($line -match '^SKIPPED\t') { Write-Host $line -ForegroundColor Yellow; continue }
     if ($line -match '^  \| ') { if ($ShowPassed -or $exitCode -ne 0) { Write-Host $line -ForegroundColor DarkGray }; continue }
     if ($line -match '^(passed|failed|skipped|inconclusive)=(\d+)$') {
         Write-Host ("{0,-13}{1}" -f $Matches[1], $Matches[2])
-        if ($Matches[1] -eq 'failed' -and [int]$Matches[2] -gt 0) { $exitCode = 1 }
+        if (($Matches[1] -eq 'failed' -or $Matches[1] -eq 'inconclusive') -and [int]$Matches[2] -gt 0) { $exitCode = 1 }
     }
 }
 
+if (-not $Menu) {
+    Set-Content -Path $halfResults[$(if ($PlayMode) { 1 } else { 0 })] -Value $text -Encoding utf8
+}
+
 if ($passed -eq 0 -and $exitCode -eq 0) {
+    if ($EmptyIsFine) {
+        Write-Host 'No tests in this half match.' -ForegroundColor DarkGray
+        exit 3
+    }
     Write-Host 'No tests ran. Check the filter or category.' -ForegroundColor Yellow
     $exitCode = 1
 }

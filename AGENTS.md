@@ -79,35 +79,50 @@ Acceptable:
 >
 > I only need your answer on the feel you want; I will pick the settings.
 
-## Sketch and keep: two speeds for prototype work
+## Level mode: one level first, the proving once
 
-Building every idea to keep quality on the first pass -- tests,
-documentation, fingerprints, the full run -- is most of what a batch costs,
-and most prototype ideas are retuned or dropped once the owner has played
-them. So work on a prototype stone runs at one of two speeds, and **the owner
-names the speed**:
+(The owner's rule, 2026-10-03, replacing *Sketch and keep*: "I feel we need
+to get one level working and THEN work the fingerprints etc when the level is
+done ... if every change is several hours I can't progress.")
 
-- **Sketch.** The owner says "sketch". Change the game code, run the compile
-  check, hand it over to play. No new tests, no documentation, no fingerprint
-  re-recording, no version bump; existing tests may go red, and the report
-  says so in a line. The report is three lines: what is different, how to try
-  it, what is unproven. Nothing is committed and nothing is pushed. A sketch
-  is a question put to the owner's hands, not yet a change to the game.
-- **Keep.** The owner says "keep" (or "keep the drag, drop the beacon").
-  Revert what was dropped, then harden what stays: tests, documentation,
-  fingerprints and versions, the full run, and one commit for the batch under
-  the rules below. Nothing about a keep pass is lighter than it was before
-  sketches existed.
-- **Neither, or unclear: ask before doing anything.** If the owner named no
-  speed, or a note is half a fix and half an idea, or it touches shared
-  simulation code, or a sketch has sat for a day without a keep or a drop:
-  ask, in one line, with a recommendation, and start nothing until the answer
-  comes. There is no default speed. (The owner's rule, 2026-09-30.)
+While a level is being built, the level is the game: the owner plays, sends
+notes, and plays again minutes later. Proving things about a level that is
+still changing shape -- computer-played rounds, replay fingerprints, versions,
+documents -- is wasted on rules that change again tomorrow, so it is done
+once, when the level is finished.
+
+- **Every change, in level mode:**
+  1. Change the game code.
+  2. `tools/CompileAgainstUnity.ps1`, then `tools/RunUnityTests.ps1 -Filter
+     Smoke` (every level played once; fails only on an error or a round that
+     never ends; about twenty seconds). Where a change has a claim worth
+     checking and tests already cover it, those tests too, by name.
+  3. A **save point**: a local commit on the current branch, subject
+     `wip(level): ...`, staged by path. Never pushed. Any change can be undone
+     in one step.
+  4. A three-line report: what is different, how to try it, what is
+     unproven. Old tests that went red are named in a line.
+- **Not done in level mode:** fingerprint re-recording, version bumps,
+  documents, computer-played measurements (unless the owner asks a question
+  only they can answer, such as "how hard is it left alone?"), the full test
+  run, and "old way" switches that keep other levels playing exactly as
+  before. Other levels may change.
+- **No speed question.** Every note in level mode is level-mode work; there
+  is nothing to ask before starting.
+- **Level mode ends** when the owner says the level is done ("lock it").
+  Then one **hardening pass**: decide which rules stay and delete switches
+  and code nobody uses; tests for what matters; fingerprints recorded once;
+  versions bumped; documents brought up to date; the full run; and the save
+  points squashed into one commit (or a few, each defensible under the rules
+  below) before anything is pushed.
+- **Invisible repairs** (a refactor that changes how code is built but not
+  what the player sees) are never mixed into a gameplay change. Outside level
+  mode they are proven by fingerprints recorded before and compared after.
 
 ## Reporting finished work
 
-A sketch's report is the three lines above, not this shape. Every other
-completed task ends with a report in this shape:
+A level-mode change's report is the three lines above, not this shape. Every
+other completed task ends with a report in this shape:
 
 - **What is different in the game now**, in plain language and player terms.
 - **How to see it for yourself** — exact, copyable, click-by-click steps for
@@ -159,7 +174,8 @@ separate commit.
 
 Never split by layer for its own sake, never by file, never one commit per
 note, and never into a trail of `wip`-style commits; if such a trail has grown
-while iterating, squash it before pushing. Fewer, larger, well-described
+while iterating, squash it before pushing. Level mode's save points are such
+a trail on purpose: they stay local and are squashed in the hardening pass. Fewer, larger, well-described
 commits beat many small ones every time.
 
 Use the stone's name as the scope, for example `feat(prototype-2)`. Add a
@@ -255,9 +271,11 @@ way; a third would need a reason just as clear.
 
 ## Quality checks
 
+- **In level mode** (see *Level mode*) the checks are the compile check and
+  the smoke check, and the rest of this section waits for the hardening
+  pass. Outside level mode, and in that pass, everything below applies.
 - Add or update relevant edit-mode and play-mode tests with behavior changes.
-- **Checking work runs in two gears** (a sketch runs only the first; see
-  *Sketch and keep*). After every edit, run
+- **Checking work runs in two gears**. After every edit, run
   `tools/CompileAgainstUnity.ps1`: it needs no editor and answers in seconds.
   While iterating, once a step has a claim worth checking (a behaviour is in,
   not a file saved), run `tools/RunUnityTests.ps1 -Filter` with the names of

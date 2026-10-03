@@ -50,6 +50,26 @@ what it asks, a cubicle landscape with fourteen more people beside the way
 out, and the whole office re-dressed and then played by machine to see what
 it does. All are under "Prototype 3" further down.
 
+**What comes next (2026-10-03, the owner's order).** A second office level,
+*Prototype fire 2* (`OfficeLoop`), is built and saved as work in progress: an
+ordinary way out, a real fire in the middle of the floor, the Director's
+script drawn per seed. Work now runs in **level mode** (see `AGENTS.md`): every
+change goes straight to the owner to play, and the tests, fingerprints and
+documents wait for one hardening pass when the level is done. The order:
+1. **Clear the ground**: cards and the purse deleted, the behaviours the
+   loop level does not use set aside (keycard fetching, wedging doors,
+   toilet trips, fighting fire unasked), the "left alone" comparison made
+   truthful.
+2. **Rebuild how people decide** -- the audit's one task model
+   ([audit](audit-2026-10-02.md), section D): calm and frightened people
+   choosing the same way, from one list of things they could do, with every
+   outside influence (a cue, an order, the hand, a noise) taken up a moment
+   later as an offer.
+3. **The loop level in level mode**, played and tuned by the owner.
+4. **The hardening pass** when the owner says the level is done.
+5. **The audit's foundations**: big crowds (simulation, then drawing), then
+   levels as data with storeys.
+
 ## Foundation (complete)
 
 | Note | What it settles |

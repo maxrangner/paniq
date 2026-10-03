@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Paniq.Simulation
@@ -22,20 +22,12 @@ namespace Paniq.Simulation
         private readonly Agent[] agents;
         private readonly FireSystem fire;
 
-        /// <summary>Everything the crowd is afraid of. Today that is the fire alone.</summary>
+        /// <summary>Everything the crowd is afraid of: the fire, things on fire, and people on fire.</summary>
         private readonly Threats threats;
         private readonly PowerSystem power;
         private readonly DoorSystem doors;
         private readonly PlayerCommandSystem playerCommands;
-        private readonly InfluenceSystem influence;
-        private readonly DeckSystem deck;
         private readonly RoundSystem round;
-
-        /// <summary>How many people had got out as of the end of last tick, so this tick can pay for the new ones.</summary>
-        private int escapedLastTick;
-
-        /// <summary>How many had been killed, so this tick can deal for the new ones.</summary>
-        private int lostLastTick;
         private readonly FearSystem fear;
         private readonly PerceptionSystem perception;
         private readonly WayfindingSystem wayfinding;
@@ -52,15 +44,22 @@ namespace Paniq.Simulation
         private readonly HelpBehaviour help;
         private readonly ChairBehaviour chairs;
         private readonly ExtinguisherBehaviour extinguishers;
+        private readonly KeycardSystem keycards;
         private readonly LeaderBehaviour leaders;
         private readonly AlarmSystem alarms;
-        private readonly GroupSystem groups;
         private readonly AlarmBehaviour alarmBehaviour;
 
         /// <summary>The building's day: the cues, who carries them out, and the timetable that calls them.</summary>
         private readonly CueSystem cues;
         private readonly ErrandBehaviour errands;
         private readonly DirectorSystem director;
+        private readonly NudgeSystem nudges;
+        private readonly TugSystem tugs;
+
+        /// <summary>The places the player has drawn people toward (2026-09-26).</summary>
+        private readonly InfluenceSystem influence;
+        private readonly HandChargeSystem handCharge;
+        private readonly TrapSystem traps;
         private readonly WorldGeometry geometry;
         private readonly Crowd crowd;
         private readonly PhysicsWorld physics;
@@ -97,9 +96,20 @@ namespace Paniq.Simulation
             agents = CreateAgents(doorStates.Length, geometry);
             fear = new FearSystem(context, threats);
             fear.DealTemperaments(agents);
+            if (scenario.World.EachPersonHasTheirOwnDice)
+            {
+                dice = new Pcg32[agents.Length];
+                for (int i = 0; i < agents.Length; i++)
+                {
+                    dice[i] = new Pcg32(context.Seed, PersonSequenceBase + agents[i].Id.Value);
+                }
+
+                fireDice = new Pcg32(context.Seed, FireSequence);
+            }
 
             crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres, geometry.FireArea);
-            physics = new PhysicsWorld(scenario.PhysicsFeel, geometry.FireArea, scenario.ObjectPhysics.WallRestitutionPercent);
+            physics = new PhysicsWorld(scenario.PhysicsFeel, geometry.FireArea, scenario.ObjectPhysics.WallRestitutionPercent,
+                scenario.World.WallThicknessMillimetres);
             doorPlugged = new bool[geometry.DoorSlotCount];
             tableWasMoving = new bool[geometry.TableCount];
             try
@@ -107,14 +117,12 @@ namespace Paniq.Simulation
                 BuildTheBuildingInThePhysics();
                 doors = new DoorSystem(context, doorStates, geometry);
                 playerCommands = new PlayerCommandSystem(context);
-                influence = new InfluenceSystem(context);
-                deck = new DeckSystem(context);
                 round = new RoundSystem(context, agents, geometry, threats);
                 var sound = new SoundSystem(context, crowd, threats, fear, geometry);
                 perception = new PerceptionSystem(context, threats, fear, sound, crowd, geometry);
                 body = new BodySystem(context, threats, sound, fear);
                 objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound, fire, physics);
-                people = new PeopleBodies(context, crowd, physics, threats, objects.Count);
+                people = new PeopleBodies(context, crowd, physics, threats, objects.Count, geometry);
                 power = new PowerSystem(context, objects);
                 collisions = new CollisionSystem(context, crowd, body, fear, sound, people);
 
@@ -127,25 +135,42 @@ namespace Paniq.Simulation
                 RememberHomes();
                 locomotion = new Locomotion(context, crowd, geometry, objects);
                 flammables = new FlammablesSystem(context, crowd, geometry, fire, objects, body);
+
+                // People sense danger, never "floor on fire" (the owner's rule,
+                // 2026-09-26): a thing on fire and a person on fire frighten
+                // whoever sees them, the way burning floor does. After the fire,
+                // so the fire still wins every tie it used to.
+                threats.Add(new BurningThingsThreat(context, geometry, flammables));
+                threats.Add(new BurningPeopleThreat(context, geometry, crowd));
+                traps = new TrapSystem(context, crowd, geometry, doors, objects, flammables, sound, people);
                 items = new ItemBehaviour(context, geometry, objects, flammables);
                 chairs = new ChairBehaviour(context, crowd, geometry, objects, people);
                 cues = new CueSystem(context, crowd, geometry);
                 errands = new ErrandBehaviour(context, crowd, geometry, objects, doors, chairs, sound, cues);
+                influence = new InfluenceSystem(context, geometry);
                 calm = new CalmBehaviour(context, crowd, geometry, locomotion, items, chairs, errands, cues, sound);
-                director = new DirectorSystem(context, cues, geometry);
+                nudges = new NudgeSystem(context, crowd, body, calm, fear);
+                tugs = new TugSystem(context, crowd, nudges);
+                handCharge = new HandChargeSystem(context, influence, tugs);
+                director = new DirectorSystem(context, cues, geometry, doors, fire, flammables, power, objects, crowd,
+                    sound);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
-                groups = new GroupSystem(context, crowd, wayfinding);
-                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, threats, sound, exitSigns, wayfinding, groups);
+                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, threats, sound, exitSigns, wayfinding);
                 help = new HelpBehaviour(context, crowd, geometry, threats, fear, body, objects, locomotion, people);
                 panic = new PanicBehaviour(context, crowd, geometry, threats, fear, sound, body, doorBehaviour, help, chairs,
-                    exitSigns, locomotion, groups);
+                    exitSigns, locomotion);
                 burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
-                extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items);
+                var walk = new FrightenedWalk(context, geometry, doors, locomotion);
+                keycards = new KeycardSystem(context, crowd, geometry, doors, objects, threats, walk);
+                extinguishers = new ExtinguisherBehaviour(context, crowd, geometry, objects, fire, body, flammables, items, walk);
+                var handHeave = new HandHeaveBehaviour(context, crowd, geometry, objects, doors, walk);
+                var handGather = new HandGatherBehaviour(context, geometry, walk);
+                var tells = new TellSystem(context, threats);
                 leaders = new LeaderBehaviour(context, crowd, geometry, doors, doorBehaviour, fire, sound, objects, locomotion,
                     wayfinding);
                 alarms = new AlarmSystem(context, sound, geometry, objects, flammables);
-                alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion);
+                alarmBehaviour = new AlarmBehaviour(context, geometry, alarms, locomotion, walk);
                 var barricades = new BarricadeBehaviour(context, crowd, geometry, doors, threats, objects, flammables, locomotion);
 
                 // Everything exists: hand each system the ones built after it.
@@ -154,16 +179,23 @@ namespace Paniq.Simulation
                 {
                     Context = context, Geometry = geometry, Crowd = crowd, Physics = physics, Fire = fire,
                     Threats = threats, Power = power, Doors = doors, PlayerCommands = playerCommands,
-                    Influence = influence, Deck = deck, Round = round, Sound = sound, Fear = fear,
+                    Round = round, Sound = sound, Fear = fear,
                     Perception = perception, Body = body, Objects = objects, People = people,
                     Collisions = collisions, Locomotion = locomotion, Flammables = flammables, Items = items,
                     Chairs = chairs, Calm = calm, ExitSigns = exitSigns, Wayfinding = wayfinding,
                     DoorBehaviour = doorBehaviour, Help = help, Panic = panic, Burning = burning,
-                    Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms, Groups = groups,
+                    Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms,
                     AlarmBehaviour = alarmBehaviour, Barricades = barricades,
-                    Cues = cues, Errands = errands, Director = director
+                    Cues = cues, Errands = errands, Director = director, Nudges = nudges, Tugs = tugs, Traps = traps,
+                    HandCharge = handCharge,
+                    Influence = influence, Keycards = keycards, HandHeave = handHeave, HandGather = handGather,
+                    Tells = tells
                 };
                 systems.BindAll();
+
+                // Where the keycard begins (2026-09-27): drawn from the card's
+                // own stream, so the start-up draws above are untouched.
+                keycards.PlaceAtTheStart(agents);
             }
             catch
             {
@@ -204,7 +236,8 @@ namespace Paniq.Simulation
                 long squareMillimetres = (long)(bounds.MaxX - bounds.MinX) * (bounds.MaxZ - bounds.MinZ);
                 int massGrams = (int)Math.Max(1000L,
                     squareMillimetres * flammables.TableMassGramsPerSquareMetre / 1000000L);
-                physics.AddTable(bounds, massGrams, flammables.TableFloorGripPercent);
+                physics.AddTable(bounds, massGrams, flammables.TableFloorGripPercent,
+                    geometry.TableHeightMillimetres(table), geometry.IsPartition(table));
                 geometry.MoveTable(table, physics.TableFootprint(table), physics.TablePose(table), true);
             }
         }
@@ -468,28 +501,20 @@ namespace Paniq.Simulation
         /// <summary>Whether the alarms are ringing.</summary>
         public bool AlarmsRinging => alarms.Ringing;
 
-        /// <summary>What the player has left to spend on cards.</summary>
-        public int Influence => influence.Influence;
-
         /// <summary>How many bells ring when an alarm is pulled: the sounders on the walls, or the pull stations on a floor without any.</summary>
         public int BellCount => alarms.BellCount;
-
-        /// <summary>Influence earned back by getting people out, and spent on cards, for the display.</summary>
-        public int InfluenceEarned => influence.Earned;
-        public int InfluenceSpent => influence.Spent;
-
-        /// <summary>How many sticks of TNT the player has left.</summary>
-        public int BlastChargesRemaining => doors.BlastChargesRemaining;
-
-        /// <summary>What a card costs, so the display can grey out what the player cannot afford.</summary>
-        public int CostOf(PlayerCommandType card) => influence.CostOf(card);
 
         /// <summary>Every command queued so far, in sequence order. Replaying them gives the same run.</summary>
         public IReadOnlyList<PlayerCommand> Commands => playerCommands.Commands;
 
         public int PhysicsObjectCount => objects.Count;
 
-        public AgentSnapshot GetAgent(int index) => agents[index].ToSnapshot();
+        public AgentSnapshot GetAgent(int index) => SnapshotOf(agents[index]);
+
+        /// <summary>One person as the display sees them, with what they are doing for the hand.</summary>
+        private AgentSnapshot SnapshotOf(Agent agent) =>
+            agent.ToSnapshot(context.Tick, influence.IsActingFor(agent), influence.IsActingAgainstNature(agent),
+                influence.IsCommitted(agent), influence.AskOf(agent));
 
         /// <summary>
         /// Whether this person is on their way to the given way out: it is the
@@ -503,6 +528,9 @@ namespace Paniq.Simulation
             return i >= 0 && agents[i].Doors.WayOutDoorIndex == wayOutDoorIndex && agents[i].Doors.ExitDoorIndex >= 0;
         }
 
+        /// <summary>Tests and measurements: the door this person is making for now, or -1.</summary>
+        internal int ExitDoorIndexForTests(int agentIndex) => agents[agentIndex].Doors.ExitDoorIndex;
+
         public AgentSnapshot GetAgent(SimulationId id)
         {
             int i = crowd.IndexOf(id);
@@ -511,7 +539,7 @@ namespace Paniq.Simulation
                 throw new KeyNotFoundException($"Unknown agent ID {id}.");
             }
 
-            return agents[i].ToSnapshot();
+            return SnapshotOf(agents[i]);
         }
 
         public DoorSnapshot GetDoor(int index) => doors.GetSnapshot(index);
@@ -526,11 +554,26 @@ namespace Paniq.Simulation
 
         public TableSnapshot GetTable(int index) => flammables.GetTableSnapshots()[index];
 
+        /// <summary>Tests only: a shove on somebody's body, this fast (millimetres a tick) this way, as a push or a blast gives one.</summary>
+        internal void ShoveAgentForTests(int index, int heading, int speed) => people.Push(agents[index], heading, speed, 0);
+
         /// <summary>Tests only: sets an object sliding at a velocity in millimetres per tick.</summary>
         internal void LaunchObjectForTests(int index, int velocityX, int velocityZ) => objects.Launch(index, velocityX, velocityZ);
 
         /// <summary>Throws a thing straight up at this many millimetres per tick.</summary>
         internal void TossObjectUpForTests(int index, int velocityY) => objects.Launch(index, 0, 0, velocityY);
+
+        /// <summary>
+        /// Tests only: puts a thing straight down at a spot, stopped, its
+        /// underside this high off the floor, turned to this heading. How a
+        /// test lays the fallen tower's heap exactly where it wants it,
+        /// rather than wherever the physics lands it.
+        /// </summary>
+        internal void PlaceObjectForTests(int index, LogicalPosition spot, int bottomMillimetres, int heading)
+        {
+            objects.Unpin(index);
+            objects.PlaceAt(index, spot, bottomMillimetres, heading, 0UL);
+        }
 
         /// <summary>Tests only: everything about what one person is doing and why, in one line, for a test that has to say what went wrong.</summary>
         internal string DescribeForTests(int index)
@@ -556,9 +599,75 @@ namespace Paniq.Simulation
 
         /// <summary>Tests only: the fire system, to check its queries against a brute-force answer.</summary>
         /// <summary>Tops up the purse for a test that is not about the economy.</summary>
-        public void GiveInfluenceForTests(int amount) => influence.GiveForTests(amount);
+        /// <summary>Tests: TNT through the wall nearest the point, as the old card did, with its bang. The event, or 0 if no wall was in reach.</summary>
+        internal ulong BlastWallForTests(LogicalPosition point)
+        {
+            ulong blasted = doors.TryBlastWall(point, 0);
+            if (blasted != 0UL)
+            {
+                BlastSettings blast = context.Scenario.Blast;
+                systems.Sound.Bang(default, point, blast.BangHearingRadiusMillimetres, blast.BangAlarmRadiusMillimetres, blasted);
+                objects.FlingFrom(point, blast.ThrowRadiusMillimetres, blast.ThrowSpeedMillimetresPerTick, -1, blasted);
+                long radius = blast.KnockDownRadiusMillimetres;
+                using (Crowd.Nearby near = crowd.Within(point, radius))
+                {
+                    for (int c = 0; c < near.Count; c++)
+                    {
+                        Agent agent = agents[near[c]];
+                        if (!agent.IsParticipating || LogicalPosition.DistanceSquared(agent.Body.Position, point) > radius * radius)
+                        {
+                            continue;
+                        }
+
+                        int away = IntegerMath.HeadingBetween(point, agent.Body.Position, agent.Body.Heading);
+                        body.BlowOver(agent, away,
+                            blast.ShoveDistanceMillimetres * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
+                            context.Scenario.PhysicsFeel.BlastLiftPercent, blasted);
+                    }
+                }
+            }
+
+            return blasted;
+        }
+
+        /// <summary>Tests: how many sticks of TNT are left for <see cref="BlastWallForTests"/>.</summary>
+        internal int BlastChargesForTests => doors.BlastChargesRemaining;
 
         internal FireSystem FireForTests => fire;
+
+        /// <summary>Every flame in the building out at once -- floor, things and people -- as though somebody had been very busy with a bottle.</summary>
+        internal void PutEverythingOutForTests()
+        {
+            fire.PutOutEverythingForTests();
+            flammables.PutOutEverythingForTests();
+            for (int i = 0; i < agents.Length; i++)
+            {
+                if (agents[i].IsParticipating && agents[i].Burning.IsBurning)
+                {
+                    body.PutOutPerson(agents[i], 0UL);
+                }
+            }
+        }
+
+        internal DirectorSystem DirectorForTests => director;
+
+        internal InfluenceSystem InfluenceForTests => influence;
+        internal HandChargeSystem HandChargeForTests => handCharge;
+
+        /// <summary>Tests: the player's hand on a person, and who it is on.</summary>
+        internal TugSystem TugsForTests => tugs;
+
+        internal FlammablesSystem FlammablesForTests => flammables;
+
+        /// <summary>Sets somebody alight, as touching the flames would.</summary>
+        internal void SetAlightForTests(int index) => body.CatchFire(agents[index], 0UL);
+
+        /// <summary>Tests only: this person is knocked off their feet, as by a collision with nothing behind it.</summary>
+        internal void KnockDownForTests(int index) => body.KnockDown(agents[index], 0UL, 0);
+
+        internal FearSystem FearForTests => fear;
+
+        internal AlarmSystem AlarmsForTests => alarms;
 
         internal WorldGeometry GeometryForTests => geometry;
 
@@ -581,6 +690,41 @@ namespace Paniq.Simulation
         /// <summary>Tests only: a thud at a spot, so calm people near it turn to look.</summary>
         internal void MakeANoiseForTests(LogicalPosition where) => systems.Sound.Thud(default, where, 0UL);
 
+        /// <summary>The keycard, for tests that ask who has it and where it lies.</summary>
+        internal KeycardSystem KeycardsForTests => keycards;
+
+        /// <summary>Tests only: what one person believes about the keycard.</summary>
+        internal AgentKeycard KeycardBeliefForTests(int index) => agents[index].Keycard;
+
+        /// <summary>Tests only: the keycard into this person's pocket, before the first tick, however the seed placed it.</summary>
+        internal void GiveKeycardForTests(int agentIndex)
+        {
+            RequireTheStartForTests();
+            keycards.GiveToForTests(agents[agentIndex], agents);
+        }
+
+        /// <summary>Tests only: the keycard on the floor at a spot, before the first tick.</summary>
+        internal void PutKeycardDownForTests(LogicalPosition spot)
+        {
+            RequireTheStartForTests();
+            keycards.PutDownForTests(spot, agents);
+        }
+
+        /// <summary>Tests only: the keycard on this table, before the first tick.</summary>
+        internal void PutKeycardOnATableForTests(int table)
+        {
+            RequireTheStartForTests();
+            keycards.PutOnATableForTests(table, agents);
+        }
+
+        private void RequireTheStartForTests()
+        {
+            if (context.Tick != 0)
+            {
+                throw new InvalidOperationException("The keycard is placed before the first tick.");
+            }
+        }
+
         /// <summary>The run's shared state, for a test double that needs to write into the log.</summary>
         internal SimulationContext ContextForTests => context;
 
@@ -598,6 +742,9 @@ namespace Paniq.Simulation
         /// <summary>Tests only: what touched what in the last physics step.</summary>
         internal IReadOnlyList<PhysicsWorld.Contact> ContactsForTests => physics.Contacts;
 
+        /// <summary>Tests and measurements: how far this loose thing is sunk into a wall, in millimetres (0: clear of them).</summary>
+        internal int WallPenetrationForTests(int objectIndex) => physics.WallPenetrationMillimetres(objectIndex);
+
         /// <summary>How far any two solid things were pressed into each other during the last tick, in millimetres.</summary>
         public int DeepestPressMillimetres => physics.DeepestPressMillimetres;
 
@@ -608,6 +755,34 @@ namespace Paniq.Simulation
             {
                 (_, int b, PhysicsWorld.StaticKind building) = physics.DeepestPressPair;
                 return b < 0 && building == PhysicsWorld.StaticKind.Floor;
+            }
+        }
+
+        /// <summary>
+        /// Tests only: whether the deepest press of the last tick was somebody
+        /// lying down inside a stall against its wall. A body on the floor is
+        /// longer than a stall is wide, so the engine holds it against the
+        /// wall until they get up; nothing is passing into anything.
+        /// </summary>
+        internal bool DeepestPressIsABodyLyingInAStallForTests
+        {
+            get
+            {
+                (int a, int b, PhysicsWorld.StaticKind building) = physics.DeepestPressPair;
+                if (b >= 0 || building != PhysicsWorld.StaticKind.Wall)
+                {
+                    return false;
+                }
+
+                Agent person = people.PersonAt(a);
+                if (person == null || person.Body.State == AgentBodyState.Upright ||
+                    person.Body.State == AgentBodyState.Staggering)
+                {
+                    return false;
+                }
+
+                int room = geometry.RoomOf(person);
+                return room >= 0 && context.Scenario.Rooms[room].Use == RoomUse.Stall;
             }
         }
 
@@ -629,7 +804,7 @@ namespace Paniq.Simulation
             Agent person = people.PersonAt(handle);
             if (person != null)
             {
-                return $"person {person.Id} ({person.Body.State}, {person.Intent.Activity}, sitting {person.Sitting.OnIt})";
+                return $"person {person.Id} ({person.Body.State}, {person.Intent.Activity}, sitting {person.Sitting.OnIt}, at {person.Body.Position.X},{person.Body.Position.Z}, room {geometry.RoomOf(person)})";
             }
 
             PhysicsObjectSnapshot thing = GetPhysicsObject(handle);
@@ -651,6 +826,9 @@ namespace Paniq.Simulation
         /// <summary>The way out this person is running for, or -1.</summary>
         internal int ExitDoorForTests(int index) => agents[index].Doors.ExitDoorIndex;
         internal Agent AgentForTests(int index) => agents[index];
+
+        /// <summary>Tests only: the loose things, for asking whether somebody could take one.</summary>
+        internal PhysicsObjectSystem ObjectsForTests => objects;
 
         /// <summary>Frightens somebody at once, as if they had seen the fire: for tests of what the frightened do.</summary>
         internal void FrightenForTests(int index) => fear.MakeScared(agents[index]);
@@ -691,6 +869,15 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Queues a player action aimed at a thing from a place: a nudge that
+        /// knows where the click landed. Same rules as the overloads above.
+        /// </summary>
+        public PlayerCommand QueueCommand(PlayerCommandType commandType, SimulationId targetId, LogicalPosition point, int targetTick)
+        {
+            return playerCommands.Queue(commandType, targetId, point, targetTick);
+        }
+
+        /// <summary>
         /// One logical tick, in the simulation contract's order:
         /// 1 player commands, 1½ the building's day (the Director's cues),
         /// 2 hazard, 3 hazard contact, 4 decisions
@@ -704,14 +891,39 @@ namespace Paniq.Simulation
             context.Tick = checked(context.Tick + 1);
             playerCommands.Consume();
 
-            // Phase 1's tail: the bells that are due ring again.
+            // Phase 1's tail: the bells that are due ring again, and a door
+            // the player is holding shuts once its doorway is clear.
             alarms.Update();
+
+            // The hand's charge, then the hand: a beacon whose time is up
+            // comes off, a hand whose charge ran dry comes off, and then
+            // everybody's conviction moves for the tick (2026-09-30).
+            handCharge.Advance();
+            influence.Advance();
 
             // Phase 1½: what the building's day holds. A cue called here
             // reaches people at their own reaction tick in phase 4, so nobody
-            // moves on the tick it is called.
+            // moves on the tick it is called. The same for a stack somebody
+            // knocked a beat ago (2026-10-02: only a bump brings one down;
+            // the Director no longer arms or springs it) and for anybody
+            // nudged a beat ago.
             director.Advance();
-            threats.Advance();
+            traps.Advance();
+            nudges.Advance();
+            tugs.Advance();
+            if (dice == null)
+            {
+                threats.Advance();
+            }
+            else
+            {
+                // The fire spreads with its own dice (2026-10-03).
+                Pcg32 shared = context.Random;
+                context.Random = fireDice;
+                threats.Advance();
+                fireDice = context.Random;
+                context.Random = shared;
+            }
 
             // Phase 2 as well: a fuse burning along a wall toward a socket is
             // hazard advancing on its own clock, exactly as a threat is. It
@@ -727,13 +939,57 @@ namespace Paniq.Simulation
                     continue;
                 }
 
-                if (body.BurnOut(agent))
+                if (dice == null)
                 {
-                    items.DropFromLost(agent);
+                    StepOnePerson(agent);
                     continue;
                 }
 
+                // Their own dice for their own turn (2026-10-03).
+                Pcg32 shared = context.Random;
+                context.Random = dice[i];
+                StepOnePerson(agent);
+                dice[i] = context.Random;
+                context.Random = shared;
+            }
+
+            AfterThePeople();
+        }
+
+        /// <summary>Each person's own dice, or null while everything comes off the one stream.</summary>
+        private Pcg32[] dice;
+
+        /// <summary>The fire's own dice, used while <see cref="dice"/> is.</summary>
+        private Pcg32 fireDice;
+
+        /// <summary>The first stream number for a person's own dice: theirs is this plus their id.</summary>
+        private const ulong PersonSequenceBase = 100000UL;
+
+        /// <summary>The fire's own stream number.</summary>
+        private const ulong FireSequence = 59UL;
+
+        /// <summary>One person's turn in phase 4: what they see and hear, how they feel, and what they decide to do.</summary>
+        private void StepOnePerson(Agent agent)
+        {
+            {
+                if (body.BurnOut(agent))
+                {
+                    items.DropFromLost(agent);
+                    keycards.DropFromLost(agent);
+                    return;
+                }
+
                 perception.Update(agent);
+
+                // Whoever can see the keycard takes in where it is, a beat
+                // later; whoever has it and is near enough the card door's
+                // reader swipes it.
+                keycards.Notice(agent);
+                keycards.SwipeIfInReach(agent);
+
+                // Having looked and listened: settling, at their own pace, if
+                // nothing frightening is left in sight or earshot.
+                fear.Settle(agent);
 
                 // Whatever doors and corners they can see, before they decide
                 // anything: somebody who has just come round a corner and seen
@@ -742,10 +998,13 @@ namespace Paniq.Simulation
 
                 // Startled, off their feet or on fire: whatever they carry is dropped or thrown.
                 items.LetGoIfNeeded(agent);
+
+                // Out cold: the keycard slips out of their pocket.
+                keycards.DropIfOutCold(agent);
                 if (body.Update(agent))
                 {
                     // Staggering, on the floor or getting up: no control, no move.
-                    continue;
+                    return;
                 }
 
                 MotorIntent? intent;
@@ -768,7 +1027,11 @@ namespace Paniq.Simulation
 
                 if (intent.HasValue)
                 {
-                    Locomotion.ApplyBody(agent, items.Burdened(agent, intent.Value));
+                    // The player's hand on them (2026-09-29) brakes whatever
+                    // they meant to do to a standstill; the plan itself is
+                    // theirs, and resumes the moment the hand comes off.
+                    MotorIntent wanted = items.Burdened(agent, intent.Value);
+                    Locomotion.ApplyBody(agent, agent.Tug.Held ? tugs.Restrain(agent, wanted) : wanted);
                 }
 
                 if (agent.Body.State != AgentBodyState.Upright)
@@ -777,7 +1040,11 @@ namespace Paniq.Simulation
                     agent.Body.Speed = 0;
                 }
             }
+        }
 
+        /// <summary>Phase 4's tail and everything after it in the tick.</summary>
+        private void AfterThePeople()
+        {
             chairs.ResolveStanding();
             leaders.CountFollowers();
             extinguishers.Spray();
@@ -795,9 +1062,14 @@ namespace Paniq.Simulation
             FollowTheTables();
             objects.AfterStep();
             collisions.Resolve(physics.Contacts);
+
+            // A body that ran into a standing stack has knocked it
+            // (2026-10-02): it comes down a beat later, in traps.Advance.
+            traps.FeelTheBumps(physics.Contacts);
             people.FeelTheSqueeze(physics.Contacts);
 
             items.FollowCarriers(agents);
+            keycards.FollowHolders(agents);
             burning.RollToPutItOut();
             burning.SpreadFlames();
             doorBehaviour.CarryTheFallenThroughDoorways();
@@ -806,6 +1078,7 @@ namespace Paniq.Simulation
             flammables.Update();
             doors.ScorchInTheFire(fire);
             doors.ResolveBlockages();
+            doors.SettlePounding();
 
             // Before the list of doors that opened is cleared: fire that had
             // nowhere left to go may have somewhere now.
@@ -817,7 +1090,6 @@ namespace Paniq.Simulation
             // -- the next tick's decisions read one settled answer instead of
             // one that changes as the door swings.
             doorBehaviour.AnnounceWaysOut();
-            SettleThePurseAndTheHand();
 
             // Very last, once everything about this tick has settled: is the
             // round over? Judged on the tick as it ended rather than as it was
@@ -827,76 +1099,6 @@ namespace Paniq.Simulation
 
         /// <summary>Where the round has got to: before the event, during it, or finished.</summary>
         public RoundPhase Phase => round.Phase;
-
-        /// <summary>
-        /// What this tick paid the player. Everybody who got out pays the purse
-        /// back, everything that happened feeds the meter, and everybody who
-        /// was killed deals a card. Counted here rather than reported by the
-        /// behaviours, so nothing in the simulation has to know the player's
-        /// purse exists.
-        /// <para>
-        /// The dead are dealt for in agent order, not in the order they
-        /// happened to be resolved, so a replay of the same seed draws the same
-        /// cards.
-        /// </para>
-        /// </summary>
-        private void SettleThePurseAndTheHand()
-        {
-            int escaped = 0;
-            int lost = 0;
-            for (int i = 0; i < agents.Length; i++)
-            {
-                AgentTerminalOutcome outcome = agents[i].Outcome;
-                escaped += outcome == AgentTerminalOutcome.Escaped ? 1 : 0;
-                lost += outcome == AgentTerminalOutcome.Lost ? 1 : 0;
-            }
-
-            // Only while the round is running: somebody who strolled out at
-            // home time before anything was wrong was never in danger, and
-            // the purse pays for people saved, not for people who left.
-            if (round.Phase == RoundPhase.Running)
-            {
-                for (int saved = escapedLastTick; saved < escaped; saved++)
-                {
-                    influence.CreditPersonSaved();
-                }
-            }
-
-            escapedLastTick = escaped;
-
-            if (lost > lostLastTick)
-            {
-                DealForTheNewlyDead();
-                lostLastTick = lost;
-            }
-
-            influence.CreditUproar();
-        }
-
-        /// <summary>
-        /// One card for each person killed since last tick, found by walking
-        /// the crowd in order and dealing for anybody dead who has not been
-        /// dealt for yet. In crowd order rather than in the order they happened
-        /// to be resolved, so a replay of the same seed draws the same cards.
-        /// </summary>
-        private void DealForTheNewlyDead()
-        {
-            for (int i = 0; i < agents.Length; i++)
-            {
-                if (agents[i].Outcome != AgentTerminalOutcome.Lost || agents[i].DeathDealt)
-                {
-                    continue;
-                }
-
-                agents[i].DeathDealt = true;
-                deck.DealForDeath(
-                    agents[i].Id,
-                    agents[i].Body.Position,
-                    agents[i].DeathEventId,
-                    objects.HasSpareExtinguisher,
-                    doors.BlastChargesRemaining > 0);
-            }
-        }
 
         /// <summary>Phase 3: anyone standing in a threat is got by it (in fire, they catch fire).</summary>
         private void ResolveCurrentContact()
@@ -977,12 +1179,7 @@ namespace Paniq.Simulation
         /// <summary>An empty snapshot sized for this run, to be filled and filled again.</summary>
         public RunSnapshot NewSnapshotBuffer()
         {
-            return new RunSnapshot(agents.Length, geometry.DoorSlotCount, objects.Count, geometry.TableCount,
-                cardCosts ??= CardCosts(),
-                doorClickCosts ??= DoorCosts(state => influence.CostOfDoorClick(state, false)),
-                exitClickCosts ??= DoorCosts(state => influence.CostOfDoorClick(state, true)),
-                lockToggleCosts ??= DoorCosts(state => influence.CostOfLockToggle(state, false)),
-                exitLockToggleCosts ??= DoorCosts(state => influence.CostOfLockToggle(state, true)));
+            return new RunSnapshot(agents.Length, geometry.DoorSlotCount, objects.Count, geometry.TableCount);
         }
 
         /// <summary>Writes the run as it stands into a snapshot from <see cref="NewSnapshotBuffer"/>.</summary>
@@ -991,7 +1188,7 @@ namespace Paniq.Simulation
             AgentSnapshot[] people = into.AgentBuffer;
             for (int i = 0; i < agents.Length; i++)
             {
-                people[i] = agents[i].ToSnapshot();
+                people[i] = SnapshotOf(agents[i]);
             }
 
             // Only the openings that are really there: a spare hole slot has no
@@ -1010,13 +1207,12 @@ namespace Paniq.Simulation
             }
 
             flammables.FillTableSnapshots(into.TableBuffer);
-
-            Prefix<PlayerCommandType> held = into.HandBuffer;
-            held.Resize(deck.Hand.Count);
-            for (int i = 0; i < deck.Hand.Count; i++)
-            {
-                held.Items[i] = deck.Hand[i];
-            }
+            influence.FillSnapshot(into.InfluencePlaceBuffer, into.InfluencePullBuffer, agents);
+            into.PlayerMayPullAlarms = context.Scenario.Alarm.PlayerMayPull;
+            into.DirectorPushTick = director.LastPushTick;
+            into.TuggedAgentIndex = tugs.HeldIndex;
+            into.CrowdHeldPanicked = fear.HoldsPanicked;
+            into.HazardRequested = threats.StartRequested;
 
             into.Fill(
                 context.Tick,
@@ -1027,45 +1223,11 @@ namespace Paniq.Simulation
                 context.Events.View(),
                 CountClearOfFire(),
                 alarms.Ringing,
-                influence.Influence,
-                context.Scenario.Influence.Maximum,
-                influence.Spent,
-                influence.Earned,
-                doors.BlastChargesRemaining,
                 power.Sparks(),
                 round.Phase,
-                context.Scenario.Round.TargetSavedPercent);
-        }
-
-        /// <summary>The cost tables, worked out once: they are settings, and settings do not change in a run.</summary>
-        private int[] cardCosts;
-        private int[] doorClickCosts;
-        private int[] exitClickCosts;
-        private int[] lockToggleCosts;
-        private int[] exitLockToggleCosts;
-
-        /// <summary>What every command costs, by command type, for the display.</summary>
-        private int[] CardCosts()
-        {
-            var costs = new int[System.Enum.GetValues(typeof(PlayerCommandType)).Length];
-            for (int i = 0; i < costs.Length; i++)
-            {
-                costs[i] = influence.CostOf((PlayerCommandType)i);
-            }
-
-            return costs;
-        }
-
-        /// <summary>What working a door in each state costs, for the display.</summary>
-        private static int[] DoorCosts(System.Func<DoorState, int> priceOf)
-        {
-            var costs = new int[System.Enum.GetValues(typeof(DoorState)).Length];
-            for (int i = 0; i < costs.Length; i++)
-            {
-                costs[i] = priceOf((DoorState)i);
-            }
-
-            return costs;
+                context.Scenario.Round.TargetSavedPercent,
+                handCharge.PerMille,
+                handCharge.IsResting);
         }
     }
 }

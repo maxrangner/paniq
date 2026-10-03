@@ -78,6 +78,7 @@ namespace Paniq.Tests.EditMode
             return data;
         }
 
+        [Ignore("Set aside 2026-10-03 (level mode): the brave no longer fight the fire unasked. Re-aim at a hand on the bottle in the hardening pass.")]
         [Test]
         public void ABravePerson_CarriesABottleIntoTheNextRoomToFightTheFire()
         {

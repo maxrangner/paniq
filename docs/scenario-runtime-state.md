@@ -1,6 +1,6 @@
 # Scenario data and runtime state
 
-**Status:** decided foundation. This note defines the boundary between the
+**Status:** decided foundation, checked against the code on 2026-09-26. This note defines the boundary between the
 scenario a designer authors and the state created by one playthrough. It does
 not define agent decisions, hazards, movement, interactable behaviour, or
 player powers.
@@ -110,9 +110,18 @@ Loading and migration follow the [simulation compatibility policy](simulation-co
 4. A replay uses the recorded scenario identity, revision, seed, compatibility
    data, and inputs. It starts only when compatibility validation succeeds.
 
-## Deferred implementation
+## Where it stands (2026-09-26)
 
-This is a design boundary, not a request to add runtime classes, save files,
-replay UI, or automatic content hashing. The first implementation should be
-planned after the agent-state, event-log, and spatial-world foundation notes
-define the state those systems require.
+| This note says | In the code |
+| --- | --- |
+| Authored scenario data | `ScenarioData` (`Runtime/Simulation/ScenarioData.cs`, with every setting in `ScenarioSettings.cs`), held in the asset `Assets/Paniq/Content/FireReactionScenario.asset` through `ScenarioAsset`. The office's building and cast are written out in `PrototypeBuilding` and baked into the asset; a floor plan laid out in a scene replaces them through **Paniq > Bake Scenario From Scene** |
+| Content revision and compatibility version | `ContentRevision` and `SimulationCompatibilityVersion` in the asset; every bump is listed in the [version history](history/version-history.md) |
+| Runtime run state | `Run` (`Runtime/Simulation/Run.cs`), which gets its own copy of the scenario and never writes the asset |
+| What presentation observes | `RunSnapshot`, a set of buffers the display fills each tick without allocating |
+| Replays | Proven by the replay fingerprint tests, which squash whole seeded runs into numbers |
+
+A run can be started on a seed other than the level's default
+(`LevelSession`), and the seed is settled before tick zero, as this note
+requires. **Not built yet:** the run provenance record (build version and
+platform stored with a run) and replay or save files. Neither is needed until runs are saved or shared; the rules
+above still bind whatever builds them.

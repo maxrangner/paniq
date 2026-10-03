@@ -154,8 +154,9 @@ namespace Paniq.Tests.EditMode
             Assert.That(counts[PhysicsObjectKind.StandingLamp], Is.EqualTo(2));
             Assert.That(counts[PhysicsObjectKind.LampShade], Is.EqualTo(2));
             Assert.That(counts[PhysicsObjectKind.RobotVacuum], Is.EqualTo(2));
-            Assert.That(counts[PhysicsObjectKind.Box], Is.EqualTo(40), "Eight in the office and thirty-two in the stockroom.");
-            Assert.That(counts[PhysicsObjectKind.AlarmSounder], Is.EqualTo(7), "A bell in every room people use.");
+            Assert.That(counts[PhysicsObjectKind.Box], Is.EqualTo(64),
+                "Eight in the office, forty-one in the stockroom's stores, four in its stack, eight in the tower by the archway (2026-09-27), and three in the cubicle landscape (2026-10-02).");
+            Assert.That(counts[PhysicsObjectKind.AlarmSounder], Is.EqualTo(8), "A bell in every room people use.");
             using (var simulation = new Run(data))
             {
                 for (int t = 0; t < 5 * Run.TicksPerSecond; t++)
@@ -201,13 +202,11 @@ namespace Paniq.Tests.EditMode
             bool staysUp)
         {
             ScenarioData data = OneThing(kind, size, mass);
-            data.Influence.Starting = 1000;
-            data.Influence.Maximum = 1000;
             using (var simulation = new Run(data))
             {
                 simulation.Step();
                 // A hole blown in the west wall, two metres from the thing.
-                simulation.QueueCommand(PlayerCommandType.BlastWall, new LogicalPosition(-5900, 0), simulation.Tick + 1);
+                simulation.BlastWallForTests(new LogicalPosition(-5900, 0));
                 float lowest = 1f;
                 for (int t = 0; t < 4 * Run.TicksPerSecond; t++)
                 {

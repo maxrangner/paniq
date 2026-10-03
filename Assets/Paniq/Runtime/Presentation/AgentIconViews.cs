@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace Paniq.Presentation
 {
@@ -8,7 +8,7 @@ namespace Paniq.Presentation
     /// snowflake while they are frozen with fear, little yellow stars
     /// circling while they are knocked out cold, a "?" while they turn to
     /// see what a noise was, "..." while idling, and the person's number
-    /// (matching the Tab stats panel). Icons live on their own
+    /// (matching the stats table in the Tab panel). Icons live on their own
     /// anchor that always faces the camera, so they never spin with the body
     /// or tip over when it falls. Presentation only.
     /// </summary>
@@ -33,6 +33,13 @@ namespace Paniq.Presentation
         private static readonly Color StarYellow = new Color(1f, 0.9f, 0.2f);
         private static readonly Color NumberWhite = new Color(1f, 1f, 1f, 0.85f);
 
+        /// <summary>The hand over somebody doing what the player's hand asked (2026-09-30): the gold of the hand's aura.</summary>
+        private static readonly Color HandGold = new Color(1f, 0.84f, 0.3f);
+
+        /// <summary>The scribble over somebody annoyed at being nudged (prototype 3).</summary>
+        private static readonly Color AnnoyedOrange = new Color(1f, 0.5f, 0.15f);
+        private const float AnnoyedDuration = 1.6f;
+
         private readonly Transform root;
         private readonly Transform notice;
         private readonly LineRenderer[] noticeStrokes;
@@ -43,12 +50,14 @@ namespace Paniq.Presentation
         private readonly Transform[] stars;
         private readonly LineRenderer[] starStrokes;
         private readonly TextMesh question;
+        private readonly TextMesh annoyed;
         private readonly TextMesh idle;
         private readonly TextMesh number;
         private readonly float spinOffset;
 
         private float noticeTime = float.NegativeInfinity;
         private float yellTime = float.NegativeInfinity;
+        private float annoyedTime = float.NegativeInfinity;
         private float frozenSince = float.NegativeInfinity;
         private bool wasFrozen;
 
@@ -106,6 +115,7 @@ namespace Paniq.Presentation
             SetColor(starStrokes, StarYellow);
 
             question = CreateText("Investigating ?", "?", 0.2f, 64, QuestionYellow, new Vector3(0f, 0.2f, 0f));
+            annoyed = CreateText("Annoyed #!", "#!", 0.16f, 64, AnnoyedOrange, new Vector3(0f, 0.2f, 0f));
             idle = CreateText("Idle ...", "...", 0.13f, 48, IdleGrey, new Vector3(0f, -0.05f, 0f));
             number = CreateText("Number", numberLabel, 0.07f, 64, NumberWhite, new Vector3(0.32f, -0.28f, 0f));
             // A green star over whoever is being followed. It used to be an
@@ -117,16 +127,54 @@ namespace Paniq.Presentation
             leadingStroke.loop = true;
             SetColor(new[] { leadingStroke }, LeaderGreen);
 
+            // A little open hand, palm and four fingers and a thumb, over
+            // whoever is doing what the player's hand asked (2026-09-30, the
+            // owner: "agents doesn't SHOW the influence in behavior very
+            // well"). Beside the head, so a leader's star can share it.
+            hand = CreateGroup("For the hand", new Vector3(-0.3f, 0.12f, 0f));
+            handStrokes = new[]
+            {
+                CreateStroke(hand, lineMaterial, 0.028f, 0.028f, 4, ArcPoints(0.07f, 220f, 11)),
+                CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(-0.045f, 0.03f, 0f), new Vector3(-0.055f, 0.13f, 0f)),
+                CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(-0.015f, 0.04f, 0f), new Vector3(-0.018f, 0.16f, 0f)),
+                CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(0.015f, 0.04f, 0f), new Vector3(0.018f, 0.155f, 0f)),
+                CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(0.045f, 0.03f, 0f), new Vector3(0.055f, 0.12f, 0f)),
+                CreateStroke(hand, lineMaterial, 0.024f, 0.024f, 3, new Vector3(0.06f, -0.02f, 0f), new Vector3(0.12f, 0.03f, 0f))
+            };
+            hand.localRotation = Quaternion.identity;
+
+            // A small yellow card over whoever has the keycard (2026-09-30):
+            // on seed 42 the host burned with the card in his pocket while
+            // four people pounded the way out, and nothing on screen said
+            // who had it. A mark like the others, so the Tab panel's switch
+            // hides it with them.
+            keycard = CreateGroup("Keycard", new Vector3(0.3f, 0.12f, 0f));
+            keycardStroke = CreateStroke(keycard, lineMaterial, 0.11f, 0.11f, 0,
+                new Vector3(-0.07f, 0f, 0f), new Vector3(0.07f, 0f, 0f));
+            SetColor(keycardStroke, KeycardYellow);
+            keycard.localRotation = Quaternion.identity;
+            handStrokes[0].transform.localRotation = Quaternion.Euler(0f, 0f, -90f);
+            SetColor(handStrokes, HandGold);
+
             SetColor(noticeStrokes, NoticeRed);
             SetColor(snowflakeStrokes, IceBlue);
             HideAll();
         }
+
+        private readonly Transform hand;
+        private readonly LineRenderer[] handStrokes;
 
         /// <summary>The person just noticed something: pop the red "!".</summary>
         public void Notice(float time) => noticeTime = time;
 
         /// <summary>The person just yelled: play the sound-wave arcs.</summary>
         public void Yell(float time) => yellTime = time;
+
+        /// <summary>The person is annoyed at being nudged: an orange scribble, shaking.</summary>
+        public void Annoyed(float time) => annoyedTime = time;
+
+        /// <summary>Seconds since they were last annoyed; huge before they ever were.</summary>
+        public float AnnoyedAge(float time) => time - annoyedTime;
 
         public void HideAll()
         {
@@ -135,7 +183,10 @@ namespace Paniq.Presentation
             snowflake.gameObject.SetActive(false);
             SetActive(stars, false);
             question.gameObject.SetActive(false);
+            annoyed.gameObject.SetActive(false);
             leading.gameObject.SetActive(false);
+            hand.gameObject.SetActive(false);
+            keycard.gameObject.SetActive(false);
             idle.gameObject.SetActive(false);
             number.gameObject.SetActive(false);
         }
@@ -150,13 +201,47 @@ namespace Paniq.Presentation
             bool investigating,
             bool idling,
             bool leadingOthers,
-            float time)
+            float time,
+            bool forTheHand = false,
+            bool showMarks = true,
+            bool showNumber = true,
+            bool committedToTheHand = false,
+            bool hasTheKeycard = false)
         {
             root.SetPositionAndRotation(anchor, cameraRotation);
 
+            // The Tab panel can hide the marks and the number (2026-09-30).
+            // Only what is drawn is switched off: the timers below run on, so
+            // turning the marks back on shows whatever is still current.
+            forTheHand &= showMarks;
+            bool frozenLook = frozen && showMarks;
+            knockedOut &= showMarks;
+            investigating &= showMarks;
+            idling &= showMarks;
+            leadingOthers &= showMarks;
+
+            // Answering the player's hand: a gold hand, bobbing -- still,
+            // and paler, over somebody keeping at it after the hand came off
+            // (2026-09-30).
+            hand.gameObject.SetActive(forTheHand);
+            if (forTheHand)
+            {
+                hand.localPosition = committedToTheHand
+                    ? new Vector3(-0.3f, 0.12f, 0f)
+                    : new Vector3(-0.3f, 0.12f + 0.025f * Mathf.Sin(time * 5f + spinOffset), 0f);
+                SetColor(handStrokes, committedToTheHand ? HandGoldStill : HandGold);
+            }
+
+            // The keycard, whoever has it.
+            keycard.gameObject.SetActive(hasTheKeycard && showMarks);
+            if (hasTheKeycard)
+            {
+                keycard.localRotation = Quaternion.Euler(0f, 0f, 8f * Mathf.Sin(time * 3f + spinOffset));
+            }
+
             // "!" pops in with an overshoot, holds, then fades.
             float noticeAge = time - noticeTime;
-            bool showNotice = noticeAge >= 0f && noticeAge < NoticeDuration;
+            bool showNotice = showMarks && noticeAge >= 0f && noticeAge < NoticeDuration;
             notice.gameObject.SetActive(showNotice);
             if (showNotice)
             {
@@ -168,7 +253,7 @@ namespace Paniq.Presentation
 
             // Three arcs appear from the inside out, beside the head on the side the person faces.
             float yellAge = time - yellTime;
-            bool showYell = yellAge >= 0f && yellAge < YellDuration;
+            bool showYell = showMarks && yellAge >= 0f && yellAge < YellDuration;
             yell.gameObject.SetActive(showYell);
             if (showYell)
             {
@@ -193,7 +278,7 @@ namespace Paniq.Presentation
             }
 
             wasFrozen = frozen;
-            snowflake.gameObject.SetActive(frozen && !showNotice);
+            snowflake.gameObject.SetActive(frozenLook && !showNotice);
             if (snowflake.gameObject.activeSelf)
             {
                 float age = time - frozenSince;
@@ -202,7 +287,7 @@ namespace Paniq.Presentation
                 snowflake.localRotation = Quaternion.Euler(0f, 0f, time * 25f + spinOffset);
             }
 
-            number.gameObject.SetActive(true);
+            number.gameObject.SetActive(showNumber);
             // Stars chase each other round a flattened circle, as if orbiting the head.
             SetActive(stars, knockedOut);
             if (knockedOut)
@@ -217,7 +302,20 @@ namespace Paniq.Presentation
                 }
             }
 
-            question.gameObject.SetActive(investigating && !showNotice);
+            // Annoyed: an orange scribble that shakes and fades, over
+            // everything but the "!".
+            float annoyedAge = time - annoyedTime;
+            bool showAnnoyed = showMarks && annoyedAge >= 0f && annoyedAge < AnnoyedDuration && !showNotice;
+            annoyed.gameObject.SetActive(showAnnoyed);
+            if (showAnnoyed)
+            {
+                float scale = annoyedAge < NoticePopTime ? EaseOutBack(annoyedAge / NoticePopTime) : 1f;
+                annoyed.transform.localScale = Vector3.one * Mathf.Max(0.01f, scale);
+                annoyed.transform.localPosition = new Vector3(0.03f * Mathf.Sin(annoyedAge * 40f), 0.2f, 0f);
+                annoyed.color = WithAlpha(AnnoyedOrange, Fade(annoyedAge, AnnoyedDuration, NoticeFadeTime));
+            }
+
+            question.gameObject.SetActive(investigating && !showNotice && !showAnnoyed);
 
             // A leader's call: a star over the head, bobbing as they shout.
             // Whoever is trailing after them wears nothing at all, so the one
@@ -273,6 +371,14 @@ namespace Paniq.Presentation
 
         private readonly Transform leading;
         private readonly LineRenderer leadingStroke;
+
+        /// <summary>The card over whoever has the keycard (2026-09-30).</summary>
+        private readonly Transform keycard;
+        private readonly LineRenderer keycardStroke;
+        private static readonly Color KeycardYellow = new Color(1f, 0.9f, 0.2f, 1f);
+
+        /// <summary>The hand's gold, and the paler gold of a hand kept after the player let go.</summary>
+        private static readonly Color HandGoldStill = new Color(0.95f, 0.85f, 0.55f, 0.85f);
 
         private TextMesh CreateText(string objectName, string text, float characterSize, int fontSize, Color color,
             Vector3 localPosition)

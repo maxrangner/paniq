@@ -20,8 +20,16 @@ namespace Paniq.Simulation
     /// any more.
     /// </para>
     /// </summary>
-    internal sealed class AlarmSystem
+    internal sealed class AlarmSystem : IBindable
     {
+        private InfluenceSystem influence;
+
+        /// <summary>Built after this system.</summary>
+        public void Bind(Systems systems)
+        {
+            influence = systems.Influence;
+        }
+
         private readonly SimulationContext context;
         private readonly SoundSystem sound;
         private readonly WorldGeometry geometry;
@@ -120,8 +128,31 @@ namespace Paniq.Simulation
             return index < 0 || flammables.ObjectState(index) == ObjectBurnState.Intact;
         }
 
-        /// <summary>Whether the alarms are ringing. They never stop once they start, though a bell the fire reaches does.</summary>
+        /// <summary>
+        /// Whether the alarms are ringing. They ring until the Director gives
+        /// the all-clear (<see cref="Silence"/>), though a bell the fire reaches
+        /// falls silent on its own.
+        /// </summary>
         public bool Ringing { get; private set; }
+
+        /// <summary>
+        /// The all-clear (prototype 3, 2026-09-26): every bell stops, and the
+        /// alarms can be pulled again. Called by the Director a while after a
+        /// fire is put out, so a pulled alarm no longer keeps everybody in
+        /// earshot frightened for the rest of the round. Returns the event, or
+        /// 0 when nothing was ringing.
+        /// </summary>
+        public ulong Silence(ulong causeEventId)
+        {
+            if (!Ringing)
+            {
+                return 0UL;
+            }
+
+            Ringing = false;
+            return context.Events.Append(context.Tick, default, CausalEventType.AllClear,
+                positions.Length > 0 ? positions[0] : default, 0, 0, causeEventId).EventId;
+        }
 
         /// <summary>Turned off in the scenario, so nobody bothers going for one.</summary>
         public bool Enabled => settings.Enabled;
@@ -170,6 +201,25 @@ namespace Paniq.Simulation
             return best;
         }
 
+        /// <summary>The pull station the player's hand is on (2026-09-29), or -1: the one with a pull beside it.</summary>
+        public int StationAt(InfluenceSystem influence, in InfluenceSystem.Place pull)
+        {
+            if (!settings.Enabled || Ringing)
+            {
+                return -1;
+            }
+
+            for (int i = 0; i < ids.Length; i++)
+            {
+                if (influence.IsPullingNear(pull, positions[i]))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
         /// <summary>
         /// Somebody hits an alarm: it is logged against them, and then every
         /// bell in the building rings, in bell order, each heard by the people
@@ -185,6 +235,10 @@ namespace Paniq.Simulation
             ulong pulled = context.Events.Append(context.Tick, puller.Id, CausalEventType.AlarmPulled,
                 positions[alarm], 0, 0, causeEventId, ids[alarm]).EventId;
             Ring(pulled);
+
+            // A click on a pull station puts the player's pull beside it;
+            // pulled, that pull is spent (2026-09-27).
+            influence?.SpendNear(puller, positions[alarm]);
         }
 
         /// <summary>
@@ -195,7 +249,7 @@ namespace Paniq.Simulation
         /// </summary>
         public bool PullByPlayer(int alarm)
         {
-            if (Ringing || !settings.Enabled)
+            if (Ringing || !settings.Enabled || !settings.PlayerMayPull)
             {
                 return false;
             }
@@ -204,6 +258,23 @@ namespace Paniq.Simulation
                 positions[alarm], 0, 0, 0UL, ids[alarm]).EventId;
             Ring(pulled);
             return true;
+        }
+
+        /// <summary>
+        /// The bells go by themselves (2026-10-02): the smoke has reached a
+        /// detector, on a level whose Director says so. Every bell rings
+        /// exactly as when a person pulls a station, with the fire as the
+        /// cause and nobody as the puller. Nothing when they are ringing
+        /// already or the alarms are off.
+        /// </summary>
+        public void TripByTheSmoke(ulong causeEventId)
+        {
+            if (Ringing || !settings.Enabled)
+            {
+                return;
+            }
+
+            Ring(causeEventId);
         }
 
         /// <summary>Which alarm has this ID, or -1.</summary>

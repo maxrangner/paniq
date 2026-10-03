@@ -58,9 +58,31 @@ namespace Paniq.Simulation
             bool isLeading = false,
             BodyPose pose = default,
             int seatedPercent = 0,
-            int groupId = -1)
+            bool isAnnoyed = false,
+            bool isRattled = false,
+            bool isTugged = false,
+            bool isShakingFree = false,
+            bool actingForTheHand = false,
+            bool actingAgainstTheirNature = false,
+            AgentTell tell = AgentTell.None,
+            int tellProgress = 0,
+            int tellHeading = 0,
+            bool committedToTheHand = false,
+            HandAsk handAsk = HandAsk.None,
+            bool straining = false)
         {
-            GroupId = groupId;
+            HandAsk = handAsk;
+            Straining = straining;
+            ActingForTheHand = actingForTheHand;
+            ActingAgainstTheirNature = actingAgainstTheirNature;
+            CommittedToTheHand = committedToTheHand;
+            Tell = tell;
+            TellProgress = tellProgress;
+            TellHeading = tellHeading;
+            IsAnnoyed = isAnnoyed;
+            IsRattled = isRattled;
+            IsTugged = isTugged;
+            IsShakingFree = isShakingFree;
             Pose = pose;
             SeatedPercent = seatedPercent;
             Traits = traits;
@@ -83,6 +105,50 @@ namespace Paniq.Simulation
         }
 
         public SimulationId AgentId { get; }
+
+        /// <summary>Annoyed at being nudged: they shake with it, and another nudge does nothing (2026-09-26).</summary>
+        public bool IsAnnoyed { get; }
+
+        /// <summary>Calm again after a fright, but jumpy: a thud frightens them outright (2026-09-26).</summary>
+        public bool IsRattled { get; }
+
+        /// <summary>The player's hand is on them: braked to a stop and held there (2026-09-29).</summary>
+        public bool IsTugged { get; }
+
+        /// <summary>Just tore free of the player's hand: the shake of it is drawn for a couple of seconds (2026-09-29).</summary>
+        public bool IsShakingFree { get; }
+
+        /// <summary>
+        /// Doing what the player's hand asked (2026-09-30): a gold hand is
+        /// drawn over them.
+        /// </summary>
+        public bool ActingForTheHand { get; }
+
+        /// <summary>
+        /// Doing it without the nerve or the strength they would need of their
+        /// own accord, as the run judged it (the same test that writes
+        /// <see cref="CausalEventType.AgentActedForTheHand"/>): they tremble.
+        /// </summary>
+        public bool ActingAgainstTheirNature { get; }
+
+        /// <summary>Keeping a goal the hand has come off (2026-09-30): the gold hand over them, still rather than bobbing.</summary>
+        public bool CommittedToTheHand { get; }
+
+        /// <summary>What their own goal for the hand asks of them, or nothing (2026-10-02): the words the panel gives them.</summary>
+        public HandAsk HandAsk { get; }
+
+        /// <summary>Shoulder to a crate for the hand, straining at it before it gives (2026-10-02): they are drawn leaning into it.</summary>
+        public bool Straining { get; }
+
+        /// <summary>
+        /// Winding up to something dangerous (2026-09-30): going stiff,
+        /// gathering nerve or turning back. A ring shrinks at their feet as
+        /// <see cref="TellProgress"/> runs from 0 to 1000, and a click before it
+        /// closes saves them. <see cref="TellHeading"/> is the way they mean to go.
+        /// </summary>
+        public AgentTell Tell { get; }
+        public int TellProgress { get; }
+        public int TellHeading { get; }
 
         /// <summary>
         /// How high their feet are off the floor and how their body is turned,
@@ -126,9 +192,6 @@ namespace Paniq.Simulation
         /// <summary>Somebody is following this person right now.</summary>
         public bool IsLeading { get; }
 
-        /// <summary>The group a "Stick together" throw bound them to, or -1.</summary>
-        public int GroupId { get; }
-
         public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp ||
                               BodyState == AgentBodyState.Unconscious;
 
@@ -147,8 +210,11 @@ namespace Paniq.Simulation
         public DoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state,
             int damagePercent, int scorchPercent = 0, bool isHole = false, bool isBlocked = false,
             bool leadsOutside = false,
-            int openSide = 0, bool isJammed = false, bool swings = false)
+            int openSide = 0, bool isJammed = false, bool swings = false, bool isPiled = false,
+            bool needsKeycard = false)
         {
+            IsPiled = isPiled;
+            NeedsKeycard = needsKeycard;
             Swings = swings;
             IsHole = isHole;
             IsBlocked = isBlocked;
@@ -214,6 +280,16 @@ namespace Paniq.Simulation
         /// to burn its way through.
         /// </summary>
         public bool Swings { get; }
+
+        /// <summary>
+        /// The tower of boxes is lying across this archway (prototype 3):
+        /// shut for people and fire, with no leaf, until enough of the boxes
+        /// are carried off, thrown clear or burnt.
+        /// </summary>
+        public bool IsPiled { get; }
+
+        /// <summary>A card door still waiting for the keycard (2026-09-27): nobody batters it and the player has no key to it.</summary>
+        public bool NeedsKeycard { get; }
     }
 
     /// <summary>A table: where it stands and whether it is heating up, burning or burnt out.</summary>
@@ -354,6 +430,80 @@ namespace Paniq.Simulation
     /// the drawn spark is always exactly where the run has it.
     /// </para>
     /// </summary>
+    /// <summary>One place the player's influence is on (2026-09-26): where, what, and how strong now.</summary>
+    public readonly struct InfluencePlaceSnapshot
+    {
+        public InfluencePlaceSnapshot(SimulationId target, bool isDoor, LogicalPosition at, int level, int maximumLevel,
+            bool repels = false, bool isBeacon = false, HandAsk ask = HandAsk.None, bool spent = false)
+        {
+            Ask = ask;
+            Spent = spent;
+            Target = target;
+            IsDoor = isDoor;
+            At = at;
+            Level = level;
+            MaximumLevel = maximumLevel;
+            Repels = repels;
+            IsBeacon = isBeacon;
+        }
+
+        /// <summary>What the hand asks of people here, as the run reads it (2026-10-02): the label at the ring.</summary>
+        public HandAsk Ask { get; }
+
+        /// <summary>Somebody has done what it asked: it only gathers now.</summary>
+        public bool Spent { get; }
+
+        /// <summary>The right button's hand: it pushes people away (2026-09-30).</summary>
+        public bool Repels { get; }
+
+        /// <summary>Left by a click, and coming off by itself in a moment (2026-09-30).</summary>
+        public bool IsBeacon { get; }
+
+        /// <summary>The door or thing clicked, or the default ID for a patch of floor.</summary>
+        public SimulationId Target { get; }
+
+        public bool IsDoor { get; }
+
+        /// <summary>Where the pull comes from.</summary>
+        public LogicalPosition At { get; }
+
+        /// <summary>How many steps it has now, from 1 up to <see cref="MaximumLevel"/>.</summary>
+        public int Level { get; }
+
+        public int MaximumLevel { get; }
+    }
+
+    /// <summary>Somebody feeling a pull: who, from which place, and how strongly (per mille of a full pull on an ordinary person).</summary>
+    public readonly struct InfluencePullSnapshot
+    {
+        public InfluencePullSnapshot(SimulationId agentId, int agentIndex, int place, int feltPerMille,
+            bool actingForTheHand = false, bool committed = false)
+        {
+            AgentId = agentId;
+            AgentIndex = agentIndex;
+            Place = place;
+            FeltPerMille = feltPerMille;
+            ActingForTheHand = actingForTheHand;
+            Committed = committed;
+        }
+
+        /// <summary>Doing what the hand asked, whatever it takes (2026-09-30): drawn brighter, with a hand over their head.</summary>
+        public bool ActingForTheHand { get; }
+
+        /// <summary>Keeping a goal the hand has come off (2026-09-30): the line to where it was, and a still hand.</summary>
+        public bool Committed { get; }
+
+        public SimulationId AgentId { get; }
+
+        /// <summary>Where they are in <see cref="RunSnapshot.Agents"/>, so nobody has to be looked up by ID.</summary>
+        public int AgentIndex { get; }
+
+        /// <summary>An index into <see cref="RunSnapshot.InfluencePlaces"/>.</summary>
+        public int Place { get; }
+
+        public int FeltPerMille { get; }
+    }
+
     public readonly struct PowerSparkSnapshot
     {
         public PowerSparkSnapshot(int lineIndex, int travelledMillimetres, bool runsForward)
@@ -481,45 +631,67 @@ namespace Paniq.Simulation
         private readonly Prefix<DoorSnapshot> doors;
         private readonly PhysicsObjectSnapshot[] physicsObjects;
         private readonly TableSnapshot[] tables;
-        private readonly Prefix<PlayerCommandType> hand;
         private IReadOnlyList<FireCellSnapshot> fireCells = System.Array.Empty<FireCellSnapshot>();
         private IReadOnlyList<CausalEvent> events = System.Array.Empty<CausalEvent>();
 
-        /// <summary>What each card costs, indexed by <see cref="PlayerCommandType"/>. Shared with the run; never written.</summary>
-        private readonly int[] cardCosts;
-
-        /// <summary>
-        /// What a door click and a turn of the key cost, indexed by
-        /// <see cref="DoorState"/>, for an inside door and for the way out.
-        /// Shared with the run; never written.
-        /// </summary>
-        private readonly int[] doorClickCosts;
-        private readonly int[] exitClickCosts;
-        private readonly int[] lockToggleCosts;
-        private readonly int[] exitLockToggleCosts;
-
-        internal RunSnapshot(int agentCount, int doorSlotCount, int objectCount, int tableCount,
-            int[] cardCosts, int[] doorClickCosts, int[] exitClickCosts, int[] lockToggleCosts, int[] exitLockToggleCosts)
+        internal RunSnapshot(int agentCount, int doorSlotCount, int objectCount, int tableCount)
         {
             agents = new AgentSnapshot[agentCount];
             doors = new Prefix<DoorSnapshot>(doorSlotCount);
             physicsObjects = new PhysicsObjectSnapshot[objectCount];
             tables = new TableSnapshot[tableCount];
-            hand = new Prefix<PlayerCommandType>(16);
-            this.cardCosts = cardCosts;
-            this.doorClickCosts = doorClickCosts;
-            this.exitClickCosts = exitClickCosts;
-            this.lockToggleCosts = lockToggleCosts;
-            this.exitLockToggleCosts = exitLockToggleCosts;
             PowerSparks = System.Array.Empty<PowerSparkSnapshot>();
         }
+
+        private readonly List<InfluencePlaceSnapshot> influencePlaces = new List<InfluencePlaceSnapshot>();
+        private readonly List<InfluencePullSnapshot> influencePulls = new List<InfluencePullSnapshot>();
+
+        internal List<InfluencePlaceSnapshot> InfluencePlaceBuffer => influencePlaces;
+        internal List<InfluencePullSnapshot> InfluencePullBuffer => influencePulls;
+
+        /// <summary>Every place the player's influence is on, oldest first (2026-09-26).</summary>
+        public IReadOnlyList<InfluencePlaceSnapshot> InfluencePlaces => influencePlaces;
+
+        /// <summary>Everybody feeling a pull, and from where: what the sparkling lines are drawn from.</summary>
+        public IReadOnlyList<InfluencePullSnapshot> InfluencePulls => influencePulls;
+
+        /// <summary>Whether the player may pull a fire alarm on this level (the office: no, only people do).</summary>
+        public bool PlayerMayPullAlarms { get; internal set; } = true;
+
+        /// <summary>
+        /// The tick the building last turned on the crowd (the Director's
+        /// push, 2026-09-28), or -1 while it never has: what the banner
+        /// across the top is timed from (2026-09-29).
+        /// </summary>
+        public int DirectorPushTick { get; internal set; } = -1;
+
+        /// <summary>
+        /// Who the player's hand is on right now (2026-09-29): an index into
+        /// <see cref="Agents"/>, or -1 for nobody.
+        /// </summary>
+        public int TuggedAgentIndex { get; internal set; } = -1;
+
+        /// <summary>
+        /// Whether the crowd switch stands at "panicked" (2026-10-01): the
+        /// whole crowd is being kept frightened, so the button reads
+        /// "Crowd: panicked" and flicks the other way.
+        /// </summary>
+        public bool CrowdHeldPanicked { get; internal set; }
+
+        /// <summary>
+        /// Whether the hazard has been asked to start, by the trigger button
+        /// or its own clock, whether or not it is alight yet. Since the crowd
+        /// switch (2026-10-01) a round can be running with no hazard asked
+        /// for, so this is what the Trigger event button reads, not
+        /// <see cref="EventTriggered"/>.
+        /// </summary>
+        public bool HazardRequested { get; internal set; }
 
         // The buffers the run writes into. Internal: the display only reads.
         internal AgentSnapshot[] AgentBuffer => agents;
         internal PhysicsObjectSnapshot[] PhysicsObjectBuffer => physicsObjects;
         internal TableSnapshot[] TableBuffer => tables;
         internal Prefix<DoorSnapshot> DoorBuffer => doors;
-        internal Prefix<PlayerCommandType> HandBuffer => hand;
 
         /// <summary>The scalars and the views, written after the buffers are.</summary>
         internal void Fill(
@@ -531,15 +703,14 @@ namespace Paniq.Simulation
             IReadOnlyList<CausalEvent> events,
             int clearOfFireCount,
             bool alarmsRinging,
-            int influence,
-            int influenceMaximum,
-            int influenceSpent,
-            int influenceEarned,
-            int blastChargesRemaining,
             IReadOnlyList<PowerSparkSnapshot> powerSparks,
             RoundPhase roundPhase,
-            int targetSavedPercent)
+            int targetSavedPercent,
+            int handChargePerMille = 1000,
+            bool handResting = false)
         {
+            HandChargePerMille = handChargePerMille;
+            HandResting = handResting;
             Tick = tick;
             FireActive = fireActive;
             FireOrigin = fireOrigin;
@@ -548,11 +719,6 @@ namespace Paniq.Simulation
             this.events = events;
             ClearOfFireCount = clearOfFireCount;
             AlarmsRinging = alarmsRinging;
-            Influence = influence;
-            InfluenceMaximum = influenceMaximum;
-            InfluenceSpent = influenceSpent;
-            InfluenceEarned = influenceEarned;
-            BlastChargesRemaining = blastChargesRemaining;
             PowerSparks = powerSparks;
             RoundPhase = roundPhase;
             TargetSavedPercent = targetSavedPercent;
@@ -560,56 +726,17 @@ namespace Paniq.Simulation
 
         public int Tick { get; private set; }
 
+        /// <summary>The hand's charge as a share of full, per mille (2026-09-30): the bar bottom-left.</summary>
+        public int HandChargePerMille { get; private set; } = 1000;
+
+        /// <summary>The bar has run dry and is resting: no press is taken until it has enough.</summary>
+        public bool HandResting { get; private set; }
+
         /// <summary>People still in the building, but in a room with nothing burning in it.</summary>
         public int ClearOfFireCount { get; private set; }
 
         /// <summary>Whether the fire alarms are ringing.</summary>
         public bool AlarmsRinging { get; private set; }
-
-        /// <summary>What the player has left to spend, and what they have spent and earned.</summary>
-        public int Influence { get; private set; }
-        public int InfluenceMaximum { get; private set; }
-        public int InfluenceSpent { get; private set; }
-        public int InfluenceEarned { get; private set; }
-
-        /// <summary>
-        /// The cards the player is holding, in the order the dead dealt them.
-        /// Empty at the start of every round: nothing is bought, everything is
-        /// dealt.
-        /// </summary>
-        public IReadOnlyList<PlayerCommandType> Hand => hand;
-
-        /// <summary>How many sticks of TNT the player has left.</summary>
-        public int BlastChargesRemaining { get; private set; }
-
-        /// <summary>What a card costs, so the display can grey out what is out of reach.</summary>
-        public int CostOf(PlayerCommandType card)
-        {
-            int index = (int)card;
-            return cardCosts != null && index >= 0 && index < cardCosts.Length ? cardCosts[index] : 0;
-        }
-
-        /// <summary>
-        /// What one click on a door in this state would cost, so the hover
-        /// hint can put a price on it before the player commits to it. The
-        /// building's way out has its own price for the key.
-        /// </summary>
-        public int CostOfDoorClick(DoorState state, bool leadsOutside)
-        {
-            return CostFrom(leadsOutside ? exitClickCosts : doorClickCosts, state);
-        }
-
-        /// <summary>What turning the key on a door in this state would cost.</summary>
-        public int CostOfLockToggle(DoorState state, bool leadsOutside)
-        {
-            return CostFrom(leadsOutside ? exitLockToggleCosts : lockToggleCosts, state);
-        }
-
-        private static int CostFrom(int[] table, DoorState state)
-        {
-            int index = (int)state;
-            return table != null && index >= 0 && index < table.Length ? table[index] : 0;
-        }
 
         public bool FireActive { get; private set; }
         public LogicalPosition FireOrigin { get; private set; }

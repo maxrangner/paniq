@@ -59,6 +59,7 @@ namespace Paniq.Tests.EditMode
                 new PhysicsObjectDefinition(TheExtinguisher, PhysicsObjectKind.Extinguisher,
                     new LogicalPosition(-3600, 0), 250, 7000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = 1;
             data.Fire.SpawnBounds = new LogicalBounds(0, 0, 0, 0);
 
@@ -74,6 +75,7 @@ namespace Paniq.Tests.EditMode
         /// <summary>The brave one: bravery 9, ordinary otherwise.</summary>
         private static AgentTraitValues Brave(int strength = 8) => new AgentTraitValues(strength, 5, 9, 5, 2, 3);
 
+        [Ignore("Set aside 2026-10-03 (level mode): the brave no longer fight the fire unasked. Re-aim at a hand on the bottle in the hardening pass.")]
         [Test]
         public void ABravePerson_FetchesAnExtinguisherAndPutsTheFireOut()
         {
@@ -99,6 +101,7 @@ namespace Paniq.Tests.EditMode
         /// person does. They used to walk at a stroll (the owner watched one
         /// on seed 41), because only a burning person was worth running for.
         /// </summary>
+        [Ignore("Set aside 2026-10-03 (level mode): the brave no longer fight the fire unasked. Re-aim at a hand on the bottle in the hardening pass.")]
         [Test]
         public void TheCarrier_RunsToTheFlames()
         {
@@ -121,6 +124,7 @@ namespace Paniq.Tests.EditMode
                 "A frightened person with a bottle runs to the flames rather than strolling.");
         }
 
+        [Ignore("Set aside 2026-10-03 (level mode): the brave no longer fight the fire unasked. Re-aim at a hand on the bottle in the hardening pass.")]
         [Test]
         public void ADousedSquare_StaysOutAndWillNotCatchAgainForAWhile()
         {
@@ -129,6 +133,11 @@ namespace Paniq.Tests.EditMode
             // The fire spreads freely again, so it would retake the ground if it could.
             data.Fire.SpreadMinimumTicks = 40;
             data.Fire.SpreadMaximumTicks = 60;
+
+            // No wind-up before going at the fire (2026-09-30): at this
+            // spread, the second of turning back lets the fire outgrow what
+            // one bottle is taken to, and this is about the square staying out.
+            data.Tells.Enabled = false;
             var simulation = new Run(data);
             for (int t = 0; t < 30 * Run.TicksPerSecond &&
                             EventsOfType(simulation, CausalEventType.FireDoused).Count == 0; t++)
@@ -150,6 +159,7 @@ namespace Paniq.Tests.EditMode
             }
         }
 
+        [Ignore("Set aside 2026-10-03 (level mode): the brave no longer fight the fire unasked. Re-aim at a hand on the bottle in the hardening pass.")]
         [Test]
         public void TheBottle_RunsDryAndIsDropped()
         {
@@ -223,6 +233,7 @@ namespace Paniq.Tests.EditMode
             Assert.That(simulation.GetAgent(blasted[0].TargetId).IsDown, Is.True, "The jet puts them on the floor.");
         }
 
+        [Ignore("Set aside 2026-10-03 (level mode): the brave no longer fight the fire unasked. Re-aim at a hand on the bottle in the hardening pass.")]
         [TestCase(10, false)]
         [TestCase(1, true)]
         public void TheRecoil_ShovesAWeakSprayerBackwards(int strength, bool expectPushedBack)

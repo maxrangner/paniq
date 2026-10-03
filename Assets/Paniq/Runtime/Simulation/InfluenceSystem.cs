@@ -1,331 +1,1361 @@
-﻿namespace Paniq.Simulation
+using System;
+using System.Collections.Generic;
+
+namespace Paniq.Simulation
 {
     /// <summary>
-    /// What the player has left to spend. The round opens with nothing, and
-    /// the meter fills from the uproar: people shouting, running into each
-    /// other, going down, catching fire, doors coming off their hinges,
-    /// appliances going off. Saving somebody pays too. So the player cannot do
-    /// anything at all until the building is in trouble, and the worse it gets
-    /// the more they can do about it.
+    /// Influence (prototype 3, second batch, 2026-09-26): the player's hand on
+    /// a door, a thing or a patch of floor, and people are drawn toward it. It
+    /// is never an order. Every person weighs it against their own fear,
+    /// habits and character, and it only tips the ones who were undecided.
     /// <para>
-    /// Deaths are deliberately not in here. A death deals a card instead (see
-    /// <see cref="DeckSystem"/>), so it pays once rather than twice and the two
-    /// currencies keep one source each: the uproar fills the meter, the dead
-    /// deal the cards.
+    /// Since 2026-09-29 it is a hold, not clicks (the owner's rule: "hold
+    /// only ... it also makes all decisions a priority. You can't be
+    /// everywhere at once"). A press puts a full pull on the place at once
+    /// and replaces whatever was held before; a release takes it away at
+    /// once. One place at a time, nothing fades, nothing stacks.
     /// </para>
     /// <para>
-    /// Influence is bookkeeping rather than something that happens in the
-    /// world, so it is not an event in the causal log — for the same reason
-    /// sitting down is not. Each card's own event records what it cost, so the
-    /// log still accounts for where the influence went.
+    /// A place is felt within <see cref="InfluenceSettings.ReachMillimetres"/>
+    /// of it as a walk: straight across the room it is in, or through one open
+    /// doorway into the room next door, never through a wall or a shut door.
+    /// How much a person feels it is arithmetic on where they stand and who
+    /// they are (<see cref="FeltBy"/>), so asking draws no random numbers and
+    /// a hand nobody is near changes no run.
+    /// </para>
+    /// <para>
+    /// <b>The fourth pass (2026-09-30): the hand holds.</b> The owner: "you
+    /// should feel the influence and see them guided, but still see their
+    /// personality ... think magnets and fish/bird clusters ... if getting them
+    /// to notice or sway their focus, the focus should mostly stay." Every
+    /// person now carries the hand's ask as their own goal
+    /// (<see cref="AgentHand"/>): a copy of the place, and a <em>conviction</em>
+    /// that builds every tick they feel the hand -- fast beside it, slowly at
+    /// the edge of its reach, faster the more easily led they are -- and that
+    /// is the one number everything asks. They set about the task once it
+    /// passes <see cref="InfluenceSettings.AnswerFromPerMille"/>; they keep the
+    /// task after the hand comes off once it has passed
+    /// <see cref="InfluenceSettings.CommitFromPerMille"/> ("after some influence
+    /// points spent they should stick to that choice"), and a kept goal fades
+    /// on their own beat, the strong-willed first, until it is gone. There are
+    /// no chance gates and no never-again markers any more: a failed attempt
+    /// costs conviction and a beat, then they try again. What ends a goal is
+    /// one rule for everybody, in <see cref="Advance"/> and one line of
+    /// <c>PanicBehaviour</c>: out cold, alight, the player's tug, a felt push,
+    /// flames inside their danger distance, or a fresh press they feel, which
+    /// replaces the goal and keeps their attention.
+    /// </para>
+    /// <para>
+    /// Two kinds of question, on purpose. <see cref="TryGetLivePull"/> and
+    /// <see cref="TryGetLivePush"/> are the hand <em>now on</em>, felt and
+    /// noticed -- what a tell is caught by, what the startled edge toward,
+    /// what a push does. <see cref="TryGetPull"/> is what this person is
+    /// <em>doing for</em> the hand, live or kept, with a drive that is the
+    /// greater of their conviction and what they feel now. Everything a person
+    /// does for the hand asks the second.
+    /// </para>
+    /// <para>
+    /// Somebody who does what the pull asked (opens the door, sits on the
+    /// chair, pockets the card) spends its <em>use</em>: the place goes on
+    /// gathering people while it is held, but nobody uses it again until it
+    /// is pressed afresh.
     /// </para>
     /// </summary>
-    /// <summary>How much of a commotion one kind of event is, to the player's meter.</summary>
-    public enum UproarTier
+    internal sealed class InfluenceSystem : IBindable
     {
-        Nothing,
-        Small,
-        Middling,
-        Big
-    }
+        /// <summary>One influenced place: the hand's press, and a person's copy of it.</summary>
+        internal struct Place
+        {
+            /// <summary>A door's index, or -1.</summary>
+            public int Door;
 
-    internal sealed class InfluenceSystem
-    {
-        private readonly InfluenceSettings settings;
+            /// <summary>A thing's index, or -1.</summary>
+            public int Thing;
+
+            /// <summary>What was pressed, for the log and the display: the door or the thing, or none for floor.</summary>
+            public SimulationId Target;
+
+            /// <summary>Where the pull comes from: the doorway's middle, the thing where it stood, or the spot.</summary>
+            public LogicalPosition At;
+
+            /// <summary>The rooms it is in: its own, and for a door the room on the other side too.</summary>
+            public int RoomA;
+            public int RoomB;
+
+            /// <summary>The tick the hand went on it.</summary>
+            public int PressTick;
+
+            /// <summary>The press's event: what somebody drawn by it names as the cause.</summary>
+            public ulong EventId;
+
+            /// <summary>Somebody has done what it asked: it gathers still, but is not used again until pressed afresh.</summary>
+            public bool Spent;
+
+            /// <summary>
+            /// The right button's hand (2026-09-30): it pushes people away
+            /// rather than drawing them. Nothing is used at a place that
+            /// pushes, a door that pushes is never chosen, and nobody keeps a
+            /// push as a goal.
+            /// </summary>
+            public bool Repels;
+
+            /// <summary>
+            /// The tick a click's beacon comes off by itself, or 0 while the
+            /// button is still held (2026-09-30, the owner: "a single click
+            /// should place an influence beacon for 3 seconds").
+            /// </summary>
+            public int EndsAtTick;
+
+            /// <summary>
+            /// For a door: whether it stood open when the hand went on it
+            /// (2026-09-30). What the hand asks is the opposite -- shut it if it
+            /// was open, open it if it was shut -- decided at the press, so a
+            /// door somebody else opened meanwhile is not shut again.
+            /// </summary>
+            public bool DoorWasOpen;
+
+            /// <summary>
+            /// What the place asked as this tick began (2026-10-02), read
+            /// once a tick for the live press. A deed changes what
+            /// <see cref="AskAt"/> reads -- the chair is taken, the bell is
+            /// ringing -- so what was done is named from this, not from a
+            /// reading made after it.
+            /// </summary>
+            public HandAsk Ask;
+
+            /// <summary>Whether this place draws people to it: the left button's hand.</summary>
+            public bool Pulls => !Repels;
+        }
+
         private readonly SimulationContext context;
-        private int eventsRead;
+        private readonly WorldGeometry geometry;
+        private readonly InfluenceSettings settings;
 
-        public InfluenceSystem(SimulationContext context)
+        /// <summary>The held place, if any: a list of at most one, so the callers that walk places need not change.</summary>
+        private readonly List<Place> places = new List<Place>(1);
+
+        /// <summary>Everybody, for the conviction bookkeeping each tick. Bound after construction.</summary>
+        private Crowd crowd;
+
+        public InfluenceSystem(SimulationContext context, WorldGeometry geometry)
         {
             this.context = context;
+            this.geometry = geometry;
             settings = context.Scenario.Influence;
-            Influence = settings.Starting;
         }
 
-        /// <summary>What is left to spend.</summary>
-        public int Influence { get; private set; }
-
-        /// <summary>How much has been earned back by saving people, for the display.</summary>
-        public int Earned { get; private set; }
-
-        /// <summary>How much has been spent on cards, for the display.</summary>
-        public int Spent { get; private set; }
-
-        public int CostOf(PlayerCommandType card)
+        public void Bind(Systems systems)
         {
-            switch (card)
+            crowd = systems.Crowd;
+            doors = systems.Doors;
+            objects = systems.Objects;
+            chairs = systems.Chairs;
+            alarms = systems.Alarms;
+            keycards = systems.Keycards;
+            handHeave = systems.HandHeave;
+        }
+
+        /// <summary>What the hand's ask is read from (2026-10-02). Bound after construction; a test building may lack some.</summary>
+        private DoorSystem doors;
+        private PhysicsObjectSystem objects;
+        private ChairBehaviour chairs;
+        private AlarmSystem alarms;
+        private KeycardSystem keycards;
+        private HandHeaveBehaviour handHeave;
+
+        /// <summary>
+        /// What the hand asks of people at this place -- the live press, or
+        /// a person's copy of it (2026-10-02). Read from the same tests the
+        /// behaviours use, in their order, so it says what people will do:
+        /// a push sends them away; a place already used only gathers;
+        /// fallen crates within the clearing reach are cleared; a door is
+        /// opened, shut or pounded (<see cref="HandAsks.ForDoor"/>); the
+        /// card is fetched, a bottle taken, a free chair sat on, loose
+        /// clutter carried off; the floor beside a pull station pulls it;
+        /// anything else gathers. Draws nothing and changes nothing. It
+        /// scans the loose things for crates, so it is read once a tick
+        /// for the live press (<see cref="Place.Ask"/>) rather than once a
+        /// person.
+        /// </summary>
+        public HandAsk AskAt(in Place place)
+        {
+            if (place.EventId == 0UL)
             {
-                case PlayerCommandType.PlayBeefcake:
-                case PlayerCommandType.PlayCourage:
-                case PlayerCommandType.PlayTerror:
-                case PlayerCommandType.PlayBastard:
-                case PlayerCommandType.PlayColdHeart:
-                case PlayerCommandType.SpawnFire:
-                case PlayerCommandType.SpawnExtinguisher:
-                case PlayerCommandType.BlastWall:
-                case PlayerCommandType.PopFuseBox:
-                case PlayerCommandType.StickTogether:
-                    return settings.CardCost;
+                return HandAsk.None;
+            }
 
-                // Not a card, but priced like one: always on offer, and paid
-                // for only when the bells actually start.
-                case PlayerCommandType.PullAlarm:
-                    return settings.PullAlarmCost;
+            if (place.Repels)
+            {
+                return HandAsk.AwayFromHere;
+            }
 
-                // A door click is priced by what the door is doing, not by the
-                // command, so it is asked for separately; setting the disaster
-                // going is the start button and is not spent on at all.
-                default: return 0;
+            // Fallen crates within reach are cleared whether or not the
+            // place has been used: a clearing hand is never used up while a
+            // crate is left.
+            if (handHeave != null && handHeave.IsClearing(place))
+            {
+                return HandAsk.ClearTheBoxes;
+            }
+
+            if (place.Spent)
+            {
+                return HandAsk.ComeHere;
+            }
+
+            if (place.Door >= 0 && doors != null)
+            {
+                DoorState state = doors.StateOf(place.Door);
+                return HandAsks.ForDoor(place.DoorWasOpen, geometry.IsDoorOpen(place.Door), false,
+                    NeverShuts(place.Door), doors.NeedsKeycard(place.Door),
+                    state == DoorState.Locked, state == DoorState.Broken);
+            }
+
+            if (place.Thing >= 0 && objects != null)
+            {
+                if (keycards != null && place.Thing == keycards.Card)
+                {
+                    return HandAsk.GetTheCard;
+                }
+
+                if (objects.IsEquipment(place.Thing))
+                {
+                    return HandAsk.TakeTheBottle;
+                }
+
+                if (chairs != null && chairs.CanSitOn(place.Thing))
+                {
+                    return HandAsk.SitHere;
+                }
+
+                return objects.IsLooseClutter(place.Thing) ? HandAsk.CarryItOff : HandAsk.ComeHere;
+            }
+
+            return alarms != null && alarms.StationAt(this, place) >= 0 ? HandAsk.PullTheAlarm : HandAsk.ComeHere;
+        }
+
+        /// <summary>What this person's own goal asks of them, or nothing when they have none: the panel's line for them.</summary>
+        public HandAsk AskOf(Agent agent) => agent.Hand.Press != 0UL ? AskFor(agent.Hand.Goal) : HandAsk.None;
+
+        /// <summary>
+        /// What a place asks, for somebody answering it: the live press's
+        /// own reading for this tick when it is the live press (read once a
+        /// tick in <see cref="Advance"/>, not once a person), else worked
+        /// out afresh for a copy somebody kept.
+        /// </summary>
+        private HandAsk AskFor(in Place place) =>
+            places.Count > 0 && places[0].EventId == place.EventId && places[0].Ask != HandAsk.None
+                ? places[0].Ask
+                : AskAt(place);
+
+        /// <summary>
+        /// Whether a hand on this door asks for the door itself to be worked
+        /// -- opened or shut -- by somebody calm (2026-10-02). Not an
+        /// archway, a hole, swing doors or a door off its hinges: nothing
+        /// there shuts, so whoever came used to try, fail, give up and lose
+        /// heart. To them it is a place to come to. It stays a door for
+        /// everything else: the frightened still choose it as their way
+        /// through, and a push still rules it out.
+        /// </summary>
+        public bool WantsTheDoorWorked(in Place place) =>
+            place.Door >= 0 && (doors == null || !NeverShuts(place.Door));
+
+        private bool NeverShuts(int door) =>
+            doors.IsHole(door) || doors.Swings(door) || doors.StateOf(door) == DoorState.Broken;
+
+        /// <summary>The press a crate was last heaved aside for, who heaved it, and for how many ticks nothing has been left to clear there since.</summary>
+        private ulong heavedForPress;
+        private Agent lastHeaver;
+        private int heapQuietTicks;
+
+        /// <summary>Somebody has just heaved a crate aside for this press: the heap under it is being cleared.</summary>
+        public void Heaved(Agent by, ulong press)
+        {
+            if (press != 0UL)
+            {
+                heavedForPress = press;
+                lastHeaver = by;
+                heapQuietTicks = 0;
             }
         }
 
         /// <summary>
-        /// What one click on a door in this state would cost: turning the key
-        /// on a locked one (the whole purse at the building's way out), walking
-        /// a shut one open, pulling an open one shut; a door somebody has
-        /// already broken down is past charging for.
+        /// Says when the heap under the hand is cleared (2026-10-02): once a
+        /// crate has been heaved for the live press and then, for
+        /// <see cref="TrapSettings.HeapSettleTicks"/> in a row, no crate is
+        /// left to heave within its reach -- and, for a doorway, nothing is
+        /// heaped across it or wedged in it any more. A crate that comes to
+        /// rest back within reach is simply heaved again, so "cleared" is a
+        /// fact about the floor, not a count of heaves. Written once a
+        /// heap, as the press's use spent ("cleared!"); the place itself is
+        /// not used up, so a hand dragged on to the next heap clears that
+        /// too. Draws nothing.
         /// </summary>
-        public int CostOfDoorClick(DoorState state, bool leadsOutside)
+        private void WatchTheHeap()
         {
-            switch (state)
-            {
-                case DoorState.Locked: return leadsOutside ? settings.UnlockExitCost : settings.UnlockDoorCost;
-                case DoorState.Unlocked: return settings.OpenDoorCost;
-                case DoorState.Open: return settings.CloseDoorCost;
-                default: return 0;
-            }
-        }
-
-        /// <summary>
-        /// What turning the key on a door in this state would cost: unlocking
-        /// a locked one (the whole purse at the way out), locking a shut one,
-        /// or shutting and locking an open one.
-        /// </summary>
-        public int CostOfLockToggle(DoorState state, bool leadsOutside)
-        {
-            switch (state)
-            {
-                case DoorState.Locked: return leadsOutside ? settings.UnlockExitCost : settings.UnlockDoorCost;
-                case DoorState.Unlocked: return settings.LockDoorCost;
-                case DoorState.Open: return settings.CloseDoorCost + settings.LockDoorCost;
-                default: return 0;
-            }
-        }
-
-        public bool CanAfford(PlayerCommandType card) => Influence >= CostOf(card);
-
-        public bool CanAfford(int cost) => Influence >= cost;
-
-        /// <summary>
-        /// Takes the price of a card. Call it only once the card has actually
-        /// done something, so a refused card is free.
-        /// </summary>
-        public void Spend(PlayerCommandType card) => Spend(CostOf(card));
-
-        /// <summary>
-        /// Takes a price worked out elsewhere, for the things whose cost
-        /// depends on what they found rather than on which button was pressed.
-        /// Same rule: only once it has actually done something.
-        /// </summary>
-        public void Spend(int cost)
-        {
-            Influence -= cost;
-            Spent += cost;
-        }
-
-        /// <summary>Somebody got out alive.</summary>
-        public void CreditPersonSaved()
-        {
-            Credit(settings.PerPersonSaved);
-        }
-
-        /// <summary>
-        /// Everything that has happened since the last time this was asked,
-        /// priced by how much of a commotion it is. Read off the causal log
-        /// rather than reported by the behaviours, so nothing in the simulation
-        /// has to know the player's purse exists — the same arrangement the
-        /// head count uses.
-        /// </summary>
-        public void CreditUproar()
-        {
-            var log = context.Events.Events;
-            for (int i = eventsRead; i < log.Count; i++)
-            {
-                Credit(UproarValueOf(log[i].EventType));
-            }
-
-            eventsRead = log.Count;
-        }
-
-        /// <summary>What one thing happening is worth to the meter: nothing, or one of three sizes.</summary>
-        private int UproarValueOf(CausalEventType what)
-        {
-            switch (UproarTierOf(what))
-            {
-                case UproarTier.Big: return settings.UproarBig;
-                case UproarTier.Middling: return settings.UproarMiddling;
-                case UproarTier.Small: return settings.UproarSmall;
-                default: return 0;
-            }
-        }
-
-        /// <summary>
-        /// Which size of commotion each kind of event is. Three sizes: somebody
-        /// shouting or tripping is small, somebody going down or a door coming
-        /// off its hinges is middling, and somebody catching fire or an
-        /// appliance going off is big.
-        /// <para>
-        /// Every event type is named here, including the ones that pay nothing,
-        /// and an event type left out is an error rather than a silent zero. It
-        /// used to be a switch with a default of nothing, so a new event landed
-        /// in the wrong tier by omission and no test could tell. A test now
-        /// walks every value of the enum through this.
-        /// </para>
-        /// <para>
-        /// The groups that pay nothing, each for its own reason. A death deals
-        /// a card instead. Somebody escaping is already paid for by the head
-        /// count. The player's own cards would otherwise refund themselves.
-        /// Fire spreading square by square fires dozens of times a second in a
-        /// room nobody is standing in: the fire pays through what it does to
-        /// people and things, not through its own arithmetic. Somebody thinking
-        /// (looking for a way out, finding one) is not a commotion. And the
-        /// rest are bookkeeping.
-        /// </para>
-        /// </summary>
-        internal static UproarTier UproarTierOf(CausalEventType what)
-        {
-            switch (what)
-            {
-                case CausalEventType.AgentCaughtFire:
-                case CausalEventType.AgentPassedOut:
-                case CausalEventType.AgentCrushed:
-                case CausalEventType.ObjectExploded:
-                case CausalEventType.DoorBrokenDown:
-                    return UproarTier.Big;
-
-                case CausalEventType.AgentKnockedDown:
-                case CausalEventType.AgentShoved:
-                case CausalEventType.AgentGrabbed:
-                case CausalEventType.AgentForcedDoor:
-                case CausalEventType.AgentBarricadedDoor:
-                case CausalEventType.ObjectBroke:
-                case CausalEventType.DoorBurntThrough:
-                case CausalEventType.BoxHitAgent:
-                case CausalEventType.AlarmPulled:
-                case CausalEventType.TableHeaved:
-                    return UproarTier.Middling;
-
-                case CausalEventType.AgentYelled:
-                case CausalEventType.AgentScared:
-                case CausalEventType.AgentTripped:
-                case CausalEventType.AgentFroze:
-                case CausalEventType.AgentsCollided:
-                case CausalEventType.AgentShovedObstruction:
-                case CausalEventType.ObjectCaughtFire:
-                case CausalEventType.ItemThrown:
-                case CausalEventType.BoxBumped:
-                case CausalEventType.ObjectPopped:
-                    return UproarTier.Small;
-
-                // A death deals a card; the head count pays for an escape.
-                case CausalEventType.AgentLost:
-                case CausalEventType.AgentEscaped:
-                case CausalEventType.AgentRescued:
-                case CausalEventType.AgentSurvived:
-                case CausalEventType.CardDealt:
-
-                // The player's own doing.
-                case CausalEventType.PowerBeefcake:
-                case CausalEventType.PowerCourage:
-                case CausalEventType.PowerTerror:
-                case CausalEventType.PowerBastard:
-                case CausalEventType.PowerColdHeart:
-                case CausalEventType.PowerSpawnedFire:
-                case CausalEventType.PowerSpawnedExtinguisher:
-                case CausalEventType.PowerBlastedWall:
-                case CausalEventType.PowerPoppedFuseBox:
-                case CausalEventType.PowerPulledAlarm:
-                case CausalEventType.PowerStickTogether:
-                case CausalEventType.DoorUnlocked:
-                case CausalEventType.RoundEventTriggered:
-                case CausalEventType.RoundEnded:
-
-                // The hazard's own arithmetic.
-                case CausalEventType.FireActivated:
-                case CausalEventType.FireSpread:
-                case CausalEventType.FireDoused:
-                case CausalEventType.ObjectBurntOut:
-                case CausalEventType.PowerSparkStarted:
-                case CausalEventType.PowerSparkArrived:
-
-                // Somebody thinking, or somebody being told.
-                case CausalEventType.AgentAlerted:
-                case CausalEventType.AgentNoticedSound:
-                case CausalEventType.AgentUnfroze:
-                case CausalEventType.AgentLookedForAWayOut:
-                case CausalEventType.AgentFoundADeadEnd:
-                case CausalEventType.AgentFoundTheWayOut:
-                case CausalEventType.AgentDashedThroughHeat:
-                case CausalEventType.AgentHidFromTheHeat:
-                case CausalEventType.AgentCarriedThroughDoorway:
-                case CausalEventType.LeaderCalledPeopleOn:
-                case CausalEventType.LeaderOrderedDoorBroken:
-                case CausalEventType.LeaderOrderedFireFought:
-
-                // The building's day: a cue called, a remark made, the player
-                // calling it a day. Calm life is not uproar.
-                case CausalEventType.CueCalled:
-                case CausalEventType.AgentSaid:
-                case CausalEventType.PowerCalledHomeTime:
-                case CausalEventType.AgentIgnoredCue:
-
-                // Bookkeeping: things happening quietly to people, things and doors.
-                case CausalEventType.AgentGotUp:
-                case CausalEventType.AgentCameTo:
-                case CausalEventType.AgentRolled:
-                case CausalEventType.AgentDoused:
-                case CausalEventType.AgentBlasted:
-                case CausalEventType.AgentShookAwake:
-                case CausalEventType.AgentDropped:
-                case CausalEventType.AgentTriedDoor:
-                case CausalEventType.AgentGaveUpOnDoor:
-                case CausalEventType.AgentTookExtinguisher:
-                case CausalEventType.ExtinguisherSprayed:
-                case CausalEventType.ExtinguisherEmptied:
-                case CausalEventType.ItemDropped:
-                case CausalEventType.BoxesCollided:
-                case CausalEventType.DoorOpened:
-                case CausalEventType.DoorClosed:
-                case CausalEventType.DoorLocked:
-                case CausalEventType.DoorBlocked:
-                case CausalEventType.DoorUnblocked:
-                case CausalEventType.AlarmRang:
-                    return UproarTier.Nothing;
-
-                default:
-                    throw new System.ArgumentOutOfRangeException(nameof(what),
-                        $"{what} has no uproar tier. Every event type must say what it pays, even if that is nothing.");
-            }
-        }
-
-        /// <summary>
-        /// Puts influence in the purse for a test whose subject is something
-        /// else. A round opens with nothing, so a test that wants to work a
-        /// door in its first tick -- checking the scene is wired up, say --
-        /// cannot get there by playing properly.
-        /// </summary>
-        public void GiveForTests(int amount) => Credit(amount);
-
-        private void Credit(int amount)
-        {
-            if (amount <= 0)
+            if (heavedForPress == 0UL)
             {
                 return;
             }
 
-            int before = Influence;
-            Influence = System.Math.Min(settings.Maximum, Influence + amount);
-            Earned += Influence - before;
+            if (places.Count == 0 || places[0].EventId != heavedForPress || handHeave == null)
+            {
+                // The hand came off, or went on somewhere else: whoever
+                // keeps at the heap finishes it without it being said.
+                heavedForPress = 0UL;
+                lastHeaver = null;
+                return;
+            }
+
+            Place place = places[0];
+            bool blocked = place.Door >= 0 && doors != null &&
+                           (doors.IsPiled(place.Door) || doors.IsObstructed(place.Door));
+            if (blocked || handHeave.IsClearing(place))
+            {
+                heapQuietTicks = 0;
+                return;
+            }
+
+            if (++heapQuietTicks < context.Scenario.Traps.HeapSettleTicks)
+            {
+                return;
+            }
+
+            context.Events.Append(context.Tick, lastHeaver.Id, CausalEventType.InfluenceSpent, place.At,
+                (int)HandAsk.ClearTheBoxes, 0, place.EventId, place.Target);
+            heavedForPress = 0UL;
+            lastHeaver = null;
+        }
+
+        /// <summary>How many places are influenced right now: one while the button is down, else none.</summary>
+        public int Count => places.Count;
+
+        /// <summary>The <paramref name="i"/>-th place.</summary>
+        public Place this[int i] => places[i];
+
+        /// <summary>A held place's level: always the full one. Kept for the display and the tests.</summary>
+        public int LevelOf(int i) => settings.MaximumLevel;
+
+        /// <summary>The hand's press, while one is on: what somebody answering it remembers. 0 when the hand is off.</summary>
+        public ulong CurrentPress => places.Count > 0 ? places[0].EventId : 0UL;
+
+        // ---------------------------------------------------------------- the hand itself
+
+        /// <summary>The player's hand goes on a door. The door must be one the building has; the command system has checked.</summary>
+        public void OnDoor(int door, SimulationId doorId, bool repels = false)
+        {
+            int roomA = geometry.DoorRoom(door);
+            int roomB = geometry.RoomBeyond(door, roomA);
+            Press(door, -1, doorId, geometry.DoorCentre(door), roomA, roomB, repels);
+            Place place = places[0];
+            place.DoorWasOpen = geometry.IsDoorOpen(door);
+            places[0] = place;
+        }
+
+        /// <summary>The player's hand goes on a thing: the pull comes from where it stands now, and stays there.</summary>
+        public void OnThing(int thing, SimulationId thingId, LogicalPosition at, bool repels = false)
+        {
+            int room = geometry.RoomAtPoint(at);
+            Press(-1, thing, thingId, at, room, room, repels);
+        }
+
+        /// <summary>The player's hand goes on the floor. False, and nothing written, when the spot is not floor in any room.</summary>
+        public bool TryOnSpot(LogicalPosition at, bool repels = false)
+        {
+            int room = geometry.RoomAtPoint(at);
+            if (room < 0)
+            {
+                return false;
+            }
+
+            Press(-1, -1, default, at, room, room, repels);
+            return true;
+        }
+
+        /// <summary>
+        /// The button came up inside a click (2026-09-30): the place pressed a
+        /// moment ago stays under the hand until
+        /// <see cref="InfluenceSettings.BeaconTicks"/> after its press, then
+        /// comes off by itself. Nothing when nothing is held, or when it is a
+        /// beacon already.
+        /// </summary>
+        public void Leave()
+        {
+            if (places.Count == 0 || places[0].EndsAtTick > 0)
+            {
+                return;
+            }
+
+            Place place = places[0];
+            place.EndsAtTick = Math.Max(context.Tick + 1, place.PressTick + settings.BeaconTicks);
+            places[0] = place;
+        }
+
+        /// <summary>
+        /// The held hand slides to a spot (2026-09-30, the owner: "when left
+        /// click is held, if then dragged the influence point should move with
+        /// the pointer. So agents can be guided with this"). Wherever it was,
+        /// it is a hand on the floor now; the press stays the same press, so
+        /// whoever was answering it goes on answering it and follows it
+        /// (their copy of the place is refreshed each tick they feel it).
+        /// Nothing for a beacon, for no hand, or for a spot off the floor.
+        /// Nothing is written: the command is in the run.
+        /// </summary>
+        public void Move(LogicalPosition at)
+        {
+            if (places.Count == 0 || places[0].EndsAtTick > 0)
+            {
+                return;
+            }
+
+            int room = geometry.RoomAtPoint(at);
+            if (room < 0)
+            {
+                return;
+            }
+
+            Place place = places[0];
+            place.Door = -1;
+            place.Thing = -1;
+            place.Target = default;
+            place.At = at;
+            place.RoomA = room;
+            place.RoomB = room;
+            places[0] = place;
+        }
+
+        /// <summary>
+        /// The Tab panel's dial (2026-09-30): how strongly everybody feels the
+        /// hand from the next tick on, in this run's own settings.
+        /// </summary>
+        public void SetStrength(int percent)
+        {
+            settings.StrengthPercent = Math.Max(0, Math.Min(InfluenceSettings.MaximumStrengthPercent, percent));
+        }
+
+        /// <summary>
+        /// The Tab panel's second dial (2026-09-30): how far the hand is felt
+        /// from the next tick on, in this run's own settings. Nothing is
+        /// cached from the reach, so a person at the old edge simply feels
+        /// more or nothing next tick.
+        /// </summary>
+        public void SetReach(int millimetres)
+        {
+            settings.ReachMillimetres = Math.Max(InfluenceSettings.MinimumReachMillimetres,
+                Math.Min(InfluenceSettings.MaximumReachMillimetres, millimetres));
+        }
+
+        /// <summary>
+        /// The player lets go: the place is gone at once. Whoever was acting
+        /// for it keeps the task if their conviction has reached the commit
+        /// line, and drops it otherwise (<see cref="Advance"/>, this tick).
+        /// Nothing written when nothing was held.
+        /// </summary>
+        public void Release()
+        {
+            if (places.Count == 0)
+            {
+                return;
+            }
+
+            Place place = places[0];
+            context.Events.Append(context.Tick, default, CausalEventType.PowerReleasedInfluence, place.At,
+                context.Tick - place.PressTick, 0, place.EventId, place.Target);
+            places.Clear();
+        }
+
+        /// <summary>
+        /// A press: the one place the hand is on, replacing whatever it was
+        /// on before. Pressing the place already held presses it afresh, which
+        /// is how a door used once is asked for the opposite.
+        /// </summary>
+        private void Press(int door, int thing, SimulationId target, LogicalPosition at, int roomA, int roomB, bool repels)
+        {
+            places.Clear();
+            places.Add(new Place
+            {
+                Door = door,
+                Thing = thing,
+                Target = target,
+                At = at,
+                RoomA = roomA,
+                RoomB = roomB,
+                PressTick = context.Tick,
+                EventId = context.Events.Append(context.Tick, default,
+                    repels ? CausalEventType.PowerRepelled : CausalEventType.PowerInfluenced, at,
+                    settings.MaximumLevel, 0, 0UL, target).EventId,
+                Spent = false,
+                Repels = repels
+            });
+        }
+
+        /// <summary>The unspent pull on this door, or -1: the door is there to be used.</summary>
+        public int PlaceOfDoor(int door)
+        {
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door == door && !places[i].Spent && places[i].Pulls)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>The pull on this door, spent or not, or -1: the hand is drawing people to it.</summary>
+        public int PullOnDoor(int door)
+        {
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door == door && places[i].Pulls)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>Whether the hand is pushing people away from this door.</summary>
+        public bool IsRepelling(int door)
+        {
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door == door && places[i].Repels)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>The unspent pull on this thing, or -1: the thing is there to be used.</summary>
+        public int PlaceOfThing(int thing)
+        {
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Thing == thing && !places[i].Spent && places[i].Pulls)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Somebody did what the pull asked (the owner's rule, 2026-09-27):
+        /// opened or shut the door, sat on the chair, picked the thing up.
+        /// Its use is spent: it goes on gathering people while held, but is
+        /// not used again until pressed afresh. The event's id, or 0 when
+        /// nothing unspent was on it, in which case nothing is written.
+        /// </summary>
+        public ulong Spend(Agent by, int door, int thing)
+        {
+            int i = door >= 0 ? PlaceOfDoor(door) : thing >= 0 ? PlaceOfThing(thing) : -1;
+            return i < 0 ? 0UL : SpendAt(by, i);
+        }
+
+        /// <summary>The pull on the floor, or on a thing, within a stacking distance of here: the spot beside a pull station somebody has just pulled.</summary>
+        public ulong SpendNear(Agent by, LogicalPosition at)
+        {
+            long stack = settings.StackRadiusMillimetres;
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door < 0 && !places[i].Spent && places[i].Pulls &&
+                    LogicalPosition.DistanceSquared(places[i].At, at) <= stack * stack)
+                {
+                    return SpendAt(by, i);
+                }
+            }
+
+            return 0UL;
+        }
+
+        /// <summary>Whether an unspent pull lies within a stacking distance of here: the hand is on this pull station.</summary>
+        public bool IsPullingNear(LogicalPosition at)
+        {
+            long stack = settings.StackRadiusMillimetres;
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i].Door < 0 && !places[i].Spent && places[i].Pulls &&
+                    LogicalPosition.DistanceSquared(places[i].At, at) <= stack * stack)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether this pull, live or a person's copy, is on the floor beside a spot (a pull station) and not yet used.</summary>
+        public bool IsPullingNear(in Place place, LogicalPosition at)
+        {
+            long stack = settings.StackRadiusMillimetres;
+            return place.Door < 0 && !place.Spent && place.Pulls &&
+                   LogicalPosition.DistanceSquared(place.At, at) <= stack * stack;
+        }
+
+        private ulong SpendAt(Agent by, int i)
+        {
+            Place place = places[i];
+
+            // What was done, for the sign (2026-10-02): a door now standing
+            // the other way from the press was opened or shut (one that
+            // does not -- wedged by the cruel, say -- is only "done"); for
+            // anything else, what the place asked as the tick began, since
+            // the deed itself changes what a fresh reading would say (the
+            // chair is taken now, the bell is ringing).
+            HandAsk done = place.Door >= 0
+                ? geometry.IsDoorOpen(place.Door) == place.DoorWasOpen ? HandAsk.None
+                    : place.DoorWasOpen ? HandAsk.ShutTheDoor : HandAsk.OpenTheDoor
+                : place.Ask != HandAsk.None ? place.Ask : AskAt(place);
+            ulong spent = context.Events.Append(context.Tick, by.Id, CausalEventType.InfluenceSpent, place.At,
+                (int)done, 0, place.EventId, place.Target).EventId;
+            place.Spent = true;
+            places[i] = place;
+            return spent;
+        }
+
+        // ---------------------------------------------------------------- feeling it
+
+        /// <summary>
+        /// How strongly this person feels this place, per mille of a full pull
+        /// felt by an ordinary person standing on it, times how easily led
+        /// they are (<see cref="Susceptibility"/>). Full within half the reach,
+        /// then fading to nothing at <see cref="InfluenceSettings.ReachMillimetres"/>.
+        /// Distance is a walk: across the room, or through one open doorway
+        /// from the room next door; nothing through a wall or a shut door.
+        /// The same for a pull and a push: which way it acts is the caller's.
+        /// </summary>
+        public int FeltBy(Agent agent, int i) => FeltBy(agent, places[i]);
+
+        /// <summary>The same, for any place: the live one or a person's copy of it.</summary>
+        public int FeltBy(Agent agent, in Place place)
+        {
+            // The room they count as in: in a doorway, the one they were last
+            // in (2026-09-30; it used to be only a room holding their whole
+            // body, so anybody in a doorway felt nothing).
+            int room = geometry.RoomOf(agent);
+            if (room < 0)
+            {
+                return 0;
+            }
+
+            long felt = ReachingFrom(room, agent.Body.Position, place);
+            if (felt <= 0L)
+            {
+                return 0;
+            }
+
+            // Everybody's reading of the hand, scaled by the one dial
+            // (2026-09-30, the Tab panel's hand strength).
+            return (int)(felt * Susceptibility(agent) / 100L * settings.StrengthPercent / 100L);
+        }
+
+        /// <summary>A walk's worth of the hand, per mille: full within <see cref="InfluenceSettings.FullWithinPercent"/> of the reach, then fading to nothing at it.</summary>
+        private long FadeOver(long distance)
+        {
+            long reach = settings.ReachMillimetres;
+            if (distance >= reach)
+            {
+                return 0L;
+            }
+
+            long full = reach * settings.FullWithinPercent / 100L;
+            return distance <= full ? 1000L : 1000L * (reach - distance) / Math.Max(1L, reach - full);
+        }
+
+        /// <summary>
+        /// Whether this person will have none of the player's hand: the
+        /// strongest wills in the building (the owner, 2026-09-30: "most,
+        /// strong wills refuse"). On the office, the bully and the host.
+        /// </summary>
+        public bool Refuses(Agent agent) =>
+            agent.Traits.Leadership >= settings.RefusesFromLeadership || agent.Traits.Evil >= settings.RefusesFromEvil;
+
+        /// <summary>
+        /// How easily led somebody is, in percent of an ordinary person: the
+        /// nervous and strangers to the building more, leaders and the cruel
+        /// less. The strongest wills feel nothing at all (<see cref="Refuses"/>);
+        /// everybody else feels at least <see cref="InfluenceSettings.MinimumPercent"/>,
+        /// and nobody more than <see cref="InfluenceSettings.MaximumPercent"/>.
+        /// </summary>
+        public int Susceptibility(Agent agent)
+        {
+            if (Refuses(agent))
+            {
+                return 0;
+            }
+
+            AgentTraitValues traits = agent.Traits;
+            int percent = 100 + settings.PercentPerNervousness * (traits.Nervousness - 5) -
+                          settings.PercentPerLeadership * Math.Max(0, traits.Leadership - 5) -
+                          settings.PercentPerEvil * Math.Max(0, traits.Evil - 5) +
+                          (agent.Knowledge.KnowsEverything ? 0 : settings.VisitorPercent);
+            return Math.Max(settings.MinimumPercent, Math.Min(settings.MaximumPercent, percent));
+        }
+
+        /// <summary>
+        /// Whether this person has taken in the hand now on (2026-09-30, the
+        /// owner's rule: nobody reacts on the tick a thing happens, and no two
+        /// on the same tick). The first time they are asked about a press they
+        /// draw their own reaction tick; from then on it is simply whether that
+        /// tick has come. Ask it only of somebody who feels the hand, so a hand
+        /// nobody is near draws nothing.
+        /// </summary>
+        public bool HasNoticed(Agent agent)
+        {
+            ulong press = CurrentPress;
+            if (press == 0UL)
+            {
+                return false;
+            }
+
+            AgentHand hand = agent.Hand;
+            if (hand.NoticedPress != press)
+            {
+                hand.NoticedPress = press;
+                hand.NoticedAtTick = context.ReactionTick();
+            }
+
+            return context.Tick >= hand.NoticedAtTick;
+        }
+
+        /// <summary>
+        /// The hand on <em>now</em>, if it pulls and this person feels it and
+        /// has taken it in: what a tell is caught by and the startled edge
+        /// toward, whether or not they have made it their goal. Nothing for the
+        /// strongest wills.
+        /// </summary>
+        public bool TryGetLivePull(Agent agent, out Place place, out int felt)
+        {
+            place = default;
+            felt = 0;
+            if (places.Count == 0 || places[0].Repels || Refuses(agent))
+            {
+                return false;
+            }
+
+            felt = FeltBy(agent, 0);
+            if (felt <= 0 || !HasNoticed(agent))
+            {
+                felt = 0;
+                return false;
+            }
+
+            place = places[0];
+            return true;
+        }
+
+        /// <summary>The hand on now, if it pushes and this person feels it and has taken it in. A push is never kept as a goal.</summary>
+        public bool TryGetLivePush(Agent agent, out Place place, out int felt)
+        {
+            place = default;
+            felt = 0;
+            if (places.Count == 0 || !places[0].Repels || Refuses(agent))
+            {
+                return false;
+            }
+
+            felt = FeltBy(agent, 0);
+            if (felt <= 0 || !HasNoticed(agent))
+            {
+                felt = 0;
+                return false;
+            }
+
+            place = places[0];
+            return true;
+        }
+
+        /// <summary>
+        /// What this person is doing for the hand, or could: their goal -- the
+        /// live press while it is on and felt, or the copy they kept when it
+        /// came off -- and how hard it drives them, per mille: the greater of
+        /// their conviction and what they feel right now. False for nobody's
+        /// goal. Everything a person does for the hand asks this.
+        /// </summary>
+        public bool TryGetPull(Agent agent, out Place place, out int drive)
+        {
+            AgentHand hand = agent.Hand;
+            place = hand.Goal;
+            drive = 0;
+            if (hand.Press == 0UL)
+            {
+                return false;
+            }
+
+            drive = hand.Conviction;
+            if (places.Count > 0 && places[0].EventId == hand.Press)
+            {
+                drive = Math.Max(drive, FeltBy(agent, 0));
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Whether this person may set about their goal now: conviction past
+        /// the answer line, not the strongest of wills, and not inside the beat
+        /// after a give-up. Draws nothing.
+        /// </summary>
+        public bool MayAnswer(Agent agent)
+        {
+            AgentHand hand = agent.Hand;
+            return hand.Press != 0UL && !Refuses(agent) && hand.Conviction >= settings.AnswerFromPerMille &&
+                   context.Tick >= hand.RetryFromTick;
+        }
+
+        /// <summary>
+        /// Whether this person is doing what the hand asked (the gold hand
+        /// over them): they have set about their goal, or they hold a bottle
+        /// they took for it. Asks nothing random.
+        /// </summary>
+        public bool IsActingFor(Agent agent)
+        {
+            if (agent.Carry.ForTheHand && agent.Carry.Holding)
+            {
+                return true;
+            }
+
+            return agent.Hand.Acting && agent.Hand.Press != 0UL;
+        }
+
+        /// <summary>Whether this person keeps a goal the hand has come off (the gold hand, still).</summary>
+        public bool IsCommitted(Agent agent) => agent.Hand.Press != 0UL && agent.Hand.Committed;
+
+        /// <summary>Whether this person's goal is this press.</summary>
+        public static bool IsAnswering(Agent agent, ulong press) => press != 0UL && agent.Hand.Press == press;
+
+        /// <summary>
+        /// They set about their goal: the gold hand goes up, and the log says
+        /// once per press that they were drawn by it. <paramref name="drive"/>
+        /// is what the log records as the strength.
+        /// </summary>
+        public void Answer(Agent agent, in Place place, int drive)
+        {
+            AgentHand hand = agent.Hand;
+            hand.Acting = true;
+            if (hand.AnsweredPress != place.EventId)
+            {
+                hand.AnsweredPress = place.EventId;
+                hand.SaidAsk = HandAsk.None;
+                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDrawnByInfluence, agent.Body.Position,
+                    drive, 0, place.EventId, place.Target);
+            }
+
+            // What they have taken up, in the hand's own words (2026-10-02):
+            // said once for each ask of a press, so somebody who came to a
+            // dragged hand and then finds boxes under it says that too. Not
+            // for a place already used: standing by it is no news.
+            HandAsk ask = place.Spent ? HandAsk.None : AskFor(place);
+            if (ask != HandAsk.None && ask != hand.SaidAsk)
+            {
+                hand.SaidAsk = ask;
+                context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentTookUpTheHandsAsk, agent.Body.Position,
+                    (int)ask, 0, place.EventId, place.Target);
+            }
+        }
+
+        /// <summary>
+        /// The task is done (the door used, the chair sat on, the card
+        /// pocketed, the heap cleared): the goal is over, and their conviction
+        /// stays, so a hand still on asks them again for the next thing.
+        /// </summary>
+        public static void Done(Agent agent)
+        {
+            AgentHand hand = agent.Hand;
+            hand.Acting = false;
+            hand.AgainstTheirNature = false;
+            hand.Committed = false;
+            hand.GotUpForIt = false;
+            hand.Press = 0UL;
+            hand.Goal = default;
+        }
+
+        /// <summary>
+        /// Somebody frightened went through the door their goal is on
+        /// (2026-10-03): what it asked is done, the press is not answered
+        /// again, and for a while they are loath to go back through it.
+        /// </summary>
+        public void WentThrough(Agent agent, int door)
+        {
+            ulong press = agent.Hand.Goal.EventId;
+            Done(agent);
+            agent.Hand.DoneWithPress = press;
+            agent.Doors.GoOnFromDoor = door;
+            agent.Doors.GoOnUntilTick = checked(context.Tick + context.Jittered(settings.GoOnFromTheHandTicks));
+        }
+
+        /// <summary>The loath-to-turn-back cost on going back through this door, now.</summary>
+        public long TurnBackCost(Agent agent, int door) =>
+            door >= 0 && door == agent.Doors.GoOnFromDoor && context.Tick < agent.Doors.GoOnUntilTick
+                ? settings.TurnBackPenaltyMillimetres
+                : 0L;
+
+        /// <summary>
+        /// The task failed (no way there, the door would not shut, hemmed in
+        /// too long): it costs them <see cref="InfluenceSettings.GiveUpCostPerMille"/>
+        /// of their conviction and a beat before they try again; below the
+        /// answer line they drop it altogether. The one draw here is the
+        /// beat's jitter, for somebody who was acting.
+        /// </summary>
+        public void GiveUp(Agent agent)
+        {
+            AgentHand hand = agent.Hand;
+            hand.Acting = false;
+            hand.AgainstTheirNature = false;
+            hand.GotUpForIt = false;
+            hand.Conviction -= settings.GiveUpCostPerMille;
+            hand.RetryFromTick = checked(context.Tick + Math.Max(context.ReactionLag(), context.Jittered(settings.RetryAfterTicks)));
+            if (hand.Conviction < settings.AnswerFromPerMille)
+            {
+                Drop(agent);
+            }
+        }
+
+        /// <summary>On their own again entirely: no goal, no conviction. The once-per-press markers stay, so nothing is written twice.</summary>
+        public static void Drop(Agent agent)
+        {
+            AgentHand hand = agent.Hand;
+            hand.Press = 0UL;
+            hand.Goal = default;
+            hand.Committed = false;
+            hand.Conviction = 0;
+            hand.Acting = false;
+            hand.AgainstTheirNature = false;
+            hand.GotUpForIt = false;
+        }
+
+        /// <summary>
+        /// What they were doing for the hand is cut short by something else
+        /// (taking fright, calming down): the task stops, and the goal and the
+        /// conviction stay, so the other side of them answers it afresh.
+        /// </summary>
+        public static void Interrupted(Agent agent)
+        {
+            AgentHand hand = agent.Hand;
+            hand.Acting = false;
+            hand.AgainstTheirNature = false;
+            hand.GotUpForIt = false;
+        }
+
+        /// <summary>The flames inside their danger distance: the hand is out of their head.</summary>
+        public static void Endangered(Agent agent) => Drop(agent);
+
+        /// <summary>
+        /// Somebody does for the hand what they never would of their own
+        /// accord: written once, for the sign and the story, and remembered so
+        /// the drawing trembles them while they do it.
+        /// </summary>
+        public void ActedAgainstNature(Agent agent, AgainstTheirNature what, ulong press, SimulationId target,
+            LogicalPosition at)
+        {
+            agent.Hand.AgainstTheirNature = true;
+            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentActedForTheHand, at, (int)what, 0,
+                press, target);
+        }
+
+        /// <summary>Doing for the hand, right now, what is against their nature: the drawing trembles them.</summary>
+        public bool IsActingAgainstNature(Agent agent) => agent.Hand.AgainstTheirNature && IsActingFor(agent);
+
+        // ---------------------------------------------------------------- each tick
+
+        /// <summary>
+        /// Phase 1's tail. A click's beacon whose time is up comes off by
+        /// itself, exactly as a release would. Then everybody's conviction, in
+        /// index order, by the one rule (2026-09-30):
+        /// <list type="bullet">
+        /// <item>out cold, alight, or in the player's hand: the goal is dropped;</item>
+        /// <item>a push felt and taken in drops a goal;</item>
+        /// <item>a pull felt and taken in becomes the goal (a fresh press
+        /// replaces the old goal and keeps the conviction), the copy follows
+        /// the hand, and conviction grows by what is felt;</item>
+        /// <item>a goal whose hand is off or elsewhere is kept once conviction
+        /// has passed the commit line, else dropped; a kept goal fades once a
+        /// second on their own beat, faster the less easily led they are,
+        /// and is dropped at nothing.</item>
+        /// </list>
+        /// Draws: <see cref="HasNoticed"/> draws one reaction tick per person
+        /// per press, only for somebody who feels it; nothing else here draws.
+        /// </summary>
+        public void Advance()
+        {
+            if (places.Count > 0 && places[0].EndsAtTick > 0 && context.Tick >= places[0].EndsAtTick)
+            {
+                Release();
+            }
+
+            // What the hand asks, read once for the tick before anybody
+            // acts on it (2026-10-02), and whether the heap under it has
+            // been cleared.
+            if (places.Count > 0)
+            {
+                Place asked = places[0];
+                asked.Ask = AskAt(asked);
+                places[0] = asked;
+            }
+
+            WatchTheHeap();
+            if (crowd == null)
+            {
+                return;
+            }
+
+            Agent[] agents = crowd.All;
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent agent = agents[i];
+                AgentHand hand = agent.Hand;
+                if (!agent.IsParticipating || agent.Body.State == AgentBodyState.Unconscious || agent.Burning.IsBurning ||
+                    agent.Tug.Held)
+                {
+                    if (hand.Press != 0UL)
+                    {
+                        Drop(agent);
+                    }
+
+                    continue;
+                }
+
+                if (places.Count > 0 && !Refuses(agent))
+                {
+                    Place live = places[0];
+                    int felt = FeltBy(agent, 0);
+                    if (felt > 0 && HasNoticed(agent))
+                    {
+                        if (live.Repels)
+                        {
+                            if (hand.Press != 0UL)
+                            {
+                                Drop(agent);
+                            }
+
+                            // Taken in (their lag already past): a push is a
+                            // reason to think again now (2026-10-03).
+                            if (hand.PushedByPress != live.EventId)
+                            {
+                                SimulationContext.ChooseNoLaterThan(agent.Intent, context.Tick);
+                            }
+
+                            continue;
+                        }
+
+                        if (hand.Press != live.EventId && GoingThroughAHeldDoor(agent))
+                        {
+                            // Half way through the door the hand was on a
+                            // moment ago (2026-10-03): they finish that first,
+                            // and take up the new press once through it, so
+                            // the hand can move on to the next door without
+                            // leaving the group behind it stranded.
+                            continue;
+                        }
+
+                        bool couldAnswer = hand.Press == live.EventId && hand.Conviction >= settings.AnswerFromPerMille;
+                        if (hand.Press != live.EventId)
+                        {
+                            // A fresh press: the old goal is over, their
+                            // attention to the player is not.
+                            hand.Press = live.EventId;
+                            hand.Committed = false;
+                            hand.Acting = false;
+                            hand.AgainstTheirNature = false;
+                            hand.GotUpForIt = false;
+                        }
+
+                        hand.Goal = live;
+                        hand.Conviction = Math.Min(1000, hand.Conviction + felt * settings.ConvictionGainPerTickAtFullPull / 1000);
+
+                        // Sure enough of it now to set about it, for this
+                        // press: a reason to think again now, rather than at
+                        // their next decision a second away (2026-10-03, the
+                        // one task model: the options are weighed only then).
+                        if (!couldAnswer && hand.Conviction >= settings.AnswerFromPerMille)
+                        {
+                            SimulationContext.ChooseNoLaterThan(agent.Intent, context.Tick);
+                        }
+
+                        continue;
+                    }
+                }
+
+                if (hand.Press == 0UL)
+                {
+                    continue;
+                }
+
+                if (places.Count > 0 && places[0].EventId == hand.Press)
+                {
+                    // Still on, only not felt from here: they keep at it.
+                    continue;
+                }
+
+                if (!hand.Committed)
+                {
+                    if (hand.Conviction >= settings.CommitFromPerMille || GoingThroughAHeldDoor(agent))
+                    {
+                        hand.Committed = true;
+                    }
+                    else
+                    {
+                        Drop(agent);
+                    }
+
+                    continue;
+                }
+
+                if ((context.Tick + agent.Index) % Run.TicksPerSecond == 0)
+                {
+                    int susceptibility = Math.Max(1, Susceptibility(agent));
+                    hand.Conviction -= settings.CommittedDecayPerSecondPerMille * 100 / susceptibility;
+                    if (hand.Conviction <= 0)
+                    {
+                        Drop(agent);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Somebody frightened already on their way through a door the hand
+        /// was held on, on a level where that is something the frightened do
+        /// (<see cref="InfluenceSettings.FrightenedGoThroughAHeldDoor"/>).
+        /// </summary>
+        private bool GoingThroughAHeldDoor(Agent agent) =>
+            settings.FrightenedGoThroughAHeldDoor && agent.Hand.Acting && agent.Hand.Goal.Door >= 0 &&
+            agent.Hand.Press != 0UL && agent.Fear.State == AgentFearState.Scared;
+
+        // ---------------------------------------------------------------- where and which way
+
+        /// <summary>
+        /// Where somebody answering a hand on the floor stands (2026-09-30): a
+        /// spot of their own in a loose ring round it -- nine tenths of a metre
+        /// out, then one and four tenths, then one and nine, six to a ring,
+        /// by their number -- on floor they can stand on. Draws nothing;
+        /// worked out afresh from where the place is now, so a hand dragged
+        /// along carries them with it.
+        /// </summary>
+        public LogicalPosition GatherSpotFor(Agent agent, in Place place)
+        {
+            LogicalPosition at = place.At;
+            int ring = agent.Index / GatherRingSize % GatherRingRadii.Length;
+            int heading = IntegerMath.NormalizeDegrees(agent.Index % GatherRingSize * (360 / GatherRingSize) + ring * 30);
+            LogicalPosition spot = at + IntegerMath.Displacement(heading, GatherRingRadii[ring]);
+            if (geometry.RoomAtPoint(spot) < 0)
+            {
+                // Past a wall: the same side, closer in.
+                spot = at + IntegerMath.Displacement(heading, GatherRingRadii[0] / 2);
+                if (geometry.RoomAtPoint(spot) < 0)
+                {
+                    spot = at;
+                }
+            }
+
+            return geometry.Navigation.NearestStandableTo(spot, context.Scenario.World.OccupancyRadiusMillimetres,
+                GatherStandingRoomMillimetres);
+        }
+
+        /// <summary>The ring round a hand people answering it stand in: how many to a ring, and each ring's distance out.</summary>
+        private const int GatherRingSize = 6;
+        private static readonly int[] GatherRingRadii = { 900, 1400, 1900 };
+        private const int GatherStandingRoomMillimetres = 1200;
+
+        /// <summary>
+        /// Where somebody pushed by the hand walks to (2026-09-30; the calm
+        /// behaviour's own rule, shared now with the frightened): straight
+        /// away from the push, out past its full strength, in the room they
+        /// are in -- halved up to three times to stay in it. Draws nothing.
+        /// </summary>
+        public LogicalPosition AwayFromThePush(Agent agent, in Place push)
+        {
+            LogicalPosition from = agent.Body.Position;
+            long distance = IntegerMath.Distance(from, push.At);
+            int away = distance > 0
+                ? IntegerMath.HeadingBetween(push.At, from, agent.Body.Heading)
+                : IntegerMath.NormalizeDegrees(agent.Body.Heading + 180);
+            long fullRadius = (long)settings.ReachMillimetres * settings.FullWithinPercent / 100L;
+            int walk = (int)Math.Max(MinimumPushWalkMillimetres,
+                Math.Min(MaximumPushWalkMillimetres, fullRadius + PushClearanceMillimetres - distance));
+
+            int room = geometry.RoomOf(agent);
+            LogicalPosition target = from + IntegerMath.Displacement(away, walk);
+            for (int attempt = 0; attempt < 3 && geometry.RoomAtPoint(target) != room; attempt++)
+            {
+                walk /= 2;
+                target = from + IntegerMath.Displacement(away, walk);
+            }
+
+            return geometry.ClampIntoRoom(from, target);
+        }
+
+        /// <summary>Whether they stand inside a push's full strength and a little more: the ground it clears.</summary>
+        public bool InsideThePush(Agent agent, in Place push)
+        {
+            long clear = (long)settings.ReachMillimetres * settings.FullWithinPercent / 100L + PushClearanceMillimetres / 2;
+            return LogicalPosition.DistanceSquared(agent.Body.Position, push.At) < clear * clear;
+        }
+
+        /// <summary>How far somebody pushed walks, at the least and the most, and how far past the push's full strength they aim.</summary>
+        internal const int MinimumPushWalkMillimetres = 2000;
+        internal const int MaximumPushWalkMillimetres = 8000;
+        internal const int PushClearanceMillimetres = 1500;
+
+        /// <summary>
+        /// How much of the place reaches here, per mille, before who they are
+        /// is counted: by the straight distance, in one of the place's rooms;
+        /// else through an open doorway that joins this room to one of them,
+        /// doorway to place added on -- and only as far as the place is in
+        /// view through that doorway (2026-10-02, the owner: "influence
+        /// should travel mostly through line of sight ... if a wall is in
+        /// between it should cut off. Maybe keep a slight gradient"): whole
+        /// where the straight line passes through the gap, fading to nothing
+        /// as it misses the frame by
+        /// <see cref="InfluenceSettings.DoorwaySightSoftEdgeMillimetres"/>
+        /// (none at all when that is 0). The best doorway counts. One doorway
+        /// deep, which is "about a room's length".
+        /// </summary>
+        private long ReachingFrom(int room, LogicalPosition from, in Place place)
+        {
+            if (room == place.RoomA || room == place.RoomB)
+            {
+                return FadeOver(IntegerMath.Distance(from, place.At));
+            }
+
+            int softEdge = settings.DoorwaySightSoftEdgeMillimetres;
+            long best = 0L;
+            for (int d = 0; d < geometry.DoorCount; d++)
+            {
+                if (!geometry.IsDoorOpen(d))
+                {
+                    continue;
+                }
+
+                int side = geometry.DoorRoom(d);
+                int beyond = geometry.RoomBeyond(d, side);
+                bool joins = (side == room && (beyond == place.RoomA || beyond == place.RoomB)) ||
+                             (beyond == room && (side == place.RoomA || side == place.RoomB));
+                if (!joins)
+                {
+                    continue;
+                }
+
+                long miss = geometry.DoorwayMissMillimetres(d, from, place.At);
+                if (miss > 0 && miss >= softEdge)
+                {
+                    continue;
+                }
+
+                LogicalPosition through = geometry.DoorCentre(d);
+                long via = IntegerMath.Distance(from, through) + IntegerMath.Distance(through, place.At);
+                long felt = FadeOver(via);
+                if (miss > 0)
+                {
+                    felt = felt * (softEdge - miss) / softEdge;
+                }
+
+                if (felt > best)
+                {
+                    best = felt;
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>
+        /// What running for this door is worth to somebody, in millimetres, for
+        /// the door choice to add: the full bonus for their goal on it, driven
+        /// hard, nothing when it is not their goal -- and as much taken off for
+        /// a hand pushing people away from it, felt and taken in.
+        /// </summary>
+        public long DoorBonus(Agent agent, int door)
+        {
+            if (TryGetPull(agent, out Place goal, out int drive) && goal.Door == door)
+            {
+                return (long)drive * settings.FullPullBonusMillimetres / 1000L;
+            }
+
+            if (TryGetLivePush(agent, out Place push, out int felt) && push.Door == door)
+            {
+                return -((long)felt * settings.FullPullBonusMillimetres / 1000L);
+            }
+
+            return 0L;
+        }
+
+        /// <summary>
+        /// What heading for a spot is worth to somebody, in millimetres: for a
+        /// goal on the floor or on a thing, its drive times how far the way to
+        /// the candidate agrees with the way to the place (the full pull for
+        /// straight toward it, nothing square to it, the same off for straight
+        /// away), and the other way round for a felt push -- a door that
+        /// pushes included, so a frightened crowd steers off it. A door that
+        /// pulls is left to <see cref="DoorBonus"/>, and so is
+        /// <paramref name="exceptDoor"/>, the door a choice is scoring already,
+        /// so a push on it is not counted twice.
+        /// </summary>
+        public long SpotBonus(Agent agent, LogicalPosition candidate, int exceptDoor = -1)
+        {
+            long total = 0L;
+            LogicalPosition from = agent.Body.Position;
+            if (TryGetPull(agent, out Place goal, out int drive) && goal.Door < 0 && drive > 0)
+            {
+                int towardIt = IntegerMath.HeadingBetween(from, goal.At, agent.Body.Heading);
+                long agreement = ExitSignBehaviour.Agreement(from, candidate, towardIt);
+                total += (long)drive * settings.FullPullBonusMillimetres / 1000L * agreement / IntegerMath.TrigScale;
+            }
+
+            if (TryGetLivePush(agent, out Place push, out int felt) && !(push.Door >= 0 && push.Door == exceptDoor))
+            {
+                int towardIt = IntegerMath.HeadingBetween(from, push.At, agent.Body.Heading);
+                long agreement = ExitSignBehaviour.Agreement(from, candidate, towardIt);
+                total -= (long)felt * settings.FullPullBonusMillimetres / 1000L * agreement / IntegerMath.TrigScale;
+            }
+
+            return total;
+        }
+
+        // ---------------------------------------------------------------- the display
+
+        /// <summary>
+        /// For the display: the held place, and everybody still in the building
+        /// who feels it or keeps a goal from it, with how strongly and whether
+        /// they are acting on it. Fills the buffers it is given, so a tick
+        /// allocates nothing.
+        /// </summary>
+        public void FillSnapshot(List<InfluencePlaceSnapshot> intoPlaces, List<InfluencePullSnapshot> intoPulls, Agent[] agents)
+        {
+            intoPlaces.Clear();
+            intoPulls.Clear();
+            for (int i = 0; i < places.Count; i++)
+            {
+                Place place = places[i];
+                intoPlaces.Add(new InfluencePlaceSnapshot(place.Target, place.Door >= 0, place.At, settings.MaximumLevel,
+                    settings.MaximumLevel, place.Repels, place.EndsAtTick > 0, AskAt(place), place.Spent));
+            }
+
+            for (int a = 0; a < agents.Length; a++)
+            {
+                Agent agent = agents[a];
+                // Only who the hand reaches right now (2026-10-02, the
+                // owner's note that the lines showed far more than the
+                // reach): a line to somebody keeping at it from out of reach
+                // said more than the hand does. They keep the gold hand over
+                // them.
+                if (places.Count == 0 || !agent.IsParticipating || agent.Body.State == AgentBodyState.Unconscious ||
+                    agent.Burning.IsBurning || agent.Tug.Held)
+                {
+                    continue;
+                }
+
+                int felt = FeltBy(agent, 0);
+                if (felt > 0)
+                {
+                    intoPulls.Add(new InfluencePullSnapshot(agent.Id, a, 0, felt, IsActingFor(agent), IsCommitted(agent)));
+                }
+            }
         }
     }
 }

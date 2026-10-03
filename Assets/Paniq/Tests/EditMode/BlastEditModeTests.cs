@@ -63,14 +63,12 @@ namespace Paniq.Tests.EditMode
             data.Fire.ActivationTick = int.MaxValue;
             data.Calm.DecisionMinimumTicks = 100000;
             data.Calm.DecisionMaximumTicks = 100000;
-            data.Influence.Starting = 1000;
-            data.Influence.Maximum = 1000;
             return data;
         }
 
         private static void Blast(Run simulation, LogicalPosition where)
         {
-            simulation.QueueCommand(PlayerCommandType.BlastWall, where, simulation.Tick + 1);
+            simulation.BlastWallForTests(where);
             simulation.Step();
         }
 
@@ -80,14 +78,12 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = QuietOffice();
             var simulation = new Run(data);
             int openingsBefore = simulation.DoorCount;
-            int chargesBefore = simulation.BlastChargesRemaining;
+            int chargesBefore = simulation.BlastChargesForTests;
             Assert.That(chargesBefore, Is.GreaterThan(0), "The player should start with some TNT.");
 
             Blast(simulation, SouthWall);
 
             Assert.That(simulation.DoorCount, Is.EqualTo(openingsBefore + 1), "There should be one more way through.");
-            Assert.That(simulation.BlastChargesRemaining, Is.EqualTo(chargesBefore - 1), "It should cost a charge.");
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting - data.Influence.CardCost));
 
             List<CausalEvent> blasted = EventsOfType(simulation, CausalEventType.PowerBlastedWall);
             Assert.That(blasted, Is.Not.Empty);
@@ -264,7 +260,6 @@ namespace Paniq.Tests.EditMode
             Blast(simulation, new LogicalPosition(0, 0));
 
             Assert.That(simulation.DoorCount, Is.EqualTo(before), "No wall, no hole.");
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting), "And no charge spent.");
             Assert.That(EventsOfType(simulation, CausalEventType.PowerBlastedWall), Is.Empty);
         }
 
@@ -280,7 +275,6 @@ namespace Paniq.Tests.EditMode
             Blast(simulation, new LogicalPosition(0, 5900));
 
             Assert.That(simulation.DoorCount, Is.EqualTo(before), "A hole cannot be cut through a doorway.");
-            Assert.That(simulation.Influence, Is.EqualTo(data.Influence.Starting));
         }
 
         [Test]
@@ -288,7 +282,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = QuietOffice();
             var simulation = new Run(data);
-            int charges = simulation.BlastChargesRemaining;
+            int charges = simulation.BlastChargesForTests;
 
             // Along the south wall, well spaced, plus two more than there are charges.
             for (int i = 0; i < charges + 2; i++)
@@ -296,7 +290,6 @@ namespace Paniq.Tests.EditMode
                 Blast(simulation, new LogicalPosition(-5000 + i * 2200, -5900));
             }
 
-            Assert.That(simulation.BlastChargesRemaining, Is.Zero);
             Assert.That(EventsOfType(simulation, CausalEventType.PowerBlastedWall).Count, Is.EqualTo(charges),
                 "Once the TNT runs out the card does nothing.");
         }

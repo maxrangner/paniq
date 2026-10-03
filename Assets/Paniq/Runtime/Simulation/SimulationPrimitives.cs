@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Paniq.Simulation
 {
@@ -301,7 +301,15 @@ namespace Paniq.Simulation
         Alarm,
 
         /// <summary>They saw somebody bolt: leap up, or run, frightened. Appended only.</summary>
-        SawSomeoneRun
+        SawSomeoneRun,
+
+        /// <summary>
+        /// The crowd switch (2026-10-01): the player set the whole crowd off
+        /// on a test level. Nothing to see and nothing to hear, so they
+        /// neither turn toward anything nor flee anything in particular.
+        /// Appended only.
+        /// </summary>
+        CrowdSwitch
     }
 
     /// <summary>What an agent is currently choosing to do. Calm and panic activities are separate.</summary>
@@ -368,7 +376,21 @@ namespace Paniq.Simulation
         RunningAnErrand,
 
         /// <summary>Stood talking to somebody, facing them.</summary>
-        Chatting
+        Chatting,
+
+        /// <summary>
+        /// Going to a box too heavy for them because the player's hand is on
+        /// it, and straining at it until it shifts (2026-09-30). See
+        /// <see cref="HandHeaveBehaviour"/>.
+        /// </summary>
+        HeavingForTheHand,
+
+        /// <summary>
+        /// Frightened, and answering the player's hand (2026-09-30): going to
+        /// a spot of their own round it and standing there, or walking off
+        /// away from a push. See <see cref="HandGatherBehaviour"/>.
+        /// </summary>
+        AnsweringTheHand
     }
 
     /// <summary>
@@ -396,7 +418,10 @@ namespace Paniq.Simulation
         GoHome,
 
         /// <summary>Somebody has heard a threat's noise from another room and goes to see what it is. Their own idea.</summary>
-        GoAndLook
+        GoAndLook,
+
+        /// <summary>Somebody drawn to a door by the player's influence goes to it and uses it: opens it if shut, shuts it if open (2026-09-27). Their own idea, and not written down: the pull's own line says why.</summary>
+        FollowTheInfluence
     }
 
     /// <summary>Who a cue reaches. Which of these a cue has decides whether the timetable may call it.</summary>
@@ -453,7 +478,10 @@ namespace Paniq.Simulation
         OpenTheDoor,
 
         /// <summary>Walk out of the building through the nearest way out, waiting at a locked one.</summary>
-        Leave
+        Leave,
+
+        /// <summary>Use the influenced door the errand is about (2026-09-27): shut it if open, open it if shut; the cruel wedge a shut one instead. Spends the pull on it.</summary>
+        UseTheDoor
     }
 
     /// <summary>Where a step is aimed.</summary>
@@ -474,7 +502,10 @@ namespace Paniq.Simulation
         HomeOrWhereTheyStood,
 
         /// <summary>The noise they went to look at: where they heard it come from, stopped short of.</summary>
-        TheNoise
+        TheNoise,
+
+        /// <summary>The door the player's influence drew them to (2026-09-27): a spot of their own in front of it, in their room. An errand aimed here ends when the pull has gone.</summary>
+        TheInfluence
     }
 
     /// <summary>
@@ -638,18 +669,6 @@ namespace Paniq.Simulation
         /// <summary>Somebody strong heaved an obstruction out of a doorway (source: the person, target: the thing).</summary>
         AgentShovedObstruction,
 
-        // The player's cards. Each is a root event, because the player is the
-        // cause, and its strength is the influence it cost.
-
-        /// <summary>Beefcake played on somebody (target: the person made strong).</summary>
-        PowerBeefcake,
-
-        /// <summary>A fire started by the player, at the place they pointed at.</summary>
-        PowerSpawnedFire,
-
-        /// <summary>An extinguisher put on the floor by the player (target: the bottle).</summary>
-        PowerSpawnedExtinguisher,
-
         /// <summary>A wall blown open by the player (source and target: the hole itself).</summary>
         PowerBlastedWall,
 
@@ -703,9 +722,6 @@ namespace Paniq.Simulation
         /// </summary>
         PowerSparkArrived,
 
-        /// <summary>The player popped the fuse box by hand (target: the box; strength: what it cost).</summary>
-        PowerPoppedFuseBox,
-
         /// <summary>
         /// Somebody frightened who knows of no way out has started looking for
         /// one (source: them; cause: what frightened them).
@@ -727,28 +743,6 @@ namespace Paniq.Simulation
         /// so the pop-up sign is theirs and carries their number.
         /// </summary>
         AgentFoundTheWayOut,
-
-        /// Somebody was killed and their death dealt the player a card. The
-        /// strength field carries which card it was, as a
-        /// <see cref="PlayerCommandType"/>.
-        /// </summary>
-        CardDealt,
-
-        // One apiece for the trait cards, appended once per person caught, so
-        // the round reads back as "you made these four fearless" rather than
-        // as one line naming a patch of carpet.
-
-        /// <summary>Courage caught this person: their bravery is now at the top.</summary>
-        PowerCourage,
-
-        /// <summary>Terror caught this person: their nervousness is now at the top.</summary>
-        PowerTerror,
-
-        /// <summary>Bastard caught this person: their evil is now at the top.</summary>
-        PowerBastard,
-
-        /// <summary>Cold heart caught this person: their compassion is now at the bottom.</summary>
-        PowerColdHeart,
 
         /// <summary>
         /// Somebody stuck behind a table in a panic heaved it out of their
@@ -781,9 +775,6 @@ namespace Paniq.Simulation
         /// Chatter: it is folded in the read-back and earns no sign.
         /// </summary>
         AgentSaid,
-
-        /// <summary>The player called it a day. A root event: the cue it calls names it as its cause.</summary>
-        PowerCalledHomeTime,
 
         /// <summary>
         /// Somebody cruel would not take up a cue: sat on when the meeting
@@ -824,11 +815,409 @@ namespace Paniq.Simulation
         /// </summary>
         PowerPulledAlarm,
 
+        // Prototype 3 (2026-09-25): the tower of boxes, doors held shut and
+        // people nudged. Appended only.
+
         /// <summary>
-        /// The player threw "Stick together": one of these per person the
-        /// throw caught, who is now bound to the others. Target: the person.
+        /// Somebody ran into a stack of boxes and knocked it (2026-10-02;
+        /// it used to be sprung by somebody coming near with the fire lit).
+        /// Source: the stack. Target: the person. Position: where they met.
+        /// Strength: how fast they were closing on it, in millimetres a
+        /// tick. Cause: their fright, or none for somebody calm. The fall
+        /// itself comes a few ticks later.
         /// </summary>
-        PowerStickTogether
+        TrapTriggered,
+
+        /// <summary>
+        /// The tower of boxes came down: its boxes are loose and tumbling
+        /// toward a doorway. Source: the trap. Target: the doorway. Cause:
+        /// the trigger. Whether they shut it is <see cref="BoxHeapSettled"/>.
+        /// </summary>
+        BoxTowerFell,
+
+        /// <summary>
+        /// Enough of the fallen boxes have been carried off, thrown clear,
+        /// kicked out or burnt that the doorway is a way through again.
+        /// Source: the trap. Target: the doorway. Strength: the boxes still
+        /// in the gap. Cause: the heap settling.
+        /// </summary>
+        BoxPileCleared,
+
+        /// <summary>The player nudged somebody. A root event. Target: the person.</summary>
+        PowerNudged,
+
+        /// <summary>
+        /// Somebody nudged a beat ago looks round for whoever did it. Source:
+        /// the person. Cause: the nudge.
+        /// </summary>
+        AgentNudged,
+
+        /// <summary>
+        /// Nudged once too often, they are annoyed: they say so and go and
+        /// stand somewhere else. Source: the person. Cause: the last nudge.
+        /// </summary>
+        AgentAnnoyed,
+
+        // Prototype 3, second batch (2026-09-26): the Director's ladder,
+        // calming down, and influence. Appended only.
+
+        /// <summary>
+        /// The Director starts an incident: the first one in a waste bin.
+        /// Source: the Director's thing (the bin). Cause: the fire starting,
+        /// or the player's trigger.
+        /// </summary>
+        DirectorStartedIncident,
+
+        /// <summary>
+        /// Nothing is burning any more, and the fire never got out of the room
+        /// it started in: the incident is over. Source: none. Cause: the
+        /// incident. Strength: the room's index.
+        /// </summary>
+        IncidentPutOut,
+
+        /// <summary>
+        /// The fire got out of the room it started in: this is the real fire,
+        /// and the Director adds nothing more. Source: none. Cause: the
+        /// incident. Strength: the room it started in.
+        /// </summary>
+        FireEscapedItsRoom,
+
+        /// <summary>
+        /// A socket or the fuse box starts to crackle and smoke: it will go off
+        /// in a few seconds. Source: the thing. Strength: how many ticks of
+        /// crackle are left. Cause: the fire that was put out before it.
+        /// </summary>
+        SocketCrackling,
+
+        /// <summary>The bells stop: the all-clear after a fire was put out. Cause: the put-out.</summary>
+        AllClear,
+
+        /// <summary>
+        /// Somebody frightened has seen and heard nothing frightening for long
+        /// enough to calm down, at their own pace. Source: the person.
+        /// Strength: how long they will stay rattled, in ticks. Cause: what
+        /// frightened them.
+        /// </summary>
+        AgentCalmedDown,
+
+        /// <summary>
+        /// The player puts influence on a door, a thing or a patch of floor:
+        /// one step more of pull. A root event. Target: the door or thing, or
+        /// none for floor. Strength: the level it now has.
+        /// </summary>
+        PowerInfluenced,
+
+        /// <summary>
+        /// Influence changed somebody's mind: without it they would have gone
+        /// somewhere else. Source: the person. Cause: the influence's last
+        /// click. Target: the door or thing, if it was on one.
+        /// </summary>
+        AgentDrawnByInfluence,
+
+        /// <summary>
+        /// Enough of the fallen boxes have come to rest in the doorway that
+        /// it is shut for people and fire (2026-09-27, since the fall is the
+        /// physics engine's). Source: the trap. Target: the doorway.
+        /// Strength: the boxes lying in the gap. Cause: the fall.
+        /// </summary>
+        BoxHeapSettled,
+
+        /// <summary>
+        /// Somebody calm on an errand lifted the thing wedged in a door out
+        /// of its way and set it down clear of the gap (2026-09-27). Source:
+        /// the person. Target: the thing. Cause: the errand's.
+        /// </summary>
+        AgentClearedDoorway,
+
+        /// <summary>
+        /// Somebody did what the player's pull on a place asked (2026-09-27):
+        /// opened or shut the door, sat on the chair, picked the thing up,
+        /// pulled the alarm beside it -- and the pull is spent, whatever
+        /// level it had. Source: the person. Target: the door or thing, or
+        /// none for a spot. Strength: the level spent. Cause: the last click.
+        /// </summary>
+        InfluenceSpent,
+
+        /// <summary>
+        /// Somebody frozen with fear was poked three times in quick
+        /// succession and snapped out of it (the owner's rule, 2026-09-27),
+        /// frozen for good or not. Source: the person. Cause: the nudge.
+        /// The <see cref="AgentUnfroze"/> that follows has this as its cause.
+        /// </summary>
+        AgentPokedAwake,
+
+        /// <summary>
+        /// Somebody sitting down was poked three times in quick succession
+        /// and knocked off the chair onto the floor (the owner's rule,
+        /// 2026-09-27). Source: the person. Cause: the nudge. The knock-down
+        /// that follows has this as its cause.
+        /// </summary>
+        AgentKnockedOffChair,
+
+        /// <summary>
+        /// Where the keycard was when the round began (2026-09-27): in
+        /// somebody's pocket (source: that person, target: the card) or lying
+        /// on a desk (source and target: the card). A root event, at tick 0.
+        /// </summary>
+        KeycardStarted,
+
+        /// <summary>
+        /// Somebody pocketed the keycard: fetched it because the way out was
+        /// locked, or picked it up because the player's pull asked. Source:
+        /// the person. Target: the card. Cause: their fright, or the pull.
+        /// </summary>
+        AgentTookKeycard,
+
+        /// <summary>
+        /// The keycard fell out of somebody's pocket where they went down --
+        /// knocked over, out cold, crushed or dead. Source: the person.
+        /// Target: the card. Cause: what floored them.
+        /// </summary>
+        KeycardDropped,
+
+        /// <summary>
+        /// Somebody with the keycard reached the way out and swiped it: the
+        /// door is unlocked for good. Source: the person. Target: the door.
+        /// Cause: their try at the door.
+        /// </summary>
+        DoorUnlockedWithKeycard,
+
+        /// <summary>
+        /// The Director pushed back (2026-09-28): more people were on course
+        /// to get out than the round allows, so it sprang a trap, set a
+        /// socket or the fuse box crackling, or lit another bin. Target: the
+        /// trap, socket, fuse box or bin. Strength: how many were on course.
+        /// Duration: the round's allowance. Cause: what set the round going.
+        /// </summary>
+        DirectorPushed,
+
+        // The hand (2026-09-29): a pull that lasts while the button is held,
+        // a tug on a person, and traps that creak before they fall. Appended
+        // only.
+
+        /// <summary>
+        /// The player let go of the place they were holding: the pull on it
+        /// is gone. A root event. Target: the door or thing, or none for a
+        /// spot. Strength: how many ticks it was held.
+        /// </summary>
+        PowerReleasedInfluence,
+
+        /// <summary>The player took hold of somebody by the shirt. A root event. Target: the person.</summary>
+        PowerTugged,
+
+        /// <summary>The player let go of the person they were holding. A root event. Target: the person. Strength: how many ticks they were held.</summary>
+        PowerReleasedTug,
+
+        /// <summary>
+        /// Somebody strong enough tore free of the player's hand, visibly
+        /// shaking it off. Source: the person. Strength: how many ticks they
+        /// were held. Cause: the tug.
+        /// </summary>
+        AgentShookFree,
+
+        /// <summary>
+        /// Retired (2026-10-02): no longer written. A stack used to creak
+        /// for a few seconds between being sprung and falling; now it falls
+        /// a beat after somebody runs into it. The name stays because the
+        /// log's numbers are appended only.
+        /// </summary>
+        TrapCreaked,
+
+        // The hand, second pass (2026-09-30). Appended only.
+
+        /// <summary>
+        /// The player's hand pushes people away from a door, a thing or a
+        /// patch of floor. A root event. Target: the door or thing, or none
+        /// for floor.
+        /// </summary>
+        PowerRepelled,
+
+        /// <summary>
+        /// Somebody calm moved off because the player's hand pushed them away.
+        /// Source: the person. Cause: the push. Strength: how strongly they
+        /// felt it, per mille.
+        /// </summary>
+        AgentPushedAwayByInfluence,
+
+        /// <summary>
+        /// Somebody did for the player's hand what they would never have done
+        /// of their own accord (the owner's rule, 2026-09-30: "a cowardly
+        /// agent should pick up the fire extinguisher, an agent with low
+        /// strength will bash on the door"): fought the fire without the
+        /// nerve for it, battered a door without the strength, heaved a box
+        /// too heavy for them. Source: the person. Target: the door or
+        /// thing. Cause: the press. Strength: what it was, as an
+        /// <see cref="AgainstTheirNature"/>.
+        /// </summary>
+        AgentActedForTheHand,
+
+        // Tells (2026-09-30, the owner: "the visible agent tells"). Appended only.
+
+        /// <summary>
+        /// Somebody began to wind up to something dangerous: freezing, dashing
+        /// through the heat, going back toward the flames. Source: the person.
+        /// Strength: what, as an <see cref="AgentTell"/>. Duration: how long the
+        /// wind-up lasts, in ticks. Cause: what made them (the freeze, the
+        /// fright).
+        /// </summary>
+        AgentBeganATell,
+
+        /// <summary>
+        /// The player caught somebody's tell in time: a poke, a tug or the hand
+        /// before the wind-up ran out, and what they meant to do is off.
+        /// Source: the person. Strength: the tell, as an <see cref="AgentTell"/>.
+        /// Cause: the poke, the tug or the press.
+        /// </summary>
+        AgentCaughtInTime,
+
+        // The hand, fourth pass (2026-09-30). Appended only.
+
+        /// <summary>
+        /// The hand's charge ran dry: the hand came off whatever it was on,
+        /// the place and the person both, until the bar has rested. A root
+        /// event. Position: where the hand was, if on a place.
+        /// </summary>
+        PowerHandSpent,
+
+        // The crowd switch (2026-10-01): a test level's button that sets the
+        // whole crowd panicking or calms it down. Appended only.
+
+        /// <summary>
+        /// The player flicked the crowd switch to "panicked": everybody in
+        /// the building takes fright, each a few ticks after the next, and
+        /// nobody settles while the switch stays there. A root event. No
+        /// target.
+        /// </summary>
+        PowerPanickedCrowd,
+
+        /// <summary>
+        /// The player flicked the crowd switch to "calm": everybody
+        /// frightened settles, one at a time, and the ordinary rules take
+        /// over again. A root event. No target.
+        /// </summary>
+        PowerCalmedCrowd,
+
+        // What the hand asks, said out loud (2026-10-02). Appended only.
+
+        /// <summary>
+        /// Somebody set about what the hand asks at a place, and which ask
+        /// it is: the sign over their head says it in the hand's own words
+        /// ("clearing the boxes...", "opening the door..."). Once a press
+        /// for each ask a person takes up. Source: the person. Target: the
+        /// door or thing under the hand, or none for floor. Strength: the
+        /// <see cref="HandAsk"/>. Cause: the press.
+        /// </summary>
+        AgentTookUpTheHandsAsk
+    }
+
+    /// <summary>
+    /// What the player's hand asks of people at the place it is on
+    /// (2026-10-02, the owner: "I don't really feel that the interactions
+    /// are clear. Clicking a pile of boxes should make the agents try to
+    /// clear it. Clicking a door - make them open it, etc. Maybe they are
+    /// doing it, but I'm not sure"). One reading, made by the run
+    /// (<see cref="InfluenceSystem.AskAt"/>) from the same tests the
+    /// behaviours use, so the ring, the signs and the panel all say what
+    /// people will actually do. An event stores the number, so the order is
+    /// appended only.
+    /// </summary>
+    public enum HandAsk
+    {
+        /// <summary>No hand, or nothing asked.</summary>
+        None,
+
+        /// <summary>Gather here: floor, a thing with no use, a place whose use is spent, an archway.</summary>
+        ComeHere,
+
+        /// <summary>The right button: move away from here.</summary>
+        AwayFromHere,
+
+        OpenTheDoor,
+        ShutTheDoor,
+
+        /// <summary>A locked door or the card door: throw yourselves at it.</summary>
+        PoundTheDoor,
+
+        /// <summary>Fallen crates on the hand or beside it: heave them aside.</summary>
+        ClearTheBoxes,
+
+        CarryItOff,
+        TakeTheBottle,
+        SitHere,
+        PullTheAlarm,
+        GetTheCard
+    }
+
+    /// <summary>The door half of <see cref="HandAsk"/>, as a rule anybody can apply to what they know of a door: the run to a press, the display to a door under the pointer.</summary>
+    public static class HandAsks
+    {
+        /// <summary>
+        /// What a hand on a door asks. Boxes heaped across it: clear them.
+        /// An archway, a hole, swing doors or a door off its hinges has
+        /// nothing to open or shut: come here. A locked door or a card door:
+        /// pound on it. Otherwise the opposite of how it stood at the press
+        /// -- and once it stands that way, only: come here.
+        /// </summary>
+        public static HandAsk ForDoor(bool wasOpenAtThePress, bool isOpenNow, bool heaped, bool neverShuts,
+            bool needsKeycard, bool locked, bool broken)
+        {
+            if (heaped)
+            {
+                return HandAsk.ClearTheBoxes;
+            }
+
+            if (neverShuts || broken)
+            {
+                return HandAsk.ComeHere;
+            }
+
+            if (needsKeycard || locked)
+            {
+                return HandAsk.PoundTheDoor;
+            }
+
+            if (wasOpenAtThePress)
+            {
+                return isOpenNow ? HandAsk.ShutTheDoor : HandAsk.ComeHere;
+            }
+
+            return isOpenNow ? HandAsk.ComeHere : HandAsk.OpenTheDoor;
+        }
+    }
+
+    /// <summary>A person's tell: the wind-up before something dangerous (2026-09-30). See <see cref="TellSystem"/>.</summary>
+    public enum AgentTell
+    {
+        /// <summary>No tell.</summary>
+        None,
+
+        /// <summary>About to freeze with fear: shivering harder and harder.</summary>
+        GoingStiff,
+
+        /// <summary>About to dash for a door through the heat: bouncing on their toes.</summary>
+        GatheringNerve,
+
+        /// <summary>About to head back toward the flames: looking back.</summary>
+        TurningBack
+    }
+
+    /// <summary>What somebody did against their own nature for the player's hand, carried as the strength of <see cref="CausalEventType.AgentActedForTheHand"/>.</summary>
+    public enum AgainstTheirNature
+    {
+        /// <summary>Kept the bottle and went at the flames, without the nerve to.</summary>
+        FoughtTheFire,
+
+        /// <summary>Threw themselves at a shut door, without the strength to.</summary>
+        BatteredTheDoor,
+
+        /// <summary>Strained at a box too heavy for them.</summary>
+        HeavedTheBox,
+
+        /// <summary>Pulled the alarm, without the nerve to.</summary>
+        PulledTheAlarm,
+
+        /// <summary>Went back for the keycard, without the nerve to.</summary>
+        WentForTheCard
     }
 
     /// <summary>How somebody came to know a door, carried as the strength of <see cref="CausalEventType.AgentFoundTheWayOut"/>.</summary>
@@ -958,7 +1347,15 @@ namespace Paniq.Simulation
         /// is hit, and when the flames reach it it goes off with a crack and
         /// falls silent (2026-09-25).
         /// </summary>
-        AlarmSounder
+        AlarmSounder,
+
+        /// <summary>
+        /// The keycard that opens the way out (2026-09-27): a small plastic
+        /// card carried in a pocket rather than the arms, so its holder's
+        /// hands stay free. It never burns, never jams a door, and is never
+        /// tidied away; it is dropped only by somebody who goes down.
+        /// </summary>
+        Keycard
     }
 
     /// <summary>
@@ -970,58 +1367,12 @@ namespace Paniq.Simulation
         /// <summary>Locked becomes unlocked; unlocked becomes open; open closes (unless someone is in the doorway). Broken stays broken.</summary>
         ClickDoor,
 
-        // The cards. Each one spends influence, and each names either a person
-        // or a place. Appended only.
-
-        /// <summary>Beefcake: the named person becomes as strong as anyone can be, for good.</summary>
-        PlayBeefcake,
-
-        /// <summary>Start a fire on the floor square under the named place.</summary>
-        SpawnFire,
-
-        /// <summary>Stand a full fire extinguisher on the floor at the named place.</summary>
-        SpawnExtinguisher,
-
-        /// <summary>TNT: blow a hole through the wall nearest the named place.</summary>
-        BlastWall,
-
         /// <summary>
         /// Set the disaster going. Not a card and it costs nothing: it is the
         /// one deliberate "start the trouble" the round waits for. The first
         /// one starts the hazard; any later one does nothing.
         /// </summary>
         TriggerEvent,
-
-        /// <summary>
-        /// Pop the fuse box by hand. Aimed at a place rather than a thing,
-        /// because the card finds the box near where the player pointed, and a
-        /// floor has one of them.
-        /// </summary>
-        PopFuseBox,
-
-        // The trait cards. Each is thrown at a patch of floor and slams one
-        // dial to the end of its scale for everybody caught inside, for the
-        // rest of the round.
-
-        /// <summary>Courage: bravery to the top. They stop dithering and go at the thing.</summary>
-        PlayCourage,
-
-        /// <summary>Terror: nervousness to the top. Whoever is caught bolts.</summary>
-        PlayTerror,
-
-        /// <summary>Bastard: evil to the top. They shove people aside and lock doors behind them.</summary>
-        PlayBastard,
-
-        /// <summary>Cold heart: compassion to the bottom. They stop going back for anybody.</summary>
-        PlayColdHeart,
-
-        /// <summary>
-        /// Call it a day: everybody in the building packs up and heads for the
-        /// way out. Not a card and it costs nothing, like the trigger: it is
-        /// the player's way of calling a cue, proven to work by a test, and
-        /// nothing on the screen is wired to it yet.
-        /// </summary>
-        CallHomeTime,
 
         /// <summary>
         /// The player pulls a fire alarm (the target is the alarm's ID). Not a
@@ -1039,10 +1390,123 @@ namespace Paniq.Simulation
         ToggleLock,
 
         /// <summary>
-        /// Stick together: everybody the throw catches becomes one group that
-        /// keeps together once frightened (see <see cref="GroupSystem"/>).
+        /// The player nudges a person (the target is the person's ID;
+        /// prototype 3, 2026-09-25): they lurch, look round a beat later, and
+        /// after a few nudges in a row get annoyed. Free, and not a card.
         /// </summary>
-        StickTogether
+        NudgePerson,
+
+        // Prototype 3, second batch (2026-09-26): influence, and a nudge that
+        // knows where it came from. Appended only.
+
+        /// <summary>One click of influence on a door (the target is the door's ID): people nearby are drawn to use it. Free.</summary>
+        InfluenceDoor,
+
+        /// <summary>One click of influence on a thing (the target is the thing's ID): people nearby are drawn toward where it stands. Free.</summary>
+        InfluenceThing,
+
+        /// <summary>One click of influence on the floor at the point: people nearby are drawn toward it. Free.</summary>
+        InfluenceSpot,
+
+        /// <summary>
+        /// The player nudges a person (the target is the person's ID) from a
+        /// point: where the click landed, on the floor under the pointer. They
+        /// step away from it. Free, and not a card. What the controls send
+        /// since 2026-09-26; <see cref="NudgePerson"/> shoves them backwards
+        /// from the way they face, for recorded runs.
+        /// </summary>
+        NudgePersonFrom,
+
+        // The hand (2026-09-29, the owner's rule: "hold only ... when you
+        // interact the influence is clear and instant, but as soon as you let
+        // go the agents are on their own"). Appended only.
+
+        /// <summary>
+        /// The player lets go of the place they were holding: the pull on it
+        /// is gone at once. No target. Free. The press is
+        /// <see cref="InfluenceDoor"/>, <see cref="InfluenceThing"/> or
+        /// <see cref="InfluenceSpot"/>, which since 2026-09-29 put a full pull
+        /// on the place and replace any place held before.
+        /// </summary>
+        ReleaseInfluence,
+
+        /// <summary>
+        /// The player takes hold of a person (the target is the person's ID):
+        /// a tug on their shirt that slows them to a stop over about a second
+        /// and holds them there while the button stays down. The strong tear
+        /// free. Free, and not a card. Ends with <see cref="ReleaseTug"/>.
+        /// </summary>
+        TugPerson,
+
+        /// <summary>The player lets go of the person they were holding (the target is the person's ID). Free.</summary>
+        ReleaseTug,
+
+        // The hand, second pass (2026-09-30, the owner's rules): a click
+        // leaves the hand where it was for a moment, and the right button
+        // pushes people away. Appended only.
+
+        /// <summary>
+        /// The player clicked rather than held: the place pressed a moment ago
+        /// stays under the hand for <see cref="InfluenceSettings.BeaconTicks"/>
+        /// and then comes off by itself (the owner: "a single click should
+        /// place an influence beacon for 3 seconds"). No target. Free.
+        /// </summary>
+        LeaveInfluence,
+
+        /// <summary>The player's hand pushes people away from a door (the target is the door's ID). Free. Ends with <see cref="ReleaseInfluence"/>.</summary>
+        RepelDoor,
+
+        /// <summary>The player's hand pushes people away from a thing (the target is the thing's ID). Free. Ends with <see cref="ReleaseInfluence"/>.</summary>
+        RepelThing,
+
+        /// <summary>The player's hand pushes people away from the floor at the point. Free. Ends with <see cref="ReleaseInfluence"/>.</summary>
+        RepelSpot,
+
+        // The hand, third pass (2026-09-30, the owner's notes): a hand held
+        // down moves with the pointer, and a debug slider sets how strongly
+        // the hand is felt. Appended only.
+
+        /// <summary>
+        /// The held hand slides to the point (the owner: "when left click is
+        /// held, if then dragged the influence point should move with the
+        /// pointer. So agents can be guided with this"). It becomes a hand on
+        /// the floor there; whoever was answering it goes on answering it. No
+        /// target. Free.
+        /// </summary>
+        MoveInfluence,
+
+        /// <summary>
+        /// The Tab panel's hand strength (2026-09-30): how strongly everybody
+        /// feels the hand, in percent of the level's own, carried in the
+        /// point's X. A tuning dial for finding the value to keep, in the run
+        /// so a replay replays it. Free.
+        /// </summary>
+        SetHandStrength,
+
+        /// <summary>
+        /// The Tab panel's hand reach (2026-09-30, the owner's second dial:
+        /// "influence strength and influence area"): how far the hand is
+        /// felt, in millimetres of walk, carried in the point's X. The same
+        /// kind of tuning dial as the strength, in the run so a replay
+        /// replays it. Free.
+        /// </summary>
+        SetHandReach,
+
+        // The crowd switch (2026-10-01), on the test levels. Appended only.
+
+        /// <summary>
+        /// The player sets the whole crowd panicking: everybody takes fright,
+        /// each a few ticks after the next, and stays frightened until the
+        /// switch is flicked back. No target. Free, and not a card.
+        /// </summary>
+        SetCrowdPanicked,
+
+        /// <summary>
+        /// The player calms the whole crowd down: everybody frightened
+        /// settles, one at a time, and from then on the ordinary rules say
+        /// who takes fright. No target. Free, and not a card.
+        /// </summary>
+        SetCrowdCalm
     }
 
     /// <summary>

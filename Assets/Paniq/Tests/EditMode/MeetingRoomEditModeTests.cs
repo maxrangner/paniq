@@ -45,7 +45,7 @@ namespace Paniq.Tests.EditMode
         private static bool AcrossTheCorridor(LogicalPosition where) => where.Z > 9000;
 
         [Test]
-        public void EightPeople_StartTheRunSeated_SixOfThemInTheMeeting()
+        public void TwentyPeople_StartTheRunSeated_SixOfThemInTheMeeting()
         {
             var simulation = new Run(DefaultData());
             RunSnapshot snapshot = simulation.GetSnapshot();
@@ -63,8 +63,8 @@ namespace Paniq.Tests.EditMode
                 seatedInTheMeetingRoom += AcrossTheCorridor(person.Position) && person.Position.X < 2000 ? 1 : 0;
             }
 
-            Assert.That(seated, Is.EqualTo(8),
-                "Six round the meeting table and two at a cafeteria table, before anything happens.");
+            Assert.That(seated, Is.EqualTo(20),
+                "Six round the meeting table, two at a cafeteria table and twelve at their cubicle desks, before anything happens.");
             Assert.That(seatedInTheMeetingRoom, Is.EqualTo(6), "Six of them are in the meeting.");
         }
 
@@ -96,6 +96,9 @@ namespace Paniq.Tests.EditMode
         /// of them face north and three face south, the table emptied outwards
         /// into both walls at once.
         /// </summary>
+        /// <summary>How far from where they lay somebody may get up: <c>PeopleBodies.StandSearchReachMillimetres</c>.</summary>
+        private const long StandUpReachMillimetres = 800L;
+
         [Test]
         public void WhenTheMeetingIsStartled_NobodyGlidesBackwardsOutOfTheirChair()
         {
@@ -124,6 +127,7 @@ namespace Paniq.Tests.EditMode
             // Long enough for the fire to break out, the bell to go and every
             // one of them to be up and running.
             var startedRisingAt = new int[simulation.AgentCount];
+            var wasDown = new bool[simulation.AgentCount];
             for (int t = 0; t < 30 * Run.TicksPerSecond; t++)
             {
                 simulation.Step();
@@ -142,9 +146,27 @@ namespace Paniq.Tests.EditMode
 
                     LogicalPosition now = person.Position;
                     long step = IntegerMath.Distance(wasAt[i], now);
-                    Assert.That(step, Is.LessThan(200L),
-                        $"Person {person.AgentId} crossed {step} mm in one tick: that is a teleport, not a step.");
                     wasAt[i] = now;
+                    bool down = person.BodyState == AgentBodyState.Fallen || person.BodyState == AgentBodyState.Unconscious;
+                    bool standingUpThisTick = wasDown[i] && !down;
+                    wasDown[i] = down;
+                    if (standingUpThisTick)
+                    {
+                        // The one tick somebody who was knocked down gets up:
+                        // in the nearest clear spot (PeopleBodies.StandUp), up
+                        // to its search reach away by design -- not the glide
+                        // out of a chair this guards against. Seen on
+                        // 2026-09-27 once the keycard moved the seed's draws:
+                        // a visitor stood up 800 mm from where they lay.
+                        Assert.That(step, Is.LessThanOrEqualTo(StandUpReachMillimetres + 50L),
+                            $"Person {person.AgentId} stood up {step} mm from where they lay: further than a stand-up ever looks. " +
+                            simulation.DescribeForTests(i));
+                        continue;
+                    }
+
+                    Assert.That(step, Is.LessThan(200L),
+                        $"Person {person.AgentId} crossed {step} mm in one tick: that is a teleport, not a step. " +
+                        simulation.DescribeForTests(i));
                 }
             }
 
@@ -343,8 +365,8 @@ namespace Paniq.Tests.EditMode
                 }
             }
 
-            Assert.That(chairs, Is.EqualTo(16),
-                "Eight at the office desks, six at the meeting table and two in the cafeteria.");
+            Assert.That(chairs, Is.EqualTo(31),
+                "Eight at the office desks, six at the meeting table, two in the cafeteria and fifteen at the cubicles' desks.");
             Assert.That(laptops, Is.GreaterThan(0));
         }
 

@@ -52,15 +52,28 @@ $testRunner = @(
     (Join-Path $scriptAssemblies 'UnityEditor.TestRunner.dll')
 )
 
-$defines = 'UNITY_EDITOR;UNITY_6000_3_OR_NEWER;UNITY_INCLUDE_TESTS;UNITY_TESTS_FRAMEWORK;UNITY_STANDALONE_WIN;ENABLE_INPUT_SYSTEM'
+# The version define follows the installed editor (6000.3.x -> UNITY_6000_3_OR_NEWER)
+# rather than being written down here, so an editor upgrade does not leave it stale.
+$versionParts = $editorVersion -split '\.'
+$playerDefines = "UNITY_$($versionParts[0])_$($versionParts[1])_OR_NEWER;UNITY_STANDALONE_WIN;ENABLE_INPUT_SYSTEM"
+$defines = "UNITY_EDITOR;UNITY_INCLUDE_TESTS;UNITY_TESTS_FRAMEWORK;$playerDefines"
 
-function Invoke-Compile([string] $name, [string[]] $sources, [string[]] $references) {
+# Unity.InputSystem and the test runner only exist once the editor has
+# opened the project and filled Library\. Without them the compile below
+# would print hundreds of "type not found" errors that say nothing useful.
+$missing = @($unityReferences + $testRunner | Where-Object { $_ -and -not (Test-Path $_) })
+if (-not $nunit) { $missing += 'nunit.framework.dll (Library\PackageCache)' }
+if ($missing) {
+    throw "Open the project in the Unity editor once first, so it fills Library\. Missing: $($missing -join ', ')"
+}
+
+function Invoke-Compile([string] $name, [string[]] $sources, [string[]] $references, [string] $assemblyDefines = $defines) {
     $assembly = Join-Path $output "$name.dll"
     $response = @(
         '-nologo', '-target:library', '-nostdlib+', '-langversion:9.0', '-nowarn:CS1591,CS0618,CS0649',
-        "-define:$defines", "-out:`"$assembly`""
+        "-define:$assemblyDefines", "-out:`"$assembly`""
     )
-    $response += $references | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object { "-reference:`"$_`"" }
+    $response += $references | Where-Object { $_ } | ForEach-Object { "-reference:`"$_`"" }
     $response += $sources | ForEach-Object { "`"$_`"" }
     $rsp = Join-Path $output "$name.rsp"
     Set-Content -Path $rsp -Value $response -Encoding utf8
@@ -81,11 +94,18 @@ if ($playSources) {
     $null = Invoke-Compile 'Paniq.Tests.PlayMode' $playSources ($unityReferences + $runtime + $nunit.FullName + $testRunner)
 }
 
-$editorSources = Get-ChildItem (Join-Path $repository 'Assets\Paniq\Editor') -Filter '*.cs' | ForEach-Object FullName
-$editorSources += Get-ChildItem (Join-Path $repository 'Assets\Paniq\Authoring') -Recurse -Filter '*.cs' | ForEach-Object FullName
-$null = Invoke-Compile 'Paniq.EditorCode' $editorSources ($unityReferences + $runtime)
+# Authoring has no assembly definition, so Unity puts it in the player's
+# Assembly-CSharp: compile it the same way, without UNITY_EDITOR, so code
+# that would break the player build breaks here too.
+$authoringSources = Get-ChildItem (Join-Path $repository 'Assets\Paniq\Authoring') -Recurse -Filter '*.cs' | ForEach-Object FullName
+$authoring = Invoke-Compile 'Paniq.Authoring' $authoringSources ($unityReferences + $runtime) $playerDefines
 
-$bridgeSources = Get-ChildItem (Join-Path $repository 'Assets\Paniq\Editor\TestBridge') -Filter '*.cs' | ForEach-Object FullName
+$bridgeFolder = Join-Path $repository 'Assets\Paniq\Editor\TestBridge'
+$editorSources = Get-ChildItem (Join-Path $repository 'Assets\Paniq\Editor') -Recurse -Filter '*.cs' |
+    Where-Object { -not $_.FullName.StartsWith($bridgeFolder) } | ForEach-Object FullName
+$null = Invoke-Compile 'Paniq.EditorCode' $editorSources ($unityReferences + $runtime + $authoring)
+
+$bridgeSources = Get-ChildItem $bridgeFolder -Recurse -Filter '*.cs' | ForEach-Object FullName
 $null = Invoke-Compile 'Paniq.Editor.TestBridge' $bridgeSources ($unityReferences + $nunit.FullName + $testRunner)
 
 Write-Host 'Everything compiles against Unity.' -ForegroundColor Green

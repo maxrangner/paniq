@@ -63,6 +63,10 @@ game-development knowledge to answer.
   groups before committing. The binding rule is in
   [`AGENTS.md`](../AGENTS.md) under *Quality checks*; the commands and the
   coverage table are below.
+- In **level mode** neither gear runs, only the compile check and the smoke
+  check: the level is still changing shape, and the proving waits for the
+  hardening pass. The binding rule is in [`AGENTS.md`](../AGENTS.md) under
+  *Level mode*, and the short form is below.
 - The replay fingerprint tests (`ReplayFingerprintEditModeTests`) squash whole
   runs into single numbers. A change meant to be invisible to players, such as
   a restructure, must keep every number. A change meant to alter behaviour
@@ -85,7 +89,10 @@ in the editor that is already open:
 .\tools\RunUnityTests.ps1 -Slowest 10 -LastRun       # what the last run spent its time on
 .\tools\RunUnityTests.ps1                            # every edit-mode test
 .\tools\RunUnityTests.ps1 -PlayMode                  # the play-mode tests
-.\tools\RunUnityTests.ps1 -Category UnityPhysics     # the physics-foundation checks, the one category in use
+.\tools\RunUnityTests.ps1 -Category UnityPhysics     # the physics-foundation checks
+.\tools\RunUnityTests.ps1 -Filter SeedsFortyToFortyNine -ShowPassed  # the office left alone, ten seeds: the tuning table (Category Measure), skipped by normal runs, about a minute
+.\tools\RunUnityTests.ps1 -Filter New_Nobody_Pressed -ShowPassed     # the office played by machine: one layout, one scripted player, thirty seeds (LevelTuningMeasurements), about five minutes
+.\tools\RunUnityTests.ps1 -Filter FiftySeeds -ShowPassed  # fifty seeds left alone: fails on any seed that saves more than half (the owner's rule); about four and a half minutes; run before the commit of any batch that touches the Director, the card or the traps
 .\tools\RunUnityTests.ps1 -Reset                     # the bridge is stuck on a run Unity dropped
 .\tools\BuildModel.ps1 -Name WetFloorSign            # build one model from its script with Blender (see model-pipeline.md)
 ```
@@ -100,12 +107,62 @@ then use `-Reset` if the run never reports back.
 libraries without Unity running: a quick check that a change builds before
 handing it to the editor.
 
+### Level mode
+
+One level first, the proving once (2026-10-03, the owner's decision; it
+replaced *Sketch and keep*, and the binding text is in `AGENTS.md`):
+
+- **Every change**: change the game code; `CompileAgainstUnity.ps1`; then
+  `RunUnityTests.ps1 -Filter Smoke` (`SmokeEditModeTests`: every level on the
+  start card played once, failing only on an error or a fire round that never
+  ends; about twenty seconds); a local save point, `wip(level): ...`; a
+  three-line report.
+- **End of each working session**: the session's save points are folded
+  into one ordinary commit that says what the session changed (the owner,
+  2026-10-03: the level will take weeks and many commits). Nothing is pushed
+  unless the owner asks.
+- **Not done**: fingerprints, versions, documents, measurements, the full
+  run, switches that keep other levels as they were.
+- **When the owner says the level is done**: one hardening pass -- tests,
+  fingerprints, versions, documents, the full run. What it has to cover is
+  listed on the roadmap under *Left open*.
+
+Why: the old way spent hours per change proving numbers about a level that
+changed again the next day (machine-played rounds before the owner played,
+the office kept byte-identical behind switches, documents per batch). The
+test suite itself was never the cost.
+
+### The test levels
+
+Three levels drawn by code (2026-10-01, the owner: "blank levels to test
+panicked crowds ... large square room with walls, maze to test following,
+interaction test level"), picked from the row on the start card. Each takes
+the office scenario's tuning and swaps the building, the people and the
+clutter (`TestBuildings`); each has the **Crowd** button, which panics the
+whole crowd at a press and calms it at the next, so a behaviour can be
+watched without waiting for a fire.
+
+| Level | What it is for |
+| --- | --- |
+| The square room (`Square.asset`) | One 24 m room, a shut door in the middle of each wall, forty people whose personalities the seed deals. Watch a crowd: the rush, the doorway crushes, who leads and who follows. No fire. |
+| The maze (`Maze.asset`) | Thirty-odd 4 m cells joined by archways, one way out, a staff member who knows it and ten visitors who do not. Watch following and finding the way. No fire. |
+| The interaction room (`Interaction.asset`) | One of everything to bump, carry, sit on, open, pound or set alight, a lobby, a side room through swing doors, a closet, a locked second exit, eight people with one dial each turned up. Trigger event lights a fire in the middle. |
+
+To add one: append a name to `BuiltInBuilding`, write its method in
+`TestBuildings` (ids in the 40001+ ranges, so a test may mix it with office
+ids), make a level asset under `Assets/Paniq/Content/Levels` naming it, and
+add the asset to the scene's `levels` list on the runner. A level with the
+Crowd button plays no hands-off copy for the end card: the switch is never
+copied into the copy, so the comparison would be meaningless.
+
 ### Two gears
 
-The full suite is 425 tests and about three minutes, because every test that
-builds a run needs the physics engine inside the editor. Run after every step
-of a six-step task, that is fifteen minutes spent re-proving what the step
-could not have touched. So checking work has two gears:
+The full suite is about 690 edit-mode tests and 19 play-mode ones: six and a
+half minutes end to end with the compile check (measured 2026-10-01; the
+"three minutes" this page used to say dated from a suite of 425), because
+every test that builds a run needs the physics engine inside the editor. Run
+after every step of a six-step task, that is forty minutes spent re-proving
+what the step could not have touched. So checking work has two gears:
 
 1. **While iterating.** After every edit, the compile check above. Once a
    step has a claim worth checking (a behaviour is in, not a file saved), the
@@ -132,12 +189,21 @@ in [`AGENTS.md`](../AGENTS.md). When the editor has another copy of the
 project open (a worktree, say), Unity's own batch runner can run those tests
 on this copy with no window:
 `Unity.exe -batchmode -projectPath <this copy> -runTests -testPlatform EditMode -testFilter Models -testResults <file> -logFile <file>`.
-It only works while no editor has this copy open, and only for tests that do
-not build a run, which the `Models` tests do not.
+It only works while no editor has this copy open. Tests that build a run
+work too: on 2026-10-03 the whole edit-mode suite (678 tests) ran this way
+in about ten minutes, after a first import of about five (see *Unity batch
+mode* under the traps, below).
 
 `-Slowest 10` after any run, or `-Slowest 10 -LastRun` afterwards with no
 editor, lists the tests the suite spends its time on. Trim on that evidence,
-not by feel.
+not by feel -- and take it from a *full* run: a filtered run's list names
+only what ran (the 2026-10-01 trim started from a filtered list and named the
+wrong tests). Each half keeps its own last results
+(`result-EditMode.txt`, `result-PlayMode.txt`), so after `-All` the list
+covers both. The tests at
+the top are whole-building runs over several seeds; the cost is the stepping,
+not the checks. A "does it ever happen" test stops at the first seed that
+says yes; an every-tick invariant keeps its seeds.
 
 ### Which tests cover what
 
@@ -147,24 +213,44 @@ word is the feature's name. These are the ones that are not:
 
 | Code changed | Filter words |
 | --- | --- |
-| `InfluenceSystem`, `DeckSystem`, `PlayerCommandSystem` (the player's purse, cards and clicks) | `Powers,Economy,UproarTable,TraitCards` |
+| `PlayerCommandSystem`, `RunDriver.Queue` (the player's clicks, and what is mirrored into the left-alone round) | `Alarms,Nudge,Tug,Influence,LevelSession,HandTally` |
+| `Tasks`, `TaskChooser` (the one table of what each activity is; the one chooser; how a task ends) | `Smoke,Influence,Helping,Alarms,Leadership,Barricade,Extinguisher,Tells,Cues,Errands,Sitting` |
+| `InfluenceSystem`, `HandHeaveBehaviour`, `HandGatherBehaviour`, `AgentHand` (the hand on a place, the push, the drag, the goal and its conviction, what people do for it) | `Influence,Keycard,Alarms,Extinguisher,Errands,Doors,ReplayFingerprint` |
+| `HandChargeSystem` (the hand's bar) | `HandCharge,ReplayFingerprint` |
+| `HandOnTheWayOutMeasurements` (the seed 41-43 diagnostics and the walls sweep, run on purpose) | `-Filter HandOnTheWayOut -ShowPassed` |
+| `LevelTuningMeasurements` (the office played by machine: a layout candidate, a scripted player, thirty seeds; run on purpose, one case by name, about five minutes a case) | `-Filter New_Nobody_Pressed -ShowPassed` |
+| `TugSystem` (the hand on a person) | `Tug,ReplayFingerprint` |
+| `TellSystem` (the wind-up before a freeze, a dash or going back), `HandTally` (the end card's count of the hand) | `Tells,Extinguisher,Alarms,Keycard,Helping,Cornered,Nudge,Tug,ReplayFingerprint` |
 | `Run` (the tick itself) | `Simulation,ReplayFingerprint` |
 | `UniformGridIndex` (who is near here) | `SpatialIndex` |
 | `IThreat`, `Threats` (what a danger is) | `ThreatSeam,ReplayFingerprint` |
 | `CollisionSystem`, `BodySystem`, `PhysicsWorld` | `HardKnocks,Shoving,PhysicsFoundation,PhysicsObjects` |
-| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors` |
-| `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting` |
-| `TraitEffects` | `Traits,TraitCards` |
-| `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered` |
+| `PrototypeBuilding`, `WorldGeometry`, `Navigation`, `FlowField` | `Rooms,FarRooms,CrossRoom,MeetingRoom,BigBuilding,NavigationRoutes,Wayfinding,Stockroom,SwingDoors,HeavyThings,Influence,CubicleLandscape,BoxTower,StockroomTrap,PowerSystem,Furniture,NewProps,Alarms` |
+| `TestBuildings` (the square room, the maze, the interaction room) | `TestBuildings` |
+| `LevelDefinition`, `LevelSession`, `LevelLoader`, `RunDriver` (the level row, the seed, the best) | `LevelSession,TestBuildings` |
+| `FearSystem.PanicEveryone`, `CalmEveryone` (the Crowd button) | `CrowdSwitch,CalmingDown,ReplayFingerprint` |
+| `ItemBehaviour`, `ChairBehaviour`, `PhysicsObjectSystem` | `Blast,Breakables,Items,OfficeItems,Furniture,Possessions,Sitting,HeavyThings` |
+| `TraitEffects` | `Traits` |
+| `DoorBehaviour`, `DoorSystem` | `Doors,ClosingDoors,DoorBurn,Barricade,Cornered,BoxTower` |
 | `LeaderBehaviour`, `HelpBehaviour` | `Leadership,Helping` |
-| `GroupSystem` (sticking together) | `Groups,TraitCards` |
-| `PlayerInput`, `DoorClicks`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking` |
+| `PlayerInput`, `DoorClicks`, `PlaceHold`, `HudHitTest` (the pointer) | `DoorClicks,PlayerInputPicking,Nudge,Tug` |
+| `DoorSystem.SettlePounding` (the card door giving under the hand) | `Influence,Doors` |
+| `CameraRig` (Q, E and the wheel) | `CameraRig` |
+| `EventStory`, `RoundScreens` (the read-back and the end card) | `EventLogScreen,EventSigns` |
 | `AlarmSystem`, `AlarmBehaviour`, `FlammablesSystem` (bells that pop, bottles that burst) | `Alarms,NewProps,Extinguishers` |
+| `TrapSystem`, `DirectorSystem` (the tower of boxes, the stockroom's stack, the Director's ladder and its cap) | `BoxTower,StockroomTrap,DirectorLadder,DirectorCap,Cues,Doors,Stockroom,CubicleLandscape` |
+| `KeycardSystem` (the card, where it starts, who has it, the swipe) | `Keycard,DirectorCap,Influence` |
+| `ErrandBehaviour`, `CueSystem`, `CalmBehaviour` (the calm day: errands, home time, chats) | `Errands,Cues,Sitting,MeetingRoom,Simulation,ReplayFingerprint` |
+| `FrightenedWalk`, `ExtinguisherBehaviour` (the frightened walk through doors) | `FrightenedWalks,Extinguisher,Alarms,CrossRoom` |
+| `NudgeSystem` (nudging people) | `Nudge` |
+| `FearSystem.Settle` (calming down) | `CalmingDown,CorridorStarers,ReplayFingerprint` |
+| `BurningThingsThreat`, `BurningPeopleThreat` (danger is danger) | `DangerIsDanger,ThreatSeam,Extinguisher,ReplayFingerprint` |
+| `PowerSystem` (the cable) | `PowerSystem,DirectorLadder` |
 | `PerceptionSystem`, `SoundSystem` (what a person sees and hears) | `Perception,Hearing,Simulation` |
 | `ModelImportSettings`, `tools/models` (a model's way into Unity; rebuild the ruler first with `BuildModel.ps1 -Example CalibrationBox`) | `Models` |
 
-`FearSystem`, `PanicBehaviour`, `CalmBehaviour`, `Locomotion`, `Crowd` and
-the causal event log have no tests of their own; they are checked only
+`PanicBehaviour`, `CalmBehaviour`, `Locomotion`, `Crowd`, the rest of
+`FearSystem` and the causal event log have no tests of their own; they are checked only
 through whole runs. A change there means `ReplayFingerprint` in the small
 gear and the full run before the commit, without exception. When a test file
 is added or renamed, this table is updated in the same commit.
@@ -179,6 +265,110 @@ was retired along with its stand-ins and its runner. The two checks it made
 its own way live in the editor's suite: the fixed timestep in
 `SimulationContractEditModeTests`, and the saved scenario asset matching the
 code defaults in `SimulationEditModeTests`.
+
+### Traps that cost a test cycle
+
+Each of these was found the slow way. They look like your own breakage and
+are not.
+
+**Measuring a level**
+- Ten seeds are noise on the office. A round ends with nobody, about half or
+  everybody saved, so a ten-seed average is good to about four people either
+  way, and one prop moved changes every draw after it: the first ten-seed
+  round of 2026-10-02 said 9.6 of 34 saved left alone, and thirty seeds said
+  16 to 20 for the same floor. Compare layouts on thirty
+  (`LevelTuningMeasurements`), and trust only differences bigger than four.
+- A measurement that plays thirty seeds runs longer than NUnit's default
+  three minutes for one test and is reported as failed for it, with its
+  table printed all the same. `LevelTuningMeasurements` carries a
+  `[Timeout]` for that reason.
+- The level reads the baked scenario asset. After moving anything in
+  `PrototypeBuilding`, rewrite the asset before measuring, or the machine
+  plays the old floor.
+
+**The test bridge**
+- `-Filter` matches plain text, and a comma separates names
+  (`-Filter Doors,ClosingDoors`), from PowerShell and from Bash alike (until
+  2026-10-03 a comma list started from Bash ran nothing). `A|B` is not a
+  pattern here and matches nothing.
+- An inconclusive test fails the run: its `Assume.That` premise no longer
+  holds, so it has stopped proving anything.
+- `-All -Filter X` passes when only one half has a test matching `X`.
+- The bridge compiles `Assets` at the start of every request. Do not edit a
+  `.cs` file under `Assets` while a run is in flight.
+- `Temp/PaniqTestBridge/result.txt` holds only the latest run;
+  `result-EditMode.txt` and `result-PlayMode.txt` keep each half's last. The
+  editor console is drowned in physics warnings, so read the files and look
+  for lines starting `FAILED`, `passed=` and `failed=`.
+- From Bash, run it as
+  `powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunUnityTests.ps1 ...`.
+  Without the bypass the script is refused.
+- A play-mode run can leave `Assets/InitTestScene*.unity` behind, and a
+  dialog offering to save it stops the bridge. Delete the file, never commit
+  it.
+
+**Settings, content and replays**
+- The scenario asset (`Assets/Paniq/Content/FireReactionScenario.asset`) holds a
+  baked copy of every setting and of the two version numbers. After changing
+  any settings default or authored content, run
+  `.\tools\RunUnityTests.ps1 -Menu "Paniq/Rewrite Scenario Asset From Code Defaults"`,
+  or `ScenarioAsset_MatchesTheCodeDefaults` fails.
+- An editor command that asks for confirmation before doing something
+  destructive must check `SessionState.GetBool("Paniq.NobodyIsHereToAsk")`
+  and take the yes as given, as `RewriteScenarioAsset` does. Otherwise it
+  freezes the editor when the bridge runs it.
+- To re-record the replay fingerprints, run `-Filter ReplayFingerprint`: each
+  failing case prints `fingerprint is 0x...UL`, ready to paste into its
+  `[TestCase]`. There are fifteen cases (older notes say ten or thirteen). Run the filter
+  a second time after pasting: a number that moves between two identical runs
+  is a determinism bug, not a new recording. To find where two runs part,
+  play the seed many times in one test and compare every body's position,
+  turn and speed bit for bit each tick (`BitConverter.SingleToInt32Bits` on
+  the engine's own floats: the simulation's readings round away the first
+  crumbs). If it only parts with the engine on several threads (set
+  `JobsUtility.JobWorkerCount = 0` in the test and it stops), it is the
+  physics engine, not Paniq's code; see "The physics engine and threads" in
+  the technical decisions.
+- Never set a loose physical body's rotation between physics steps: it made
+  the busiest runs differ from one run to the next. Turn a loose body by giving
+  it spin (`SetSpin`) towards the heading you want.
+- A test helper called `Run(...)` hides the type `Run` inside its class; call
+  helpers `Advance`.
+
+**Pressing Play without the owner**
+- `.\tools\RunUnityTests.ps1 -Menu "Edit/Play Mode/Play"` presses Play in the
+  open editor (`Edit/Play` is the pre-Unity 6.3 name and no longer exists).
+  The result is in `%LOCALAPPDATA%\Unity\Editor\Editor.log`.
+- `EditorApplication.delayCall` does not fire while the Unity window is
+  minimised. Editor automation uses a one-shot `EditorApplication.update`
+  handler instead, as the bridge does.
+- The editor window's title names the open scene
+  (`Get-Process Unity | % MainWindowTitle`): the quickest way to see what the
+  editor has open without touching it.
+
+**Unity batch mode** (only on a *second* checkout: batch mode cannot open the
+folder the editor has open)
+- `Unity.exe -batchmode -nographics -projectPath <worktree> -runTests -testPlatform EditMode -testResults <file> -logFile <file>`.
+  Here `-testFilter` *is* a regular expression. Put the results file outside
+  `Temp/`, which Unity empties on exit. The first import takes about five
+  minutes.
+- Every batch run rewrites `ProjectSettings/TagManager.asset` without its
+  byte-order mark; `git checkout --` it before committing.
+- Play mode runs too (leave out `-nographics`), but
+  `RoundPresentationPlayModeTests.TheOpeningView_ActuallyDrawsSomething`
+  always fails there: batch mode never reaches the end of a frame it waits
+  for. Only the editor's run can say whether the opening view draws.
+
+**Editing files**
+- About half the files under `Runtime/Simulation` begin with a byte-order mark
+  (an invisible marker at the start of a text file). Keep it when rewriting a
+  file whole; the line endings are plain LF throughout.
+- Long shell heredocs containing quotes or `\n` get mangled. Write the script
+  to a file first, then run it.
+- Never read `PRIVATE_TODO_NO_LMM_KEEP-OUT.md`. It is the owner's, is usually
+  modified in the working tree, and differs between branches, so
+  `git checkout <branch>` can refuse; use a temporary `git worktree` for work
+  on another branch.
 
 ## Building a model
 

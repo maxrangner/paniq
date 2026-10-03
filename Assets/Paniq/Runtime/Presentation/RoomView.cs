@@ -15,7 +15,13 @@ namespace Paniq.Presentation
     internal sealed class RoomView
     {
         private const float WallHeight = 1.5f;
-        private const float WallThickness = 0.4f;
+        /// <summary>
+        /// As thick as the walls are to the physics and the map (2026-09-30,
+        /// <see cref="WorldSettings.WallThicknessMillimetres"/>): until then
+        /// they were drawn 0.4 m thick over 40 mm slabs, and anything against
+        /// a real wall was drawn sunk into the picture of it.
+        /// </summary>
+        private readonly float WallThickness;
         private const float DoorHeight = 1.3f;
         private const float DoorSwingSeconds = 0.3f;
 
@@ -93,7 +99,16 @@ namespace Paniq.Presentation
 
             /// <summary>Its ID, so which way it tips is the same every run.</summary>
             public SimulationId TableId;
+
+            /// <summary>Its colour before any heat: wood for a table, cloth for a partition.</summary>
+            public Color BaseColour = PresentationMaterials.WoodColor;
+
+            /// <summary>How high its flames sit, in metres: its top.</summary>
+            public float FlameHeight = 0.72f;
         }
+
+        /// <summary>A partition's cloth (2026-10-02): a cool grey-blue, so a cubicle screen is not mistaken for a wall or a desk.</summary>
+        private static readonly Color PartitionColor = new Color(0.47f, 0.54f, 0.62f);
 
         /// <summary>Every table's parts (top and legs), recoloured as it heats, burns and chars.</summary>
         private readonly Dictionary<SimulationId, TableView> tables = new Dictionary<SimulationId, TableView>();
@@ -135,6 +150,7 @@ namespace Paniq.Presentation
             this.materials = materials;
             this.effects = effects;
             this.parent = parent;
+            WallThickness = scenario.World.WallThicknessMillimetres * 0.001f;
             Build();
         }
 
@@ -341,6 +357,36 @@ namespace Paniq.Presentation
             var root = new GameObject($"Table {table.TableId.Value} (presentation)").transform;
             root.SetParent(parent, false);
             root.position = centre;
+
+            if (table.IsPartition)
+            {
+                // A partition between desks (2026-10-02): one slab, as tall
+                // as the run builds it, with a darker cap so its top edge
+                // reads from above. No legs, and it never tips.
+                float tall = Metres(scenario.PhysicsFeel.PartitionHeightMillimetres);
+                const float cap = 0.05f;
+                Renderer slab = CreatePrimitive("Screen", PrimitiveType.Cube, root,
+                    centre + Vector3.up * ((tall - cap) * 0.5f),
+                    new Vector3(width, tall - cap, depth), materials.Box).GetComponent<Renderer>();
+                Renderer rail = CreatePrimitive("Cap", PrimitiveType.Cube, root,
+                    centre + Vector3.up * (tall - cap * 0.5f),
+                    new Vector3(width + 0.02f, cap, depth + 0.02f), materials.Box).GetComponent<Renderer>();
+                materials.SetColor(slab, PartitionColor);
+                materials.SetColor(rail, PartitionColor * 0.7f);
+                tables.Add(table.TableId, new TableView
+                {
+                    Parts = new[] { slab, rail },
+                    Flames = new FlameEmitter(root, 10, effects, materials),
+                    Width = width,
+                    Depth = depth,
+                    Root = root,
+                    RestingPosition = root.localPosition,
+                    TableId = table.TableId,
+                    BaseColour = PartitionColor,
+                    FlameHeight = tall
+                });
+                return;
+            }
 
             var renderers = new List<Renderer>
             {
@@ -609,7 +655,7 @@ namespace Paniq.Presentation
                     continue;
                 }
 
-                Color colour = BoxViews.BurnColour(PresentationMaterials.WoodColor, table.BurnState, table.HeatPercent);
+                Color colour = BoxViews.BurnColour(view.BaseColour, table.BurnState, table.HeatPercent);
                 foreach (Renderer part in view.Parts)
                 {
                     materials.SetColor(part, colour);
@@ -629,7 +675,7 @@ namespace Paniq.Presentation
                         Quaternion.Slerp(view.Root.rotation, turned, follow));
                 }
 
-                view.Flames.Update(table.BurnState == ObjectBurnState.Burning, new Vector3(0f, 0.72f, 0f),
+                view.Flames.Update(table.BurnState == ObjectBurnState.Burning, new Vector3(0f, view.FlameHeight, 0f),
                     new Vector3(view.Width * 0.4f, 0.8f, view.Depth * 0.4f), 0.2f);
             }
 
@@ -728,6 +774,7 @@ namespace Paniq.Presentation
                 {
                     color = Color.Lerp(color, BrokenDoorColor, view.DamagePercent / 100f * 0.8f);
                 }
+
                 if (hoveredDoor.HasValue && hoveredDoor.Value == view.DoorId)
                 {
                     color = Color.Lerp(color, Color.white, 0.3f);

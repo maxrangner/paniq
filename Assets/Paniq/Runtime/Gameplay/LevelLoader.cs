@@ -33,9 +33,21 @@ namespace Paniq.Gameplay
             Reload();
         }
 
+        /// <summary>
+        /// Another level, from the start card's level row (2026-10-01). It
+        /// opens behind its own start card on its own seed: the seed box
+        /// belonged to the level being left.
+        /// </summary>
+        public static void SwitchLevel(string levelId)
+        {
+            LevelSession.RequestLevel(levelId);
+            LevelSession.ClearRequestedSeed();
+            Reload();
+        }
+
         private static void Reload()
         {
-            SceneManager.LoadScene(Bootstrapper.FireReactionPrototypeSceneName, LoadSceneMode.Single);
+            SceneManager.LoadScene(Bootstrapper.PrototypeSceneName, LoadSceneMode.Single);
         }
     }
 }

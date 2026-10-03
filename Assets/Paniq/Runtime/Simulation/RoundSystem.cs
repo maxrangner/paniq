@@ -39,6 +39,7 @@
         /// <summary>Wired up after construction: both are built after this system is.</summary>
         private FlammablesSystem flammables;
         private DoorSystem doors;
+        private DirectorSystem director;
 
         /// <summary>
         /// Where everybody was standing when the stall clock last started, so
@@ -70,6 +71,7 @@
         {
             flammables = systems.Flammables;
             doors = systems.Doors;
+            director = systems.Director;
         }
 
         /// <summary>Where the round has got to.</summary>
@@ -88,6 +90,29 @@
         /// </summary>
         public void TriggerEvent()
         {
+            // Already asked for (by this button or the hazard's own clock),
+            // or a round that is over: nothing. A round the crowd switch
+            // began (2026-10-01) is Running without a hazard, and the
+            // button still lights the fire in it.
+            if (Phase == RoundPhase.Over || threats.StartRequested)
+            {
+                return;
+            }
+
+            Begin(0UL);
+            threats.RequestStart();
+        }
+
+        /// <summary>
+        /// The round is on, whether or not any hazard has been asked to
+        /// start: the crowd switch (2026-10-01) begins it so that a test
+        /// level which empties ends with a score. The first call moves the
+        /// phase and logs it against <paramref name="causeEventId"/> (the
+        /// switch's press, or nothing for the trigger button); later calls do
+        /// nothing.
+        /// </summary>
+        public void Begin(ulong causeEventId)
+        {
             if (Phase != RoundPhase.BeforeEvent)
             {
                 return;
@@ -99,9 +124,10 @@
                 default,
                 CausalEventType.RoundEventTriggered,
                 geometry.FireArea.Centre,
-                context.Tick);
+                context.Tick,
+                0,
+                causeEventId);
             TriggerEventId = triggered.EventId;
-            threats.RequestStart();
         }
 
         /// <summary>
@@ -128,6 +154,14 @@
 
             if (Phase != RoundPhase.Running)
             {
+                return;
+            }
+
+            if (director != null && director.PeaceEndsTheRoundAtTick >= 0 && context.Tick >= director.PeaceEndsTheRoundAtTick)
+            {
+                // The building is at peace: its last fire is out for good
+                // (2026-10-03). Everybody alive inside lived through it.
+                Finish();
                 return;
             }
 
@@ -174,6 +208,14 @@
         /// </summary>
         private bool SomethingIsStillHappening()
         {
+            // The Director has a socket crackling, or the next rung of its
+            // ladder on its way: an office that has settled back to work after
+            // a fire was put out is not a round that is over.
+            if (director != null && director.HasSomethingComing)
+            {
+                return true;
+            }
+
             long moved = settings.StallMoveMillimetres;
             for (int i = 0; i < agents.Length; i++)
             {
@@ -203,24 +245,7 @@
         /// that will end: rattling a door, hauling somebody along the floor,
         /// emptying an extinguisher at the fire.
         /// </summary>
-        private static bool IsBusy(AgentActivityState activity)
-        {
-            switch (activity)
-            {
-                case AgentActivityState.TryingDoor:
-                case AgentActivityState.ForcingDoor:
-                case AgentActivityState.OpeningDoor:
-                case AgentActivityState.Grabbing:
-                case AgentActivityState.Dragging:
-                case AgentActivityState.ShakingAwake:
-                case AgentActivityState.Spraying:
-                case AgentActivityState.PullingAlarm:
-                case AgentActivityState.StandingUp:
-                    return true;
-                default:
-                    return false;
-            }
-        }
+        private static bool IsBusy(AgentActivityState activity) => Tasks.IsHandsOn(activity);
 
         /// <summary>Remembers the building as it stands, to measure the next stretch of quiet against.</summary>
         private void DropAnchor()

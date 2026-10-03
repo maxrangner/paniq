@@ -65,6 +65,7 @@ namespace Paniq.Tests.EditMode
                 new AgentDefinition(InTheWay, new LogicalPosition(-2500, -1800), CardinalDirection.South, inTheWay)
             };
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Tables = new TableDefinition[0];
 
             // A fire just north of the shover, who is facing it and so sees it

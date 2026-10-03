@@ -8,7 +8,9 @@ namespace Paniq.Tests.EditMode
     /// The camera the player drives. Two things here are easy to break without
     /// anybody noticing until they are playing: the tilt has to stay flat for
     /// the first half of the wheel and only then swoop, and Q and E have to
-    /// land on a tidy corner view however far a drag has wandered off one.
+    /// step round the eight tidy views (2026-09-29: an eighth of a turn each,
+    /// corner, side, corner; it was a quarter, and the right-button drag that
+    /// swung the view anywhere is gone).
     /// </summary>
     public sealed class CameraRigEditModeTests
     {
@@ -70,71 +72,35 @@ namespace Paniq.Tests.EditMode
             }
         }
 
-        /// <summary>From a corner view, E goes to the next one round: a quarter turn.</summary>
+        /// <summary>From a corner view, E goes to the next tidy view round: an eighth of a turn, onto a side view.</summary>
         [Test]
-        public void PressingE_FromACornerView_TurnsExactlyAQuarter()
+        public void PressingE_FromACornerView_TurnsExactlyAnEighth()
         {
             CameraRig rig = NewRig();
             float before = rig.TargetYaw;
 
             rig.StepToTheNextCorner(1);
 
-            Assert.That(Mathf.DeltaAngle(before, rig.TargetYaw), Is.EqualTo(90f).Within(0.001f));
+            Assert.That(Mathf.DeltaAngle(before, rig.TargetYaw), Is.EqualTo(45f).Within(0.001f));
+            Assert.That(IsATidyView(rig.TargetYaw));
         }
 
         /// <summary>And Q goes the other way.</summary>
         [Test]
-        public void PressingQ_FromACornerView_TurnsAQuarterTheOtherWay()
+        public void PressingQ_FromACornerView_TurnsAnEighthTheOtherWay()
         {
             CameraRig rig = NewRig();
             float before = rig.TargetYaw;
 
             rig.StepToTheNextCorner(-1);
 
-            Assert.That(Mathf.DeltaAngle(before, rig.TargetYaw), Is.EqualTo(-90f).Within(0.001f));
+            Assert.That(Mathf.DeltaAngle(before, rig.TargetYaw), Is.EqualTo(-45f).Within(0.001f));
+            Assert.That(IsATidyView(rig.TargetYaw));
         }
 
-        /// <summary>
-        /// The point of the change: after dragging the view to some angle of
-        /// its own, Q and E still land on a tidy corner rather than turning a
-        /// quarter from wherever the drag stopped.
-        /// </summary>
-        [TestCase(10f)]
-        [TestCase(40f)]
-        [TestCase(-25f)]
-        [TestCase(200f)]
-        public void AfterADrag_TheNextCornerIsStillATidyOne(float dragged)
-        {
-            CameraRig rig = NewRig();
-            rig.Turn(dragged);
-
-            rig.StepToTheNextCorner(1);
-
-            Assert.That(IsACornerView(rig.TargetYaw),
-                $"After dragging {dragged} degrees, E landed on {rig.TargetYaw}, which is not a corner view.");
-        }
-
-        /// <summary>
-        /// A drag never lands on a corner by itself, and never springs back to
-        /// one: where the hand leaves the view is where it stays.
-        /// </summary>
+        /// <summary>Two taps are a quarter turn: the next corner, where one tap used to land.</summary>
         [Test]
-        public void ADrag_LeavesTheViewWhereTheHandPutIt_AndDoesNotSnapBack()
-        {
-            CameraRig rig = NewRig();
-            float before = rig.Yaw;
-
-            rig.Turn(37f);
-
-            Assert.That(Mathf.DeltaAngle(before, rig.Yaw), Is.EqualTo(37f).Within(0.001f),
-                "The shown angle should follow the hand exactly.");
-            Assert.That(Mathf.DeltaAngle(rig.Yaw, rig.TargetYaw), Is.EqualTo(0f).Within(0.001f),
-                "Nothing should be left pulling the view somewhere else after the drag.");
-        }
-
-        /// <summary>Two quick taps turn two corners, not one and a bit.</summary>
-        [Test]
-        public void TappingETwice_TurnsTwoCorners()
+        public void TappingETwice_TurnsAQuarter_OntoTheNextCorner()
         {
             CameraRig rig = NewRig();
             float before = rig.TargetYaw;
@@ -142,7 +108,22 @@ namespace Paniq.Tests.EditMode
             rig.StepToTheNextCorner(1);
             rig.StepToTheNextCorner(1);
 
-            Assert.That(Mathf.DeltaAngle(before, rig.TargetYaw), Is.EqualTo(180f).Within(0.001f));
+            Assert.That(Mathf.DeltaAngle(before, rig.TargetYaw), Is.EqualTo(90f).Within(0.001f));
+            Assert.That(IsACornerView(rig.TargetYaw));
+        }
+
+        /// <summary>Eight taps bring the view all the way round to where it started.</summary>
+        [Test]
+        public void EightTaps_AreAWholeTurn()
+        {
+            CameraRig rig = NewRig();
+            float before = rig.TargetYaw;
+            for (int i = 0; i < 8; i++)
+            {
+                rig.StepToTheNextCorner(1);
+            }
+
+            Assert.That(Mathf.DeltaAngle(before, rig.TargetYaw), Is.EqualTo(0f).Within(0.001f));
         }
 
         /// <summary>The corner views sit at 45 degrees and every 90 from there.</summary>
@@ -150,6 +131,13 @@ namespace Paniq.Tests.EditMode
         {
             float fromACorner = Mathf.Repeat(yaw - 45f, 90f);
             return fromACorner < 0.001f || fromACorner > 90f - 0.001f;
+        }
+
+        /// <summary>The tidy views sit every 45 degrees from the first corner: corners and sides alike.</summary>
+        private static bool IsATidyView(float yaw)
+        {
+            float fromAView = Mathf.Repeat(yaw - 45f, 45f);
+            return fromAView < 0.001f || fromAView > 45f - 0.001f;
         }
     }
 }

@@ -16,7 +16,8 @@
 
         /// <summary>
         /// The run's seed, kept so a system that owns a stream of its own can
-        /// derive it. See <see cref="DeckSystem"/>, which is the only one.
+        /// derive it (the keycard, the Director, each person's dice and the
+        /// fire's: docs/simulation-contract.md lists them).
         /// </summary>
         public readonly ulong Seed;
 
@@ -77,6 +78,22 @@
             if (intent.NextPanicDecisionTick > checked(Tick + Scenario.Perception.ReactionLagMaximumTicks))
             {
                 intent.NextPanicDecisionTick = ReactionTick();
+            }
+
+            ChooseNoLaterThan(intent, intent.NextPanicDecisionTick);
+        }
+
+        /// <summary>
+        /// Their next weighing of what to take up comes no later than
+        /// <paramref name="tick"/> (2026-10-03): something they have already
+        /// taken in, with its own lag, gives them a reason to choose. Draws
+        /// nothing.
+        /// </summary>
+        public static void ChooseNoLaterThan(AgentIntent intent, int tick)
+        {
+            if (intent.NextChoiceTick > tick)
+            {
+                intent.NextChoiceTick = tick;
             }
         }
     }

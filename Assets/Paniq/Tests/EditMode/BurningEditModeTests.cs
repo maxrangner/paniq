@@ -51,6 +51,7 @@ namespace Paniq.Tests.EditMode
             people.AddRange(others);
             data.Agents = people.ToArray();
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Fire.ActivationTick = 1;
             data.Fire.SpawnBounds = new LogicalBounds(250, 250, 250, 250);
 
@@ -142,7 +143,12 @@ namespace Paniq.Tests.EditMode
         {
             int caught = 0;
             int caughtFromPeople = 0;
-            for (ulong seed = 40UL; seed <= 46UL; seed++)
+            // Stops at the first seed in which somebody catches fire
+            // (2026-10-01): the question is whether it ever happens, and a
+            // whole-building minute costs two and a half seconds a seed.
+            // Seven seeds every time was eighteen seconds, the slowest test in
+            // the suite, for the same answer.
+            for (ulong seed = 40UL; seed <= 46UL && caught == 0; seed++)
             {
                 var simulation = new Run(DefaultData(), seed);
                 for (int t = 0; t < 60 * Run.TicksPerSecond; t++)
@@ -169,7 +175,7 @@ namespace Paniq.Tests.EditMode
             }
 
             Assert.That(caught, Is.GreaterThan(0));
-            TestContext.WriteLine($"Seeds 40-46, 60 s: {caught} people caught fire, {caughtFromPeople} of them from another burning person.");
+            TestContext.WriteLine($"Seeds from 40, 60 s, until somebody caught fire: {caught} people caught fire, {caughtFromPeople} of them from another burning person.");
         }
     }
 }

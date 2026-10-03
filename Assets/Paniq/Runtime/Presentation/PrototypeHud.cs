@@ -1,121 +1,94 @@
 ﻿using System;
-using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Presentation
 {
     /// <summary>
-    /// The text at the top left: tick, fire, the head count, and what a door
-    /// click will do and cost. Along the bottom, the influence the player has
-    /// left and the cards they can spend it on. Tab toggles a plain table of
-    /// everyone's traits and state.
+    /// What is on screen while the round runs. At the top, one strip the
+    /// player reads at a glance: saved, lost, still inside, and the seed
+    /// (2026-09-30, the owner: "remove all but saved lost still inside and
+    /// seed"). At the bottom left, the hand: what a press under the pointer
+    /// would do, and the bar the hand's charge drains and refills. Tab
+    /// toggles a plain table of everyone's traits and state.
     /// <para>
-    /// What is on screen while the round runs is what the player is reading:
-    /// the numbers, the buttons and the purse. Everything that only explains
-    /// how to play -- which keys do what, what the marks over people's heads
-    /// mean -- lives in <see cref="DrawPauseHelp"/> and appears only when the
-    /// world is stopped, which is when somebody actually wants to read it.
+    /// Everything that only explains how to play -- which keys do what, what
+    /// the marks over people's heads mean -- lives in <see cref="DrawPauseHelp"/>
+    /// and appears only when the world is stopped, which is when somebody
+    /// actually wants to read it. The cards along the bottom are gone with
+    /// the cards (2026-09-30).
     /// </para>
     /// </summary>
     internal static class PrototypeHud
     {
-        private static readonly Color BarBack = new Color(0f, 0f, 0f, 0.55f);
-        private static readonly Color BarFill = new Color(0.3f, 0.75f, 1f, 0.9f);
-        private static readonly Color CardPicked = new Color(0.25f, 0.55f, 0.85f, 0.95f);
-        private static readonly Color CardAffordable = new Color(0f, 0f, 0f, 0.7f);
-        private static readonly Color CardTooDear = new Color(0.25f, 0.1f, 0.1f, 0.7f);
-        private static readonly Color CardEdge = new Color(0.85f, 0.82f, 0.7f, 0.9f);
-        private static readonly Color CardTooDearEdge = new Color(0.6f, 0.35f, 0.3f, 0.9f);
-        private static readonly Color CardFace = new Color(0.08f, 0.09f, 0.11f, 0.92f);
-        private static readonly Color CardTooDearFace = new Color(0.2f, 0.1f, 0.1f, 0.9f);
-        private static readonly Color Badge = new Color(0.95f, 0.9f, 0.7f, 1f);
+        /// <summary>The red band across the very top while the bells ring.</summary>
+        private static readonly Color BannerRed = new Color(0.8f, 0.08f, 0.06f);
 
-        /// <summary>
-        /// The hand's card size, in pixels: a portrait card, a shade under a
-        /// 2:3 playing card, small enough that six of them sit under the
-        /// strip on a laptop screen. They were 210 × 34 bars of text, which
-        /// the owner asked to look like cards and take less room.
-        /// </summary>
-        private const float CardWidth = 96f;
-        private const float CardHeight = 132f;
-        private const float CardGap = 8f;
-        private const float CardLift = 10f;
+        /// <summary>The darker band when the building turns on the crowd (2026-09-29): the Director's push, shown for a few seconds.</summary>
+        private static readonly Color BannerPush = new Color(0.45f, 0.05f, 0.35f);
+        private const int PushBannerTicks = 200;
+        private const float BannerHeight = 28f;
+
+        private static readonly Color StripBack = new Color(0f, 0f, 0f, 0.55f);
+
+        /// <summary>The hand's bar: gold while it has charge, dull red while it rests.</summary>
+        private static readonly Color BarBack = new Color(0f, 0f, 0f, 0.55f);
+        private static readonly Color BarCharged = new Color(1f, 0.82f, 0.3f, 0.95f);
+        private static readonly Color BarResting = new Color(0.75f, 0.25f, 0.2f, 0.95f);
+        private const float BarWidth = 260f;
+        private const float BarHeight = 12f;
 
         // IMGUI styles are made from the skin, which only exists while a GUI
         // event is being handled, so they are built on first use and kept.
-        private static GUIStyle cardNameStyle;
-        private static GUIStyle cardBlurbStyle;
-        private static GUIStyle cardCostStyle;
-        private static GUIStyle badgeStyle;
-
-        private static GUIStyle CardNameStyle => cardNameStyle ??= new GUIStyle(GUI.skin.label)
-        {
-            fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = true, fontSize = 13
-        };
-
-        private static GUIStyle CardBlurbStyle => cardBlurbStyle ??= new GUIStyle(GUI.skin.label)
-        {
-            alignment = TextAnchor.UpperCenter, wordWrap = true, fontSize = 10
-        };
-
-        private static GUIStyle CardCostStyle => cardCostStyle ??= new GUIStyle(GUI.skin.label)
-        {
-            fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, fontSize = 14
-        };
-
-        private static GUIStyle BadgeStyle => badgeStyle ??= new GUIStyle(GUI.skin.label)
-        {
-            fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, fontSize = 12
-        };
-
-        /// <summary>One line under the card's name saying what it does, for a hand read at a glance.</summary>
-        private static string BlurbOf(PlayerCommandType card)
-        {
-            switch (card)
-            {
-                case PlayerCommandType.PlayBeefcake: return "strength 10 for everyone caught";
-                case PlayerCommandType.PlayCourage: return "fearless, everyone caught";
-                case PlayerCommandType.PlayTerror: return "the fear of God, everyone caught";
-                case PlayerCommandType.PlayBastard: return "turned nasty, everyone caught";
-                case PlayerCommandType.PlayColdHeart: return "cares for nobody, everyone caught";
-                case PlayerCommandType.SpawnFire: return "a fire where you click";
-                case PlayerCommandType.SpawnExtinguisher: return "a bottle where you click";
-                case PlayerCommandType.BlastWall: return "a hole through a wall";
-                case PlayerCommandType.PopFuseBox: return "the fuse box goes off";
-                case PlayerCommandType.StickTogether: return "everyone caught keeps together";
-                default: return string.Empty;
-            }
-        }
-
-        /// <summary>The red band across the very top while the bells ring.</summary>
-        private static readonly Color BannerRed = new Color(0.8f, 0.08f, 0.06f);
-        private const float BannerHeight = 28f;
-
         private static GUIStyle bannerStyle;
+        private static GUIStyle stripStyle;
 
         private static GUIStyle BannerStyle => bannerStyle ??= new GUIStyle(GUI.skin.label)
         {
             fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, fontSize = 16
         };
 
+        /// <summary>The strip's numbers: bold and a size up from the labels, readable at a glance without being huge.</summary>
+        private static GUIStyle StripStyle => stripStyle ??= new GUIStyle(GUI.skin.label)
+        {
+            fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft, fontSize = 15
+        };
+
+        /// <summary>Where the line about what is under the pointer sits: bottom left, above the hand's bar.</summary>
+        private static Rect HintLine => new Rect(20f, Screen.height - 66f, 900f, 22f);
+
         /// <summary>
-        /// The top of the screen (packed toward it since 2026-09-25, the owner
-        /// asked): a red FIRE ALARM band across the very top while the bells
-        /// ring, then four lines at the top left -- the tick and the fire, the
-        /// head count, the round's score, and what a click on the door or the
-        /// pull station under the pointer would do and cost. The band's 28
-        /// pixels are always kept, so nothing jumps when the bells start.
+        /// The top of the screen: a red FIRE ALARM band across the very top
+        /// while the bells ring (or the Director's band over it), then one
+        /// strip: saved, lost, still inside, the seed. The band's 28 pixels
+        /// are always kept, so nothing jumps when the bells start. What a
+        /// press under the pointer would do is written at the bottom left,
+        /// beside the hand it belongs to.
         /// </summary>
         public static void Draw(
             RunSnapshot snapshot,
             ScenarioData scenario,
             ulong seed,
             DoorSnapshot? hoveredDoor,
-            SimulationId? hoveredAlarm = null)
+            SimulationId? hoveredAlarm,
+            PlayerInput input)
         {
             GUI.color = Color.white;
-            if (snapshot.AlarmsRinging)
+            bool pushing = snapshot.DirectorPushTick >= 0 && snapshot.Tick - snapshot.DirectorPushTick < PushBannerTicks;
+            if (pushing)
+            {
+                // The building turns on the crowd (2026-09-29): the Director's
+                // push is announced like the alarm, so a socket popping right
+                // after the door opens reads as the building's move and not
+                // as bad luck. It takes the band over the bells for its few
+                // seconds.
+                var band = new Rect(0f, 0f, Screen.width, BannerHeight);
+                GUI.color = BannerPush;
+                GUI.DrawTexture(band, Texture2D.whiteTexture);
+                GUI.color = Color.white;
+                GUI.Label(band, "THE BUILDING TURNS ON THE CROWD", BannerStyle);
+            }
+            else if (snapshot.AlarmsRinging)
             {
                 // Two beats a second, like the bells.
                 float pulse = Mathf.Repeat(Time.unscaledTime * 4f, 2f) < 1f ? 1f : 0.75f;
@@ -126,241 +99,224 @@ namespace Paniq.Presentation
                 GUI.Label(band, "FIRE ALARM", BannerStyle);
             }
 
-            string fireText;
-            if (snapshot.FireActive)
-            {
-                fireText = $"FIRE  {snapshot.FireCells.Count} squares burning";
-            }
-            else if (scenario.Round.HazardWaitsForTrigger)
-            {
-                // Nothing is counting down: it waits for the player.
-                fireText = snapshot.EventTriggered ? "FIRE STARTING" : "NO FIRE YET";
-            }
-            else
-            {
-                fireText = $"FIRE IN {Mathf.Max(0f, (scenario.Fire.ActivationTick - snapshot.Tick) / (float)Run.TicksPerSecond):0.00} s";
-            }
-
-            GUI.Label(new Rect(20f, 36f, 700f, 22f), $"Fire-reaction prototype  |  tick {snapshot.Tick}  |  {fireText}");
-            GUI.Label(new Rect(20f, 58f, 900f, 22f),
-                $"Calm {snapshot.CalmCount}   Scared {snapshot.ScaredCount} (frozen {snapshot.FrozenCount}, on fire {snapshot.BurningCount})   " +
-                $"Down {snapshot.DownCount} (out cold {snapshot.UnconsciousCount})   Lost {snapshot.LostCount}   " +
-                $"Escaped {snapshot.EscapedCount}   In a room with no fire {snapshot.ClearOfFireCount}");
-
-            // The round's score, on its dark backing.
-            var strip = new Rect(20f, 80f, 720f, 22f);
+            // The round's numbers, on their dark backing (2026-09-30: only
+            // these four; the tick, the fire, the calm and scared counts, the
+            // bar to clear and the left-alone line are gone from here -- the
+            // end card and the Tab panel keep the last two).
+            var strip = new Rect(20f, 36f, 620f, 28f);
             GUI.color = StripBack;
             GUI.DrawTexture(strip, Texture2D.whiteTexture);
             GUI.color = Color.white;
-            GUI.Label(new Rect(strip.x + 8f, strip.y, strip.width - 16f, strip.height),
-                $"Saved {snapshot.SavedCount}   Lost {snapshot.LostCount}   Still inside {snapshot.RemainingCount}" +
-                $"      Need {snapshot.TargetSavedCount} of {snapshot.CrowdSize} to clear      Seed {seed}");
+            GUI.Label(new Rect(strip.x + 10f, strip.y, strip.width - 20f, strip.height),
+                $"Saved {snapshot.SavedCount}     Lost {snapshot.LostCount}     Still inside {snapshot.RemainingCount}          Seed {seed}",
+                StripStyle);
 
             if (hoveredDoor.HasValue)
             {
-                // A door with something wedged in it will not move however many
-                // times you click, so say so rather than letting the click look
-                // as though it did nothing. Same for a door they cannot pay for:
-                // without this the click simply vanishes. One click works the
-                // door; a double click turns its key (2026-09-25).
+                // A door with something wedged in it will not move, so say so
+                // rather than letting a press look as though it did nothing.
+                // Since 2026-09-30 the left button on a door draws people to
+                // use it and the right pushes them away from it.
                 DoorSnapshot door = hoveredDoor.Value;
-                int price = snapshot.CostOfDoorClick(door.State, door.LeadsOutside);
-                int key = snapshot.CostOfLockToggle(door.State, door.LeadsOutside);
-                bool locked = door.State == DoorState.Locked;
-                bool affordable = snapshot.Influence >= (locked ? key : price);
-                string action = door.Swings ? "Swing doors: people push straight through, and there is nothing to work"
+
+                // What a hand here asks, by the run's own rule for doors
+                // (2026-10-02), so the line says what people will do.
+                bool open = door.State == DoorState.Open;
+                HandAsk asks = HandAsks.ForDoor(open, open, door.IsPiled, door.Swings || door.IsHole, door.NeedsKeycard,
+                    door.State == DoorState.Locked, door.State == DoorState.Broken);
+                string pull = IsTheHandOn(snapshot, door.DoorId, true)
+                    ? $"your hand is on it - \"{HandAskWords.Label(HeldAsk(snapshot)) ?? "come here"}\""
+                    : $"hold - \"{HandAskWords.Label(asks)}\"; right button pushes people away; a click leaves it three seconds";
+                string action = door.Swings ? $"Swing doors: people push straight through. {Capital(pull)}"
+                    : door.IsPiled ? $"THE BOXES ARE LYING ACROSS IT - nobody gets through until enough of them are gone. {Capital(pull)}"
+                    : door.IsHole ? $"An open way through. {Capital(pull)}"
+                    : door.State == DoorState.Broken ? $"Broken down. {Capital(pull)}"
                     : door.IsJammed ? "SOMETHING IS WEDGED IN IT - it will not open until that is shifted"
-                    : door.State == DoorState.Broken ? "Broken down"
-                    : !affordable ? $"NOT ENOUGH INFLUENCE - it costs {(locked ? key : price)}, and you have {snapshot.Influence}"
-                    : locked ? $"Locked. Double-click to unlock ({key})"
-                    : door.State == DoorState.Unlocked ? $"Click to open ({price}); double-click to lock ({key})"
-                    : $"Click to close ({price}, if nobody is in the doorway); double-click to shut and lock ({key})";
-                GUI.color = door.IsJammed || !affordable ? new Color(1f, 0.7f, 0.6f) : Color.white;
-                GUI.Label(new Rect(20f, 104f, 900f, 22f), $"Door {door.DoorId.Value}: {action}");
+                    : door.NeedsKeycard ? $"NEEDS THE KEYCARD - {WhereTheKeycardIs(snapshot)}. They pound on it until it gives, and somebody who knows where the card is goes for it. {Capital(pull)}"
+                    : door.State == DoorState.Locked ? $"Locked: they throw themselves at it, weak or strong. {Capital(pull)}"
+                    : Capital(pull);
+                GUI.color = door.IsJammed || door.IsPiled ? new Color(1f, 0.7f, 0.6f)
+                    : door.NeedsKeycard ? new Color(1f, 0.9f, 0.5f) : Color.white;
+                GUI.Label(HintLine, $"Door {door.DoorId.Value}: {action}");
                 GUI.color = Color.white;
             }
             else if (hoveredAlarm.HasValue)
             {
-                // A fire alarm is priced like a card and refused for nothing
-                // once the bells are ringing; say which before the click.
-                int price = snapshot.CostOf(PlayerCommandType.PullAlarm);
-                bool affordable = snapshot.Influence >= price;
+                // A fire alarm is refused for nothing once the bells are
+                // ringing; say which before the click. On a level where only
+                // people pull them (the office, 2026-09-26), the hand on it
+                // draws people to it -- or, with the right button, away.
                 string action = snapshot.AlarmsRinging ? "already ringing"
-                    : !affordable ? $"NOT ENOUGH INFLUENCE - it costs {price}, and you have {snapshot.Influence}"
-                    : $"Click to pull it ({price}): every bell in the building rings";
-                GUI.color = affordable || snapshot.AlarmsRinging ? Color.white : new Color(1f, 0.7f, 0.6f);
-                GUI.Label(new Rect(20f, 104f, 900f, 22f), $"Fire alarm {hoveredAlarm.Value.Value}: {action}");
+                    : !snapshot.PlayerMayPullAlarms ? "only the people in the building pull it. Hold to draw people to it: whoever comes pulls it"
+                    : "Click to pull it: every bell in the building rings";
+                GUI.Label(HintLine, $"Fire alarm {hoveredAlarm.Value.Value}: {action}");
+            }
+            else if (input.TuggedPerson.HasValue && IsTuggedInTheRun(snapshot, input.TuggedPerson.Value))
+            {
+                GUI.color = new Color(1f, 0.93f, 0.62f);
+                GUI.Label(HintLine,
+                    $"You have person {input.TuggedPerson.Value.Value} by the shirt. Let go of the button to let go of them");
                 GUI.color = Color.white;
             }
-        }
-
-        private static readonly Color StripBack = new Color(0f, 0f, 0f, 0.55f);
-
-        /// <summary>Which cards are thrown at a patch of crowd rather than at a place in the building.</summary>
-        private static bool IsAThrownCard(PlayerCommandType card)
-        {
-            switch (card)
+            else if (input.HoveredPerson.HasValue)
             {
-                case PlayerCommandType.PlayBeefcake:
-                case PlayerCommandType.PlayCourage:
-                case PlayerCommandType.PlayTerror:
-                case PlayerCommandType.PlayBastard:
-                case PlayerCommandType.PlayColdHeart:
-                case PlayerCommandType.StickTogether:
-                    return true;
-                default:
-                    return false;
+                GUI.Label(HintLine, PersonLine(snapshot, input.HoveredPerson.Value));
+            }
+            else if (input.HoveredThing.HasValue)
+            {
+                GUI.Label(HintLine, IsTheHandOn(snapshot, input.HoveredThing.Value, false)
+                    ? $"Your hand is on it - \"{HandAskWords.Label(HeldAsk(snapshot)) ?? "come here"}\""
+                    : "Hold to draw people to it: a chair is sat on, a box carried off, fallen boxes cleared, the bottle taken and used, the card pocketed. Right button pushes them away; drag to move the hand");
+            }
+            else if (input.HoveredFloor.HasValue)
+            {
+                GUI.Label(HintLine, snapshot.InfluencePlaces.Count > 0
+                    ? snapshot.InfluencePlaces[0].Repels
+                        ? "Your hand is pushing people away from here: drag it to herd them. Let go and they are on their own"
+                        : $"Your hand is on the floor here - \"{HandAskWords.Label(HeldAsk(snapshot)) ?? "come here"}\". The sure keep at it after you let go; drag it to lead them"
+                    : snapshot.HandResting
+                        ? "Your hand is resting: the bar has to fill a little before it takes another press"
+                        : "Hold to draw people here (drag to lead them), right button to push them away; a click leaves it for three seconds");
             }
         }
 
         /// <summary>
-        /// The player's purse and their cards, along the bottom: portrait
-        /// cards, each with its name, a line on what it does and its price.
-        /// Two of a kind sit as one card with the count in its corner
-        /// (2026-09-25). A card is a button: click it to pick it up, click it
-        /// again to put it down. A card they cannot afford is dimmed red; the
-        /// one in their hand lifts and turns blue, and the line above says
-        /// what a click will do. They used to be wide bars of text picked up
-        /// with the number keys.
+        /// The hand's charge (2026-09-30): a bar at the bottom left that
+        /// drains while the hand is on a place or a person and refills by
+        /// itself, gold while there is charge and dull red while it rests. It
+        /// claims its patch of screen so a press on it stays off the world.
         /// </summary>
-        public static void DrawCards(
-            RunSnapshot snapshot, PlayerCommandType? selected, PlayerInput input, int peopleInTheCircle)
+        public static void DrawHand(RunSnapshot snapshot)
         {
-            float bottom = Screen.height - 20f;
-            int stacks = CountStacks(snapshot.Hand);
-            float handWidth = Mathf.Max(300f, stacks * (CardWidth + CardGap) - CardGap);
-            float cardsTop = bottom - CardHeight - CardLift;
-
-            // The purse, above the hand and as wide as it.
-            var barArea = new Rect(20f, cardsTop - CardGap - 16f, handWidth, 16f);
+            var bar = new Rect(20f, Screen.height - 40f, BarWidth, BarHeight);
+            HudHitTest.Claim(new Rect(bar.x, bar.y - 4f, bar.width + 120f, bar.height + 8f));
             GUI.color = BarBack;
-            GUI.DrawTexture(barArea, Texture2D.whiteTexture);
-            GUI.color = BarFill;
-            float fraction = snapshot.InfluenceMaximum <= 0
-                ? 0f
-                : Mathf.Clamp01(snapshot.Influence / (float)snapshot.InfluenceMaximum);
-            GUI.DrawTexture(new Rect(barArea.x, barArea.y, barArea.width * fraction, barArea.height), Texture2D.whiteTexture);
+            GUI.DrawTexture(bar, Texture2D.whiteTexture);
+            float fraction = Mathf.Clamp01(snapshot.HandChargePerMille / 1000f);
+            GUI.color = snapshot.HandResting ? BarResting : BarCharged;
+            GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * fraction, bar.height), Texture2D.whiteTexture);
             GUI.color = Color.white;
-            GUI.Label(new Rect(barArea.x + barArea.width + 10f, barArea.y - 3f, 400f, 22f),
-                $"Influence {snapshot.Influence} of {snapshot.InfluenceMaximum}   (spent {snapshot.InfluenceSpent}, taken in {snapshot.InfluenceEarned})");
-
-            // The hand. One card at the start of a round and then only what
-            // the dead deal, so an empty bar is the game saying "you have
-            // played what you had and nobody has died since" rather than a
-            // display that has not loaded.
-            if (stacks == 0)
-            {
-                GUI.color = new Color(0.75f, 0.75f, 0.75f);
-                GUI.Label(new Rect(20f, bottom - 22f, 700f, 22f), "No cards left. The dead deal them.");
-                GUI.color = Color.white;
-                return;
-            }
-
-            for (int i = 0; i < stacks; i++)
-            {
-                PlayerCommandType card = stackKinds[i];
-                int count = stackCounts[i];
-                int cost = snapshot.CostOf(card);
-                bool affordable = snapshot.Influence >= cost;
-                bool picked = selected == card;
-                var area = new Rect(20f + i * (CardWidth + CardGap), bottom - CardHeight - (picked ? CardLift : 0f),
-                    CardWidth, CardHeight);
-
-                // The card is a button. It claims its patch of screen so the
-                // click that picks it up never also lands on the floor behind.
-                HudHitTest.Claim(area);
-                if (GUI.Button(area, GUIContent.none, GUIStyle.none))
-                {
-                    input.Toggle(card);
-                }
-
-                // Edge and face.
-                GUI.color = picked ? CardPicked : affordable ? CardEdge : CardTooDearEdge;
-                GUI.DrawTexture(area, Texture2D.whiteTexture);
-                GUI.color = affordable ? CardFace : CardTooDearFace;
-                GUI.DrawTexture(new Rect(area.x + 2f, area.y + 2f, area.width - 4f, area.height - 4f), Texture2D.whiteTexture);
-
-                // Two or more of a kind: the count, in a badge top left.
-                if (count > 1)
-                {
-                    var badge = new Rect(area.x + 6f, area.y + 6f, 30f, 22f);
-                    GUI.color = picked ? CardPicked : Badge;
-                    GUI.DrawTexture(badge, Texture2D.whiteTexture);
-                    GUI.color = picked ? Color.white : Color.black;
-                    GUI.Label(badge, $"×{count}", BadgeStyle);
-                }
-
-                // Name, what it does, and the price.
-                Color ink = affordable ? Color.white : new Color(1f, 0.7f, 0.7f, 0.9f);
-                GUI.color = ink;
-                GUI.Label(new Rect(area.x + 6f, area.y + 32f, area.width - 12f, 44f), PlayerInput.NameOf(card), CardNameStyle);
-                GUI.color = affordable ? new Color(0.85f, 0.85f, 0.85f) : ink;
-                GUI.Label(new Rect(area.x + 6f, area.y + 76f, area.width - 12f, 32f), BlurbOf(card), CardBlurbStyle);
-                GUI.color = ink;
-                GUI.Label(new Rect(area.x, area.yMax - 24f, area.width, 20f), affordable ? cost.ToString() : $"{cost} (you have {snapshot.Influence})",
-                    affordable ? CardCostStyle : CardBlurbStyle);
-            }
-
-            // Only while a card is actually in hand: what it is waiting to be
-            // aimed at, and what it is pointing at right now. With nothing
-            // picked up there is nothing to say, and the line that used to sit
-            // here explaining the number keys has moved to the pause screen.
-            GUI.color = Color.white;
-            if (selected == null)
-            {
-                return;
-            }
-
-            // A trait card is thrown at a patch and catches whoever is inside
-            // it, so what the player needs to know is how many that is right
-            // now. The circle on the floor says the same thing; this says it in
-            // words, and says nought out loud, because a throw that catches
-            // nobody is the one mistake that is free.
-            string hint;
-            if (IsAThrownCard(selected.Value))
-            {
-                int caught = peopleInTheCircle;
-                hint = $"{PlayerInput.NameOf(selected.Value)}: " + (caught == 0
-                    ? "nobody in the circle -- a throw that catches nobody is free"
-                    : caught == 1 ? "1 person in the circle" : $"{caught} people in the circle");
-            }
-            else if (selected.Value == PlayerCommandType.BlastWall)
-            {
-                hint = $"TNT: click a wall  ({snapshot.BlastChargesRemaining} left)";
-            }
-            else
-            {
-                hint = $"{PlayerInput.NameOf(selected.Value)}: click a spot on the floor";
-            }
-
-            GUI.color = Color.white;
-            GUI.Label(new Rect(20f, barArea.y - 26f, 900f, 22f), hint + "   (right click or Escape puts it down)");
+            GUI.Label(new Rect(bar.x + bar.width + 10f, bar.y - 5f, 200f, 22f),
+                snapshot.HandResting ? "your hand, resting" : "your hand");
         }
 
-        /// <summary>The kinds in hand in the order they were first dealt, and how many of each: the stacks the hand is drawn as.</summary>
-        private static readonly List<PlayerCommandType> stackKinds = new List<PlayerCommandType>();
-        private static readonly List<int> stackCounts = new List<int>();
-
-        private static int CountStacks(IReadOnlyList<PlayerCommandType> hand)
+        /// <summary>
+        /// What the hand does on this person (2026-09-29): a poke, a tug, or
+        /// what a poke does to somebody frozen, and what would help somebody
+        /// out cold. Says it in words; nothing points at them.
+        /// </summary>
+        private static string PersonLine(RunSnapshot snapshot, SimulationId person)
         {
-            stackKinds.Clear();
-            stackCounts.Clear();
-            for (int i = 0; i < hand.Count; i++)
+            string card = HasTheKeycard(snapshot, person) ? " - HAS THE KEYCARD" : "";
+            string who = $"Person {person.Value}{card}";
+            for (int i = 0; i < snapshot.Agents.Count; i++)
             {
-                int at = stackKinds.IndexOf(hand[i]);
-                if (at < 0)
+                AgentSnapshot agent = snapshot.Agents[i];
+                if (agent.AgentId != person)
                 {
-                    stackKinds.Add(hand[i]);
-                    stackCounts.Add(1);
+                    continue;
                 }
-                else
+
+                if (agent.IsBurning)
                 {
-                    stackCounts[at]++;
+                    return $"{who}: on fire - nothing you can hold";
+                }
+
+                if (agent.BodyState == AgentBodyState.Unconscious)
+                {
+                    return $"{who}: out cold - hold the floor beside them to draw somebody who could drag them";
+                }
+
+                if (agent.ActivityState == AgentActivityState.Frozen)
+                {
+                    return $"{who}: frozen with fear - three quick pokes wake them";
+                }
+
+                string strength = agent.Traits.Strength >= 9 ? " (too strong to hold for long)"
+                    : agent.Traits.Strength >= 6 ? " (strong: they will tear free in a while)" : "";
+                string task = agent.HandAsk != HandAsk.None ? $" ({HandAskWords.Doing(agent.HandAsk)})" : "";
+                string doing = agent.CommittedToTheHand ? $" Keeping at what your hand asked{task}."
+                    : agent.ActingForTheHand ? $" Doing what your hand asks{task}." : "";
+                return agent.IsAnnoyed
+                    ? $"{who}: annoyed with you - a poke does nothing for a while; hold to hold them here{strength}; right button pushes the people round them away.{doing}"
+                    : $"{who}: click to poke them away from the click; hold to hold them here{strength}; right button pushes the people round them away.{doing}";
+            }
+
+            return who;
+        }
+
+        /// <summary>What the hand asks where it is right now, as the run reads it (2026-10-02), or nothing with no hand on.</summary>
+        private static HandAsk HeldAsk(RunSnapshot snapshot) =>
+            snapshot.InfluencePlaces.Count > 0 ? snapshot.InfluencePlaces[0].Ask : HandAsk.None;
+
+        /// <summary>Whether the player's hand is on this door or thing right now, for the hover line.</summary>
+        private static bool IsTheHandOn(RunSnapshot snapshot, SimulationId target, bool isDoor)
+        {
+            for (int i = 0; i < snapshot.InfluencePlaces.Count; i++)
+            {
+                InfluencePlaceSnapshot place = snapshot.InfluencePlaces[i];
+                if (place.IsDoor == isDoor && place.Target == target)
+                {
+                    return true;
                 }
             }
 
-            return stackKinds.Count;
+            return false;
         }
+
+        /// <summary>Whether the run itself has the hand on this person: the line says so only once the tug has landed, and stops when they tear free.</summary>
+        private static bool IsTuggedInTheRun(RunSnapshot snapshot, SimulationId person)
+        {
+            for (int i = 0; i < snapshot.Agents.Count; i++)
+            {
+                if (snapshot.Agents[i].AgentId == person)
+                {
+                    return snapshot.Agents[i].IsTugged;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether the keycard is in this person's pocket: the card is a thing held by them.</summary>
+        private static bool HasTheKeycard(RunSnapshot snapshot, SimulationId person)
+        {
+            for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
+            {
+                PhysicsObjectSnapshot thing = snapshot.PhysicsObjects[i];
+                if (thing.Kind == PhysicsObjectKind.Keycard && thing.HeldBy == person)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Who has the keycard, or that it lies free, for the way out's hover
+        /// line (2026-09-30: on seed 42 the host burned with the card in his
+        /// pocket while four people pounded the door, and nothing on screen
+        /// said who had it).
+        /// </summary>
+        private static string WhereTheKeycardIs(RunSnapshot snapshot)
+        {
+            for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
+            {
+                PhysicsObjectSnapshot thing = snapshot.PhysicsObjects[i];
+                if (thing.Kind != PhysicsObjectKind.Keycard || thing.Dormant)
+                {
+                    continue;
+                }
+
+                return thing.IsHeld ? $"person {thing.HeldBy.Value} has the card" : "the card lies free somewhere";
+            }
+
+            return "there is no card";
+        }
+
+        private static string Capital(string words) =>
+            string.IsNullOrEmpty(words) ? words : char.ToUpperInvariant(words[0]) + words.Substring(1);
 
         /// <summary>
         /// Everything that explains how to play, shown only while the world is
@@ -383,32 +339,51 @@ namespace Paniq.Presentation
                 (Colour: new Color(1f, 0.25f, 0.2f), Mark: "!", Means: "just noticed something"),
                 (Colour: new Color(0.45f, 0.9f, 1f), Mark: ")))", Means: "shouting"),
                 (Colour: new Color(1f, 0.85f, 0.3f), Mark: "?", Means: "what was that noise?"),
+                (Colour: new Color(1f, 0.5f, 0.15f), Mark: "#!", Means: "annoyed at being nudged"),
                 (Colour: new Color(0.8f, 0.8f, 0.8f), Mark: "...", Means: "idling"),
                 (Colour: new Color(0.7f, 0.85f, 1f), Mark: "*", Means: "frozen with fear"),
                 (Colour: new Color(1f, 0.9f, 0.35f), Mark: "o o o", Means: "out cold"),
                 (Colour: new Color(0.4f, 0.95f, 0.5f), Mark: "star", Means: "somebody is following them"),
+                (Colour: new Color(1f, 0.82f, 0.3f), Mark: "hand", Means: "doing what your hand asked; still, keeping at it after you let go"),
+                (Colour: new Color(1f, 0.9f, 0.2f), Mark: "card", Means: "has the keycard (a level with a keycard)"),
                 (Colour: new Color(0.85f, 0.6f, 1f), Mark: "band", Means: "at the ankles: keeping together with the others wearing it"),
                 (Colour: new Color(1f, 0.55f, 0.15f), Mark: "[]", Means: "on fire"),
                 (Colour: new Color(0.55f, 0.15f, 0.15f), Mark: "[]", Means: "lost")
             };
 
+            // Since 2026-09-30 the mouse has no key and no hand holding a door
+            // shut: the right button pushes people away from it.
+            bool cardDoor = false;
+            for (int d = 0; d < snapshot.Doors.Count; d++)
+            {
+                cardDoor |= snapshot.Doors[d].NeedsKeycard;
+            }
+
+            string doorHelp =
+                "hold the left button to draw people to use it (a locked one they pound on), the right button to push them away from it. " +
+                (cardDoor
+                    ? "Red is locked. The way out needs the keycard: whoever has it swipes it open; under your hand it gives to a long pounding"
+                    : "Red is locked. The frightened walk through a door you hold, away from the fire, and keep going. The way out is an ordinary door");
             var keys = new[]
             {
-                ("Click a card", "pick it up, then click the floor to throw it. Two of a kind sit as one card"),
-                ("Cards", "dealt by the dead, one each. Nobody dies, nobody deals"),
-                ("Influence", "paid by the uproar, and by everyone who gets out"),
-                ("Escape", "put the card back down (or right click)"),
-                ("Click a door", $"open or shut it for {snapshot.CostOfDoorClick(DoorState.Unlocked, false)}; " +
-                                 $"double-click to lock or unlock it for {snapshot.CostOfLockToggle(DoorState.Locked, false)}. " +
-                                 $"Red is locked; the way out costs {snapshot.CostOfLockToggle(DoorState.Locked, true)} to unlock"),
+                ("Hold the floor", "your hand on a place: people nearby come to it while you hold, the frightened too, one place at a time. Things too"),
+                ("Let go", "whoever is sure of it keeps at it -- the nervous longest, leaders least -- and the rest are on their own at once"),
+                ("Hold and drag", "the hand moves with the pointer and the people answering it follow; on fallen boxes, they clear them"),
+                ("Click the floor", "the same, left there for three seconds"),
+                ("Right button", "the same the other way round: people are pushed away from the place"),
+                ("The bar", "bottom left: the hand's charge. Holding drains it, it refills by itself; empty, the hand comes off until it has rested"),
+                ("A door", doorHelp),
+                ("Click a person", "poke them away from the click. Three quick ones and they are annoyed, and shake"),
+                ("Hold a person", "a tug on their shirt: they stop at once and stay while you hold, struggling. The strong tear free, sooner the stronger"),
                 ("W A S D", "move the camera"),
-                ("Q E", "turn a quarter"),
+                ("Q E", "turn an eighth: corner, side, corner"),
                 ("Wheel", "zoom"),
-                ("Tab", "everyone's stats"),
+                ("Tab", "what to show: vision cones, numbers, marks, everyone's stats, the walkable floor; and the hand's strength and reach sliders"),
                 ("G", "the floor people can walk on"),
                 ("Space", "start and stop the world (or the Pause button, top right)"),
                 ("Reset", "the button top right: back to the start card, keeping the seed"),
-                ("Trigger event", "the red button bottom centre starts the fire, once, and goes")
+                ("Trigger event", "the red button bottom centre starts the fire, once, and goes"),
+                ("Crowd", "on a test level, the button beside it: sets the whole crowd panicking, or calms it down again")
             };
 
             int rows = Math.Max(marks.Length, keys.Length);
@@ -447,15 +422,17 @@ namespace Paniq.Presentation
 
         /// <summary>
         /// One row per person, numbered like the labels over their heads, then
-        /// <paramref name="footer"/>: which physics feel is in use, and so on.
+        /// <paramref name="footer"/>: which physics feel is in use, what the
+        /// round needs, what it comes to left alone, and so on. Its top edge
+        /// is <paramref name="top"/>, so it can sit under the Tab panel when
+        /// that is open.
         /// </summary>
-        public static void DrawStats(RunSnapshot snapshot, string footer)
+        public static void DrawStats(RunSnapshot snapshot, string footer, float top)
         {
             const float rowHeight = 20f;
             float width = 640f;
             float height = rowHeight * (snapshot.Agents.Count + 3) + 12f;
-            // Below Reset and Pause, which sit in the top-right corner.
-            var area = new Rect(Screen.width - width - 20f, 108f, width, height);
+            var area = new Rect(Screen.width - width - 20f, top, width, height);
             GUI.color = new Color(0f, 0f, 0f, 0.75f);
             GUI.DrawTexture(area, Texture2D.whiteTexture);
             GUI.color = Color.white;
@@ -468,11 +445,12 @@ namespace Paniq.Presentation
             {
                 AgentSnapshot agent = snapshot.Agents[i];
                 AgentTraitValues t = agent.Traits;
+                string card = HasTheKeycard(snapshot, agent.AgentId) ? " (has the keycard)" : "";
                 DrawRow(x, y, rowHeight, new[]
                 {
                     (i + 1).ToString(), t.Strength.ToString(), t.Speed.ToString(), t.Bravery.ToString(),
                     t.Compassion.ToString(), t.Evil.ToString(), t.Nervousness.ToString(), t.Leadership.ToString(),
-                    TemperamentText(agent.Temperament), StateText(agent)
+                    TemperamentText(agent.Temperament), StateText(agent) + card
                 });
                 y += rowHeight;
             }
@@ -529,6 +507,15 @@ namespace Paniq.Presentation
                 return agent.BodyState == AgentBodyState.Staggering ? "staggering" : "down";
             }
 
+            // What they are doing for the hand comes first (2026-10-02): a
+            // calm person heaving a crate or opening a door for you used to
+            // read "calm".
+            if ((agent.ActingForTheHand || agent.CommittedToTheHand) && agent.HandAsk != HandAsk.None)
+            {
+                return "for you: " + HandAskWords.Doing(agent.HandAsk) +
+                       (agent.Straining ? " (straining)" : agent.CommittedToTheHand ? " (keeping at it)" : "");
+            }
+
             if (agent.FearState == AgentFearState.Calm)
             {
                 return "calm";
@@ -559,6 +546,8 @@ namespace Paniq.Presentation
                 case AgentActivityState.StandingUp: return "getting up";
                 case AgentActivityState.GoingToAlarm: return "going for the alarm";
                 case AgentActivityState.PullingAlarm: return "hitting the alarm";
+                case AgentActivityState.HeavingForTheHand: return "heaving a box for you";
+                case AgentActivityState.AnsweringTheHand: return "answering your hand";
                 case AgentActivityState.Fleeing: return "running";
                 default: return agent.ActivityState.ToString().ToLowerInvariant();
             }

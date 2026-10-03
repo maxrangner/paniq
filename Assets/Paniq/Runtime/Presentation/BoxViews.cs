@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Paniq.Simulation;
 using UnityEngine;
 using static Paniq.Presentation.PresentationUtility;
@@ -147,6 +147,19 @@ namespace Paniq.Presentation
                     height = size * 0.7f;
                     colour = new Color(0.42f, 0.30f, 0.45f);
                     Part("Bag", PrimitiveType.Sphere, Vector3.up * (height * 0.5f), new Vector3(size, height, size * 0.75f));
+                    break;
+
+                case PhysicsObjectKind.Keycard:
+                    // A flat bright card with a dark stripe, unmistakable on a
+                    // desk and held up on whoever pockets it (2026-09-27).
+                    // Drawn larger than it is, so it reads from across the
+                    // floor (2026-10-02, the owner: the card was hard to see
+                    // at the usual zoom).
+                    height = 0.02f;
+                    colour = new Color(1f, 0.85f, 0.1f);
+                    float card = size * KeycardDrawnLarger;
+                    Part("Card", PrimitiveType.Cube, Vector3.up * 0.01f, new Vector3(card, 0.02f, card * 0.65f));
+                    Part("Stripe", PrimitiveType.Cube, new Vector3(0f, 0.022f, card * 0.2f), new Vector3(card, 0.004f, card * 0.12f));
                     break;
 
                 case PhysicsObjectKind.Microwave:
@@ -455,7 +468,24 @@ namespace Paniq.Presentation
         /// <summary>Where the simulation lets go of a carried thing, in metres; it is drawn there while held.</summary>
         private const float HandHeight = 1f;
 
-        public void Update(RunSnapshot snapshot, RunSnapshot previousSnapshot, float blend, float time)
+        /// <summary>How much larger than the simulation's card the keycard is drawn (2026-10-02): the simulation's card is still the small one.</summary>
+        private const float KeycardDrawnLarger = 1.7f;
+
+        /// <summary>
+        /// Where a pocketed keycard is worn, in its carrier's drawn body
+        /// (a capsule one unit to the half metre, facing +Z): just clear of
+        /// the right hip, a little under the middle.
+        /// </summary>
+        private static readonly Vector3 KeycardOnTheHip = new Vector3(0.64f, -0.1f, 0f);
+
+        /// <summary>
+        /// How it hangs there: its long edge along the way they face, its
+        /// face turned out from the hip and tipped up toward a high camera.
+        /// </summary>
+        private static readonly Quaternion KeycardWorn = Quaternion.Euler(0f, 0f, -55f) * Quaternion.Euler(0f, 90f, 0f);
+
+        public void Update(RunSnapshot snapshot, RunSnapshot previousSnapshot, float blend, float time,
+            AgentViews people = null)
         {
             for (int i = 0; i < snapshot.PhysicsObjects.Count; i++)
             {
@@ -492,12 +522,33 @@ namespace Paniq.Presentation
                 // pose for a carried thing (it rides with its carrier), so it
                 // is drawn in their hands, upright and facing their way.
                 view.Lift = Mathf.MoveTowards(view.Lift, box.IsHeld ? 1f : 0f, delta * 4f);
+
+                // A loose thing is drawn where the engine has it, tumble and
+                // all (the fallen tower's boxes included, since 2026-09-27);
+                // a carried or placed one, which the simulation keeps no pose
+                // for, is drawn flat at its heading.
+                Vector3 wasAt = ToUnityPosition(previous.Position);
+                Vector3 isAt = ToUnityPosition(box.Position);
                 if (!box.Pose.IsKnown)
                 {
-                    Vector3 planar = Vector3.Lerp(ToUnityPosition(previous.Position), ToUnityPosition(box.Position), blend);
+                    Vector3 planar = Vector3.Lerp(wasAt, isAt, blend);
                     float yaw = Mathf.LerpAngle(previous.HeadingDegrees, box.HeadingDegrees, blend);
-                    view.Transform.SetPositionAndRotation(planar + Vector3.up * (view.Lift * HandHeight),
-                        Quaternion.Euler(0f, yaw, 0f));
+                    if (view.Kind == PhysicsObjectKind.Keycard && box.IsHeld && people != null &&
+                        people.TryGetBody(box.HeldBy, out Transform body))
+                    {
+                        // The keycard is worn, not carried (2026-10-02): on
+                        // its holder's right hip, moving with their drawn body
+                        // through a lean, a seat and a fall, so "who has the
+                        // card" reads from the body itself.
+                        view.Transform.SetPositionAndRotation(
+                            Vector3.Lerp(planar, body.TransformPoint(KeycardOnTheHip), view.Lift),
+                            Quaternion.Slerp(Quaternion.Euler(0f, yaw, 0f), body.rotation * KeycardWorn, view.Lift));
+                    }
+                    else
+                    {
+                        view.Transform.SetPositionAndRotation(planar + Vector3.up * (view.Lift * HandHeight),
+                            Quaternion.Euler(0f, yaw, 0f));
+                    }
                 }
                 else
                 {
@@ -507,6 +558,7 @@ namespace Paniq.Presentation
                         Vector3.Lerp(PoseOrigin(from), PoseOrigin(to), blend),
                         Quaternion.Slerp(PoseRotation(from), PoseRotation(to), blend));
                 }
+
 
                 ShowFire(view, box.BurnState, box.HeatPercent, time);
 

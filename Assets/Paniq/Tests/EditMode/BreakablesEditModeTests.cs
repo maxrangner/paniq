@@ -73,6 +73,7 @@ namespace Paniq.Tests.EditMode
                     AgentTraitValues.AllOrdinary)
             };
             data.PhysicsObjects = new PhysicsObjectDefinition[0];
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Tables = new TableDefinition[0];
             data.Alarms = new AlarmDefinition[0];
             data.Fire.ActivationTick = int.MaxValue;
@@ -97,6 +98,7 @@ namespace Paniq.Tests.EditMode
                 new PhysicsObjectDefinition(TheChair, PhysicsObjectKind.Chair, new LogicalPosition(2000, 0), 450, 5000),
                 new PhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box, new LogicalPosition(-1000, 0), 500, 20000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             var simulation = new Run(data);
             int box = IndexOf(simulation, TheBox);
             int chair = IndexOf(simulation, TheChair);
@@ -126,6 +128,7 @@ namespace Paniq.Tests.EditMode
                 new PhysicsObjectDefinition(TheChair, PhysicsObjectKind.Chair, new LogicalPosition(2000, 0), 450, 5000),
                 new PhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box, new LogicalPosition(1000, 0), 500, 3000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             var simulation = new Run(data);
             simulation.LaunchObjectForTests(IndexOf(simulation, TheBox), 12, 0);
             for (int t = 0; t < 4 * Run.TicksPerSecond; t++)
@@ -154,6 +157,7 @@ namespace Paniq.Tests.EditMode
             {
                 new PhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box, new LogicalPosition(-1000, 0), 500, 20000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             var simulation = new Run(data);
             LogicalPosition before = simulation.GetTable(0).Bounds.Centre;
 
@@ -180,6 +184,7 @@ namespace Paniq.Tests.EditMode
                 new PhysicsObjectDefinition(TheMicrowave, PhysicsObjectKind.Microwave, new LogicalPosition(0, 0), 450, 14000),
                 new PhysicsObjectDefinition(TheBox, PhysicsObjectKind.Box, new LogicalPosition(1400, 0), 400, 4000)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
             data.Agents = new[]
             {
                 new AgentDefinition(Bystander, new LogicalPosition(0, 1300), CardinalDirection.North,
@@ -209,6 +214,7 @@ namespace Paniq.Tests.EditMode
             {
                 new PhysicsObjectDefinition(TheLaptop, PhysicsObjectKind.Laptop, new LogicalPosition(0, 0), 300, 1500)
             };
+            data.Keycard.Enabled = false; // a building of its own, with no keycard in it (2026-09-27)
 
             var simulation = new Run(data);
             for (int t = 0; t < 30 * Run.TicksPerSecond &&

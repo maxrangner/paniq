@@ -9,6 +9,7 @@ namespace Paniq.Tests.EditMode
     /// <summary>Hard knocks: being knocked out cold, and strong people breaking locked doors down.</summary>
     public sealed class HardKnocksEditModeTests
     {
+
         private static readonly SimulationId OfficeWayOut = new SimulationId(2001UL);
 
         private ScenarioAsset scenario;
@@ -101,6 +102,16 @@ namespace Paniq.Tests.EditMode
             data.Fire.ActivationTick = int.MaxValue;
             data.Falls.PassOutChancePercent = 100;
             data.Falls.PassOutMaximumPercent = 100;
+
+            // Standing still, so that where the box meets them does not turn
+            // on which way a calm stroll happened to take them that day; and
+            // no tripping, so the one knock-down in this run is the box's.
+            // (The hit frightens them, and once they are up they run for a
+            // way out; on the day the fire moved to the meeting room, the
+            // seed's later draws moved with it and they tripped on the way.)
+            data.Calm.DecisionMinimumTicks = 100000;
+            data.Calm.DecisionMaximumTicks = 100000;
+            data.Falls.TripChancePercent = 0;
             var simulation = new Run(data);
             simulation.LaunchObjectForTests(0, 110, 0);
 
@@ -156,7 +167,10 @@ namespace Paniq.Tests.EditMode
         public void PanickedCrowds_SometimesKnockSomeoneOut()
         {
             int knockouts = 0;
-            for (ulong seed = 40UL; seed <= 46UL; seed++)
+            // Stops at the first seed in which somebody is knocked out
+            // (2026-10-01): the question is whether it ever happens, and a
+            // whole-building minute costs two and a half seconds a seed.
+            for (ulong seed = 40UL; seed <= 46UL && knockouts == 0; seed++)
             {
                 var simulation = new Run(DefaultData(), seed);
                 for (int t = 0; t < 60 * Run.TicksPerSecond; t++)

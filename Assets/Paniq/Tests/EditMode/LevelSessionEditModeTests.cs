@@ -17,6 +17,7 @@ namespace Paniq.Tests.EditMode
         public void SetUp()
         {
             LevelSession.ClearRequestedSeed();
+            LevelSession.RequestLevel(null);
             LevelSession.ForgetBest(TestLevel);
             LevelSession.ForgetBest(OtherLevel);
         }
@@ -25,9 +26,81 @@ namespace Paniq.Tests.EditMode
         public void TearDown()
         {
             LevelSession.ClearRequestedSeed();
+            LevelSession.RequestLevel(null);
             LevelSession.ForgetBest(TestLevel);
             LevelSession.ForgetBest(OtherLevel);
             PlayerPrefs.Save();
+        }
+
+        // ------------------------------------------------------------ the level row (2026-10-01)
+
+        private static LevelDefinition LevelAsset(string file)
+        {
+            string path = "Assets/Paniq/Content/Levels/" + file + ".asset";
+            var level = UnityEditor.AssetDatabase.LoadAssetAtPath<LevelDefinition>(path);
+            Assert.That(level, Is.Not.Null, $"Missing {path}.");
+            return level;
+        }
+
+        [Test]
+        public void TheLevelAskedFor_IsChosen_WhenTheCatalogueHasIt()
+        {
+            LevelDefinition office = LevelAsset("TheOffice");
+            LevelDefinition maze = LevelAsset("Maze");
+            Assert.That(maze.LevelId, Is.Not.EqualTo(office.LevelId), "Two levels, two ids.");
+            LevelSession.RequestLevel(maze.LevelId);
+            Assert.That(LevelSession.Choose(office, new[] { office, maze }), Is.SameAs(maze));
+        }
+
+        [Test]
+        public void AnUnknownLevelId_FallsBackToTheWiredLevel()
+        {
+            // A level asset renamed since the id was remembered: the scene
+            // still plays rather than failing to build a run.
+            LevelDefinition office = LevelAsset("TheOffice");
+            LevelSession.RequestLevel("a-level-nobody-has");
+            Assert.That(LevelSession.Choose(office, new[] { office, LevelAsset("Maze") }), Is.SameAs(office));
+        }
+
+        [Test]
+        public void WithNoLevelAskedFor_TheWiredLevelIsChosen()
+        {
+            LevelDefinition office = LevelAsset("TheOffice");
+            Assert.That(LevelSession.RequestedLevelId, Is.Null);
+            Assert.That(LevelSession.Choose(office, new[] { office, LevelAsset("Maze") }), Is.SameAs(office));
+            Assert.That(LevelSession.Choose(office, null), Is.SameAs(office), "No catalogue at all is the wired level too.");
+        }
+
+        [Test]
+        public void ResetAndPlayAgain_KeepTheLevel_ButNotTheSeed()
+        {
+            // Whoever picked the maze wants the maze again; the seed is
+            // cleared with the rest.
+            LevelSession.RequestLevel("maze");
+            LevelSession.RequestSeed(99UL);
+            LevelSession.ClearRequestedSeed();
+            Assert.That(LevelSession.RequestedSeed, Is.Null);
+            Assert.That(LevelSession.RequestedLevelId, Is.EqualTo("maze"));
+            LevelSession.RequestLevel("");
+            Assert.That(LevelSession.RequestedLevelId, Is.Null, "An empty id goes back to the scene's own level.");
+        }
+
+        /// <summary>
+        /// A new level has a purse unless it is switched off on purpose, as the
+        /// office's is. The switch used to default to off, so any new level
+        /// asset would have played with everything free.
+        /// </summary>
+        [Test]
+        public void ANewLevel_HasAPurse()
+        {
+            LevelDefinition level = LevelDefinition.CreateDefault();
+            try
+            {
+            }
+            finally
+            {
+                Object.DestroyImmediate(level);
+            }
         }
 
         [Test]

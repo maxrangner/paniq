@@ -1,4 +1,5 @@
-﻿using Paniq.Simulation;
+﻿using System.Collections.Generic;
+using Paniq.Simulation;
 using UnityEngine;
 
 namespace Paniq.Gameplay
@@ -21,6 +22,12 @@ namespace Paniq.Gameplay
 
         [Tooltip("Ignored when a level is assigned above. The building on its own, for a scene that has no level yet.")]
         [SerializeField] private ScenarioAsset scenario;
+
+        [Tooltip("Every level the start card offers (2026-10-01). The level above is always offered first, whether or not it is listed here.")]
+        [SerializeField] private LevelDefinition[] levels;
+
+        /// <summary>The level this run was built in: the one asked for on the start card, or the one wired above.</summary>
+        private LevelDefinition chosen;
 
         [Tooltip("Play with this physics feel instead of the scenario's own. Leave empty for the scenario's values.")]
         [SerializeField] private PhysicsFeelPreset physicsFeel;
@@ -50,33 +57,10 @@ namespace Paniq.Gameplay
             {
                 if (simulation == null)
                 {
-                    ScenarioData data;
-                    if (level != null)
-                    {
-                        data = level.ToRuntimeData();
-                    }
-                    else
-                    {
-                        // No level assigned: the building on its own, played by
-                        // the same rules a level would impose, so the scene is
-                        // playable without any setup step.
-                        if (scenario == null)
-                        {
-                            scenario = ScenarioAsset.CreateDefault();
-                        }
-
-                        data = scenario.ToRuntimeData();
-                        data.Round.HazardWaitsForTrigger = true;
-                    }
-
-                    if (EffectiveFeel() != null && FeelIsUsable())
-                    {
-                        data.PhysicsFeel = EffectiveFeel().Feel.Clone();
-                    }
-
                     // The seed is settled here, before tick zero, and recorded
                     // so the player can ask for the same one again.
-                    simulation = new Run(data, LevelSession.TakeSeedFor(level));
+                    chosen = LevelSession.Choose(level, levels);
+                    simulation = new Run(BuildScenarioData(), LevelSession.TakeSeedFor(chosen));
                     Seed = LevelSession.CurrentSeed;
 
                     // "Play again" means the player has already chosen; only a
@@ -88,6 +72,70 @@ namespace Paniq.Gameplay
                 return simulation;
             }
         }
+
+        /// <summary>
+        /// The building and rules a run is built from: the level's, or the
+        /// scenario's own played by a level's rules, with the physics feel
+        /// written over it. The same data builds the round the player plays
+        /// and the one played with nobody at the controls (see
+        /// <see cref="LeftAloneRunner"/>), so the two differ only in the clicks.
+        /// </summary>
+        private ScenarioData BuildScenarioData()
+        {
+            ScenarioData data;
+            if (Level != null)
+            {
+                data = Level.ToRuntimeData();
+            }
+            else
+            {
+                // No level assigned: the building on its own, played by
+                // the same rules a level would impose, so the scene is
+                // playable without any setup step.
+                if (scenario == null)
+                {
+                    scenario = ScenarioAsset.CreateDefault();
+                }
+
+                data = scenario.ToRuntimeData();
+                data.Round.HazardWaitsForTrigger = true;
+            }
+
+            if (EffectiveFeel() != null && FeelIsUsable())
+            {
+                data.PhysicsFeel = EffectiveFeel().Feel.Clone();
+            }
+
+            return data;
+        }
+
+        /// <summary>
+        /// The same seed played without the player's help, for the end card's
+        /// "left alone" line (2026-09-27). Built with the scene, while the
+        /// scene is loading anyway, so its start costs no frame of play; kept
+        /// in step with the real round until the disaster starts, then run
+        /// ahead. Never on a run being tuned live, which no replay could match.
+        /// </summary>
+        private LeftAloneRunner leftAlone;
+
+        /// <summary>At most this many ticks of the hands-off round a fixed step: twenty times as fast as the real one.</summary>
+        private const int LeftAloneTicksPerStep = 20;
+
+        /// <summary>
+        /// And never more than this much work a fixed step, in milliseconds,
+        /// however cheap or dear a tick is: a busy building takes longer to
+        /// work out, it does not make the frame stutter.
+        /// </summary>
+        private const double LeftAloneMillisecondsPerStep = 3.0;
+
+        /// <summary>How many would have lived with nobody at the controls, once known.</summary>
+        public int? LeftAloneSavedCount => leftAlone?.SavedCount;
+
+        /// <summary>How it ended for each person in the hands-off round, in the scenario's order, once known.</summary>
+        public System.Collections.Generic.IReadOnlyList<AgentTerminalOutcome> LeftAloneOutcomes => leftAlone?.Outcomes;
+
+        /// <summary>The hands-off round exists and has not finished yet.</summary>
+        public bool LeftAloneStillWorking => leftAlone != null && !leftAlone.IsDone;
 
         /// <summary>State after the latest tick, filled at most once per tick.</summary>
         public RunSnapshot Snapshot => current ??= FillSpareSnapshot();
@@ -128,7 +176,45 @@ namespace Paniq.Gameplay
         public string PhysicsFeelName => EffectiveFeel() != null ? EffectiveFeel().name : null;
 
         /// <summary>The level being played. Never null once the run exists.</summary>
-        public LevelDefinition Level => level;
+        public LevelDefinition Level => chosen != null ? chosen : level;
+
+        /// <summary>
+        /// Every level the start card offers, the wired one first and no
+        /// level twice; an empty slot in the list is skipped. Gathered once:
+        /// the start card asks every frame.
+        /// </summary>
+        public IReadOnlyList<LevelDefinition> Levels
+        {
+            get
+            {
+                if (offeredLevels != null)
+                {
+                    return offeredLevels;
+                }
+
+                var offered = new List<LevelDefinition>();
+                if (level != null)
+                {
+                    offered.Add(level);
+                }
+
+                if (levels != null)
+                {
+                    foreach (LevelDefinition candidate in levels)
+                    {
+                        if (candidate != null && !offered.Contains(candidate))
+                        {
+                            offered.Add(candidate);
+                        }
+                    }
+                }
+
+                offeredLevels = offered;
+                return offered;
+            }
+        }
+
+        private List<LevelDefinition> offeredLevels;
 
         /// <summary>The seed this run was built from.</summary>
         public ulong Seed { get; private set; }
@@ -186,9 +272,9 @@ namespace Paniq.Gameplay
         /// <summary>The level's physics feel, or the one set directly on this component.</summary>
         private PhysicsFeelPreset EffectiveFeel()
         {
-            if (level != null && level.PhysicsFeel != null)
+            if (Level != null && Level.PhysicsFeel != null)
             {
-                return level.PhysicsFeel;
+                return Level.PhysicsFeel;
             }
 
             return physicsFeel;
@@ -197,6 +283,19 @@ namespace Paniq.Gameplay
         private void Awake()
         {
             _ = Simulation;
+
+            // The hands-off copy is built now, with the scene: a whole second
+            // run, which would be a hitch on the first frame of play.
+            // Not on a level whose trigger sets nothing off (2026-10-01):
+            // with no disaster to leave alone, the comparison is empty. Nor
+            // on a level with the crowd switch (2026-10-02): the switch is
+            // not mirrored into the copy, so a crowd the player panicked
+            // would be judged against one left calm.
+            if (!(Application.isEditor && livePhysicsTuning) &&
+                (Level == null || (Level.TriggerStartsAHazard && !Level.OffersCrowdSwitch)))
+            {
+                leftAlone = new LeftAloneRunner(BuildScenarioData(), Seed);
+            }
 
             // A previous run may have left the clock stopped, and a reloaded
             // scene inherits it.
@@ -208,12 +307,39 @@ namespace Paniq.Gameplay
         {
             // Behind the start card, paused, or finished: in all three the
             // scene stands still and can be looked at, and no tick happens.
-            if (!IsTicking)
+            if (IsTicking)
+            {
+                Advance();
+            }
+
+            AdvanceLeftAlone();
+        }
+
+        /// <summary>
+        /// The hands-off round's share of a fixed step. Until the disaster has
+        /// started in the real round it goes no further than the real round
+        /// has, so the player's Trigger event can still be copied onto the
+        /// same tick; after that it runs ahead, a budgeted handful of ticks
+        /// a fixed step. While the game is paused no fixed step comes (the
+        /// clock is stopped), so it waits with the round.
+        /// </summary>
+        private void AdvanceLeftAlone()
+        {
+            if (leftAlone == null)
             {
                 return;
             }
 
-            Advance();
+            if (IsLiveTuned)
+            {
+                leftAlone.Dispose();
+                leftAlone = null;
+                return;
+            }
+
+            int noFurtherThan = Simulation.Phase == RoundPhase.BeforeEvent ? Simulation.Tick : int.MaxValue;
+            long budget = (long)(LeftAloneMillisecondsPerStep * System.Diagnostics.Stopwatch.Frequency / 1000.0);
+            leftAlone.Advance(LeftAloneTicksPerStep, noFurtherThan, budget);
         }
 
         private void OnDestroy()
@@ -225,6 +351,8 @@ namespace Paniq.Gameplay
             // The run keeps a physics scene of its own; let it go with the runner.
             simulation?.Dispose();
             simulation = null;
+            leftAlone?.Dispose();
+            leftAlone = null;
         }
 
         /// <summary>
@@ -265,21 +393,131 @@ namespace Paniq.Gameplay
             return false;
         }
 
-        public void QueueDoorClick(SimulationId doorId)
+        /// <summary>
+        /// Every player command goes through here (2026-10-03, the audit's
+        /// E8): queued for the next tick that has not started, and, when it
+        /// changes the day rather than helps in it, mirrored into the
+        /// hands-off round on the same tick, so "left alone" is always the
+        /// same day without the player's help. Before, each button decided
+        /// for itself whether to tell the hands-off round, and one that forgot
+        /// compared the player against a different day.
+        /// </summary>
+        private void Queue(PlayerCommandType type, SimulationId target, LogicalPosition point = default)
         {
-            Simulation.QueueCommand(PlayerCommandType.ClickDoor, doorId, Simulation.Tick + 1);
+            int tick = Simulation.Tick + 1;
+            if (ChangesTheDay(type) && Simulation.Phase == RoundPhase.BeforeEvent)
+            {
+                leftAlone?.Mirror(type, tick);
+            }
+
+            Simulation.QueueCommand(type, target, point, tick);
         }
 
-        /// <summary>The player turning a door's key (a double click), queued for the next tick that has not started.</summary>
-        public void QueueLockToggle(SimulationId doorId)
+        private void Queue(PlayerCommandType type, LogicalPosition point) => Queue(type, default, point);
+
+        /// <summary>
+        /// Whether a command is part of the day rather than the player's help:
+        /// when the disaster starts, and the test levels' crowd switch. Every
+        /// other command is help, and the hands-off round never sees it.
+        /// </summary>
+        public static bool ChangesTheDay(PlayerCommandType type) =>
+            type == PlayerCommandType.TriggerEvent || type == PlayerCommandType.SetCrowdPanicked ||
+            type == PlayerCommandType.SetCrowdCalm;
+
+        public void QueueDoorClick(SimulationId doorId)
         {
-            Simulation.QueueCommand(PlayerCommandType.ToggleLock, doorId, Simulation.Tick + 1);
+            Queue(PlayerCommandType.ClickDoor, doorId);
+        }
+
+        /// <summary>The player nudging somebody (prototype 3), queued for the next tick that has not started.</summary>
+        public void QueueNudge(SimulationId personId)
+        {
+            Queue(PlayerCommandType.NudgePerson, personId);
+        }
+
+        /// <summary>The player nudging somebody from a point on the floor: they step away from it (2026-09-26).</summary>
+        public void QueueNudge(SimulationId personId, LogicalPosition from)
+        {
+            Queue(PlayerCommandType.NudgePersonFrom, personId, from);
+        }
+
+        /// <summary>
+        /// The player's hand going on a door (2026-09-26; a hold since
+        /// 2026-09-29), queued for the next tick that has not started.
+        /// <paramref name="repels"/>: the right button's hand, which pushes
+        /// people away (2026-09-30).
+        /// </summary>
+        public void QueueInfluenceDoor(SimulationId doorId, bool repels = false)
+        {
+            Queue(repels ? PlayerCommandType.RepelDoor : PlayerCommandType.InfluenceDoor, doorId);
+        }
+
+        /// <summary>The player's hand going on a thing.</summary>
+        public void QueueInfluenceThing(SimulationId thingId, bool repels = false)
+        {
+            Queue(repels ? PlayerCommandType.RepelThing : PlayerCommandType.InfluenceThing, thingId);
+        }
+
+        /// <summary>The player's hand going on a patch of floor, in whole millimetres.</summary>
+        public void QueueInfluenceSpot(LogicalPosition spot, bool repels = false)
+        {
+            Queue(repels ? PlayerCommandType.RepelSpot : PlayerCommandType.InfluenceSpot, spot);
+        }
+
+        /// <summary>The player's hand coming off the place it was on (2026-09-29).</summary>
+        public void QueueReleaseInfluence()
+        {
+            Queue(PlayerCommandType.ReleaseInfluence, default(SimulationId));
+        }
+
+        /// <summary>A click rather than a hold (2026-09-30): the place just pressed stays a moment, then comes off by itself.</summary>
+        public void QueueLeaveInfluence()
+        {
+            Queue(PlayerCommandType.LeaveInfluence, default(SimulationId));
+        }
+
+        /// <summary>The held hand dragged to a spot on the floor (2026-09-30), in whole millimetres.</summary>
+        public void QueueMoveInfluence(LogicalPosition spot)
+        {
+            Queue(PlayerCommandType.MoveInfluence, spot);
+        }
+
+        /// <summary>
+        /// The Tab panel's hand strength (2026-09-30), in percent: how strongly
+        /// everybody feels the hand from the next tick on. In the run, so a
+        /// replay replays it; the left-alone round has no hand to feel.
+        /// </summary>
+        public void QueueHandStrength(int percent)
+        {
+            Queue(PlayerCommandType.SetHandStrength, new LogicalPosition(percent, 0));
+        }
+
+        /// <summary>
+        /// The Tab panel's hand reach (2026-09-30), in millimetres: how far
+        /// the hand is felt from the next tick on. In the run, as the
+        /// strength is.
+        /// </summary>
+        public void QueueHandReach(int millimetres)
+        {
+            Queue(PlayerCommandType.SetHandReach, new LogicalPosition(millimetres, 0));
+        }
+
+        /// <summary>The player taking hold of somebody by the shirt (2026-09-29).</summary>
+        public void QueueTug(SimulationId personId)
+        {
+            Queue(PlayerCommandType.TugPerson, personId);
+        }
+
+        /// <summary>The player letting go of the person they had hold of (2026-09-29).</summary>
+        public void QueueReleaseTug(SimulationId personId)
+        {
+            Queue(PlayerCommandType.ReleaseTug, personId);
         }
 
         /// <summary>The player pulling a fire alarm, queued for the next tick that has not started.</summary>
         public void QueueAlarmPull(SimulationId alarmId)
         {
-            Simulation.QueueCommand(PlayerCommandType.PullAlarm, alarmId, Simulation.Tick + 1);
+            Queue(PlayerCommandType.PullAlarm, alarmId);
         }
 
         /// <summary>
@@ -288,22 +526,23 @@ namespace Paniq.Gameplay
         /// </summary>
         public void QueueTriggerEvent()
         {
-            Simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), Simulation.Tick + 1);
+            Queue(PlayerCommandType.TriggerEvent, default(SimulationId));
         }
 
         /// <summary>
-        /// A card played on somebody, queued for the next tick that has not
-        /// started.
+        /// The crowd switch flicked to "panicked" (2026-10-01), queued for the
+        /// next tick that has not started. A level with the switch has no
+        /// hands-off round, but <see cref="Queue"/> would mirror it if it had.
         /// </summary>
-        public void QueueCard(PlayerCommandType card, SimulationId personId)
+        public void QueueCrowdPanicked()
         {
-            Simulation.QueueCommand(card, personId, Simulation.Tick + 1);
+            Queue(PlayerCommandType.SetCrowdPanicked, default(SimulationId));
         }
 
-        /// <summary>A card played on a place, in whole millimetres.</summary>
-        public void QueueCard(PlayerCommandType card, LogicalPosition spot)
+        /// <summary>The crowd switch flicked to "calm" (2026-10-01), queued for the next tick that has not started.</summary>
+        public void QueueCrowdCalm()
         {
-            Simulation.QueueCommand(card, spot, Simulation.Tick + 1);
+            Queue(PlayerCommandType.SetCrowdCalm, default(SimulationId));
         }
 
         public void StepForTests()

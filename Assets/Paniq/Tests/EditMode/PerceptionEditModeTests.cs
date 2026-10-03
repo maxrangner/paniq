@@ -43,7 +43,6 @@ namespace Paniq.Tests.EditMode
             data.Tables = new TableDefinition[0];
             data.Alarms = new AlarmDefinition[0];
             data.Timetable = new ScheduledCue[0];
-            data.Day.ToiletEveryTicks = 0;
             data.Fire.ActivationTick = 3;
             data.Fire.SpreadMinimumTicks = 100000;
             data.Fire.SpreadMaximumTicks = 100000;

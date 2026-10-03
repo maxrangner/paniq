@@ -1,5 +1,20 @@
 # Game vision
 
+> **Changed on 2026-10-03 (level mode), not yet rewritten below.** Deleted:
+> the cards, the purse, the deck and "stick together". Set aside everywhere:
+> going back for the keycard in a fright, the cruel wedging doors and locking
+> the way out, toilet trips of their own accord, the brave fighting the fire
+> unasked, and leaders sending anybody at it. Everybody's rules now (they were
+> the loop level's): choices about the heat stick, dead ends count against a
+> hiding place, a held door is walked through, the hand let go strands nobody,
+> 6 % freeze for good, one click wakes the frozen, no fire through walls, each
+> person throws their own dice. How people choose is one chooser for calm and
+> frightened alike. Where this page says otherwise, the decisions page
+> ([technical-decisions.md](technical-decisions.md), *Level mode*) is right;
+> the page is rewritten in the hardening pass.
+>
+> On this page: the cards are gone from the game, not only from the office.
+
 ## Decided: core premise
 
 Paniq is a darkly comedic, real-time crowd-survival game inspired by the
@@ -9,8 +24,9 @@ The scored result is the percentage of the crowd saved.
 
 The player never selects a person and orders them to walk or perform a task.
 They change **what a person is capable of** — how strong, how brave, how
-frightened they are — and that person's own decision-making does the rest,
-including the parts the player did not want.
+frightened they are — and **draw people toward places** with influence, and
+each person's own decision-making does the rest, including the parts the
+player did not want.
 
 Death is a central failure outcome. It is presented as exaggerated, dark comic
 consequence rather than as realistic disaster drama.
@@ -94,10 +110,31 @@ Particular fictions are content; the four families are architecture.
 
 ## Decided: how the player acts
 
-**Capability, never direction.** The player cannot tell anyone where to go, and
-there is no rally point, no marker to walk to, no order to obey. What the
-player does is turn a person's traits up or down, and then watch what that
-person decides to do about it.
+**Suggest, never command** (the owner, 2026-09-26; it was "capability, never
+direction"). The player cannot order anyone anywhere, and there is no rally
+point anybody must walk to. What the player does is change what people are
+like -- turn a trait up or down -- and put a **hand** on places: hold the
+button down on a door, a thing or a patch of floor, and people nearby are
+drawn toward it for as long as the hand stays, each by as much as their
+character lets them. The nervous and strangers follow readily, leaders and
+the cruel mostly ignore it, and nobody follows it into fire. Let go, and they
+are on their own. Then the player watches what people decide to do about it.
+
+**One hand** (the owner, 2026-09-29). Influence is a hold, not clicks, and
+there is one hand: one place or one person at a time. "It also makes all
+decisions a priority. You can't be everywhere at once. When you interact the
+influence is clear and instant, but as soon as you let go the agents are on
+their own." The one stated exception to *suggest, never command* is the hand
+on a **person**: a tug on their shirt that slows them to a stop and holds
+them there, "so you can save someone running into fire". Even that is not a
+command the crowd cannot answer: the strong tear free, sooner the stronger.
+
+**The loop in one sentence.** The building throws problems at the crowd, in
+the open; the player answers them one at a time with a hand, pulling people
+toward a place or holding one person back; every person weighs it by their
+personality; and the round is judged against the same seed left alone. The
+first version of the push and the pull is prototype 3's second batch, and of
+the hand its sixth (see the [roadmap](roadmap.md)).
 
 Every trait is both a tool and a joke, because the crowd's own rules supply the
 consequence:
@@ -120,7 +157,7 @@ blowing a hole in a wall, starting a fire, putting an item down. These are
 deliberately expensive, in the way that the most powerful weapon in *Worms* is
 rarely the right answer. They are where mischief lives.
 
-**Cards may break the capability rule**, rarely and at a price. A rule that is
+**Cards may break the suggest-never-command rule**, rarely and at a price. A rule that is
 never broken is a constraint; a rule broken twice in a level is drama.
 
 ## Decided: people can fight back, and there is combat
@@ -168,6 +205,13 @@ an important one — it is how a player learns where to look next time.
   is a legitimate way to live through a disaster, not an exploit.
 - The score is the **percentage saved**, shown during the run and on the end
   screen.
+- **The round is judged against the building** (the owner, 2026-09-29). The
+  same seed is played again in the background with nobody at the controls,
+  and the end card says the margin: "Left alone, 4 would have lived. You made
+  the difference for 5." That number, not the fixed bar, is what a round asks
+  of you; a kind seed and a cruel seed are both fair, because each is judged
+  against itself. The par shows on the strip during the round once the
+  background round has its answer.
 
 ## Decided: how a run is paced — the Director
 
@@ -177,6 +221,15 @@ a wave at the player). Too calm, and something else goes wrong in a far wing.
 A massacre, and the pressure lets up.
 
 The Director is **reactive**: it responds to how the run is actually going.
+Its first form (prototype 3, 2026-09-26) was a **ladder of small incidents**: a
+waste bin catches; put it out and, a while later, a socket crackles and pops in
+the busiest calm room; put that out and the fuse box goes and takes every
+socket with it. Since 2026-10-02 the ladder is the bin alone (doused too
+soon, another bin), and the socket and the fuse box are the building's
+counter-move only: they go when the way out is open and more are getting out
+than the building allows. A fire that gets out of the room it started in is
+the real fire, and the Director stops adding to it. If everybody simply runs
+out, that is fine too.
 
 The accepted consequence is that two attempts at the same level are **not
 directly comparable**, because the player's own competence changed what the
@@ -234,7 +287,7 @@ stays a real-time panic rather than becoming turn-based.
 
 ## Design pillars
 
-1. **Indirect control:** change what people are capable of, never where they go.
+1. **Indirect control:** change what people are capable of, and suggest where they go; never command it.
 2. **Autonomous crowd:** the crowd reacts to hazards, the environment, and each
    other; it is not a collection of identical particles. A reaction is a
    feeling about a situation -- fear today; anger, trust and curiosity as they
@@ -265,7 +318,7 @@ treated as settled.
   deliberately: it hurts the percentage and buys options, so it is a hard
   choice rather than a free lunch. What is now unproven is the *wait* at the
   start of a round — see the measurement in
-  [technical decisions](technical-decisions.md).
+  [technical decisions](history/decisions-prototype-2.md#prototype-2-decision-the-dead-deal-the-uproar-pays).
 - **The cascade curve.** Contagion tends to either fizzle out or run away, and
   the interesting middle is narrow. The Director is the intended cure and is
   unproven.
@@ -286,7 +339,7 @@ treated as settled.
   and the way one is made in the [model pipeline](model-pipeline.md).
 - Which feelings beyond fear arrive first, and with which danger or card.
   (Crowd size and level size are decided above: large. Influence numbers and
-  the card list are settled for now in [technical decisions](technical-decisions.md).)
+  the card list are settled for now in [technical decisions](history/decisions-prototype-2.md#prototype-2-decision-three-cards-thirty-to-start-and-the-alarm-2026-09-24).)
 - Relationships between people, and which information is hidden from the player.
 
 Locations and situations will vary; no single narrative setting is committed.

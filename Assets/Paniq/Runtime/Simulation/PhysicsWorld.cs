@@ -51,12 +51,13 @@ namespace Paniq.Simulation
         private const int SolverVelocityIterations = 4;
 
         /// <summary>
-        /// Walls stand on the wall line, half their thickness on each side, so
-        /// they eat this much less than half into each room. Thin, so the rooms
-        /// keep the size they were drawn at; the engine's look-ahead for fast
-        /// bodies stops anything passing through.
+        /// Walls stand on the wall line, half their thickness on each side
+        /// (<see cref="WorldSettings.WallThicknessMillimetres"/>, 2026-09-30:
+        /// the same number the display draws and the map measures by; the
+        /// engine's used to be 40 mm against 400 drawn). The engine's
+        /// look-ahead for fast bodies stops anything passing through.
         /// </summary>
-        private const int WallThicknessMillimetres = 40;
+        private readonly int wallThicknessMillimetres;
         private const int OutsideMarginMillimetres = 8000;
 
         internal enum StaticKind
@@ -157,6 +158,9 @@ namespace Paniq.Simulation
             public bool Solid = true;
             public bool Kinematic;
             public Reading Reading;
+
+            /// <summary>A person's column, rather than a loose thing.</summary>
+            public bool IsPerson;
         }
 
         private readonly Scene scene;
@@ -216,8 +220,10 @@ namespace Paniq.Simulation
         }
 #endif
 
-        public PhysicsWorld(PhysicsFeelSettings feel, LogicalBounds building, int wallRestitutionPercent)
+        public PhysicsWorld(PhysicsFeelSettings feel, LogicalBounds building, int wallRestitutionPercent,
+            int wallThicknessMillimetres)
         {
+            this.wallThicknessMillimetres = wallThicknessMillimetres;
             if (!Application.isPlaying && Live.Count >= MostWorldsOpenInTheEditor)
             {
                 Live[0].Dispose();
@@ -370,7 +376,7 @@ namespace Paniq.Simulation
 
             walls.Clear();
             float height = MetresFromMillimetres(feel.WallHeightMillimetres);
-            float thick = MetresFromMillimetres(WallThicknessMillimetres);
+            float thick = MetresFromMillimetres(wallThicknessMillimetres);
             for (int i = 0; i < stretches.Count; i++)
             {
                 NavigationGrid.Wall stretch = stretches[i];
@@ -380,11 +386,12 @@ namespace Paniq.Simulation
                 float toZ = MetresFromMillimetres(stretch.To.Z);
                 bool alongX = stretch.From.Z == stretch.To.Z;
 
-                // Each piece runs half a thickness past its ends, so two
-                // pieces meeting at a corner leave no crack to slip through.
+                // Exactly the stretch it was given: the map has already run
+                // a piece past the room's corner so two walls meeting there
+                // leave no crack, and ended it square at every doorway.
                 var size = alongX
-                    ? new Vector3(Mathf.Abs(toX - fromX) + thick, height, thick)
-                    : new Vector3(thick, height, Mathf.Abs(toZ - fromZ) + thick);
+                    ? new Vector3(Mathf.Abs(toX - fromX), height, thick)
+                    : new Vector3(thick, height, Mathf.Abs(toZ - fromZ));
                 var centre = new Vector3((fromX + toX) * 0.5f, height * 0.5f, (fromZ + toZ) * 0.5f);
                 walls.Add(Solid("Wall", StaticKind.Wall, i, centre, size));
             }
@@ -400,10 +407,11 @@ namespace Paniq.Simulation
         /// same whether it stands still or not. Its origin is the middle of its
         /// underside.
         /// </summary>
-        public int AddTable(LogicalBounds bounds, int massGrams, int frictionPercent)
+        public int AddTable(LogicalBounds bounds, int massGrams, int frictionPercent, int heightMillimetres = 0,
+            bool pinned = false)
         {
             int index = tables.Count;
-            float height = MetresFromMillimetres(feel.TableHeightMillimetres);
+            float height = MetresFromMillimetres(heightMillimetres > 0 ? heightMillimetres : feel.TableHeightMillimetres);
             var size = new Vector3(
                 MetresFromMillimetres(bounds.MaxX - bounds.MinX), height,
                 MetresFromMillimetres(bounds.MaxZ - bounds.MinZ));
@@ -421,6 +429,10 @@ namespace Paniq.Simulation
             staticByCollider[box.GetInstanceID()] = (StaticKind.Table, index);
             var rigidbody = table.AddComponent<Rigidbody>();
             Configure(rigidbody, massGrams);
+
+            // A partition (2026-10-02) is held where it stands: the engine
+            // never moves it, so it never wakes and nothing shoves it.
+            rigidbody.isKinematic = pinned;
             tables.Add(table);
             tableBodies.Add(rigidbody);
             tableSizes.Add(size);
@@ -529,7 +541,7 @@ namespace Paniq.Simulation
         {
             int index = doors.Count;
             float height = MetresFromMillimetres(feel.WallHeightMillimetres);
-            float thick = MetresFromMillimetres(WallThicknessMillimetres);
+            float thick = MetresFromMillimetres(wallThicknessMillimetres);
             float span = MetresFromMillimetres(width);
             var size = alongX ? new Vector3(span, height, thick) : new Vector3(thick, height, span);
             var middle = new Vector3(MetresFromMillimetres(centre.X), height * 0.5f, MetresFromMillimetres(centre.Z));
@@ -544,10 +556,11 @@ namespace Paniq.Simulation
         private readonly List<(Vector3 Middle, Vector3 Size)> doorSpaces = new List<(Vector3, Vector3)>();
 
         /// <summary>
-        /// Whether any part of any body, a person or a loose thing, is in this
+        /// Whether any part of any body -- a person or, with
+        /// <paramref name="thingsToo"/>, a loose thing -- is in this
         /// doorway's gap, other than the one given (whoever is shutting it).
         /// </summary>
-        public bool IsAnyBodyInDoorway(int door, int ignoreHandle)
+        public bool IsAnyBodyInDoorway(int door, int ignoreHandle, bool thingsToo = true)
         {
             (Vector3 middle, Vector3 size) = doorSpaces[door];
 
@@ -557,7 +570,8 @@ namespace Paniq.Simulation
             int count = OverlapBoxAll(middle, half);
             for (int i = 0; i < count; i++)
             {
-                if (bodyByCollider.TryGetValue(overlapping[i].GetInstanceID(), out int handle) && handle != ignoreHandle)
+                if (bodyByCollider.TryGetValue(overlapping[i].GetInstanceID(), out int handle) && handle != ignoreHandle &&
+                    (thingsToo || bodies[handle].IsPerson))
                 {
                     return true;
                 }
@@ -630,7 +644,8 @@ namespace Paniq.Simulation
             {
                 Rigidbody = rigidbody,
                 Colliders = new Collider[] { column },
-                Parts = Array.Empty<ObjectShapes.Part>()
+                Parts = Array.Empty<ObjectShapes.Part>(),
+                IsPerson = true
             };
             return Register(body);
         }
@@ -753,23 +768,36 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Lays a body flat along a heading, keeping its middle where it is:
-        /// somebody being dragged by the arms trails in a line behind whoever
-        /// is pulling, rather than broadside, and so fits through a doorway.
+        /// Swings a body lying on the floor round toward lying along a
+        /// heading, at most this many degrees a tick, by turning it rather
+        /// than setting where it points (2026-10-03, the audit's E5: a free
+        /// body's rotation written every tick is what broke replays for the
+        /// rovers, and it lodged dragged bodies in walls). Lying either way
+        /// along the heading is the same: a body has no front to drag by.
         /// </summary>
-        public void LayAlong(int handle, int heading)
+        public void SwingToward(int handle, int heading, int maximumDegreesPerTick)
         {
             Rigidbody rigidbody = bodies[handle].Rigidbody;
-            Vector3 middle = rigidbody.worldCenterOfMass;
+            if (rigidbody.isKinematic)
+            {
+                return;
+            }
 
-            // Tipped forward a quarter turn, the body's length lies along the
-            // way it faces; then it is turned to face the heading.
-            Quaternion lying = Quaternion.Euler(90f, heading, 0f);
-            Vector3 origin = middle - lying * rigidbody.centerOfMass;
-            origin.y = Mathf.Max(origin.y, 0f);
-            rigidbody.position = origin;
-            rigidbody.rotation = lying;
-            rigidbody.angularVelocity = Vector3.zero;
+            Vector3 along = rigidbody.rotation * Vector3.up;
+            float yaw = Mathf.Atan2(along.x, along.z) * Mathf.Rad2Deg;
+            float delta = Mathf.DeltaAngle(yaw, heading);
+            if (delta > 90f)
+            {
+                delta -= 180f;
+            }
+            else if (delta < -90f)
+            {
+                delta += 180f;
+            }
+
+            float step = Mathf.Clamp(delta, -maximumDegreesPerTick, maximumDegreesPerTick);
+            rigidbody.angularVelocity = new Vector3(0f, step * Mathf.Deg2Rad * Run.TicksPerSecond, 0f);
+            rigidbody.WakeUp();
         }
 
         /// <summary>
@@ -832,6 +860,42 @@ namespace Paniq.Simulation
 
                 overlapping = new Collider[overlapping.Length * 2];
             }
+        }
+
+        /// <summary>
+        /// Tests and measurements: how far this body is pressed into any
+        /// wall, in millimetres, or 0 when it is clear of them. Each of its
+        /// colliders is tested against every wall its bounds touch; a thing
+        /// resting against a wall reads a few millimetres, one sunk into it
+        /// reads its depth.
+        /// </summary>
+        internal int WallPenetrationMillimetres(int handle)
+        {
+            Body body = bodies[handle];
+            float deepest = 0f;
+            foreach (Collider own in body.Colliders)
+            {
+                Bounds bounds = own.bounds;
+                int count = OverlapBoxAll(bounds.center, bounds.extents + Vector3.one * 0.05f);
+                for (int i = 0; i < count; i++)
+                {
+                    Collider wall = overlapping[i];
+                    if (!staticByCollider.TryGetValue(wall.GetInstanceID(), out (StaticKind Kind, int Index) what) ||
+                        what.Kind != StaticKind.Wall)
+                    {
+                        continue;
+                    }
+
+                    if (Physics.ComputePenetration(own, own.transform.position, own.transform.rotation,
+                            wall, wall.transform.position, wall.transform.rotation, out _, out float depth) &&
+                        depth > deepest)
+                    {
+                        deepest = depth;
+                    }
+                }
+            }
+
+            return (int)(deepest * 1000f);
         }
 
         private int OverlapBoxAll(Vector3 middle, Vector3 half)
@@ -1110,6 +1174,15 @@ namespace Paniq.Simulation
                 return;
             }
 
+            // Held and let go of on the grid: the pose is snapped to a
+            // hundredth of a millimetre and a millionth of a turn first, so the
+            // body starts its new life from exactly the same state every run.
+            // Without it, crumbs of floating point the engine carried below a
+            // millimetre -- invisible to everything the simulation reads --
+            // were magnified by a box thrown off the fallen tower's heap into
+            // a different run (seed 46, 2026-09-26).
+            SnapToTheGrid(body.Rigidbody);
+
             if (!kinematic)
             {
                 body.Rigidbody.isKinematic = false;
@@ -1121,6 +1194,27 @@ namespace Paniq.Simulation
             body.Rigidbody.linearVelocity = Vector3.zero;
             body.Rigidbody.angularVelocity = Vector3.zero;
             body.Rigidbody.isKinematic = true;
+        }
+
+        private static void SnapToTheGrid(Rigidbody rigidbody)
+        {
+            const float Step = 0.00001f;
+            const float Turn = 0.000001f;
+            Vector3 p = rigidbody.position;
+            var snapped = new Vector3(
+                Mathf.Round(p.x / Step) * Step,
+                Mathf.Round(p.y / Step) * Step,
+                Mathf.Round(p.z / Step) * Step);
+            Quaternion q = rigidbody.rotation;
+            var turned = new Quaternion(
+                Mathf.Round(q.x / Turn) * Turn,
+                Mathf.Round(q.y / Turn) * Turn,
+                Mathf.Round(q.z / Turn) * Turn,
+                Mathf.Round(q.w / Turn) * Turn);
+            turned.Normalize();
+            rigidbody.position = snapped;
+            rigidbody.rotation = turned;
+            rigidbody.transform.SetPositionAndRotation(snapped, turned);
         }
 
         /// <summary>Puts a body straight at a spot (hundredths of a millimetre), stopped, standing upright at this heading.</summary>

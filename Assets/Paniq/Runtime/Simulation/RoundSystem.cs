@@ -157,6 +157,14 @@
                 return;
             }
 
+            if (director != null && director.PeaceEndsTheRoundAtTick >= 0 && context.Tick >= director.PeaceEndsTheRoundAtTick)
+            {
+                // The building is at peace: its last fire is out for good
+                // (2026-10-03). Everybody alive inside lived through it.
+                Finish();
+                return;
+            }
+
             if (NobodyLeftUnresolved())
             {
                 // Everyone is already out or dead. There is nothing left that

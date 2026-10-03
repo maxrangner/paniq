@@ -48,6 +48,8 @@ namespace Paniq.Simulation
         private AlarmSystem alarms;
         private PhysicsObjectSystem objects;
         private KeycardSystem keycards;
+        private DoorSystem doors;
+        private Threats threats;
 
         public HandGatherBehaviour(SimulationContext context, WorldGeometry geometry, FrightenedWalk walk)
         {
@@ -64,6 +66,8 @@ namespace Paniq.Simulation
             alarms = systems.Alarms;
             objects = systems.Objects;
             keycards = systems.Keycards;
+            doors = systems.Doors;
+            threats = systems.Threats;
         }
 
         public static bool IsAnswering(Agent agent) => agent.Intent.Activity == AgentActivityState.AnsweringTheHand;
@@ -97,7 +101,13 @@ namespace Paniq.Simulation
                 return null;
             }
 
-            if (!IsTheGatherersOwn(place))
+            if (agent.Hand.DoneWithPress == place.EventId)
+            {
+                // Done with this one: through the door it was on.
+                return null;
+            }
+
+            if (!IsTheGatherersOwn(place) && !IsADoorToGoThrough(agent, place))
             {
                 RethinkForADoor(agent, place, drive);
                 return null;
@@ -141,6 +151,76 @@ namespace Paniq.Simulation
             }
 
             return !objects.IsEquipment(place.Thing) && (keycards == null || place.Thing != keycards.Card);
+        }
+
+        /// <summary>
+        /// A hand on a door the frightened walk through (2026-10-03, a level
+        /// that says so): an inside door, not locked, not heaped, not a push,
+        /// and not one whose far side is inside their danger distance of the
+        /// flames -- nobody follows the hand into fire.
+        /// </summary>
+        private bool IsADoorToGoThrough(Agent agent, in InfluenceSystem.Place place)
+        {
+            if (!context.Scenario.Influence.FrightenedGoThroughAHeldDoor || place.Door < 0 || place.Repels ||
+                geometry.DoorLeadsOutside(place.Door) || doors == null || doors.StateOf(place.Door) == DoorState.Locked ||
+                doors.IsPiled(place.Door) || (handHeave != null && handHeave.IsClearing(place)))
+            {
+                return false;
+            }
+
+            int far = FarSide(agent, place, out _);
+            if (far < 0)
+            {
+                return false;
+            }
+
+            // Through, away from the fire: the far side has to be further
+            // from the flames than this side, so a hand on a door is never a
+            // pull back toward them for whoever is already past it.
+            int through = context.Scenario.Influence.ThroughTheDoorMillimetres;
+            LogicalPosition beyond = geometry.DoorPointFrom(place.Door, far, 0, -through);
+            LogicalPosition behind = geometry.DoorPointFrom(place.Door, far, 0, through);
+            if (threats == null)
+            {
+                return false;
+            }
+
+            long ahead = threats.NearestDistanceSquared(beyond, out _, out _);
+            long back = threats.NearestDistanceSquared(behind, out _, out _);
+            return ahead > back && !threats.AnyCloserThan(beyond, TraitEffects.DangerDistance(agent, context.Scenario));
+        }
+
+        /// <summary>
+        /// Which of the door's two rooms is the far side for them: the other
+        /// one from the room they are in, or, felt through another doorway,
+        /// from the one of the two that is open to where they stand. -1 when
+        /// neither.
+        /// </summary>
+        private int FarSide(Agent agent, in InfluenceSystem.Place place, out int near)
+        {
+            int room = geometry.RoomOf(agent);
+            near = -1;
+            if (room == place.RoomA || (room != place.RoomB && place.RoomA >= 0 && geometry.RoomsOpenToEachOther(room, place.RoomA)))
+            {
+                near = place.RoomA;
+                return place.RoomB;
+            }
+
+            if (room == place.RoomB || (place.RoomB >= 0 && geometry.RoomsOpenToEachOther(room, place.RoomB)))
+            {
+                near = place.RoomB;
+                return place.RoomA;
+            }
+
+            return -1;
+        }
+
+        /// <summary>Where they walk to go through a held door: a few steps into the far side, on standing room.</summary>
+        private LogicalPosition BeyondTheDoor(Agent agent, in InfluenceSystem.Place place)
+        {
+            int far = FarSide(agent, place, out _);
+            LogicalPosition beyond = geometry.DoorPointFrom(place.Door, far, 0, -context.Scenario.Influence.ThroughTheDoorMillimetres);
+            return geometry.Navigation.NearestStandableTo(beyond, context.Scenario.World.OccupancyRadiusMillimetres, 600);
         }
 
         /// <summary>
@@ -226,7 +306,8 @@ namespace Paniq.Simulation
                 return null;
             }
 
-            if (!IsTheGatherersOwn(place))
+            bool throughADoor = IsADoorToGoThrough(agent, place);
+            if (!IsTheGatherersOwn(place) && !throughADoor)
             {
                 // Dragged onto something with its own answer (a pull station,
                 // fallen crates): that answer takes over, the goal kept.
@@ -234,7 +315,25 @@ namespace Paniq.Simulation
                 return null;
             }
 
-            LogicalPosition spot = influence.GatherSpotFor(agent, place);
+            if (agent.Hand.DoneWithPress == place.EventId)
+            {
+                Stop(agent);
+                return null;
+            }
+
+            LogicalPosition spot = throughADoor ? BeyondTheDoor(agent, place) : influence.GatherSpotFor(agent, place);
+            if (!throughADoor && context.Scenario.Influence.FrightenedGoOnWhenLetGo &&
+                influence.CurrentPress != place.EventId &&
+                IntegerMath.Distance(agent.Body.Position, spot) <= AtTheSpotMillimetres)
+            {
+                // Let go of, and they had got there (2026-10-03): done, and on
+                // their own again, running on from where the hand left them.
+                InfluenceSystem.Done(agent);
+                agent.Hand.DoneWithPress = place.EventId;
+                StopStanding(agent);
+                return null;
+            }
+
             long distance = IntegerMath.Distance(agent.Body.Position, spot);
             if (distance <= AtTheSpotMillimetres)
             {

@@ -139,6 +139,19 @@ namespace Paniq.Simulation
             return copy;
         }
 
+        /// <summary>
+        /// The same person, starting somewhere else and on their feet
+        /// (2026-10-03): a level laid over another moves its cast with this.
+        /// The chair that is theirs stays theirs.
+        /// </summary>
+        public AgentDefinition MovedTo(LogicalPosition at)
+        {
+            AgentDefinition copy = this;
+            copy.initialPosition = at;
+            copy.seatedOnObjectId = default;
+            return copy;
+        }
+
         /// <summary>The chair that is theirs, if any: where they go back to when a cue sends them home.</summary>
         public SimulationId HomeObjectId => homeObjectId;
 

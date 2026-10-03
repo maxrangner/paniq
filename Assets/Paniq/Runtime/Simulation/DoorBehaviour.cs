@@ -226,7 +226,8 @@ namespace Paniq.Simulation
                 // The player's hand on this door, felt strongly (2026-09-30):
                 // a door they gave up on, or found shut, is worth another go.
                 bool handOnIt = HandIsOn(agent, next);
-                if (context.Tick < agent.Doors.AvoidUntilTick[next] && !handOnIt)
+                if ((context.Tick < agent.Doors.AvoidUntilTick[next] ||
+                     (settings.HeatChoicesStick && context.Tick < agent.Doors.HotUntilTick[next])) && !handOnIt)
                 {
                     // They have given up on this way for the moment. That
                     // happens for two reasons -- the door would not open, or
@@ -283,13 +284,16 @@ namespace Paniq.Simulation
                 }
 
                 score -= RoutePenalties(agent, position, next);
+                if (influence != null)
+                {
+                    score -= influence.TurnBackCost(agent, next);
+                }
 
                 // Through the heat: the flames are at the door they would
                 // walk at now, or in the room beyond it.
                 LogicalPosition nextApproach = first < 0 ? approach : ApproachPoint(next, room);
                 int into = geometry.RoomBeyond(next, room);
-                bool throughTheHeat = threats.AnyCloserThan(nextApproach, TraitEffects.DangerDistance(agent, context.Scenario)) ||
-                                      (into >= 0 && threats.IsInRoom(into));
+                bool throughTheHeat = IsThroughTheHeat(agent, next, into, nextApproach);
                 if (throughTheHeat)
                 {
                     score -= settings.InFirePenaltyMillimetres;
@@ -344,6 +348,18 @@ namespace Paniq.Simulation
                 }
             }
 
+            if (best >= 0 && settings.HeatDetourMillimetres > 0 && !threats.IsInRoom(room))
+            {
+                // The short way is through the heat -- at the next door, or
+                // further along it: is there a way round worth the walk, for
+                // somebody of their nerve (2026-10-03)?
+                int hotDoor = bestIsThroughTheHeat ? best : HotDoorAlongTheWay(agent, room, position, bestWayOut);
+                if (hotDoor >= 0)
+                {
+                    TryTheWayRound(agent, room, position, hotDoor, ref best, ref bestWayOut, ref bestIsThroughTheHeat);
+                }
+            }
+
             if (best >= 0 && bestIsThroughTheHeat && !DecidesToDash(agent, room, position, best))
             {
                 // Too hot for them: that door is given up for a while, and
@@ -351,8 +367,15 @@ namespace Paniq.Simulation
                 // left -- somewhere they have not looked, or somewhere to
                 // hide. A shut door in a dead end buys the time the player
                 // may still turn into a rescue.
-                agent.Doors.AvoidUntilTick[best] = checked(context.Tick + context.Random.NextIntInclusive(
-                    settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
+                int hotFor = context.Random.NextIntInclusive(settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks);
+                if (settings.HeatChoicesStick)
+                {
+                    agent.Doors.HotUntilTick[best] = checked(context.Tick + hotFor);
+                }
+                else
+                {
+                    agent.Doors.AvoidUntilTick[best] = checked(context.Tick + hotFor);
+                }
                 if (agent.Doors.HidFromHeatAtDoor != best)
                 {
                     agent.Doors.HidFromHeatAtDoor = best;
@@ -370,6 +393,7 @@ namespace Paniq.Simulation
                 if (!bestIsThroughTheHeat)
                 {
                     agent.Doors.HidFromHeatAtDoor = -1;
+                    agent.Doors.DashDoor = -1;
                 }
 
                 return best;
@@ -416,6 +440,15 @@ namespace Paniq.Simulation
             if (tick < agent.Doors.DashingUntilTick)
             {
                 // Already running for it: keep going while the choice stands.
+                return true;
+            }
+
+            if (settings.HeatChoicesStick && agent.Doors.DashDoor == door && FloorIsClear(position, ApproachPoint(door, room)))
+            {
+                // Still running for the same doorway and the floor ahead is
+                // still walkable (2026-10-03): the dash runs on, with no
+                // second wind-up and no second thoughts.
+                agent.Doors.DashingUntilTick = checked(tick + context.Jittered(settings.DashTicks));
                 return true;
             }
 
@@ -466,6 +499,7 @@ namespace Paniq.Simulation
             TellSystem.TryPass(agent, AgentTell.GatheringNerve, door);
             agent.Doors.ExitDoorIndex = door;
             agent.Doors.DashingUntilTick = checked(context.Tick + context.Jittered(settings.DashTicks));
+            agent.Doors.DashDoor = door;
             agent.Doors.HidFromHeatAtDoor = -1;
             context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentDashedThroughHeat, agent.Body.Position, 0, 0,
                 agent.Fear.ScaredEventId, doors.IdOf(door));
@@ -489,7 +523,7 @@ namespace Paniq.Simulation
         /// </summary>
         private bool CoolRefugeIsReachable(Agent agent, int room, LogicalPosition position)
         {
-            int refuge = ChooseRefugeDoor(agent, room, position);
+            int refuge = ChooseRefugeDoor(agent, room, position, noisy: !settings.HeatChoicesStick);
             if (refuge < 0)
             {
                 return !threats.IsInRoom(room);
@@ -680,7 +714,7 @@ namespace Paniq.Simulation
         /// the fire that they can still reach. Returns the first door on the
         /// way, or -1 when the room they are in is already the best of them.
         /// </summary>
-        private int ChooseRefugeDoor(Agent agent, int room, LogicalPosition position)
+        private int ChooseRefugeDoor(Agent agent, int room, LogicalPosition position, bool noisy = true)
         {
             int best = -1;
             long bestScore = RefugeScore(room, 0L) + settings.CurrentRoomBonusMillimetres;
@@ -704,9 +738,10 @@ namespace Paniq.Simulation
                 }
 
                 int into = geometry.RoomBeyond(first, room);
-                long score = RefugeScore(r, routeCost) +
-                             context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) -
+                long score = RefugeScore(r, routeCost) - DeadEndAtTheFire(r) +
+                             (noisy ? context.Random.NextIntInclusive(0, settings.ChoiceNoiseMillimetres) : settings.ChoiceNoiseMillimetres / 2) -
                              RoutePenalties(agent, position, first) -
+                             (influence != null ? influence.TurnBackCost(agent, first) : 0L) -
                              (into >= 0 && threats.IsInRoom(into) ? settings.InFirePenaltyMillimetres : 0L) +
                              InfluencePull(agent, first, into, geometry.DoorCentre(first));
                 if (score > bestScore)
@@ -1775,8 +1810,140 @@ namespace Paniq.Simulation
         /// </summary>
         public void GiveUpTheHotDoorForAWhile(Agent agent, int door)
         {
-            agent.Doors.AvoidUntilTick[door] = checked(context.Tick + context.Random.NextIntInclusive(
-                settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
+            int hotFor = context.Random.NextIntInclusive(settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks);
+            if (settings.HeatChoicesStick)
+            {
+                agent.Doors.HotUntilTick[door] = checked(context.Tick + hotFor);
+                return;
+            }
+
+            agent.Doors.AvoidUntilTick[door] = checked(context.Tick + hotFor);
+        }
+
+        /// <summary>
+        /// Whether the next door on a walk is "through the heat": its near
+        /// approach inside their danger distance, or the room beyond alight.
+        /// On a level that judges the heat along the way (2026-10-03,
+        /// <see cref="ExitSettings.HeatNearADoorMillimetres"/>), the room
+        /// beyond counts only where the flames are near the door's far side.
+        /// </summary>
+        private bool IsThroughTheHeat(Agent agent, int next, int into, LogicalPosition nextApproach)
+        {
+            int danger = TraitEffects.DangerDistance(agent, context.Scenario);
+            if (threats.AnyCloserThan(nextApproach, danger))
+            {
+                return true;
+            }
+
+            if (into < 0)
+            {
+                return false;
+            }
+
+            if (settings.HeatNearADoorMillimetres <= 0)
+            {
+                return threats.IsInRoom(into);
+            }
+
+            return threats.AnyCloserThan(ApproachPoint(next, into), System.Math.Max(danger, settings.HeatNearADoorMillimetres));
+        }
+
+        /// <summary>
+        /// The short way out is through the heat (2026-10-03): the walk that
+        /// avoids that doorway, by doors they know, if there is one whose own
+        /// next door is not hot and whose extra length is within what their
+        /// nerve makes it worth -- the timid walk further round, the brave
+        /// less. Chosen, the hot doorway stays out of their plans for a while,
+        /// so the choice is not argued again on every decision.
+        /// </summary>
+        private void TryTheWayRound(Agent agent, int room, LogicalPosition position, int hot, ref int best, ref int bestWayOut,
+            ref bool bestIsThroughTheHeat)
+        {
+            int exitRoom = geometry.DoorRoom(bestWayOut);
+            LogicalPosition exitApproach = ApproachPoint(bestWayOut, exitRoom);
+            if (!geometry.TryFindKnownRoute(room, position, exitRoom, agent, out int shortFirst, out int shortLast, out long shortCost) ||
+                shortFirst < 0 ||
+                !geometry.TryFindKnownRouteAvoiding(room, position, exitRoom, agent, hot, out int roundFirst, out int roundLast, out long roundCost) ||
+                roundFirst < 0)
+            {
+                return;
+            }
+
+            int into = geometry.RoomBeyond(roundFirst, room);
+            if (IsThroughTheHeat(agent, roundFirst, into, ApproachPoint(roundFirst, room)) || !FloorIsClear(position, ApproachPoint(roundFirst, room)))
+            {
+                return;
+            }
+
+            long shortWalk = shortCost + IntegerMath.Distance(geometry.DoorCentre(shortLast), exitApproach);
+            long roundWalk = roundCost + IntegerMath.Distance(geometry.DoorCentre(roundLast), exitApproach);
+            long worth = (long)settings.HeatDetourMillimetres *
+                         System.Math.Max(0, 100 + (5 - agent.Traits.Bravery) * settings.HeatDetourPercentPerBravery) / 100;
+            if (roundWalk - shortWalk > worth)
+            {
+                return;
+            }
+
+            best = roundFirst;
+            bestIsThroughTheHeat = false;
+            if (settings.HeatChoicesStick)
+            {
+                agent.Doors.HotUntilTick[hot] = checked(context.Tick + context.Jittered(settings.HeatCommitTicks));
+            }
+        }
+
+        private readonly System.Collections.Generic.List<int> routeScratch = new System.Collections.Generic.List<int>();
+
+        /// <summary>
+        /// The first door on their walk to this way out, by doors they know,
+        /// with the flames within <see cref="ExitSettings.HeatNearADoorMillimetres"/>
+        /// (or their danger distance) of it; -1 when the walk is clear. The
+        /// next door is judged by the door choice itself; this looks further
+        /// along (2026-10-03): from the office, the corridor door was cool and
+        /// the archway at its far end alight, and people ran into the corridor
+        /// to find that out.
+        /// </summary>
+        private int HotDoorAlongTheWay(Agent agent, int room, LogicalPosition position, int wayOut)
+        {
+            routeScratch.Clear();
+            if (wayOut < 0 || !geometry.RouteDoors(room, position, geometry.DoorRoom(wayOut), agent, routeScratch, knownOnly: true))
+            {
+                return -1;
+            }
+
+            routeScratch.Add(wayOut);
+            int near = System.Math.Max(TraitEffects.DangerDistance(agent, context.Scenario), settings.HeatNearADoorMillimetres);
+            for (int i = 0; i < routeScratch.Count; i++)
+            {
+                if (threats.AnyCloserThan(geometry.DoorCentre(routeScratch[i]), near))
+                {
+                    return routeScratch[i];
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// What a dead end is worth less as a hiding place while the fire is
+        /// in the room its one door opens onto (2026-10-03,
+        /// <see cref="ExitSettings.RefugeDeadEndPenaltyMillimetres"/>).
+        /// </summary>
+        private long DeadEndAtTheFire(int candidate)
+        {
+            if (settings.RefugeDeadEndPenaltyMillimetres <= 0)
+            {
+                return 0L;
+            }
+
+            int[] doorsOfIt = geometry.RoomDoors(candidate);
+            if (doorsOfIt.Length != 1 || geometry.DoorLeadsOutside(doorsOfIt[0]))
+            {
+                return 0L;
+            }
+
+            int beyond = geometry.RoomBeyond(doorsOfIt[0], candidate);
+            return beyond >= 0 && threats.IsInRoom(beyond) ? settings.RefugeDeadEndPenaltyMillimetres : 0L;
         }
 
         /// <summary>The keycard (2026-09-27): told when somebody finds the card door shut.</summary>
@@ -1913,7 +2080,24 @@ namespace Paniq.Simulation
                 return 0L;
             }
 
+            if (into >= 0 && context.Scenario.Influence.FrightenedGoThroughAHeldDoor && TowardTheFlames(door, into))
+            {
+                // A held door pulls the frightened through it only away from
+                // the fire (2026-10-03): the people on its far side, nearer the
+                // flames, are not drawn back toward them.
+                return 0L;
+            }
+
             return influence.DoorBonus(agent, door) + influence.SpotBonus(agent, toward, door);
+        }
+
+        /// <summary>Whether going through this door into <paramref name="into"/> goes nearer the flames than staying this side of it.</summary>
+        private bool TowardTheFlames(int door, int into)
+        {
+            const int Step = 1500;
+            long ahead = threats.NearestDistanceSquared(geometry.DoorPointFrom(door, into, 0, -Step), out _, out _);
+            long behind = threats.NearestDistanceSquared(geometry.DoorPointFrom(door, into, 0, Step), out _, out _);
+            return ahead < behind;
         }
 
         /// <summary>Everybody's physical body, for hauling somebody down in a doorway through it. Bound after construction like the objects.</summary>
@@ -2060,7 +2244,8 @@ namespace Paniq.Simulation
                 return;
             }
 
-            if (traits.Evil >= settings.EvilLockMinimum)
+            if (traits.Evil >= settings.EvilLockMinimum &&
+                (settings.PeopleLockTheWayOut || !geometry.DoorLeadsOutside(door)))
             {
                 doors.Lock(door, agent, closed);
             }
@@ -2267,6 +2452,15 @@ namespace Paniq.Simulation
                     int previous = agent.Doors.CurrentRoom;
                     agent.Doors.CurrentRoom = room;
                     agent.Doors.PreviousRoom = previous;
+                    if (influence != null && context.Scenario.Influence.FrightenedGoThroughAHeldDoor &&
+                        agent.Fear.State == AgentFearState.Scared && agent.Hand.Goal.Door >= 0 && previous >= 0 &&
+                        agent.Hand.Goal.EventId != 0UL &&
+                        ((agent.Hand.Goal.RoomA == previous && agent.Hand.Goal.RoomB == room) ||
+                         (agent.Hand.Goal.RoomB == previous && agent.Hand.Goal.RoomA == room)))
+                    {
+                        // Through the door the hand is on (2026-10-03): done.
+                        influence.WentThrough(agent, agent.Hand.Goal.Door);
+                    }
                     if (previous >= 0 && !agent.Burning.IsBurning)
                     {
                         ConsiderSlammingTheDoorBehind(agent, room, previous);

@@ -55,6 +55,13 @@ namespace Paniq.Gameplay
         /// <summary>How many were in the crowd, once known.</summary>
         public int CrowdSize { get; private set; }
 
+        /// <summary>
+        /// How it ended for each person, in the scenario's order, once known
+        /// (2026-10-03): for the end card's lines by room. Stopped at the cap,
+        /// anybody not lost counts as having lived, as for the count.
+        /// </summary>
+        public AgentTerminalOutcome[] Outcomes { get; private set; }
+
         public bool IsDone => SavedCount.HasValue;
 
         /// <summary>The tick the hands-off round has reached; the cap once it is done.</summary>
@@ -114,6 +121,13 @@ namespace Paniq.Gameplay
             // counts as having lived, as they would at a round's own end.
             SavedCount = run.Phase == RoundPhase.Over ? snapshot.SavedCount : snapshot.CrowdSize - snapshot.LostCount;
             CrowdSize = snapshot.CrowdSize;
+            var outcomes = new AgentTerminalOutcome[run.AgentCount];
+            for (int i = 0; i < outcomes.Length; i++)
+            {
+                outcomes[i] = run.GetAgent(i).Outcome;
+            }
+
+            Outcomes = outcomes;
             Dispose();
             return true;
         }

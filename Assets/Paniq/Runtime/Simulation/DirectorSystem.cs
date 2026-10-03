@@ -146,6 +146,65 @@ namespace Paniq.Simulation
         private AlarmSystem alarms;
         private RoundSystem round;
 
+        /// <summary>
+        /// Whether this run's Director opens with a real fire (2026-10-02,
+        /// <see cref="DirectorSettings.StartsARealFire"/>): no ladder and no
+        /// cap. The round's whole script -- when the first fire lights, where
+        /// every fire lights, how long after a put-out the next one comes,
+        /// when the bells ring, and the building's one move -- is drawn
+        /// before the first tick from a stream of its own
+        /// (<see cref="FireSequence"/>), so the player's clicks, which draw
+        /// from the run's shared stream, can never change it: the copy of the
+        /// round played with nobody at the controls faces the same building
+        /// (2026-10-03; the first cut drew the spot when the fire lit, and a
+        /// click in the calm could move it).
+        /// </summary>
+        private readonly bool burns;
+
+        /// <summary>The Director's own stream for that script: 54 is the crowd, 55 the deck, 56 the keycard, 57 the cap.</summary>
+        private const ulong FireSequence = 58UL;
+
+        /// <summary>Where each fire of the round lights, in order: the first, then each relight.</summary>
+        private readonly LogicalPosition[] firePoints;
+
+        /// <summary>How long after a fire is put out for good the next one lights, one per relight.</summary>
+        private readonly int[] relightAfter;
+
+        /// <summary>How many fires the building has lit, for the story.</summary>
+        private int firesLit;
+
+        /// <summary>How long after the smoke reaches a detector the bells start.</summary>
+        private readonly int bellsLag;
+
+        /// <summary>The tick the smoke detectors ring the bells, once the fire is big enough, or -1; and whether this fire has rung them.</summary>
+        private int bellsAtTick = -1;
+        private bool bellsRung;
+
+        /// <summary>Whether the fire burning now has got out of the room it started in.</summary>
+        private bool escapedThisFire;
+
+        /// <summary>The tick the first fire lit, or -1.</summary>
+        private int firstFireTick = -1;
+
+        /// <summary>The building's move (2026-10-03): the socket it sets crackling, as a thing's index, or -1 for none.</summary>
+        private readonly int moveSocket = -1;
+
+        /// <summary>How long after the first fire the move begins, and how long the socket crackles.</summary>
+        private readonly int moveAfterTicks;
+        private readonly int moveCrackleTicks;
+
+        private int movePopsAtTick = -1;
+        private bool moveBegun;
+        private ulong moveEventId;
+
+        /// <summary>
+        /// The tick the round ends because the building is at peace: the last
+        /// fire it will light is out for good. -1 while that is not so. The
+        /// round's own stall clock never ended such a round, because a calm
+        /// office goes back to work and is never still.
+        /// </summary>
+        public int PeaceEndsTheRoundAtTick { get; private set; } = -1;
+
         /// <summary>Whether this run's Director climbs the ladder: the level asks for it and one of its bins is in the building.</summary>
         private readonly bool climbs;
 
@@ -240,6 +299,65 @@ namespace Paniq.Simulation
             settings = context.Scenario.Director;
             timetable = context.Scenario.Timetable ?? System.Array.Empty<ScheduledCue>();
             called = new bool[timetable.Length];
+
+            if (settings.StartsARealFire && settings.FireSpots.Length > 0)
+            {
+                burns = true;
+                fire.LeaveTheStartToTheDirector();
+                var script = new Pcg32(context.Seed, FireSequence);
+                dueTick = script.NextIntInclusive(settings.FirstIncidentMinimumTicks, settings.FirstIncidentMaximumTicks);
+
+                // The spots in a drawn order, a point inside each, and the
+                // beats between: as many fires as there are relights and
+                // spots to spend them on.
+                int spots = settings.FireSpots.Length;
+                var order = new int[spots];
+                for (int i = 0; i < spots; i++)
+                {
+                    order[i] = i;
+                }
+
+                for (int i = spots - 1; i > 0; i--)
+                {
+                    int j = script.NextIntInclusive(0, i);
+                    (order[i], order[j]) = (order[j], order[i]);
+                }
+
+                int fires = System.Math.Min(spots, 1 + settings.Relights);
+                firePoints = new LogicalPosition[fires];
+                relightAfter = new int[fires];
+                for (int i = 0; i < fires; i++)
+                {
+                    LogicalBounds area = settings.FireSpots[order[i]];
+                    firePoints[i] = new LogicalPosition(script.NextIntInclusive(area.MinX, area.MaxX),
+                        script.NextIntInclusive(area.MinZ, area.MaxZ));
+                    relightAfter[i] = Spread(ref script, settings.RelightAfterTicks);
+                }
+
+                PerceptionSettings perception = context.Scenario.Perception;
+                bellsLag = System.Math.Max(1, script.NextIntInclusive(perception.ReactionLagMinimumTicks, perception.ReactionLagMaximumTicks));
+
+                // The building's move: one of the level's sockets, if any is
+                // in the building, a while after the first fire.
+                var sockets = new List<int>();
+                for (int i = 0; i < settings.MoveSockets.Length; i++)
+                {
+                    int index = objects.IndexOf(settings.MoveSockets[i]);
+                    if (index >= 0)
+                    {
+                        sockets.Add(index);
+                    }
+                }
+
+                if (sockets.Count > 0)
+                {
+                    moveSocket = sockets[sockets.Count == 1 ? 0 : script.NextIntInclusive(0, sockets.Count - 1)];
+                    moveAfterTicks = script.NextIntInclusive(settings.MoveMinimumTicksAfterFire, settings.MoveMaximumTicksAfterFire);
+                    moveCrackleTicks = Spread(ref script, settings.CrackleTicks);
+                }
+
+                return;
+            }
 
             if (!settings.ClimbsTheLadder)
             {
@@ -340,8 +458,9 @@ namespace Paniq.Simulation
         /// work after a fire was put out.
         /// </summary>
         public bool HasSomethingComing =>
-            climbs && (phase == LadderPhase.Crackling || pushAtTick >= 0 ||
-                       (capState != CapState.Massacre && phase == LadderPhase.Relighting));
+            (burns && (phase == LadderPhase.Relighting || (moveBegun && movePopsAtTick >= 0))) ||
+            (climbs && (phase == LadderPhase.Crackling || pushAtTick >= 0 ||
+                        (capState != CapState.Massacre && phase == LadderPhase.Relighting)));
 
         /// <summary>
         /// Every cue whose tick has come and that has not been called yet, in
@@ -352,6 +471,12 @@ namespace Paniq.Simulation
         public void Advance()
         {
             CallTheTimetable();
+            if (burns)
+            {
+                Burn();
+                return;
+            }
+
             if (!climbs)
             {
                 return;
@@ -359,6 +484,208 @@ namespace Paniq.Simulation
 
             Cap();
             Climb();
+        }
+
+        // ---------------------------------------------------------------- the fire that splits the floor (2026-10-02)
+
+        /// <summary>A length of time spread by the world's jitter, drawn from the Director's own stream.</summary>
+        private int Spread(ref Pcg32 own, int ticks)
+        {
+            int spread = System.Math.Max(1, ticks * context.Scenario.World.TimingJitterPercent / 100);
+            return System.Math.Max(1, ticks + own.NextIntInclusive(-spread, spread));
+        }
+
+        /// <summary>
+        /// The round of a level that opens with a real fire: wait out the
+        /// calm (or the trigger), light it, ring the bells when the smoke is
+        /// thick enough, play the building's move, and watch. If every flame
+        /// is put out, the next fire of the script lights a beat later while
+        /// there is one; after the last, the building is at peace and the
+        /// round ends a few seconds on.
+        /// </summary>
+        private void Burn()
+        {
+            int tick = context.Tick;
+            TheBuildingsMove(tick);
+            switch (phase)
+            {
+                case LadderPhase.Waiting:
+                    if (tick >= dueTick || fire.StartRequested)
+                    {
+                        StartTheFire(round != null && round.TriggerEventId != 0UL ? round.TriggerEventId : 0UL);
+                    }
+
+                    break;
+
+                case LadderPhase.Burning:
+                    if (SomethingIsBurning())
+                    {
+                        WatchTheFire(tick);
+                        break;
+                    }
+
+                    putOutEventId = context.Events.Append(tick, default, CausalEventType.IncidentPutOut,
+                        incidentPosition, startRoom, 0, incidentEventId).EventId;
+                    bellsAtTick = -1;
+                    bellsRung = false;
+                    if (firesLit < firePoints.Length)
+                    {
+                        phase = LadderPhase.Relighting;
+                        dueTick = checked(tick + relightAfter[firesLit - 1]);
+                    }
+                    else
+                    {
+                        phase = LadderPhase.Out;
+                        allClearTick = checked(tick + context.Jittered(settings.AllClearAfterTicks));
+                        PeaceEndsTheRoundAtTick = checked(tick + context.Jittered(settings.PeaceEndsTheRoundTicks));
+                    }
+
+                    break;
+
+                case LadderPhase.Relighting:
+                    if (tick >= dueTick)
+                    {
+                        StartTheFire(putOutEventId);
+                    }
+
+                    break;
+
+                case LadderPhase.Out:
+                    if (alarms != null && alarms.Ringing && allClearTick < 0)
+                    {
+                        allClearTick = checked(tick + context.Jittered(settings.AllClearAfterTicks));
+                    }
+
+                    if (allClearTick >= 0 && tick >= allClearTick)
+                    {
+                        alarms?.Silence(putOutEventId);
+                        allClearTick = -1;
+                    }
+
+                    if (SomethingIsBurning())
+                    {
+                        // An ember somebody carried, or the move's bang: the
+                        // building is not at peace after all.
+                        allClearTick = -1;
+                        PeaceEndsTheRoundAtTick = -1;
+                        phase = LadderPhase.Burning;
+                    }
+
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// A fire burning: the smoke reaches a detector once it is big
+        /// enough, and the bells ring a beat later; and the first flame or
+        /// burning thing outside the room this fire started in is written
+        /// down once a fire, as the ladder writes it, for the sign and the
+        /// end card.
+        /// </summary>
+        private void WatchTheFire(int tick)
+        {
+            if (settings.BellsRingAtSquares > 0 && !bellsRung && alarms != null)
+            {
+                if (bellsAtTick < 0 && fire.BurningCount >= settings.BellsRingAtSquares)
+                {
+                    bellsAtTick = checked(tick + bellsLag);
+                }
+
+                if (bellsAtTick >= 0 && tick >= bellsAtTick)
+                {
+                    bellsRung = true;
+                    alarms.TripByTheSmoke(incidentEventId);
+                }
+            }
+
+            if (!escapedThisFire && startRoom >= 0 &&
+                (fire.BurningOutside(incidentRooms) || flammables.AnythingBurningOutside(incidentRooms)))
+            {
+                escapedThisFire = true;
+                EscapedEventId = context.Events.Append(tick, default, CausalEventType.FireEscapedItsRoom,
+                    incidentPosition, startRoom, 0, incidentEventId).EventId;
+            }
+        }
+
+        /// <summary>
+        /// The next fire of the script: every floor square within the
+        /// burst's reach of its point alight at once. The first names the
+        /// trigger as its cause (or nothing); a later one the put-out it
+        /// answers. The event's strength counts the fires lit so far and its
+        /// duration is the room it lit in, for the story.
+        /// </summary>
+        private void StartTheFire(ulong cause)
+        {
+            if (firesLit >= firePoints.Length)
+            {
+                phase = LadderPhase.Out;
+                return;
+            }
+
+            incidentPosition = firePoints[firesLit];
+            startRoom = geometry.RoomAtPoint(incidentPosition);
+            ulong activated = fire.StartWithoutFlames(incidentPosition, cause);
+            firesLit++;
+            firstFireTick = firstFireTick < 0 ? context.Tick : firstFireTick;
+            incidentEventId = context.Events.Append(context.Tick, default, CausalEventType.DirectorStartedIncident,
+                incidentPosition, firesLit, 0, firesLit > 1 ? cause : activated).EventId;
+            fire.IgniteAround(incidentPosition, settings.FireBurstRadiusMillimetres, settings.FireBurstSquares, incidentEventId);
+
+            // This fire's own room, and nothing else yet.
+            incidentRooms ??= new bool[geometry.RoomCount];
+            System.Array.Clear(incidentRooms, 0, incidentRooms.Length);
+            if (startRoom >= 0)
+            {
+                incidentRooms[startRoom] = true;
+            }
+
+            escapedThisFire = false;
+            PeaceEndsTheRoundAtTick = -1;
+            phase = LadderPhase.Burning;
+        }
+
+        /// <summary>
+        /// The building's move (2026-10-03, the owner: the building follows
+        /// one fixed script per seed): a socket crackles and smokes a while
+        /// after the first fire -- the curious go and look, the banner says
+        /// the building has turned -- and then pops, flooring whoever is
+        /// beside it and lighting the floor round it. The same moment in the
+        /// round played with nobody at the controls. Nothing, if the flames
+        /// got to the socket first.
+        /// </summary>
+        private void TheBuildingsMove(int tick)
+        {
+            if (moveSocket < 0 || firstFireTick < 0)
+            {
+                return;
+            }
+
+            if (!moveBegun && tick >= firstFireTick + moveAfterTicks)
+            {
+                moveBegun = true;
+                if (objects.IsWrecked(moveSocket) || flammables.ObjectState(moveSocket) != ObjectBurnState.Intact)
+                {
+                    return;
+                }
+
+                SimulationId id = objects.IdOf(moveSocket);
+                LogicalPosition at = objects.PositionOf(moveSocket);
+                LastPushTick = tick;
+                moveEventId = context.Events.Append(tick, id, CausalEventType.SocketCrackling, at, moveCrackleTicks, 0,
+                    incidentEventId).EventId;
+                sound.Crash(id, at, settings.CrackleHearingMillimetres, moveEventId);
+                movePopsAtTick = checked(tick + moveCrackleTicks);
+                return;
+            }
+
+            if (movePopsAtTick >= 0 && tick >= movePopsAtTick)
+            {
+                movePopsAtTick = -1;
+                if (!objects.IsWrecked(moveSocket) && flammables.ObjectState(moveSocket) == ObjectBurnState.Intact)
+                {
+                    objects.Detonate(moveSocket, objects.IdOf(moveSocket), moveEventId);
+                }
+            }
         }
 
         private void Climb()

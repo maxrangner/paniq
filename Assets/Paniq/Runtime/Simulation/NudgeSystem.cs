@@ -148,7 +148,9 @@ namespace Paniq.Simulation
                 }
 
                 bool annoyed = nudge.CountInARow >= settings.AnnoyedAfterNudges;
-                if (annoyed && agent.Fear.State == AgentFearState.Scared && agent.Intent.Activity == AgentActivityState.Frozen)
+                int wakeAfter = settings.PokesToWakeTheFrozen > 0 ? settings.PokesToWakeTheFrozen : settings.AnnoyedAfterNudges;
+                if (nudge.CountInARow >= wakeAfter && agent.Fear.State == AgentFearState.Scared &&
+                    agent.Intent.Activity == AgentActivityState.Frozen)
                 {
                     // Poked awake (the owner's rule, 2026-09-27): three quick
                     // pokes and somebody frozen with fear -- for a while or

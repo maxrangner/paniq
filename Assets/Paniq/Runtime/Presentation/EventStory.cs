@@ -31,8 +31,12 @@ namespace Paniq.Presentation
         /// <summary>The player's commands, for the tally of the hand on the end card (2026-09-30); empty when not given.</summary>
         private readonly IReadOnlyList<PlayerCommand> commands;
 
-        public EventStory(RunSnapshot snapshot, IReadOnlyList<PlayerCommand> commands = null)
+        /// <summary>The scenario the round is played on, for naming rooms (2026-10-03); null names none.</summary>
+        private readonly ScenarioData scenario;
+
+        public EventStory(RunSnapshot snapshot, IReadOnlyList<PlayerCommand> commands = null, ScenarioData scenario = null)
         {
+            this.scenario = scenario;
             this.commands = commands ?? System.Array.Empty<PlayerCommand>();
             for (int i = 0; i < snapshot.Agents.Count; i++)
             {
@@ -128,7 +132,8 @@ namespace Paniq.Presentation
 
             int tornFree = 0;
             CausalEvent? cardStarted = null, cardTaken = null, cardSwiped = null, cardDropped = null;
-            CausalEvent? towerFell = null, fireLoose = null, putOut = null;
+            CausalEvent? towerFell = null, fireLoose = null, putOut = null, firstFire = null, lastFire = null;
+            int fires = 0;
             int outAfterTheFall = 0;
             for (int i = 0; i < events.Count; i++)
             {
@@ -156,6 +161,11 @@ namespace Paniq.Presentation
                         break;
                     case CausalEventType.FireEscapedItsRoom: fireLoose ??= record; break;
                     case CausalEventType.IncidentPutOut: putOut = record; break;
+                    case CausalEventType.DirectorStartedIncident:
+                        firstFire ??= record;
+                        lastFire = record;
+                        fires++;
+                        break;
                 }
             }
 
@@ -237,13 +247,28 @@ namespace Paniq.Presentation
                 }
             }
 
-            // The corridor.
-            lines.Add(towerFell.HasValue
-                ? $"The boxes came down across the corridor at {TimeOf(towerFell.Value.Tick)}; {outAfterTheFall} got out after that."
-                : "The tower of boxes never came down.");
+            // The corridor: only on a floor that has the tower of boxes.
+            if (scenario == null || scenario.TrapDefinitions.Length > 0)
+            {
+                lines.Add(towerFell.HasValue
+                    ? $"The boxes came down across the corridor at {TimeOf(towerFell.Value.Tick)}; {outAfterTheFall} got out after that."
+                    : "The tower of boxes never came down.");
+            }
 
-            // The fire.
-            if (fireLoose.HasValue)
+            // The fire. A real fire (2026-10-03) is told by where it broke
+            // out and how many the building lit.
+            if (firstFire.HasValue && firstFire.Value.SourceId.Value == 0UL)
+            {
+                string first = $"The fire broke out in {RoomNames.At(scenario, firstFire.Value.Position)} at {TimeOf(firstFire.Value.Tick)}";
+                string more = fires > 1
+                    ? $"; it was put out, and the building lit another in {RoomNames.At(scenario, lastFire.Value.Position)} at {TimeOf(lastFire.Value.Tick)}"
+                    : "";
+                string end = putOut.HasValue && putOut.Value.Tick > lastFire.Value.Tick
+                    ? "; that one was put out too."
+                    : fireLoose.HasValue ? $"; it spread beyond its room, and {snapshot.LostCount} did not make it." : ".";
+                lines.Add(first + more + end);
+            }
+            else if (fireLoose.HasValue)
             {
                 lines.Add($"The fire got out of the room it started in at {TimeOf(fireLoose.Value.Tick)}; {snapshot.LostCount} did not make it.");
             }
@@ -411,6 +436,13 @@ namespace Paniq.Presentation
                 case CausalEventType.BoxPileCleared: return $"the way through the boxes at {whom} was clear";
                 case CausalEventType.PowerStickTogether: return $"you told {whom} to stick together";
                 case CausalEventType.DirectorStartedIncident:
+                    if (record.SourceId.Value == 0UL)
+                    {
+                        // A real fire (2026-10-03): no bin, a patch of floor.
+                        string where = RoomNames.At(scenario, record.Position);
+                        return record.Strength > 1 ? $"another fire broke out, in {where}" : $"a fire broke out in {where}";
+                    }
+
                     return record.Strength > 1 ? $"another bin: {who} caught fire" : $"{who} caught fire";
                 case CausalEventType.IncidentPutOut: return "the fire was put out";
                 case CausalEventType.FireEscapedItsRoom: return "the fire got out of the room it started in";

@@ -31,6 +31,20 @@ namespace Paniq.Simulation
         public int TimingJitterPercent = 20;
 
         /// <summary>
+        /// Whether each person, and the fire, throw dice of their own
+        /// (2026-10-03). Off, as it always was: every chance in the building
+        /// comes off one stream in turn, so one extra throw anywhere -- a
+        /// single poke at somebody calm -- moves every throw after it, and the
+        /// same seed plays out as a different round (measured: one poke moved
+        /// the result by more than two people on 17 rounds of 30). On: each
+        /// person's own decisions, and the fire's spreading, come off streams
+        /// of their own, seeded from the round's seed and the person's number,
+        /// so a poke changes the person poked and whoever they bump into, and
+        /// "left alone" is the same round without you.
+        /// </summary>
+        public bool EachPersonHasTheirOwnDice;
+
+        /// <summary>
         /// A loose thing at least this heavy is on the map people steer by,
         /// like a table (2026-09-27): a crate too heavy for anybody to carry
         /// (the strongest carries 30 kg) is a wall, not clutter to dodge at
@@ -886,6 +900,66 @@ namespace Paniq.Simulation
         public int EvilLockMinimum = 9;
 
         /// <summary>
+        /// Whether the cruellest turn the key in a door to the street as
+        /// they do in any other (2026-10-02). On, as it always was: the
+        /// first of them out locks the building behind them. Off, they
+        /// still slam it, and whoever comes next opens it again. A level
+        /// with one way out switches it off: measured on the office with
+        /// its way out unlocked, the bully got out first on one seed in
+        /// twenty and locked thirty people in, which made that round a
+        /// total loss by one person's whim. Inside doors are not touched:
+        /// a door locked in a corridor is a problem for the few behind it.
+        /// </summary>
+        public bool PeopleLockTheWayOut = true;
+
+        /// <summary>
+        /// Whether a choice made about the heat sticks (2026-10-03). Off, as
+        /// it always was. On: a doorway somebody backed away from as too hot
+        /// is remembered as too hot on its own -- not wiped when somebody
+        /// else opens it, not confused with a doorway given up for a crush --
+        /// and they plan their walk round it, open or shut, by any other way
+        /// they know; a dash, once begun, runs on until they are through or
+        /// the floor ahead is burning; and whether there is somewhere cool to
+        /// hide is judged without the throw of a die. Measured without it:
+        /// the same people wrote "dashed through the heat" and "hid from the
+        /// heat" over and over for a minute, and ended in a dead end.
+        /// </summary>
+        public bool HeatChoicesStick;
+
+        /// <summary>
+        /// How near the far side of a doorway the flames must be for it to
+        /// count as "through the heat", at least the person's own danger
+        /// distance (2026-10-03). 0, as it always was: any flame anywhere in
+        /// the room beyond makes its door too hot, so a fire at the far end of
+        /// a nineteen-metre corridor closed every door onto it.
+        /// </summary>
+        public int HeatNearADoorMillimetres;
+
+        /// <summary>
+        /// How much further somebody who knows the building will walk to go
+        /// round the heat rather than through it, for an ordinary person
+        /// (2026-10-03); 0, as it always was, means nobody weighs a way round
+        /// at all: with one way out, the one plan anybody had was the shortest
+        /// walk. The timid will walk further, the brave less
+        /// (<see cref="HeatDetourPercentPerBravery"/> a point either side of
+        /// five), and somebody whose own room is alight takes the short way
+        /// whatever it costs.
+        /// </summary>
+        public int HeatDetourMillimetres;
+        public int HeatDetourPercentPerBravery;
+
+        /// <summary>Having chosen to go round, how long the hot doorway stays out of their plans (jittered): ten seconds.</summary>
+        public int HeatCommitTicks = 500;
+
+        /// <summary>
+        /// What a hiding place with one door is worth less while the room that
+        /// door opens onto is alight (2026-10-03): a dead end with the fire at
+        /// its mouth. 0, as it always was: the maintenance room at the end of
+        /// a burning corridor was the best place in the building to hide.
+        /// </summary>
+        public int RefugeDeadEndPenaltyMillimetres;
+
+        /// <summary>
         /// This callous or worse: with the flames already at the door, they
         /// pull it shut on somebody still coming through. Everybody else
         /// holds a door for whoever is coming, flames or no flames; shutting
@@ -1341,6 +1415,15 @@ namespace Paniq.Simulation
 
         /// <summary>Bravery needed before a leader sends someone at the fire with a bottle.</summary>
         public int OrderedFightMinimumBravery = 5;
+
+        /// <summary>
+        /// Whether leaders leave a small fire alone and rally the people round
+        /// them instead (2026-10-03). Off, as it always was: a leader's first
+        /// plan with a young fire and a bottle anywhere is to send somebody at
+        /// it, so the meeting's host spent the first seconds giving orders
+        /// while his visitors stood in a room the fire was cutting off.
+        /// </summary>
+        public bool LeadersLeaveTheFireAlone;
 
         /// <summary>Evil this high never does as it is told.</summary>
         public int DefiantMinimumEvil = 7;
@@ -1946,6 +2029,16 @@ namespace Paniq.Simulation
     {
         /// <summary>Flames (a burning square or burning thing) this close to a thing's edge heat it.</summary>
         public int HeatDistanceMillimetres = 500;
+
+        /// <summary>
+        /// Whether a burning thing heats another thing that close on the far
+        /// side of a wall (2026-10-02). On, as it always was. Off, a thing
+        /// heats only what stands in its own room or in one joined to it by
+        /// an open door, as the flames on the floor already do: a fire that
+        /// comes through a wall cannot be read by somebody watching, and
+        /// cannot be held back by shutting a door.
+        /// </summary>
+        public bool BurningThingsHeatThroughWalls = true;
 
         /// <summary>How each kind of loose object slides and burns; one entry per kind.</summary>
         public ObjectKindSettings[] Kinds = ObjectKindSettings.Defaults();
@@ -2917,10 +3010,74 @@ namespace Paniq.Simulation
         public int PushMinimumTicks = 1500;
         public int PushMaximumTicks = 3000;
 
+        // ------------------------------------------------ the fire that splits the floor (2026-10-02)
+
+        /// <summary>
+        /// Whether the Director opens the round with a real fire rather than
+        /// a waste bin (2026-10-02): after the calm of
+        /// <see cref="FirstIncidentMinimumTicks"/> to
+        /// <see cref="FirstIncidentMaximumTicks"/>, or at the trigger, a
+        /// patch of floor in one of <see cref="FireSpots"/> is alight all at
+        /// once, too big for one bottle to finish. It replaces the ladder
+        /// and the cap on a level that asks for it: no bin, no allowance, no
+        /// socket popped at the queue. Measured on the office with its way
+        /// out unlocked: the bin was put out in three rounds of four and
+        /// everybody lived, and a fire in the middle of the floor left alone
+        /// saved between a third and two thirds, round after round, with
+        /// none ending at nobody or everybody.
+        /// </summary>
+        public bool StartsARealFire;
+
+        /// <summary>Where that fire may start: one area is drawn per round, then a spot inside it.</summary>
+        public LogicalBounds[] FireSpots = System.Array.Empty<LogicalBounds>();
+
+        /// <summary>How big it is at the start: every floor square within this of the spot, up to <see cref="FireBurstSquares"/> of them.</summary>
+        public int FireBurstRadiusMillimetres = 800;
+        public int FireBurstSquares = 9;
+
+        /// <summary>
+        /// How many times the building lights another fire when every flame
+        /// has been put out, each in a spot not used yet, a beat of
+        /// <see cref="RelightAfterTicks"/> (jittered) after the last flame
+        /// went: a fire put out is a breather, not the end of the round.
+        /// </summary>
+        public int Relights = 2;
+        public int RelightAfterTicks = 400;
+
+        /// <summary>
+        /// The smoke detectors: once this many floor squares are alight the
+        /// bells ring by themselves, a reaction lag later, as if somebody
+        /// had pulled a station. 0 leaves the bells to the people. Measured
+        /// without it on the office: whether the far wing heard of the fire
+        /// at thirty seconds or at seventy was chance (who ran past, who
+        /// shouted), and fourteen lives hung on it.
+        /// </summary>
+        public int BellsRingAtSquares;
+
+        /// <summary>
+        /// The building's move (2026-10-03): the sockets one of which, drawn
+        /// per round, crackles for <see cref="CrackleTicks"/> and pops a while
+        /// after the first fire -- between these two times after it. Empty:
+        /// no move. Only on a level that opens with a real fire.
+        /// </summary>
+        public SimulationId[] MoveSockets = System.Array.Empty<SimulationId>();
+        public int MoveMinimumTicksAfterFire = 500;
+        public int MoveMaximumTicksAfterFire = 1250;
+
+        /// <summary>
+        /// Once the last fire the building will light is out for good, the
+        /// round ends this long after (jittered), and everybody alive inside
+        /// counts as saved. A calm office goes back to work and is never still,
+        /// so the round's own stall clock never ended such a round.
+        /// </summary>
+        public int PeaceEndsTheRoundTicks = 250;
+
         public DirectorSettings Clone()
         {
             var copy = (DirectorSettings)MemberwiseClone();
             copy.FirstIncidentThings = (SimulationId[])FirstIncidentThings?.Clone();
+            copy.FireSpots = (LogicalBounds[])FireSpots?.Clone();
+            copy.MoveSockets = (SimulationId[])MoveSockets?.Clone();
             return copy;
         }
 
@@ -2935,6 +3092,12 @@ namespace Paniq.Simulation
                              AllowanceMinimumPercent <= AllowanceMaximumPercent && ReadEveryTicks >= 1 &&
                              Settings.Range(PushMinimumTicks, PushMaximumTicks, 1),
                 "the Director's cap");
+            Settings.Require(FireSpots != null && (!StartsARealFire || FireSpots.Length > 0) &&
+                             FireBurstRadiusMillimetres >= 0 && FireBurstSquares >= 1 && Relights >= 0 &&
+                             RelightAfterTicks >= 1 && BellsRingAtSquares >= 0 && MoveSockets != null &&
+                             Settings.Range(MoveMinimumTicksAfterFire, MoveMaximumTicksAfterFire, 0) &&
+                             PeaceEndsTheRoundTicks >= 1,
+                "the Director's fire");
         }
     }
 
@@ -3028,6 +3191,13 @@ namespace Paniq.Simulation
 
         /// <summary>The nudge that makes them annoyed: the third in a row.</summary>
         public int AnnoyedAfterNudges = 3;
+
+        /// <summary>
+        /// How many quick pokes wake somebody frozen with fear (2026-10-03).
+        /// 0, as it always was, means the same as <see cref="AnnoyedAfterNudges"/>:
+        /// three. A level that wants one click to do it says 1.
+        /// </summary>
+        public int PokesToWakeTheFrozen;
 
         /// <summary>
         /// How long they stay annoyed: twenty seconds, a little different each
@@ -3342,6 +3512,34 @@ namespace Paniq.Simulation
         /// width past the frame still catches the eye, a stride does not.
         /// </summary>
         public int DoorwaySightSoftEdgeMillimetres = 750;
+
+        /// <summary>
+        /// Whether a hand on a door is somewhere the frightened go, not only a
+        /// door they weigh (2026-10-03). Off, as it always was: to somebody
+        /// frightened a held door was a bonus in their choice of door, and once
+        /// through it they chose afresh, so a hand held on the stockroom door
+        /// moved few and kept fewer. On: whoever answers it walks through it
+        /// to a spot <see cref="ThroughTheDoorMillimetres"/> beyond, and is
+        /// done; for <see cref="GoOnFromTheHandTicks"/> (jittered) they are
+        /// loath to turn back through it (<see cref="TurnBackPenaltyMillimetres"/>
+        /// on its score), and then they are on their own. Nobody is drawn
+        /// through a door whose far side is in the flames; a locked door, a
+        /// heap and a way to the street keep their own answers.
+        /// </summary>
+        public bool FrightenedGoThroughAHeldDoor;
+        public int ThroughTheDoorMillimetres = 1500;
+        public int GoOnFromTheHandTicks = 500;
+        public int TurnBackPenaltyMillimetres;
+
+        /// <summary>
+        /// Whether somebody frightened standing at a hand on the floor runs on
+        /// when it is let go (2026-10-03). Off, as it always was: committed,
+        /// they stood on the spot for as long as their conviction lasted --
+        /// up to fifty seconds -- which stranded a group the player had just
+        /// led round the fire. On: let go, or moved elsewhere, and whoever has
+        /// reached their spot is done, and flees on from there.
+        /// </summary>
+        public bool FrightenedGoOnWhenLetGo;
 
         public InfluenceSettings Clone() => (InfluenceSettings)MemberwiseClone();
 

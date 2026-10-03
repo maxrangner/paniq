@@ -260,6 +260,23 @@ namespace Paniq.Simulation
             return true;
         }
 
+        /// <summary>
+        /// The bells go by themselves (2026-10-02): the smoke has reached a
+        /// detector, on a level whose Director says so. Every bell rings
+        /// exactly as when a person pulls a station, with the fire as the
+        /// cause and nobody as the puller. Nothing when they are ringing
+        /// already or the alarms are off.
+        /// </summary>
+        public void TripByTheSmoke(ulong causeEventId)
+        {
+            if (Ringing || !settings.Enabled)
+            {
+                return;
+            }
+
+            Ring(causeEventId);
+        }
+
         /// <summary>Which alarm has this ID, or -1.</summary>
         public int IndexOf(SimulationId id)
         {

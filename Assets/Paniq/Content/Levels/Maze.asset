@@ -25,3 +25,6 @@ MonoBehaviour:
   builtInBuilding: 2
   offersCrowdSwitch: 1
   triggerStartsAHazard: 0
+  shortName: "Maze"
+  brief: ""
+  howItStarts: ""

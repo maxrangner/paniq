@@ -59,7 +59,26 @@ namespace Paniq.Gameplay
         [Tooltip("On (the office): the red Trigger event button starts the level's hazard. Off (the square room and the maze, which have none): the button is not shown, and the round is not judged against the same seed left alone.")]
         [SerializeField] private bool triggerStartsAHazard = true;
 
+        [Tooltip("A short name for the level row on the start card, which has room for about twelve letters a button. Empty: the display name.")]
+        [SerializeField] private string shortName = "";
+
+        [Tooltip("Two or three lines on the start card under the level's name: what happens here and what the player's hand can do about it. Empty: none.")]
+        [TextArea(2, 4)]
+        [SerializeField] private string brief = "";
+
+        [Tooltip("The line under PLAY saying how the round starts. Empty: the start card's own wording.")]
+        [SerializeField] private string howItStarts = "";
+
         public string LevelId => string.IsNullOrEmpty(levelId) ? name : levelId;
+
+        /// <summary>The level row's label (2026-10-03): the short name, or the display name.</summary>
+        public string ShortName => string.IsNullOrEmpty(shortName) ? DisplayName : shortName;
+
+        /// <summary>What the start card says about the level under its name; empty for nothing.</summary>
+        public string Brief => brief ?? "";
+
+        /// <summary>The start card's line on how the round starts; empty for its own wording.</summary>
+        public string HowItStarts => howItStarts ?? "";
         public string DisplayName => string.IsNullOrEmpty(displayName) ? name : displayName;
         public PhysicsFeelPreset PhysicsFeel => physicsFeel;
         public int TargetSavedPercent => targetSavedPercent;

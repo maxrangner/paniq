@@ -171,6 +171,13 @@ namespace Paniq.Simulation
             goalHeading = agent.Body.Heading;
             goalSpeed = 0;
             bool timedOut = tick >= intent.ActivityEndTick;
+            if (item < 0)
+            {
+                // Whatever they were fetching, carrying or setting down has
+                // gone from their hands meanwhile (a poke startled them into
+                // dropping it, 2026-10-03): nothing left to tidy.
+                return false;
+            }
 
             switch (intent.Activity)
             {

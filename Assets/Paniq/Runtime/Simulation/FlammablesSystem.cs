@@ -292,13 +292,28 @@ namespace Paniq.Simulation
             for (int i = 0; i < alight.Count; i++)
             {
                 Flammable other = things[alight[i]];
-                if (other != thing && Gap(thing, other) <= reach)
+                if (other != thing && Gap(thing, other) <= reach &&
+                    (settings.BurningThingsHeatThroughWalls || NoWallBetween(thing, other)))
                 {
                     return other.EventId;
                 }
             }
 
             return 0UL;
+        }
+
+        /// <summary>
+        /// Whether two things stand in one room, or in two joined by an open
+        /// door: the same question the flames on the floor are asked before
+        /// they heat a thing (2026-10-02). Without it a vending machine
+        /// burning against a wall set off the socket on the wall's other
+        /// face, and the fire arrived in the next room with no door open.
+        /// </summary>
+        private bool NoWallBetween(Flammable thing, Flammable other)
+        {
+            int a = geometry.RoomAtPoint(PositionOf(thing));
+            int b = geometry.RoomAtPoint(PositionOf(other));
+            return a < 0 || b < 0 || a == b || geometry.RoomsOpenToEachOther(a, b);
         }
 
         /// <summary>Marks a thing alight and adds it to the burning list, keeping that list ascending.</summary>

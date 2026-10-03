@@ -53,6 +53,10 @@ namespace Paniq.Presentation
 
         /// <summary>The end card's lines, worked out once the round is over rather than every frame (2026-09-30).</summary>
         private List<string> retold;
+
+        /// <summary>The end card's lines by room (2026-10-03), and whether they were worked out before the left-alone round had its answer.</summary>
+        private List<string> byRoom;
+        private bool byRoomWithoutLeftAlone;
         private ParticleEffects effects;
         private PlayerInput input;
         private CameraRig cameraRig;
@@ -370,11 +374,17 @@ namespace Paniq.Presentation
                 }
                 else if (frameSnapshot.RoundIsOver)
                 {
-                    story ??= new EventStory(frameSnapshot, runner.Simulation.Commands);
+                    story ??= new EventStory(frameSnapshot, runner.Simulation.Commands, runner.Simulation.Scenario);
                     retold ??= story.Retell(frameSnapshot, runner.Simulation.Scenario.Influence.StrengthPercent,
                         runner.Simulation.Scenario.Influence.ReachMillimetres, view.LevelReachMillimetres);
+                    if (byRoom == null || (byRoomWithoutLeftAlone && runner.LeftAloneOutcomes != null))
+                    {
+                        byRoom = RoomNames.ByRoom(runner.Simulation.Scenario, frameSnapshot, runner.LeftAloneOutcomes);
+                        byRoomWithoutLeftAlone = runner.LeftAloneOutcomes == null;
+                    }
+
                     screens.DrawEndCard(frameSnapshot, runner.LeftAloneSavedCount, runner.LeftAloneStillWorking,
-                        retold);
+                        retold, byRoom);
                 }
 
                 // The end card only asks; taking the request here is what
@@ -387,6 +397,7 @@ namespace Paniq.Presentation
                 }
 
                 // Very last, so the story covers the end card behind it.
+                log.Scenario = runner.Simulation.Scenario;
                 log.Draw(frameSnapshot);
                 HudHitTest.EndFrame();
             }
@@ -505,7 +516,7 @@ namespace Paniq.Presentation
         {
             ScenarioData scenario = runner.Simulation.Scenario;
             int thudReach = scenario.Hearing.BumpSoundRadiusMillimetres;
-            story ??= new EventStory(snapshot, runner.Simulation.Commands);
+            story ??= new EventStory(snapshot, runner.Simulation.Commands, runner.Simulation.Scenario);
             for (int i = eventsSeen; i < snapshot.Events.Count; i++)
             {
                 CausalEvent record = snapshot.Events[i];

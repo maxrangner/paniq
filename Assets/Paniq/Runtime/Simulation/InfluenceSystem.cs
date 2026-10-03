@@ -876,6 +876,26 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
+        /// Somebody frightened went through the door their goal is on
+        /// (2026-10-03): what it asked is done, the press is not answered
+        /// again, and for a while they are loath to go back through it.
+        /// </summary>
+        public void WentThrough(Agent agent, int door)
+        {
+            ulong press = agent.Hand.Goal.EventId;
+            Done(agent);
+            agent.Hand.DoneWithPress = press;
+            agent.Doors.GoOnFromDoor = door;
+            agent.Doors.GoOnUntilTick = checked(context.Tick + context.Jittered(settings.GoOnFromTheHandTicks));
+        }
+
+        /// <summary>The loath-to-turn-back cost on going back through this door, now.</summary>
+        public long TurnBackCost(Agent agent, int door) =>
+            door >= 0 && door == agent.Doors.GoOnFromDoor && context.Tick < agent.Doors.GoOnUntilTick
+                ? settings.TurnBackPenaltyMillimetres
+                : 0L;
+
+        /// <summary>
         /// The task failed (no way there, the door would not shut, hemmed in
         /// too long): it costs them <see cref="InfluenceSettings.GiveUpCostPerMille"/>
         /// of their conviction and a beat before they try again; below the
@@ -1016,6 +1036,16 @@ namespace Paniq.Simulation
                             continue;
                         }
 
+                        if (hand.Press != live.EventId && GoingThroughAHeldDoor(agent))
+                        {
+                            // Half way through the door the hand was on a
+                            // moment ago (2026-10-03): they finish that first,
+                            // and take up the new press once through it, so
+                            // the hand can move on to the next door without
+                            // leaving the group behind it stranded.
+                            continue;
+                        }
+
                         if (hand.Press != live.EventId)
                         {
                             // A fresh press: the old goal is over, their
@@ -1046,7 +1076,7 @@ namespace Paniq.Simulation
 
                 if (!hand.Committed)
                 {
-                    if (hand.Conviction >= settings.CommitFromPerMille)
+                    if (hand.Conviction >= settings.CommitFromPerMille || GoingThroughAHeldDoor(agent))
                     {
                         hand.Committed = true;
                     }
@@ -1069,6 +1099,15 @@ namespace Paniq.Simulation
                 }
             }
         }
+
+        /// <summary>
+        /// Somebody frightened already on their way through a door the hand
+        /// was held on, on a level where that is something the frightened do
+        /// (<see cref="InfluenceSettings.FrightenedGoThroughAHeldDoor"/>).
+        /// </summary>
+        private bool GoingThroughAHeldDoor(Agent agent) =>
+            settings.FrightenedGoThroughAHeldDoor && agent.Hand.Acting && agent.Hand.Goal.Door >= 0 &&
+            agent.Hand.Press != 0UL && agent.Fear.State == AgentFearState.Scared;
 
         // ---------------------------------------------------------------- where and which way
 

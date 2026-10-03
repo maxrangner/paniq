@@ -25,3 +25,6 @@ MonoBehaviour:
   builtInBuilding: 1
   offersCrowdSwitch: 1
   triggerStartsAHazard: 0
+  shortName: "Square room"
+  brief: ""
+  howItStarts: ""

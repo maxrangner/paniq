@@ -276,7 +276,7 @@ namespace Paniq.Simulation
                     agent.Sitting.PulledOutMillimetres = 0;
                     agent.Sitting.ChairStart = objects.PositionOf(chair);
                     agent.Sitting.PhaseStartTick = tick;
-                    agent.Intent.ActivityEndTick = checked(tick + settings.SitPullTicks * 3);
+                    agent.Intent.ActivityEndTick = checked(tick + context.Jittered(settings.SitPullTicks * 3));
                     objects.PullAlong(chair, IntegerMath.NormalizeDegrees(objects.HeadingOf(chair) + 180), PullStep);
                     goalHeading = IntegerMath.HeadingBetween(agent.Body.Position, objects.PositionOf(chair),
                         agent.Body.Heading);
@@ -366,7 +366,7 @@ namespace Paniq.Simulation
                     // onto the seat is spread as evenly as the move itself.
                     agent.Sitting.SeatedPercent = Percent(1, settings.SitLowerTicks);
                     agent.Intent.LookHeading = facing;
-                    agent.Intent.ActivityEndTick = checked(tick + settings.SitLowerTicks + settings.SitPullTicks * 2);
+                    agent.Intent.ActivityEndTick = checked(tick + settings.SitLowerTicks + context.Jittered(settings.SitPullTicks * 2));
                     agent.Body.Speed = 0;
                     people.SitIn(agent, chair, agent.Body.Position, agent.Body.Heading);
                     return true;
@@ -665,18 +665,10 @@ namespace Paniq.Simulation
 
                 bool stillSeated = agent.IsParticipating && !agent.Burning.IsBurning &&
                                    agent.Body.State == AgentBodyState.Upright &&
-                                   (agent.Intent.Activity == AgentActivityState.Sitting ||
-                                    agent.Intent.Activity == AgentActivityState.StandingUp ||
-
-                                    // Lowering themselves onto the seat: held by
-                                    // the chair already, though not on it yet.
-                                    agent.Intent.Activity == AgentActivityState.GoingToSit ||
-
-                                    // Startled, but still in the chair until they get out of it.
-                                    agent.Intent.Activity == AgentActivityState.Reacting ||
-
-                                    // Heard something and turned in the seat to look.
-                                    agent.Intent.Activity == AgentActivityState.Investigating);
+                                   // Sitting, lowering themselves onto the seat,
+                                   // getting up, startled in it, or turned in it
+                                   // to look (Tasks).
+                                   Tasks.KeepsTheirSeat(agent.Intent.Activity);
                 if (!stillSeated)
                 {
                     Forget(agent);

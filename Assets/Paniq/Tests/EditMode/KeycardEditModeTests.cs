@@ -195,60 +195,6 @@ namespace Paniq.Tests.EditMode
         // ---------------------------------------------------------------- fetching it
 
         [Test]
-        public void FrightenedStaff_GoBackForTheCardOnTheDesk_AndSwipeTheWayOut_OneFetcherAtATime()
-        {
-            // Two brave members of staff at the way out, frightened, with the
-            // card on a desk in the office: they find the door shut, one of
-            // them -- only one -- goes back for the card, and swipes the door.
-            // The whole cast used to play this out, and a card knocked off its
-            // desk in the crush (which people who never saw it happen still
-            // believe is on the desk) made the test about one seed's luck.
-            ScenarioData data = TwoBraveStaffAtTheWayOut();
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.PutKeycardOnATableForTests(0);
-                simulation.FrightenForTests(0);
-                simulation.FrightenForTests(1);
-                int onTheirWayAtOnce = 0;
-                CausalEvent? took = null;
-                for (int t = 0; t < 120 * Run.TicksPerSecond && !took.HasValue; t++)
-                {
-                    simulation.Step();
-
-                    // Somebody knocked down mid-fetch keeps the activity but
-                    // not the claim, so only those on their feet count.
-                    int onTheirWay = 0;
-                    for (int i = 0; i < simulation.AgentCount; i++)
-                    {
-                        AgentSnapshot a = simulation.GetAgent(i);
-                        onTheirWay += a.ActivityState == AgentActivityState.FetchingKeycard &&
-                                      (a.BodyState == AgentBodyState.Upright || a.BodyState == AgentBodyState.Staggering) ? 1 : 0;
-                    }
-
-                    onTheirWayAtOnce = Math.Max(onTheirWayAtOnce, onTheirWay);
-                    List<CausalEvent> taken = EventsOfType(simulation, CausalEventType.AgentTookKeycard);
-                    if (taken.Count > 0)
-                    {
-                        took = taken[0];
-                    }
-                }
-
-                Assert.That(took.HasValue, "Somebody who found the way out shut went back for the card. " + WhoGaveUp(simulation, data));
-                Assert.That(onTheirWayAtOnce, Is.EqualTo(1), "Never two people on their way to one card.");
-                Assert.That(simulation.EventLog.Get(took.Value.CausalParentEventId).EventType, Is.EqualTo(CausalEventType.AgentScared),
-                    "Fetched out of fright, not tidiness.");
-                Assert.That(EventsOfType(simulation, CausalEventType.AgentGaveUpOnDoor).Exists(e =>
-                        e.SourceId == took.Value.SourceId && e.TargetId == TheBuilding.TheWayOut && e.Tick < took.Value.Tick),
-                    "They had found the card door shut first.");
-
-                CausalEvent? swiped = AdvanceUntil(simulation, CausalEventType.DoorUnlockedWithKeycard, 120 * Run.TicksPerSecond);
-                Assert.That(swiped.HasValue, "And swiped the way out open. " + WhereTheHolderIs(simulation, data, took.Value));
-                Assert.That(swiped.Value.SourceId, Is.EqualTo(took.Value.SourceId));
-                Assert.That(EventsOfType(simulation, CausalEventType.DoorBrokenDown), Is.Empty, "Nobody battered it meanwhile.");
-            }
-        }
-
-        [Test]
         public void ACalmTidier_NeverCarriesTheCardOff()
         {
             ScenarioData data = scenario.ToRuntimeData();
@@ -400,100 +346,6 @@ namespace Paniq.Tests.EditMode
             for (int i = 0; i < ticks; i++)
             {
                 simulation.Step();
-            }
-        }
-
-        [Test]
-        public void ThePlayersPullOnTheCard_SendsSomebodyFrightenedForIt_BraveOrNot()
-        {
-            ScenarioData data = OrdinaryPeopleInTheOffice(new LogicalPosition(-1000, -3000));
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.PutKeycardDownForTests(CardOnTheFloor);
-                simulation.FrightenForTests(0);
-                PullOnTheCard(simulation, 120);
-                CausalEvent? took = AdvanceUntil(simulation, CausalEventType.AgentTookKeycard, 20 * Run.TicksPerSecond);
-                Assert.That(took.HasValue, "Frightened, bravery five, and pulled: they go and pocket it.");
-                Assert.That(took.Value.SourceId, Is.EqualTo(new SimulationId(1UL)));
-                Assert.That(simulation.EventLog.Get(took.Value.CausalParentEventId).EventType, Is.EqualTo(CausalEventType.InfluenceSpent),
-                    "Because the player asked, and the pull is spent.");
-                Assert.That(EventsOfType(simulation, CausalEventType.AgentDrawnByInfluence)
-                        .Exists(e => e.SourceId == new SimulationId(1UL) && e.Tick <= took.Value.Tick),
-                    "The log says the pull is what moved them.");
-                Assert.That(Thing(simulation, TheBuilding.TheKeycard).HeldBy, Is.EqualTo(took.Value.SourceId));
-                Assert.That(simulation.GetAgent(0).FearState, Is.EqualTo(AgentFearState.Scared),
-                    "Still frightened: a fetch, not a calm errand.");
-            }
-        }
-
-        [Test]
-        public void WithoutThePull_SomebodyOrdinaryNeverGoesForTheCard()
-        {
-            ScenarioData data = OrdinaryPeopleInTheOffice(new LogicalPosition(-1000, -3000));
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.PutKeycardDownForTests(CardOnTheFloor);
-                simulation.FrightenForTests(0);
-                Advance(simulation, 20 * Run.TicksPerSecond);
-                Assert.That(EventsOfType(simulation, CausalEventType.AgentTookKeycard), Is.Empty,
-                    "Going for the card of their own accord takes bravery eight.");
-                Assert.That(Thing(simulation, TheBuilding.TheKeycard).IsHeld, Is.False);
-            }
-        }
-
-        [Test]
-        public void ThePull_NeverSendsAnybodyIntoTheFlamesForTheCard()
-        {
-            ScenarioData data = OrdinaryPeopleInTheOffice(new LogicalPosition(-1000, -3000));
-            TheBuilding.FireAt(data, CardOnTheFloor);
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.PutKeycardDownForTests(CardOnTheFloor);
-                Advance(simulation, 30);
-                PullOnTheCard(simulation, 120);
-                Advance(simulation, 20 * Run.TicksPerSecond);
-                Assert.That(EventsOfType(simulation, CausalEventType.AgentTookKeycard), Is.Empty,
-                    "The card lies in the flames: it waits, whatever the player asks.");
-                Assert.That(Thing(simulation, TheBuilding.TheKeycard).IsHeld, Is.False);
-            }
-        }
-
-        [Test]
-        public void TwoPeoplePulledToTheCard_GoOneAtATime()
-        {
-            ScenarioData data = OrdinaryPeopleInTheOffice(new LogicalPosition(-1000, -3000), new LogicalPosition(-1000, -1500));
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.PutKeycardDownForTests(CardOnTheFloor);
-                simulation.FrightenForTests(0);
-                simulation.FrightenForTests(1);
-
-                // A few ticks only: since 2026-09-30 the pull convinces them
-                // inside a second, and the first fetch is over in a few more.
-                PullOnTheCard(simulation, 5);
-                int onTheirWayAtOnce = 0;
-                CausalEvent? took = null;
-                for (int t = 0; t < 20 * Run.TicksPerSecond && !took.HasValue; t++)
-                {
-                    simulation.Step();
-                    int onTheirWay = 0;
-                    for (int i = 0; i < simulation.AgentCount; i++)
-                    {
-                        AgentSnapshot a = simulation.GetAgent(i);
-                        onTheirWay += a.ActivityState == AgentActivityState.FetchingKeycard &&
-                                      (a.BodyState == AgentBodyState.Upright || a.BodyState == AgentBodyState.Staggering) ? 1 : 0;
-                    }
-
-                    onTheirWayAtOnce = Math.Max(onTheirWayAtOnce, onTheirWay);
-                    List<CausalEvent> taken = EventsOfType(simulation, CausalEventType.AgentTookKeycard);
-                    if (taken.Count > 0)
-                    {
-                        took = taken[0];
-                    }
-                }
-
-                Assert.That(took.HasValue, "One of them pockets it.");
-                Assert.That(onTheirWayAtOnce, Is.EqualTo(1), "Never two people on their way to one card, pulled or not.");
             }
         }
 
@@ -705,114 +557,6 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void AFetcherKnockedOut_LetsSomebodyElseGoForTheCard()
-        {
-            ScenarioData data = TwoBraveStaffAtTheWayOut();
-            data.Falls.PassOutChancePercent = 100;
-            data.Falls.UnconsciousMinimumTicks = 100000;
-            data.Falls.UnconsciousMaximumTicks = 100000;
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.PutKeycardOnATableForTests(0);
-                simulation.FrightenForTests(0);
-                simulation.FrightenForTests(1);
-                int first = -1;
-                for (int t = 0; t < 120 * Run.TicksPerSecond && first < 0; t++)
-                {
-                    simulation.Step();
-                    first = FetchingIndex(simulation, -1);
-                }
-
-                Assert.That(first, Is.GreaterThanOrEqualTo(0), "Somebody sets off for the card.");
-                simulation.KnockDownForTests(first);
-                Assert.That(simulation.GetAgent(first).BodyState, Is.EqualTo(AgentBodyState.Unconscious), "Out cold.");
-
-                int second = -1;
-                bool took = false;
-                for (int t = 0; t < 120 * Run.TicksPerSecond && second < 0 && !took; t++)
-                {
-                    simulation.Step();
-                    second = FetchingIndex(simulation, first);
-                    took = EventsOfType(simulation, CausalEventType.AgentTookKeycard).Count > 0;
-                }
-
-                Assert.That(second >= 0 || took, Is.True,
-                    "With the first fetcher on the floor, the card is anybody's to go for again. " + WhoGaveUp(simulation, data));
-                SimulationId down = simulation.GetAgent(first).AgentId;
-                Assert.That(EventsOfType(simulation, CausalEventType.AgentTookKeycard).Exists(e => e.SourceId == down),
-                    Is.False, "Not by the one lying on the floor.");
-            }
-        }
-
-        [Test]
-        public void AFetcherWhoTrips_KeepsTheirClaimOnTheCard()
-        {
-            ScenarioData data = TwoBraveStaffAtTheWayOut();
-            data.Falls.PassOutChancePercent = 0;
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.PutKeycardOnATableForTests(0);
-                simulation.FrightenForTests(0);
-                simulation.FrightenForTests(1);
-                int first = -1;
-                for (int t = 0; t < 120 * Run.TicksPerSecond && first < 0; t++)
-                {
-                    simulation.Step();
-                    first = FetchingIndex(simulation, -1);
-                }
-
-                Assert.That(first, Is.GreaterThanOrEqualTo(0), "Somebody sets off for the card.");
-                simulation.KnockDownForTests(first);
-                Assert.That(simulation.GetAgent(first).BodyState, Is.EqualTo(AgentBodyState.Fallen));
-                for (int t = 0; t < 3 * Run.TicksPerSecond; t++)
-                {
-                    simulation.Step();
-                    Assert.That(FetchingIndex(simulation, first), Is.LessThan(0),
-                        "Somebody on the floor for a moment is still the one going for it.");
-                }
-            }
-        }
-
-        [Test]
-        public void SomebodyWhoseFetchForThePlayerFellThrough_StillTidiesAfterwards()
-        {
-            // A calm person left with the pocket flag from a fetch for the
-            // card that came to nothing: the next tidy-up must still be a
-            // tidy-up, not a card they are trying to pocket.
-            ScenarioData data = scenario.ToRuntimeData();
-            data.Fire.ActivationTick = int.MaxValue;
-            data.Timetable = Array.Empty<ScheduledCue>();
-            data.Items.TidyChancePercent = 100;
-            data.Calm.DecisionMinimumTicks = 50;
-            data.Calm.DecisionMaximumTicks = 100;
-            data.Agents = new[]
-            {
-                new AgentDefinition(OfficeOrdinary, new LogicalPosition(-3000, -3000), CardinalDirection.North, AgentTraitValues.AllOrdinary)
-            };
-            var things = new List<PhysicsObjectDefinition>(data.PhysicsObjects)
-            {
-                new PhysicsObjectDefinition(new SimulationId(3952UL), PhysicsObjectKind.Box, new LogicalPosition(-2000, -3000), 400, 3000)
-            };
-            data.PhysicsObjects = things.ToArray();
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.AgentForTests(0).Carry.Pocket = true;
-                bool carried = false;
-                for (int t = 0; t < 60 * Run.TicksPerSecond && !carried; t++)
-                {
-                    simulation.Step();
-                    for (int i = 0; i < simulation.PhysicsObjectCount; i++)
-                    {
-                        PhysicsObjectSnapshot thing = simulation.GetPhysicsObject(i);
-                        carried |= thing.IsHeld && thing.Kind != PhysicsObjectKind.Keycard && thing.HeldBy == OfficeOrdinary;
-                    }
-                }
-
-                Assert.That(carried, Is.True, "They pick something up to tidy it away.");
-            }
-        }
-
-        [Test]
         public void AVisitorGivenTheCard_KnowsTheyHaveIt()
         {
             ScenarioData data = scenario.ToRuntimeData();
@@ -865,20 +609,6 @@ namespace Paniq.Tests.EditMode
             return simulation.Phase == RoundPhase.Over ? snapshot.SavedCount : snapshot.CrowdSize - snapshot.LostCount;
         }
 
-        /// <summary>The first person on their way to the card, other than <paramref name="except"/>, or -1.</summary>
-        private static int FetchingIndex(Run simulation, int except)
-        {
-            for (int i = 0; i < simulation.AgentCount; i++)
-            {
-                if (i != except && simulation.GetAgent(i).ActivityState == AgentActivityState.FetchingKeycard)
-                {
-                    return i;
-                }
-            }
-
-            return -1;
-        }
-
         /// <summary>For a failing fetch: who gave the way out up, and what each of them believed about the card.</summary>
         private static string WhoGaveUp(Run simulation, ScenarioData data)
         {
@@ -894,7 +624,7 @@ namespace Paniq.Tests.EditMode
                 AgentKeycard belief = simulation.KeycardBeliefForTests(index);
                 AgentSnapshot agent = simulation.GetAgent(index);
                 lines.Add($"{gaveUp.SourceId.Value} at {gaveUp.Tick} (bravery {agent.Traits.Bravery}, knows {belief.Knows}, " +
-                          $"with somebody {belief.WithSomebody}, may fetch from {belief.MayFetchFromTick}, now {agent.ActivityState} " +
+                          $"with somebody {belief.WithSomebody}, now {agent.ActivityState} " +
                           $"{agent.FearState} {agent.Outcome} at {agent.Position})");
             }
 

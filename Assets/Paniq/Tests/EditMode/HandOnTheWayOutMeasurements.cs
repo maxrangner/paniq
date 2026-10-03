@@ -155,7 +155,6 @@ namespace Paniq.Tests.EditMode
                 }
             }
 
-            int fetching = 0;
             int answering = 0;
             int forcing = 0;
             int scared = 0;
@@ -168,7 +167,6 @@ namespace Paniq.Tests.EditMode
                     continue;
                 }
 
-                fetching += agent.ActivityState == AgentActivityState.FetchingKeycard ? 1 : 0;
                 answering += agent.ActingForTheHand ? 1 : 0;
                 forcing += agent.ActivityState == AgentActivityState.ForcingDoor || agent.ActivityState == AgentActivityState.TryingDoor ? 1 : 0;
                 scared += agent.FearState == AgentFearState.Scared ? 1 : 0;
@@ -185,7 +183,7 @@ namespace Paniq.Tests.EditMode
             }
 
             return $"{second,3}s crossbar {InTheCrossbar(simulation, false),2} | scared {scared,2} down {down,2} | " +
-                   $"answering {answering,2} at doors {forcing,2} fetching {fetching} | way out {wayOut.State}{(wayOut.NeedsKeycard ? " (card)" : "")} | {card}";
+                   $"answering {answering,2} at doors {forcing,2} | way out {wayOut.State}{(wayOut.NeedsKeycard ? " (card)" : "")} | {card}";
         }
 
         private static string Counts(Run simulation)

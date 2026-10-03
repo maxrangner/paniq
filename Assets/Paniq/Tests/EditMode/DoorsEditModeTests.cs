@@ -134,8 +134,6 @@ namespace Paniq.Tests.EditMode
             // Working one door four times over costs more than a round's purse
             // holds, and this test is about what the clicks do rather than what
             // they cost: PowersEditModeTests owns the prices.
-            data.Purse.Starting = 1000;
-            data.Purse.Maximum = 1000;
             var simulation = new Run(data);
             Click(simulation, OfficeWayOut);
             simulation.Step();
@@ -275,8 +273,6 @@ namespace Paniq.Tests.EditMode
                 // never touched. This test is about what open doors do, not
                 // about what they cost -- PowersEditModeTests owns
                 // the prices.
-                data.Purse.Starting = 2000;
-                data.Purse.Maximum = 2000;
                 var simulation = new Run(data, seed);
                 OpenEveryDoor(simulation);
                 // Bodies give a little: in a packed, shoving crowd two people on
@@ -971,8 +967,6 @@ namespace Paniq.Tests.EditMode
                         break;
                     case CausalEventType.BoxHeapSettled:
                     case CausalEventType.BoxPileCleared:
-                    case CausalEventType.PowerHeldDoor:
-                    case CausalEventType.PowerReleasedDoor:
                         Assert.That(doorCentres.ContainsKey(record.TargetId), Is.True, $"{record.EventType} names the doorway.");
                         break;
                     case CausalEventType.PowerNudged:

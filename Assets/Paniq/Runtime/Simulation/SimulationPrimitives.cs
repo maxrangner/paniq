@@ -379,13 +379,6 @@ namespace Paniq.Simulation
         Chatting,
 
         /// <summary>
-        /// Frightened, and on the way to the keycard (2026-09-27): the way
-        /// out was found locked, they know where the card is, and they are
-        /// going to get it. See <see cref="KeycardSystem"/>.
-        /// </summary>
-        FetchingKeycard,
-
-        /// <summary>
         /// Going to a box too heavy for them because the player's hand is on
         /// it, and straining at it until it shifts (2026-09-30). See
         /// <see cref="HandHeaveBehaviour"/>.
@@ -676,18 +669,6 @@ namespace Paniq.Simulation
         /// <summary>Somebody strong heaved an obstruction out of a doorway (source: the person, target: the thing).</summary>
         AgentShovedObstruction,
 
-        // The player's cards. Each is a root event, because the player is the
-        // cause, and its strength is the purse points it cost.
-
-        /// <summary>Beefcake played on somebody (target: the person made strong).</summary>
-        PowerBeefcake,
-
-        /// <summary>A fire started by the player, at the place they pointed at.</summary>
-        PowerSpawnedFire,
-
-        /// <summary>An extinguisher put on the floor by the player (target: the bottle).</summary>
-        PowerSpawnedExtinguisher,
-
         /// <summary>A wall blown open by the player (source and target: the hole itself).</summary>
         PowerBlastedWall,
 
@@ -741,9 +722,6 @@ namespace Paniq.Simulation
         /// </summary>
         PowerSparkArrived,
 
-        /// <summary>The player popped the fuse box by hand (target: the box; strength: what it cost).</summary>
-        PowerPoppedFuseBox,
-
         /// <summary>
         /// Somebody frightened who knows of no way out has started looking for
         /// one (source: them; cause: what frightened them).
@@ -765,28 +743,6 @@ namespace Paniq.Simulation
         /// so the pop-up sign is theirs and carries their number.
         /// </summary>
         AgentFoundTheWayOut,
-
-        /// Somebody was killed and their death dealt the player a card. The
-        /// strength field carries which card it was, as a
-        /// <see cref="PlayerCommandType"/>.
-        /// </summary>
-        CardDealt,
-
-        // One apiece for the trait cards, appended once per person caught, so
-        // the round reads back as "you made these four fearless" rather than
-        // as one line naming a patch of carpet.
-
-        /// <summary>Courage caught this person: their bravery is now at the top.</summary>
-        PowerCourage,
-
-        /// <summary>Terror caught this person: their nervousness is now at the top.</summary>
-        PowerTerror,
-
-        /// <summary>Bastard caught this person: their evil is now at the top.</summary>
-        PowerBastard,
-
-        /// <summary>Cold heart caught this person: their compassion is now at the bottom.</summary>
-        PowerColdHeart,
 
         /// <summary>
         /// Somebody stuck behind a table in a panic heaved it out of their
@@ -819,9 +775,6 @@ namespace Paniq.Simulation
         /// Chatter: it is folded in the read-back and earns no sign.
         /// </summary>
         AgentSaid,
-
-        /// <summary>The player called it a day. A root event: the cue it calls names it as its cause.</summary>
-        PowerCalledHomeTime,
 
         /// <summary>
         /// Somebody cruel would not take up a cue: sat on when the meeting
@@ -862,12 +815,6 @@ namespace Paniq.Simulation
         /// </summary>
         PowerPulledAlarm,
 
-        /// <summary>
-        /// The player threw "Stick together": one of these per person the
-        /// throw caught, who is now bound to the others. Target: the person.
-        /// </summary>
-        PowerStickTogether,
-
         // Prototype 3 (2026-09-25): the tower of boxes, doors held shut and
         // people nudged. Appended only.
 
@@ -895,12 +842,6 @@ namespace Paniq.Simulation
         /// in the gap. Cause: the heap settling.
         /// </summary>
         BoxPileCleared,
-
-        /// <summary>The player took hold of a door and held it shut. A root event. Source and target: the door.</summary>
-        PowerHeldDoor,
-
-        /// <summary>The player let go of a door they were holding. A root event. Source and target: the door.</summary>
-        PowerReleasedDoor,
 
         /// <summary>The player nudged somebody. A root event. Target: the person.</summary>
         PowerNudged,
@@ -1426,58 +1367,12 @@ namespace Paniq.Simulation
         /// <summary>Locked becomes unlocked; unlocked becomes open; open closes (unless someone is in the doorway). Broken stays broken.</summary>
         ClickDoor,
 
-        // The cards. Each one spends purse points, and each names either a person
-        // or a place. Appended only.
-
-        /// <summary>Beefcake: the named person becomes as strong as anyone can be, for good.</summary>
-        PlayBeefcake,
-
-        /// <summary>Start a fire on the floor square under the named place.</summary>
-        SpawnFire,
-
-        /// <summary>Stand a full fire extinguisher on the floor at the named place.</summary>
-        SpawnExtinguisher,
-
-        /// <summary>TNT: blow a hole through the wall nearest the named place.</summary>
-        BlastWall,
-
         /// <summary>
         /// Set the disaster going. Not a card and it costs nothing: it is the
         /// one deliberate "start the trouble" the round waits for. The first
         /// one starts the hazard; any later one does nothing.
         /// </summary>
         TriggerEvent,
-
-        /// <summary>
-        /// Pop the fuse box by hand. Aimed at a place rather than a thing,
-        /// because the card finds the box near where the player pointed, and a
-        /// floor has one of them.
-        /// </summary>
-        PopFuseBox,
-
-        // The trait cards. Each is thrown at a patch of floor and slams one
-        // dial to the end of its scale for everybody caught inside, for the
-        // rest of the round.
-
-        /// <summary>Courage: bravery to the top. They stop dithering and go at the thing.</summary>
-        PlayCourage,
-
-        /// <summary>Terror: nervousness to the top. Whoever is caught bolts.</summary>
-        PlayTerror,
-
-        /// <summary>Bastard: evil to the top. They shove people aside and lock doors behind them.</summary>
-        PlayBastard,
-
-        /// <summary>Cold heart: compassion to the bottom. They stop going back for anybody.</summary>
-        PlayColdHeart,
-
-        /// <summary>
-        /// Call it a day: everybody in the building packs up and heads for the
-        /// way out. Not a card and it costs nothing, like the trigger: it is
-        /// the player's way of calling a cue, proven to work by a test, and
-        /// nothing on the screen is wired to it yet.
-        /// </summary>
-        CallHomeTime,
 
         /// <summary>
         /// The player pulls a fire alarm (the target is the alarm's ID). Not a
@@ -1493,24 +1388,6 @@ namespace Paniq.Simulation
         /// building's way out costs the whole purse to unlock (2026-09-25).
         /// </summary>
         ToggleLock,
-
-        /// <summary>
-        /// Stick together: everybody the throw catches becomes one group that
-        /// keeps together once frightened (see <see cref="GroupSystem"/>).
-        /// </summary>
-        StickTogether,
-
-        /// <summary>
-        /// The player puts a hand on a door and holds it shut (the target is
-        /// the door's ID; prototype 3, 2026-09-25). An open door is pulled
-        /// shut first, as soon as the doorway is clear. While held, nobody
-        /// opens it, locked or not; somebody strong enough bursts it in one
-        /// push. Free. Ends with <see cref="ReleaseDoor"/>.
-        /// </summary>
-        HoldDoor,
-
-        /// <summary>The player lets go of a door they were holding shut (the target is the door's ID). Free.</summary>
-        ReleaseDoor,
 
         /// <summary>
         /// The player nudges a person (the target is the person's ID;

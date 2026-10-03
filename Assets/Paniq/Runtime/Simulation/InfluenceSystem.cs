@@ -1033,6 +1033,13 @@ namespace Paniq.Simulation
                                 Drop(agent);
                             }
 
+                            // Taken in (their lag already past): a push is a
+                            // reason to think again now (2026-10-03).
+                            if (hand.PushedByPress != live.EventId)
+                            {
+                                SimulationContext.ChooseNoLaterThan(agent.Intent, context.Tick);
+                            }
+
                             continue;
                         }
 
@@ -1046,6 +1053,7 @@ namespace Paniq.Simulation
                             continue;
                         }
 
+                        bool couldAnswer = hand.Press == live.EventId && hand.Conviction >= settings.AnswerFromPerMille;
                         if (hand.Press != live.EventId)
                         {
                             // A fresh press: the old goal is over, their
@@ -1059,6 +1067,16 @@ namespace Paniq.Simulation
 
                         hand.Goal = live;
                         hand.Conviction = Math.Min(1000, hand.Conviction + felt * settings.ConvictionGainPerTickAtFullPull / 1000);
+
+                        // Sure enough of it now to set about it, for this
+                        // press: a reason to think again now, rather than at
+                        // their next decision a second away (2026-10-03, the
+                        // one task model: the options are weighed only then).
+                        if (!couldAnswer && hand.Conviction >= settings.AnswerFromPerMille)
+                        {
+                            SimulationContext.ChooseNoLaterThan(agent.Intent, context.Tick);
+                        }
+
                         continue;
                     }
                 }

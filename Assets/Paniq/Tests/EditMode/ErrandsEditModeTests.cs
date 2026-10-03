@@ -227,7 +227,6 @@ namespace Paniq.Tests.EditMode
         public void AToiletTrip_ShutsTheStallDoor_StaysAWhile_AndComesBackToTheirDesk()
         {
             ScenarioData data = CalmDay();
-            data.Day.ToiletEveryTicks = 0;
             TheBuilding.WithToiletStay(data, 100, 150);
             using (var simulation = new Run(data))
             {
@@ -295,7 +294,6 @@ namespace Paniq.Tests.EditMode
         public void FrightenedInTheStall_TheErrandIsDropped()
         {
             ScenarioData data = CalmDay();
-            data.Day.ToiletEveryTicks = 0;
             TheBuilding.WithToiletStay(data, 3000, 3000);
             using (var simulation = new Run(data))
             {
@@ -412,14 +410,14 @@ namespace Paniq.Tests.EditMode
         }
 
         [Test]
-        public void HomeTime_WithTheWayOutOpen_EverybodyLeavesCalmly_AndNobodyIsPaidFor()
+        public void HomeTime_WithTheWayOutOpen_EverybodyLeavesCalmly()
         {
             ScenarioData data = TheBuilding.WithThePlayerAbleToAct(CalmDay());
             using (var simulation = new Run(data))
             {
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, 5);
                 simulation.QueueCommand(PlayerCommandType.ClickDoor, TheBuilding.TheWayOut, 6);
-                simulation.QueueCommand(PlayerCommandType.CallHomeTime, default(SimulationId), 10);
+                simulation.CuesForTests.CallHomeTime(data.Day.PlayerHomeTimeSpreadTicks, 0UL);
 
                 var setOff = new Dictionary<int, int>();
                 int escaped = 0;
@@ -457,7 +455,6 @@ namespace Paniq.Tests.EditMode
                 Assert.That(new HashSet<int>(setOff.Values).Count, Is.GreaterThanOrEqualTo(5),
                     "People set off each in their own time, never the whole building at once.");
                 Assert.That(simulation.Phase, Is.EqualTo(RoundPhase.BeforeEvent), "Nothing has gone wrong, so no round has begun, let alone ended.");
-                Assert.That(simulation.PurseEarned, Is.Zero, "The purse pays for people saved, not for people who went home.");
 
                 // Setting the disaster off on an empty building ends the round
                 // on the spot, with everybody accounted for.
@@ -474,7 +471,7 @@ namespace Paniq.Tests.EditMode
             data.Day.PlayerHomeTimeSpreadTicks = 200;
             using (var simulation = new Run(data))
             {
-                simulation.QueueCommand(PlayerCommandType.CallHomeTime, default(SimulationId), 10);
+                simulation.CuesForTests.CallHomeTime(data.Day.PlayerHomeTimeSpreadTicks, 0UL);
                 Advance(simulation, 50 * Run.TicksPerSecond);
 
                 int atTheDoor = 0;
@@ -505,7 +502,7 @@ namespace Paniq.Tests.EditMode
             data.Day.PlayerHomeTimeSpreadTicks = 200;
             using (var simulation = new Run(data))
             {
-                simulation.QueueCommand(PlayerCommandType.CallHomeTime, default(SimulationId), 10);
+                simulation.CuesForTests.CallHomeTime(data.Day.PlayerHomeTimeSpreadTicks, 0UL);
 
                 // The front of the queue gives up on the locked door after
                 // half a minute; the player opens it a little after that.
@@ -576,6 +573,13 @@ namespace Paniq.Tests.EditMode
                 Assert.That(walking, Is.True, simulation.DescribeForTests(person));
                 LogicalPosition beside = simulation.GetAgent(person).Position + new LogicalPosition(1000, 0);
                 simulation.MakeANoiseForTests(beside);
+
+                // A beat later, in their own turn (2026-10-03).
+                for (int t = 0; t <= simulation.Scenario.Perception.ReactionLagMaximumTicks; t++)
+                {
+                    simulation.Step();
+                }
+
                 Assert.That(simulation.GetAgent(person).ActivityState, Is.EqualTo(AgentActivityState.Investigating), "They turn to look.");
                 Assert.That(simulation.ErrandForTests(person).Has && simulation.ErrandForTests(person).Cue == CueKind.GoHome, Is.True, "But the errand is not forgotten.");
 

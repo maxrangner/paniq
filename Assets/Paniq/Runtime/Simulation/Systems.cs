@@ -31,8 +31,6 @@ namespace Paniq.Simulation
         public PowerSystem Power;
         public DoorSystem Doors;
         public PlayerCommandSystem PlayerCommands;
-        public PurseSystem Purse;
-        public DeckSystem Deck;
         public RoundSystem Round;
         public SoundSystem Sound;
         public FearSystem Fear;
@@ -55,7 +53,6 @@ namespace Paniq.Simulation
         public ExtinguisherBehaviour Extinguishers;
         public LeaderBehaviour Leaders;
         public AlarmSystem Alarms;
-        public GroupSystem Groups;
         public AlarmBehaviour AlarmBehaviour;
         public BarricadeBehaviour Barricades;
         public CueSystem Cues;

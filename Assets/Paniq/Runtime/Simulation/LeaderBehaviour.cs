@@ -8,16 +8,17 @@ namespace Paniq.Simulation
     /// <list type="number">
     /// <item>the door out of here will not open, and somebody strong is
     /// within earshot, so they send that person to break it down;</item>
-    /// <item>the fire is still small and there is an extinguisher about, so
-    /// they send the bravest person within earshot to fetch it;</item>
     /// <item>otherwise they simply call the people near them along behind
     /// them.</item>
     /// </list>
+    /// (Sending somebody at a small fire with a bottle was set aside on
+    /// 2026-10-03, with the brave fighting it unasked.)
     /// Either way they shout, which gathers the people nearby: anyone with
     /// less leadership of their own, who is not cruel, follows them until the
     /// leader is out, down, alight, or no longer worth following. Orders are
     /// events naming the person ordered, never a hold on them: whoever is
-    /// ordered may still decide otherwise.
+    /// ordered takes it up in their own turn, a beat later
+    /// (<see cref="TakeUpAnOrder"/>), and may still decide otherwise.
     /// <para>
     /// Whoever falls in behind a leader, or is already following them when
     /// they shout again, is told everything the leader knows about the
@@ -26,7 +27,7 @@ namespace Paniq.Simulation
     /// themselves can only lead them round in the same circles.
     /// </para>
     /// </summary>
-    internal sealed class LeaderBehaviour : IPanicOption
+    internal sealed class LeaderBehaviour : ITaskOption
     {
         private readonly SimulationContext context;
 
@@ -69,33 +70,36 @@ namespace Paniq.Simulation
             settings = context.Scenario.Leadership;
         }
 
+        public bool IsDoing(Agent agent) => agent.Leading.FollowingIndex >= 0;
+
+        public MotorIntent? Continue(Agent agent, in Situation situation) => Follow(agent, situation.InDanger);
+
+        /// <summary>A leader, out of the flames, whose time to look round has come.</summary>
+        public bool Wants(Agent agent, in Situation situation) =>
+            !situation.InDanger && agent.Traits.Leadership >= settings.LeaderMinimum &&
+            context.Tick >= agent.Leading.NextPlanTick;
+
         /// <summary>
-        /// The panic decision asks this first. A leader takes charge (and
-        /// keeps running themselves); a follower goes where their leader
-        /// goes. Returns no intent for anyone doing neither.
+        /// A leader takes charge: a door sent at, or a shout that gathers
+        /// whoever is near. Leaders lead by going, so their own running is
+        /// decided as usual and this gives no intent.
         /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
+        public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
         {
-            if (agent.Leading.FollowingIndex >= 0)
-            {
-                return Follow(agent, inDanger);
-            }
+            first = Begin(agent, situation);
+            return first.HasValue;
+        }
 
-            if (inDanger || agent.Traits.Leadership < settings.LeaderMinimum ||
-                context.Tick < agent.Leading.NextPlanTick)
-            {
-                return null;
-            }
-
+        private MotorIntent? Begin(Agent agent, in Situation situation)
+        {
             agent.Leading.NextPlanTick = checked(context.Tick + context.Random.NextIntInclusive(
                 settings.PlanMinimumTicks, settings.PlanMaximumTicks));
 
-            if (!TryOrderADoorBrokenDown(agent) && (settings.LeadersLeaveTheFireAlone || !TryOrderTheFireFought(agent)))
+            if (!TryOrderADoorBrokenDown(agent))
             {
                 Rally(agent, CausalEventType.LeaderCalledPeopleOn, default);
             }
 
-            // Leaders lead by going: their own running is decided as usual.
             return null;
         }
 
@@ -152,93 +156,52 @@ namespace Paniq.Simulation
 
             ulong order = Rally(leader, CausalEventType.LeaderOrderedDoorBroken, doors.IdOf(door), breaker.Id);
 
-            // Sent at that door: they stop trailing after the leader, or the
-            // next thing they decide would be to follow them again and the
-            // door would never get touched.
-            StopFollowing(breaker);
-
-            // Sent at that door, and they will not give up on it while it holds.
-            wayfinding.Learn(breaker, door, WayLearned.Told, order);
-            breaker.Doors.ExitDoorIndex = door;
-            breaker.Doors.ApproachRoom = geometry.RoomOf(breaker);
-            breaker.Doors.FoundShut[door] = false;
-            breaker.Doors.AvoidUntilTick[door] = 0;
-            breaker.Leading.OrderedDoor = door;
-            breaker.Leading.OrderedUntilTick = checked(context.Tick + context.Jittered(settings.OrderLastsTicks));
-            breaker.Leading.OrderEventId = order;
-            breaker.Intent.Activity = AgentActivityState.Fleeing;
-            context.ThinkAgainSoon(breaker.Intent);
+            // An offer, not a hold (2026-10-03, the owner's rule: nobody
+            // reacts on the tick a thing happens; the audit's E1): the order
+            // is theirs to take up in their own turn, a beat later.
+            breaker.Leading.OfferedDoor = door;
+            breaker.Leading.OfferedFromTick = context.ReactionTick();
+            breaker.Leading.OfferEventId = order;
+            SimulationContext.ChooseNoLaterThan(breaker.Intent, breaker.Leading.OfferedFromTick);
             return true;
         }
 
-        /// <summary>The fire is still small and a bottle is free: they send the bravest person nearby for it.</summary>
-        private bool TryOrderTheFireFought(Agent leader)
+        /// <summary>
+        /// In their own turn: an order to break a door down, from a beat after
+        /// it was shouted. Sent at that door, they stop trailing after the
+        /// leader (or the next thing they decided would be to follow them
+        /// again and the door would never get touched), and they will not
+        /// give up on it while it holds. Somebody frozen, down or alight by
+        /// then lets it go.
+        /// </summary>
+        public void TakeUpAnOrder(Agent agent)
         {
-            if (fire.BurningCount == 0 || fire.BurningCount > context.Scenario.Extinguishers.FightMaximumFireCells)
+            AgentLeading leading = agent.Leading;
+            int door = leading.OfferedDoor;
+            if (door < 0 || context.Tick < leading.OfferedFromTick)
             {
-                return false;
+                return;
             }
 
-            // One look at how far everything is from the leader, rather than
-            // one for each bottle. Asking per bottle worked out a fresh route
-            // for every one of them, and a single leader could use up the whole
-            // tick's share of that work and drop the entire crowd back to
-            // walking in straight lines.
-            FlowField walking = geometry.Routes.ReachFrom(leader.Body.Position, bodyRadius);
-            int bottle = -1;
-            IReadOnlyList<int> bottles = objects.Equipment;
-            for (int b = 0; b < bottles.Count; b++)
+            leading.OfferedDoor = -1;
+            if (agent.Intent.Activity == AgentActivityState.Frozen || agent.Burning.IsBurning ||
+                agent.Body.State != AgentBodyState.Upright || geometry.IsDoorOpen(door))
             {
-                // A bottle anywhere somebody could be sent to, rather than
-                // only one in the room the leader is standing in.
-                int i = bottles[b];
-                if (objects.HolderOf(i) >= 0 || objects.FuelOf(i) <= 0)
-                {
-                    continue;
-                }
-
-                bool worthSendingFor = walking == null
-                    ? geometry.RoomAtPoint(objects.PositionOf(i)) == geometry.RoomOf(leader)
-                    : geometry.Routes.DistanceIn(walking, objects.PositionOf(i)) != long.MaxValue;
-                if (worthSendingFor)
-                {
-                    bottle = i;
-                    break;
-                }
+                return;
             }
 
-            if (bottle < 0)
-            {
-                return false;
-            }
-
-            Agent fighter = NearbyBest(leader, settings.OrderRangeMillimetres, out int bravery,
-                other => other.Carry.ItemIndex < 0 && other.Traits.Bravery >= settings.OrderedFightMinimumBravery);
-            if (fighter == null || bravery <= 0)
-            {
-                return false;
-            }
-
-            if (!Obeys(fighter, leader))
-            {
-                Rally(leader, CausalEventType.LeaderCalledPeopleOn, default);
-                return true;
-            }
-
-            ulong order = Rally(leader, CausalEventType.LeaderOrderedFireFought, objects.IdOf(bottle), fighter.Id);
-
-            // Sent for the bottle: they stop following the leader first, or the
-            // next thing they decide would be to fall in behind them again.
-            StopFollowing(fighter);
-
-            // Told to grab it: that is now their idea too.
-            fighter.Carry.ItemIndex = bottle;
-            fighter.Carry.Holding = false;
-            fighter.Intent.Activity = AgentActivityState.FetchingExtinguisher;
-            fighter.Intent.ActivityEndTick = checked(context.Tick + context.Jittered(context.Scenario.Extinguishers.FetchTimeoutTicks));
-            fighter.Leading.OrderedUntilTick = checked(context.Tick + context.Jittered(settings.OrderLastsTicks));
-            fighter.Leading.OrderEventId = order;
-            return true;
+            ulong order = leading.OfferEventId;
+            StopFollowing(agent);
+            wayfinding.Learn(agent, door, WayLearned.Told, order);
+            agent.Doors.ExitDoorIndex = door;
+            agent.Doors.ApproachRoom = geometry.RoomOf(agent);
+            agent.Doors.FoundShut[door] = false;
+            agent.Doors.AvoidUntilTick[door] = 0;
+            leading.OrderedDoor = door;
+            leading.OrderedUntilTick = checked(context.Tick + context.Jittered(settings.OrderLastsTicks));
+            leading.OrderEventId = order;
+            agent.Intent.Activity = AgentActivityState.Fleeing;
+            context.ThinkAgainSoon(agent.Intent);
         }
 
         /// <summary>

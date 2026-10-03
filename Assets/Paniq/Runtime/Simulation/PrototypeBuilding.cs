@@ -886,13 +886,6 @@ namespace Paniq.Simulation
                 // far from the way out as the building goes.
                 MainFuseBox(3281UL, -7500, 6500, South),
 
-                // Four spares the player can stand anywhere with a card. They
-                // are nowhere at all until then.
-                SpareExtinguisher(3391UL),
-                SpareExtinguisher(3392UL),
-                SpareExtinguisher(3393UL),
-                SpareExtinguisher(3394UL),
-
                 // The rest of the office (2026-09-24). Everything below is
                 // knocked about by the physics like the rest: the tall things
                 // go over, the things on castors roll, and it all burns.
@@ -1211,16 +1204,6 @@ namespace Paniq.Simulation
             return new AgentDefinition(new SimulationId(id), new LogicalPosition(x, z), facing,
                 new AgentTraitValues(strength, speed, bravery, compassion, evil, nervousness, leadership),
                 new SimulationId(carrying));
-        }
-
-        /// <summary>
-        /// One of the spare extinguishers the player's card puts down. It is not
-        /// in the world until then, so its position is never used.
-        /// </summary>
-        private static PhysicsObjectDefinition SpareExtinguisher(ulong id)
-        {
-            return new PhysicsObjectDefinition(
-                new SimulationId(id), PhysicsObjectKind.Extinguisher, new LogicalPosition(0, 0), 220, 9000, true);
         }
 
         /// <summary>A microwave on a counter: heavy, and it goes off with a bang.</summary>

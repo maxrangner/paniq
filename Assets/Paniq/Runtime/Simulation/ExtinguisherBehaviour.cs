@@ -3,16 +3,17 @@ using System.Collections.Generic;
 namespace Paniq.Simulation
 {
     /// <summary>
-    /// Fire extinguishers. A brave person near a small fire, or a
-    /// compassionate one who can see somebody alight, grabs the nearest
-    /// extinguisher, carries it to arm's length of the flames and sprays.
+    /// Fire extinguishers. Somebody the player's hand sends for a bottle, or
+    /// a compassionate person who can see somebody alight, grabs it, carries
+    /// it to arm's length of the flames and sprays. (The brave taking the
+    /// fire on unasked was set aside on 2026-10-03.)
     /// The spray is a cone: it puts burning floor squares out square by
     /// square, puts out burning people and things, and knocks anyone caught
     /// in it off their feet and backwards. There is only a few seconds of it
     /// in the bottle, and a weak person is shoved backwards by the recoil
     /// instead of holding their ground.
     /// </summary>
-    internal sealed class ExtinguisherBehaviour : IPanicOption, IBindable
+    internal sealed class ExtinguisherBehaviour : ITaskOption, IBindable
     {
         private readonly SimulationContext context;
 
@@ -93,25 +94,17 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Whether this person would take on the fire: brave enough for the
-        /// flames, or kind enough to hose down someone who is alight, and not
-        /// already carrying something or helping someone.
+        /// Whether this person would go for a bottle unasked: only to hose
+        /// down someone who is alight, kind enough to, and not already
+        /// carrying something or helping someone. Taking on the fire itself
+        /// unasked, the brave used to; that was set aside on 2026-10-03 (the
+        /// owner's choice): a fire put out by chance ended the round for
+        /// everybody. A hand on a bottle still sends anybody.
         /// </summary>
-        private bool WouldFight(Agent agent, bool someoneAlight)
+        private bool WouldGoToSaveSomebody(Agent agent)
         {
-            if (agent.Carry.ItemIndex >= 0 || agent.Help.TargetIndex >= 0 || agent.Body.State != AgentBodyState.Upright)
-            {
-                return false;
-            }
-
-            // Somebody has just put a bottle down in front of them: for a
-            // while they need less nerve than usual to be the one who takes it.
-            int nerveNeeded = context.Tick < agent.Carry.SawAnExtinguisherUntilTick
-                ? settings.FightMinimumBravery - settings.OfferedBraveryBonus
-                : settings.FightMinimumBravery;
-
-            return agent.Traits.Bravery >= nerveNeeded ||
-                   (someoneAlight && agent.Traits.Compassion >= settings.SaveMinimumCompassion);
+            return agent.Carry.ItemIndex < 0 && agent.Help.TargetIndex < 0 && agent.Body.State == AgentBodyState.Upright &&
+                   agent.Traits.Compassion >= settings.SaveMinimumCompassion;
         }
 
         /// <summary>
@@ -171,16 +164,25 @@ namespace Paniq.Simulation
             return pull.Thing;
         }
 
-        /// <summary>
-        /// Considered in the panic decision: pick up an extinguisher and go
-        /// for the fire. Returns no intent when this person is not doing that.
-        /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
+        public bool IsDoing(Agent agent) => IsFighting(agent);
+
+        public MotorIntent? Continue(Agent agent, in Situation situation) => Update(agent, situation.InDanger);
+
+        /// <summary>Out of the flames, on their feet, and something burning anywhere.</summary>
+        public bool Wants(Agent agent, in Situation situation) =>
+            !situation.InDanger && agent.Body.State == AgentBodyState.Upright &&
+            fire.BurningCount + flammables.BurningCount > 0;
+
+        /// <summary>Pick up an extinguisher and go for the fire, or nothing.</summary>
+        public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
         {
-            if (IsFighting(agent))
-            {
-                return Update(agent, inDanger);
-            }
+            first = Begin(agent, situation);
+            return first.HasValue;
+        }
+
+        private MotorIntent? Begin(Agent agent, in Situation situation)
+        {
+            bool inDanger = situation.InDanger;
 
             // The bottle is already in their arms, kept through the fright
             // (2026-09-29): straight to the flames with it.
@@ -235,23 +237,11 @@ namespace Paniq.Simulation
                 return Update(agent, inDanger);
             }
 
-            int burningPerson = NearestBurningPerson(agent);
-            if (!WouldFight(agent, burningPerson >= 0))
-            {
-                return null;
-            }
-
-            // Nothing to put out, or far too much of it to try. The flames used
-            // to have to be in the room they were standing in, because setting
-            // off for a fire anywhere else only walked them into a wall. Now
-            // they can be anywhere they could walk to.
-            // A burning waste bin with not a square of floor alight yet is a
-            // fire worth fighting too (2026-09-26): the Director's first
-            // incident is exactly that, and it used to be invisible here.
-            int room = geometry.RoomOf(agent);
-            if (burningPerson < 0 &&
-                (fire.BurningCount + flammables.BurningCount == 0 || fire.BurningCount > settings.FightMaximumFireCells ||
-                 room < 0 || !CanReachTheFlames(agent)))
+            // Unasked, only for somebody alight: the kind go for a bottle to
+            // hose them down. Asked first, because finding the nearest
+            // burning person builds a route (the audit of 2026-10-02: it was
+            // built for every fleeing coward, every tick).
+            if (!WouldGoToSaveSomebody(agent) || NearestBurningPerson(agent) < 0)
             {
                 return null;
             }
@@ -354,15 +344,20 @@ namespace Paniq.Simulation
                 ? NearestFlames(agent.Body.Position, out _) < nerve * nerve
                 : inDanger;
             bool gettingNowhere = agent.Body.BlockedTicks >= settings.BlockedGiveUpTicks;
-            if (item < 0 || tooClose || !agent.Body.IsOnTheirFeet || agent.Burning.IsBurning ||
-                tick >= agent.Intent.ActivityEndTick || gettingNowhere)
+            if (item < 0 || tooClose || !agent.Body.IsOnTheirFeet || agent.Burning.IsBurning)
+            {
+                End(agent, TaskEnd.Interrupted);
+                return null;
+            }
+
+            if (tick >= agent.Intent.ActivityEndTick || gettingNowhere)
             {
                 if (gettingNowhere && agent.Carry.Holding)
                 {
                     items.PutDownWhereTheyStand(agent, agent.Fear.ScaredEventId);
                 }
 
-                GiveUp(agent);
+                End(agent, TaskEnd.GaveUp);
                 return null;
             }
 
@@ -371,7 +366,7 @@ namespace Paniq.Simulation
                 // On the way to it: someone else may have got there first.
                 if (objects.HolderOf(item) >= 0)
                 {
-                    GiveUp(agent);
+                    End(agent, TaskEnd.GaveUp);
                     return null;
                 }
 
@@ -400,7 +395,7 @@ namespace Paniq.Simulation
                 context.Events.Append(tick, agent.Id, CausalEventType.ExtinguisherEmptied,
                     agent.Body.Position, 0, 0, agent.Doors.AttemptEventId, objects.IdOf(item));
                 items.PutDownWhereTheyStand(agent, agent.Fear.ScaredEventId);
-                GiveUp(agent);
+                End(agent, TaskEnd.Done);
                 return null;
             }
 
@@ -422,7 +417,7 @@ namespace Paniq.Simulation
                 // anything outside the room they stood in; now it is anything
                 // there is no way to at all.
                 items.PutDownWhereTheyStand(agent, agent.Fear.ScaredEventId);
-                GiveUp(agent);
+                End(agent, TaskEnd.Done);
                 return null;
             }
 
@@ -609,7 +604,7 @@ namespace Paniq.Simulation
                 return step;
             }
 
-            GiveUp(agent);
+            End(agent, TaskEnd.GaveUp);
             return null;
         }
 
@@ -707,20 +702,25 @@ namespace Paniq.Simulation
             return best;
         }
 
-        /// <summary>Back to running: they stop fighting the fire (whatever they are holding stays in their arms).</summary>
-        private void GiveUp(Agent agent)
+        /// <summary>
+        /// Back to running (<see cref="Tasks.End"/>): they stop fighting the
+        /// fire. Whatever they are holding stays in their arms; a bottle no
+        /// longer held is no longer the hand's.
+        /// </summary>
+        private void End(Agent agent, TaskEnd how)
         {
-            walk.Forget(agent);
+            if (IsFighting(agent))
+            {
+                Tasks.End(agent, how, context, influence, walk);
+            }
+            else
+            {
+                walk.Forget(agent);
+            }
+
             if (!agent.Carry.Holding)
             {
                 agent.Carry.ForTheHand = false;
-                InfluenceSystem.Done(agent);
-            }
-
-            if (IsFighting(agent))
-            {
-                agent.Intent.Activity = AgentActivityState.Fleeing;
-                context.ThinkAgainSoon(agent.Intent);
             }
         }
     }

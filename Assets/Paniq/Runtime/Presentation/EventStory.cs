@@ -55,26 +55,6 @@ namespace Paniq.Presentation
             }
         }
 
-        /// <summary>A card's name, for the log of a level that still deals them (the office does not, 2026-09-30).</summary>
-        private static string NameOfCard(PlayerCommandType card)
-        {
-            switch (card)
-            {
-                case PlayerCommandType.PlayBeefcake: return "Beefcake";
-                case PlayerCommandType.PlayCourage: return "Courage";
-                case PlayerCommandType.PlayTerror: return "Terror";
-                case PlayerCommandType.PlayBastard: return "Bastard";
-                case PlayerCommandType.PlayColdHeart: return "Cold heart";
-                case PlayerCommandType.SpawnFire: return "Start a fire";
-                case PlayerCommandType.SpawnExtinguisher: return "Fire extinguisher";
-                case PlayerCommandType.BlastWall: return "TNT";
-                case PlayerCommandType.PopFuseBox: return "Pop the fuse box";
-                case PlayerCommandType.PullAlarm: return "Pull a fire alarm";
-                case PlayerCommandType.StickTogether: return "Stick together";
-                default: return card.ToString();
-            }
-        }
-
         /// <summary>
         /// The chatter. These happen dozens or hundreds of times in a round --
         /// the fire creeping one square, an extinguisher hissing, people
@@ -409,20 +389,10 @@ namespace Paniq.Presentation
                 case CausalEventType.AlarmPulled: return $"{who} hit a fire alarm";
                 case CausalEventType.AlarmRang: return "the alarms rang out";
 
-                case CausalEventType.PowerBeefcake: return $"you made {whom} as strong as anyone can be";
-                case CausalEventType.PowerCourage: return $"you made {whom} fearless";
-                case CausalEventType.PowerTerror: return $"you put the fear of God into {whom}";
-                case CausalEventType.PowerBastard: return $"you turned {whom} nasty";
-                case CausalEventType.PowerColdHeart: return $"you stopped {whom} caring what happened to anybody";
-                case CausalEventType.PowerSpawnedFire: return "you started a fire of your own";
-                case CausalEventType.PowerSpawnedExtinguisher: return "you stood an extinguisher on the floor";
                 case CausalEventType.PowerBlastedWall: return "you blew a hole through a wall";
-                case CausalEventType.PowerPoppedFuseBox: return "you popped the fuse box";
                 case CausalEventType.PowerPulledAlarm: return "you pulled a fire alarm";
                 case CausalEventType.PowerPanickedCrowd: return "you set the whole crowd panicking";
                 case CausalEventType.PowerCalmedCrowd: return "you calmed the whole crowd down";
-                case CausalEventType.PowerHeldDoor: return $"you held {who} shut";
-                case CausalEventType.PowerReleasedDoor: return $"you let go of {who}";
                 case CausalEventType.PowerNudged: return $"you nudged {whom}";
                 case CausalEventType.AgentNudged: return $"{who} looked round for whoever nudged them";
                 case CausalEventType.AgentAnnoyed: return $"{who} got annoyed at being nudged";
@@ -434,7 +404,6 @@ namespace Paniq.Presentation
                     return record.HasTarget ? $"the tower of boxes came down by {whom}" : "the stack of crates came down";
                 case CausalEventType.BoxHeapSettled: return $"the fallen boxes blocked {whom}";
                 case CausalEventType.BoxPileCleared: return $"the way through the boxes at {whom} was clear";
-                case CausalEventType.PowerStickTogether: return $"you told {whom} to stick together";
                 case CausalEventType.DirectorStartedIncident:
                     if (record.SourceId.Value == 0UL)
                     {
@@ -497,11 +466,6 @@ namespace Paniq.Presentation
                 case CausalEventType.PowerSparkArrived:
                     return $"the spark reached {Name(record.TargetId)}";
 
-                case CausalEventType.CardDealt:
-                    return record.SourceId.Value == 0UL
-                        ? $"you were dealt {NameOfCard((PlayerCommandType)record.Strength)} to start"
-                        : $"{who} died, and dealt you {NameOfCard((PlayerCommandType)record.Strength)}";
-
                 case CausalEventType.RoundEnded: return $"the round ended with {record.Strength} saved";
 
                 case CausalEventType.CueCalled:
@@ -518,7 +482,6 @@ namespace Paniq.Presentation
                     }
 
                 case CausalEventType.AgentSaid: return $"{who} said something";
-                case CausalEventType.PowerCalledHomeTime: return "you called it a day";
                 case CausalEventType.AgentIgnoredCue:
                     switch ((CueKind)record.Strength)
                     {

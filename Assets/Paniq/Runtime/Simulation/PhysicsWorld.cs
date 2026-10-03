@@ -768,23 +768,36 @@ namespace Paniq.Simulation
         }
 
         /// <summary>
-        /// Lays a body flat along a heading, keeping its middle where it is:
-        /// somebody being dragged by the arms trails in a line behind whoever
-        /// is pulling, rather than broadside, and so fits through a doorway.
+        /// Swings a body lying on the floor round toward lying along a
+        /// heading, at most this many degrees a tick, by turning it rather
+        /// than setting where it points (2026-10-03, the audit's E5: a free
+        /// body's rotation written every tick is what broke replays for the
+        /// rovers, and it lodged dragged bodies in walls). Lying either way
+        /// along the heading is the same: a body has no front to drag by.
         /// </summary>
-        public void LayAlong(int handle, int heading)
+        public void SwingToward(int handle, int heading, int maximumDegreesPerTick)
         {
             Rigidbody rigidbody = bodies[handle].Rigidbody;
-            Vector3 middle = rigidbody.worldCenterOfMass;
+            if (rigidbody.isKinematic)
+            {
+                return;
+            }
 
-            // Tipped forward a quarter turn, the body's length lies along the
-            // way it faces; then it is turned to face the heading.
-            Quaternion lying = Quaternion.Euler(90f, heading, 0f);
-            Vector3 origin = middle - lying * rigidbody.centerOfMass;
-            origin.y = Mathf.Max(origin.y, 0f);
-            rigidbody.position = origin;
-            rigidbody.rotation = lying;
-            rigidbody.angularVelocity = Vector3.zero;
+            Vector3 along = rigidbody.rotation * Vector3.up;
+            float yaw = Mathf.Atan2(along.x, along.z) * Mathf.Rad2Deg;
+            float delta = Mathf.DeltaAngle(yaw, heading);
+            if (delta > 90f)
+            {
+                delta -= 180f;
+            }
+            else if (delta < -90f)
+            {
+                delta += 180f;
+            }
+
+            float step = Mathf.Clamp(delta, -maximumDegreesPerTick, maximumDegreesPerTick);
+            rigidbody.angularVelocity = new Vector3(0f, step * Mathf.Deg2Rad * Run.TicksPerSecond, 0f);
+            rigidbody.WakeUp();
         }
 
         /// <summary>

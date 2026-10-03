@@ -41,8 +41,6 @@ namespace Paniq.Tests.EditMode
                     CardinalDirection.North, AgentTraitValues.AllOrdinary)
             };
             data.Fire.ActivationTick = int.MaxValue;
-            data.Purse.Starting = 500;
-            data.Purse.Maximum = 500;
             return data;
         }
 
@@ -159,80 +157,6 @@ namespace Paniq.Tests.EditMode
         }
 
         /// <summary>
-        /// The card pops the fuse box, and the spark then runs the other way:
-        /// out of the maintenance room and along the line of sockets.
-        /// </summary>
-        [Test]
-        public void TheCard_PopsTheFuseBoxAndSendsASparkOutAlongTheCable()
-        {
-            ScenarioData data = Quiet();
-            var simulation = new Run(data);
-            LogicalPosition box = FuseBoxPosition(simulation);
-            simulation.QueueCommand(PlayerCommandType.PopFuseBox, box, 1);
-            Advance(simulation, 3);
-
-            Assert.That(EventsOfType(simulation, CausalEventType.PowerPoppedFuseBox), Has.Count.EqualTo(1));
-            Assert.That(simulation.PowerForTests.FuseBoxHasBlown, Is.True);
-            Assert.That(EventsOfType(simulation, CausalEventType.PowerSparkStarted), Is.Not.Empty,
-                "Popping the box should light the cable leaving it.");
-        }
-
-        /// <summary>It costs what the card says, and only once.</summary>
-        [Test]
-        public void PoppingTheFuseBox_CostsItsPriceOnce()
-        {
-            ScenarioData data = Quiet();
-            int price = data.Purse.CardCost;
-            var simulation = new Run(data);
-            LogicalPosition box = FuseBoxPosition(simulation);
-            int before = simulation.Purse;
-
-            simulation.QueueCommand(PlayerCommandType.PopFuseBox, box, 1);
-            Advance(simulation, 2);
-            Assert.That(simulation.Purse, Is.EqualTo(before - price));
-
-            // A second card on a box that has already gone does nothing at all.
-            simulation.QueueCommand(PlayerCommandType.PopFuseBox, box, simulation.Tick + 1);
-            Advance(simulation, 3);
-            Assert.That(simulation.Purse, Is.EqualTo(before - price), "A refused card is free.");
-            Assert.That(EventsOfType(simulation, CausalEventType.PowerPoppedFuseBox), Has.Count.EqualTo(1));
-        }
-
-        /// <summary>Aimed at nothing in particular, the card is refused and costs nothing.</summary>
-        [Test]
-        public void TheCardPlayedNowhereNearTheFuseBox_IsRefusedAndFree()
-        {
-            ScenarioData data = Quiet();
-            var simulation = new Run(data);
-            int before = simulation.Purse;
-
-            simulation.QueueCommand(PlayerCommandType.PopFuseBox, TheBuilding.Cafeteria, 1);
-            Advance(simulation, 3);
-
-            Assert.That(simulation.Purse, Is.EqualTo(before), "Nothing happened, so nothing was spent.");
-            Assert.That(EventsOfType(simulation, CausalEventType.PowerPoppedFuseBox), Is.Empty,
-                "The log should not record something that did not happen.");
-            Assert.That(simulation.PowerForTests.FuseBoxHasBlown, Is.False);
-        }
-
-        /// <summary>Too poor to play it: refused, and the box is untouched.</summary>
-        [Test]
-        public void WithAnEmptyPurse_TheCardIsRefused()
-        {
-            ScenarioData data = Quiet();
-            data.Purse.Starting = 1;
-            data.Purse.Maximum = 1;
-            var simulation = new Run(data);
-            LogicalPosition box = FuseBoxPosition(simulation);
-
-            simulation.QueueCommand(PlayerCommandType.PopFuseBox, box, 1);
-            Advance(simulation, 3);
-
-            Assert.That(simulation.PowerForTests.FuseBoxHasBlown, Is.False);
-            Assert.That(simulation.Purse, Is.EqualTo(1));
-        }
-
-        /// <summary>
         /// The spark takes as long as the cable is long. A run measured in
         /// millimetres, crawled at a fixed speed, arrives when arithmetic says
         /// it should -- and the event it logs says so in advance.
@@ -242,7 +166,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = Quiet();
             var simulation = new Run(data);
-            simulation.QueueCommand(PlayerCommandType.PopFuseBox, FuseBoxPosition(simulation), 1);
+            simulation.PowerForTests.PopTheFuseBoxNear(FuseBoxPosition(simulation), 0UL);
             Advance(simulation, 2);
 
             List<CausalEvent> started = EventsOfType(simulation, CausalEventType.PowerSparkStarted);
@@ -267,7 +191,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = Quiet();
             var simulation = new Run(data);
-            simulation.QueueCommand(PlayerCommandType.PopFuseBox, FuseBoxPosition(simulation), 1);
+            simulation.PowerForTests.PopTheFuseBoxNear(FuseBoxPosition(simulation), 0UL);
             Advance(simulation, 60 * Run.TicksPerSecond);
 
             var went = new HashSet<ulong>();
@@ -290,7 +214,7 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = Quiet();
             var simulation = new Run(data);
-            simulation.QueueCommand(PlayerCommandType.PopFuseBox, FuseBoxPosition(simulation), 1);
+            simulation.PowerForTests.PopTheFuseBoxNear(FuseBoxPosition(simulation), 0UL);
             Advance(simulation, 60 * Run.TicksPerSecond);
 
             var counts = new Dictionary<ulong, int>();
@@ -355,7 +279,7 @@ namespace Paniq.Tests.EditMode
                 Advance(simulation, 2);
                 PhysicsObjectSystem objects = simulation.ObjectsForTests;
                 objects.Detonate(objects.IndexOf(OfficeSocket), OfficeSocket, 0UL);
-                simulation.QueueCommand(PlayerCommandType.PopFuseBox, FuseBoxPosition(simulation), simulation.Tick + 1);
+                simulation.PowerForTests.PopTheFuseBoxNear(FuseBoxPosition(simulation), 0UL);
                 Advance(simulation, 10 * Run.TicksPerSecond);
 
                 var went = new HashSet<ulong>();
@@ -381,7 +305,8 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = Quiet();
             using (var simulation = new Run(data))
             {
-                simulation.QueueCommand(PlayerCommandType.PopFuseBox, FuseBoxPosition(simulation), 1);
+                Advance(simulation, 1);
+                simulation.PowerForTests.PopTheFuseBoxNear(FuseBoxPosition(simulation), 0UL);
                 Advance(simulation, 10 * Run.TicksPerSecond);
 
                 int fuseBoxWent = -1;

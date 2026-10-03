@@ -202,13 +202,11 @@ namespace Paniq.Tests.EditMode
             bool staysUp)
         {
             ScenarioData data = OneThing(kind, size, mass);
-            data.Purse.Starting = 1000;
-            data.Purse.Maximum = 1000;
             using (var simulation = new Run(data))
             {
                 simulation.Step();
                 // A hole blown in the west wall, two metres from the thing.
-                simulation.QueueCommand(PlayerCommandType.BlastWall, new LogicalPosition(-5900, 0), simulation.Tick + 1);
+                simulation.BlastWallForTests(new LogicalPosition(-5900, 0));
                 float lowest = 1f;
                 for (int t = 0; t < 4 * Run.TicksPerSecond; t++)
                 {

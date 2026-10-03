@@ -1,5 +1,23 @@
 # The office level
 
+> **Changed on 2026-10-03 (level mode), not yet rewritten below.** Deleted:
+> the cards, the purse, the deck and "stick together". Set aside everywhere:
+> going back for the keycard in a fright, the cruel wedging doors and locking
+> the way out, toilet trips of their own accord, the brave fighting the fire
+> unasked, and leaders sending anybody at it. Everybody's rules now (they were
+> the loop level's): choices about the heat stick, dead ends count against a
+> hiding place, a held door is walked through, the hand let go strands nobody,
+> 6 % freeze for good, one click wakes the frozen, no fire through walls, each
+> person throws their own dice. How people choose is one chooser for calm and
+> frightened alike. Where this page says otherwise, the decisions page
+> ([technical-decisions.md](technical-decisions.md), *Level mode*) is right;
+> the page is rewritten in the hardening pass.
+>
+> On this page: *What the player can do* still describes the purse and the
+> cards in places, and the keycard's fetchers; the opening level is now
+> *Prototype fire 2* (`OfficeLoop`, the office re-ruled), with the office one
+> click away.
+
 **Status:** the game's one level, and the scene every stone so far has been
 built in: prototype 1 (the fire-reaction office, finished and merged into
 `main` on 2026-09-22), prototype 2 (the round) and prototype 3 (gameplay, under

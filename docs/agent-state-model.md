@@ -1,5 +1,21 @@
 # Agent state model
 
+> **Changed on 2026-10-03 (level mode), not yet rewritten below.** Deleted:
+> the cards, the purse, the deck and "stick together". Set aside everywhere:
+> going back for the keycard in a fright, the cruel wedging doors and locking
+> the way out, toilet trips of their own accord, the brave fighting the fire
+> unasked, and leaders sending anybody at it. Everybody's rules now (they were
+> the loop level's): choices about the heat stick, dead ends count against a
+> hiding place, a held door is walked through, the hand let go strands nobody,
+> 6 % freeze for good, one click wakes the frozen, no fire through walls, each
+> person throws their own dice. How people choose is one chooser for calm and
+> frightened alike. Where this page says otherwise, the decisions page
+> ([technical-decisions.md](technical-decisions.md), *Level mode*) is right;
+> the page is rewritten in the hardening pass.
+>
+> On this page: the Beefcake card is gone, so nothing the player does changes
+> a person's traits any more.
+
 **Status:** decided foundation, checked against the code on 2026-09-26. This note defines the minimum stable,
 simulation-owned runtime state for an autonomous agent. It does not define
 agent decision logic, crowd behaviour, hazards, movement, or content-specific
@@ -212,3 +228,32 @@ the same lived as a scatter of press ids on `AgentIntent`
 were in before this one, so influence never pulls them straight back through
 the door they came in by; `HeapDoor` and `GiveUpOnTheHeapTick` are the
 heaped doorway somebody strong is having a go at, and when they give it up.
+
+## How a person decides (2026-10-03)
+
+Everybody, calm or frightened, is doing exactly one **task** at a time --
+idle, noticing a noise, sitting, tidying, an errand, escaping, frozen,
+following, fighting a fire, helping, raising the alarm, barricading, or doing
+what the hand asks. One table in the code (`Tasks`) says which activity belongs
+to which task, and answers the questions other systems ask about it (is this
+person loitering, may a cue interrupt them, are they on their way somewhere,
+are their hands busy, may they calm down now, are they still in their chair).
+
+What they take up next is chosen by **the chooser** (`TaskChooser`): a short
+list of options in order of preference, weighed only at a **decision moment**.
+For the frightened the order is: a crate the hand is on, the hand itself,
+following a leader (and a leader's own shout), a bottle (for the hand, or for
+somebody alight), helping somebody frozen or out cold, the fire alarm,
+wedging a door against the flames; the default is running. For the calm it is:
+away from the hand's push, toward its pull, a moment's stop after a walk, then
+one roll of the dice in bands (tidy, sit, home time, back to their desk, a
+chat, a look round), and a stroll. Whatever task is under way carries on every
+tick in between.
+
+A decision moment comes about once a second for the frightened, when an
+activity ends for the calm, and at once when something happens to them: the
+hand reaching them, a wind-up they finished, an order shouted at them. An
+order or a noise is an **offer**, taken up in their own turn a reaction later.
+Every task ends the same way (`Tasks.End`): done, given up, or interrupted;
+given up, a task taken for the hand costs some of their conviction, whatever
+the task was.

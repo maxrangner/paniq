@@ -35,8 +35,7 @@ namespace Paniq.Simulation
             Threats threats,
             SoundSystem sound,
             ExitSignBehaviour exitSigns,
-            WayfindingSystem wayfinding,
-            GroupSystem groups)
+            WayfindingSystem wayfinding)
         {
             this.context = context;
             this.crowd = crowd;
@@ -46,12 +45,8 @@ namespace Paniq.Simulation
             this.sound = sound;
             this.exitSigns = exitSigns;
             this.wayfinding = wayfinding;
-            this.groups = groups;
             settings = context.Scenario.Exits;
         }
-
-        /// <summary>Who is sticking together with whom, for the door the group's anchor picks.</summary>
-        private readonly GroupSystem groups;
 
         /// <summary>
         /// Whether this person is on their way to a way out they can see
@@ -168,7 +163,6 @@ namespace Paniq.Simulation
 
             agent.Doors.ApproachRoom = room;
             agent.Knowledge.HasSearchSpot = false;
-            int groupDoor = groups.AnchorExitDoor(agent);
             int best = -1;
             int bestWayOut = -1;
             bool bestIsThroughTheHeat = false;
@@ -274,13 +268,6 @@ namespace Paniq.Simulation
                 if (next == agent.Doors.ExitDoorIndex)
                 {
                     score += settings.CurrentChoiceBonusMillimetres;
-                }
-
-                if (groupDoor >= 0 && next == groupDoor)
-                {
-                    // The door the rest of the group is going for: worth a
-                    // walk to keep together, though not a walk through fire.
-                    score += context.Scenario.Groups.ChoiceBonusMillimetres;
                 }
 
                 score -= RoutePenalties(agent, position, next);
@@ -1186,38 +1173,6 @@ namespace Paniq.Simulation
                         return true;
                     }
 
-                    if (doors.IsHeldShut(door) && state == DoorState.Unlocked)
-                    {
-                        // The player is holding it shut (the owner's rule,
-                        // 2026-09-25): somebody strong enough to batter a door
-                        // at all gets through a held one in a single push, and
-                        // it is off its hinges for good; everybody else rattles
-                        // it, gives up, and comes back once it is let go of.
-                        // Whether they once shut it themselves does not come
-                        // into it: it is the player's hand holding it now, not
-                        // their own doing. A held door somebody has also
-                        // locked is a locked door, and battered as one below.
-                        if (TraitEffects.DoorShoveDamage(agent, context.Scenario) > 0)
-                        {
-                            CausalEvent push = context.Events.Append(
-                                tick,
-                                agent.Id,
-                                CausalEventType.AgentForcedDoor,
-                                doorCentre,
-                                context.Scenario.Hearing.BumpSoundRadiusMillimetres,
-                                0,
-                                agent.Doors.AttemptEventId,
-                                doors.IdOf(door));
-                            sound.Thud(agent.Id, doorCentre, push.EventId);
-                            doors.Batter(door, agent, context.Scenario.Exits.DoorStrength, push.EventId);
-                            agent.Intent.Activity = AgentActivityState.Fleeing;
-                            return false;
-                        }
-
-                        GiveUp(agent, false);
-                        return true;
-                    }
-
                     // A door they shut themselves they never batter, however long
                     // ago it was and however badly it has trapped them: they
                     // give up on it as on any door that will not open. Nor a
@@ -1355,12 +1310,6 @@ namespace Paniq.Simulation
                 settings.DoorAvoidMinimumTicks, settings.DoorAvoidMaximumTicks));
             agent.Doors.FoundShut[door] = writeItOff;
             agent.Doors.ExitDoorIndex = -1;
-            if (doors.NeedsKeycard(door))
-            {
-                // The card door (2026-09-27): from a beat later, they may go
-                // back for the card if they know where it is.
-                keycards.NoteTheDoorNeedsTheCard(agent);
-            }
 
             int next = ChooseExitDoor(agent);
             agent.Intent.Activity = AgentActivityState.Hesitating;
@@ -1797,7 +1746,6 @@ namespace Paniq.Simulation
             objects = systems.Objects;
             people = systems.People;
             influence = systems.Influence;
-            keycards = systems.Keycards;
             tells = systems.Tells;
         }
 
@@ -1945,9 +1893,6 @@ namespace Paniq.Simulation
             int beyond = geometry.RoomBeyond(doorsOfIt[0], candidate);
             return beyond >= 0 && threats.IsInRoom(beyond) ? settings.RefugeDeadEndPenaltyMillimetres : 0L;
         }
-
-        /// <summary>The keycard (2026-09-27): told when somebody finds the card door shut.</summary>
-        private KeycardSystem keycards;
 
         /// <summary>The places the player is drawing people toward (2026-09-26).</summary>
         private InfluenceSystem influence;
@@ -2244,8 +2189,10 @@ namespace Paniq.Simulation
                 return;
             }
 
-            if (traits.Evil >= settings.EvilLockMinimum &&
-                (settings.PeopleLockTheWayOut || !geometry.DoorLeadsOutside(door)))
+            // Nobody locks the building's way out behind them (set aside on
+            // 2026-10-03 with the rest of the cruel wedging: one bully's whim
+            // made a whole round a total loss).
+            if (traits.Evil >= settings.EvilLockMinimum && !geometry.DoorLeadsOutside(door))
             {
                 doors.Lock(door, agent, closed);
             }

@@ -27,15 +27,7 @@ namespace Paniq.Simulation
         private readonly PowerSystem power;
         private readonly DoorSystem doors;
         private readonly PlayerCommandSystem playerCommands;
-        private readonly PurseSystem purse;
-        private readonly DeckSystem deck;
         private readonly RoundSystem round;
-
-        /// <summary>How many people had got out as of the end of last tick, so this tick can pay for the new ones.</summary>
-        private int escapedLastTick;
-
-        /// <summary>How many had been killed, so this tick can deal for the new ones.</summary>
-        private int lostLastTick;
         private readonly FearSystem fear;
         private readonly PerceptionSystem perception;
         private readonly WayfindingSystem wayfinding;
@@ -55,7 +47,6 @@ namespace Paniq.Simulation
         private readonly KeycardSystem keycards;
         private readonly LeaderBehaviour leaders;
         private readonly AlarmSystem alarms;
-        private readonly GroupSystem groups;
         private readonly AlarmBehaviour alarmBehaviour;
 
         /// <summary>The building's day: the cues, who carries them out, and the timetable that calls them.</summary>
@@ -126,14 +117,12 @@ namespace Paniq.Simulation
                 BuildTheBuildingInThePhysics();
                 doors = new DoorSystem(context, doorStates, geometry);
                 playerCommands = new PlayerCommandSystem(context);
-                purse = new PurseSystem(context);
-                deck = new DeckSystem(context);
                 round = new RoundSystem(context, agents, geometry, threats);
                 var sound = new SoundSystem(context, crowd, threats, fear, geometry);
                 perception = new PerceptionSystem(context, threats, fear, sound, crowd, geometry);
                 body = new BodySystem(context, threats, sound, fear);
                 objects = new PhysicsObjectSystem(context, crowd, geometry, body, fear, sound, fire, physics);
-                people = new PeopleBodies(context, crowd, physics, threats, objects.Count);
+                people = new PeopleBodies(context, crowd, physics, threats, objects.Count, geometry);
                 power = new PowerSystem(context, objects);
                 collisions = new CollisionSystem(context, crowd, body, fear, sound, people);
 
@@ -167,11 +156,10 @@ namespace Paniq.Simulation
                     sound);
                 var exitSigns = new ExitSignBehaviour(context, geometry);
                 wayfinding = new WayfindingSystem(context, geometry, exitSigns);
-                groups = new GroupSystem(context, crowd, wayfinding);
-                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, threats, sound, exitSigns, wayfinding, groups);
+                doorBehaviour = new DoorBehaviour(context, crowd, geometry, doors, threats, sound, exitSigns, wayfinding);
                 help = new HelpBehaviour(context, crowd, geometry, threats, fear, body, objects, locomotion, people);
                 panic = new PanicBehaviour(context, crowd, geometry, threats, fear, sound, body, doorBehaviour, help, chairs,
-                    exitSigns, locomotion, groups);
+                    exitSigns, locomotion);
                 burning = new BurningBehaviour(context, crowd, body, sound, locomotion);
                 var walk = new FrightenedWalk(context, geometry, doors, locomotion);
                 keycards = new KeycardSystem(context, crowd, geometry, doors, objects, threats, walk);
@@ -191,12 +179,12 @@ namespace Paniq.Simulation
                 {
                     Context = context, Geometry = geometry, Crowd = crowd, Physics = physics, Fire = fire,
                     Threats = threats, Power = power, Doors = doors, PlayerCommands = playerCommands,
-                    Purse = purse, Deck = deck, Round = round, Sound = sound, Fear = fear,
+                    Round = round, Sound = sound, Fear = fear,
                     Perception = perception, Body = body, Objects = objects, People = people,
                     Collisions = collisions, Locomotion = locomotion, Flammables = flammables, Items = items,
                     Chairs = chairs, Calm = calm, ExitSigns = exitSigns, Wayfinding = wayfinding,
                     DoorBehaviour = doorBehaviour, Help = help, Panic = panic, Burning = burning,
-                    Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms, Groups = groups,
+                    Extinguishers = extinguishers, Leaders = leaders, Alarms = alarms,
                     AlarmBehaviour = alarmBehaviour, Barricades = barricades,
                     Cues = cues, Errands = errands, Director = director, Nudges = nudges, Tugs = tugs, Traps = traps,
                     HandCharge = handCharge,
@@ -513,21 +501,8 @@ namespace Paniq.Simulation
         /// <summary>Whether the alarms are ringing.</summary>
         public bool AlarmsRinging => alarms.Ringing;
 
-        /// <summary>What the player has left to spend on cards.</summary>
-        public int Purse => purse.Purse;
-
         /// <summary>How many bells ring when an alarm is pulled: the sounders on the walls, or the pull stations on a floor without any.</summary>
         public int BellCount => alarms.BellCount;
-
-        /// <summary>Purse points earned back by getting people out, and spent on cards, for the display.</summary>
-        public int PurseEarned => purse.Earned;
-        public int PurseSpent => purse.Spent;
-
-        /// <summary>How many sticks of TNT the player has left.</summary>
-        public int BlastChargesRemaining => doors.BlastChargesRemaining;
-
-        /// <summary>What a card costs, so the display can grey out what the player cannot afford.</summary>
-        public int CostOf(PlayerCommandType card) => purse.CostOf(card);
 
         /// <summary>Every command queued so far, in sequence order. Replaying them gives the same run.</summary>
         public IReadOnlyList<PlayerCommand> Commands => playerCommands.Commands;
@@ -624,7 +599,39 @@ namespace Paniq.Simulation
 
         /// <summary>Tests only: the fire system, to check its queries against a brute-force answer.</summary>
         /// <summary>Tops up the purse for a test that is not about the economy.</summary>
-        public void GivePurseForTests(int amount) => purse.GiveForTests(amount);
+        /// <summary>Tests: TNT through the wall nearest the point, as the old card did, with its bang. The event, or 0 if no wall was in reach.</summary>
+        internal ulong BlastWallForTests(LogicalPosition point)
+        {
+            ulong blasted = doors.TryBlastWall(point, 0);
+            if (blasted != 0UL)
+            {
+                BlastSettings blast = context.Scenario.Blast;
+                systems.Sound.Bang(default, point, blast.BangHearingRadiusMillimetres, blast.BangAlarmRadiusMillimetres, blasted);
+                objects.FlingFrom(point, blast.ThrowRadiusMillimetres, blast.ThrowSpeedMillimetresPerTick, -1, blasted);
+                long radius = blast.KnockDownRadiusMillimetres;
+                using (Crowd.Nearby near = crowd.Within(point, radius))
+                {
+                    for (int c = 0; c < near.Count; c++)
+                    {
+                        Agent agent = agents[near[c]];
+                        if (!agent.IsParticipating || LogicalPosition.DistanceSquared(agent.Body.Position, point) > radius * radius)
+                        {
+                            continue;
+                        }
+
+                        int away = IntegerMath.HeadingBetween(point, agent.Body.Position, agent.Body.Heading);
+                        body.BlowOver(agent, away,
+                            blast.ShoveDistanceMillimetres * context.Scenario.PhysicsFeel.BlastStrengthPercent / 100,
+                            context.Scenario.PhysicsFeel.BlastLiftPercent, blasted);
+                    }
+                }
+            }
+
+            return blasted;
+        }
+
+        /// <summary>Tests: how many sticks of TNT are left for <see cref="BlastWallForTests"/>.</summary>
+        internal int BlastChargesForTests => doors.BlastChargesRemaining;
 
         internal FireSystem FireForTests => fire;
 
@@ -887,7 +894,6 @@ namespace Paniq.Simulation
             // Phase 1's tail: the bells that are due ring again, and a door
             // the player is holding shuts once its doorway is clear.
             alarms.Update();
-            doors.KeepHeldDoorsShut();
 
             // The hand's charge, then the hand: a beacon whose time is up
             // comes off, a hand whose charge ran dry comes off, and then
@@ -1084,7 +1090,6 @@ namespace Paniq.Simulation
             // -- the next tick's decisions read one settled answer instead of
             // one that changes as the door swings.
             doorBehaviour.AnnounceWaysOut();
-            SettleThePurseAndTheHand();
 
             // Very last, once everything about this tick has settled: is the
             // round over? Judged on the tick as it ended rather than as it was
@@ -1094,82 +1099,6 @@ namespace Paniq.Simulation
 
         /// <summary>Where the round has got to: before the event, during it, or finished.</summary>
         public RoundPhase Phase => round.Phase;
-
-        /// <summary>
-        /// What this tick paid the player. Everybody who got out pays the purse
-        /// back, everything that happened feeds the meter, and everybody who
-        /// was killed deals a card. Counted here rather than reported by the
-        /// behaviours, so nothing in the simulation has to know the player's
-        /// purse exists.
-        /// <para>
-        /// The dead are dealt for in agent order, not in the order they
-        /// happened to be resolved, so a replay of the same seed draws the same
-        /// cards.
-        /// </para>
-        /// </summary>
-        private void SettleThePurseAndTheHand()
-        {
-            int escaped = 0;
-            int lost = 0;
-            for (int i = 0; i < agents.Length; i++)
-            {
-                AgentTerminalOutcome outcome = agents[i].Outcome;
-                escaped += outcome == AgentTerminalOutcome.Escaped ? 1 : 0;
-                lost += outcome == AgentTerminalOutcome.Lost ? 1 : 0;
-            }
-
-            // Only while the round is running: somebody who strolled out at
-            // home time before anything was wrong was never in danger, and
-            // the purse pays for people saved, not for people who left.
-            if (round.Phase == RoundPhase.Running)
-            {
-                for (int saved = escapedLastTick; saved < escaped; saved++)
-                {
-                    purse.CreditPersonSaved();
-                }
-            }
-
-            escapedLastTick = escaped;
-
-            if (lost > lostLastTick)
-            {
-                DealForTheNewlyDead();
-                lostLastTick = lost;
-            }
-
-            purse.CreditUproar();
-        }
-
-        /// <summary>
-        /// One card for each person killed since last tick, found by walking
-        /// the crowd in order and dealing for anybody dead who has not been
-        /// dealt for yet. In crowd order rather than in the order they happened
-        /// to be resolved, so a replay of the same seed draws the same cards.
-        /// </summary>
-        private void DealForTheNewlyDead()
-        {
-            if (!context.Scenario.Purse.CardsFromTheDead)
-            {
-                // No cards on this level (2026-09-30): the dead deal nothing.
-                return;
-            }
-
-            for (int i = 0; i < agents.Length; i++)
-            {
-                if (agents[i].Outcome != AgentTerminalOutcome.Lost || agents[i].DeathDealt)
-                {
-                    continue;
-                }
-
-                agents[i].DeathDealt = true;
-                deck.DealForDeath(
-                    agents[i].Id,
-                    agents[i].Body.Position,
-                    agents[i].DeathEventId,
-                    objects.HasSpareExtinguisher,
-                    doors.BlastChargesRemaining > 0);
-            }
-        }
 
         /// <summary>Phase 3: anyone standing in a threat is got by it (in fire, they catch fire).</summary>
         private void ResolveCurrentContact()
@@ -1250,12 +1179,7 @@ namespace Paniq.Simulation
         /// <summary>An empty snapshot sized for this run, to be filled and filled again.</summary>
         public RunSnapshot NewSnapshotBuffer()
         {
-            return new RunSnapshot(agents.Length, geometry.DoorSlotCount, objects.Count, geometry.TableCount,
-                cardCosts ??= CardCosts(),
-                doorClickCosts ??= DoorCosts(state => purse.CostOfDoorClick(state, false)),
-                exitClickCosts ??= DoorCosts(state => purse.CostOfDoorClick(state, true)),
-                lockToggleCosts ??= DoorCosts(state => purse.CostOfLockToggle(state, false)),
-                exitLockToggleCosts ??= DoorCosts(state => purse.CostOfLockToggle(state, true)));
+            return new RunSnapshot(agents.Length, geometry.DoorSlotCount, objects.Count, geometry.TableCount);
         }
 
         /// <summary>Writes the run as it stands into a snapshot from <see cref="NewSnapshotBuffer"/>.</summary>
@@ -1283,14 +1207,6 @@ namespace Paniq.Simulation
             }
 
             flammables.FillTableSnapshots(into.TableBuffer);
-
-            Prefix<PlayerCommandType> held = into.HandBuffer;
-            held.Resize(deck.Hand.Count);
-            for (int i = 0; i < deck.Hand.Count; i++)
-            {
-                held.Items[i] = deck.Hand[i];
-            }
-
             influence.FillSnapshot(into.InfluencePlaceBuffer, into.InfluencePullBuffer, agents);
             into.PlayerMayPullAlarms = context.Scenario.Alarm.PlayerMayPull;
             into.DirectorPushTick = director.LastPushTick;
@@ -1307,48 +1223,11 @@ namespace Paniq.Simulation
                 context.Events.View(),
                 CountClearOfFire(),
                 alarms.Ringing,
-                purse.Enabled,
-                purse.Purse,
-                context.Scenario.Purse.Maximum,
-                purse.Spent,
-                purse.Earned,
-                doors.BlastChargesRemaining,
                 power.Sparks(),
                 round.Phase,
                 context.Scenario.Round.TargetSavedPercent,
                 handCharge.PerMille,
                 handCharge.IsResting);
-        }
-
-        /// <summary>The cost tables, worked out once: they are settings, and settings do not change in a run.</summary>
-        private int[] cardCosts;
-        private int[] doorClickCosts;
-        private int[] exitClickCosts;
-        private int[] lockToggleCosts;
-        private int[] exitLockToggleCosts;
-
-        /// <summary>What every command costs, by command type, for the display.</summary>
-        private int[] CardCosts()
-        {
-            var costs = new int[System.Enum.GetValues(typeof(PlayerCommandType)).Length];
-            for (int i = 0; i < costs.Length; i++)
-            {
-                costs[i] = purse.CostOf((PlayerCommandType)i);
-            }
-
-            return costs;
-        }
-
-        /// <summary>What working a door in each state costs, for the display.</summary>
-        private static int[] DoorCosts(System.Func<DoorState, int> priceOf)
-        {
-            var costs = new int[System.Enum.GetValues(typeof(DoorState)).Length];
-            for (int i = 0; i < costs.Length; i++)
-            {
-                costs[i] = priceOf((DoorState)i);
-            }
-
-            return costs;
         }
     }
 }

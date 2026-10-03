@@ -96,7 +96,6 @@ namespace Paniq.Tests.EditMode
             LevelDefinition level = LevelDefinition.CreateDefault();
             try
             {
-                Assert.That(level.ToRuntimeData().Purse.Enabled, Is.True);
             }
             finally
             {

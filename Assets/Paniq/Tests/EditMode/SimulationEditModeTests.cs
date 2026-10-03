@@ -564,7 +564,6 @@ namespace Paniq.Tests.EditMode
             // breaks up at once, so they walk about like everyone else.
             data.Items.SitChancePercent = 0;
             data.Day.GoHomeChancePercent = 0;
-            data.Day.ToiletEveryTicks = 0;
 
             // Chats as short as the old "walk over and stand near somebody"
             // was: a person stood talking for a quarter of a minute is not
@@ -853,7 +852,6 @@ namespace Paniq.Tests.EditMode
         public void VisualAlert_ProducesYellAndPropagatesReactionWithCausalParents()
         {
             ScenarioData data = DefaultData();
-            data.Purse.OpeningDrawCount = 0; // the opening card would sit at the front of the log, and this test reads it by position
             TheBuilding.WithAnOrdinaryWayOut(data); // and so would the keycard's start (2026-09-27)
             data.Agents = new[]
             {
@@ -885,7 +883,6 @@ namespace Paniq.Tests.EditMode
         public void LostAgents_TraceBackThroughTheFlamesToABurningSquare()
         {
             ScenarioData data = NobodyFightsTheFire();
-            data.Purse.OpeningDrawCount = 0; // the opening card would sit at the front of the log, and this test reads it by position
             TheBuilding.WithAnOrdinaryWayOut(data); // and so would the keycard's start (2026-09-27)
 
             // Somebody standing exactly where the fire starts, so there is
@@ -1004,7 +1001,6 @@ namespace Paniq.Tests.EditMode
         public void FireCrackle_TurnsSomeoneWithTheirBackToItUntilTheySeeIt()
         {
             ScenarioData data = DefaultData();
-            data.Purse.OpeningDrawCount = 0; // the opening card would sit at the front of the log, and this test reads it by position
             TheBuilding.WithAnOrdinaryWayOut(data); // and so would the keycard's start (2026-09-27)
             data.Agents = new[] { Agent(1UL, 0, 0, CardinalDirection.East) };
             data.Fire.ActivationTick = 1;
@@ -1014,11 +1010,27 @@ namespace Paniq.Tests.EditMode
             data.Fire.SpawnBounds = new LogicalBounds(-3700, -3700, 100, 100);
 
             var simulation = new Run(data);
-            simulation.Step();
+
+            // Heard on the first tick; turned to a beat later, in their own
+            // turn (2026-10-03).
+            for (int t = 0; t <= data.Perception.ReactionLagMaximumTicks + 1; t++)
+            {
+                simulation.Step();
+            }
+
             AgentSnapshot first = simulation.GetAgent(0);
             Assert.That(first.FearState, Is.EqualTo(AgentFearState.Calm));
             Assert.That(first.ActivityState, Is.EqualTo(AgentActivityState.Investigating));
-            CausalEvent noticed = simulation.EventLog.Events[1];
+            CausalEvent noticed = default;
+            foreach (CausalEvent record in simulation.EventLog.Events)
+            {
+                if (record.EventType == CausalEventType.AgentNoticedSound)
+                {
+                    noticed = record;
+                    break;
+                }
+            }
+
             Assert.That(noticed.EventType, Is.EqualTo(CausalEventType.AgentNoticedSound));
             Assert.That(noticed.CausalParentEventId, Is.EqualTo(simulation.FireActivationEventId));
 
@@ -1076,7 +1088,13 @@ namespace Paniq.Tests.EditMode
             AgentSnapshot far = simulation.GetAgent(1);
             AgentSnapshot near = simulation.GetAgent(2);
             Assert.That(far.FearState, Is.EqualTo(AgentFearState.Calm), "A yell 4 m away should only draw attention.");
-            Assert.That(far.ActivityState, Is.EqualTo(AgentActivityState.Investigating));
+            for (int t = 0; t <= data.Perception.ReactionLagMaximumTicks; t++)
+            {
+                simulation.Step();
+            }
+
+            far = simulation.GetAgent(1);
+            Assert.That(far.ActivityState, Is.EqualTo(AgentActivityState.Investigating), "Turned to it a beat later.");
             Assert.That(near.FearState, Is.Not.EqualTo(AgentFearState.Calm), "A yell 2 m away should alarm.");
             Assert.That(near.AlertSource, Is.EqualTo(AgentAlertSource.Yell));
             foreach (CausalEvent record in simulation.EventLog.Events)

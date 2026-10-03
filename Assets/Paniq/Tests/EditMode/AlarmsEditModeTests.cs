@@ -107,15 +107,14 @@ namespace Paniq.Tests.EditMode
         // ---------------------------------------------------------- the player's pull
 
         /// <summary>
-        /// The player pulls a fire alarm for thirty (the owner's call,
-        /// 2026-09-24): every bell in the building rings, the story names the
-        /// player as the root cause, and the purse is thirty lighter.
+        /// The player pulls a fire alarm (the owner's call, 2026-09-24):
+        /// every bell in the building rings, the story names the
+        /// player as the root cause.
         /// </summary>
         [Test]
         public void ThePlayer_CanPullAnAlarm_AndEveryBellRings()
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
-            data.Purse.Starting = 30;
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
@@ -132,39 +131,21 @@ namespace Paniq.Tests.EditMode
                     Assert.That(bell.CausalParentEventId, Is.EqualTo(pulled[0].EventId));
                 }
 
-                Assert.That(simulation.Purse, Is.EqualTo(0), "Thirty of the thirty.");
                 Assert.That(simulation.GetAgent(1).FearState, Is.Not.EqualTo(AgentFearState.Calm),
                     "Somebody two rooms away heard the bell.");
             }
         }
 
         [Test]
-        public void ThePlayer_TooPoorToPull_RingsNothingAndPaysNothing()
+        public void PullingAnAlarmThatIsAlreadyRinging_DoesNothing()
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
-            data.Purse.Starting = 29;
-            using (var simulation = new Run(data, 42UL))
-            {
-                simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
-                Advance(simulation, 1);
-                Assert.That(EventsOfType(simulation, CausalEventType.PowerPulledAlarm), Is.Empty);
-                Assert.That(EventsOfType(simulation, CausalEventType.AlarmRang), Is.Empty);
-                Assert.That(simulation.Purse, Is.EqualTo(29));
-            }
-        }
-
-        [Test]
-        public void PullingAnAlarmThatIsAlreadyRinging_CostsNothing()
-        {
-            ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
-            data.Purse.Starting = 60;
             using (var simulation = new Run(data, 42UL))
             {
                 simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
                 simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 20);
                 Advance(simulation, 1);
                 Assert.That(EventsOfType(simulation, CausalEventType.PowerPulledAlarm), Has.Count.EqualTo(1));
-                Assert.That(simulation.Purse, Is.EqualTo(30), "The second pull did nothing and cost nothing.");
             }
         }
 
@@ -313,7 +294,6 @@ namespace Paniq.Tests.EditMode
         {
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
             data.Round.HazardWaitsForTrigger = true;
-            data.Purse.Starting = 30;
             var simulation = new Run(data, 42UL);
             LogicalPosition farAwayStart = simulation.GetAgent(FarAway).Position;
             simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
@@ -355,7 +335,6 @@ namespace Paniq.Tests.EditMode
             // The bells on the walls, so there is more than one thing to ring.
             data.PhysicsObjects = System.Array.FindAll(scenario.ToRuntimeData().PhysicsObjects,
                 thing => thing.Kind == PhysicsObjectKind.AlarmSounder);
-            data.Purse.Starting = 30;
             var simulation = new Run(data, 42UL);
             simulation.QueueCommand(PlayerCommandType.PullAlarm, OfficeAlarm, 5);
             Advance(simulation, 16);
@@ -385,7 +364,6 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = OfficeAndMeetingRoom(Selfish, Selfish);
             data.PhysicsObjects = System.Array.FindAll(scenario.ToRuntimeData().PhysicsObjects,
                 thing => thing.Kind == PhysicsObjectKind.AlarmSounder);
-            data.Purse.Starting = 30;
             var officeBell = new SimulationId(3601UL);
 
             // A fire in the office's south-west corner, right under its bell.

@@ -265,8 +265,11 @@ namespace Paniq.Simulation
             HeardNoise next = hearing.Pending[pick];
             hearing.Pending[pick] = hearing.Pending[hearing.PendingCount - 1];
             hearing.PendingCount--;
+
+            // Heard a while ago and waited for: in their own turn, now.
             Begin(agent, next.Point, next.EventId, next.Loudness, next.IsAThreat, next.Room);
-            return true;
+            hearing.LookFromTick = context.Tick;
+            return TakeUpTheLook(agent);
         }
 
         /// <summary>Talking to each other, from either side: neither turns to wonder what the other's voice was.</summary>
@@ -295,7 +298,8 @@ namespace Paniq.Simulation
                 return;
             }
 
-            if (agent.Intent.Activity != AgentActivityState.Investigating && hearing.HasLookedAtAnything &&
+            bool looking = agent.Intent.Activity == AgentActivityState.Investigating || hearing.LookPending;
+            if (!looking && hearing.HasLookedAtAnything &&
                 context.Tick - hearing.LastLookedTick <= settings.PendingNoiseFreshTicks &&
                 LogicalPosition.DistanceSquared(point, hearing.LastLookedPoint) <= SameNoiseMillimetres * SameNoiseMillimetres)
             {
@@ -306,7 +310,7 @@ namespace Paniq.Simulation
                 return;
             }
 
-            if (agent.Intent.Activity == AgentActivityState.Investigating && hearing.HasSoundPoint)
+            if (looking && hearing.HasSoundPoint)
             {
                 if (LogicalPosition.DistanceSquared(point, hearing.SoundPoint) <= SameNoiseMillimetres * SameNoiseMillimetres)
                 {
@@ -335,13 +339,59 @@ namespace Paniq.Simulation
         /// <summary>Starts looking toward a noise, a few ticks late like every reaction: they finish the step they were taking before their head comes round.</summary>
         private void Begin(Agent agent, LogicalPosition point, ulong soundEventId, long loudness, bool isAThreat, int sourceRoom)
         {
+            // What they heard, now; what they do about it, in their own turn
+            // a beat later (TakeUpTheLook).
             AgentHearing hearing = agent.Hearing;
+            hearing.SoundPoint = point;
+            hearing.HasSoundPoint = true;
+            hearing.SoundEventId = soundEventId;
+            hearing.SoundIsAThreat = isAThreat;
+            hearing.SoundRoom = sourceRoom;
+            hearing.SoundLoudness = loudness;
+            hearing.LastLookedPoint = point;
+            hearing.LastLookedTick = context.Tick;
+            hearing.HasLookedAtAnything = true;
+            hearing.LookPending = true;
+            hearing.LookFromTick = context.ReactionTick();
+            hearing.InvestigateStartTick = hearing.LookFromTick;
+        }
 
-            // What the noise interrupts is dropped (2026-09-30): a thing they
-            // were on their way to pick up is nobody's to fetch any more, and
-            // a crate they were heaving for the hand no longer theirs. Both
-            // used to stay on them for good, and somebody still "fetching"
-            // never answered the hand or tidied again.
+        /// <summary>
+        /// In their own turn, from their reaction tick: a noise they heard is
+        /// turned to (2026-10-03, the owner's rule, the audit's E2). What it
+        /// interrupts is dropped (2026-09-30): a thing they were on their way
+        /// to pick up is nobody's to fetch any more, and a crate they were
+        /// heaving for the hand no longer theirs -- both used to stay on them
+        /// for good, and somebody still "fetching" never answered the hand or
+        /// tidied again. A look gone stale while they were frightened, or one
+        /// they no longer need (no longer calm), is dropped. True when they
+        /// turned to it.
+        /// </summary>
+        public bool TakeUpTheLook(Agent agent)
+        {
+            AgentHearing hearing = agent.Hearing;
+            int tick = context.Tick;
+            if (!hearing.LookPending || tick < hearing.LookFromTick)
+            {
+                return false;
+            }
+
+            // Half way into a chair or out of it: the look waits until they
+            // are sat or up (a look that broke into getting up left them
+            // sitting back down until told, and nobody told them again).
+            AgentActivityState activity = agent.Intent.Activity;
+            if (activity == AgentActivityState.StandingUp || activity == AgentActivityState.GoingToSit)
+            {
+                return false;
+            }
+
+            hearing.LookPending = false;
+            if (agent.Fear.State != AgentFearState.Calm || !hearing.HasSoundPoint ||
+                tick - hearing.LookFromTick > settings.PendingNoiseFreshTicks)
+            {
+                return false;
+            }
+
             if (agent.Carry.ItemIndex >= 0 && !agent.Carry.Holding)
             {
                 agent.Carry.ItemIndex = -1;
@@ -356,23 +406,18 @@ namespace Paniq.Simulation
                 InfluenceSystem.Interrupted(agent);
             }
 
+            // They stop now; the head comes round a beat later, as it always
+            // did: they finish the step they were taking first.
             agent.Intent.Activity = AgentActivityState.Investigating;
             agent.Intent.SocialPartnerIndex = -1;
             agent.Body.BlockedTicks = 0;
-            hearing.SoundPoint = point;
-            hearing.HasSoundPoint = true;
-            hearing.SoundEventId = soundEventId;
-            hearing.SoundIsAThreat = isAThreat;
-            hearing.SoundRoom = sourceRoom;
-            hearing.SoundLoudness = loudness;
-            hearing.LastLookedPoint = point;
-            hearing.LastLookedTick = context.Tick;
-            hearing.HasLookedAtAnything = true;
             hearing.InvestigateStartTick = context.ReactionTick();
-            agent.Intent.ActivityEndTick = checked(context.Tick + context.Random.NextIntInclusive(
+            agent.Intent.ActivityEndTick = checked(tick + context.Random.NextIntInclusive(
                 settings.InvestigateMinimumTicks,
                 settings.InvestigateMaximumTicks));
-            context.Events.Append(context.Tick, agent.Id, CausalEventType.AgentNoticedSound, point, 0, 0, soundEventId);
+            context.Events.Append(tick, agent.Id, CausalEventType.AgentNoticedSound, hearing.SoundPoint, 0, 0,
+                hearing.SoundEventId);
+            return true;
         }
 
         /// <summary>Puts a noise aside to be looked at later. One already waiting nearby stands for it; when there is no room, the oldest goes.</summary>

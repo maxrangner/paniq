@@ -319,8 +319,9 @@ namespace Paniq.Gameplay
         /// The hands-off round's share of a fixed step. Until the disaster has
         /// started in the real round it goes no further than the real round
         /// has, so the player's Trigger event can still be copied onto the
-        /// same tick; after that it runs ahead, paused or not, a budgeted
-        /// handful of ticks at a time.
+        /// same tick; after that it runs ahead, a budgeted handful of ticks
+        /// a fixed step. While the game is paused no fixed step comes (the
+        /// clock is stopped), so it waits with the round.
         /// </summary>
         private void AdvanceLeftAlone()
         {
@@ -392,21 +393,52 @@ namespace Paniq.Gameplay
             return false;
         }
 
+        /// <summary>
+        /// Every player command goes through here (2026-10-03, the audit's
+        /// E8): queued for the next tick that has not started, and, when it
+        /// changes the day rather than helps in it, mirrored into the
+        /// hands-off round on the same tick, so "left alone" is always the
+        /// same day without the player's help. Before, each button decided
+        /// for itself whether to tell the hands-off round, and one that forgot
+        /// compared the player against a different day.
+        /// </summary>
+        private void Queue(PlayerCommandType type, SimulationId target, LogicalPosition point = default)
+        {
+            int tick = Simulation.Tick + 1;
+            if (ChangesTheDay(type) && Simulation.Phase == RoundPhase.BeforeEvent)
+            {
+                leftAlone?.Mirror(type, tick);
+            }
+
+            Simulation.QueueCommand(type, target, point, tick);
+        }
+
+        private void Queue(PlayerCommandType type, LogicalPosition point) => Queue(type, default, point);
+
+        /// <summary>
+        /// Whether a command is part of the day rather than the player's help:
+        /// when the disaster starts, and the test levels' crowd switch. Every
+        /// other command is help, and the hands-off round never sees it.
+        /// </summary>
+        public static bool ChangesTheDay(PlayerCommandType type) =>
+            type == PlayerCommandType.TriggerEvent || type == PlayerCommandType.SetCrowdPanicked ||
+            type == PlayerCommandType.SetCrowdCalm;
+
         public void QueueDoorClick(SimulationId doorId)
         {
-            Simulation.QueueCommand(PlayerCommandType.ClickDoor, doorId, Simulation.Tick + 1);
+            Queue(PlayerCommandType.ClickDoor, doorId);
         }
 
         /// <summary>The player nudging somebody (prototype 3), queued for the next tick that has not started.</summary>
         public void QueueNudge(SimulationId personId)
         {
-            Simulation.QueueCommand(PlayerCommandType.NudgePerson, personId, Simulation.Tick + 1);
+            Queue(PlayerCommandType.NudgePerson, personId);
         }
 
         /// <summary>The player nudging somebody from a point on the floor: they step away from it (2026-09-26).</summary>
         public void QueueNudge(SimulationId personId, LogicalPosition from)
         {
-            Simulation.QueueCommand(PlayerCommandType.NudgePersonFrom, personId, from, Simulation.Tick + 1);
+            Queue(PlayerCommandType.NudgePersonFrom, personId, from);
         }
 
         /// <summary>
@@ -417,40 +449,37 @@ namespace Paniq.Gameplay
         /// </summary>
         public void QueueInfluenceDoor(SimulationId doorId, bool repels = false)
         {
-            Simulation.QueueCommand(repels ? PlayerCommandType.RepelDoor : PlayerCommandType.InfluenceDoor, doorId,
-                Simulation.Tick + 1);
+            Queue(repels ? PlayerCommandType.RepelDoor : PlayerCommandType.InfluenceDoor, doorId);
         }
 
         /// <summary>The player's hand going on a thing.</summary>
         public void QueueInfluenceThing(SimulationId thingId, bool repels = false)
         {
-            Simulation.QueueCommand(repels ? PlayerCommandType.RepelThing : PlayerCommandType.InfluenceThing, thingId,
-                Simulation.Tick + 1);
+            Queue(repels ? PlayerCommandType.RepelThing : PlayerCommandType.InfluenceThing, thingId);
         }
 
         /// <summary>The player's hand going on a patch of floor, in whole millimetres.</summary>
         public void QueueInfluenceSpot(LogicalPosition spot, bool repels = false)
         {
-            Simulation.QueueCommand(repels ? PlayerCommandType.RepelSpot : PlayerCommandType.InfluenceSpot, spot,
-                Simulation.Tick + 1);
+            Queue(repels ? PlayerCommandType.RepelSpot : PlayerCommandType.InfluenceSpot, spot);
         }
 
         /// <summary>The player's hand coming off the place it was on (2026-09-29).</summary>
         public void QueueReleaseInfluence()
         {
-            Simulation.QueueCommand(PlayerCommandType.ReleaseInfluence, default(SimulationId), Simulation.Tick + 1);
+            Queue(PlayerCommandType.ReleaseInfluence, default(SimulationId));
         }
 
         /// <summary>A click rather than a hold (2026-09-30): the place just pressed stays a moment, then comes off by itself.</summary>
         public void QueueLeaveInfluence()
         {
-            Simulation.QueueCommand(PlayerCommandType.LeaveInfluence, default(SimulationId), Simulation.Tick + 1);
+            Queue(PlayerCommandType.LeaveInfluence, default(SimulationId));
         }
 
         /// <summary>The held hand dragged to a spot on the floor (2026-09-30), in whole millimetres.</summary>
         public void QueueMoveInfluence(LogicalPosition spot)
         {
-            Simulation.QueueCommand(PlayerCommandType.MoveInfluence, spot, Simulation.Tick + 1);
+            Queue(PlayerCommandType.MoveInfluence, spot);
         }
 
         /// <summary>
@@ -460,8 +489,7 @@ namespace Paniq.Gameplay
         /// </summary>
         public void QueueHandStrength(int percent)
         {
-            Simulation.QueueCommand(PlayerCommandType.SetHandStrength, new LogicalPosition(percent, 0),
-                Simulation.Tick + 1);
+            Queue(PlayerCommandType.SetHandStrength, new LogicalPosition(percent, 0));
         }
 
         /// <summary>
@@ -471,26 +499,25 @@ namespace Paniq.Gameplay
         /// </summary>
         public void QueueHandReach(int millimetres)
         {
-            Simulation.QueueCommand(PlayerCommandType.SetHandReach, new LogicalPosition(millimetres, 0),
-                Simulation.Tick + 1);
+            Queue(PlayerCommandType.SetHandReach, new LogicalPosition(millimetres, 0));
         }
 
         /// <summary>The player taking hold of somebody by the shirt (2026-09-29).</summary>
         public void QueueTug(SimulationId personId)
         {
-            Simulation.QueueCommand(PlayerCommandType.TugPerson, personId, Simulation.Tick + 1);
+            Queue(PlayerCommandType.TugPerson, personId);
         }
 
         /// <summary>The player letting go of the person they had hold of (2026-09-29).</summary>
         public void QueueReleaseTug(SimulationId personId)
         {
-            Simulation.QueueCommand(PlayerCommandType.ReleaseTug, personId, Simulation.Tick + 1);
+            Queue(PlayerCommandType.ReleaseTug, personId);
         }
 
         /// <summary>The player pulling a fire alarm, queued for the next tick that has not started.</summary>
         public void QueueAlarmPull(SimulationId alarmId)
         {
-            Simulation.QueueCommand(PlayerCommandType.PullAlarm, alarmId, Simulation.Tick + 1);
+            Queue(PlayerCommandType.PullAlarm, alarmId);
         }
 
         /// <summary>
@@ -499,30 +526,23 @@ namespace Paniq.Gameplay
         /// </summary>
         public void QueueTriggerEvent()
         {
-            // The hands-off round starts its disaster on the same tick: when
-            // the disaster starts is the round, not the player's help.
-            if (Simulation.Phase == RoundPhase.BeforeEvent)
-            {
-                leftAlone?.MirrorTrigger(Simulation.Tick + 1);
-            }
-
-            Simulation.QueueCommand(PlayerCommandType.TriggerEvent, default(SimulationId), Simulation.Tick + 1);
+            Queue(PlayerCommandType.TriggerEvent, default(SimulationId));
         }
 
         /// <summary>
         /// The crowd switch flicked to "panicked" (2026-10-01), queued for the
-        /// next tick that has not started. Not mirrored into the hands-off
-        /// round: a level with the switch has no hands-off round.
+        /// next tick that has not started. A level with the switch has no
+        /// hands-off round, but <see cref="Queue"/> would mirror it if it had.
         /// </summary>
         public void QueueCrowdPanicked()
         {
-            Simulation.QueueCommand(PlayerCommandType.SetCrowdPanicked, default(SimulationId), Simulation.Tick + 1);
+            Queue(PlayerCommandType.SetCrowdPanicked, default(SimulationId));
         }
 
         /// <summary>The crowd switch flicked to "calm" (2026-10-01), queued for the next tick that has not started.</summary>
         public void QueueCrowdCalm()
         {
-            Simulation.QueueCommand(PlayerCommandType.SetCrowdCalm, default(SimulationId), Simulation.Tick + 1);
+            Queue(PlayerCommandType.SetCrowdCalm, default(SimulationId));
         }
 
         public void StepForTests()

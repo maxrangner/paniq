@@ -50,23 +50,34 @@ what it asks, a cubicle landscape with fourteen more people beside the way
 out, and the whole office re-dressed and then played by machine to see what
 it does. All are under "Prototype 3" further down.
 
-**What comes next (2026-10-03, the owner's order).** A second office level,
-*Prototype fire 2* (`OfficeLoop`), is built and saved as work in progress: an
-ordinary way out, a real fire in the middle of the floor, the Director's
-script drawn per seed. Work now runs in **level mode** (see `AGENTS.md`): every
-change goes straight to the owner to play, and the tests, fingerprints and
-documents wait for one hardening pass when the level is done. The order:
-1. **Clear the ground**: cards and the purse deleted, the behaviours the
-   loop level does not use set aside (keycard fetching, wedging doors,
-   toilet trips, fighting fire unasked), the "left alone" comparison made
-   truthful.
-2. **Rebuild how people decide** -- the audit's one task model
-   ([audit](audit-2026-10-02.md), section D): calm and frightened people
-   choosing the same way, from one list of things they could do, with every
-   outside influence (a cue, an order, the hand, a noise) taken up a moment
-   later as an offer.
-3. **The loop level in level mode**, played and tuned by the owner.
-4. **The hardening pass** when the owner says the level is done.
+**Where things stand (2026-10-03, end of day).** A second office level,
+*Prototype fire 2* (`OfficeLoop`), opens first on the start card: an ordinary
+way out, a real fire in the middle of the floor, the Director's script drawn
+per seed. Work runs in **level mode** (see `AGENTS.md`): every change goes
+straight to the owner to play; the tests, fingerprints and documents wait for
+one hardening pass when the level is done, which will be weeks away. The
+order the owner chose, and how far it has got:
+1. **Clear the ground -- done.** Cards, the purse, the deck and "stick
+   together" deleted; set aside, everywhere: keycard fetching, the cruel
+   wedging doors and locking the way out, toilet trips, fighting the fire
+   unasked (and leaders sending anybody at it); every player command goes
+   through one queue that mirrors what changes the day into the "left
+   alone" round.
+2. **Rebuild how people decide -- done, but for the building blocks.** One
+   table of what every activity is (`Tasks`), one chooser for calm and
+   frightened alike (`TaskChooser`: options carried on every tick, taken up
+   only at a decision moment), one way a task ends (`Tasks.End`), a leader's
+   order and a noise taken up in the person's own turn, the hand reaching
+   somebody makes them think again at once; the loop level's rules about
+   people became everybody's. Not done: the duplicated "walk to a door and
+   through it" and "fetch and carry a thing" are still written several times
+   over (kept, because door handling is the most finely tuned code and the
+   owner had not yet played the new crowd).
+3. **The loop level in level mode -- next**, played and tuned by the owner.
+   Left alone it saves 9 to 28 of 34 on seeds 40-49 (about 56 %), against
+   the owner's target of about a quarter.
+4. **The hardening pass** when the owner says the level is done (see *Left
+   open*, below).
 5. **The audit's foundations**: big crowds (simulation, then drawing), then
    levels as data with storeys.
 
@@ -114,6 +125,31 @@ Prototype 1 (the fire-reaction office), the foundations rebuilt on
 What finished stones deliberately left out, and what each asked the next
 playtest to watch, gathered here from [finished stones](history/roadmap-finished-stones.md)
 so the open list lives on this page. Strike an item out once it is settled.
+
+*For the hardening pass, from level mode (2026-10-03):*
+
+- **Fifteen tests switched off** (`[Ignore]`, each saying why): three in
+  `ClosingDoorsEditModeTests` (nobody locks the way out; re-aim at an inside
+  door); five in `ExtinguisherEditModeTests`, three in
+  `FrightenedWalksEditModeTests` and one in `CrossRoomEditModeTests` (the
+  brave no longer fight the fire unasked; re-aim at a hand on the bottle);
+  one in `InfluenceEditModeTests` (the cruel no longer wedge doors); one in
+  `LeadershipEditModeTests` (leaders send nobody at the fire); one in
+  `RoundEditModeTests` (the closet's six hide rather than jam; re-aim).
+- **All fifteen replay fingerprints** to record again, and the versions in
+  the three places (`ScenarioData.cs`, `FireReactionScenario.asset`,
+  `SimulationEditModeTests.DefaultScenario_IsValidWithReplayIdentity`) bumped
+  once.
+- **Switches nobody needs any more**: the loop level's rules are everybody's
+  defaults now (`HeatChoicesStick`, `FrightenedGoThroughAHeldDoor`,
+  `FrightenedGoOnWhenLetGo`, `EachPersonHasTheirOwnDice`,
+  `BurningThingsHeatThroughWalls`...); the old branches behind them can go.
+- **Documents**: the pages that still describe cards, the purse and the
+  set-aside behaviours as current carry a dated note at their top; their
+  bodies are rewritten in the pass (`the-office-level.md` most of all).
+- **The building blocks** of the rebuild (above, item 2), and the audit's
+  room route table (A2) and fair share of route-finding (A1) with the big
+  crowds stone.
 
 *From Foundations rebuilt (2026-09-21):*
 
@@ -1091,9 +1127,11 @@ a door they have never opened.
    chase and conversion. On screen: the crowd flees a walking threat the same
    way it flees fire.
 
-### Next: one way of deciding, for calm and frightened people alike
+### Done (2026-10-03): one way of deciding, for calm and frightened people alike
 
-Decided with the owner on 2026-09-30, after the hand's fourth pass. Today a
+Built on 2026-10-03 (see *Where things stand*, at the top); what follows is
+the brief as it was decided with the owner on 2026-09-30, after the hand's
+fourth pass. Today a
 calm person and a frightened one run two separate "what am I doing" systems
 (`CalmBehaviour`'s activities and `PanicBehaviour`'s ordered options), so every
 feature that reaches people -- the hand, the tells, the building's cues -- is

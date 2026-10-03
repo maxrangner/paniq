@@ -122,9 +122,8 @@ namespace Paniq.Simulation
             public bool Heaved;
 
             /// <summary>
-            /// A spare the run keeps aside until the player puts it down with a
-            /// card. It is not in the world: nothing can touch it, reach it,
-            /// burn it or see it.
+            /// Kept out of the world (a keycard on a level without one): nothing
+            /// can touch it, reach it, burn it or see it.
             /// </summary>
             public bool Dormant;
 
@@ -284,7 +283,7 @@ namespace Paniq.Simulation
                     Dormant = definition.StartsDormant,
                     Heading = IntegerMath.NormalizeDegrees(definition.InitialFacingDegrees),
 
-                    // A spare has no spray in it until a card puts it down, which
+                    // A thing kept out of the world has no spray in it, which
                     // is also why nobody ever goes to fetch one.
                     Fuel = kinds.Of(definition.Kind).IsEquipment && !definition.StartsDormant
                         ? context.Scenario.Extinguishers.FuelTicks
@@ -900,7 +899,7 @@ namespace Paniq.Simulation
         /// <summary>The index of the person carrying it, or -1.</summary>
         public int HolderOf(int index) => bodies[index].HeldBy;
 
-        /// <summary>A spare the player has not put down yet.</summary>
+        /// <summary>Kept out of the world: nothing can touch it, reach it, burn it or see it.</summary>
         public bool IsDormant(int index) => bodies[index].Dormant;
 
         /// <summary>Its authored width, in millimetres.</summary>
@@ -1709,63 +1708,6 @@ namespace Paniq.Simulation
             }
 
             return -1;
-        }
-
-        /// <summary>
-        /// Whether there is a spare bottle left to put down. The deck asks, so
-        /// a death never deals a card that has nothing behind it.
-        /// </summary>
-        public bool HasSpareExtinguisher
-        {
-            get
-            {
-                for (int b = 0; b < bodies.Length; b++)
-                {
-                    if (bodies[b].Dormant && kinds.Of(bodies[b].Kind).IsEquipment)
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Stands one of the spare extinguishers on the floor where the player
-        /// pointed, full of spray. Refuses if there is no spare left or the spot
-        /// is not clear floor, and takes the lowest-numbered spare so a replay
-        /// always picks the same bottle.
-        /// </summary>
-        public bool TryPlaceSpareExtinguisher(LogicalPosition spot, out int index)
-        {
-            index = -1;
-            for (int b = 0; b < bodies.Length; b++)
-            {
-                if (bodies[b].Dormant && kinds.Of(bodies[b].Kind).IsEquipment)
-                {
-                    index = b;
-                    break;
-                }
-            }
-
-            if (index < 0 || !IsClearForItem(index, spot))
-            {
-                index = -1;
-                return false;
-            }
-
-            PhysicsBody bottle = bodies[index];
-            bottle.Dormant = false;
-            MoveBody(index, (long)spot.X * SubMillimetre, (long)spot.Z * SubMillimetre);
-            world.SetSolid(index, true);
-            world.Place(index, bottle.X, 0L, bottle.Z, bottle.Heading);
-            bottle.Reading = world.Read(index);
-            SetMotion(index, 0L, 0L, 0L);
-            bottle.Spin = 0;
-            bottle.Thrown = false;
-            bottle.Fuel = context.Scenario.Extinguishers.FuelTicks;
-            return true;
         }
 
         /// <summary>

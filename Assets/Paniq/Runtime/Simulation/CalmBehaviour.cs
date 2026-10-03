@@ -57,6 +57,7 @@ namespace Paniq.Simulation
             this.cues = cues;
             this.sound = sound;
             settings = context.Scenario.Calm;
+            ideas = BuildIdeas();
         }
 
         public void Bind(Systems systems)
@@ -68,6 +69,9 @@ namespace Paniq.Simulation
         public MotorIntent Decide(Agent agent)
         {
             int tick = context.Tick;
+
+            // A noise heard a beat ago is turned to now, in their own turn.
+            sound.TakeUpTheLook(agent);
             MaybeLeaveForTheInfluence(agent, tick);
             FollowTheMovingHand(agent);
             AgentIntent intent = agent.Intent;
@@ -312,134 +316,122 @@ namespace Paniq.Simulation
         private void ChooseActivity(Agent agent, bool justMoved)
         {
             agent.Body.BlockedTicks = 0;
-
-            // Their goal for the hand, if they hold one, comes first: they
-            // answer it afresh below, and it is theirs until it is done or
-            // fades (2026-09-30; choosing afresh used to forget it).
-            if (TryMoveAwayFromThePush(agent) || TryWanderToTheInfluence(agent))
+            if (!justMoved)
             {
-                return;
+                agent.Intent.SocialPartnerIndex = -1;
             }
 
+            // The one chooser (2026-10-03): their own ideas, in order, the
+            // first that takes itself up wins; one roll of the dice for the
+            // ideas that take a band of it. A stroll if nothing else did.
             int roll = context.Random.NextIntInclusive(0, 99);
-            if (justMoved)
-            {
-                // After walking somewhere, people usually stop for a moment.
-                if (roll < 55)
-                {
-                    StartStanding(agent);
-                }
-                else
-                {
-                    StartLookingAround(agent);
-                }
-
-                return;
-            }
-
-            agent.Intent.SocialPartnerIndex = -1;
-
-            // One roll decides everything, in bands: tidying takes the lowest,
-            // sitting the one above it, then a toilet trip, then going back
-            // to their own desk. Each band falls through to the next when
-            // there is nothing to do it with -- no chair free, no stall free.
-            int band = context.Scenario.Items.TidyChancePercent;
-            if (roll < band && items.TryStartTidying(agent))
-            {
-                return;
-            }
-
-            band += context.Scenario.Items.SitChancePercent;
-            if (roll < band && chairs.TryStartSitting(agent))
-            {
-                return;
-            }
-
-            // Somebody with a cue waiting on them -- home time in a moment --
-            // has no ideas of their own until it is done: what the building
-            // asks beats what they thought of.
-            // Home time stands until they are out: somebody who was busy when
-            // it was called, or gave up on a locked way out, takes it up
-            // again, after a pause of their own; and until then nobody has
-            // ideas of their own (the toilet, a chat, their desk) either.
-            if (!agent.Errand.Has && cues.IsHomeTime && context.Tick >= agent.Home.NextHomeTryTick && cues.RemindOfHomeTime(agent))
-            {
-                StartStanding(agent);
-                return;
-            }
-
-            bool free = !agent.Errand.Has && !cues.IsHomeTime;
-
-            // Not a band of the roll: a person needs the toilet when their own
-            // clock says, however often they happen to be deciding things.
-            if (free && TryStartToiletTrip(agent))
-            {
-                return;
-            }
-
-            band += context.Scenario.Day.GoHomeChancePercent;
-            if (roll < band && free && TryGoHome(agent))
-            {
-                return;
-            }
-
-            if (roll < 50)
-            {
-                StartStroll(agent);
-            }
-            else if (roll < 75)
-            {
-                if (!free || !TryStartChat(agent))
-                {
-                    StartStroll(agent);
-                }
-            }
-            else if (agent.Intent.Activity != AgentActivityState.LookingAround)
-            {
-                StartLookingAround(agent);
-            }
-            else
+            ideaRoll = roll;
+            if (!ideas.Choose(agent, new Situation(true, false, false, roll, justMoved)))
             {
                 StartStroll(agent);
             }
         }
 
         /// <summary>
-        /// Their own idea: to the toilet, when their own clock says and given
-        /// a free stall to go to. The first time is drawn anywhere inside the
-        /// first stretch, so the office does not all go at once; a trip that
-        /// cannot happen yet (every stall taken, hands full) waits a little
-        /// and is tried again.
+        /// A calm person's own ideas, as options of the one chooser
+        /// (2026-10-03, the one task model), in the order they are weighed:
+        /// their goal for the hand first -- a push away from it, or the pull
+        /// toward it -- which is theirs until it is done or fades; after a
+        /// walk, a moment's stop; then one roll of the dice in bands --
+        /// tidying the lowest, sitting the one above it, home time waiting on
+        /// them, going back to their own desk, a chat in the middle -- and a
+        /// look round or a stroll. Each band falls through to the next when
+        /// there is nothing to do it with: no chair free, nobody to talk to.
+        /// The calm day steps each activity itself (<see cref="Decide"/>), so
+        /// these are only ever taken up, never carried on.
         /// </summary>
-        private bool TryStartToiletTrip(Agent agent)
+        private TaskChooser BuildIdeas()
         {
-            int every = errands.ToiletEveryTicks;
-            if (every <= 0)
+            int tidy = context.Scenario.Items.TidyChancePercent;
+            int sit = tidy + context.Scenario.Items.SitChancePercent;
+            int desk = sit + context.Scenario.Day.GoHomeChancePercent;
+            return new TaskChooser(
+                new Idea((agent, s) => true, TryMoveAwayFromThePush),
+                new Idea((agent, s) => true, TryWanderToTheInfluence),
+                new Idea((agent, s) => s.JustMoved, agent =>
+                {
+                    // After walking somewhere, people usually stop for a moment.
+                    if (ideaRoll < 55)
+                    {
+                        StartStanding(agent);
+                    }
+                    else
+                    {
+                        StartLookingAround(agent);
+                    }
+
+                    return true;
+                }),
+                new Idea((agent, s) => s.Roll < tidy, items.TryStartTidying),
+                new Idea((agent, s) => s.Roll < sit, chairs.TryStartSitting),
+
+                // Somebody with a cue waiting on them -- home time in a
+                // moment -- has no ideas of their own until it is done: what
+                // the building asks beats what they thought of. Home time
+                // stands until they are out: somebody who was busy when it was
+                // called, or gave up on a locked way out, takes it up again,
+                // after a pause of their own.
+                new Idea((agent, s) => !agent.Errand.Has && cues.IsHomeTime && context.Tick >= agent.Home.NextHomeTryTick,
+                    agent =>
+                    {
+                        if (!cues.RemindOfHomeTime(agent))
+                        {
+                            return false;
+                        }
+
+                        StartStanding(agent);
+                        return true;
+                    }),
+                new Idea((agent, s) => s.Roll < desk && IsFree(agent), TryGoHome),
+                new Idea((agent, s) => s.Roll >= 50 && s.Roll < 75 && IsFree(agent), TryStartChat),
+                new Idea((agent, s) => s.Roll >= 75 && agent.Intent.Activity != AgentActivityState.LookingAround, agent =>
+                {
+                    StartLookingAround(agent);
+                    return true;
+                }));
+        }
+
+        /// <summary>No cue waiting on them and not home time: their own ideas are theirs to have.</summary>
+        private bool IsFree(Agent agent) => !agent.Errand.Has && !cues.IsHomeTime;
+
+        /// <summary>The roll of the decision being made, for the ideas that read it while taking themselves up.</summary>
+        private int ideaRoll;
+
+        /// <summary>The calm's own ideas, in the order they are weighed (see <see cref="BuildIdeas"/>).</summary>
+        private readonly TaskChooser ideas;
+
+        /// <summary>
+        /// One of the calm's own ideas as an option of the one chooser: whether
+        /// it is worth weighing, and taking it up. Never carried on here: the
+        /// calm day steps each activity itself.
+        /// </summary>
+        private sealed class Idea : ITaskOption
+        {
+            private readonly System.Func<Agent, Situation, bool> wants;
+            private readonly System.Func<Agent, bool> begin;
+
+            public Idea(System.Func<Agent, Situation, bool> wants, System.Func<Agent, bool> begin)
             {
-                return false;
+                this.wants = wants;
+                this.begin = begin;
             }
 
-            int tick = context.Tick;
-            if (agent.Home.NextToiletTick == 0)
-            {
-                agent.Home.NextToiletTick = checked(tick + 1 + context.Random.NextIntInclusive(0, every));
-                return false;
-            }
+            public bool IsDoing(Agent agent) => false;
 
-            if (tick < agent.Home.NextToiletTick)
-            {
-                return false;
-            }
+            public MotorIntent? Continue(Agent agent, in Situation situation) => null;
 
-            if (agent.Carry.ItemIndex >= 0 || errands.FindFreeStall(agent, out _) < 0 || !cues.StartToiletTrip(agent))
-            {
-                // In a little while, then.
-                agent.Home.NextToiletTick = checked(tick + context.Jittered(context.Scenario.Calm.StrollTimeoutTicks));
-                return false;
-            }
+            public bool Wants(Agent agent, in Situation situation) => wants(agent, situation);
 
-            agent.Home.NextToiletTick = checked(tick + context.Jittered(every));
-            return errands.StartIfDue(agent);
+            public bool TryBegin(Agent agent, in Situation situation, out MotorIntent? first)
+            {
+                first = null;
+                return begin(agent);
+            }
         }
 
         /// <summary>

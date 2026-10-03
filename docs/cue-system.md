@@ -1,5 +1,21 @@
 # The cue system: the building's day
 
+> **Changed on 2026-10-03 (level mode), not yet rewritten below.** Deleted:
+> the cards, the purse, the deck and "stick together". Set aside everywhere:
+> going back for the keycard in a fright, the cruel wedging doors and locking
+> the way out, toilet trips of their own accord, the brave fighting the fire
+> unasked, and leaders sending anybody at it. Everybody's rules now (they were
+> the loop level's): choices about the heat stick, dead ends count against a
+> hiding place, a held door is walked through, the hand let go strands nobody,
+> 6 % freeze for good, one click wakes the frozen, no fire through walls, each
+> person throws their own dice. How people choose is one chooser for calm and
+> frightened alike. Where this page says otherwise, the decisions page
+> ([technical-decisions.md](technical-decisions.md), *Level mode*) is right;
+> the page is rewritten in the hardening pass.
+>
+> On this page: nobody goes to the toilet of their own accord any more (the
+> cue still exists for a timetable), and the purse is gone.
+
 **Status:** decided foundation (2026-09-24). This note defines how the calm
 half of a level gets things to do: the small events that happen in a
 building's day, who calls them, how a person takes one up, and what a future

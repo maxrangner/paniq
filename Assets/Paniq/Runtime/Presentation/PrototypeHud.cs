@@ -146,15 +146,10 @@ namespace Paniq.Presentation
                 // ringing; say which before the click. On a level where only
                 // people pull them (the office, 2026-09-26), the hand on it
                 // draws people to it -- or, with the right button, away.
-                int price = snapshot.CostOf(PlayerCommandType.PullAlarm);
-                bool affordable = !snapshot.PlayerMayPullAlarms || snapshot.Purse >= price;
                 string action = snapshot.AlarmsRinging ? "already ringing"
                     : !snapshot.PlayerMayPullAlarms ? "only the people in the building pull it. Hold to draw people to it: whoever comes pulls it"
-                    : !affordable ? $"NOT ENOUGH IN THE PURSE - it costs {price}, and you have {snapshot.Purse}"
-                    : $"Click to pull it{Price(snapshot, price)}: every bell in the building rings";
-                GUI.color = affordable || snapshot.AlarmsRinging ? Color.white : new Color(1f, 0.7f, 0.6f);
+                    : "Click to pull it: every bell in the building rings";
                 GUI.Label(HintLine, $"Fire alarm {hoveredAlarm.Value.Value}: {action}");
-                GUI.color = Color.white;
             }
             else if (input.TuggedPerson.HasValue && IsTuggedInTheRun(snapshot, input.TuggedPerson.Value))
             {
@@ -322,9 +317,6 @@ namespace Paniq.Presentation
 
         private static string Capital(string words) =>
             string.IsNullOrEmpty(words) ? words : char.ToUpperInvariant(words[0]) + words.Substring(1);
-
-        /// <summary>A price in brackets, or nothing at all on a level with no purse (prototype 3).</summary>
-        private static string Price(RunSnapshot snapshot, int price) => snapshot.PurseEnabled ? $" ({price})" : "";
 
         /// <summary>
         /// Everything that explains how to play, shown only while the world is
@@ -554,7 +546,6 @@ namespace Paniq.Presentation
                 case AgentActivityState.StandingUp: return "getting up";
                 case AgentActivityState.GoingToAlarm: return "going for the alarm";
                 case AgentActivityState.PullingAlarm: return "hitting the alarm";
-                case AgentActivityState.FetchingKeycard: return "going for the keycard";
                 case AgentActivityState.HeavingForTheHand: return "heaving a box for you";
                 case AgentActivityState.AnsweringTheHand: return "answering your hand";
                 case AgentActivityState.Fleeing: return "running";

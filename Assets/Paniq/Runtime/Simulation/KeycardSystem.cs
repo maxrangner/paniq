@@ -10,21 +10,13 @@ namespace Paniq.Simulation
     /// was authored in -- so the rest of the run's draws are exactly what
     /// they would be without it. Staff know where it started; visitors know
     /// nothing; anybody who sees it learns where it is, a beat later, and
-    /// sees who has it. Somebody frightened who has found the card door shut,
-    /// knows where the card lies and is brave enough goes back for it, one
-    /// fetcher at a time, and never into the flames: the card does not burn
-    /// (the owner's rule), so a card lying in the fire waits until the fire
-    /// has passed. Whoever has it swipes the door open for good; whoever is
-    /// out cold or dead drops it where they lie, for anybody to pick up (a
-    /// trip or a knock-down they get up from keeps it). What people go for is
-    /// what they believe about the card, not where it really is: the truth
-    /// only counts once they are standing over it. The player's pull on the
-    /// card makes somebody calm pocket it too -- and, since 2026-09-28,
-    /// somebody frightened: a pull felt at a quarter of full or more sends
-    /// whoever feels it strongest for the card, brave or not, because before
-    /// that the one lever the player had on a desk card stopped working the
-    /// moment the panic started. Everything that keeps a fetcher alive
-    /// still applies, and the pull is spent on pocketing it.
+    /// sees who has it. Whoever has it swipes the door open for good;
+    /// whoever is out cold or dead drops it where they lie (a trip or a
+    /// knock-down they get up from keeps it). The player's pull on the card
+    /// makes somebody calm pocket it. Going back for it in a fright -- the
+    /// brave who had found the card door shut, or whoever the hand sent --
+    /// was set aside on 2026-10-03 (the owner's choice): the loop level has
+    /// no card, and it is not carried into the rebuilt way people decide.
     /// </para>
     /// <para>
     /// The card goes in a pocket, not the arms (<see cref="AgentKeycard"/>
@@ -33,10 +25,10 @@ namespace Paniq.Simulation
     /// because they are frightened.
     /// </para>
     /// </summary>
-    internal sealed class KeycardSystem : IPanicOption, IBindable
+    internal sealed class KeycardSystem : IBindable
     {
         /// <summary>
-        /// The card's own random stream (see <see cref="DeckSystem"/> for the
+        /// The card's own random stream (docs/simulation-contract.md lists the
         /// terms a derived stream is allowed on): where the card starts is
         /// drawn from it, and from it only, so a level with no card replays
         /// exactly as it did before cards existed.
@@ -68,9 +60,6 @@ namespace Paniq.Simulation
 
         /// <summary>The card (physical-object index), or -1 when the building has none.</summary>
         private int card = -1;
-
-        /// <summary>Who is on their way to it, so two people do not set off for one card.</summary>
-        private int claimedBy = -1;
 
         /// <summary>The player's pulls, built after this system.</summary>
         private InfluenceSystem influence;
@@ -112,8 +101,6 @@ namespace Paniq.Simulation
 
         /// <summary>Whether this person has the card in their pocket.</summary>
         public static bool Has(Agent agent) => agent.Keycard.Held >= 0;
-
-        public static bool IsFetching(Agent agent) => agent.Intent.Activity == AgentActivityState.FetchingKeycard;
 
         // ---------------------------------------------------------------- the start
 
@@ -343,12 +330,6 @@ namespace Paniq.Simulation
             objects.PickUp(index, agent);
             objects.FollowPocket(index, agent);
             agent.Keycard.Held = index;
-            agent.Keycard.PocketingUntilTick = 0;
-            if (claimedBy == agent.Index)
-            {
-                claimedBy = -1;
-            }
-
             Believe(agent.Keycard, agent.Index, agent.Body.Position);
             context.Events.Append(context.Tick, agent.Id, how, agent.Body.Position, 0, 0, causeEventId,
                 objects.IdOf(index));
@@ -421,12 +402,6 @@ namespace Paniq.Simulation
         /// <summary>Somebody who died with the card leaves it where they fell.</summary>
         public void DropFromLost(Agent agent)
         {
-            // Dead on the way to it: the card is anybody's to go for again.
-            if (claimedBy == agent.Index)
-            {
-                claimedBy = -1;
-            }
-
             if (agent.Keycard.Held < 0)
             {
                 return;
@@ -458,360 +433,17 @@ namespace Paniq.Simulation
             }
         }
 
-        // ---------------------------------------------------------------- going for it
-
-        /// <summary>
-        /// They found the card door shut: from a beat later they may go for
-        /// the card. Once per person; somebody who has given the door up
-        /// before already wants it.
-        /// </summary>
-        public void NoteTheDoorNeedsTheCard(Agent agent)
-        {
-            if (agent.Keycard.Held >= 0 || agent.Keycard.MayFetchFromTick >= 0)
-            {
-                return;
-            }
-
-            agent.Keycard.MayFetchFromTick = context.ReactionTick();
-        }
-
-        /// <summary>
-        /// Considered in the panic decision, before the bottle: go back for
-        /// the card. Returns no intent when this person is not doing that.
-        /// </summary>
-        public MotorIntent? Decide(Agent agent, bool inDanger, bool eager)
-        {
-            if (IsFetching(agent))
-            {
-                return Update(agent, inDanger);
-            }
-
-            AgentKeycard belief = agent.Keycard;
-            if (Card < 0 || belief.Held >= 0 || inDanger || agent.Body.State != AgentBodyState.Upright ||
-                agent.Help.TargetIndex >= 0)
-            {
-                return null;
-            }
-
-            // The player's pull on the card (2026-09-28): whoever feels it
-            // strongest goes for it, brave or not, and where the pull is is
-            // where they go. Otherwise it takes nerve and a reason: either
-            // they found the card door shut and, a beat later, want the card;
-            // or they work here, the card lies free close by, and they grab
-            // it on the way out rather than run to a door they know needs it.
-            bool pulled = PulledToTheCard(agent, out InfluenceSystem.Place pull, out int felt);
-            bool viaTheDoor = pulled && pull.Door >= 0;
-            LogicalPosition where;
-            if (viaTheDoor)
-            {
-                // The hand on the card door (2026-09-30, the owner: "the
-                // hand there also sends someone who knows where the card is
-                // to fetch it"): only somebody who believes it lies free
-                // somewhere, and they go where they believe it lies.
-                if (!belief.Knows || belief.WithSomebody)
-                {
-                    return null;
-                }
-
-                where = belief.Place;
-            }
-            else if (pulled)
-            {
-                where = pull.At;
-            }
-            else
-            {
-                if (!belief.Knows || belief.WithSomebody || agent.Traits.Bravery < settings.FetchBraveryMinimum)
-                {
-                    return null;
-                }
-
-                bool wantsIt = belief.MayFetchFromTick >= 0 && context.Tick >= belief.MayFetchFromTick && WantsACardDoor(agent);
-                bool grabsItOnTheWay = agent.Knowledge.KnowsEverything && HasACardDoor() && WithinGrabRange(agent, belief.Place);
-                if (!wantsIt && !grabsItOnTheWay)
-                {
-                    return null;
-                }
-
-                where = belief.Place;
-            }
-
-            if (claimedBy >= 0 && claimedBy != agent.Index)
-            {
-                if (IsStillOnTheirWay(crowd.All[claimedBy]))
-                {
-                    // Somebody is already on their way to it.
-                    return null;
-                }
-
-                claimedBy = -1;
-            }
-
-            // What they believe, not what is so: a card they think lies on a
-            // desk is worth going for even if it has since been dropped in the
-            // fire, and one they think lies in the flames is not, wherever it
-            // really is. The truth only counts once they are over it.
-            long reach = settings.FetchRangeMillimetres;
-            if (LogicalPosition.DistanceSquared(agent.Body.Position, where) > reach * reach || FlamesNear(where))
-            {
-                return null;
-            }
-
-            int room = geometry.RoomOf(agent);
-            int cardRoom = geometry.RoomAtPoint(where);
-            if (room < 0 || cardRoom < 0 ||
-                (room != cardRoom && !geometry.TryFindRoute(room, agent.Body.Position, cardRoom, agent, out _, out _, out _)))
-            {
-                return null;
-            }
-
-            // Turning back (2026-09-30): a walk for the card past the flames
-            // is wound up to first, unless the player's hand sent them.
-            if (tells != null)
-            {
-                TellSystem.GoingBack going = tells.BeforeGoingBack(agent, where, card, agent.Fear.ScaredEventId, pulled);
-                if (going == TellSystem.GoingBack.Wait)
-                {
-                    return tells.StandIntent(agent);
-                }
-
-                if (going == TellSystem.GoingBack.Refuse)
-                {
-                    return null;
-                }
-            }
-
-            if (pulled)
-            {
-                // Where the player pointed is where they believe it lies,
-                // until they are standing over the spot.
-                if (!viaTheDoor)
-                {
-                    Believe(belief, -1, where);
-                }
-
-                belief.PulledEventId = pull.EventId;
-                influence.Answer(agent, pull, felt);
-                if (agent.Traits.Bravery < settings.FetchBraveryMinimum)
-                {
-                    // Without the nerve to go back into the building for it
-                    // of their own accord (2026-09-30).
-                    influence.ActedAgainstNature(agent, AgainstTheirNature.WentForTheCard, pull.EventId, objects.IdOf(card),
-                        agent.Body.Position);
-                }
-            }
-            else
-            {
-                belief.PulledEventId = 0UL;
-            }
-
-            claimedBy = agent.Index;
-            belief.PocketingUntilTick = 0;
-            agent.Intent.Activity = AgentActivityState.FetchingKeycard;
-
-            // A fetcher the hand sent gets twice the time (2026-09-30): the
-            // crowd the same hand gathers at the door is in their way.
-            agent.Intent.ActivityEndTick = checked(context.Tick +
-                context.Jittered(settings.FetchTimeoutTicks * (pulled ? settings.PulledTimeoutTimes : 1)));
-            return Update(agent, inDanger);
-        }
-
-        /// <summary>
-        /// Whether this person's goal is the card, or the door it opens
-        /// (2026-09-30), unused, driving them at
-        /// <see cref="KeycardSettings.PulledToTheCardPerMille"/> or more, and
-        /// they may set about it. A glancing press convinces nobody, so it
-        /// turns nobody back into the building. Draws nothing.
-        /// </summary>
-        private bool PulledToTheCard(Agent agent, out InfluenceSystem.Place pull, out int drive)
-        {
-            pull = default;
-            drive = 0;
-            if (influence == null || !influence.TryGetPull(agent, out pull, out drive) || !pull.Pulls || pull.Spent)
-            {
-                return false;
-            }
-
-            bool onTheCard = pull.Thing >= 0 && pull.Thing == card;
-            bool onItsDoor = pull.Door >= 0 && doors.NeedsKeycard(pull.Door);
-            return (onTheCard || onItsDoor) && drive >= settings.PulledToTheCardPerMille && influence.MayAnswer(agent);
-        }
-
-        /// <summary>Whether any door still wants the card.</summary>
-        private bool HasACardDoor()
-        {
-            for (int d = 0; d < doors.Count; d++)
-            {
-                if (doors.NeedsKeycard(d))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private bool WithinGrabRange(Agent agent, LogicalPosition place)
-        {
-            long range = settings.GrabOnTheWayRangeMillimetres;
-            return LogicalPosition.DistanceSquared(agent.Body.Position, place) <= range * range;
-        }
-
-        /// <summary>
-        /// Whether whoever claimed the card is still really on their way to it:
-        /// alive, not out cold, and fetching. Somebody who died or was knocked
-        /// out mid-fetch keeps the activity but not the claim, or nobody else
-        /// would ever go for the card. A trip or a knock-down keeps it: they
-        /// are up again in a moment, usually right beside the card, and
-        /// handing it on then sent somebody across the building for a card
-        /// the one who tripped was standing next to (measured 2026-09-27).
-        /// </summary>
-        private static bool IsStillOnTheirWay(Agent claimant) =>
-            claimant.IsParticipating && claimant.Body.State != AgentBodyState.Unconscious && IsFetching(claimant);
-
-        /// <summary>A card door they have found shut themselves.</summary>
-        private bool WantsACardDoor(Agent agent)
-        {
-            for (int d = 0; d < doors.Count; d++)
-            {
-                if (doors.NeedsKeycard(d) && agent.Doors.FoundShut[d])
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>The card lies too near the flames to reach for: it does not burn, so it waits.</summary>
-        private bool FlamesNear(LogicalPosition spot)
-        {
-            long keepAway = settings.FlamesKeepAwayMillimetres;
-            return threats.NearestDistanceSquared(spot, out _, out _) < keepAway * keepAway;
-        }
-
-        /// <summary>Walking to where they believe the card is, and pocketing it once they are over it.</summary>
-        private MotorIntent? Update(Agent agent, bool inDanger)
-        {
-            int tick = context.Tick;
-            AgentKeycard belief = agent.Keycard;
-            // Hemmed in: a fetcher the hand sent keeps at it longer
-            // (2026-09-30), the crowd the same hand gathered being what is
-            // in their way.
-            bool gettingNowhere = agent.Body.BlockedTicks >=
-                                  settings.BlockedGiveUpTicks * (belief.PulledEventId != 0UL ? settings.PulledPatienceTimes : 1);
-            if (Card < 0 || inDanger || !agent.Body.IsOnTheirFeet || agent.Burning.IsBurning ||
-                tick >= agent.Intent.ActivityEndTick || gettingNowhere || claimedBy != agent.Index ||
-                !belief.Knows || belief.WithSomebody || FlamesNear(belief.Place))
-            {
-                // Also when the claim went to somebody else while they were
-                // down, or they have since seen the card taken or in the fire.
-                GiveUp(agent);
-                return null;
-            }
-
-            LogicalPosition actual = objects.PositionOf(card);
-            long pickUp = settings.PickUpDistanceMillimetres;
-            if (LogicalPosition.DistanceSquared(agent.Body.Position, belief.Place) <= pickUp * pickUp)
-            {
-                // Arrived where they thought it lay. Kicked a little way off,
-                // it is plainly still there and they go to it; gone, or in
-                // somebody's pocket after all, they were wrong and know it.
-                long nearby = LooksAroundMillimetres;
-                if (objects.HolderOf(card) >= 0 || LogicalPosition.DistanceSquared(belief.Place, actual) > nearby * nearby)
-                {
-                    belief.Knows = false;
-                    GiveUp(agent);
-                    return null;
-                }
-
-                belief.Place = actual;
-            }
-
-            if (LogicalPosition.DistanceSquared(agent.Body.Position, belief.Place) > pickUp * pickUp)
-            {
-                // Still on the way, to floor beside where they think it lies.
-                LogicalPosition beside = geometry.Navigation.NearestStandableTo(belief.Place, bodyRadius, StandingRoomMillimetres);
-                if (walk.TryStep(agent, beside, agent.Personality.PanicSpeed, agent.Fear.ScaredEventId, out MotorIntent step))
-                {
-                    return step;
-                }
-
-                GiveUp(agent);
-                return null;
-            }
-
-            if (FlamesNear(actual))
-            {
-                // There, but in the flames: it waits until they have passed.
-                GiveUp(agent);
-                return null;
-            }
-
-            if (belief.PocketingUntilTick == 0)
-            {
-                belief.PocketingUntilTick = checked(tick + context.Jittered(settings.PocketTicks));
-            }
-
-            if (tick < belief.PocketingUntilTick)
-            {
-                // Stood over it, reaching for it.
-                return new MotorIntent(
-                    IntegerMath.HeadingBetween(agent.Body.Position, actual, agent.Body.Heading),
-                    0,
-                    agent.Personality.PanicTurnRate,
-                    context.Scenario.Panic.Acceleration);
-            }
-
-            walk.Forget(agent);
-            ulong cause = agent.Fear.ScaredEventId;
-            if (belief.PulledEventId != 0UL)
-            {
-                // Fetched because the player asked: the pull on it is spent,
-                // and that is what pocketing it names.
-                ulong spent = influence != null ? influence.Spend(agent, -1, card) : 0UL;
-                cause = spent != 0UL ? spent : belief.PulledEventId;
-                belief.PulledEventId = 0UL;
-            }
-
-            Pocket(agent, card, cause);
-            agent.Intent.Activity = AgentActivityState.Fleeing;
-            InfluenceSystem.Done(agent);
-            return null;
-        }
-
-        /// <summary>Back to running, with no card.</summary>
-        private void GiveUp(Agent agent)
-        {
-            walk.Forget(agent);
-            bool pulled = agent.Keycard.PulledEventId != 0UL;
-            agent.Keycard.PulledEventId = 0UL;
-            if (pulled && influence != null)
-            {
-                // Sent by the hand and got nowhere: it costs them, and the
-                // beat lets the claim pass to somebody else.
-                influence.GiveUp(agent);
-            }
-            else
-            {
-                InfluenceSystem.Interrupted(agent);
-            }
-            if (claimedBy == agent.Index)
-            {
-                claimedBy = -1;
-            }
-
-            if (IsFetching(agent))
-            {
-                agent.Intent.Activity = AgentActivityState.Fleeing;
-                context.ThinkAgainSoon(agent.Intent);
-            }
-        }
-
         // ---------------------------------------------------------------- tests
 
-        /// <summary>Tests and measurements: whether the card lies too near the flames for anybody to go for it.</summary>
-        internal bool CardNearFlamesForTests => Card >= 0 && FlamesNear(objects.PositionOf(card));
+        /// <summary>Tests and measurements: whether the card lies too near the flames for anybody to reach for it.</summary>
+        internal bool CardNearFlamesForTests
+        {
+            get
+            {
+                long keepAway = settings.FlamesKeepAwayMillimetres;
+                return Card >= 0 && threats.NearestDistanceSquared(objects.PositionOf(card), out _, out _) < keepAway * keepAway;
+            }
+        }
 
         /// <summary>Tests only: the card into this person's pocket, before the first tick, with nothing written.</summary>
         internal void GiveToForTests(Agent agent, Agent[] agents)

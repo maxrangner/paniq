@@ -24,22 +24,13 @@ namespace Paniq.Tests.EditMode
         };
 
         /// <summary>
-        /// Cards for the "cards played" runs: all five trait cards thrown into
-        /// the office where the crowd is, a fire of the player's own, a spare
-        /// extinguisher put down, and a wall blown open. Enough to cover every
-        /// command type in a replay.
+        /// The player's commands for the "cards played" runs (the cards
+        /// themselves were deleted on 2026-10-03; the name stayed): the key,
+        /// the hand, the nudge and the tug, enough to cover every command type
+        /// in a replay.
         /// </summary>
         public static readonly (PlayerCommandType Card, SimulationId Target, LogicalPosition Point, int Tick)[] Cards =
         {
-            (PlayerCommandType.PlayBeefcake, default, new LogicalPosition(0, 0), 200),
-            (PlayerCommandType.SpawnFire, default, new LogicalPosition(3000, 3000), 400),
-            (PlayerCommandType.PlayCourage, default, new LogicalPosition(0, 0), 450),
-            (PlayerCommandType.SpawnExtinguisher, default, new LogicalPosition(-4000, 4000), 600),
-            (PlayerCommandType.PlayTerror, default, new LogicalPosition(-2000, 0), 650),
-            (PlayerCommandType.BlastWall, default, new LogicalPosition(0, -5900), 800),
-            (PlayerCommandType.PlayBastard, default, new LogicalPosition(2000, 0), 850),
-            (PlayerCommandType.PlayColdHeart, default, new LogicalPosition(0, 2000), 900),
-            (PlayerCommandType.StickTogether, default, new LogicalPosition(0, 0), 950),
             (PlayerCommandType.ToggleLock, new SimulationId(2002UL), default, 1000),
 
             // The hand and the nudge from a point (2026-09-26; a hold since
@@ -89,17 +80,7 @@ namespace Paniq.Tests.EditMode
                 // A copy, so setting this does not leak into the caller's data.
                 data = data.Clone();
 
-                // A round now opens with an empty purse and an empty hand, so
-                // without this every door click and every card in the runs
-                // below would be refused for want of funds and the two would
-                // fingerprint identically to the run that does nothing. What is
-                // being guarded here is the simulation's response to a player
-                // acting, not whether they could afford to.
-                data.Purse.Starting = 100000;
-                data.Purse.Maximum = 100000;
-                data.Purse.StartingHand = TheBuilding.EveryCard();
-
-                // And the way out theirs to open (2026-09-27): with the
+                // The way out theirs to open (2026-09-27): with the
                 // keycard in play the click would be refused, and "doors
                 // opened" would stop meaning the player opened the way out.
                 // The locked runs keep the card, and so cover it.

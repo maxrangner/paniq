@@ -24,6 +24,13 @@ namespace Paniq.Tests.EditMode
         /// <summary>Thirty seconds after the crowd is panicked, for the levels with no danger and so no end.</summary>
         private const int CrowdTicks = 1500;
 
+        /// <summary>The one table of what each activity is has exactly one row per activity, in order.</summary>
+        [Test]
+        public void Smoke_TheTaskTableHasARowPerActivity()
+        {
+            Assert.That(Tasks.RowCount, Is.EqualTo(System.Enum.GetValues(typeof(AgentActivityState)).Length));
+        }
+
         [TestCase("OfficeLoop")]
         [TestCase("TheOffice")]
         [TestCase("Interaction")]

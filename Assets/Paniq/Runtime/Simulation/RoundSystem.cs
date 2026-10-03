@@ -245,24 +245,7 @@
         /// that will end: rattling a door, hauling somebody along the floor,
         /// emptying an extinguisher at the fire.
         /// </summary>
-        private static bool IsBusy(AgentActivityState activity)
-        {
-            switch (activity)
-            {
-                case AgentActivityState.TryingDoor:
-                case AgentActivityState.ForcingDoor:
-                case AgentActivityState.OpeningDoor:
-                case AgentActivityState.Grabbing:
-                case AgentActivityState.Dragging:
-                case AgentActivityState.ShakingAwake:
-                case AgentActivityState.Spraying:
-                case AgentActivityState.PullingAlarm:
-                case AgentActivityState.StandingUp:
-                    return true;
-                default:
-                    return false;
-            }
-        }
+        private static bool IsBusy(AgentActivityState activity) => Tasks.IsHandsOn(activity);
 
         /// <summary>Remembers the building as it stands, to measure the next stretch of quiet against.</summary>
         private void DropAnchor()

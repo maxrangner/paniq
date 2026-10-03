@@ -99,7 +99,6 @@ namespace Paniq.Tests.EditMode
             };
             data.Alarms = new AlarmDefinition[0];
             data.Timetable = new ScheduledCue[0];
-            data.Day.ToiletEveryTicks = 0;
 
             // No traps: the stack at the lane's first bend would fall for
             // this very runner (2026-09-27) and cut the lane this test walks.

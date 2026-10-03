@@ -74,7 +74,6 @@ namespace Paniq.Tests.EditMode
             using (var simulation = new Run(data, 42UL))
             {
                 LogicalPosition before = simulation.GetAgent(Somebody).Position;
-                int purse = simulation.Purse;
                 simulation.QueueCommand(PlayerCommandType.NudgePerson, Somebody, 1);
                 Advance(simulation, 20);
 
@@ -82,7 +81,6 @@ namespace Paniq.Tests.EditMode
                 Assert.That(nudged, Has.Count.EqualTo(1));
                 Assert.That(nudged[0].TargetId, Is.EqualTo(Somebody));
                 Assert.That(nudged[0].HasCausalParent, Is.False, "The player is the root cause.");
-                Assert.That(simulation.Purse, Is.EqualTo(purse), "A nudge costs nothing.");
 
                 LogicalPosition after = simulation.GetAgent(Somebody).Position;
                 Assert.That(after.Z, Is.LessThan(before.Z - 50), "Facing north, the nudge sends them south.");
@@ -224,6 +222,10 @@ namespace Paniq.Tests.EditMode
             ScenarioData data = QuietRoom();
             data.Temperament.FreezeForeverPercent = 100;
             data.Temperament.FreezeThenRunPercent = 0;
+
+            // A level that asks three pokes (one is everybody's since
+            // 2026-10-03): the count is what is tested here.
+            data.Nudge.PokesToWakeTheFrozen = 3;
             using (var simulation = new Run(data, 42UL))
             {
                 Advance(simulation, 5);

@@ -58,7 +58,6 @@ namespace Paniq.Simulation
             bool isLeading = false,
             BodyPose pose = default,
             int seatedPercent = 0,
-            int groupId = -1,
             bool isAnnoyed = false,
             bool isRattled = false,
             bool isTugged = false,
@@ -80,7 +79,6 @@ namespace Paniq.Simulation
             Tell = tell;
             TellProgress = tellProgress;
             TellHeading = tellHeading;
-            GroupId = groupId;
             IsAnnoyed = isAnnoyed;
             IsRattled = isRattled;
             IsTugged = isTugged;
@@ -194,9 +192,6 @@ namespace Paniq.Simulation
         /// <summary>Somebody is following this person right now.</summary>
         public bool IsLeading { get; }
 
-        /// <summary>The group a "Stick together" throw bound them to, or -1.</summary>
-        public int GroupId { get; }
-
         public bool IsDown => BodyState == AgentBodyState.Fallen || BodyState == AgentBodyState.GettingUp ||
                               BodyState == AgentBodyState.Unconscious;
 
@@ -215,10 +210,9 @@ namespace Paniq.Simulation
         public DoorSnapshot(SimulationId doorId, WallSide side, LogicalPosition centre, int widthMillimetres, DoorState state,
             int damagePercent, int scorchPercent = 0, bool isHole = false, bool isBlocked = false,
             bool leadsOutside = false,
-            int openSide = 0, bool isJammed = false, bool swings = false, bool isHeld = false, bool isPiled = false,
+            int openSide = 0, bool isJammed = false, bool swings = false, bool isPiled = false,
             bool needsKeycard = false)
         {
-            IsHeld = isHeld;
             IsPiled = isPiled;
             NeedsKeycard = needsKeycard;
             Swings = swings;
@@ -286,9 +280,6 @@ namespace Paniq.Simulation
         /// to burn its way through.
         /// </summary>
         public bool Swings { get; }
-
-        /// <summary>The player has a hand on it, holding it shut (prototype 3): nobody opens it until they let go.</summary>
-        public bool IsHeld { get; }
 
         /// <summary>
         /// The tower of boxes is lying across this archway (prototype 3):
@@ -640,36 +631,15 @@ namespace Paniq.Simulation
         private readonly Prefix<DoorSnapshot> doors;
         private readonly PhysicsObjectSnapshot[] physicsObjects;
         private readonly TableSnapshot[] tables;
-        private readonly Prefix<PlayerCommandType> hand;
         private IReadOnlyList<FireCellSnapshot> fireCells = System.Array.Empty<FireCellSnapshot>();
         private IReadOnlyList<CausalEvent> events = System.Array.Empty<CausalEvent>();
 
-        /// <summary>What each card costs, indexed by <see cref="PlayerCommandType"/>. Shared with the run; never written.</summary>
-        private readonly int[] cardCosts;
-
-        /// <summary>
-        /// What a door click and a turn of the key cost, indexed by
-        /// <see cref="DoorState"/>, for an inside door and for the way out.
-        /// Shared with the run; never written.
-        /// </summary>
-        private readonly int[] doorClickCosts;
-        private readonly int[] exitClickCosts;
-        private readonly int[] lockToggleCosts;
-        private readonly int[] exitLockToggleCosts;
-
-        internal RunSnapshot(int agentCount, int doorSlotCount, int objectCount, int tableCount,
-            int[] cardCosts, int[] doorClickCosts, int[] exitClickCosts, int[] lockToggleCosts, int[] exitLockToggleCosts)
+        internal RunSnapshot(int agentCount, int doorSlotCount, int objectCount, int tableCount)
         {
             agents = new AgentSnapshot[agentCount];
             doors = new Prefix<DoorSnapshot>(doorSlotCount);
             physicsObjects = new PhysicsObjectSnapshot[objectCount];
             tables = new TableSnapshot[tableCount];
-            hand = new Prefix<PlayerCommandType>(16);
-            this.cardCosts = cardCosts;
-            this.doorClickCosts = doorClickCosts;
-            this.exitClickCosts = exitClickCosts;
-            this.lockToggleCosts = lockToggleCosts;
-            this.exitLockToggleCosts = exitLockToggleCosts;
             PowerSparks = System.Array.Empty<PowerSparkSnapshot>();
         }
 
@@ -722,7 +692,6 @@ namespace Paniq.Simulation
         internal PhysicsObjectSnapshot[] PhysicsObjectBuffer => physicsObjects;
         internal TableSnapshot[] TableBuffer => tables;
         internal Prefix<DoorSnapshot> DoorBuffer => doors;
-        internal Prefix<PlayerCommandType> HandBuffer => hand;
 
         /// <summary>The scalars and the views, written after the buffers are.</summary>
         internal void Fill(
@@ -734,12 +703,6 @@ namespace Paniq.Simulation
             IReadOnlyList<CausalEvent> events,
             int clearOfFireCount,
             bool alarmsRinging,
-            bool purseEnabled,
-            int purse,
-            int purseMaximum,
-            int purseSpent,
-            int purseEarned,
-            int blastChargesRemaining,
             IReadOnlyList<PowerSparkSnapshot> powerSparks,
             RoundPhase roundPhase,
             int targetSavedPercent,
@@ -756,12 +719,6 @@ namespace Paniq.Simulation
             this.events = events;
             ClearOfFireCount = clearOfFireCount;
             AlarmsRinging = alarmsRinging;
-            PurseEnabled = purseEnabled;
-            Purse = purse;
-            PurseMaximum = purseMaximum;
-            PurseSpent = purseSpent;
-            PurseEarned = purseEarned;
-            BlastChargesRemaining = blastChargesRemaining;
             PowerSparks = powerSparks;
             RoundPhase = roundPhase;
             TargetSavedPercent = targetSavedPercent;
@@ -780,58 +737,6 @@ namespace Paniq.Simulation
 
         /// <summary>Whether the fire alarms are ringing.</summary>
         public bool AlarmsRinging { get; private set; }
-
-        /// <summary>
-        /// Whether this level has a purse at all (prototype 3, 2026-09-25:
-        /// the office does not). Off, everything is free and the display
-        /// draws no purse and no prices.
-        /// </summary>
-        public bool PurseEnabled { get; private set; } = true;
-
-        /// <summary>What the player has left to spend, and what they have spent and earned.</summary>
-        public int Purse { get; private set; }
-        public int PurseMaximum { get; private set; }
-        public int PurseSpent { get; private set; }
-        public int PurseEarned { get; private set; }
-
-        /// <summary>
-        /// The cards the player is holding, in the order the dead dealt them.
-        /// Empty at the start of every round: nothing is bought, everything is
-        /// dealt.
-        /// </summary>
-        public IReadOnlyList<PlayerCommandType> Hand => hand;
-
-        /// <summary>How many sticks of TNT the player has left.</summary>
-        public int BlastChargesRemaining { get; private set; }
-
-        /// <summary>What a card costs, so the display can grey out what is out of reach.</summary>
-        public int CostOf(PlayerCommandType card)
-        {
-            int index = (int)card;
-            return cardCosts != null && index >= 0 && index < cardCosts.Length ? cardCosts[index] : 0;
-        }
-
-        /// <summary>
-        /// What one click on a door in this state would cost, so the hover
-        /// hint can put a price on it before the player commits to it. The
-        /// building's way out has its own price for the key.
-        /// </summary>
-        public int CostOfDoorClick(DoorState state, bool leadsOutside)
-        {
-            return CostFrom(leadsOutside ? exitClickCosts : doorClickCosts, state);
-        }
-
-        /// <summary>What turning the key on a door in this state would cost.</summary>
-        public int CostOfLockToggle(DoorState state, bool leadsOutside)
-        {
-            return CostFrom(leadsOutside ? exitLockToggleCosts : lockToggleCosts, state);
-        }
-
-        private static int CostFrom(int[] table, DoorState state)
-        {
-            int index = (int)state;
-            return table != null && index >= 0 && index < table.Length ? table[index] : 0;
-        }
 
         public bool FireActive { get; private set; }
         public LogicalPosition FireOrigin { get; private set; }

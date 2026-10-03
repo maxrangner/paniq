@@ -131,6 +131,9 @@ namespace Paniq.Gameplay
         /// <summary>How many would have lived with nobody at the controls, once known.</summary>
         public int? LeftAloneSavedCount => leftAlone?.SavedCount;
 
+        /// <summary>How it ended for each person in the hands-off round, in the scenario's order, once known.</summary>
+        public System.Collections.Generic.IReadOnlyList<AgentTerminalOutcome> LeftAloneOutcomes => leftAlone?.Outcomes;
+
         /// <summary>The hands-off round exists and has not finished yet.</summary>
         public bool LeftAloneStillWorking => leftAlone != null && !leftAlone.IsDone;
 

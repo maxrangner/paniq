@@ -22,7 +22,10 @@ namespace Paniq.Simulation
         Maze,
 
         /// <summary>A room with one of everything to bump into, pick up, sit on, open or set alight: for watching interactions.</summary>
-        InteractionRoom
+        InteractionRoom,
+
+        /// <summary>The office played as a loop (2026-10-02): the same floor, an open way out and a real fire in the middle (see <see cref="OfficeLoopLevel"/>).</summary>
+        OfficeLoop
     }
 
     /// <summary>
@@ -75,6 +78,8 @@ namespace Paniq.Simulation
                     return Maze(template);
                 case BuiltInBuilding.InteractionRoom:
                     return InteractionRoom(template);
+                case BuiltInBuilding.OfficeLoop:
+                    return OfficeLoopLevel.Apply(template);
                 default:
                     throw new ArgumentOutOfRangeException(nameof(building), $"Unknown built-in building {building}.");
             }

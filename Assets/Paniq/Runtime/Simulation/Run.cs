@@ -105,6 +105,16 @@ namespace Paniq.Simulation
             agents = CreateAgents(doorStates.Length, geometry);
             fear = new FearSystem(context, threats);
             fear.DealTemperaments(agents);
+            if (scenario.World.EachPersonHasTheirOwnDice)
+            {
+                dice = new Pcg32[agents.Length];
+                for (int i = 0; i < agents.Length; i++)
+                {
+                    dice[i] = new Pcg32(context.Seed, PersonSequenceBase + agents[i].Id.Value);
+                }
+
+                fireDice = new Pcg32(context.Seed, FireSequence);
+            }
 
             crowd = new Crowd(agents, scenario.World.OccupancyRadiusMillimetres, geometry.FireArea);
             physics = new PhysicsWorld(scenario.PhysicsFeel, geometry.FireArea, scenario.ObjectPhysics.WallRestitutionPercent,
@@ -543,6 +553,9 @@ namespace Paniq.Simulation
             return i >= 0 && agents[i].Doors.WayOutDoorIndex == wayOutDoorIndex && agents[i].Doors.ExitDoorIndex >= 0;
         }
 
+        /// <summary>Tests and measurements: the door this person is making for now, or -1.</summary>
+        internal int ExitDoorIndexForTests(int agentIndex) => agents[agentIndex].Doors.ExitDoorIndex;
+
         public AgentSnapshot GetAgent(SimulationId id)
         {
             int i = crowd.IndexOf(id);
@@ -892,7 +905,19 @@ namespace Paniq.Simulation
             traps.Advance();
             nudges.Advance();
             tugs.Advance();
-            threats.Advance();
+            if (dice == null)
+            {
+                threats.Advance();
+            }
+            else
+            {
+                // The fire spreads with its own dice (2026-10-03).
+                Pcg32 shared = context.Random;
+                context.Random = fireDice;
+                threats.Advance();
+                fireDice = context.Random;
+                context.Random = shared;
+            }
 
             // Phase 2 as well: a fuse burning along a wall toward a socket is
             // hazard advancing on its own clock, exactly as a threat is. It
@@ -908,11 +933,44 @@ namespace Paniq.Simulation
                     continue;
                 }
 
+                if (dice == null)
+                {
+                    StepOnePerson(agent);
+                    continue;
+                }
+
+                // Their own dice for their own turn (2026-10-03).
+                Pcg32 shared = context.Random;
+                context.Random = dice[i];
+                StepOnePerson(agent);
+                dice[i] = context.Random;
+                context.Random = shared;
+            }
+
+            AfterThePeople();
+        }
+
+        /// <summary>Each person's own dice, or null while everything comes off the one stream.</summary>
+        private Pcg32[] dice;
+
+        /// <summary>The fire's own dice, used while <see cref="dice"/> is.</summary>
+        private Pcg32 fireDice;
+
+        /// <summary>The first stream number for a person's own dice: theirs is this plus their id.</summary>
+        private const ulong PersonSequenceBase = 100000UL;
+
+        /// <summary>The fire's own stream number.</summary>
+        private const ulong FireSequence = 59UL;
+
+        /// <summary>One person's turn in phase 4: what they see and hear, how they feel, and what they decide to do.</summary>
+        private void StepOnePerson(Agent agent)
+        {
+            {
                 if (body.BurnOut(agent))
                 {
                     items.DropFromLost(agent);
                     keycards.DropFromLost(agent);
-                    continue;
+                    return;
                 }
 
                 perception.Update(agent);
@@ -940,7 +998,7 @@ namespace Paniq.Simulation
                 if (body.Update(agent))
                 {
                     // Staggering, on the floor or getting up: no control, no move.
-                    continue;
+                    return;
                 }
 
                 MotorIntent? intent;
@@ -976,7 +1034,11 @@ namespace Paniq.Simulation
                     agent.Body.Speed = 0;
                 }
             }
+        }
 
+        /// <summary>Phase 4's tail and everything after it in the tick.</summary>
+        private void AfterThePeople()
+        {
             chairs.ResolveStanding();
             leaders.CountFollowers();
             extinguishers.Spray();

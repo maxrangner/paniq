@@ -22,3 +22,6 @@ MonoBehaviour:
   directorClimbsTheLadder: 1
   directorCapsTheRound: 1
   playerPullsAlarms: 0
+  shortName: "Office (old)"
+  brief: ""
+  howItStarts: "A waste bin catches fire by itself within a minute and a half, or press Trigger event."

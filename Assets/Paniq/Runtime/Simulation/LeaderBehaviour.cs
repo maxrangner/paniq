@@ -90,7 +90,7 @@ namespace Paniq.Simulation
             agent.Leading.NextPlanTick = checked(context.Tick + context.Random.NextIntInclusive(
                 settings.PlanMinimumTicks, settings.PlanMaximumTicks));
 
-            if (!TryOrderADoorBrokenDown(agent) && !TryOrderTheFireFought(agent))
+            if (!TryOrderADoorBrokenDown(agent) && (settings.LeadersLeaveTheFireAlone || !TryOrderTheFireFought(agent)))
             {
                 Rally(agent, CausalEventType.LeaderCalledPeopleOn, default);
             }

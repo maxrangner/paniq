@@ -353,7 +353,7 @@ namespace Paniq.Presentation
                 (Colour: new Color(1f, 0.9f, 0.35f), Mark: "o o o", Means: "out cold"),
                 (Colour: new Color(0.4f, 0.95f, 0.5f), Mark: "star", Means: "somebody is following them"),
                 (Colour: new Color(1f, 0.82f, 0.3f), Mark: "hand", Means: "doing what your hand asked; still, keeping at it after you let go"),
-                (Colour: new Color(1f, 0.9f, 0.2f), Mark: "card", Means: "has the keycard"),
+                (Colour: new Color(1f, 0.9f, 0.2f), Mark: "card", Means: "has the keycard (a level with a keycard)"),
                 (Colour: new Color(0.85f, 0.6f, 1f), Mark: "band", Means: "at the ankles: keeping together with the others wearing it"),
                 (Colour: new Color(1f, 0.55f, 0.15f), Mark: "[]", Means: "on fire"),
                 (Colour: new Color(0.55f, 0.15f, 0.15f), Mark: "[]", Means: "lost")
@@ -361,9 +361,17 @@ namespace Paniq.Presentation
 
             // Since 2026-09-30 the mouse has no key and no hand holding a door
             // shut: the right button pushes people away from it.
-            const string doorHelp =
+            bool cardDoor = false;
+            for (int d = 0; d < snapshot.Doors.Count; d++)
+            {
+                cardDoor |= snapshot.Doors[d].NeedsKeycard;
+            }
+
+            string doorHelp =
                 "hold the left button to draw people to use it (a locked one they pound on), the right button to push them away from it. " +
-                "Red is locked. The way out needs the keycard: whoever has it swipes it open; under your hand it gives to a long pounding";
+                (cardDoor
+                    ? "Red is locked. The way out needs the keycard: whoever has it swipes it open; under your hand it gives to a long pounding"
+                    : "Red is locked. The frightened walk through a door you hold, away from the fire, and keep going. The way out is an ordinary door");
             var keys = new[]
             {
                 ("Hold the floor", "your hand on a place: people nearby come to it while you hold, the frightened too, one place at a time. Things too"),

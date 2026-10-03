@@ -803,8 +803,19 @@ namespace Paniq.Simulation
             return FindRoute(fromRoom, from, toRoom, traveller, true, out firstDoor, out lastDoor, out cost);
         }
 
-        private bool FindRoute(int fromRoom, LogicalPosition from, int toRoom, Agent traveller, bool knownOnly,
+        /// <summary>
+        /// The same walk through known doors, but never through
+        /// <paramref name="avoidDoor"/>: the way round a doorway that is too
+        /// hot (2026-10-03).
+        /// </summary>
+        public bool TryFindKnownRouteAvoiding(int fromRoom, LogicalPosition from, int toRoom, Agent traveller, int avoidDoor,
             out int firstDoor, out int lastDoor, out long cost)
+        {
+            return FindRoute(fromRoom, from, toRoom, traveller, true, out firstDoor, out lastDoor, out cost, avoidDoor);
+        }
+
+        private bool FindRoute(int fromRoom, LogicalPosition from, int toRoom, Agent traveller, bool knownOnly,
+            out int firstDoor, out int lastDoor, out long cost, int avoidDoor = -1)
         {
             firstDoor = -1;
             lastDoor = -1;
@@ -871,7 +882,7 @@ namespace Paniq.Simulation
                 {
                     int door = candidates[i];
                     int next = RoomBeyond(door, room);
-                    if (next < 0 || routeSettled[next] || !CanRouteThrough(door, traveller, knownOnly))
+                    if (next < 0 || routeSettled[next] || door == avoidDoor || !CanRouteThrough(door, traveller, knownOnly))
                     {
                         continue;
                     }
@@ -1080,10 +1091,11 @@ namespace Paniq.Simulation
         /// is consulted when <paramref name="traveller"/> is null: that is the
         /// building's own answer, which is what a sign on its wall gives.
         /// </summary>
-        public bool RouteDoors(int fromRoom, LogicalPosition from, int toRoom, Agent traveller, List<int> into)
+        public bool RouteDoors(int fromRoom, LogicalPosition from, int toRoom, Agent traveller, List<int> into,
+            bool knownOnly = false)
         {
             if (fromRoom < 0 || toRoom < 0 ||
-                !FindRoute(fromRoom, from, toRoom, traveller, false, out _, out _, out _))
+                !FindRoute(fromRoom, from, toRoom, traveller, knownOnly, out _, out _, out _))
             {
                 return false;
             }
@@ -1120,7 +1132,22 @@ namespace Paniq.Simulation
                 return false;
             }
 
-            return IsDoorOpen(door) || traveller == null || context.Tick >= traveller.Doors.AvoidUntilTick[door];
+            if (traveller == null)
+            {
+                return true;
+            }
+
+            // A doorway they backed away from as too hot (2026-10-03, on a
+            // level that says so): their own plans go round it, open or shut.
+            // Only their plans for getting out, hiding and looking (the
+            // known-door searches); a walk to a bottle or to the hand is not
+            // theirs to refuse.
+            if (knownOnly && context.Scenario.Exits.HeatChoicesStick && context.Tick < traveller.Doors.HotUntilTick[door])
+            {
+                return false;
+            }
+
+            return IsDoorOpen(door) || context.Tick >= traveller.Doors.AvoidUntilTick[door];
         }
 
         // ---------------------------------------------------------------- tables

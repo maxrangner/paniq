@@ -110,6 +110,12 @@ namespace Paniq.Presentation
         /// per opening rather than once per frame.
         /// </summary>
         private void Rebuild(RunSnapshot snapshot)
+            => RebuildFrom(snapshot);
+
+        /// <summary>The scenario the round is played on, for naming rooms (2026-10-03); null names none.</summary>
+        public ScenarioData Scenario { get; set; }
+
+        private void RebuildFrom(RunSnapshot snapshot)
         {
             if (builtFromCount == snapshot.Events.Count && builtShowingEverything == showEverything)
             {
@@ -120,7 +126,7 @@ namespace Paniq.Presentation
             builtShowingEverything = showEverything;
             lines.Clear();
 
-            var story = new EventStory(snapshot);
+            var story = new EventStory(snapshot, null, Scenario);
             int runLength = 0;
             CausalEventType runType = default;
             int runStartTick = 0;

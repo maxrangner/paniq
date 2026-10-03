@@ -456,6 +456,7 @@ namespace Paniq.Simulation
         public AgentDoorMemory(int doorCount)
         {
             AvoidUntilTick = new int[doorCount];
+            HotUntilTick = new int[doorCount];
             FoundShut = new bool[doorCount];
             ShutByThem = new bool[doorCount];
         }
@@ -500,6 +501,30 @@ namespace Paniq.Simulation
 
         /// <summary>The door they last gave up as too hot to reach, or -1: so the giving up is written down once, not every decision.</summary>
         public int HidFromHeatAtDoor = -1;
+
+        /// <summary>
+        /// The doorway they are dashing for, kept after the dash's own
+        /// seconds so the dash runs on while the floor ahead is walkable
+        /// (2026-10-03, <see cref="ExitSettings.HeatChoicesStick"/>), or -1.
+        /// </summary>
+        public int DashDoor = -1;
+
+        /// <summary>
+        /// The door the hand took them through, and until when they are loath
+        /// to turn back through it (2026-10-03,
+        /// <see cref="InfluenceSettings.FrightenedGoThroughAHeldDoor"/>); -1
+        /// for none.
+        /// </summary>
+        public int GoOnFromDoor = -1;
+        public int GoOnUntilTick;
+
+        /// <summary>
+        /// Per door: until when they count it as too hot to go through
+        /// (2026-10-03, <see cref="ExitSettings.HeatChoicesStick"/>). Kept
+        /// apart from <see cref="AvoidUntilTick"/>, which a door opening wipes
+        /// and a crush also writes.
+        /// </summary>
+        public readonly int[] HotUntilTick;
 
         /// <summary>The doorway the press is carrying them through while they are down, or -1: so it is written down once per fall.</summary>
         public int CarriedThroughDoor = -1;
@@ -795,6 +820,9 @@ namespace Paniq.Simulation
 
         /// <summary>A press on a door they have already thought again about, so it brings their next choice forward once.</summary>
         public ulong RethoughtForPress;
+
+        /// <summary>The press whose ask they have done and gone on from (2026-10-03): it is not answered again.</summary>
+        public ulong DoneWithPress;
 
         /// <summary>After a give-up: not asked again before this tick.</summary>
         public int RetryFromTick;

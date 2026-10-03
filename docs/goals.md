@@ -23,8 +23,10 @@ the owner plays it and decides what the next stone is.
 **How prototypes are numbered.** A prototype here is a run of stones that is
 worked on and then closed, not a separate game. Prototype 1 is the
 fire-reaction office: finished on 2026-09-22 and merged into `main`.
-Prototype 2 is next and is being built in that same scene, so nothing from
-prototype 1 is thrown away by starting it.
+Prototype 2 (the round, finished 2026-09-25) and prototype 3 (gameplay,
+finished 2026-10-03) were built on in the same scene, so nothing was thrown
+away by starting the next; prototype 3 also added a second office level, the
+loop level, which is where the work goes on.
 
 A prototype is **not** a small version of the finished game. It has no fixed
 end state, no required feature list, and no promise that any layer survives.

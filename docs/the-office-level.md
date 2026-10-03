@@ -18,10 +18,10 @@
 > *Prototype fire 2* (`OfficeLoop`, the office re-ruled), with the office one
 > click away.
 
-**Status:** the game's one level, and the scene every stone so far has been
+**Status:** the game's first level, and the scene every stone so far has been
 built in: prototype 1 (the fire-reaction office, finished and merged into
-`main` on 2026-09-22), prototype 2 (the round) and prototype 3 (gameplay, under
-way). This page says how the level plays *today*; how it got here is in the
+`main` on 2026-09-22), prototype 2 (the round) and prototype 3 (gameplay,
+finished and merged into `main` on 2026-10-03). This page says how the level plays *today*; how it got here is in the
 [prototype roadmap](roadmap.md) and its history. Since 2026-09-30 the scene is
 `prototype_fire_1_fl_small` (a fire, one floor, small; the owner's name), the
 level shows as "Prototype fire 1 (one floor, small)" on the start card, and

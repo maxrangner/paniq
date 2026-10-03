@@ -63,10 +63,10 @@ game-development knowledge to answer.
   groups before committing. The binding rule is in
   [`AGENTS.md`](../AGENTS.md) under *Quality checks*; the commands and the
   coverage table are below.
-- A **sketch** runs neither gear, only the compile check: it is an idea
-  handed to the owner to play before it is built to keep. The binding rule is
-  in [`AGENTS.md`](../AGENTS.md) under *Sketch and keep*, and the short form
-  is below.
+- In **level mode** neither gear runs, only the compile check and the smoke
+  check: the level is still changing shape, and the proving waits for the
+  hardening pass. The binding rule is in [`AGENTS.md`](../AGENTS.md) under
+  *Level mode*, and the short form is below.
 - The replay fingerprint tests (`ReplayFingerprintEditModeTests`) squash whole
   runs into single numbers. A change meant to be invisible to players, such as
   a restructure, must keep every number. A change meant to alter behaviour
@@ -106,19 +106,26 @@ then use `-Reset` if the run never reports back.
 libraries without Unity running: a quick check that a change builds before
 handing it to the editor.
 
-### Sketch and keep
+### Level mode
 
-Two speeds of prototype work (2026-09-30, the owner's decision; the binding
-text is in `AGENTS.md`). The owner names the speed:
+One level first, the proving once (2026-10-03, the owner's decision; it
+replaced *Sketch and keep*, and the binding text is in `AGENTS.md`):
 
-- **Sketch**: change the game code, run the compile check, hand it over.
-  No new tests, no docs, no fingerprints, no version bump; red tests are
-  said in a line; the report is three lines (what is different, how to try
-  it, what is unproven); nothing is committed.
-- **Keep**: revert what the owner dropped, then tests, docs, fingerprints
-  and versions, the full run, one commit -- everything below, unchanged.
-- **Neither named, or unclear**: ask, in one line with a recommendation,
-  before doing anything. There is no default.
+- **Every change**: change the game code; `CompileAgainstUnity.ps1`; then
+  `RunUnityTests.ps1 -Filter Smoke` (`SmokeEditModeTests`: every level on the
+  start card played once, failing only on an error or a fire round that never
+  ends; about twenty seconds); a local save point, `wip(level): ...`, never
+  pushed; a three-line report.
+- **Not done**: fingerprints, versions, documents, measurements, the full
+  run, switches that keep other levels as they were.
+- **When the owner says the level is done**: one hardening pass -- tests,
+  fingerprints, versions, documents, the full run -- and the save points
+  squashed before anything is pushed.
+
+Why: the old way spent hours per change proving numbers about a level that
+changed again the next day (machine-played rounds before the owner played,
+the office kept byte-identical behind switches, documents per batch). The
+test suite itself was never the cost.
 
 ### The test levels
 
@@ -171,8 +178,10 @@ prompt waits less in total than the same work split into small prompts.
 `-Slowest 10` after any run, or `-Slowest 10 -LastRun` afterwards with no
 editor, lists the tests the suite spends its time on. Trim on that evidence,
 not by feel -- and take it from a *full* run: a filtered run's list names
-only what ran, and `-LastRun` reads whichever run was last (the 2026-10-01
-trim started from a filtered list and named the wrong tests). The tests at
+only what ran (the 2026-10-01 trim started from a filtered list and named the
+wrong tests). Each half keeps its own last results
+(`result-EditMode.txt`, `result-PlayMode.txt`), so after `-All` the list
+covers both. The tests at
 the top are whole-building runs over several seeds; the cost is the stepping,
 not the checks. A "does it ever happen" test stops at the first seed that
 says yes; an every-tick invariant keeps its seeds.
@@ -259,14 +268,18 @@ are not.
 
 **The test bridge**
 - `-Filter` matches plain text, and a comma separates names
-  (`-Filter Doors,ClosingDoors`). `A|B` is not a pattern here and matches
-  nothing.
+  (`-Filter Doors,ClosingDoors`), from PowerShell and from Bash alike (until
+  2026-10-03 a comma list started from Bash ran nothing). `A|B` is not a
+  pattern here and matches nothing.
+- An inconclusive test fails the run: its `Assume.That` premise no longer
+  holds, so it has stopped proving anything.
+- `-All -Filter X` passes when only one half has a test matching `X`.
 - The bridge compiles `Assets` at the start of every request. Do not edit a
   `.cs` file under `Assets` while a run is in flight.
-- `Temp/PaniqTestBridge/result.txt` holds only the latest run: a play-mode run
-  overwrites an edit-mode one. The editor console is drowned in physics
-  warnings, so read the file and look for lines starting `FAILED`, `passed=`
-  and `failed=`.
+- `Temp/PaniqTestBridge/result.txt` holds only the latest run;
+  `result-EditMode.txt` and `result-PlayMode.txt` keep each half's last. The
+  editor console is drowned in physics warnings, so read the files and look
+  for lines starting `FAILED`, `passed=` and `failed=`.
 - From Bash, run it as
   `powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunUnityTests.ps1 ...`.
   Without the bypass the script is refused.
